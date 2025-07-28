@@ -1,0 +1,21 @@
+可以在 content/posts/ 下添加一篇博文测试：
+hugo new posts/my-first-post.md
+
+然后编辑它：
+vim content/posts/my-first-post.md
+
+
+---
+title: "My First Post"
+date: 2025-07-28
+draft: false
+---
+
+Welcome to my blog built with Hugo and PaperMod!
+注意把 draft: true 改成 false，否则不会发布。
+
+然后再运行：
+hugo --minify -d docs
+git add .
+git commit -m "Add first post"
+git push origin master

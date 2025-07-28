@@ -1,7 +1,7 @@
-+++
-date = '2025-07-28T10:01:17+08:00'
-draft = false
-title = 'Hello World'
-+++
+---
+title: "My First Post"
+date: 2025-07-28
+draft: false
+---
 
-欢迎访问我的博客！
+Welcome to my blog built with Hugo and PaperMod!
