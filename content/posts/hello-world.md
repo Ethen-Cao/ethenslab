@@ -1,5 +1,5 @@
 ---
-title: "My First Post"
+title: "Hello world"
 date: 2025-07-28
 draft: false
 ---
