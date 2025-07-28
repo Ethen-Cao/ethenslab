@@ -4,16 +4,29 @@ title = "Ethen's Lab"
 theme = "PaperMod"
 publishDir = "docs"
 
+
 [params]
-  author = "Ethen CQL"
-  defaultTheme = "auto"
-  showReadingTime = true
-  showPostNavLinks = true
-  showCodeCopyButtons = true
-  showRecent = true
+  ShowBreadCrumbs = true
+  ShowReadingTime = true
+  ShowPostNavLinks = true
+  ShowWordCount = true
+  ShowCodeCopyButtons = true
+  defaultTheme = "auto"  # 或 "light", "dark"
+  mainSections = ["android-dev", "android-automotive-os-dev", "ivi-solution"]
+  disableContent = true  # 禁用首页文章列表
 
 [menu]
   [[menu.main]]
-    name = "Home"
-    url = "/"
+    name = "Android系统开发"
+    url = "/android-dev/"
     weight = 1
+
+  [[menu.main]]
+    name = "Android Automotive OS开发"
+    url = "/android-automotive-os-dev/"
+    weight = 2
+
+  [[menu.main]]
+    name = "IVI Solution"
+    url = "/ivi-solution/"
+    weight = 3
