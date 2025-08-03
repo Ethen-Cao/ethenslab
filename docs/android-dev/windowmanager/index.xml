@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>WindowManager on Ethen 的实验室</title>
+    <link>http://localhost:1313/ethenslab/android-dev/windowmanager/</link>
+    <description>Recent content in WindowManager on Ethen 的实验室</description>
+    <generator>Hugo -- 0.148.2</generator>
+    <language>en</language>
+    <lastBuildDate>Tue, 29 Jul 2025 10:22:54 +0800</lastBuildDate>
+    <atom:link href="http://localhost:1313/ethenslab/android-dev/windowmanager/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>WindowManagerService 解析</title>
+      <link>http://localhost:1313/ethenslab/android-dev/windowmanager/windowmanagerservice/</link>
+      <pubDate>Tue, 29 Jul 2025 10:22:54 +0800</pubDate>
+      <guid>http://localhost:1313/ethenslab/android-dev/windowmanager/windowmanagerservice/</guid>
+      <description>&lt;h2 id=&#34;windowmanagerservice-概述&#34;&gt;WindowManagerService 概述&lt;/h2&gt;
+&lt;p&gt;WindowManagerService（简称WMS）是Android系统中负责窗口（Window）管理的核心系统服务。它是屏幕上所有可见元素的“总管家”，决定了所有窗口的外观、行为和交互方式。&lt;/p&gt;
+&lt;p&gt;作为Android框架层（Framework Layer）的关键部分，WMS随系统启动，并稳定运行在权限极高的 system_server 进程中。这个位置赋予了它管理所有应用窗口和系统窗口的最高权限。&lt;/p&gt;
+&lt;p&gt;WMS的角色像一个“总指挥”，它并不亲自执行所有底层操作，而是协调系统中的多个组件来共同完成对窗口的生命周期管理。其核心作用包括：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;窗口的创建与管理 (Creation &amp;amp; Management): 与 ActivityManagerService (AMS) 协同工作。当AMS决定要显示某个Activity时，WMS负责为其创建和管理对应的窗口实例（WindowState）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;布局与计算 (Layout &amp;amp; Calculation): 通过自顶向下的遍历，精确计算出每个窗口在屏幕上的最终位置和尺寸（Frame），从而适配不同尺寸的屏幕以及分屏、小窗等各种显示模式。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;层级与Z序 (Layer &amp;amp; Z-Order): 维护所有窗口的前后堆叠顺序（Z-Order），决定哪个窗口显示在最上层，哪个窗口被遮挡，确保界面元素以正确的次序呈现。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;绘制与合成 (Drawing &amp;amp; Composition): WMS自身不负责绘制窗口内容。它管理窗口的绘图表面（Surface），并将所有窗口的元数据（位置、层级、透明度等）统一提交给 SurfaceFlinger，由后者完成最终的画面合成。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;窗口动画 (Window Animation): 负责实现窗口切换、应用启动/退出、调整大小等过程中的过渡动画，为用户提供流畅的视觉体验。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;输入事件分发 (Input Event Dispatching): 作为输入系统的关键一环，WMS接收原始的触摸、按键等事件，准确判断事件应该由哪个窗口接收，并交由 InputDispatcher 进行精确投递。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;窗口的创建与管理&#34;&gt;窗口的创建与管理&lt;/h2&gt;
+&lt;p&gt;窗口的创建请求总是由应用进程发起的，WMS 则是请求的响应者和执行者。&lt;/p&gt;
+&lt;p&gt;&lt;img alt=&#34;WindowState 创建时序示意图&#34; loading=&#34;lazy&#34; src=&#34;http://localhost:1313/ethenslab/images/windowstate-creation.png&#34;&gt;&lt;/p&gt;
+&lt;p&gt;![WindowState 创建时序示意图]({{ &amp;ldquo;/images/windowstate-creation.png&amp;rdquo; | relURL }})&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

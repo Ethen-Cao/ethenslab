@@ -1,0 +1,82 @@
+@startuml
+!theme materia
+skinparam defaultFontColor #000000
+skinparam sequence {
+    ParticipantBackgroundColor #FFFFFF
+    LifeLineBorderColor #000000
+    LifeLineBackgroundColor #F8F9FA
+    ArrowColor #343A40
+    ActorBorderColor #343A40
+    ActorBackgroundColor #E9ECEF
+    NoteBackgroundColor #FFFBE5
+    NoteBorderColor #C4B59D
+}
+title 高德地图全屏/小屏切换时序图 (MotionLayout方案)
+
+actor User as "用户"
+
+box "应用层 (App Layer)" #E9F5FF
+    participant "Dock Button\n(View)" as Button
+    participant "Activity\n(App Code)" as App
+    participant "MotionLayout" as ML
+end box
+
+box "Android系统 & SDK (System Layer)" #F0FFF0
+    participant "Gaode SDK\n(Map Engine)" as Gaode
+    participant "RenderThread\n(UI渲染线程)" as RenderThread
+end box
+
+box "硬件层 (Hardware Layer)" #FFF0F0
+    participant CPU
+    participant GPU
+end box
+
+== 初始化阶段 (Initialization Phase) ==
+App -> Gaode !! : new MapView(context, aMapOptions.useTextureView(true))
+note right of App : **关键**: 强制使用TextureView, 避免闪烁
+Gaode -> App : 返回MapView实例
+App -> ML : addView(mapView) 到容器中
+App -> Gaode : mapView.onCreate()
+Gaode -> Gaode : 初始化地图引擎, 开始内部渲染循环
+par
+    Gaode -> RenderThread : 持续发送地图绘制指令 (Draw Commands)
+    RenderThread -> GPU : 提交地图纹理进行绘制
+    GPU -> GPU : 渲染初始地图画面
+end
+
+== 动画触发阶段 (Trigger Phase) ==
+User -> Button : tap()
+Button -> App : 回调 onClick()
+App -> ML : motionLayout.transitionToEnd()
+note right of App : 或 transitionToStart(), 命令开始动画
+
+== 动画执行阶段 (Animation Phase) - 每一帧循环 ==
+ML -> CPU : 计算动画下一帧的视图属性\n(位置, 尺寸, 圆角)
+note right of ML : 基于MotionScene中的\nConstraintSet进行插值计算
+
+CPU -> RenderThread : 发送更新后的**容器(CardView)**绘制指令\n(DisplayList)
+note left of RenderThread
+  **核心解耦点:**
+  RenderThread独立处理两组指令:
+  1. 来自**MotionLayout**的容器(CardView)动画指令。
+  2. 来自**高德SDK**的地图内容(TextureView)绘制指令。
+  它将两者合成为最终画面，实现了内容与容器动画的分离。
+end note
+
+par "并行处理"
+    RenderThread -> GPU : 提交**容器(CardView)**的绘制指令\n(更新位置/尺寸)
+    note right of RenderThread : 容器在移动和缩放
+else
+    Gaode -> RenderThread : (并行)继续发送**地图内容**的绘制指令
+    RenderThread -> GPU : 提交**地图内容(TextureView)**的纹理
+    note right of RenderThread : 地图内容本身并未缩放，\n只是在其变化的容器内被“裁剪”显示
+end
+
+GPU -> GPU : 合成最终画面 (Composite Frame)
+... 动画持续，重复上一帧的循环 ...
+
+== 动画结束 ==
+ML -> App : onTransitionCompleted() (可选监听)
+App -> App : 更新内部状态 (e.g., isFullScreen = false)
+
+@enduml

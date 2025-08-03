@@ -1,0 +1,39 @@
+{{ define "main" }}
+<main class="main">
+  <!-- <header class="page-header">
+    {{ .Render "title" }}
+    {{- with .Description }}
+    <div class="page-description">{{ . }}</div>
+    {{- end }}
+  </header> -->
+
+  {{ $sections := .Sections }}
+  {{ if gt (len $sections) 0 }}
+    {{/* 如果有子目錄，就顯示「卡片列表」 */}}
+    <div class="home-sections-list">
+      {{ range $sections.ByWeight }}
+        <a class="home-section-item" href="{{ .RelPermalink }}">
+          <article>
+            <h2 class="home-section-title">{{ .Title }}</h2>
+            <div class="home-section-description">
+              <p>{{ .Description }}</p>
+            </div>
+            {{- $pages := .RegularPages -}}
+            {{- if gt (len $pages) 0 -}}
+            <span class="home-section-meta">{{ len $pages }} 篇文章</span>
+            {{- end -}}
+          </article>
+        </a>
+      {{ end }}
+    </div>
+  {{ else }}
+    {{/* 如果沒有子目錄，就顯示「文章列表」 */}}
+    <div class="posts">
+      {{ range .Paginator.Pages }}
+        {{ .Render "summary" }}
+      {{ end }}
+    </div>
+    {{ .Render "pagination" }}
+  {{ end }}
+</main>
+{{ end }}

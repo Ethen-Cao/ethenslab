@@ -1,0 +1,68 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontColor #000000
+skinparam sequence {
+    ArrowColor #333333
+    ActorBorderColor #333333
+    LifeLineBorderColor #555555
+    ParticipantBorderColor #333333
+    ParticipantBackgroundColor #F8F8F8
+}
+
+title WindowToken 创建、传递与使用时序图
+
+box "System Server" #LightBlue
+    participant "ActivityManagerService" as AMS
+    participant "WindowManagerService" as WMS
+end box
+
+box "Application Process" #LightGreen
+    participant "ActivityThread" as AT
+    participant "Activity" as Act
+    participant "Window" as Win
+    participant "ViewRootImpl" as VRI
+end box
+
+autonumber "<b>[0]"
+
+AMS -> AMS: 1. 创建 ActivityRecord 和 WindowToken
+note right: WindowToken 作为 Activity 的\n唯一身份标识被创建
+
+AMS -> AT: 2. scheduleLaunchActivity(..., token, ...)
+note right: 通过 Binder IPC 将 Token 发送到应用进程
+
+activate AT
+AT -> Act: 3. new Activity()
+AT -> Act: 4. activity.attach(..., token, ...)
+activate Act
+
+Act -> Win: 5. mWindow.setToken(token)
+activate Win
+note right of Win: Token 被保存在\nActivity 关联的\nWindow 对象中
+deactivate Win
+deactivate Act
+
+deactivate AT
+
+... 一段时间后，Activity 准备显示 ...
+
+Act -> VRI: 6. WindowManager.addView(decorView, params)
+note right: ViewRootImpl 被创建
+
+activate VRI
+VRI -> Win: 7. 获取 WindowManager.LayoutParams
+activate Win
+Win -> VRI: 返回 params (其中包含了之前保存的 Token)
+deactivate Win
+
+VRI -> WMS: 8. IWindowSession.addToDisplay(..., params, ...)
+note right: **关键步骤**:\nViewRootImpl 将包含 Token 的\nLayoutParams 对象发送给 WMS
+
+activate WMS
+WMS -> WMS: 9. 从 params 中提取 token
+WMS -> WMS: 10. 根据 Token 找到对应的\nActivityRecord/WindowState，\n完成窗口与 Activity 的关联
+deactivate WMS
+
+deactivate VRI
+@enduml

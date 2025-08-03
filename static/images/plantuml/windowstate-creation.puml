@@ -1,0 +1,71 @@
+@startuml
+' title WindowState Creation Sequence
+
+!theme plain
+
+skinparam defaultFontName 微软雅黑
+
+' --- 定义参与者 ---
+box "App Process" #LightBlue
+    participant "App (Activity)"
+    participant "ViewRootImpl"
+    participant "IWindowSession"
+end box
+
+box "System Server" #LightGray
+    participant "WindowManagerService"
+    participant "WindowState"
+    participant "SurfaceControl"
+end box
+
+
+autonumber "<b>[1]"
+"App (Activity)" -> "ViewRootImpl" ** : WindowManager.addView()
+note right: Activity变得可见, 触发添加窗口流程。\n内部创建并初始化 ViewRootImpl。
+activate "ViewRootImpl"
+
+autonumber "<b>[2]"
+"ViewRootImpl" -> "IWindowSession" : addToDisplay(token, layoutParams)
+note right: 通过 IWindowSession 这个Binder接口\n向WMS发起跨进程请求。
+activate "IWindowSession"
+
+autonumber "<b>[3]"
+"IWindowSession" -> "WindowManagerService" : addWindow(...)
+activate "WindowManagerService"
+
+group WMS Internal Processing
+    autonumber "<b>[4]"
+    "WindowManagerService" -> "WindowManagerService" : <b>Permissions Check</b>
+    note right: 校验应用是否有权限添加此类型窗口
+
+    autonumber "<b>[5]"
+    "WindowManagerService" -> "WindowState" ** : create(params)
+    note right: 验证通过, 创建WindowState实例\n保存窗口的所有属性和状态
+
+    autonumber "<b>[6]"
+    "WindowManagerService" -> "SurfaceControl" ** : create()
+    note right: 为新窗口创建对应的SurfaceControl\n这是连接到SurfaceFlinger图层的句柄
+
+    autonumber "<b>[7]"
+    "WindowManagerService" -> "WindowManagerService" : <b>Add to Hierarchy</b>
+    note right: 将WindowState添加到\n正确的窗口容器中 (e.g., TaskFragment)
+end
+
+autonumber "<b>[8]"
+"WindowManagerService" --> "IWindowSession" : return SurfaceControl handle & config
+deactivate "WindowManagerService"
+
+"IWindowSession" --> "ViewRootImpl" :
+deactivate "IWindowSession"
+
+autonumber "<b>[9]"
+"ViewRootImpl" -> "ViewRootImpl" : <b>Setup Surface & Schedule Draw</b>
+note right: 应用进程根据返回的句柄创建出\n可供绘制的 Surface 对象, \n并准备开始第一次绘制。
+deactivate "ViewRootImpl"
+
+autonumber "<b>[10]"
+"WindowManagerService" ->> "WindowSurfacePlacer" : scheduleLayout()
+note right: 异步调度一次布局遍历, \n以便在屏幕上正确放置新窗口。
+
+
+@enduml

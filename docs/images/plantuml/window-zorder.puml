@@ -1,0 +1,28 @@
+@startuml
+
+class WindowManagerService
+class RootWindowContainer
+class RootDisplayArea
+class DisplayContent {
+    int mDisplayId
+}
+class WindowContainer
+class DisplayArea {
+    - WindowContainer
+}
+class WindowState
+class WindowToken
+class ActivityRecord
+
+WindowToken <|-- ActivityRecord
+RootDisplayArea <|-- DisplayContent
+
+DisplayContent "mTokenMap" --> "many" WindowToken : <IBinder, WindowToken>
+
+WindowManagerService --> RootWindowContainer
+RootWindowContainer "1" *-- "many" DisplayContent
+
+
+
+
+@enduml

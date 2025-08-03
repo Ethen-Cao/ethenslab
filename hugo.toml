@@ -1,32 +1,27 @@
 baseURL = "https://ethen-cao.github.io/ethenslab/"
-languageCode = "en-us"
-title = "Ethen's Lab"
 theme = "PaperMod"
 publishDir = "docs"
-
+title = "Ethen 的实验室"
 
 [params]
+  description = "一个关于Android以及智能座舱的开发知识库。"
   ShowBreadCrumbs = true
   ShowReadingTime = true
   ShowPostNavLinks = true
   ShowWordCount = true
   ShowCodeCopyButtons = true
-  defaultTheme = "auto"  # 或 "light", "dark"
-  mainSections = ["android-dev", "android-automotive-os-dev", "ivi-solution"]
-  disableContent = true  # 禁用首页文章列表
+  defaultTheme = "auto"
 
 [menu]
   [[menu.main]]
     name = "Android系统开发"
     url = "/android-dev/"
-    weight = 1
-
+    weight = 10
   [[menu.main]]
-    name = "Android Automotive OS开发"
+    name = "Android Automotive"
     url = "/android-automotive-os-dev/"
-    weight = 2
-
+    weight = 20
   [[menu.main]]
-    name = "IVI Solution"
+    name = "智能座舱方案"
     url = "/ivi-solution/"
-    weight = 3
+    weight = 30

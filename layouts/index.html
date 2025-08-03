@@ -1,0 +1,20 @@
+{{ define "main" }}
+<main class="main">
+  <div class="home-sections-list">
+  {{- range .Site.Home.Sections.ByWeight }}
+    <a class="home-section-item" href="{{ .Permalink }}">
+      <article>
+        <h2 class="home-section-title">{{ .Title }}</h2>
+        <div class="home-section-description">
+          <p>{{ .Description }}</p>
+        </div>
+        {{- $pages := .RegularPages -}}
+        {{- if gt (len $pages) 0 -}}
+        <span class="home-section-meta">{{ len $pages }} 篇文章</span>
+        {{- end -}}
+      </article>
+    </a>
+  {{- end }}
+  </div>
+</main>
+{{ end }}
