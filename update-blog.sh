@@ -1,4 +1,4 @@
-hugo --minify -d docs
+#hugo --minify -d docs
 git add .
 git commit -m "update post"
 git push origin master
