@@ -6,7 +6,26 @@
     <description>Recent content in Explore AI on Ethen 的实验室</description>
     <generator>Hugo -- 0.148.2</generator>
     <language>en</language>
-    <lastBuildDate></lastBuildDate>
+    <lastBuildDate>Sun, 03 Aug 2025 17:17:50 +0800</lastBuildDate>
     <atom:link href="https://ethen-cao.github.io/ethenslab/explore-ai/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Gradle Asm Bytecode Transformation Plugin Principles Explained</title>
+      <link>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</link>
+      <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</guid>
+      <description>&lt;h1 id=&#34;gradle-asm-字节码转换插件原理解析&#34;&gt;Gradle ASM 字节码转换插件原理解析&lt;/h1&gt;
+&lt;h2 id=&#34;引言问题与解决方案&#34;&gt;引言：问题与解决方案&lt;/h2&gt;
+&lt;p&gt;问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。&lt;/p&gt;
+&lt;p&gt;解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。&lt;/p&gt;
+&lt;p&gt;我们采用的解决方案是创建一个自定义的 Gradle 插件，它利用 Android Gradle 插件 (AGP) 提供的转换 API 和 ASM 字节码操作框架，在编译期直接修改生成的 .class 文件，从根本上解决 API 的兼容性问题。&lt;/p&gt;
+&lt;h2 id=&#34;核心概念&#34;&gt;核心概念&lt;/h2&gt;
+&lt;p&gt;要理解这个插件，首先需要了解几个核心概念：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;Java 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。&lt;/p&gt;</description>
+    </item>
   </channel>
 </rss>
