@@ -1,0 +1,61 @@
+@startuml
+!theme materia
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam defaultFontColor #000000
+
+title 字节码转换插件工作流程
+
+cloud "源代码 (.java)" as Source {
+  [MainActivity.java] as MainActivitySrc
+  [CompatInputStream.java] as CompatSrc
+}
+
+database "Gradle 构建流程" as GradleProcess {
+  node "1. Java 编译器 (javac)" as Javac
+  node "2. AGP Transform Task (Transform API)" as Transform
+  node "3. DEX 编译器 (D8)" as D8
+}
+
+agent "我们的插件\n(DesugarTransformPlugin)" as Plugin
+
+artifact "编译产物" as Artifacts {
+  [MainActivity.class] as MainActivityClass
+  [CompatInputStream.class] as CompatClass
+  [<b>(修改后)</b>\nMainActivity.class] as ModifiedMainClass
+  [<b>(修改后)</b>\nCompatInputStream.class] as ModifiedCompatClass
+  [classes.dex] as DexFile
+  [最终 APK] as Apk
+}
+
+' 定义关系
+MainActivitySrc --> Javac
+CompatSrc --> Javac
+
+Javac --> MainActivityClass
+Javac --> CompatClass
+
+MainActivityClass --> Transform : 作为输入
+CompatClass --> Transform : 作为输入
+
+' 插件是转换任务的一部分
+Plugin .down.> Transform : 执行于
+
+Transform --> ModifiedMainClass : 作为输出
+Transform --> ModifiedCompatClass : 作为输出
+
+ModifiedMainClass --> D8
+ModifiedCompatClass --> D8
+CompatClass --> D8 : (若未修改)
+
+D8 --> DexFile
+DexFile --> Apk : ... (其他步骤)
+
+note right of Transform
+  <b>核心步骤:</b>
+  1. 通过 AGP Instrumentation API 注册。
+  2. AGP 将每个 .class 文件交给插件。
+  3. 插件使用 ASM 扫描并修改字节码。
+  4. 将修改后的 .class 文件传递给D8。
+end note
+
+@enduml
