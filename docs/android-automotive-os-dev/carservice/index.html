@@ -1,25 +1,25 @@
 <!DOCTYPE html>
 <html lang="en" dir="auto">
 
-<head><script src="/ethenslab/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=ethenslab/livereload" data-no-instant defer></script><meta charset="utf-8">
+<head><meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<meta name="robots" content="noindex, nofollow">
+<meta name="robots" content="index, follow">
 <title>CarFramework | Ethen 的实验室</title>
 <meta name="keywords" content="">
 <meta name="description" content="深入解析 Android Automotive OS 中的 CarService，包括其啟動流程、核心管理員以及與 HAL 的互動。">
 <meta name="author" content="">
-<link rel="canonical" href="http://localhost:1313/ethenslab/android-automotive-os-dev/carservice/">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/carservice/">
 <link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.8d92b99258d2a8aea36dee98116af3631ad91e255aef20c2caa81c9459a68fd8.css" integrity="sha256-jZK5kljSqK6jbe6YEWrzYxrZHiVa7yDCyqgclFmmj9g=" rel="preload stylesheet" as="style">
-<link rel="icon" href="http://localhost:1313/ethenslab/favicon.ico">
-<link rel="icon" type="image/png" sizes="16x16" href="http://localhost:1313/ethenslab/favicon-16x16.png">
-<link rel="icon" type="image/png" sizes="32x32" href="http://localhost:1313/ethenslab/favicon-32x32.png">
-<link rel="apple-touch-icon" href="http://localhost:1313/ethenslab/apple-touch-icon.png">
-<link rel="mask-icon" href="http://localhost:1313/ethenslab/safari-pinned-tab.svg">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
 <meta name="theme-color" content="#2e2e33">
 <meta name="msapplication-TileColor" content="#2e2e33">
-<link rel="alternate" type="application/rss+xml" href="http://localhost:1313/ethenslab/android-automotive-os-dev/carservice/index.xml">
-<link rel="alternate" hreflang="en" href="http://localhost:1313/ethenslab/android-automotive-os-dev/carservice/">
+<link rel="alternate" type="application/rss+xml" href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/carservice/index.xml">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/carservice/">
 <noscript>
     <style>
         #theme-toggle,
@@ -56,7 +56,37 @@
         }
 
     </style>
-</noscript>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/carservice/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="CarFramework">
+  <meta property="og:description" content="深入解析 Android Automotive OS 中的 CarService，包括其啟動流程、核心管理員以及與 HAL 的互動。">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="CarFramework">
+<meta name="twitter:description" content="深入解析 Android Automotive OS 中的 CarService，包括其啟動流程、核心管理員以及與 HAL 的互動。">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Android Automotive OS开发",
+      "item": "https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "CarFramework",
+      "item": "https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/carservice/"
+    }
+  ]
+}
+</script>
 </head>
 
 <body class="list" id="top">
@@ -74,7 +104,7 @@
 <header class="header">
     <nav class="nav">
         <div class="logo">
-            <a href="http://localhost:1313/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
             <div class="logo-switches">
                 <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
                     <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
@@ -100,22 +130,22 @@
         </div>
         <ul id="menu">
             <li>
-                <a href="http://localhost:1313/ethenslab/android-dev/" title="Android系统开发">
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
                     <span>Android系统开发</span>
                 </a>
             </li>
             <li>
-                <a href="http://localhost:1313/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
                     <span>Android Automotive</span>
                 </a>
             </li>
             <li>
-                <a href="http://localhost:1313/ethenslab/ivi-solution/" title="智能座舱方案">
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
                     <span>智能座舱方案</span>
                 </a>
             </li>
             <li>
-                <a href="http://localhost:1313/ethenslab/explore-ai" title="Explore AI">
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
                     <span>Explore AI</span>
                 </a>
             </li>
@@ -131,17 +161,6 @@
     
     <div class="posts">
       
-        <article class="post-entry"> 
-  <header class="entry-header">
-    <h2>
-      <a href="http://localhost:1313/ethenslab/android-automotive-os-dev/carservice/carservice/">CarService 深度解析</a><span class="entry-hint" title="Draft">.</span></h2>
-  </header>
-  
-  <footer class="entry-footer"><span title='2024-07-28 10:00:00 +0800 CST'>July 28, 2024</span>&nbsp;·&nbsp;1 min&nbsp;·&nbsp;6 words</footer>
-  <a class="entry-link" aria-label="post link to CarService 深度解析" href="http://localhost:1313/ethenslab/android-automotive-os-dev/carservice/carservice/"></a>
-</article>
-
-      
     </div>
     
   
@@ -150,7 +169,7 @@
     </main>
     
 <footer class="footer">
-        <span>&copy; 2025 <a href="http://localhost:1313/ethenslab/">Ethen 的实验室</a></span> · 
+        <span>&copy; 2025 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
 
     <span>
         Powered by

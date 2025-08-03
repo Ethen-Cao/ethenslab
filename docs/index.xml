@@ -2,94 +2,18 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Ethen 的实验室</title>
-    <link>http://localhost:1313/ethenslab/</link>
+    <link>https://ethen-cao.github.io/ethenslab/</link>
     <description>Recent content on Ethen 的实验室</description>
     <generator>Hugo -- 0.148.2</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 03 Aug 2025 17:17:50 +0800</lastBuildDate>
-    <atom:link href="http://localhost:1313/ethenslab/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>Gradle Asm Bytecode Transformation Plugin Principles Explained</title>
-      <link>http://localhost:1313/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</link>
-      <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
-      <guid>http://localhost:1313/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</guid>
-      <description>&lt;h1 id=&#34;gradle-asm-字节码转换插件原理解析&#34;&gt;Gradle ASM 字节码转换插件原理解析&lt;/h1&gt;
-&lt;h2 id=&#34;引言问题与解决方案&#34;&gt;引言：问题与解决方案&lt;/h2&gt;
-&lt;p&gt;问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。&lt;/p&gt;
-&lt;p&gt;解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。&lt;/p&gt;
-&lt;p&gt;我们采用的解决方案是创建一个自定义的 Gradle 插件，它利用 Android Gradle 插件 (AGP) 提供的转换 API 和 ASM 字节码操作框架，在编译期直接修改生成的 .class 文件，从根本上解决 API 的兼容性问题。&lt;/p&gt;
-&lt;h2 id=&#34;核心概念&#34;&gt;核心概念&lt;/h2&gt;
-&lt;p&gt;要理解这个插件，首先需要了解几个核心概念：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;Java 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>WindowManagerService 解析</title>
-      <link>http://localhost:1313/ethenslab/android-dev/windowmanager/windowmanagerservice/</link>
-      <pubDate>Tue, 29 Jul 2025 10:22:54 +0800</pubDate>
-      <guid>http://localhost:1313/ethenslab/android-dev/windowmanager/windowmanagerservice/</guid>
-      <description>&lt;h2 id=&#34;windowmanagerservice-概述&#34;&gt;WindowManagerService 概述&lt;/h2&gt;
-&lt;p&gt;WindowManagerService（简称WMS）是Android系统中负责窗口（Window）管理的核心系统服务。它是屏幕上所有可见元素的“总管家”，决定了所有窗口的外观、行为和交互方式。&lt;/p&gt;
-&lt;p&gt;作为Android框架层（Framework Layer）的关键部分，WMS随系统启动，并稳定运行在权限极高的 system_server 进程中。这个位置赋予了它管理所有应用窗口和系统窗口的最高权限。&lt;/p&gt;
-&lt;p&gt;WMS的角色像一个“总指挥”，它并不亲自执行所有底层操作，而是协调系统中的多个组件来共同完成对窗口的生命周期管理。其核心作用包括：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;窗口的创建与管理 (Creation &amp;amp; Management): 与 ActivityManagerService (AMS) 协同工作。当AMS决定要显示某个Activity时，WMS负责为其创建和管理对应的窗口实例（WindowState）。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;布局与计算 (Layout &amp;amp; Calculation): 通过自顶向下的遍历，精确计算出每个窗口在屏幕上的最终位置和尺寸（Frame），从而适配不同尺寸的屏幕以及分屏、小窗等各种显示模式。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;层级与Z序 (Layer &amp;amp; Z-Order): 维护所有窗口的前后堆叠顺序（Z-Order），决定哪个窗口显示在最上层，哪个窗口被遮挡，确保界面元素以正确的次序呈现。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;绘制与合成 (Drawing &amp;amp; Composition): WMS自身不负责绘制窗口内容。它管理窗口的绘图表面（Surface），并将所有窗口的元数据（位置、层级、透明度等）统一提交给 SurfaceFlinger，由后者完成最终的画面合成。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;窗口动画 (Window Animation): 负责实现窗口切换、应用启动/退出、调整大小等过程中的过渡动画，为用户提供流畅的视觉体验。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;输入事件分发 (Input Event Dispatching): 作为输入系统的关键一环，WMS接收原始的触摸、按键等事件，准确判断事件应该由哪个窗口接收，并交由 InputDispatcher 进行精确投递。&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id=&#34;窗口的创建与管理&#34;&gt;窗口的创建与管理&lt;/h2&gt;
-&lt;p&gt;窗口的创建请求总是由应用进程发起的，WMS 则是请求的响应者和执行者。&lt;/p&gt;
-&lt;p&gt;&lt;img alt=&#34;WindowState 创建时序示意图&#34; loading=&#34;lazy&#34; src=&#34;http://localhost:1313/ethenslab/images/windowstate-creation.png&#34;&gt;&lt;/p&gt;
-&lt;p&gt;&lt;strong&gt;触发流程&lt;/strong&gt;：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;应用层调用：当一个 Activity 的 onResume() 回调被触发，准备变得可见时，其内部的 PhoneWindow 会通过 WindowManager.addView() 方法将它的根视图（DecorView）添加到窗口中。这个调用是应用请求显示UI的起点。&lt;/li&gt;
-&lt;li&gt;ViewRootImpl 的桥梁作用：addView() 的调用会创建一个名为 ViewRootImpl 的关键对象。ViewRootImpl 充当了应用UI和WMS之间的“信使”和“桥梁”。&lt;/li&gt;
-&lt;li&gt;Binder IPC 调用：ViewRootImpl 通过一个名为 IWindowSession 的 Binder 接口，向 WMS 发起一个远程调用，通常是 addToDisplay()。这个调用会携带两个核心信息：
-&lt;ul&gt;
-&lt;li&gt;Window Token: 一个唯一的 Binder 令牌，用于将这个窗口与 AMS 中的 ActivityRecord 关联起来，WMS据此知道这个窗口属于哪个Activity。
-&lt;img alt=&#34;WindowToken创建与使用示意图&#34; loading=&#34;lazy&#34; src=&#34;http://localhost:1313/ethenslab/images/windowtoken-creation-transport.png&#34;&gt;&lt;/li&gt;
-&lt;li&gt;WindowManager.LayoutParams: 一个包含了窗口所有期望属性的参数集，如窗口的类型（应用窗口、系统窗口）、尺寸（MATCH_PARENT等）、标志（FLAG_NOT_FOCUSABLE等）和 gravity。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description>
-    </item>
+    <lastBuildDate>Mon, 29 Jul 2024 10:00:00 +0800</lastBuildDate>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>ActivityManager 深度解析</title>
-      <link>http://localhost:1313/ethenslab/android-dev/activitymanager/activitymanager/</link>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</link>
       <pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate>
-      <guid>http://localhost:1313/ethenslab/android-dev/activitymanager/activitymanager/</guid>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</guid>
       <description>&lt;p&gt;Activity Manager详解&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>CarService 深度解析</title>
-      <link>http://localhost:1313/ethenslab/android-automotive-os-dev/carservice/carservice/</link>
-      <pubDate>Sun, 28 Jul 2024 10:00:00 +0800</pubDate>
-      <guid>http://localhost:1313/ethenslab/android-automotive-os-dev/carservice/carservice/</guid>
-      <description>&lt;h2 id=&#34;carservice介绍&#34;&gt;CarService介绍&lt;/h2&gt;
-&lt;h2 id=&#34;启动时序&#34;&gt;启动时序&lt;/h2&gt;
-&lt;h2 id=&#34;与hal交互&#34;&gt;与Hal交互&lt;/h2&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-java&#34; data-lang=&#34;java&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;Hello&lt;/span&gt; {}
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;</description>
     </item>
   </channel>
 </rss>
