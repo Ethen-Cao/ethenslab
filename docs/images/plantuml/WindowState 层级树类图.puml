@@ -1,0 +1,84 @@
+@startuml
+' User preference style application
+!theme materia
+
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #1A1A1A
+skinparam defaultFontSize 14
+skinparam shadowing true
+
+skinparam sequence {
+    ArrowColor #2E7D32
+    ArrowColor<<async>> #F57C00
+    ArrowFontColor #2E7D32
+    ActorBorderColor #263238
+    ParticipantBorderColor #263238
+    LifeLineBorderColor #607D8B
+    LifeLineBackgroundColor #E0E0E0
+    ParticipantBackgroundColor #F5F5F5
+    ParticipantFontColor #1A1A1A
+    BoxBorderColor #455A64
+    BoxBackgroundColor #ECEFF1
+}
+
+skinparam note {
+    BorderColor #455A64
+    BackgroundColor #FFFDE7
+    FontColor #1A1A1A
+    Shadowing true
+}
+skinparam classAttributeIconSize 0
+
+title WindowContainer Hierarchy (Detailed Implementation)
+
+' --- 定义核心基类 ---
+abstract class "WindowContainer" {
+  # mChildren: List<WindowContainer>
+  + parent: WindowContainer
+}
+note top of "WindowContainer"
+  <b>窗口容器的抽象基类</b>
+  <u>mChildren 列表在这里定义</u>,
+  所有子类通过继承获得容器能力。
+end note
+
+' --- 定义主要的实现类 ---
+class "WindowManagerService"
+class "DisplayContent"
+class "DisplayArea"
+class "Task"
+class "TaskFragment"
+class "ActivityRecord"
+class "WindowState" {
+  - mActivityRecord: ActivityRecord
+}
+
+' --- 1. 继承关系 (Is-A Relationship) ---
+"WindowContainer" <|-- "DisplayContent"
+"WindowContainer" <|-- "DisplayArea"
+"WindowContainer" <|-- "Task"
+"WindowContainer" <|-- "TaskFragment"
+"WindowContainer" <|-- "ActivityRecord"
+"WindowContainer" <|-- "WindowState"
+
+
+' --- 2. 组合关系 (Has-A Relationship) ---
+"WindowManagerService" *-- "1..*" "DisplayContent"
+"DisplayContent" *-- "1..*" "DisplayArea"
+"DisplayArea" *-- "*" "Task"
+"Task" *-- "1..*" "TaskFragment"
+"TaskFragment" *-- "*" "ActivityRecord"
+
+' --- 3. 修正后的关系 ---
+' ActivityRecord 通过继承来的 mChildren 包含 WindowState
+"ActivityRecord" *-- "1..*" "WindowState"
+note on link
+  通过继承自<b>WindowContainer</b>的
+  <u>mChildren</u>列表实现此包含关系
+end note
+
+' WindowState 则直接持有对 ActivityRecord 的引用
+"WindowState" --> "1" "ActivityRecord" : belongs to
+
+
+@enduml

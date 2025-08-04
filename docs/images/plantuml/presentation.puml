@@ -1,0 +1,99 @@
+@startuml
+!theme materia
+
+
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #1A1A1A
+skinparam defaultFontSize 14
+skinparam shadowing true
+
+skinparam sequence {
+    ArrowColor #2E7D32
+    ArrowFontColor #2E7D32
+    ActorBorderColor #263238
+    ParticipantBorderColor #263238
+    LifeLineBorderColor #607D8B
+    LifeLineBackgroundColor #E0E0E0
+    ParticipantBackgroundColor #F5F5F5
+    ParticipantFontColor #1A1A1A
+    BoxBorderColor #455A64
+    BoxBackgroundColor #ECEFF1
+}
+
+skinparam note {
+    BorderColor #455A64
+    BackgroundColor #FFFDE7
+    FontColor #1A1A1A
+    Shadowing true
+}
+
+title Presentation Workflow in Android 15
+
+actor App
+participant DisplayManager
+participant Presentation
+participant WindowManagerService
+participant DisplayContent
+participant SurfaceFlinger
+
+' --- Step 1: 获取屏幕并创建 Presentation ---
+App -> DisplayManager: getDisplays()
+activate DisplayManager
+DisplayManager --> App: return Display[]
+note right: 获取外部显示器列表
+App -> Presentation: new Presentation(context, display)
+activate Presentation
+Presentation -> WindowManagerService: addWindow()
+activate WindowManagerService
+WindowManagerService -> DisplayContent: assignWindow(displayId)
+activate DisplayContent
+DisplayContent --> WindowManagerService: WindowState
+WindowManagerService --> Presentation: Window created
+deactivate WindowManagerService
+Presentation -> Presentation: onCreate()
+note right: 设置内容视图
+Presentation --> App: Presentation ready
+deactivate Presentation
+App -> Presentation: show()
+activate Presentation
+Presentation -> WindowManagerService: showWindow()
+WindowManagerService -> SurfaceFlinger: createSurface()
+activate SurfaceFlinger
+SurfaceFlinger --> WindowManagerService: SurfaceControl
+WindowManagerService --> Presentation: Surface assigned
+deactivate Presentation
+deactivate SurfaceFlinger
+
+' --- Step 2: Display 被拔掉 ---
+DisplayManager -> WindowManagerService: onDisplayRemoved(displayId)
+activate WindowManagerService
+WindowManagerService -> DisplayContent: removeDisplayContent()
+activate DisplayContent
+DisplayContent --> WindowManagerService: Display removed
+WindowManagerService -> SurfaceFlinger: removeLayer()
+activate SurfaceFlinger
+SurfaceFlinger --> WindowManagerService: Layer removed
+WindowManagerService -> Presentation: dismiss()
+activate Presentation
+Presentation --> WindowManagerService: Resources released
+deactivate Presentation
+WindowManagerService --> DisplayManager: Cleanup complete
+deactivate WindowManagerService
+deactivate DisplayContent
+deactivate SurfaceFlinger
+DisplayManager -> App: onDisplayRemoved(displayId)
+note right: 应用清理 Presentation
+App -> Presentation: dismiss()
+activate Presentation
+Presentation -> WindowManagerService: removeWindow()
+WindowManagerService --> Presentation: Window removed
+Presentation --> App: Presentation dismissed
+deactivate Presentation
+
+' --- Step 3 & 4: WMS 表示与 SurfaceFlinger 处理 ---
+note over WindowManagerService, SurfaceFlinger
+    WMS maintains WindowState for Presentation
+    SurfaceFlinger renders Surface to target Display
+end note
+
+@enduml

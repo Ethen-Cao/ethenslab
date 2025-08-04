@@ -1,0 +1,97 @@
+@startuml
+!theme materia
+top to bottom direction
+
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #1A1A1A
+skinparam defaultFontSize 14
+skinparam shadowing true
+
+skinparam sequence {
+    ArrowColor #2E7D32
+    ArrowFontColor #2E7D32
+    ActorBorderColor #263238
+    ParticipantBorderColor #263238
+    LifeLineBorderColor #607D8B
+    LifeLineBackgroundColor #E0E0E0
+    ParticipantBackgroundColor #F5F5F5
+    ParticipantFontColor #1A1A1A
+    BoxBorderColor #455A64
+    BoxBackgroundColor #ECEFF1
+}
+
+skinparam note {
+    BorderColor #455A64
+    BackgroundColor #FFFDE7
+    FontColor #1A1A1A
+    Shadowing true
+}
+
+title DisplayRotation Workflow in Android 15
+
+actor "Device" as Device
+participant "SensorManager" as SensorManager
+participant "WindowOrientationListener" as WOL
+participant "DisplayRotation" as DR
+participant "WindowManagerService" as WMS
+participant "DisplayContent" as DC
+participant "ActivityManagerService" as AMS
+participant "SurfaceFlinger" as SF
+participant "Activity" as App
+
+' --- Step 1: 设备方向变化 ---
+Device -> SensorManager: Sensor data change (e.g., accelerometer)
+note right: 设备旋转，触发加速度传感器数据变化
+SensorManager -> WOL: onSensorChanged(data)
+note right: WindowOrientationListener 接收传感器数据
+
+' --- Step 2: 检测并计算建议旋转方向 ---
+WOL -> WOL: Calculate proposed rotation
+note right: 根据传感器数据确定方向（如 ROTATION_90）
+WOL -> DR: onProposedRotationChanged(rotation)
+note right: 通知 DisplayRotation 建议的旋转角度
+
+' --- Step 3: 检查旋转策略 ---
+DR -> DR: rotationForOrientation(orientation, lastRotation)
+note right: 检查用户设置和应用方向偏好
+DR -> WMS: shouldRotateDisplay(rotation)
+note right: 询问 WMS 是否允许旋转
+
+' --- Step 4: 应用旋转 ---
+WMS -> DR: updateRotationUnchecked(forceUpdate)
+note right: 确认旋转并触发更新
+DR -> DC: applyCurrentRotation(rotation)
+note right: 更新 DisplayContent 的 mRotation 属性
+DC -> DC: updateBounds()
+note right: 重新计算 DisplayArea 和 WindowState 的边界
+
+' --- Step 5: 通知布局更新 ---
+DC -> WMS: requestRelayout()
+note right: WMS 协调窗口布局更新
+WMS -> DC: performLayout()
+note right: 调整所有 DisplayArea 和 WindowState 的布局
+
+' --- Step 6: 渲染屏幕内容 ---
+WMS -> SF: renderDisplayContent()
+note right: 通知 SurfaceFlinger 重新渲染
+SF -> SF: compositeFrame()
+note right: 渲染更新后的窗口内容，\n使用旋转动画和缓冲区变换掩盖应用延迟
+
+' --- Step 7: 通知应用配置变化 ---
+par
+    WMS -> AMS: scheduleConfigurationChanged()
+    note right: WMS 通知 AMS 配置变化
+    AMS -> App: onConfigurationChanged(newConfig)
+    note right: 通知 Activity 配置变化
+    App -> App: updateUI()
+    note right: 应用调整 UI 以适配新方向
+end par
+note right: 渲染优先于应用通知，\n确保视觉流畅性，动画掩盖延迟
+
+' --- Step 8: 执行旋转动画（可选） ---
+WMS -> DC: startRotationAnimation()
+note right: 如果需要，触发旋转动画
+DC -> SF: applyAnimation()
+note right: SurfaceFlinger 执行动画效果，\n确保平滑过渡
+
+@enduml

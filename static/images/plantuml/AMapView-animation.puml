@@ -1,0 +1,91 @@
+@startuml
+!theme materia
+skinparam defaultFontColor #000000
+skinparam sequence {
+    ParticipantBackgroundColor #FFFFFF
+    LifeLineBorderColor #000000
+    LifeLineBackgroundColor #F8F9FA
+    ArrowColor #343A40
+    ActorBorderColor #343A40
+    ActorBackgroundColor #E9ECEF
+    NoteBackgroundColor #FFFBE5
+    NoteBorderColor #C4B59D
+}
+title AMapView-Animation
+
+actor "User" as User
+
+box "运行于CPU (CPU Bound)" #E9F5FF
+    participant "Dock Button" as Button
+    participant "MainActivity" as Activity
+    participant "MotionLayout" as ML
+    participant "CardView" as CV
+    participant "ConstraintSet" as CS
+    participant "TextureView" as TV
+    participant "AMapView\n(Render Engine)" as Gaode
+    participant "RenderThread" as RT
+    participant "Choreographer" as Choreographer
+end box
+
+box "运行于GPU (GPU Bound)" #FFF0F0
+    participant "GPU" as GPU
+end box
+
+== 1. 用户触发与系统调度 ==
+note over Choreographer
+  Android使用Choreographer监听vsync信号，
+  以~16.6ms的节奏驱动UI绘制和动画更新。
+end note
+
+User -> Button : tap()
+Button -> Activity : onClick()
+Activity -> ML : transitionToEnd()
+note right of ML
+  启动属性动画，内部将依赖
+  MotionScene在ConstraintSet间插值。
+end note
+
+== 2. 动画帧循环 (由Choreographer在每个vsync信号触发) ==
+loop 动画持续的每一帧
+    ML -> CS : 获取 start/end 状态约束
+    ML -> ML : **插值计算**下一帧视图属性\n(位置, 尺寸, 圆角...)
+    ML -> CV : 应用新的布局参数 (layoutParams)
+    note right of CV
+      CardView是地图容器, 内部嵌套了
+      高德SDK提供的MapView, 而MapView
+      内部封装了TextureView。
+    end note
+
+    CV -> TV : 尺寸变更 (requestLayout)
+    TV -> TV : 检查尺寸变化是否需重建 Surface
+    alt 尺寸变化较大或 Surface 配置冲突
+        TV -> TV : 销毁并重新创建 Surface
+        TV -> Gaode : onSurfaceChanged(newWidth, newHeight)
+    else 仅视口变更
+        TV -> Gaode : onSurfaceChanged(newWidth, newHeight)
+    end
+
+    Gaode -> Gaode : 调整内部GL投影矩阵、视口等参数
+    
+    Activity -> RT : **生成并同步DisplayList** (UI绘制指令)
+    note right of RT
+      **CPU -> GPU 数据交换**: DisplayList是CPU为
+      GPU准备的绘制命令集，描述了如何渲染UI。
+    end note
+
+    RT -> GPU : 提交 **CardView** 等UI容器的绘制指令
+end
+
+== 3. 地图内容独立渲染 (并行) ==
+loop 地图引擎每帧独立渲染
+    Gaode -> GPU : **onDrawFrame()** -> 提交更新后的地图纹理
+    note right of Gaode
+      地图SDK拥有独立的渲染线程，
+      持续将地图数据渲染到TextureView的Surface上。
+    end note
+end
+
+== 4. GPU合成最终画面 ==
+GPU -> GPU : **合成帧**: 将UI层(CardView)和内容层(地图纹理)合成为最终画面并显示
+... 动画循环重复，直到完成 ...
+@enduml
