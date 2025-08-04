@@ -184,4 +184,4 @@ DisplayArea 是窗口的容器，它可以嵌套组织。当一个特殊功能�
 
 ### PictureInPicture 原理
 
-![PiP创建流程](/ethenslab/images/pip.puml)
+![PiP创建流程](/ethenslab/images/pip.png)
