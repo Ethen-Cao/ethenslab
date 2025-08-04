@@ -267,6 +267,6 @@ toggleButton.setOnClickListener {
 ## 原理剖析
 动画之所以能做到“丝滑”且“无变形”，其底层遵循一个高效的协作流程：
 
-![动画流程](/ethenslab/static/images/AMapView-animation.png)
+![动画流程](/ethenslab/images/AMapView-animation.png)
 
 从上图可见，用户看到的平滑缩放，并非是对一幅大图的挤压，而是一系列尺寸连续变化、但内容比例始终正常的画面，以极高帧率连续播放的结果。这个流程完全在一帧（~16.6ms）内完成，从而实现了无缝过渡。
