@@ -1,0 +1,96 @@
+@startuml
+!theme materia
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #000000
+skinparam sequence {
+    ArrowColor #333333
+    ActorBorderColor #333333
+    LifeLineBorderColor #333333
+    ParticipantBorderColor #333333
+    BoxBorderColor #333333
+    BoxBackgroundColor #F8F8F8
+}
+skinparam note {
+    BorderColor #333333
+    BackgroundColor #FFFFF0
+}
+
+title Activity Launch with Surface Creation
+
+box "User Space" #LightBlue
+    participant "App (Activity)"
+    participant "ViewRootImpl"
+    participant "Surface"
+end box
+
+box "System Server" #LightGreen
+    participant "AMS"
+    participant "WMS"
+end box
+
+box "Native" #LightGray
+    participant "SurfaceFlinger"
+end box
+
+autonumber "<b>[0]"
+"App (Activity)" -> "AMS": startActivity()
+activate "AMS"
+
+"AMS" -> "AMS": 创建 ActivityRecord, 管理 Task 栈
+"AMS" -> "App (Activity)": scheduleLaunchActivity()\n(触发 onCreate, onStart, onResume)
+activate "App (Activity)"
+
+note right of "App (Activity)": onResume后，Activity的Window准备可见\n内部会通过 WindowManager.addView() 触发
+
+"App (Activity)" -> "ViewRootImpl" ** : create & setView()
+activate "ViewRootImpl"
+
+autonumber "<b>[1]"
+"ViewRootImpl" -> "WMS": 请求添加窗口 (addToDisplay)
+activate "WMS"
+
+"WMS" -> "WMS": 1. 创建 WindowState\n2. 创建对应的 SurfaceControl
+note left: WMS为窗口创建了一个\n对应的SurfaceControl句柄
+
+autonumber "<b>[2]"
+"WMS" --> "ViewRootImpl": 返回 SurfaceControl 句柄
+deactivate "WMS"
+
+autonumber "<b>[3]"
+"ViewRootImpl" -> "Surface" ** : new Surface(surfaceControl)
+note right: App进程根据句柄创建出\n可供绘制的Surface对象
+
+autonumber "<b>[4]"
+"ViewRootImpl" -> "App (Activity)": dispatchDraw() (触发 onMeasure/onLayout/onDraw)
+"App (Activity)" -> "Surface": draw(Canvas)
+note right: App的UI线程开始绘制第一帧内容
+
+"Surface" -->> "SurfaceFlinger": queueBuffer (提交绘制好的Buffer)
+
+deactivate "ViewRootImpl"
+deactivate "App (Activity)"
+
+
+' --- WMS的布局流程与之前类似，但现在是并行的 ---
+autonumber "<b>[5]"
+activate "WMS"
+"WMS" -> "WMS": 执行布局遍历 (performLayout)
+note left: WMS计算所有窗口的位置、\n尺寸和层级
+
+autonumber "<b>[6]"
+"WMS" -> "SurfaceFlinger": 提交事务 (SurfaceControl的属性)
+activate "SurfaceFlinger"
+
+autonumber "<b>[7]"
+"SurfaceFlinger" -> "SurfaceFlinger": 合成图层 (Compose Layers)
+note right
+  SurfaceFlinger现在拥有:
+  1. 来自App的**内容** (Buffer)
+  2. 来自WMS的**元数据** (位置/尺寸)
+  它将二者结合, 完成最终渲染
+end note
+deactivate "SurfaceFlinger"
+deactivate "WMS"
+deactivate "AMS"
+
+@enduml

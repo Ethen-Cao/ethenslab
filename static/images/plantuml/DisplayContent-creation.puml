@@ -1,0 +1,96 @@
+@startuml
+' User preference style application
+!theme materia
+
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #1A1A1A
+skinparam defaultFontSize 14
+skinparam shadowing true
+
+skinparam sequence {
+    ArrowColor #2E7D32
+    ArrowColor<<async>> #F57C00
+    ArrowFontColor #2E7D32
+    ActorBorderColor #263238
+    ParticipantBorderColor #263238
+    LifeLineBorderColor #607D8B
+    LifeLineBackgroundColor #E0E0E0
+    ParticipantBackgroundColor #F5F5F5
+    ParticipantFontColor #1A1A1A
+    BoxBorderColor #455A64
+    BoxBackgroundColor #ECEFF1
+}
+
+skinparam note {
+    BorderColor #455A64
+    BackgroundColor #FFFDE7
+    FontColor #1A1A1A
+    Shadowing true
+}
+skinparam activity {
+    BorderColor #455A64
+    BackgroundColor #E8EAF6
+    ArrowColor #2E7D32
+    BarColor #455A64
+}
+
+
+title DisplayContent Creation Scenarios
+
+start
+
+fork
+    partition "场景1：物理显示设备" {
+        :硬件检测到显示设备\n(如开机时的内置屏, 或HDMI热插拔);
+        note left
+            <b>执行者:</b> Hardware / Kernel
+        end note
+
+        :SurfaceFlinger 创建原生显示设备;
+        note left
+            <b>执行者:</b> SurfaceFlinger
+        end note
+        
+        :通知 DisplayManagerService\n有物理屏幕被添加;
+        note left
+             <b>执行者:</b> SurfaceFlinger -> DMS
+        end note
+    }
+fork again
+    partition "场景2：虚拟显示设备" {
+        :应用或系统服务调用\nDisplayManager.createVirtualDisplay();
+        note right
+            <b>执行者:</b> App / System Service
+        end note
+
+        :DisplayManagerService\n处理虚拟屏幕创建请求;
+        note right
+            <b>执行者:</b> DisplayManagerService
+        end note
+    }
+end fork
+
+:<b>DisplayManagerService (DMS)</b>\n统一处理显示设备添加事件;
+note
+  DMS 是所有显示设备的上层逻辑管理者,
+  它屏蔽了物理和虚拟的差异,
+  并决定是否要通知WMS。
+end note
+
+:DMS 通知 WMS\n有新的 Display 需要被管理;
+
+:<b>WindowManagerService (WMS)</b>\n执行核心创建逻辑;
+note left
+  这是为新屏幕创建
+  窗口管理根容器的时刻
+end note
+
+:<b>创建 DisplayContent 实例</b>;
+
+:调用 DisplayAreaPolicy\n在新的DisplayContent上搭建容器结构;
+
+:DisplayContent 创建并初始化完成;
+
+stop
+
+@enduml

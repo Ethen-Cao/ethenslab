@@ -1,0 +1,106 @@
+@startuml
+!theme materia
+top to bottom direction
+
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #1A1A1A
+skinparam defaultFontSize 14
+skinparam shadowing true
+
+skinparam sequence {
+    ArrowColor #2E7D32
+    ArrowColor<<async>> #F57C00
+    ArrowFontColor #2E7D32
+    ActorBorderColor #263238
+    ParticipantBorderColor #263238
+    LifeLineBorderColor #607D8B
+    LifeLineBackgroundColor #E0E0E0
+    ParticipantBackgroundColor #F5F5F5
+    ParticipantFontColor #1A1A1A
+    BoxBorderColor #455A64
+    BoxBackgroundColor #ECEFF1
+}
+
+skinparam note {
+    BorderColor #455A64
+    BackgroundColor #FFFDE7
+    FontColor #1A1A1A
+    Shadowing true
+}
+
+title DisplayRotation Workflow (Final Accurate Version)
+
+participant "Device"
+participant "SensorManager"
+participant "WindowOrientationListener"
+participant "DisplayRotation"
+participant "DisplayPolicy"
+participant "WindowManagerService"
+participant "ActivityManagerService"
+participant "Activity"
+participant "SurfaceFlinger"
+
+
+' --- Step 1 & 2: 传感器数据到旋转提议 ---
+"Device" -> "SensorManager": 物理方向变化
+"SensorManager" -> "WindowOrientationListener": onSensorChanged(data)
+activate "WindowOrientationListener"
+"WindowOrientationListener" -> "WindowOrientationListener": 计算建议旋转角度
+"WindowOrientationListener" -> "DisplayRotation": onProposedRotationChanged(rotation)
+deactivate "WindowOrientationListener"
+activate "DisplayRotation"
+
+' --- Step 3: DisplayRotation 通知 DisplayPolicy ---
+"DisplayRotation" -> "DisplayPolicy": <b>1.</b> onProposedRotationChanged()
+note right: DR向DisplayPolicy<b>报告</b>旋转建议
+deactivate "DisplayRotation"
+activate "DisplayPolicy"
+
+' --- Step 4: DisplayPolicy 进行全局决策 ---
+"DisplayPolicy" -> "DisplayPolicy": <b>2.</b> 检查全局策略\n(自动旋转开关, 应用方向锁定等)
+
+opt if policy allows rotation
+    "DisplayPolicy" -> "WindowManagerService": <b>3.</b> setRotation(...)
+    note left: DisplayPolicy<b>决策</b>后, 命令WMS执行
+    activate "WindowManagerService"
+
+    ' --- Step 5: WMS 执行屏幕冻结和渲染更新 ---
+    "WindowManagerService" -> "WindowManagerService": <b>4.</b> 冻结屏幕 (Freeze Screen)
+    note right: 锁定当前画面内容, 准备播放旋转动画
+
+    "WindowManagerService" -> "WindowManagerService": <b>5.</b> 更新显示配置 & 重新布局窗口
+    "WindowManagerService" -> "SurfaceFlinger": <b>6.</b> applyTransaction(rotatedFrames)
+    note right: WMS计算所有窗口旋转后的新位置/尺寸,\n并将这些几何变换信息提交给SurfaceFlinger。\n<b>此时应用本身还未重绘。</b>
+
+    ' --- Step 6: WMS 并行通知应用 ---
+    par
+        "WindowManagerService" -> "ActivityManagerService": <b>7a.</b> updateConfiguration(newConfig)
+        note right: WMS通知AMS配置已变更
+        activate "ActivityManagerService"
+        "ActivityManagerService" -> "Activity": <b>7b.</b> scheduleTransaction(ConfigChange)
+        note right: AMS将变更事件分发给App
+        deactivate "ActivityManagerService"
+        activate "Activity"
+        "Activity" -> "Activity": <b>7c.</b> onConfigurationChanged() / Recreate
+        note right: 应用在后台开始调整UI以适配新方向
+        deactivate "Activity"
+    end
+    note left of "WindowManagerService"
+      <b>渲染优先，动画掩盖延迟</b>
+      WMS优先完成屏幕的旋转动画和渲染,
+      同时在后台通知应用进行UI适配。
+      流畅的旋转动画对用户隐藏了应用
+      重建或重绘UI所需的时间。
+    end note
+
+
+    ' --- Step 7: 解冻屏幕并播放动画 ---
+    "WindowManagerService" -> "WindowManagerService": <b>8.</b> 解冻屏幕 (Unfreeze Screen)
+    note right: 当SF准备好旋转动画后, 解冻屏幕
+    ' 动画的细节由WindowAnimator和SF处理, 这里简化表示
+    "WindowManagerService" -> "SurfaceFlinger": (Trigger Rotation Animation)
+    deactivate "WindowManagerService"
+
+end
+deactivate "DisplayPolicy"
+@endumdl

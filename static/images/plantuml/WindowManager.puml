@@ -1,0 +1,88 @@
+@startuml
+!theme plain
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam nodesep 50
+skinparam ranksep 50
+skinparam package {
+  BorderColor #333333
+  BackgroundColor #F8F8F8
+}
+skinparam note {
+  BorderColor #333333
+  BackgroundColor #FFFFF0
+}
+skinparam class {
+  BorderColor #333333
+}
+
+' Right side: Native composer
+package "SurfaceFlinger (native)" {
+  class "SurfaceFlinger"
+  class Layer
+}
+class "SurfaceControl"
+note bottom of "SurfaceControl" : Handle to a Layer.\nControls geometric properties.
+
+' Left side: The App
+package "App Process" {
+  class Activity
+  class Surface
+  note top of Surface : The App's drawing canvas.
+}
+
+' Center: The detailed WMS
+package "WMS (System Server)" {
+  class "WindowManagerService"
+
+  ' Controllers and Policies within WMS
+  class "WindowOrganizerController"
+  note bottom of "WindowOrganizerController" : Organizes Tasks & TaskFragments\n based on requests.
+  class "DisplayAreaPolicy"
+  note bottom of "DisplayAreaPolicy" : Builds the initial static hierarchy\nof DisplayAreas on a Display.
+
+  ' The Window Container Hierarchy
+  package "Window Containers" {
+    class DisplayContent
+    note top of DisplayContent : Represents a physical/virtual screen.
+    class DisplayArea
+    class Task
+    note top of Task: Represents an application's task.
+    class TaskFragment
+    note left of TaskFragment : A container for one or more Activities.\nKey for large screens.
+    class WindowState
+    note left of WindowState : Represents a single window surface.
+  }
+
+  ' Relationships within WMS
+  "WindowManagerService" *-- "1..*" DisplayContent : owns
+  "WindowManagerService" -> "WindowOrganizerController" : uses
+  "WindowManagerService" -> "DisplayAreaPolicy" : uses
+
+  "DisplayAreaPolicy" ..> DisplayContent : builds structure for
+  
+  DisplayContent *-- "1..*" DisplayArea : contains
+  DisplayArea *-- "*" Task : contains
+  Task *-- "1..*" TaskFragment : contains
+  TaskFragment *-- "1..*" WindowState : contains
+  
+  WindowState ..> "SurfaceControl" : controls
+}
+
+' External Actor making policy decisions
+package "SystemUI Process" {
+    class "WMShell"
+    note top of "WMShell": Decides high-level windowing policy\n(e.g., split-screen, PiP).
+}
+
+' Inter-process communication
+"WMShell" ..> "WindowOrganizerController" : sends requests to
+Activity -> Surface : draws content to
+Surface ..> "SurfaceControl" : is associated with
+"SurfaceControl" ..> Layer : is a handle to
+"SurfaceFlinger" -> Layer : creates & composes
+' Conceptual data flow
+Surface ..> Layer : (via BufferQueue)
+
+@enduml

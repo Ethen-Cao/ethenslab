@@ -1,0 +1,83 @@
+@startuml
+!theme materia
+
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #1A1A1A
+skinparam defaultFontSize 14
+skinparam shadowing true
+
+skinparam sequence {
+    ArrowColor #2E7D32
+    ArrowFontColor #2E7D32
+    ActorBorderColor #263238
+    ParticipantBorderColor #263238
+    LifeLineBorderColor #607D8B
+    LifeLineBackgroundColor #E0E0E0
+    ParticipantBackgroundColor #F5F5F5
+    ParticipantFontColor #1A1A1A
+    BoxBorderColor #455A64
+    BoxBackgroundColor #ECEFF1
+}
+
+skinparam note {
+    BorderColor #455A64
+    BackgroundColor #FFFDE7
+    FontColor #1A1A1A
+    Shadowing true
+}
+
+title Input Event Coordinate Transformation Chain (Detailed)
+
+actor "Finger (用户触点)"
+
+participant "InputReader"
+participant "InputDispatcher"
+participant "ViewRootImpl"
+participant "DecorView / ViewGroup"
+participant "Target View"
+
+"Finger (用户触点)" -> "InputReader": <b>1.</b> Raw Touch Event (x, y)
+activate "InputReader"
+"InputReader" -> "InputDispatcher": <b>2.</b> Dispatch Event
+deactivate "InputReader"
+activate "InputDispatcher"
+
+"InputDispatcher" -> "InputDispatcher": <b>3.</b> Find Target Window
+note right: WMS提供了所有窗口的\n可触摸区域(InputWindowHandle)
+
+"InputDispatcher" -> "ViewRootImpl": <b>4.</b> deliverMotionEvent(event)
+note left of "ViewRootImpl"
+  <b>第一次坐标转换 (屏幕 -> 窗口)</b>
+  event'.x = event.x - window.frame.left
+  event'.y = event.y - window.frame.top
+end note
+deactivate "InputDispatcher"
+
+activate "ViewRootImpl"
+"ViewRootImpl" -> "DecorView / ViewGroup": <b>5.</b> dispatchTouchEvent(event')
+deactivate "ViewRootImpl"
+activate "DecorView / ViewGroup"
+
+loop <b>6.</b> For each child in hierarchy path
+    "DecorView / ViewGroup" -> "DecorView / ViewGroup": <b>transformEventForChild(child, event')</b>
+    note right
+      <b>第二次坐标转换 (父视图 -> 子视图)</b>
+      event''.x = event'.x - child.left - parent.scrollX
+      event''.y = event'.y - child.top - parent.scrollY
+    end note
+
+    "DecorView / ViewGroup" -> "Target View": <b>7.</b> dispatchTouchEvent(event'')
+    activate "Target View"
+end
+deactivate "DecorView / ViewGroup"
+
+"Target View" -> "Target View": <b>8.</b> onTouchEvent(event'')
+note right
+  <b>最终坐标</b>
+  此时调用 <b>event''.getX()</b>
+  得到的就是相对于
+  Target View左上角的坐标
+end note
+deactivate "Target View"
+
+@enduml

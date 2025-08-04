@@ -1,0 +1,68 @@
+@startuml
+!theme materia
+
+title WindowSurfacePlacer Layout Workflow
+
+' --- 定义参与者 ---
+participant "WindowManagerService"
+participant "WindowSurfacePlacer"
+participant "SurfaceControl.Transaction"
+participant "DisplayContent"
+participant "WindowContainer (Generic)"
+participant "WindowState"
+participant "SurfaceFlinger"
+
+' --- 流程开始 ---
+
+autonumber "<b>[0]"
+"WindowManagerService" -> "WindowSurfacePlacer" : performSurfacePlacement()
+activate "WindowSurfacePlacer"
+note right: 事件触发布局流程 (如窗口变化)
+
+autonumber "<b>[1]"
+"WindowSurfacePlacer" -> "SurfaceControl.Transaction" ** : create()
+note right: 创建一个空的“事务”\n用来收集所有窗口属性变更
+
+autonumber "<b>[2]"
+"WindowSurfacePlacer" -> "DisplayContent" : performLayout()
+activate "DisplayContent"
+note left: 从根容器 DisplayContent 开始\n自顶向下进行递归布局
+
+group Layout Traversal (递归遍历整个窗口树)
+    autonumber "<b>[3]"
+    loop for each visible child
+        "DisplayContent" -> "WindowContainer (Generic)" : performLayout()
+        activate "WindowContainer (Generic)"
+
+        ' ... 递归可能继续深入，这里简化为直接到 WindowState ...
+        autonumber "<b>[4]"
+        "WindowContainer (Generic)" -> "WindowState" : performLayout()
+        activate "WindowState"
+
+        "WindowState" -> "WindowState" : calculateFinalFrame()
+        note right: 结合父容器约束和自身\nLayoutParams计算最终Frame
+
+        autonumber "<b>[5]"
+        opt if frame or visibility changed
+            "WindowState" -> "SurfaceControl.Transaction" : setPosition(), setCrop(), setAlpha()...
+            note right: 将窗口的最终状态\n更新到“事务”中
+        end
+
+        deactivate "WindowState"
+        deactivate "WindowContainer (Generic)"
+    end
+end
+deactivate "DisplayContent"
+
+autonumber "<b>[6]"
+"WindowSurfacePlacer" -> "SurfaceControl.Transaction" : apply()
+activate "SurfaceControl.Transaction"
+note left: 整个窗口树遍历完成
+
+autonumber "<b>[7]"
+"SurfaceControl.Transaction" ->> "SurfaceFlinger" : sendTransaction()
+note right: 将收集到的所有变更\n一次性、原子性地提交
+deactivate "SurfaceControl.Transaction"
+deactivate "WindowSurfacePlacer"
+
+@enduml

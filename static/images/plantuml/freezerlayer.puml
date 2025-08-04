@@ -1,0 +1,121 @@
+@startuml
+!theme materia
+
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #1A1A1A
+skinparam defaultFontSize 14
+skinparam shadowing true
+
+skinparam sequence {
+    ArrowColor #2E7D32
+    ArrowFontColor #2E7D32
+    ActorBorderColor #263238
+    ParticipantBorderColor #263238
+    LifeLineBorderColor #607D8B
+    LifeLineBackgroundColor #E0E0E0
+    ParticipantBackgroundColor #F5F5F5
+    ParticipantFontColor #1A1A1A
+    BoxBorderColor #455A64
+    BoxBackgroundColor #ECEFF1
+}
+
+skinparam note {
+    BorderColor #455A64
+    BackgroundColor #FFFDE7
+    FontColor #1A1A1A
+    Shadowing true
+}
+
+title DisplayRotation Workflow with Correct DisplayPolicy in Android 15
+
+actor Device
+participant SensorManager
+
+box "System Server" #ECEFF1
+    participant WindowOrientationListener
+    participant DisplayRotation
+    participant PhoneWindowManager
+    participant DisplayPolicy
+    participant WindowManagerService
+    participant ActivityManagerService
+    participant ScreenRotationAnimation
+end box
+
+box "App Process" #ECEFF1
+    participant ActivityThread
+    participant Activity
+end box
+
+box "Native" #ECEFF1
+    participant SurfaceFlinger
+end box
+
+' --- Step 1 & 2: 传感器数据到旋转提议 ---
+Device -> SensorManager: 物理方向变化
+SensorManager -> WindowOrientationListener: onSensorChanged()
+activate WindowOrientationListener
+WindowOrientationListener -> WindowOrientationListener: 计算建议旋转角度
+WindowOrientationListener -> DisplayRotation: onProposedRotationChanged()
+deactivate WindowOrientationListener
+activate DisplayRotation
+
+' --- Step 3: DR 报告, PhoneWindowManager 决策 ---
+DisplayRotation -> PhoneWindowManager: validateRotationAnimationLw()
+note right: DR向PhoneWindowManager报告旋转建议
+deactivate DisplayRotation
+activate PhoneWindowManager
+PhoneWindowManager -> DisplayPolicy: getDisplayRotation()
+note right: 检查显示特定的旋转策略
+activate DisplayPolicy
+DisplayPolicy -> PhoneWindowManager: return rotation info
+deactivate DisplayPolicy
+PhoneWindowManager -> PhoneWindowManager: 检查全局策略\n(自动旋转开关, 应用方向锁定等)
+
+opt if policy allows rotation
+    PhoneWindowManager -> WindowManagerService: setRotation(...)
+    note left: PhoneWindowManager决策后, 命令WMS执行
+    activate WindowManagerService
+
+    ' --- Step 4: WMS 执行屏幕冻结和渲染更新 ---
+    WindowManagerService -> ScreenRotationAnimation: startAnimation()
+    activate ScreenRotationAnimation
+    ScreenRotationAnimation -> SurfaceFlinger: captureScreenshot()
+    note right: 捕获当前屏幕快照作为“冻结图层”
+    WindowManagerService -> DisplayPolicy: updateDisplayConfig()
+    note left: 更新显示配置（如SystemUI布局）
+    activate DisplayPolicy
+    DisplayPolicy -> WindowManagerService: return updated config
+    deactivate DisplayPolicy
+    WindowManagerService -> WindowManagerService: 重新布局窗口
+    WindowManagerService -> SurfaceFlinger: applyTransaction(rotatedFrames)
+    note right: WMS提交所有窗口的几何变换, \n此时真实应用窗口已隐藏
+
+    ' --- Step 5: WMS 并行通知应用 ---
+    par
+        WindowManagerService -> ActivityManagerService: updateConfiguration()
+        activate ActivityManagerService
+        ActivityManagerService -> ActivityThread: scheduleTransaction(ConfigChange)
+        deactivate ActivityManagerService
+        activate ActivityThread
+        ActivityThread -> Activity: onConfigurationChanged()
+        deactivate ActivityThread
+    end
+    note left of WindowManagerService
+        渲染优先，动画掩盖延迟
+        系统优先播放“冻जील图层”的旋转动画,
+        同时在后台通知应用进行UI适配。
+    end note
+
+    ' --- Step 6: 播放动画 & 最终切换 ---
+    ScreenRotationAnimation -> SurfaceFlinger: applyAnimation(freezeLayer, matrix)
+    note right: 对冻结图层应用旋转变换
+    SurfaceFlinger -> SurfaceFlinger: compositeFrame()
+    note right: 渲染动画帧，完成平滑过渡
+    ScreenRotationAnimation -> WindowManagerService: onAnimationFinished()
+    deactivate ScreenRotationAnimation
+    WindowManagerService -> SurfaceFlinger: showRealWindows()
+    note right: 销毁冻结图层 & 显示真实窗口
+    deactivate WindowManagerService
+end
+deactivate PhoneWindowManager
+@enduml

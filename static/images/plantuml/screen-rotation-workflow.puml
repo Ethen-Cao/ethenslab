@@ -1,0 +1,97 @@
+@startuml
+' User preference style application
+!theme materia
+
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #1A1A1A
+skinparam defaultFontSize 14
+skinparam shadowing true
+
+skinparam sequence {
+    ArrowColor #2E7D32
+    ArrowColor<<async>> #F57C00
+    ArrowFontColor #2E7D32
+    ActorBorderColor #263238
+    ParticipantBorderColor #263238
+    LifeLineBorderColor #607D8B
+    LifeLineBackgroundColor #E0E0E0
+    ParticipantBackgroundColor #F5F5F5
+    ParticipantFontColor #1A1A1A
+    BoxBorderColor #455A64
+    BoxBackgroundColor #ECEFF1
+}
+
+skinparam note {
+    BorderColor #455A64
+    BackgroundColor #FFFDE7
+    FontColor #1A1A1A
+    Shadowing true
+}
+skinparam classAttributeIconSize 0
+
+title Screen Rotation Workflow (Detailed)
+
+' --- 定义参与者 ---
+participant "SensorService"
+box "System Server" #ECEFF1
+    participant "WindowManagerPolicy"
+    participant "WindowManagerService"
+    participant "ActivityManagerService"
+    participant "WindowSurfacePlacer"
+end box
+box "App Process" #ECEFF1
+    participant "ActivityThread"
+    participant "Activity"
+end box
+box "Native" #ECEFF1
+    participant "SurfaceFlinger"
+end box
+
+
+"SensorService" -> "WindowManagerPolicy" : <b>1.</b> onSensorChanged(event)
+note left: 陀螺仪/重力传感器\n数据发生变化
+
+activate "WindowManagerPolicy"
+"WindowManagerPolicy" -> "WindowManagerPolicy" : <b>2.</b> updateRotation()
+note right: 检查系统是否开启自动旋转,\n并根据策略计算出新的方向
+"WindowManagerPolicy" -> "WindowManagerService" : <b>3.</b> setRotation(...)
+deactivate "WindowManagerPolicy"
+
+activate "WindowManagerService"
+"WindowManagerService" -> "WindowManagerService" : <b>4.</b> updateDisplayConfiguration()
+note right: WMS更新内部DisplayContent的状态,\n如屏幕宽高对调
+
+"WindowManagerService" -> "ActivityManagerService" : <b>5.</b> updateConfiguration(newConfig)
+note left: <b>关键步骤</b>: WMS通知AMS\n系统全局配置已变更
+activate "ActivityManagerService"
+
+"ActivityManagerService" -> "ActivityThread" : <b>6.</b> scheduleTransaction(ConfigurationChangeItem)
+note right: AMS通过Binder将配置变更\n调度给相关的应用进程
+deactivate "ActivityManagerService"
+activate "ActivityThread"
+
+alt <b>7.</b> App在Manifest中未处理configChanges="orientation|screenSize" (<b>常见情况</b>)
+    "ActivityThread" -> "Activity": performDestroyActivity()
+    note right: 销毁旧的Activity实例
+    "ActivityThread" -> "Activity"**: performLaunchActivity(newConfig)
+    note right: 使用新配置重建Activity
+else App在Manifest中处理了该配置变更
+    "ActivityThread" -> "Activity": onConfigurationChanged(newConfig)
+    note right: 不销毁Activity, 仅回调通知
+end
+deactivate "ActivityThread"
+
+' --- 与此同时, WMS开始执行重新布局 ---
+"WindowManagerService" -> "WindowSurfacePlacer": <b>8.</b> performSurfacePlacement()
+note left: <b>关键步骤</b>: 配置变更后, WMS\n立即启动一次全局窗口布局
+activate "WindowSurfacePlacer"
+
+"WindowSurfacePlacer" -> "WindowSurfacePlacer" : <b>9.</b> <b>递归遍历窗口树</b>\n(Top-Down Traversal)
+note right: 从DisplayContent开始,\n用新的横/竖屏约束,\n重新计算所有WindowState的Frame
+
+"WindowSurfacePlacer" -> "SurfaceFlinger" : <b>10.</b> <b>applyTransaction()</b>
+note left: 将所有窗口的新位置/尺寸\n在一个事务中原子性地\n提交给SurfaceFlinger
+deactivate "WindowSurfacePlacer"
+deactivate "WindowManagerService"
+
+@enduml
