@@ -44,16 +44,22 @@ end note
 
 ' --- 定义主要的实现类 ---
 class "WindowManagerService"
+class "RootWindowContainer"
+class "RootDisplayArea"
 class "DisplayContent"
+class "WindowToken"
 class "DisplayArea"
 class "Task"
 class "TaskFragment"
 class "ActivityRecord"
+
 class "WindowState" {
   - mActivityRecord: ActivityRecord
 }
 
 ' --- 1. 继承关系 (Is-A Relationship) ---
+"RootDisplayArea" <|-- "DisplayContent"
+
 "WindowContainer" <|-- "DisplayContent"
 "WindowContainer" <|-- "DisplayArea"
 "WindowContainer" <|-- "Task"

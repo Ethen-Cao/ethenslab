@@ -1,0 +1,54 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Noto Sans CJK TC"
+skinparam defaultFontColor #000000
+
+title Android 15 画中画 (PiP) 创建流程
+
+actor "用户" as User
+participant "App (Activity)" as App
+participant "System Server\n(ATMS/WMS)" as Server
+participant "PipTaskOrganizer" as PipOrg
+participant "SystemUI" as SysUI
+
+autonumber "<b>[0]"
+
+User -> App: 按下 Home 键
+activate App
+App -> Server: onUserLeaveHint() / Pause
+note right: Activity 即将进入后台
+deactivate App
+
+activate Server
+Server -> PipOrg: 判断是否满足自动 PiP 条件
+activate PipOrg
+PipOrg -> Server: 条件满足，请求进入 PiP
+Server -> App: (Binder) 请求 PiP 参数
+
+activate App
+App -> Server: onPictureInPictureRequested()\n返回 PictureInPictureParams
+note right: 应用提供动画参数，如\nsourceRectHint（起始区域）
+deactivate App
+
+Server -> PipOrg: moveTaskToPip(task, params)
+PipOrg -> Server: **1. 获取或创建 PiP 的 DisplayArea**\ncreateOrGetDisplayArea(FEATURE_PICTURE_IN_PICTURE)
+note right: 这是创建 PiP 容器的关键一步！\nWMS 确保这个高 Z-order 的容器存在。
+
+PipOrg -> Server: **2. 移动 Task 到新容器**\nreparentTask(task, pipDisplayArea)
+note right: 将应用的 Task 从默认容器\n移动到 PiP DisplayArea 中。
+
+Server -> Server: **3. 计算动画和目标位置**
+Server -> App: (Binder) onPictureInPictureModeChanged(true)
+note right: 通知应用已进入 PiP 模式
+
+Server -> SysUI: PiP 状态已变更
+activate SysUI
+SysUI -> SysUI: 监听 PiP 窗口并添加交互控件\n(关闭、设置、放大按钮)
+deactivate Server
+deactivate PipOrg
+
+User -> SysUI: 拖动 PiP 窗口
+SysUI -> Server: updatePipBounds()
+note right: 用户交互由 SystemUI 处理\n并通知 WMS 更新窗口位置
+
+@enduml

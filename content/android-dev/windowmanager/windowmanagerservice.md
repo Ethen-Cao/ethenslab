@@ -52,3 +52,136 @@ WMS的角色像一个“总指挥”，它并不亲自执行所有底层操作�
 * 层级（Z-Order）调整：WMS 维护着一个所有窗口的Z序列表。当用户触摸某个窗口使其获得焦点时，WMS 会调整这个列表，将该窗口及其所属的 Task 提升到更高的层级，以确保它显示在最前面。
 * 响应属性更新：应用可以通过 WindowManager.updateViewLayout() 方法在运行时修改窗口的 LayoutParams。这个请求会通过 Binder 发送到 WMS，WMS 会更新对应的 WindowState 对象的属性，并再次调度布局以应用变更。
 * 输入事件路由：当触摸事件发生时，WMS（与 InputDispatcher 协同）会从Z序最高的窗口开始检查，判断触摸点是否落在该 WindowState 的 Frame 内，以及该窗口是否可以接收输入。一旦找到合适的目标，输入事件就会被派发给该窗口。
+
+### Feature ID 
+1. 什么是 Feature？
+在 Android 窗口管理中，一个 "Feature" 通常指一项特定的、可以独立开关或管理的窗口功能。最典型的例子就是画中画（Picture-in-Picture）和分屏（Split-screen）。每个这样的功能都会在系统内部注册，并被分配一个唯一的整数ID，这个ID就是 mFeatureId。
+
+2. 为什么需要 mFeatureId？
+DisplayArea 是窗口的容器，它可以嵌套组织。当一个特殊功能（如画中画）需要一个专属的区域来管理它的窗口时，系统就会创建一个 DisplayArea。mFeatureId 在这里起到了关键的识别作用：
+
+    * 唯一识别：系统可以通过这个 ID 快速找到由特定功能（比如画中-画）创建的根 DisplayArea。例如，当系统需要管理所有画中画窗口时，它就可以通过查找 featureId 为 FEATURE_PICTURE_IN_PICTURE 的 DisplayArea 来定位到它们的容器。
+
+    * 功能归属：它明确了这个 DisplayArea 的“主人”是谁。这片区域内的窗口布局、行为和逻辑都应该遵循其所属功能的规则。
+
+    * 逻辑隔离：通过这种方式，不同功能的窗口管理逻辑被清晰地隔离在各自的 DisplayArea 中，使得整个窗口管理体系（WindowContainer 树）更加清晰和模块化。
+
+3. 示例：当用户开启一个画中画窗口时，系统会创建一个专门用于承载这个小窗口的 DisplayArea，并将其 mFeatureId 设置为 WindowManager.FEATURE_PICTURE_IN_PICTURE。在分屏模式下，主要和次要任务所在的区域也可能由带有特定 featureId 的 DisplayArea 来管理。
+
+总之，mFeatureId 是一个内部标识，它将一个 DisplayArea 容器与创建它的特定窗口功能（如画中画）绑定在一起，方便系统进行识别、查找和管理。
+
+系统预定义的 mFeatureId 主要定义在 android.window.DisplayAreaOrganizer 这个类中。这些ID代表了不同的、需要独立容器（DisplayArea）来管理的系统级窗口功能。
+
+以下是系统当前主要的 mFeatureId 类型及其作用：
+
+```java
+    /**
+     * The value in display area indicating that no value has been set.
+     */
+    public static final int FEATURE_UNDEFINED = -1;
+
+    /**
+     * The Root display area on a display
+     */
+    public static final int FEATURE_SYSTEM_FIRST = 0;
+
+    /**
+     * The Root display area on a display
+     */
+    public static final int FEATURE_ROOT = FEATURE_SYSTEM_FIRST;
+
+    /**
+     * Display area hosting the default task container.
+     */
+    public static final int FEATURE_DEFAULT_TASK_CONTAINER = FEATURE_SYSTEM_FIRST + 1;
+
+    /**
+     * Display area hosting non-activity window tokens.
+     */
+    public static final int FEATURE_WINDOW_TOKENS = FEATURE_SYSTEM_FIRST + 2;
+
+    /**
+     * Display area for one handed feature
+     */
+    public static final int FEATURE_ONE_HANDED = FEATURE_SYSTEM_FIRST + 3;
+
+    /**
+     * Display area that can be magnified in
+     * {@link Settings.Secure.ACCESSIBILITY_MAGNIFICATION_MODE_WINDOW}. It contains all windows
+     * below {@link WindowManager.LayoutParams#TYPE_ACCESSIBILITY_MAGNIFICATION_OVERLAY}.
+     */
+    public static final int FEATURE_WINDOWED_MAGNIFICATION = FEATURE_SYSTEM_FIRST + 4;
+
+    /**
+     * Display area that can be magnified in
+     * {@link Settings.Secure.ACCESSIBILITY_MAGNIFICATION_MODE_FULLSCREEN}. This is different from
+     * {@link #FEATURE_WINDOWED_MAGNIFICATION} that the whole display will be magnified.
+     * @hide
+     */
+    public static final int FEATURE_FULLSCREEN_MAGNIFICATION = FEATURE_SYSTEM_FIRST + 5;
+
+    /**
+     * Display area for hiding display cutout feature
+     * @hide
+     */
+    public static final int FEATURE_HIDE_DISPLAY_CUTOUT = FEATURE_SYSTEM_FIRST + 6;
+
+    /**
+     * Display area that the IME container can be placed in. Should be enabled on every root
+     * hierarchy if IME container may be reparented to that hierarchy when the IME target changed.
+     * @hide
+     */
+    public static final int FEATURE_IME_PLACEHOLDER = FEATURE_SYSTEM_FIRST + 7;
+
+    /**
+     * Display area hosting IME window tokens (@see ImeContainer). By default, IMEs are parented
+     * to FEATURE_IME_PLACEHOLDER but can be reparented under other RootDisplayArea.
+     *
+     * This feature can register organizers in order to disable the reparenting logic and manage
+     * the position and settings of the container manually. This is useful for foldable devices
+     * which require custom UX rules for the IME position (e.g. IME on one screen and the focused
+     * app on another screen).
+     */
+    public static final int FEATURE_IME = FEATURE_SYSTEM_FIRST + 8;
+
+    /**
+     * The last boundary of display area for system features
+     */
+    public static final int FEATURE_SYSTEM_LAST = 10_000;
+
+    /**
+     * Vendor specific display area definition can start with this value.
+     */
+    public static final int FEATURE_VENDOR_FIRST = FEATURE_SYSTEM_LAST + 1;
+
+    /**
+     * Last possible vendor specific display area id.
+     * @hide
+     */
+    public static final int FEATURE_VENDOR_LAST = FEATURE_VENDOR_FIRST + 10_000;
+
+    /**
+     * Task display areas that can be created at runtime start with this value.
+     * @see #createTaskDisplayArea(int, int, String)
+     * @hide
+     */
+    public static final int FEATURE_RUNTIME_TASK_CONTAINER_FIRST = FEATURE_VENDOR_LAST + 1;
+```
+
+### WindowContainer层级管理
+
+![WindowContainer层级管理](/ethenslab/images/DisplayContent.Token.png)
+
+| 区域                                       | 说明                                          |
+| ---------------------------------------- | ------------------------------------------- |
+| **DisplayArea.Tokens (Wallpaper)**       | 管理 `WallpaperWindowToken`（壁纸窗口），Z-order 最低。 |
+| **TaskDisplayArea (Default)**            | 管理普通应用任务（Activity 所在 Task）。                 |
+| **DisplayArea (Split-screen)**           | 管理分屏模式窗口，包括主副屏的两个 TaskDisplayArea。          |
+| **DisplayArea (PIP)**                    | 管理画中画窗口，Z-order 较高。系统动态决定其是否显示。             |
+| **DisplayArea.Tokens (InputMethod)**     | 输入法专用窗口区域，显示时通常被置于较高层级。                     |
+| **DisplayArea.Tokens (System Overlays)** | 管理弹窗、提示（如 Toast、Dialog、PopupWindow）。        |
+| **DisplayArea.Tokens (StatusBar)**       | 通常为最顶层，用于状态栏、导航栏、系统通知等 SystemUI 组件。         |
+
+### PictureInPicture 原理
+
+![PiP创建流程](/ethenslab/images/pip.puml)

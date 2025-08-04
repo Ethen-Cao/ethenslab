@@ -1,0 +1,72 @@
+@startuml
+!theme materia
+skinparam defaultFontName "Noto Sans CJK TC"
+skinparam defaultFontColor #000000
+
+skinparam rectangle {
+    borderColor #4285F4
+    borderThickness 2
+    backgroundColor #E3F2FD
+}
+
+title 窗口容器（WindowContainer）组织结构
+
+rectangle "RootWindowContainer" as RWC {
+    note left: 全局唯一的根容器，管理所有 DisplayContent（显示设备）
+
+    rectangle "DisplayContent" as DC {
+        note left: 表示一个显示设备（物理或虚拟屏）。\n其子容器顺序决定 Z-order。
+
+        rectangle "RootDisplayArea" as RDA {
+            note left: DisplayContent 的直接子容器，\n用于承载所有 DisplayArea 类型区域。
+
+            ' ↓↓↓ Z-order 从下到上排序 ↓↓↓
+
+            rectangle "DisplayArea.Tokens (Wallpaper)" as DAT_Wallpaper {
+                rectangle "WallpaperWindowToken"
+                note right: 壁纸窗口，Z-order 最低。\nWallpaperWindowToken 是 Token 类型窗口。
+            }
+
+            rectangle "TaskDisplayArea (Default)" as TDA_Default {
+                note right: 常规应用 Task 所在区域。
+                rectangle "Task" as T {
+                    rectangle "ActivityRecord" as AR {
+                        note right: 表示一个 Activity 对象。\n持有对应的窗口状态（WindowState）。
+                    }
+                }
+            }
+
+            rectangle "DisplayArea (FeatureId = SPLIT_SCREEN)" as DA_Split {
+                note right: 分屏容器，Z-order 高于默认 Task。\n内含主/副两个 TaskDisplayArea。
+                rectangle "TaskDisplayArea (Primary)"
+                rectangle "TaskDisplayArea (Secondary)"
+            }
+
+            rectangle "DisplayArea (FeatureId = PICTURE_IN_PICTURE)" as DA_Pip {
+                note right: PIP 容器，通常在应用窗口之上。\nZ-order 较高，仅在必要时存在。
+                rectangle "TaskDisplayArea" {
+                    rectangle "Task" {
+                        rectangle "ActivityRecord (PIP Activity)"
+                    }
+                }
+            }
+
+            rectangle "DisplayArea.Tokens (InputMethod)" as DAT_Ime {
+                rectangle "InputMethodWindowToken"
+                note right: 输入法窗口区域。\n显示时会移至较高层。
+            }
+
+            rectangle "DisplayArea.Tokens (System Overlays)" as DAT_Overlays {
+                rectangle "PopupWindowToken"
+                rectangle "ToastWindowToken"
+                note right: 系统提示、弹窗、对话框等浮层。\n部分由 SystemUI 控制。
+            }
+
+            rectangle "DisplayArea.Tokens (StatusBar)" as DAT_StatusBar {
+                rectangle "StatusBarWindowToken"
+                note right: 通常位于最顶层（甚至高于 PIP）。\n用于状态栏、导航栏、通知等。
+            }
+        }
+    }
+}
+@enduml
