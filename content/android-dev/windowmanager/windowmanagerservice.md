@@ -185,3 +185,55 @@ DisplayArea 是窗口的容器，它可以嵌套组织。当一个特殊功能�
 ### PictureInPicture 原理
 
 ![PiP创建流程](/ethenslab/images/pip.png)
+
+流程文字说明
+1. 触发 (用户按下 Home 键)
+
+    用户在视频播放界面按下 Home 键。系统判断该 Activity 即将进入后台 (onUserLeaveHint())。
+
+2. 系统检查与决策 (ATMS)
+
+    ActivityTaskManagerService (ATMS) 截获这一事件，并检查该 Activity 是否满足自动进入 PiP 的所有条件（例如，在清单中声明支持、当前正处于特定状态等）。
+
+3. 核心控制器介入 (PipTaskOrganizer)
+
+    在现代 Android 中，PiP 的具体管理逻辑由一个名为 PipTaskOrganizer 的控制器负责。
+
+4. ATMS 通知 PipTaskOrganizer：“这个 Task 准备进入 PiP 模式”。
+
+    PipTaskOrganizer 会向应用请求详细的动画参数 (PictureInPictureParams)，其中最重要的就是 sourceRectHint，它告诉系统动画应该从屏幕的哪个区域开始，这保证了流畅的过渡效果。
+
+5. 创建/获取 PiP 的 DisplayArea (WMS)
+
+    这是流程的核心所在。PipTaskOrganizer 会向 WindowManagerService (WMS) 发出请求，确保一个用于 PiP 的专属容器存在。
+
+6. WMS 会查找 featureId = FEATURE_PICTURE_IN_PICTURE 的 DisplayArea。
+
+    如果该 DisplayArea 不存在（例如，这是系统开机后第一次进入 PiP），WMS 就会根据 DisplayAreaPolicy 的策略，在 DisplayContent 的子节点中创建一个新的 DisplayArea。这个 DisplayArea 的 Z-order 被设定得非常高，以确保它能浮在所有常规应用之上。如果已存在，则直接复用。
+
+7. 任务重组 (Task Reparenting)
+
+    一旦 PiP DisplayArea 准备就绪，WMS 会执行一个关键操作：将正在播放视频的应用所在的整个 Task，从它原来的父容器（通常是 TaskDisplayArea (Default)）中移除，然后添加为 PiP DisplayArea 的子节点。
+
+    这个“移花接木”的操作，瞬间改变了该应用所有窗口的层级和管理策略。
+    当视频从全屏切换到小窗口时，SurfaceFlinger 的工作流程是这样的：
+
+    * 接收高清画布：SurfaceFlinger 持续从应用那里接收到 1920x1080 的高清视频帧，这些帧被绘制在 Surface（画布）上。
+
+    * 收到变换指令：当 PiP 切换发生时，WMS 会通过 SurfaceControl.Transaction 给 SurfaceFlinger 下达一个新指令：“请将这个窗口显示在一个 320x180 的区域内”。
+
+    * GPU 实时缩放：SurfaceFlinger 并不会告诉应用“请给我一个 320x180 的小画布”。相反，它会利用 GPU 的强大能力，在每一帧的合成阶段（大约每秒 60 次），将那个 1920x1080 的高清“画布”实时地、动态地缩小，然后绘制到屏幕上那个 320x180 的小区域里。
+
+8. 动画与状态更新
+
+    WMS 根据应用提供的 sourceRectHint 和目标位置，计算并执行一个平滑的过渡动画，将窗口从原始大小缩小并移动到屏幕角落。
+
+    动画完成后，ATMS 会通过 Binder 回调通知应用，调用其 onPictureInPictureModeChanged(true) 方法，告知它已经成功进入 PiP 模式。应用可以在此回调中隐藏不需要的 UI 元素。
+
+    同时，WMS 会通知 SystemUI PiP 状态已更新。
+
+9. 用户交互 (SystemUI)
+
+    SystemUI 会接管 PiP 窗口的“外壳”，在其上绘制关闭、设置、全屏等控制按钮。
+
+    当用户拖动、缩放或点击 PiP 窗口上的按钮时，所有这些操作都由 SystemUI 首先捕获，然后再通知 WMS/ATMS 去执行具体的位置更新或关闭流程。
