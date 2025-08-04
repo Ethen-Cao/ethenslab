@@ -6,8 +6,135 @@
     <description>Recent content in Explore AI on Ethen 的实验室</description>
     <generator>Hugo -- 0.148.2</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 03 Aug 2025 17:17:50 +0800</lastBuildDate>
+    <lastBuildDate>Mon, 04 Aug 2025 09:49:58 +0800</lastBuildDate>
     <atom:link href="https://ethen-cao.github.io/ethenslab/explore-ai/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Technical Design for Seamless Full Screen and Split Screen Switching in AutoNavi Map</title>
+      <link>https://ethen-cao.github.io/ethenslab/explore-ai/technical-design-for-seamless-full-screen-and-split-screen-switching-in-autonavi-map/</link>
+      <pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/technical-design-for-seamless-full-screen-and-split-screen-switching-in-autonavi-map/</guid>
+      <description>&lt;h2 id=&#34;需求背景&#34;&gt;需求背景&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;核心功能
+基于 Android 平台 及 高德AutoSDK，开发一个车载地图应用。该应用需具备两种核心显示形态：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;全屏模式: 地图占据整个屏幕，提供沉浸式导航体验。&lt;/li&gt;
+&lt;li&gt;分屏模式: 屏幕左侧约1/3区域显示车辆信息面板（如车模、转向灯状态等），右侧约2/3区域显示地图信息。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;2&#34;&gt;
+&lt;li&gt;交互要求&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;应用界面下方存在一个常驻的Dock栏，栏上有一个“地图”按钮。&lt;/li&gt;
+&lt;li&gt;用户通过反复点击此按钮，可以在“全屏模式”与“分屏模式”之间循环切换。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;3&#34;&gt;
+&lt;li&gt;质量要求&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;“丝滑”过渡: 两种模式之间的切换过程必须是流畅的动画，不能有任何视觉上的中断。&lt;/li&gt;
+&lt;li&gt;“三无”标准: 切换动画过程中，严禁出现任何黑屏、闪烁或卡顿掉帧现象，以确保高端、流畅的用户体验。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;技术挑战与选型&#34;&gt;技术挑战与选型&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;主要挑战
+在Android平台上，对一个正在进行实时、复杂内容渲染的视图（如地图）进行尺寸和位置的变更，是一项极具挑战性的任务。传统的视图动画或直接改变窗口尺寸的方案，往往会触发底层的Window重绘或Surface重建，这个过程耗时较长，极易导致以下问题：&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;闪烁/黑屏: 在旧的Surface被销毁、新的Surface尚未完全渲染内容的短暂间隙，屏幕会出现背景色或黑色，造成视觉闪烁。&lt;/li&gt;
+&lt;li&gt;卡顿: 如果布局计算和视图重绘的耗时超过了Android系统的一帧渲染时间（约16.6ms），就会导致掉帧，动画看起来就会卡顿、不连贯。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start=&#34;2&#34;&gt;
+&lt;li&gt;核心方案选型
+为了克服上述挑战，我们选择采用Android官方推荐的、专为复杂UI动画设计的现代技术栈：MotionLayout + TextureView。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;MotionLayout：作为ConstraintLayout的子类，它专为动画而生。它允许我们以声明式的方式在XML中定义多个布局状态，并由系统在底层高效地计算和执行状态之间的过渡动画，性能极高且能轻松处理多视图联动。&lt;/li&gt;
+&lt;li&gt;TextureView：高德SDK默认可能使用SurfaceView渲染，它拥有独立的绘图表面，会“打穿”应用窗口，与Android的常规视图动画体系不兼容，是闪烁的主要根源。通过AMapOptions强制SDK使用TextureView，地图内容将被渲染到一个标准的图形纹理上，可以像普通View一样无缝参与到MotionLayout的动画体系中。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;详细实现方案&#34;&gt;详细实现方案&lt;/h2&gt;
+&lt;h3 id=&#34;强制textureview并初始化sdk&#34;&gt;强制TextureView并初始化SDK&lt;/h3&gt;
+&lt;p&gt;MainActivity.kt&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-java&#34; data-lang=&#34;java&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;MainActivity&lt;/span&gt; : AppCompatActivity() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; lateinit &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; motionLayout: MotionLayout
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; lateinit &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; mapView: TextureMapView
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; lateinit &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; mapContainer: CardView
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; lateinit &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; carModelPanel: LinearLayout
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; lateinit &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; toggleButton: FloatingActionButton
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; isFullScreen &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    override fun &lt;span style=&#34;color:#a6e22e&#34;&gt;onCreate&lt;/span&gt;(savedInstanceState: Bundle&lt;span style=&#34;color:#f92672&#34;&gt;?&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;super&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;onCreate&lt;/span&gt;(savedInstanceState)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 设置包含MotionLayout的主布局文件&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        setContentView(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;layout&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;activity_main_split&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        supportActionBar&lt;span style=&#34;color:#f92672&#34;&gt;?&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;hide&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        MapsInitializer.&lt;span style=&#34;color:#a6e22e&#34;&gt;updatePrivacyAgree&lt;/span&gt;(&lt;span style=&#34;color:#66d9ef&#34;&gt;this&lt;/span&gt;,&lt;span style=&#34;color:#66d9ef&#34;&gt;true&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        MapsInitializer.&lt;span style=&#34;color:#a6e22e&#34;&gt;updatePrivacyShow&lt;/span&gt;(&lt;span style=&#34;color:#66d9ef&#34;&gt;this&lt;/span&gt;,&lt;span style=&#34;color:#66d9ef&#34;&gt;true&lt;/span&gt;,&lt;span style=&#34;color:#66d9ef&#34;&gt;true&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 初始化视图&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        motionLayout &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; findViewById(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;id&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;motion_layout_main&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapContainer &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; findViewById(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;id&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;map_container_card&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        carModelPanel &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; findViewById(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;id&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;car_model_panel&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        toggleButton &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; findViewById(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;id&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;fab_toggle_map&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 1. Create the options object&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        val aMapOptions &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; AMapOptions()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 2. CRITICAL: Force the use of TextureView&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;//aMapOptions.useTextureView(true)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 3. Pass the options into the MapView constructor&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; TextureMapView(&lt;span style=&#34;color:#66d9ef&#34;&gt;this&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 4. Add the MapView to its container&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        val mapContainer: CardView &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; findViewById(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;id&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;map_container_card&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapContainer.&lt;span style=&#34;color:#a6e22e&#34;&gt;addView&lt;/span&gt;(mapView)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 5. Forward the lifecycle event&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView.&lt;span style=&#34;color:#a6e22e&#34;&gt;onCreate&lt;/span&gt;(savedInstanceState)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// --- 控制动画的核心逻辑 ---&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        toggleButton.&lt;span style=&#34;color:#a6e22e&#34;&gt;setOnClickListener&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; (isFullScreen) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                &lt;span style=&#34;color:#75715e&#34;&gt;// 如果当前是全屏，则过渡到分屏状态&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                motionLayout.&lt;span style=&#34;color:#a6e22e&#34;&gt;transitionToEnd&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            } &lt;span style=&#34;color:#66d9ef&#34;&gt;else&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                &lt;span style=&#34;color:#75715e&#34;&gt;// 如果当前是分屏，则过渡回全屏状态&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                motionLayout.&lt;span style=&#34;color:#a6e22e&#34;&gt;transitionToStart&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            isFullScreen &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;!&lt;/span&gt;isFullScreen
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;// --- 严格管理高德SDK的生命周期 ---&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;// 这是确保地图正常显示、避免内存泄漏的必要步骤&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    override fun &lt;span style=&#34;color:#a6e22e&#34;&gt;onResume&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;super&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;onResume&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView.&lt;span style=&#34;color:#a6e22e&#34;&gt;onResume&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    override fun &lt;span style=&#34;color:#a6e22e&#34;&gt;onPause&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;super&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;onPause&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView.&lt;span style=&#34;color:#a6e22e&#34;&gt;onPause&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    override fun &lt;span style=&#34;color:#a6e22e&#34;&gt;onDestroy&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;super&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;onDestroy&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView.&lt;span style=&#34;color:#a6e22e&#34;&gt;onDestroy&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    override fun &lt;span style=&#34;color:#a6e22e&#34;&gt;onSaveInstanceState&lt;/span&gt;(outState: Bundle) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;super&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;onSaveInstanceState&lt;/span&gt;(outState)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView.&lt;span style=&#34;color:#a6e22e&#34;&gt;onSaveInstanceState&lt;/span&gt;(outState)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;布局实现-motionlayout&#34;&gt;布局实现 (MotionLayout)&lt;/h3&gt;
+&lt;p&gt;我们使用MotionLayout作为根布局，并在其中定义两个核心功能区：车模面板和地图容器。&lt;/p&gt;</description>
+    </item>
     <item>
       <title>Gradle Asm Bytecode Transformation Plugin Principles Explained</title>
       <link>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</link>
