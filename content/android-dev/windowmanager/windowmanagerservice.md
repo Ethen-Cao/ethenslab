@@ -233,7 +233,32 @@ DisplayArea 是窗口的容器，它可以嵌套组织。当一个特殊功能�
     同时，WMS 会通知 SystemUI PiP 状态已更新。
 
 9. 用户交互 (SystemUI)
-
     SystemUI 会接管 PiP 窗口的“外壳”，在其上绘制关闭、设置、全屏等控制按钮。
-
     当用户拖动、缩放或点击 PiP 窗口上的按钮时，所有这些操作都由 SystemUI 首先捕获，然后再通知 WMS/ATMS 去执行具体的位置更新或关闭流程。
+
+### DisplayArea的创建
+在WMS构造方法中会创建 DisplayAreaPolicy.Provider:
+
+```java
+mDisplayAreaPolicyProvider = DisplayAreaPolicy.Provider.fromResources(
+        mContext.getResources());
+```
+Provider的实现如下：
+```java
+
+static Provider fromResources(Resources res) {
+    String name = res.getString(
+            com.android.internal.R.string.config_deviceSpecificDisplayAreaPolicyProvider);
+    if (TextUtils.isEmpty(name)) {
+        return new DisplayAreaPolicy.DefaultProvider();
+    }
+    try {
+        return (Provider) Class.forName(name).newInstance();
+    } catch (ReflectiveOperationException | ClassCastException e) {
+        ……
+    }
+}
+    
+```
+
+如果资源配置项 config_deviceSpecificDisplayAreaPolicyProvider 为空，就构造默认的Provider: DisplayAreaPolicy.DefaultProvider()。这里给OEM/Vendor留下了定制化的空间。
