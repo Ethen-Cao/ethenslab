@@ -168,7 +168,64 @@ DisplayArea 是窗口的容器，它可以嵌套组织。当一个特殊功能�
     public static final int FEATURE_RUNTIME_TASK_CONTAINER_FIRST = FEATURE_VENDOR_LAST + 1;
 ```
 
-#### FeatureID的初始化
+#### DisplayArea的创建
+
+DisplayAreaPolicy 在 Android 窗口管理系统中的作用，是作为一个 **“显示区域布局策略”的总设计师**。
+
+简单来说，它就是一份 **“建筑蓝图”，负责定义一个显示设备（如手机屏幕）内部，所有 DisplayArea 应该如何被组织、嵌套和排序**。WindowManagerService (WMS) 会严格依照这份蓝图来构建窗口的容器层级。
+
+#### DisplayAreaPolicy 的主要职责
+1. 定义 Feature (功能区)
+    DisplayAreaPolicy 的首要职责是定义系统需要支持哪些全局性的 Feature (功能特性)，以及这些 Feature 之间的层级关系。这包括：
+
+    * 画中画 (FEATURE_PICTURE_IN_PICTURE)
+    * 单手模式 (FEATURE_ONE_HANDED)
+    * 隐藏刘海 (FEATURE_HIDE_DISPLAY_CUTOUT)
+    * 放大功能 (...MAGNIFICATION)
+    * 输入法占位符 (FEATURE_IME_PLACEHOLDER)
+
+    它会决定当这些功能启用时，对应的 DisplayArea 应该被创建在层级树的哪个位置，以及它们应该包裹哪些其他的 DisplayArea。
+
+2. 映射窗口类型到层级 (Mapping Window Types to Layers)
+    这是它的另一个核心职责。DisplayAreaPolicy 内部包含了将各种 WindowManager.LayoutParams.type（如 TYPE_APPLICATION, TYPE_STATUS_BAR）映射到一个具体整数层级值 (Window Layer) 的核心逻辑。getWindowLayerLw(WindowState win) 这个关键方法就由它实现，确保状态栏的 Layer 值永远高于应用程序，而壁纸的 Layer 值永远低于应用程序。它还定义了层级的上限 getMaxWindowLayer()，划定了整个 Z-order 的范围。
+
+3. 提供 DisplayArea 层级结构的构建器
+    DisplayAreaPolicy 会初始化并配置一个 DisplayAreaPolicyBuilder。这个 Builder 内部存储了所有根据上述策略分析出的布局规则。
+    当 WMS 需要为一个新的显示设备（DisplayContent）构建窗口容器树时，它会向 DisplayAreaPolicy 索要这个预先配置好的 Builder，然后调用 Builder.build() 方法，一次性地、自动地生成复杂而精确的 DisplayArea 嵌套结构。
+
+4. 提供设备定制化的入口 (Entry-point for Customization)
+    Android 是一个高度可定制化的系统。不同的硬件设备（如手机、平板、折叠屏、电视）对窗口的组织方式有不同的需求。
+
+DisplayAreaPolicy 通过 DisplayAreaPolicy.Provider 这个机制，允许设备制造商 (OEM/Vendor) 替换掉 AOSP 默认的策略实现（PhoneDisplayAreaPolicy）。
+制造商可以提供自己的 DisplayAreaPolicy 实现，来创建特殊的 DisplayArea（例如，为折叠屏的副屏幕或手写笔窗口创建专属区域），或者调整不同窗口类型的层级关系，以适配其独特的硬件功能。
+
+在WMS构造方法中会创建 DisplayAreaPolicy.Provider:
+
+```java
+mDisplayAreaPolicyProvider = DisplayAreaPolicy.Provider.fromResources(
+        mContext.getResources());
+```
+Provider的实现如下：
+```java
+
+static Provider fromResources(Resources res) {
+    String name = res.getString(
+            com.android.internal.R.string.config_deviceSpecificDisplayAreaPolicyProvider);
+    if (TextUtils.isEmpty(name)) {
+        return new DisplayAreaPolicy.DefaultProvider();
+    }
+    try {
+        return (Provider) Class.forName(name).newInstance();
+    } catch (ReflectiveOperationException | ClassCastException e) {
+        ……
+    }
+}
+    
+```
+
+如果资源配置项 **config_deviceSpecificDisplayAreaPolicyProvider** 为空，就构造默认的Provider: DisplayAreaPolicy.DefaultProvider()。这里给OEM/Vendor留下了定制化的空间，他们可以自定义Provider，构造特有的DisplayAreaPolicy，再由DisplayAreaPolicy构造特定规则的DisplayArea。
+
+DisplayAreaPolicy.Provider 的实现如下，它会构建HierarchyBuilder，初始化 Features：
 
 ```java
 static final class DefaultProvider implements DisplayAreaPolicy.Provider {
@@ -215,60 +272,16 @@ static final class DefaultProvider implements DisplayAreaPolicy.Provider {
 }
 ```
 
-Window Type到Feature的映射关系表：
+![Window Type到Feature的映射关系表]](/ethenslab/images/windowtype-2-feature.png)
 
-| Window Type | Layer ID | FEATURE_WINDOWED_MAGNIFICATION | FEATURE_HIDE_DISPLAY_CUTOUT | FEATURE_ONE_HANDED | FEATURE_FULLSCREEN_MAGNIFICATION | FEATURE_IME_PLACEHOLDER |
-| --- | --- | --- | --- | --- | --- | --- |
-| TYPE_WALLPAPER | 1 | Y | Y | Y | Y | N |
-| FIRST_APPLICATION_WINDOW | 2 | Y | Y | Y | Y | N |
-| LAST_APPLICATION_WINDOW |  | Y | Y | Y | Y | N |
-| TYPE_PRESENTATION | 3 | Y | Y | Y | Y | N |
-| TYPE_PRIVATE_PRESENTATION |  | Y | Y | Y | Y | N |
-| TYPE_DOCK_DIVIDER |  | Y | Y | Y | Y | N |
-| TYPE_QS_DIALOG |  | Y | Y | Y | Y | N |
-| TYPE_PHONE |  | Y | Y | Y | Y | N |
-| TYPE_SEARCH_BAR | 4 | Y | Y | Y | Y | N |
-| TYPE_INPUT_CONSUMER | 5 | Y | Y | Y | Y | N |
-| TYPE_SYSTEM_DIALOG | 6 | Y | Y | Y | Y | N |
-| TYPE_TOAST | 7 | Y | Y | Y | Y | N |
-| TYPE_PRIORITY_PHONE | 8 | Y | Y | Y | Y | N |
-| TYPE_SYSTEM_ALERT/TYPE_SYSTEM_ERROR | 9 | Y | Y | Y | Y | N |
-| TYPE_SYSTEM_OVERLAY | 10 | Y | Y | Y | Y | N |
-| TYPE_APPLICATION_OVERLAY | 11 | Y | Y | Y | Y | N |
-| TYPE_INPUT_METHOD | 13 | Y | Y | Y | N | Y |
-| TYPE_INPUT_METHOD_DIALOG | 14 | Y | Y | Y | N | Y |
-| TYPE_STATUS_BAR | 15 | Y | N | Y | Y | N |
-| TYPE_STATUS_BAR_ADDITIONAL | 16 | Y | Y | Y | Y | N |
-| TYPE_NOTIFICATION_SHADE | 17 | Y | N | Y | Y | N |
-| TYPE_STATUS_BAR_SUB_PANEL | 18 | Y | Y | Y | Y | N |
-| TYPE_KEYGUARD_DIALOG | 19 | Y | Y | Y | Y | N |
-| TYPE_VOICE_INTERACTION_STARTING | 20 | Y | Y | Y | Y | N |
-| TYPE_VOICE_INTERACTION | 21 | Y | Y | Y | Y | N |
-| TYPE_VOLUME_OVERLAY | 22 | Y | Y | Y | Y | N |
-| TYPE_SYSTEM_OVERLAY | 23 | Y | Y | Y | Y | N |
-| TYPE_NAVIGATION_BAR | 24 | Y | N | N | N | N |
-| TYPE_NAVIGATION_BAR_PANEL | 25 | Y | N | N | N | N |
-| TYPE_SCREENSHOT | 26 | Y | Y | Y | Y | N |
-| TYPE_SYSTEM_ERROR | 27 | Y | Y | Y | Y | N |
-| TYPE_MAGNIFICATION_OVERLAY | 28 | Y | Y | Y | N | N |
-| TYPE_DISPLAY_OVERLAY | 29 | Y | Y | Y | Y | N |
-| TYPE_DRAG | 30 | Y | Y | Y | Y | N |
-| TYPE_ACCESSIBILITY_OVERLAY | 31 | N | Y | Y | Y | N |
-| TYPE_ACCESSIBILITY_MAGNIFICATION_OVERLAY | 32 | N | Y | Y | N | N |
-| TYPE_SECURE_SYSTEM_OVERLAY | 33 | N | Y | N | Y | N |
-| TYPE_BOOT_PROGRESS | 34 | N | Y | Y | Y | N |
-| TYPE_POINTER | 35 | N | Y | Y | Y | N |
-
-
-
-#### build 方法构建逻辑详解
+#### HierarchyBuilder.build 方法构建逻辑详解
 1. 宏观目标与设计哲学
 build 方法是 Android 窗口管理系统中的“创世”引擎。其宏观目标是将一个高层、抽象的策略（由 Feature 特性表定义）转化为一个具体的、物理的、严格有序的 WindowContainer 层级树。
 这个过程必须遵循并实现以下设计原则（源自代码注释）：
 * 特性归属 (Feature Containment)：任何一个窗口，都必须被正确地放置在负责管辖它的那个 Feature 对应的 DisplayArea 容器之内。
 * Z-order 完整性 (Z-Order Integrity)：任意两个并列（兄弟关系）的 DisplayArea，它们所管辖的窗口层级区间不能有任何重叠。位于下方的 DisplayArea 的最高层级，必须小于或等于位于上方的 DisplayArea 的最低层级。
 
-为了实现这个复杂目标，算法采用了一种**“蓝图-施工”**的模式：先构建一个轻量级的、完整的 PendingArea 树（蓝图），然后再根据这个蓝图一次性地创建出所有真实的 DisplayArea 对象（施工）。
+为了实现这个复杂目标，算法采用了一种 **“蓝图-施工”** 的模式：先构建一个轻量级的、完整的 PendingArea 树（蓝图），然后再根据这个蓝图一次性地创建出所有真实的 DisplayArea 对象（施工）。
 
 2. 核心数据结构与“建筑材料”
 在施工开始前，我们先了解一下几样关键的“建筑材料”：
@@ -337,14 +350,11 @@ RootDisplayArea (根)
                  └─ PendingArea (Layers 13-14) [Leaf: ImeContainer]
 ```
 
-
 阶段二：填充叶子容器 (Populating the Leaf Containers)
 这是第二个核心 for 循环。如果说第一阶段是搭建“功能区”，那这个阶段就是为每个功能区的每一层楼划分出最终的“房间”，这些“房间”将直接用来容纳 WindowState。
 
 1. 遍历所有楼层: 算法再次从第 0 层到第 36 层进行扫描。
-
 2. 确定房间类型: 在每一层，算法会通过 typeOfLayer() 查询策略，确定这一层需要什么类型的“房间”——是普通的 DisplayArea.Tokens，还是特殊的 TaskDisplayArea 或 ImeContainer。
-
 3. 创建/复用决策:
 * 与阶段一类似，算法会检查是否可以和上一层共用一个“叶子房间”(leafArea)。
 * 如果不行（例如，父容器的特性框架变了，或者房间类型变了），就必须创建一个新的 PendingArea 作为叶子容器，并将其挂载到 areaForLayer[layer] 所指向的那个“最内层框架”之下。
@@ -452,19 +462,8 @@ Window{a09fbef u0 com.android.launcher3/com.android.launcher3.uioverrides.Quicks
 Window{992d414 u0 com.android.systemui.wallpapers.ImageWallpaper}
 ```
 
-### WindowContainer层级管理
-
-![WindowContainer层级管理](/ethenslab/images/DisplayContent.Token.png)
-
-| 区域                                       | 说明                                          |
-| ---------------------------------------- | ------------------------------------------- |
-| **DisplayArea.Tokens (Wallpaper)**       | 管理 `WallpaperWindowToken`（壁纸窗口），Z-order 最低。 |
-| **TaskDisplayArea (Default)**            | 管理普通应用任务（Activity 所在 Task）。                 |
-| **DisplayArea (Split-screen)**           | 管理分屏模式窗口，包括主副屏的两个 TaskDisplayArea。          |
-| **DisplayArea (PIP)**                    | 管理画中画窗口，Z-order 较高。系统动态决定其是否显示。             |
-| **DisplayArea.Tokens (InputMethod)**     | 输入法专用窗口区域，显示时通常被置于较高层级。                     |
-| **DisplayArea.Tokens (System Overlays)** | 管理弹窗、提示（如 Toast、Dialog、PopupWindow）。        |
-| **DisplayArea.Tokens (StatusBar)**       | 通常为最顶层，用于状态栏、导航栏、系统通知等 SystemUI 组件。         |
+WindowContainer类图结构参考如下：
+![WindowContainer结构图](/ethenslab/images/window-hierarchy.png)
 
 ### PictureInPicture 原理
 
@@ -520,32 +519,6 @@ Window{992d414 u0 com.android.systemui.wallpapers.ImageWallpaper}
     SystemUI 会接管 PiP 窗口的“外壳”，在其上绘制关闭、设置、全屏等控制按钮。
     当用户拖动、缩放或点击 PiP 窗口上的按钮时，所有这些操作都由 SystemUI 首先捕获，然后再通知 WMS/ATMS 去执行具体的位置更新或关闭流程。
 
-### DisplayArea的创建
-在WMS构造方法中会创建 DisplayAreaPolicy.Provider:
-
-```java
-mDisplayAreaPolicyProvider = DisplayAreaPolicy.Provider.fromResources(
-        mContext.getResources());
-```
-Provider的实现如下：
-```java
-
-static Provider fromResources(Resources res) {
-    String name = res.getString(
-            com.android.internal.R.string.config_deviceSpecificDisplayAreaPolicyProvider);
-    if (TextUtils.isEmpty(name)) {
-        return new DisplayAreaPolicy.DefaultProvider();
-    }
-    try {
-        return (Provider) Class.forName(name).newInstance();
-    } catch (ReflectiveOperationException | ClassCastException e) {
-        ……
-    }
-}
-    
-```
-
-如果资源配置项 config_deviceSpecificDisplayAreaPolicyProvider 为空，就构造默认的Provider: DisplayAreaPolicy.DefaultProvider()。这里给OEM/Vendor留下了定制化的空间，他们可以自定义Provider，构造特有的DisplayAreaPolicy，再由DisplayAreaPolicy构造特定规则的DisplayArea。
 
 ### 分屏模式
 
