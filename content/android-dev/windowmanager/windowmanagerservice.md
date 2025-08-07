@@ -464,7 +464,7 @@ Window{992d414 u0 com.android.systemui.wallpapers.ImageWallpaper}
 
 WindowContainer类图结构参考如下：
 
-![WindowContainer结构图](/ethenslab/images/window-hierarchy.png)
+![WindowContainer结构图](/ethenslab/images/Window-hierarchy.png)
 
 ### PictureInPicture 原理
 
