@@ -1,0 +1,62 @@
+@startuml
+!theme materia
+skinparam defaultFontName "Noto Sans CJK TC"
+skinparam defaultFontColor #000000
+
+
+actor "用户" as User
+participant "最近任务界面\n(SystemUI)" as Recents
+participant "ActivityTaskManagerService\n(ATMS)" as ATMS
+participant "WindowContainer 层级\n(WMS / RootWindowContainer)" as WMS
+
+autonumber "<b>[0]"
+
+User -> Recents: 1. 长按 App A 图标，点击“分屏”
+activate Recents
+
+Recents -> ATMS: 2. enterSplitScreen(taskA_id)
+activate ATMS
+note right of ATMS: 收到进入分屏模式的请求，\n并指定第一个应用的 Task ID。
+
+ATMS -> ATMS: 3. 创建 Parent Task (用于容纳分屏对)
+note right: 这是一个新的、特殊的 Task，\n它将作为两个应用的容器。
+
+ATMS -> ATMS: 4. 在 Parent Task 内创建两个 TaskFragment\n(TF_A 和 TF_B)
+note right: TF_A 用于主分屏应用, \nTF_B 用于次分屏应用。
+
+ATMS -> WMS: 5. reparentActivityToTaskFragment(App A, TF_A)
+activate WMS
+note left: 指示 WMS 将 App A 的 ActivityRecord\n从其原始 Task 移动到 TF_A 中。
+WMS -> WMS: 更新窗口容器树结构
+WMS --> ATMS: 移动完成
+deactivate WMS
+note right of ATMS: 此时，屏幕上半部分显示 App A，\n下半部分显示选择器 (Recents)。
+
+ATMS --> Recents: 6. 显示应用选择列表
+deactivate ATMS
+
+Recents --> User: 7. 展示可供选择的应用列表
+deactivate Recents
+
+User -> Recents: 8. 选择“应用 B”
+activate Recents
+
+Recents -> ATMS: 9. setSecondSplitScreenApp(taskB_id)
+activate ATMS
+note right of ATMS: 收到第二个分屏应用的请求。
+
+ATMS -> WMS: 10. reparentActivityToTaskFragment(App B, TF_B)
+activate WMS
+note left: 指示 WMS 将 App B 的 ActivityRecord\n移动到 TF_B 中。
+WMS -> WMS: 更新窗口容器树结构
+WMS --> ATMS: 移动完成
+deactivate WMS
+
+ATMS -> ATMS: 11. 提交最终布局变更
+note right: 隐藏 Recents 界面，\n让 Parent Task 占据整个分屏区域，\n并调整 TF_A 和 TF_B 的边界。
+
+ATMS --> User: 12. 屏幕上同时显示 App A 和 App B
+deactivate ATMS
+deactivate Recents
+
+@enduml

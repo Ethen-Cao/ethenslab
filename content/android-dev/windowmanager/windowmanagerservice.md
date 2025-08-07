@@ -168,6 +168,290 @@ DisplayArea 是窗口的容器，它可以嵌套组织。当一个特殊功能�
     public static final int FEATURE_RUNTIME_TASK_CONTAINER_FIRST = FEATURE_VENDOR_LAST + 1;
 ```
 
+#### FeatureID的初始化
+
+```java
+static final class DefaultProvider implements DisplayAreaPolicy.Provider {
+            private void configureTrustedHierarchyBuilder(HierarchyBuilder rootHierarchy,
+                WindowManagerService wmService, DisplayContent content) {
+            // WindowedMagnification should be on the top so that there is only one surface
+            // to be magnified.
+            rootHierarchy.addFeature(new Feature.Builder(wmService.mPolicy, "WindowedMagnification",
+                    FEATURE_WINDOWED_MAGNIFICATION)
+                    .upTo(TYPE_ACCESSIBILITY_MAGNIFICATION_OVERLAY)
+                    .except(TYPE_ACCESSIBILITY_MAGNIFICATION_OVERLAY)
+                    // Make the DA dimmable so that the magnify window also mirrors the dim layer.
+                    .setNewDisplayAreaSupplier(DisplayArea.Dimmable::new)
+                    .build());
+            if (content.isDefaultDisplay) {
+                // Only default display can have cutout.
+                // See LocalDisplayAdapter.LocalDisplayDevice#getDisplayDeviceInfoLocked.
+                rootHierarchy.addFeature(new Feature.Builder(wmService.mPolicy, "HideDisplayCutout",
+                        FEATURE_HIDE_DISPLAY_CUTOUT)
+                        .all()
+                        .except(TYPE_NAVIGATION_BAR, TYPE_NAVIGATION_BAR_PANEL, TYPE_STATUS_BAR,
+                                TYPE_NOTIFICATION_SHADE)
+                        .build())
+                        .addFeature(new Feature.Builder(wmService.mPolicy, "OneHanded",
+                                FEATURE_ONE_HANDED)
+                                .all()
+                                .except(TYPE_NAVIGATION_BAR, TYPE_NAVIGATION_BAR_PANEL,
+                                        TYPE_SECURE_SYSTEM_OVERLAY)
+                                .build());
+            }
+            rootHierarchy
+                    .addFeature(new Feature.Builder(wmService.mPolicy, "FullscreenMagnification",
+                            FEATURE_FULLSCREEN_MAGNIFICATION)
+                            .all()
+                            .except(TYPE_ACCESSIBILITY_MAGNIFICATION_OVERLAY, TYPE_INPUT_METHOD,
+                                    TYPE_INPUT_METHOD_DIALOG, TYPE_MAGNIFICATION_OVERLAY,
+                                    TYPE_NAVIGATION_BAR, TYPE_NAVIGATION_BAR_PANEL)
+                            .build())
+                    .addFeature(new Feature.Builder(wmService.mPolicy, "ImePlaceholder",
+                            FEATURE_IME_PLACEHOLDER)
+                            .and(TYPE_INPUT_METHOD, TYPE_INPUT_METHOD_DIALOG)
+                            .build());
+        }
+}
+```
+
+Window Type到Feature的映射关系表：
+
+| Window Type | Layer ID | FEATURE_WINDOWED_MAGNIFICATION | FEATURE_HIDE_DISPLAY_CUTOUT | FEATURE_ONE_HANDED | FEATURE_FULLSCREEN_MAGNIFICATION | FEATURE_IME_PLACEHOLDER |
+| --- | --- | --- | --- | --- | --- | --- |
+| TYPE_WALLPAPER | 1 | Y | Y | Y | Y | N |
+| FIRST_APPLICATION_WINDOW | 2 | Y | Y | Y | Y | N |
+| LAST_APPLICATION_WINDOW |  | Y | Y | Y | Y | N |
+| TYPE_PRESENTATION | 3 | Y | Y | Y | Y | N |
+| TYPE_PRIVATE_PRESENTATION |  | Y | Y | Y | Y | N |
+| TYPE_DOCK_DIVIDER |  | Y | Y | Y | Y | N |
+| TYPE_QS_DIALOG |  | Y | Y | Y | Y | N |
+| TYPE_PHONE |  | Y | Y | Y | Y | N |
+| TYPE_SEARCH_BAR | 4 | Y | Y | Y | Y | N |
+| TYPE_INPUT_CONSUMER | 5 | Y | Y | Y | Y | N |
+| TYPE_SYSTEM_DIALOG | 6 | Y | Y | Y | Y | N |
+| TYPE_TOAST | 7 | Y | Y | Y | Y | N |
+| TYPE_PRIORITY_PHONE | 8 | Y | Y | Y | Y | N |
+| TYPE_SYSTEM_ALERT/TYPE_SYSTEM_ERROR | 9 | Y | Y | Y | Y | N |
+| TYPE_SYSTEM_OVERLAY | 10 | Y | Y | Y | Y | N |
+| TYPE_APPLICATION_OVERLAY | 11 | Y | Y | Y | Y | N |
+| TYPE_INPUT_METHOD | 13 | Y | Y | Y | N | Y |
+| TYPE_INPUT_METHOD_DIALOG | 14 | Y | Y | Y | N | Y |
+| TYPE_STATUS_BAR | 15 | Y | N | Y | Y | N |
+| TYPE_STATUS_BAR_ADDITIONAL | 16 | Y | Y | Y | Y | N |
+| TYPE_NOTIFICATION_SHADE | 17 | Y | N | Y | Y | N |
+| TYPE_STATUS_BAR_SUB_PANEL | 18 | Y | Y | Y | Y | N |
+| TYPE_KEYGUARD_DIALOG | 19 | Y | Y | Y | Y | N |
+| TYPE_VOICE_INTERACTION_STARTING | 20 | Y | Y | Y | Y | N |
+| TYPE_VOICE_INTERACTION | 21 | Y | Y | Y | Y | N |
+| TYPE_VOLUME_OVERLAY | 22 | Y | Y | Y | Y | N |
+| TYPE_SYSTEM_OVERLAY | 23 | Y | Y | Y | Y | N |
+| TYPE_NAVIGATION_BAR | 24 | Y | N | N | N | N |
+| TYPE_NAVIGATION_BAR_PANEL | 25 | Y | N | N | N | N |
+| TYPE_SCREENSHOT | 26 | Y | Y | Y | Y | N |
+| TYPE_SYSTEM_ERROR | 27 | Y | Y | Y | Y | N |
+| TYPE_MAGNIFICATION_OVERLAY | 28 | Y | Y | Y | N | N |
+| TYPE_DISPLAY_OVERLAY | 29 | Y | Y | Y | Y | N |
+| TYPE_DRAG | 30 | Y | Y | Y | Y | N |
+| TYPE_ACCESSIBILITY_OVERLAY | 31 | N | Y | Y | Y | N |
+| TYPE_ACCESSIBILITY_MAGNIFICATION_OVERLAY | 32 | N | Y | Y | N | N |
+| TYPE_SECURE_SYSTEM_OVERLAY | 33 | N | Y | N | Y | N |
+| TYPE_BOOT_PROGRESS | 34 | N | Y | Y | Y | N |
+| TYPE_POINTER | 35 | N | Y | Y | Y | N |
+
+
+
+#### build 方法构建逻辑详解
+1. 宏观目标与设计哲学
+build 方法是 Android 窗口管理系统中的“创世”引擎。其宏观目标是将一个高层、抽象的策略（由 Feature 特性表定义）转化为一个具体的、物理的、严格有序的 WindowContainer 层级树。
+这个过程必须遵循并实现以下设计原则（源自代码注释）：
+* 特性归属 (Feature Containment)：任何一个窗口，都必须被正确地放置在负责管辖它的那个 Feature 对应的 DisplayArea 容器之内。
+* Z-order 完整性 (Z-Order Integrity)：任意两个并列（兄弟关系）的 DisplayArea，它们所管辖的窗口层级区间不能有任何重叠。位于下方的 DisplayArea 的最高层级，必须小于或等于位于上方的 DisplayArea 的最低层级。
+
+为了实现这个复杂目标，算法采用了一种**“蓝图-施工”**的模式：先构建一个轻量级的、完整的 PendingArea 树（蓝图），然后再根据这个蓝图一次性地创建出所有真实的 DisplayArea 对象（施工）。
+
+2. 核心数据结构与“建筑材料”
+在施工开始前，我们先了解一下几样关键的“建筑材料”：
+
+* Feature (特性)：高级别的“功能区规划”，例如“画中画区”、“单手模式影响区”等。它定义了自己对哪些窗口层级 (Layer) 生效。
+* Layer (层级)：Z-order 的基本单位，从 0 到 36 的整数。可以理解为建筑的“楼层”。
+* PendingArea (蓝图节点)：构建过程中的核心数据结构，一个临时的、代表最终 DisplayArea 的规划草稿。它包含了父子关系、所属特性、以及管辖的 Layer 区间等所有必要信息。
+* areaForLayer[] (施工辅助线/脚手架)：一个大小为 37 的 PendingArea 数组。它是一个动态指针数组，在构建过程的任意时刻，areaForLayer[i] 都指向第 i 层“当前最内层的父容器”，用来指导新节点应该挂载到哪里。
+
+3. 算法执行流程详解
+build 方法的执行可以清晰地分为三个阶段：
+
+阶段一：构建特性框架 (Building the Feature Framework)
+
+* 这是第一个核心 for 循环，它的目标是根据 Feature 的定义，搭建出整个 DisplayArea 树的宏观结构和嵌套关系。
+* 按序遍历特性: 算法按照 mFeatures 列表的预定顺序，逐一处理每一个 Feature。这个顺序至关重要，先被处理的 Feature 会成为更外层的容器。
+* 遍历所有楼层: 对于每一个 Feature，算法会从第 0 层到第 36 层进行扫描，检查该 Feature 是否适用于当前楼层（查阅策略表中的 Y/N）。
+* 创建/复用决策:
+    * 当算法在某一层 L 发现需要应用 Feature F 时，它会检查是否可以复用上一个楼层为 F 创建的 PendingArea。
+    * 如果不行（例如，这是 F 遇到的第一个楼层，或者 L 层的父容器规划与 L-1 层不同，意味着连续性被“打断”），算法就必须创建一个新的 PendingArea，并将其作为 areaForLayer[L] 所指向的那个“当前父容器”的子节点。
+    * 更新“脚手架”: 在创建或复用 PendingArea 之后，算法会立刻更新 areaForLayer[L]，使其指向刚刚处理过的、更深一层的这个 PendingArea。这保证了下一个 Feature 在处理 L 层时，会被正确地嵌套在 F 的内部。
+
+这个阶段结束后，一个由 PendingArea 组成的、反映了所有 Feature 之间复杂嵌套和并列关系的“建筑框架”就搭建完成了。
+参考如下：
+```text
+RootDisplayArea (根)
+ ├─ PendingArea (Layers 36) [Leaf/Tokens]
+ ├─ PendingArea (Feature: HideDisplayCutout) [Layers 32-35]
+ │   └─ PendingArea (Feature: OneHanded) [Layers 34-35]
+ │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 34-35]
+ │           └─ PendingArea (Layers 34-35) [Leaf/Tokens]
+ │   └─ PendingArea (Feature: FullscreenMagnification) [Layer 33]
+ │       └─ PendingArea (Layers 33) [Leaf/Tokens]
+ │   └─ PendingArea (Feature: OneHanded) [Layer 32]
+ │       └─ PendingArea (Layers 32) [Leaf/Tokens]
+ └─ PendingArea (Feature: WindowedMagnification) [Layers 0-31]
+     ├─ PendingArea (Feature: HideDisplayCutout) [Layers 26-31]
+     │   └─ PendingArea (Feature: OneHanded) [Layers 26-31]
+     │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 29-31]
+     │       │   └─ PendingArea (Layers 29-31) [Leaf/Tokens]
+     │       ├─ PendingArea (Layers 28) [Leaf/Tokens for MagnificationOverlay]
+     │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 26-27]
+     │           └─ PendingArea (Layers 26-27) [Leaf/Tokens]
+     ├─ PendingArea (Layers 24-25) [Leaf/Tokens for NavigationBar]
+     ├─ PendingArea (Feature: HideDisplayCutout) [Layers 18-23]
+     │   └─ PendingArea (Feature: OneHanded) [Layers 18-23]
+     │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 18-23]
+     │           └─ PendingArea (Layers 18-23) [Leaf/Tokens]
+     ├─ PendingArea (Feature: OneHanded) [Layer 17]
+     │   └─ PendingArea (Feature: FullscreenMagnification) [Layer 17]
+     │       └─ PendingArea (Layers 17) [Leaf/Tokens for NotificationShade]
+     ├─ PendingArea (Feature: HideDisplayCutout) [Layer 16]
+     │   └─ PendingArea (Feature: OneHanded) [Layer 16]
+     │       └─ PendingArea (Feature: FullscreenMagnification) [Layer 16]
+     │           └─ PendingArea (Layers 16) [Leaf/Tokens]
+     ├─ PendingArea (Feature: OneHanded) [Layer 15]
+     │   └─ PendingArea (Feature: FullscreenMagnification) [Layer 15]
+     │       └─ PendingArea (Layers 15) [Leaf/Tokens for StatusBar]
+     └─ PendingArea (Feature: HideDisplayCutout) [Layers 0-14]
+         └─ PendingArea (Feature: OneHanded) [Layers 0-14]
+             ├─ PendingArea (Feature: FullscreenMagnification) [Layers 0-12]
+             │   ├─ PendingArea (Layers 3-12) [Leaf/Tokens]
+             │   ├─ PendingArea (Layers 2) [Leaf: TaskDisplayArea]
+             │   └─ PendingArea (Layers 0-1) [Leaf/Tokens for Wallpaper]
+             └─ PendingArea (Feature: ImePlaceholder) [Layers 13-14]
+                 └─ PendingArea (Layers 13-14) [Leaf: ImeContainer]
+```
+
+
+阶段二：填充叶子容器 (Populating the Leaf Containers)
+这是第二个核心 for 循环。如果说第一阶段是搭建“功能区”，那这个阶段就是为每个功能区的每一层楼划分出最终的“房间”，这些“房间”将直接用来容纳 WindowState。
+
+1. 遍历所有楼层: 算法再次从第 0 层到第 36 层进行扫描。
+
+2. 确定房间类型: 在每一层，算法会通过 typeOfLayer() 查询策略，确定这一层需要什么类型的“房间”——是普通的 DisplayArea.Tokens，还是特殊的 TaskDisplayArea 或 ImeContainer。
+
+3. 创建/复用决策:
+* 与阶段一类似，算法会检查是否可以和上一层共用一个“叶子房间”(leafArea)。
+* 如果不行（例如，父容器的特性框架变了，或者房间类型变了），就必须创建一个新的 PendingArea 作为叶子容器，并将其挂载到 areaForLayer[layer] 所指向的那个“最内层框架”之下。
+4. 处理特殊房间:
+* 当遇到应用层 (LEAF_TYPE_TASK_CONTAINERS) 或输入法层 (LEAF_TYPE_IME_CONTAINERS) 时，算法不会创建新的 Tokens 房间，而是会将预先准备好的 TaskDisplayArea 或 ImeContainer 挂载到蓝图的正确位置。
+5. 确定管辖范围: 在复用 leafArea 的过程中，算法会不断更新 leafArea.mMaxLayer，以此来记录这个“房间”所跨越的连续楼层的范围。
+
+这个阶段结束后，整个建筑蓝图就画完了。每一个楼层都被精确地规划到了一个最终的叶子容器中。
+
+阶段三：实例化与收尾 (Instantiation and Finalization)
+蓝图已经完美，现在开始“施工”。
+
+1. root.instantiateChildren(...): 这是收尾的关键。此方法会递归遍历整个 PendingArea 蓝图树（从 root 节点开始）。
+2. 创建真实对象: 在遍历过程中，它会 new DisplayArea(...) 和 new DisplayArea.Tokens(...)，创建出所有真实的 DisplayArea 对象。
+3. 建立父子关系: 根据蓝图中的父子链接，调用 parent.addChild(child)，将这些真实的 DisplayArea 对象组装成一棵与蓝图完全一致的、可供 WMS 使用的 WindowContainer 树。
+4. mRoot.onHierarchyBuilt(...): 通知 RootDisplayArea，层级树已经构建完毕，可以缓存相关信息并投入使用了。
+
+总结
+build 方法是一个高度确定性和逻辑严谨的算法。它通过两个核心阶段——先构建宏观的特性框架，再填充微观的叶子容器——将一份高层的、二维的策略表，精确地转换成了一棵复杂的、多维的、严格遵守 Z-order 的窗口容器树。这种“先规划蓝图，再统一施工”的设计，优雅地解决了 Android 窗口系统中极为复杂的层级布局问题。
+
+
+我们也可以通过 adb shell dumpsys window containers查看实际的DisplayContent层次结构：
+
+```text
+ROOT type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+  #0 Display 0 name="Built-in Screen" type=undefined mode=fullscreen override-mode=fullscreen requested-bounds=[0,0][1080,2340] bounds=[0,0][1080,2340]
+   #2 Leaf:36:36 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #1 WindowToken{988c232 type=2024 android.os.BinderProxy@ccb9f01} type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 5bc2d39 ScreenDecorOverlayBottom type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #0 WindowToken{263aed type=2024 android.os.BinderProxy@ee97504} type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 a2005b8 ScreenDecorOverlay type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+   #1 HideDisplayCutout:32:35 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #2 OneHanded:34:35 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 FullscreenMagnification:34:35 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #0 Leaf:34:35 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #1 FullscreenMagnification:33:33 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 Leaf:33:33 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #0 OneHanded:32:32 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 Leaf:32:32 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+   #0 WindowedMagnification:0:31 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #6 HideDisplayCutout:26:31 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 OneHanded:26:31 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #2 FullscreenMagnification:29:31 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+       #0 Leaf:29:31 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #1 Leaf:28:28 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #0 FullscreenMagnification:26:27 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+       #0 Leaf:26:27 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #5 Leaf:24:25 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 WindowToken{237c785 type=2019 android.os.BinderProxy@cb621ef} type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #0 668a9da NavigationBar0 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #4 HideDisplayCutout:18:23 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 OneHanded:18:23 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #0 FullscreenMagnification:18:23 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+       #0 Leaf:18:23 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #3 OneHanded:17:17 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 FullscreenMagnification:17:17 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #0 Leaf:17:17 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+       #0 WindowToken{8431992 type=2040 android.os.BinderProxy@c8c3ff4} type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+        #0 f488f63 NotificationShade type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #2 HideDisplayCutout:16:16 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 OneHanded:16:16 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #0 FullscreenMagnification:16:16 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+       #0 Leaf:16:16 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #1 OneHanded:15:15 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 FullscreenMagnification:15:15 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #0 Leaf:15:15 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+       #0 WindowToken{faabebf type=2000 android.os.BinderProxy@1867419} type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+        #0 88b998c StatusBar type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+    #0 HideDisplayCutout:0:14 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+     #0 OneHanded:0:14 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #1 ImePlaceholder:13:14 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+       #0 ImeContainer type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+        #0 WindowToken{d89974 type=2011 android.os.Binder@39dad47} type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+         #0 7eb5b27 InputMethod type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+      #0 FullscreenMagnification:0:12 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+       #2 Leaf:3:12 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+        #2 WindowToken{7f09984 type=2038 android.os.BinderProxy@c073d88} type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+         #0 42d8e16 com.android.fakeoemfeatures:background type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+        #1 WindowToken{90c3cba type=2038 android.os.BinderProxy@5c38480} type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+         #0 bbea429 com.android.fakeoemfeatures type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+        #0 WindowToken{107a05c type=2038 android.os.BinderProxy@578b017} type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+         #0 39e71a9 ShellDropTarget type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+       #1 DefaultTaskDisplayArea type=undefined mode=fullscreen override-mode=fullscreen requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+        #1 Task=1 type=home mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+         #0 Task=15 type=home mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+          #0 ActivityRecord{a2ee9c4 u0 com.android.launcher3/.uioverrides.QuickstepLauncher t15} type=home mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+           #0 a09fbef com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher type=home mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+        #0 Task=2 type=undefined mode=fullscreen override-mode=fullscreen requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+         #1 Task=4 type=undefined mode=multi-window override-mode=multi-window requested-bounds=[0,2340][1080,3510] bounds=[0,2340][1080,3510]
+         #0 Task=3 type=undefined mode=multi-window override-mode=multi-window requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+       #0 Leaf:0:1 type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+        #0 WallpaperWindowToken{8c049ee token=android.os.Binder@5304b69} type=undefined mode=fullscreen override-mode=fullscreen requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+         #0 992d414 com.android.systemui.wallpapers.ImageWallpaper type=undefined mode=fullscreen override-mode=undefined requested-bounds=[0,0][0,0] bounds=[0,0][1080,2340]
+ 
+Window{5bc2d39 u0 ScreenDecorOverlayBottom}
+Window{a2005b8 u0 ScreenDecorOverlay}
+Window{668a9da u0 NavigationBar0}
+Window{f488f63 u0 NotificationShade}
+Window{88b998c u0 StatusBar}
+Window{7eb5b27 u0 InputMethod}
+Window{42d8e16 u0 com.android.fakeoemfeatures:background}
+Window{bbea429 u0 com.android.fakeoemfeatures}
+Window{39e71a9 u0 ShellDropTarget}
+Window{a09fbef u0 com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher}
+Window{992d414 u0 com.android.systemui.wallpapers.ImageWallpaper}
+```
+
 ### WindowContainer层级管理
 
 ![WindowContainer层级管理](/ethenslab/images/DisplayContent.Token.png)
@@ -261,4 +545,29 @@ static Provider fromResources(Resources res) {
     
 ```
 
-如果资源配置项 config_deviceSpecificDisplayAreaPolicyProvider 为空，就构造默认的Provider: DisplayAreaPolicy.DefaultProvider()。这里给OEM/Vendor留下了定制化的空间。
+如果资源配置项 config_deviceSpecificDisplayAreaPolicyProvider 为空，就构造默认的Provider: DisplayAreaPolicy.DefaultProvider()。这里给OEM/Vendor留下了定制化的空间，他们可以自定义Provider，构造特有的DisplayAreaPolicy，再由DisplayAreaPolicy构造特定规则的DisplayArea。
+
+### 分屏模式
+
+![Android 14+ 分屏启动时序图](/ethens/images/seq-split-screen-start.png)
+
+流程解说
+1. 用户发起操作: 用户在最近任务界面（由 SystemUI 实现）发起分屏请求。
+
+2. 请求进入分屏: SystemUI 通知 ActivityTaskManagerService (ATMS) 准备进入分屏模式，并告知第一个应用是谁。
+
+3. 创建父任务: ATMS 作为响应，创建一个新的、特殊的 Task。这个 Task 在逻辑上代表了这个“分屏应用对”。
+
+4. 创建 TaskFragment: 在这个父 Task 内部，ATMS 预先创建好两个“窗格”——TaskFragment A 和 TaskFragment B。
+
+5. 安置第一个应用: ATMS 命令 WindowManagerService (WMS) 执行窗口容器的“移花接木”操作，将应用 A 的 ActivityRecord 放入 TaskFragment A 中。
+
+6. 显示选择器: 此时，上半屏已经显示应用 A，下半屏由 SystemUI 继续显示其他应用的列表，供用户选择。
+
+7. 用户选择第二个应用: 用户从列表中点选应用 B。
+
+8. 安置第二个应用: SystemUI 将用户的选择通知 ATMS。
+
+9. ATMS 再次命令 WMS，将应用 B 的 ActivityRecord 放入 TaskFragment B 中。
+
+10. 完成布局: 所有应用都就位后，ATMS 提交最终的窗口布局，隐藏选择器界面，让包含两个 TaskFragment 的父 Task 完整地显示在屏幕上。

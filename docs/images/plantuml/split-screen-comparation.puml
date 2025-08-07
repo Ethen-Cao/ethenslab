@@ -1,0 +1,46 @@
+@startuml
+!theme materia
+skinparam defaultFontName "Noto Sans CJK TC"
+skinparam defaultFontColor #000000
+
+skinparam rectangle {
+    borderColor #4285F4
+    borderThickness 2
+    backgroundColor #E3F2FD
+}
+
+title 新旧分屏架构对比
+
+package "旧架构 (基于 Stack)" {
+    rectangle "RootWindowContainer" as RWC1 {
+        rectangle "Docked Stack" as DS {
+            rectangle "Task A"
+        }
+        rectangle "Fullscreen Stack" as FS {
+            rectangle "Task B"
+        }
+    }
+    note right of RWC1
+        两个独立的 Stack，
+        关系松散。
+    end note
+}
+
+package "新架构 (基于 TaskFragment)" {
+     rectangle "RootWindowContainer" as RWC2 {
+        rectangle "<b>Parent Task (分屏对)</b>" as PT {
+             rectangle "<b>TaskFragment A</b>" as TF1 {
+                rectangle "Activity A"
+             }
+             rectangle "<b>TaskFragment B</b>" as TF2 {
+                rectangle "Activity B"
+             }
+        }
+     }
+     note right of RWC2
+        两个 App 属于同一个 Task，
+        形成“应用对”，关系紧密。
+     end note
+}
+
+@enduml
