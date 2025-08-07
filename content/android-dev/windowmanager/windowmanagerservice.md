@@ -522,7 +522,7 @@ WindowContainer类图结构参考如下：
 
 ### 分屏模式
 
-![Android 14+ 分屏启动时序图](/ethens/images/seq-split-screen-start.png)
+![Android 14+ 分屏启动时序图](/ethenslab/images/seq-split-screen-start.png)
 
 流程解说
 1. 用户发起操作: 用户在最近任务界面（由 SystemUI 实现）发起分屏请求。
