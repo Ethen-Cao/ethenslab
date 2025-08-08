@@ -1,0 +1,105 @@
+@startuml
+skinparam defaultFontColor #000000
+skinparam package {
+    BorderColor #999999
+    BackgroundColor #FFFFFF
+    FontColor #000000
+}
+skinparam rectangle {
+    BorderColor #666666
+    FontColor #000000
+}
+
+title Android 主题继承关系与历史演进
+
+' ==== 基础 Theme ====
+rectangle "Theme (基础平台主题, API 1+)" as theme #EEEEEE
+
+' ==== Holo 系列 ====
+package "Holo (Android 3.x/4.x, API 11-20)" as Holo #BBDEFB {
+    rectangle "Theme.Holo" as holo
+    rectangle "Theme.Holo.Light" as holo_light
+    rectangle "Theme.Holo.Light.DarkActionBar" as holo_light_darkbar
+}
+
+' ==== AppCompat 系列 ====
+package "AppCompat (Support Library, 向下兼容 Holo)" as AppCompat #FFE0B2 {
+    rectangle "Theme.AppCompat" as appcompat
+    rectangle "Theme.AppCompat.Light" as appcompat_light
+    rectangle "Theme.AppCompat.Light.DarkActionBar" as appcompat_light_darkbar
+    rectangle "Theme.AppCompat.NoActionBar" as appcompat_noactionbar
+    rectangle "Theme.AppCompat.Dialog" as appcompat_dialog
+    rectangle "Theme.AppCompat.Dialog.Alert" as appcompat_dialog_alert
+}
+
+' ==== MaterialComponents 系列 ====
+package "MaterialComponents (Material Design 1.0, API 21+)" as Material #C8E6C9 {
+    rectangle "Theme.MaterialComponents" as mc
+    rectangle "Theme.MaterialComponents.DayNight" as mc_dn
+    rectangle "Theme.MaterialComponents.NoActionBar" as mc_noactionbar
+    rectangle "Theme.MaterialComponents.Light" as mc_light
+    rectangle "Theme.MaterialComponents.Light.NoActionBar" as mc_light_noactionbar
+    rectangle "Theme.MaterialComponents.Bridge" as mc_bridge
+}
+
+' ==== Material3 系列 ====
+package "Material3 (Material You, API 31+)" as Material3 #E1BEE7 {
+    rectangle "Theme.Material3" as m3
+    rectangle "Theme.Material3.DayNight" as m3_dn
+    rectangle "Theme.Material3.DynamicColors.DayNight" as m3_dynamic_dn
+    rectangle "Theme.Material3.Light" as m3_light
+    rectangle "Theme.Material3.Dark" as m3_dark
+    rectangle "Theme.Material3.NoActionBar" as m3_noactionbar
+}
+
+' ==== 继承关系 ====
+theme --> holo
+holo --> appcompat
+holo_light --> appcompat_light
+holo_light_darkbar --> appcompat_light_darkbar
+
+appcompat --> mc
+appcompat_light --> mc_light
+appcompat_light_darkbar --> mc_dn
+appcompat_noactionbar --> mc_noactionbar
+
+mc --> m3
+mc_dn --> m3_dn
+mc_light --> m3_light
+mc_noactionbar --> m3_noactionbar
+
+' ==== 历史演进说明 ====
+note top of theme
+  **Theme (API 1+)**
+  - 所有 Android 主题的基础
+  - 提供最基本的 UI 样式
+end note
+
+note top of holo
+  **Holo时代 (API 11-20)**
+  - Android 3.x/4.x 的默认主题
+  - 蓝色调、现代化 UI 相比早期更统一
+end note
+
+note top of appcompat
+  **AppCompat时代**
+  - 基于 Holo 的兼容主题
+  - 提供 ActionBar 支持
+  - 可在旧版 API 上使用新控件
+end note
+
+note top of mc
+  **MaterialComponents时代 (API 21+)**
+  - 支持 Material Design 规范
+  - 提供 DayNight 模式
+  - 更丰富的控件主题
+end note
+
+note top of m3
+  **Material3时代 (API 31+)**
+  - 支持 Material You / 动态色
+  - 全面适配 Android 12+
+  - 官方推荐新项目使用
+end note
+
+@enduml
