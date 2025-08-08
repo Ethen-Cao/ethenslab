@@ -248,5 +248,52 @@
 &lt;li&gt;
 &lt;p&gt;Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。&lt;/p&gt;</description>
     </item>
+    <item>
+      <title>OEM 多品牌多用户动态主题引擎 — 软件架构设计文档</title>
+      <link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-%E5%A4%9A%E5%93%81%E7%89%8C%E5%A4%9A%E7%94%A8%E6%88%B7%E5%8A%A8%E6%80%81%E4%B8%BB%E9%A2%98%E5%BC%95%E6%93%8E--%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%96%87%E6%A1%A3/</link>
+      <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-%E5%A4%9A%E5%93%81%E7%89%8C%E5%A4%9A%E7%94%A8%E6%88%B7%E5%8A%A8%E6%80%81%E4%B8%BB%E9%A2%98%E5%BC%95%E6%93%8E--%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%96%87%E6%A1%A3/</guid>
+      <description>&lt;h1&gt;&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;版本&lt;/strong&gt;：1.0
+&lt;strong&gt;日期&lt;/strong&gt;：2025-08-08
+&lt;strong&gt;作者&lt;/strong&gt;：Assistant (基于您提供的需求与设计稿)&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;目标：基于您给定的 14 项核心需求，提供一份可执行的软件架构设计，包含架构决策、模块划分、接口定义、数据模型、部署/安全/性能要点、替代方案比较与风险缓解措施。本文档假定目标设备为量产 Android 设备（不可获取 platform 私钥），支持多品牌、多用户、主题商店、云同步、个性化微调。&lt;/p&gt;&lt;/blockquote&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;目录&#34;&gt;目录&lt;/h1&gt;
+&lt;ol&gt;
+&lt;li&gt;概述&lt;/li&gt;
+&lt;li&gt;需求映射（与优先级）&lt;/li&gt;
+&lt;li&gt;总体架构（两套可选部署：A. framework TMS；B. App-integrated TMS）&lt;/li&gt;
+&lt;li&gt;组件设计与职责&lt;/li&gt;
+&lt;li&gt;主题包规范与安装流程（manifest、校验、签名）&lt;/li&gt;
+&lt;li&gt;个性化定制实现（推荐方案）&lt;/li&gt;
+&lt;li&gt;AIDL / API 设计（system_server 方案）与 App API（App-integrated 方案）&lt;/li&gt;
+&lt;li&gt;数据模型（ThemeDB）与同步策略&lt;/li&gt;
+&lt;li&gt;安全与权限方案&lt;/li&gt;
+&lt;li&gt;性能优化要点与进程/刷新策略&lt;/li&gt;
+&lt;li&gt;测试计划与上线验证要点&lt;/li&gt;
+&lt;li&gt;替代方案对比与决策理由（含“动态生成 RRO APK”结论）&lt;/li&gt;
+&lt;li&gt;风险清单与缓解措施&lt;/li&gt;
+&lt;li&gt;迭代路线图（短中长期建议）
+附录：PlantUML 示例（安装/应用序列）与示例 AIDL、表结构&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h1&gt;
+&lt;p&gt;本架构旨在实现一个企业级、可扩展的主题引擎，满足 OEM 的多品牌预置需求、运行时主题切换、个性化微调、云端同步与多用户隔离。设计原则：&lt;strong&gt;安全优先 → 稳定性 → 可维护性 → 兼顾迭代速度&lt;/strong&gt;。在关键点（TMS 放置、个性化如何实现）提供两条可选路径并给出推荐。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;2-需求映射优先级&#34;&gt;2. 需求映射（优先级）&lt;/h1&gt;
+&lt;p&gt;将原始 14 项需求按优先级分为必需/强烈期望/可选：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;必需（M）&lt;/strong&gt;：多品牌预设（1），动态主题切换（2），全局深度美化（3），多用户隔离（4），安全与权限控制（8），兼容性检测与恢复默认（12/14）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;强烈期望（H）&lt;/strong&gt;：版本管理（5），性能优化（7），主题预览（11），主题包规范（6）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;可选/增强（L）&lt;/strong&gt;：个性化定制（9），跨设备同步（10），多语言（13）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;架构设计将优先保证 M/H 级需求实现，并对 L 级给出实用可落地方案。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1 id=&#34;3-总体架构两种部署选型&#34;&gt;3. 总体架构（两种部署选型）&lt;/h1&gt;
+&lt;h2 id=&#34;概览&#34;&gt;概览&lt;/h2&gt;
+&lt;p&gt;主要参与方：&lt;strong&gt;主题商店 App (StoreApp)&lt;/strong&gt;、&lt;strong&gt;ThemeManagerService (TMS)&lt;/strong&gt;、&lt;strong&gt;OverlayManagerService (OMS)&lt;/strong&gt;、&lt;strong&gt;PackageManagerService (PMS)&lt;/strong&gt;、&lt;strong&gt;AssetManager&lt;/strong&gt;、&lt;strong&gt;ThemeDB&lt;/strong&gt; 与 &lt;strong&gt;OEM 云服务&lt;/strong&gt;（Server / AccountServer）。&lt;/p&gt;</description>
+    </item>
   </channel>
 </rss>
