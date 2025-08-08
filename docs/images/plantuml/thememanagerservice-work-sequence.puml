@@ -1,0 +1,55 @@
+@startuml
+!theme materia
+skinparam defaultFontColor #000000
+skinparam shadowing false
+skinparam sequence {
+    LifeLineBorderColor #555555
+    ParticipantBorderColor #555555
+    ArrowColor #333333
+}
+
+participant "SystemServer" as SS
+participant "ThemeManagerService\n(TMS)" as TMS
+participant "PackageManagerService\n(PMS)" as PMS
+participant "Theme Store App" as StoreApp
+participant "OverlayManagerService\n(OMS)" as OMS
+database "ThemeDB" as DB
+
+group 系统启动初始化
+    SS -> TMS: 构造并启动服务
+    activate TMS
+    TMS -> PMS: 注册广播接收器\n(监听 APK 安装/卸载/升级)
+    TMS -> DB: 加载主题数据到内存
+end
+
+group 主题安装请求 (installTheme)
+    StoreApp -> StoreApp: 下载并解压 Theme.zip
+    StoreApp -> TMS: [AIDL] installThemeForUser(unzipped_path, userId)
+    TMS -> TMS: 权限校验 & 安全校验
+    loop 对每个解压出的 RRO APK
+        TMS -> PMS: 请求安装 RRO APK
+        activate PMS
+        PMS --> TMS: 返回安装结果
+        deactivate PMS
+    end
+    alt 所有 RROs 安装成功
+        TMS -> DB: 将新主题元数据写入数据库
+        TMS --> StoreApp: 返回安装成功
+    else 部分 RROs 安装失败
+        TMS -> PMS: 请求卸载已安装的 RROs (回滚)
+        TMS --> StoreApp: 返回安装失败
+    end
+end
+
+group 主题应用请求 (applyTheme)
+    StoreApp -> TMS: [AIDL] applyThemeForUser("ThemeB", userId)
+    TMS -> TMS: 权限校验
+    TMS -> DB: 查询当前主题 (ThemeA) 的 RROs
+    TMS -> OMS: 循环停用 ThemeA 的所有 RROs
+    TMS -> DB: 查询新主题 (ThemeB) 的 RROs
+    TMS -> OMS: 循环启用 ThemeB 的所有 RROs
+    TMS -> DB: 更新 userId 的当前主题为 ThemeB
+    TMS --> StoreApp: 返回操作结果
+end
+deactivate TMS
+@enduml
