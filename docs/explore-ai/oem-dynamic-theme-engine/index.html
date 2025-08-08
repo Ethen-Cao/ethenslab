@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="OEM 多品牌多使用者動態主題引擎技術方案
+
+  
+      
+          版本
+          日期
+          作者
+          修訂說明
+      
+  
+  
+      
+          2.18
+          2025-08-09
+          Gemini
+          在附錄中新增了“7.3 TMS 部署模式”的架構決策分析。
+      
+      
+          2.19
+          2025-08-09
+          Gemini
+          根據使用者提供的圖表，在 7.3 章節中新增了 TMS 部署模式的 PlantUML 對比圖。
+      
+  
+
+1. 方案概述 (Executive Summary)
+本方案旨在為 OEM 廠商設計一套企業級的、功能完備的 Android 動態主題引擎。該引擎不僅能滿足多品牌、多 SKU 的出廠預設風格差異化，更能透過功能強大的主題商店，為使用者提供包括主題預覽、個性化微調、跨裝置同步在內的全方位個性化體驗。
+方案核心是自研一個執行於 system_server 的主題管理服務 (ThemeManagerService, TMS)，它作為主題生態的大腦，負責管理主題包的生命週期、處理多使用者環境下的權限與資料隔離、並向上層的主題商店應用提供穩定的 AIDL 介面。
+最終目標是打造一個穩定、高效、安全且可擴展的主題平台，不僅能強化 OEM 品牌形象，更能構建一個開放的第三方主題生態，提升使用者體驗與黏性。
+2. 核心需求與目標
+本方案旨在滿足以下 14 項核心需求：
+
+  
+      
+          編號
+          需求描述
+          關鍵目標
+      
+  
+  
+      
+          1
+          多品牌預設主題
+          實現不同產品線出廠時擁有獨特、固定的品牌視覺識別 (VI)。
+      
+      
+          2
+          動態主題切換
+          允許使用者在不重啟設備的情況下，一鍵下載、安裝、應用、刪除主題。
+      
+      
+          3
+          全域深度美化
+          主題效果需覆蓋系統框架、SystemUI、啟動器等多個核心應用，保證體驗一致性。
+      
+      
+          4
+          多使用者資料隔離
+          在多使用者模式下，每個使用者的主題選擇和私有主題列表應相互獨立，互不影響。
+      
+      
+          5
+          版本管理
+          支援主題的平滑升級與安全回滾，避免因版本問題導致系統不穩定。
+      
+      
+          6
+          第三方生態
+          建立標準化的主題包開發規範，允許第三方開發者參與主題製作與分發。
+      
+      
+          7
+          性能優化
+          主題切換應保證流暢快速，避免系統卡頓和耗電過快。
+      
+      
+          8
+          安全與權限控制
+          確保主題包來源可信，防止惡意主題破壞系統安全或洩露使用者隱私。
+      
+      
+          9
+          個性化主題定製
+          支援使用者對主題進行個性化定製，如調整顏色、字體、圖示樣式等。
+      
+      
+          10
+          跨裝置同步
+          支援使用者跨裝置同步主題設定，實現無縫體驗。
+      
+      
+          11
+          主題預覽功能
+          使用者可在應用前預覽主題效果，提升選擇體驗。
+      
+      
+          12
+          主題相容性檢測
+          自動檢測主題與系統版本、應用相容性，避免主題導致功能異常。
+      
+      
+          13
+          多語言支援
+          主題管理介面及主題包支援多語言，滿足全球使用者需求。
+      
+      
+          14
+          主題恢復預設設定
+          提供一鍵恢復系統預設主題的功能，方便使用者快速回退。
+      
+  
+
+3. 系統架構 (System Architecture)
+整體架構以自研的 TMS 為核心，協同系統原生服務，向上層應用提供能力。">
+<meta name="author" content="">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.8d92b99258d2a8aea36dee98116af3631ad91e255aef20c2caa81c9459a68fd8.css" integrity="sha256-jZK5kljSqK6jbe6YEWrzYxrZHiVa7yDCyqgclFmmj9g=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution">
+  <meta property="og:description" content="OEM 多品牌多使用者動態主題引擎技術方案 版本 日期 作者 修訂說明 2.18 2025-08-09 Gemini 在附錄中新增了“7.3 TMS 部署模式”的架構決策分析。 2.19 2025-08-09 Gemini 根據使用者提供的圖表，在 7.3 章節中新增了 TMS 部署模式的 PlantUML 對比圖。 1. 方案概述 (Executive Summary) 本方案旨在為 OEM 廠商設計一套企業級的、功能完備的 Android 動態主題引擎。該引擎不僅能滿足多品牌、多 SKU 的出廠預設風格差異化，更能透過功能強大的主題商店，為使用者提供包括主題預覽、個性化微調、跨裝置同步在內的全方位個性化體驗。
+方案核心是自研一個執行於 system_server 的主題管理服務 (ThemeManagerService, TMS)，它作為主題生態的大腦，負責管理主題包的生命週期、處理多使用者環境下的權限與資料隔離、並向上層的主題商店應用提供穩定的 AIDL 介面。
+最終目標是打造一個穩定、高效、安全且可擴展的主題平台，不僅能強化 OEM 品牌形象，更能構建一個開放的第三方主題生態，提升使用者體驗與黏性。
+2. 核心需求與目標 本方案旨在滿足以下 14 項核心需求：
+編號 需求描述 關鍵目標 1 多品牌預設主題 實現不同產品線出廠時擁有獨特、固定的品牌視覺識別 (VI)。 2 動態主題切換 允許使用者在不重啟設備的情況下，一鍵下載、安裝、應用、刪除主題。 3 全域深度美化 主題效果需覆蓋系統框架、SystemUI、啟動器等多個核心應用，保證體驗一致性。 4 多使用者資料隔離 在多使用者模式下，每個使用者的主題選擇和私有主題列表應相互獨立，互不影響。 5 版本管理 支援主題的平滑升級與安全回滾，避免因版本問題導致系統不穩定。 6 第三方生態 建立標準化的主題包開發規範，允許第三方開發者參與主題製作與分發。 7 性能優化 主題切換應保證流暢快速，避免系統卡頓和耗電過快。 8 安全與權限控制 確保主題包來源可信，防止惡意主題破壞系統安全或洩露使用者隱私。 9 個性化主題定製 支援使用者對主題進行個性化定製，如調整顏色、字體、圖示樣式等。 10 跨裝置同步 支援使用者跨裝置同步主題設定，實現無縫體驗。 11 主題預覽功能 使用者可在應用前預覽主題效果，提升選擇體驗。 12 主題相容性檢測 自動檢測主題與系統版本、應用相容性，避免主題導致功能異常。 13 多語言支援 主題管理介面及主題包支援多語言，滿足全球使用者需求。 14 主題恢復預設設定 提供一鍵恢復系統預設主題的功能，方便使用者快速回退。 3. 系統架構 (System Architecture) 整體架構以自研的 TMS 為核心，協同系統原生服務，向上層應用提供能力。">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="explore-ai">
+    <meta property="article:published_time" content="2025-08-08T19:49:26+08:00">
+    <meta property="article:modified_time" content="2025-08-08T19:49:26+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution">
+<meta name="twitter:description" content="OEM 多品牌多使用者動態主題引擎技術方案
+
+  
+      
+          版本
+          日期
+          作者
+          修訂說明
+      
+  
+  
+      
+          2.18
+          2025-08-09
+          Gemini
+          在附錄中新增了“7.3 TMS 部署模式”的架構決策分析。
+      
+      
+          2.19
+          2025-08-09
+          Gemini
+          根據使用者提供的圖表，在 7.3 章節中新增了 TMS 部署模式的 PlantUML 對比圖。
+      
+  
+
+1. 方案概述 (Executive Summary)
+本方案旨在為 OEM 廠商設計一套企業級的、功能完備的 Android 動態主題引擎。該引擎不僅能滿足多品牌、多 SKU 的出廠預設風格差異化，更能透過功能強大的主題商店，為使用者提供包括主題預覽、個性化微調、跨裝置同步在內的全方位個性化體驗。
+方案核心是自研一個執行於 system_server 的主題管理服務 (ThemeManagerService, TMS)，它作為主題生態的大腦，負責管理主題包的生命週期、處理多使用者環境下的權限與資料隔離、並向上層的主題商店應用提供穩定的 AIDL 介面。
+最終目標是打造一個穩定、高效、安全且可擴展的主題平台，不僅能強化 OEM 品牌形象，更能構建一個開放的第三方主題生態，提升使用者體驗與黏性。
+2. 核心需求與目標
+本方案旨在滿足以下 14 項核心需求：
+
+  
+      
+          編號
+          需求描述
+          關鍵目標
+      
+  
+  
+      
+          1
+          多品牌預設主題
+          實現不同產品線出廠時擁有獨特、固定的品牌視覺識別 (VI)。
+      
+      
+          2
+          動態主題切換
+          允許使用者在不重啟設備的情況下，一鍵下載、安裝、應用、刪除主題。
+      
+      
+          3
+          全域深度美化
+          主題效果需覆蓋系統框架、SystemUI、啟動器等多個核心應用，保證體驗一致性。
+      
+      
+          4
+          多使用者資料隔離
+          在多使用者模式下，每個使用者的主題選擇和私有主題列表應相互獨立，互不影響。
+      
+      
+          5
+          版本管理
+          支援主題的平滑升級與安全回滾，避免因版本問題導致系統不穩定。
+      
+      
+          6
+          第三方生態
+          建立標準化的主題包開發規範，允許第三方開發者參與主題製作與分發。
+      
+      
+          7
+          性能優化
+          主題切換應保證流暢快速，避免系統卡頓和耗電過快。
+      
+      
+          8
+          安全與權限控制
+          確保主題包來源可信，防止惡意主題破壞系統安全或洩露使用者隱私。
+      
+      
+          9
+          個性化主題定製
+          支援使用者對主題進行個性化定製，如調整顏色、字體、圖示樣式等。
+      
+      
+          10
+          跨裝置同步
+          支援使用者跨裝置同步主題設定，實現無縫體驗。
+      
+      
+          11
+          主題預覽功能
+          使用者可在應用前預覽主題效果，提升選擇體驗。
+      
+      
+          12
+          主題相容性檢測
+          自動檢測主題與系統版本、應用相容性，避免主題導致功能異常。
+      
+      
+          13
+          多語言支援
+          主題管理介面及主題包支援多語言，滿足全球使用者需求。
+      
+      
+          14
+          主題恢復預設設定
+          提供一鍵恢復系統預設主題的功能，方便使用者快速回退。
+      
+  
+
+3. 系統架構 (System Architecture)
+整體架構以自研的 TMS 為核心，協同系統原生服務，向上層應用提供能力。">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Explore AI",
+      "item": "https://ethen-cao.github.io/ethenslab/explore-ai/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution",
+      "item": "https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution",
+  "name": "OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution",
+  "description": "OEM 多品牌多使用者動態主題引擎技術方案 版本 日期 作者 修訂說明 2.18 2025-08-09 Gemini 在附錄中新增了“7.3 TMS 部署模式”的架構決策分析。 2.19 2025-08-09 Gemini 根據使用者提供的圖表，在 7.3 章節中新增了 TMS 部署模式的 PlantUML 對比圖。 1. 方案概述 (Executive Summary) 本方案旨在為 OEM 廠商設計一套企業級的、功能完備的 Android 動態主題引擎。該引擎不僅能滿足多品牌、多 SKU 的出廠預設風格差異化，更能透過功能強大的主題商店，為使用者提供包括主題預覽、個性化微調、跨裝置同步在內的全方位個性化體驗。\n方案核心是自研一個執行於 system_server 的主題管理服務 (ThemeManagerService, TMS)，它作為主題生態的大腦，負責管理主題包的生命週期、處理多使用者環境下的權限與資料隔離、並向上層的主題商店應用提供穩定的 AIDL 介面。\n最終目標是打造一個穩定、高效、安全且可擴展的主題平台，不僅能強化 OEM 品牌形象，更能構建一個開放的第三方主題生態，提升使用者體驗與黏性。\n2. 核心需求與目標 本方案旨在滿足以下 14 項核心需求：\n編號 需求描述 關鍵目標 1 多品牌預設主題 實現不同產品線出廠時擁有獨特、固定的品牌視覺識別 (VI)。 2 動態主題切換 允許使用者在不重啟設備的情況下，一鍵下載、安裝、應用、刪除主題。 3 全域深度美化 主題效果需覆蓋系統框架、SystemUI、啟動器等多個核心應用，保證體驗一致性。 4 多使用者資料隔離 在多使用者模式下，每個使用者的主題選擇和私有主題列表應相互獨立，互不影響。 5 版本管理 支援主題的平滑升級與安全回滾，避免因版本問題導致系統不穩定。 6 第三方生態 建立標準化的主題包開發規範，允許第三方開發者參與主題製作與分發。 7 性能優化 主題切換應保證流暢快速，避免系統卡頓和耗電過快。 8 安全與權限控制 確保主題包來源可信，防止惡意主題破壞系統安全或洩露使用者隱私。 9 個性化主題定製 支援使用者對主題進行個性化定製，如調整顏色、字體、圖示樣式等。 10 跨裝置同步 支援使用者跨裝置同步主題設定，實現無縫體驗。 11 主題預覽功能 使用者可在應用前預覽主題效果，提升選擇體驗。 12 主題相容性檢測 自動檢測主題與系統版本、應用相容性，避免主題導致功能異常。 13 多語言支援 主題管理介面及主題包支援多語言，滿足全球使用者需求。 14 主題恢復預設設定 提供一鍵恢復系統預設主題的功能，方便使用者快速回退。 3. 系統架構 (System Architecture) 整體架構以自研的 TMS 為核心，協同系統原生服務，向上層應用提供能力。\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "OEM 多品牌多使用者動態主題引擎技術方案 版本 日期 作者 修訂說明 2.18 2025-08-09 Gemini 在附錄中新增了“7.3 TMS 部署模式”的架構決策分析。 2.19 2025-08-09 Gemini 根據使用者提供的圖表，在 7.3 章節中新增了 TMS 部署模式的 PlantUML 對比圖。 1. 方案概述 (Executive Summary) 本方案旨在為 OEM 廠商設計一套企業級的、功能完備的 Android 動態主題引擎。該引擎不僅能滿足多品牌、多 SKU 的出廠預設風格差異化，更能透過功能強大的主題商店，為使用者提供包括主題預覽、個性化微調、跨裝置同步在內的全方位個性化體驗。\n方案核心是自研一個執行於 system_server 的主題管理服務 (ThemeManagerService, TMS)，它作為主題生態的大腦，負責管理主題包的生命週期、處理多使用者環境下的權限與資料隔離、並向上層的主題商店應用提供穩定的 AIDL 介面。\n最終目標是打造一個穩定、高效、安全且可擴展的主題平台，不僅能強化 OEM 品牌形象，更能構建一個開放的第三方主題生態，提升使用者體驗與黏性。\n2. 核心需求與目標 本方案旨在滿足以下 14 項核心需求：\n編號 需求描述 關鍵目標 1 多品牌預設主題 實現不同產品線出廠時擁有獨特、固定的品牌視覺識別 (VI)。 2 動態主題切換 允許使用者在不重啟設備的情況下，一鍵下載、安裝、應用、刪除主題。 3 全域深度美化 主題效果需覆蓋系統框架、SystemUI、啟動器等多個核心應用，保證體驗一致性。 4 多使用者資料隔離 在多使用者模式下，每個使用者的主題選擇和私有主題列表應相互獨立，互不影響。 5 版本管理 支援主題的平滑升級與安全回滾，避免因版本問題導致系統不穩定。 6 第三方生態 建立標準化的主題包開發規範，允許第三方開發者參與主題製作與分發。 7 性能優化 主題切換應保證流暢快速，避免系統卡頓和耗電過快。 8 安全與權限控制 確保主題包來源可信，防止惡意主題破壞系統安全或洩露使用者隱私。 9 個性化主題定製 支援使用者對主題進行個性化定製，如調整顏色、字體、圖示樣式等。 10 跨裝置同步 支援使用者跨裝置同步主題設定，實現無縫體驗。 11 主題預覽功能 使用者可在應用前預覽主題效果，提升選擇體驗。 12 主題相容性檢測 自動檢測主題與系統版本、應用相容性，避免主題導致功能異常。 13 多語言支援 主題管理介面及主題包支援多語言，滿足全球使用者需求。 14 主題恢復預設設定 提供一鍵恢復系統預設主題的功能，方便使用者快速回退。 3. 系統架構 (System Architecture) 整體架構以自研的 TMS 為核心，協同系統原生服務，向上層應用提供能力。\n@startuml ' 相容性樣式設定 skinparam defaultFontColor \\#000000 skinparam shadowing false skinparam package { BorderColor \\#555555 BackgroundColor \\#FFFFFF } skinparam component { BorderColor \\#333333 BackgroundColor \\#FFFFFF } skinparam database { BorderColor \\#BF360C BackgroundColor \\#FBE9E7 } package \"OEM 雲服務\" \\#E3F2FD { \\[主題商店後端\\] as Server \\[使用者帳戶與同步服務\\] as AccountServer } package \"設備端\" \\#E0F2F1 { package \"應用層 (User)\" { \\[主題商店 App (特權應用)\\] as StoreApp } package \"框架層 (Framework)\" { \\[ThemeManagerService (TMS, OEM自研)\\] as TMS \\#FFEB3B \\[OverlayManagerService (OMS)\\] as OMS \\[PackageManagerService (PMS)\\] as PMS \\[AssetManager\\] as AssetMgr } package \"底層 (Native)\" { database \"已安裝 RRO APKs\" as RRO\\_APKs } package \"資料儲存\" { database \"主題資料庫 (SQLite)\" as ThemeDB } } ' 雲端與用戶端交互 Server \\\u003c-down-\\\u003e StoreApp : (1) 下載主題包 AccountServer \\\u003c.down.\\\u003e StoreApp : (10) 跨裝置同步 ' 主題商店 App 呼叫主題管理服務 StoreApp \\\u003c.down.\\\u003e TMS : (2) \\[AIDL\\] 業務請求，權限校驗 ' 主題包安裝流程 StoreApp \\--\\\u003e TMS : (2a) 安裝/卸載主題包請求 TMS \\--\\\u003e PMS : (2b) 請求安裝/卸載主題 APK PMS \\--\\\u003e TMS : (2c) 返回安裝/卸載結果 TMS \\--\\\u003e ThemeDB : (2d) 更新主題元資料 TMS \\--\\\u003e OMS : (2e) 啟用/停用對應的 RRO ' 主題啟動與資源訪問流程 TMS .down.\\\u003e PMS : (3) 監聽 APK 狀態 TMS .down.\\\u003e OMS : (4) 核心啟用/停用 RROs TMS .down.\\\u003e ThemeDB : (5) 讀寫主題元資料 OMS .down.\\\u003e AssetMgr : (6) 透過資源管理訪問 RRO 資源 AssetMgr .down.\\\u003e RRO\\_APKs : (7) 讀取已安裝的 RRO APK 檔案 @enduml 4. 核心功能模組設計 4.1. 主題包規範 (Theme Package Specification) 一個邏輯上的「主題包」是使用者從商店下載和安裝的基本單元，通常以 ZIP 壓縮包的形式分發。它內部包含了一系列獨立的 RRO APK 和描述其元資料的清單檔案，以確保主題的完整性、安全性及管理的便捷性。\n分發格式:\n推薦使用 .zip 格式，便於統一管理和分發。 ZIP 包內應包含： 多個 RRO APKs: 每個 APK 針對一個目標應用（如 framework-res.apk, systemui.apk）。 清單檔案 (manifest.json): 描述整個主題包的元資料，供主題商店 App 解析。 預覽資源 (previews/): 包含鎖屏、桌面等預覽圖的資料夾。 安全性與完整性校驗 (MD5):\n為確保主題包在下載、解壓和安裝過程中的安全，推薦採用雙重 MD5 校驗機制。\nZIP 包整體校驗: 主題商店伺服器在提供下載時，應同時提供整個 ZIP 包的 MD5 值。商店 App 下載完成後，需先對 ZIP 檔案進行 MD5 校驗，確保下載過程完整無誤。 內部 RRO APK 校驗: manifest.json 檔案中，需包含每個 RRO APK 的獨立 MD5 值。商店 App 在解壓 ZIP 包後、安裝任何 APK 之前，必須逐一校驗每個 RRO APK 的 MD5 值，確保檔案未被篡改。 主題包清單 (manifest.json) 規範:\n此檔案是主題商店 App 理解主題包內容的核心。\n{\n“themeId”: “com.oem.theme.deepblue”,\n“themeName”: “深海藍”,\n“author”: “OEM Design Team”,\n“versionName”: “1.2.0”,\n“description”: “一款靜謐的深藍色主題。”,\n“zipMd5”: “0123456789abcdef0123456789abcdef”,\n“rroApks”: [\n{\n“file”: “framework-res.apk”,\n“target”: “android”,\n“md5”: “a1b2c3d4e5f678901234567890abcdef”\n},\n{\n“file”: “systemui.apk”,\n“target”: “com.android.systemui”,\n“md5”: “fedcba09876543210987654321fedcba”\n}\n]\n}\nRRO APK Manifest 規範:\n每個獨立的 RRO APK 必須遵循以下規範：\n: 必須聲明，且每個 RRO APK 只能有一個。 android:versionCode: 必須，用於版本管理。 : 必須，用於相容性檢測。 : 建議增加自定義元資料，包括： com.oem.theme.name: 主題名（可指向 @string/ 實現多語言）。 com.oem.theme.author: 作者名。 com.oem.theme.preview_assets: 指向主題預覽圖資源。 com.oem.theme.is_customizable: (布林值) 聲明是否支援個性化定製。 4.2. 編譯時靜態覆蓋層 (需求 #1) 此模組是實現品牌差異化的基礎，負責定義設備的出廠預設風格。\n技術: 採用 AOSP 標準的編譯時資源覆蓋 (Build-time Resource Overlay)。 實現: 建立 Overlay 目錄: 在 AOSP 原始碼的 device/ 目錄下，為每個品牌或產品線建立獨立的 Overlay 目錄結構。 覆寫資源: 在各自的 Overlay 目錄中，建立與 frameworks/base/core/res/ 相同的子目錄結構，並放置需要覆寫的資源檔案。核心是覆寫 themes_device_defaults.xml 來定義品牌專屬的 Theme.DeviceDefault 主題。 配置編譯腳本: 在對應產品線的 .mk 編譯腳本中，透過 PRODUCT_PACKAGE_OVERLAYS 變數指向該品牌專屬的 Overlay 目錄。 目的: 確保不同產品線在編譯時，其韌體就包含了各自獨特的品牌基因。這是所有後續動態主題的「回退」基準。 4.3. 主題管理服務 (ThemeManagerService - TMS) 作為 system_server 的核心服務，是所有主題業務邏輯的中樞。\n內部工作時序圖:\n下圖展示了 TMS 在系統啟動時的初始化流程，以及處理主題安裝和應用請求的內部交互過程。\n@startuml ' 相容性樣式設定 skinparam defaultFontColor \\#000000 skinparam shadowing false skinparam sequence { LifeLineBorderColor \\#555555 ParticipantBorderColor \\#555555 ArrowColor \\#333333 } participant \"SystemServer\" as SS participant \"ThemeManagerService\\\\n(TMS)\" as TMS participant \"PackageManagerService\\\\n(PMS)\" as PMS participant \"Theme Store App\" as StoreApp participant \"OverlayManagerService\\\\n(OMS)\" as OMS database \"ThemeDB\" as DB group 系統啟動初始化 SS \\-\\\u003e TMS: 建構並啟動服務 activate TMS TMS \\-\\\u003e PMS: 註冊廣播接收器\\\\n(監聽 APK 安裝/卸載/升級) TMS \\-\\\u003e DB: 載入主題資料到記憶體 end group 主題安裝請求 (installTheme) StoreApp \\-\\\u003e StoreApp: 下載並解壓 Theme.zip StoreApp \\-\\\u003e StoreApp: \\*\\*透過 FileProvider 產生 RRO APKs 的 Uri 列表\\*\\* StoreApp \\-\\\u003e TMS: \\[AIDL\\] installThemeForUser(apkUris, userId) TMS \\-\\\u003e TMS: 權限校驗 \u0026 安全校驗 loop 對每個 Uri TMS \\-\\\u003e PMS: 請求安裝 RRO APK (傳入 Uri) activate PMS PMS \\--\\\u003e TMS: 返回安裝結果 deactivate PMS end alt 所有 RROs 安裝成功 TMS \\-\\\u003e DB: 將新主題元資料寫入資料庫 TMS \\--\\\u003e StoreApp: 返回安裝成功 else 部分 RROs 安裝失敗 TMS \\-\\\u003e PMS: 請求卸載已安裝的 RROs (回滾) TMS \\--\\\u003e StoreApp: 返回安裝失敗 end end group 主題應用請求 (applyTheme) StoreApp \\-\\\u003e TMS: \\[AIDL\\] applyThemeForUser(\"ThemeB\", userId) TMS \\-\\\u003e TMS: 權限校驗 TMS \\-\\\u003e DB: 查詢當前主題 (ThemeA) 的 RROs TMS \\-\\\u003e OMS: 迴圈停用 ThemeA 的所有 RROs TMS \\-\\\u003e DB: 查詢新主題 (ThemeB) 的 RROs TMS \\-\\\u003e OMS: 迴圈啟用 ThemeB 的所有 RROs TMS \\-\\\u003e DB: 更新 userId 的當前主題為 ThemeB TMS \\--\\\u003e StoreApp: 返回操作結果 end deactivate TMS @enduml AIDL 介面與 Parcelable 實現:\n為實現模組化和資料傳輸，需要定義 AIDL 介面及相關的 Parcelable 資料類型。\n**IThemeManagerService.aidl** (核心服務介面) // file: com/oem/themes/IThemeManagerService.aidl package com.oem.themes; import android.net.Uri; import com.oem.themes.ThemeInfo; import com.oem.themes.CustomizationRequest; interface IThemeManagerService { boolean installThemeForUser(in List\\\u003cUri\\\u003e apkUris, int userId); List\\\u003cThemeInfo\\\u003e getThemeListForUser(int userId); ThemeInfo getThemeInfoForUser(String themeId, int userId); boolean applyThemeForUser(String themeId, int userId); ThemeInfo getAppliedThemeForUser(int userId); boolean rollbackTheme(String themeId, int userId); boolean deleteThemeForUser(String themeId, int userId); boolean applyCustomization(in CustomizationRequest request, int userId); boolean clearCustomization(int userId); boolean restoreDefaultTheme(int userId); } 4.4. 主題預覽機制 (需求 #11) 在「主題商店 App」內部的沙盒環境中實現，避免對系統進行實際的 RRO 覆蓋。\n技術: 核心是跨 APK 載入資源。 流程: 在商店 App 中建立 PreviewActivity，其佈局模擬真實系統介面。 透過 Context.createPackageContext() 建立指向目標 RRO APK 的 Context。 利用此 Context 安全地載入 RRO APK 中的資源（顏色、圖示等），並手動應用到 PreviewActivity 的模擬控制項上。 4.5. 個性化主題定製 (需求 #9) 此功能旨在允許使用者在不重新安裝完整主題包的情況下，對當前主題的特定參數（如顏色、字體）進行微調。鑑於在設備端動態產生並簽署 APK 的複雜性和安全風險，本方案提出以下三種業界主流的備選實現路徑。\n方案 A (推薦): 參數驅動框架 (Parameter-Driven Framework) 核心思想: 將「主題」的概念從靜態的資源包，轉變為由一組動態參數驅動。這是 MIUI、OneUI 等成熟主題引擎的典型做法。 實現: 修改框架: 深度定製 Android Framework 的核心資源載入邏輯（AssetManager / ResourcesImpl）。使其在載入指定資源（如 R.color.accent_color）時，優先檢查一個由 TMS 管理的參數表（例如 /data/system/theme_params.xml）。 參數更新: 當使用者在主題商店中調整顏色時，商店 App 透過 TMS 的 applyCustomization 介面，僅僅是更新這個 XML 參數表中的一個鍵值對。 即時生效: 下一次任何應用請求該資源時，AssetManager 會直接讀取並返回參數表中的新值，無需重新安裝任何 APK，也無需重啟應用。 優點: 極為靈活強大，支援任意參數的即時調整，性能開銷小。 缺點: 對 Framework 的修改最深入，開發和維護成本最高。 方案 B (備選): 預編譯 RRO 組合 (Pre-compiled RRO Combination) 核心思想: 預先為有限的定製選項製作多套 RROs，透過啟用/停用不同的 RRO 組合來實現個性化。這是 AOSP 動態色彩 (Monet) 和 Pixel Themes 的實現方式。 實現: 預製 RROs: 在編譯時，為每種可定製的顏色（如 10 種）和字體（如 5 種）都製作一個獨立的、只包含該項資源的 RRO APK。 組合切換: 當使用者選擇「藍色」+「Roboto 字體」時，TMS 會呼叫 OMS，啟用 blue_color.apk 和 roboto_font.apk，同時停用其他所有顏色和字體的 RROs。 優點: 對 Framework 無侵入式修改，完全利用原生 RRO 機制，切換速度快。 缺點: 靈活性有限，只能在預設的選項中選擇；如果組合過多，會佔用較多的儲存空間。 方案 C (特定場景): 外部資源載入 (External Asset Loading) 核心思想: 將可變資源（如圖示、桌布）打包成獨立的非 APK 資料檔案（如 ZIP），由特定應用在執行時自行載入。 實現: 修改目標應用: 需要修改 SystemUI、Launcher 等自家應用的程式碼，讓它們在啟動時檢查 TMS 指定的外部資源包路徑，並優先載入其中的資源。 TMS 職能: TMS 負責管理這些外部資源包的路徑和版本。 優點: 繞過了 RRO 機制，更新靈活。 缺點: 無法影響第三方應用，只能用於自家應用的深度定製。 4.6. 跨裝置同步 (需求 #10) 後端: 需要 OEM 雲服務提供使用者帳戶系統和主題同步資料庫，記錄使用者購買和應用的主題。 設備端: 主題商店 App 負責使用者登入和與雲端同步。 當使用者在新設備上登入時，商店 App 從雲端拉取其主題列表。 如果雲端記錄的主題在本地尚未安裝，商店 App 會提示或自動下載安裝。 安裝完成後，商店 App 呼叫 TMS 的 applyThemeForUser() 介面，應用使用者在雲端記錄的主題，實現無縫體驗。 4.7. 相容性檢測與恢復預設 (需求 #12, #14) 相容性檢測: 安裝時: TMS 監聽到 ACTION_PACKAGE_ADDED 後，會解析 RRO APK 的 minSdkVersion，若不滿足當前系統版本，則在資料庫中將其標記為「不相容」，商店 App 中不予顯示。 系統升級後: 開機時，TMS 會重新校驗所有已安裝主題的相容性。 恢復預設: TMS 實現: restoreDefaultTheme(userId) 介面的核心邏輯是：查詢該使用者當前所有已啟用的 RROs，並呼叫 OMS.setEnabled(…, false) 將它們全部停用。 效果: 當所有動態 RROs 都被停用後，系統會自動回退到由編譯時靜態 Overlay 定義的出廠預設主題。 5. 安全、性能與多語言 (需求 #7, #8, #13) 安全與權限控制: 簽署校驗: 所有主題包（尤其第三方）必須經過簽署校驗。 權限隔離: TMS 的 AIDL 介面必須進行嚴格的權限檢查，只允許擁有平台簽署的商店 App 呼叫。 安裝來源: 可限制只有主題商店 App 才有權安裝 RRO 類型的 APK。 性能優化: 非同步處理: 所有 TMS 的耗時操作（資料庫、檔案 IO、動態 RRO 產生）都必須在工作執行緒中進行。 智慧刷新: 應用主題後，應按需、精準地刷新受影響的 UI 進程，而不是粗暴地重啟整個系統。 多語言支援: 主題商店 App: 自身 UI 需支援多語言。 主題包: 鼓勵開發者在 RRO APK 的 res/ 目錄下提供多語言的字串資源 (values-en, values-ja 等)，主題名、描述等都應使用 @string/ 引用。 6. 總結 本方案 v2.17 在原有基礎上進行了全面擴充和修正，形成了一套覆蓋從出廠定製到使用者個性化微調、從本地管理到雲端同步的全鏈路企業級主題引擎解決方案。方案在保持架構穩定性的同時，為所有 14 項核心需求提供了具體、可行的技術實現路徑，能夠有力支撐 OEM 廠商打造差異化、高黏性的使用者體驗。\n7. 附錄：架構決策 (Appendix: Architectural Decisions) 7.1. 檔案傳遞機制：FileProvider vs. 共享目錄 問題: 主題商店 App (應用層) 如何安全地將解壓後的 RRO APK 檔案傳遞給 ThemeManagerService (框架層) 進行安裝？ 方案 A (不推薦): 共享目錄 描述: 在 /data 下建立一個雙方都能讀寫的「公共」目錄。 弊端: 嚴重安全風險: 破壞了 Android 的應用沙盒模型。 違反 SELinux 策略: 需要修改系統核心的 SELinux 策略，為 system_server 和應用進程開設一個不安全的訪問通道，這會削弱整個系統的安全性。 方案 B (推薦): FileProvider + Uri 授權 描述: 主題商店 App 將 APK 檔案放在自己的私有目錄，並透過 FileProvider 產生一個臨時的、帶授權的 content:// Uri。TMS 接收這個 Uri，並憑藉此次 IPC 呼叫獲得的臨時授權來讀取檔案。 優點: 安全: 遵循 Android 官方推薦的標準，無需修改 SELinux，保證了沙盒的完整性。 最小權限: 授權是臨時的、針對特定檔案的，TMS 無法訪問商店 App 的任何其他私有檔案。 相容性好: 能夠平滑適配未來 Android 版本的安全更新。 結論: 為保證系統的安全性和穩定性，本方案明確採用 FileProvider + Uri 授權的機制進行跨進程檔案傳遞。 7.2. 個性化定製實現方案選型 問題: 如何在不進行設備端 APK 簽署的情況下，實現使用者對主題參數的即時調整？ 方案 A (推薦 - 功能強大): 參數驅動框架 描述: 修改 AssetManager，使其載入資源時優先讀取一個由 TMS 管理的參數檔案。使用者定製時只修改此檔案。 優點: 極度靈活，支援任意參數即時調整，性能開銷小。 缺點: 對 Framework 修改最深入，開發和維護成本最高。 方案 B (推薦 - 簡單穩定): 預編譯 RRO 組合 描述: 預製多套針對不同參數（如顏色）的 RRO APKs，使用者定製時，TMS 負責啟用/停用正確的 RRO 組合。 優點: 對 Framework 無侵入式修改，完全利用原生 RRO 機制，穩定且切換快。 缺點: 靈活性有限，只能在預設選項中選擇，組合多時佔用儲存空間。 結論: 對於追求極致個性化和靈活性的主題引擎，方案 A 是最佳選擇。對於追求實現簡單、風險可控的場景，方案 B 是一個非常穩健的備選方案。本方案的設計允許 TMS 在底層實現時，根據產品需求選擇其中一種或混合使用。 7.3. TMS 部署模式：核心服務 vs. 應用內實現 問題: ThemeManagerService 的邏輯應該部署在 system_server 核心服務中，還是直接在主題商店 App 內部實現？\n架構對比圖:\n@startuml skinparam shadowing false skinparam defaultFontColor \\#000000 skinparam package { BorderColor \\#555555 BackgroundColor \\#FFFFFF } skinparam rectangle { BorderColor \\#333333 BackgroundColor \\#FFFFFF } title TMS 架构方案对比 ' 左边：system\\_server 方案 package \"方案 A：TMS 在 framework 层（system\\_server）\" \\#E3F2FD { rectangle \"应用层\\\\n- 主题商店 App（前端 UI）\\\\n- 其他授权主题客户端\" as A\\_App rectangle \"Framework 层\\\\n- ThemeManagerService (TMS)\\\\n- OverlayManagerService (OMS)\\\\n- PackageManagerService (PMS)\" as A\\_FW rectangle \"数据存储\\\\n- 主题数据库 (ThemeDB)\\\\n- 已安装 RRO APKs\" as A\\_DB A\\_App \\--\\\u003e A\\_FW : AIDL 调用 A\\_FW \\--\\\u003e A\\_DB : 读写主题元数据 / 访问 RRO } note right of A\\_FW \\*\\*优点：\\*\\* \\- 安全隔离彻底（system\\_server） \\- 公共 API 可复用给多 App \\- 生命周期与系统一致，极稳定 \\*\\*缺点：\\*\\* \\- 迭代慢，需 OTA \\- IPC 有一定性能开销 \\- 开发维护成本高 end note ' 右边：App 集成方案 package \"方案 B：TMS 集成在主题商店 App 内\" \\#E0F2F1 { rectangle \"主题商店 App（包含 TMS 模块）\\\\n- UI 展示\\\\n- 主题管理逻辑\\\\n- 调用系统服务（OMS / PMS）\" as B\\_App rectangle \"Framework 层\\\\n- OverlayManagerService (OMS)\\\\n- PackageManagerService (PMS)\" as B\\_FW rectangle \"数据存储\\\\n- 主题数据库 (ThemeDB)\\\\n- 已安装 RRO APKs\" as B\\_DB B\\_App \\--\\\u003e B\\_FW : 直接系统 API 调用 B\\_App \\--\\\u003e B\\_DB : 读写主题元数据 / 访问 RRO } note right of B\\_App \\*\\*优点：\\*\\* \\- 迭代快（应用更新即可） \\- 架构简单，无需额外系统服务 \\- 性能更好（减少一次 IPC） \\*\\*缺点：\\*\\* \\- 安全性依赖 App 权限 \\- 仅限单一商店使用 \\- 商店 App 崩溃可能影响体验 end note @enduml 结论: 儘管方案 A 在特定場景下可行，但為了構建一個安全、穩定且具備長期擴展性的企業級主題生態，本方案明確推薦並採用方案 B (核心服務)。\n",
+  "wordCount" : "1402",
+  "inLanguage": "en",
+  "datePublished": "2025-08-08T19:49:26+08:00",
+  "dateModified": "2025-08-08T19:49:26+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://ethen-cao.github.io/ethenslab/">Home</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/explore-ai/">Explore AI</a></div>
+    <h1 class="post-title entry-hint-parent">
+      OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution
+    </h1>
+    <div class="post-meta"><span title='2025-08-08 19:49:26 +0800 CST'>August 8, 2025</span>&nbsp;·&nbsp;7 min&nbsp;·&nbsp;1402 words
+
+</div>
+  </header> 
+  <div class="post-content"><h1 id="oem-多品牌多使用者動態主題引擎技術方案">OEM 多品牌多使用者動態主題引擎技術方案<a hidden class="anchor" aria-hidden="true" href="#oem-多品牌多使用者動態主題引擎技術方案">#</a></h1>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">版本</th>
+          <th style="text-align: left">日期</th>
+          <th style="text-align: left">作者</th>
+          <th style="text-align: left">修訂說明</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">2.18</td>
+          <td style="text-align: left">2025-08-09</td>
+          <td style="text-align: left">Gemini</td>
+          <td style="text-align: left">在附錄中新增了“7.3 TMS 部署模式”的架構決策分析。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>2.19</strong></td>
+          <td style="text-align: left"><strong>2025-08-09</strong></td>
+          <td style="text-align: left"><strong>Gemini</strong></td>
+          <td style="text-align: left"><strong>根據使用者提供的圖表，在 7.3 章節中新增了 TMS 部署模式的 PlantUML 對比圖。</strong></td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="1-方案概述-executive-summary">1. 方案概述 (Executive Summary)<a hidden class="anchor" aria-hidden="true" href="#1-方案概述-executive-summary">#</a></h2>
+<p>本方案旨在為 OEM 廠商設計一套企業級的、功能完備的 Android 動態主題引擎。該引擎不僅能滿足多品牌、多 SKU 的出廠預設風格差異化，更能透過功能強大的<strong>主題商店</strong>，為使用者提供包括主題預覽、個性化微調、跨裝置同步在內的全方位個性化體驗。</p>
+<p>方案核心是自研一個執行於 system_server 的<strong>主題管理服務 (ThemeManagerService, TMS)</strong>，它作為主題生態的大腦，負責管理主題包的生命週期、處理多使用者環境下的權限與資料隔離、並向上層的<strong>主題商店應用</strong>提供穩定的 AIDL 介面。</p>
+<p>最終目標是打造一個穩定、高效、安全且可擴展的主題平台，不僅能強化 OEM 品牌形象，更能構建一個開放的第三方主題生態，提升使用者體驗與黏性。</p>
+<h2 id="2-核心需求與目標">2. 核心需求與目標<a hidden class="anchor" aria-hidden="true" href="#2-核心需求與目標">#</a></h2>
+<p>本方案旨在滿足以下 14 項核心需求：</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">編號</th>
+          <th style="text-align: left">需求描述</th>
+          <th style="text-align: left">關鍵目標</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">1</td>
+          <td style="text-align: left"><strong>多品牌預設主題</strong></td>
+          <td style="text-align: left">實現不同產品線出廠時擁有獨特、固定的品牌視覺識別 (VI)。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">2</td>
+          <td style="text-align: left"><strong>動態主題切換</strong></td>
+          <td style="text-align: left">允許使用者在不重啟設備的情況下，一鍵下載、安裝、應用、刪除主題。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">3</td>
+          <td style="text-align: left"><strong>全域深度美化</strong></td>
+          <td style="text-align: left">主題效果需覆蓋系統框架、SystemUI、啟動器等多個核心應用，保證體驗一致性。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">4</td>
+          <td style="text-align: left"><strong>多使用者資料隔離</strong></td>
+          <td style="text-align: left">在多使用者模式下，每個使用者的主題選擇和私有主題列表應相互獨立，互不影響。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">5</td>
+          <td style="text-align: left"><strong>版本管理</strong></td>
+          <td style="text-align: left">支援主題的平滑升級與安全回滾，避免因版本問題導致系統不穩定。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">6</td>
+          <td style="text-align: left"><strong>第三方生態</strong></td>
+          <td style="text-align: left">建立標準化的主題包開發規範，允許第三方開發者參與主題製作與分發。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">7</td>
+          <td style="text-align: left"><strong>性能優化</strong></td>
+          <td style="text-align: left">主題切換應保證流暢快速，避免系統卡頓和耗電過快。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">8</td>
+          <td style="text-align: left"><strong>安全與權限控制</strong></td>
+          <td style="text-align: left">確保主題包來源可信，防止惡意主題破壞系統安全或洩露使用者隱私。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">9</td>
+          <td style="text-align: left"><strong>個性化主題定製</strong></td>
+          <td style="text-align: left">支援使用者對主題進行個性化定製，如調整顏色、字體、圖示樣式等。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">10</td>
+          <td style="text-align: left"><strong>跨裝置同步</strong></td>
+          <td style="text-align: left">支援使用者跨裝置同步主題設定，實現無縫體驗。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">11</td>
+          <td style="text-align: left"><strong>主題預覽功能</strong></td>
+          <td style="text-align: left">使用者可在應用前預覽主題效果，提升選擇體驗。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">12</td>
+          <td style="text-align: left"><strong>主題相容性檢測</strong></td>
+          <td style="text-align: left">自動檢測主題與系統版本、應用相容性，避免主題導致功能異常。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">13</td>
+          <td style="text-align: left"><strong>多語言支援</strong></td>
+          <td style="text-align: left">主題管理介面及主題包支援多語言，滿足全球使用者需求。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left">14</td>
+          <td style="text-align: left"><strong>主題恢復預設設定</strong></td>
+          <td style="text-align: left">提供一鍵恢復系統預設主題的功能，方便使用者快速回退。</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="3-系統架構-system-architecture">3. 系統架構 (System Architecture)<a hidden class="anchor" aria-hidden="true" href="#3-系統架構-system-architecture">#</a></h2>
+<p>整體架構以自研的 TMS 為核心，協同系統原生服務，向上層應用提供能力。</p>
+<pre tabindex="0"><code class="language-planuml" data-lang="planuml">@startuml  
+&#39; 相容性樣式設定  
+skinparam defaultFontColor \#000000  
+skinparam shadowing false  
+skinparam package {  
+    BorderColor \#555555  
+    BackgroundColor \#FFFFFF  
+}  
+skinparam component {  
+    BorderColor \#333333  
+    BackgroundColor \#FFFFFF  
+}  
+skinparam database {  
+    BorderColor \#BF360C  
+    BackgroundColor \#FBE9E7  
+}
+
+package &#34;OEM 雲服務&#34; \#E3F2FD {  
+    \[主題商店後端\] as Server  
+    \[使用者帳戶與同步服務\] as AccountServer  
+}
+
+package &#34;設備端&#34; \#E0F2F1 {  
+    package &#34;應用層 (User)&#34; {  
+        \[主題商店 App (特權應用)\] as StoreApp  
+    }
+
+    package &#34;框架層 (Framework)&#34; {  
+        \[ThemeManagerService (TMS, OEM自研)\] as TMS \#FFEB3B  
+        \[OverlayManagerService (OMS)\] as OMS  
+        \[PackageManagerService (PMS)\] as PMS  
+        \[AssetManager\] as AssetMgr  
+    }
+
+    package &#34;底層 (Native)&#34; {  
+        database &#34;已安裝 RRO APKs&#34; as RRO\_APKs  
+    }
+
+    package &#34;資料儲存&#34; {  
+        database &#34;主題資料庫 (SQLite)&#34; as ThemeDB  
+    }  
+}
+
+&#39; 雲端與用戶端交互  
+Server \&lt;-down-\&gt; StoreApp : (1) 下載主題包  
+AccountServer \&lt;.down.\&gt; StoreApp : (10) 跨裝置同步
+
+&#39; 主題商店 App 呼叫主題管理服務  
+StoreApp \&lt;.down.\&gt; TMS : (2) \[AIDL\] 業務請求，權限校驗
+
+&#39; 主題包安裝流程  
+StoreApp \--\&gt; TMS : (2a) 安裝/卸載主題包請求  
+TMS \--\&gt; PMS : (2b) 請求安裝/卸載主題 APK  
+PMS \--\&gt; TMS : (2c) 返回安裝/卸載結果  
+TMS \--\&gt; ThemeDB : (2d) 更新主題元資料  
+TMS \--\&gt; OMS : (2e) 啟用/停用對應的 RRO
+
+&#39; 主題啟動與資源訪問流程  
+TMS .down.\&gt; PMS : (3) 監聽 APK 狀態  
+TMS .down.\&gt; OMS : (4) 核心啟用/停用 RROs  
+TMS .down.\&gt; ThemeDB : (5) 讀寫主題元資料
+
+OMS .down.\&gt; AssetMgr : (6) 透過資源管理訪問 RRO 資源  
+AssetMgr .down.\&gt; RRO\_APKs : (7) 讀取已安裝的 RRO APK 檔案
+
+@enduml
+</code></pre><p><img alt="系统架构图" loading="lazy" src="/ethenslab/images/android-thememanagerservice-sw-architecture.png"></p>
+<h2 id="4-核心功能模組設計">4. 核心功能模組設計<a hidden class="anchor" aria-hidden="true" href="#4-核心功能模組設計">#</a></h2>
+<h3 id="41-主題包規範-theme-package-specification">4.1. 主題包規範 (Theme Package Specification)<a hidden class="anchor" aria-hidden="true" href="#41-主題包規範-theme-package-specification">#</a></h3>
+<p>一個邏輯上的「主題包」是使用者從商店下載和安裝的基本單元，通常以 <strong>ZIP 壓縮包</strong>的形式分發。它內部包含了一系列獨立的 RRO APK 和描述其元資料的清單檔案，以確保主題的完整性、安全性及管理的便捷性。</p>
+<ul>
+<li>
+<p><strong>分發格式</strong>:</p>
+<ul>
+<li>推薦使用 .zip 格式，便於統一管理和分發。</li>
+<li>ZIP 包內應包含：
+<ul>
+<li><strong>多個 RRO APKs</strong>: 每個 APK 針對一個目標應用（如 framework-res.apk, systemui.apk）。</li>
+<li><strong>清單檔案 (manifest.json)</strong>: 描述整個主題包的元資料，供主題商店 App 解析。</li>
+<li><strong>預覽資源 (previews/)</strong>: 包含鎖屏、桌面等預覽圖的資料夾。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p>安全性與完整性校驗 (MD5):<br>
+為確保主題包在下載、解壓和安裝過程中的安全，推薦採用雙重 MD5 校驗機制。</p>
+<ol>
+<li><strong>ZIP 包整體校驗</strong>: 主題商店伺服器在提供下載時，應同時提供整個 ZIP 包的 MD5 值。商店 App 下載完成後，需先對 ZIP 檔案進行 MD5 校驗，確保下載過程完整無誤。</li>
+<li><strong>內部 RRO APK 校驗</strong>: manifest.json 檔案中，需包含每個 RRO APK 的獨立 MD5 值。商店 App 在解壓 ZIP 包後、安裝任何 APK 之前，必須逐一校驗每個 RRO APK 的 MD5 值，確保檔案未被篡改。</li>
+</ol>
+</li>
+<li>
+<p>主題包清單 (manifest.json) 規範:<br>
+此檔案是主題商店 App 理解主題包內容的核心。<br>
+{<br>
+&ldquo;themeId&rdquo;: &ldquo;com.oem.theme.deepblue&rdquo;,<br>
+&ldquo;themeName&rdquo;: &ldquo;深海藍&rdquo;,<br>
+&ldquo;author&rdquo;: &ldquo;OEM Design Team&rdquo;,<br>
+&ldquo;versionName&rdquo;: &ldquo;1.2.0&rdquo;,<br>
+&ldquo;description&rdquo;: &ldquo;一款靜謐的深藍色主題。&rdquo;,<br>
+&ldquo;zipMd5&rdquo;: &ldquo;0123456789abcdef0123456789abcdef&rdquo;,<br>
+&ldquo;rroApks&rdquo;: [<br>
+{<br>
+&ldquo;file&rdquo;: &ldquo;framework-res.apk&rdquo;,<br>
+&ldquo;target&rdquo;: &ldquo;android&rdquo;,<br>
+&ldquo;md5&rdquo;: &ldquo;a1b2c3d4e5f678901234567890abcdef&rdquo;<br>
+},<br>
+{<br>
+&ldquo;file&rdquo;: &ldquo;systemui.apk&rdquo;,<br>
+&ldquo;target&rdquo;: &ldquo;com.android.systemui&rdquo;,<br>
+&ldquo;md5&rdquo;: &ldquo;fedcba09876543210987654321fedcba&rdquo;<br>
+}<br>
+]<br>
+}</p>
+</li>
+<li>
+<p>RRO APK Manifest 規範:<br>
+每個獨立的 RRO APK 必須遵循以下規範：</p>
+<ul>
+<li>&lt;overlay android:targetPackage=&ldquo;包名&rdquo; /&gt;: <strong>必須</strong>聲明，且每個 RRO APK 只能有一個。</li>
+<li>android:versionCode: <strong>必須</strong>，用於版本管理。</li>
+<li>&lt;uses-sdk android:minSdkVersion=&quot;&hellip;&quot; /&gt;: <strong>必須</strong>，用於相容性檢測。</li>
+<li>&lt;meta-data&gt;: <strong>建議</strong>增加自定義元資料，包括：
+<ul>
+<li>com.oem.theme.name: 主題名（可指向 @string/ 實現多語言）。</li>
+<li>com.oem.theme.author: 作者名。</li>
+<li>com.oem.theme.preview_assets: 指向主題預覽圖資源。</li>
+<li>com.oem.theme.is_customizable: (布林值) 聲明是否支援個性化定製。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="42-編譯時靜態覆蓋層-需求-1">4.2. 編譯時靜態覆蓋層 (需求 #1)<a hidden class="anchor" aria-hidden="true" href="#42-編譯時靜態覆蓋層-需求-1">#</a></h3>
+<p>此模組是實現品牌差異化的基礎，負責定義設備的出廠預設風格。</p>
+<ul>
+<li><strong>技術</strong>: 採用 AOSP 標準的<strong>編譯時資源覆蓋 (Build-time Resource Overlay)</strong>。</li>
+<li><strong>實現</strong>:
+<ol>
+<li><strong>建立 Overlay 目錄</strong>: 在 AOSP 原始碼的 device/ 目錄下，為每個品牌或產品線建立獨立的 Overlay 目錄結構。</li>
+<li><strong>覆寫資源</strong>: 在各自的 Overlay 目錄中，建立與 frameworks/base/core/res/ 相同的子目錄結構，並放置需要覆寫的資源檔案。核心是覆寫 themes_device_defaults.xml 來定義品牌專屬的 Theme.DeviceDefault 主題。</li>
+<li><strong>配置編譯腳本</strong>: 在對應產品線的 .mk 編譯腳本中，透過 PRODUCT_PACKAGE_OVERLAYS 變數指向該品牌專屬的 Overlay 目錄。</li>
+</ol>
+</li>
+<li><strong>目的</strong>: 確保不同產品線在編譯時，其韌體就包含了各自獨特的品牌基因。這是所有後續動態主題的「回退」基準。</li>
+</ul>
+<h3 id="43-主題管理服務-thememanagerservice---tms">4.3. 主題管理服務 (ThemeManagerService - TMS)<a hidden class="anchor" aria-hidden="true" href="#43-主題管理服務-thememanagerservice---tms">#</a></h3>
+<p>作為 system_server 的核心服務，是所有主題業務邏輯的中樞。</p>
+<ul>
+<li>
+<p>內部工作時序圖:<br>
+下圖展示了 TMS 在系統啟動時的初始化流程，以及處理主題安裝和應用請求的內部交互過程。</p>
+<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml  
+&#39; 相容性樣式設定  
+skinparam defaultFontColor \#000000  
+skinparam shadowing false  
+skinparam sequence {  
+    LifeLineBorderColor \#555555  
+    ParticipantBorderColor \#555555  
+    ArrowColor \#333333  
+}
+
+participant &#34;SystemServer&#34; as SS  
+participant &#34;ThemeManagerService\\n(TMS)&#34; as TMS  
+participant &#34;PackageManagerService\\n(PMS)&#34; as PMS  
+participant &#34;Theme Store App&#34; as StoreApp  
+participant &#34;OverlayManagerService\\n(OMS)&#34; as OMS  
+database &#34;ThemeDB&#34; as DB
+
+group 系統啟動初始化  
+    SS \-\&gt; TMS: 建構並啟動服務  
+    activate TMS  
+    TMS \-\&gt; PMS: 註冊廣播接收器\\n(監聽 APK 安裝/卸載/升級)  
+    TMS \-\&gt; DB: 載入主題資料到記憶體  
+end
+
+group 主題安裝請求 (installTheme)  
+    StoreApp \-\&gt; StoreApp: 下載並解壓 Theme.zip  
+    StoreApp \-\&gt; StoreApp: \*\*透過 FileProvider 產生 RRO APKs 的 Uri 列表\*\*  
+    StoreApp \-\&gt; TMS: \[AIDL\] installThemeForUser(apkUris, userId)  
+    TMS \-\&gt; TMS: 權限校驗 &amp; 安全校驗  
+    loop 對每個 Uri  
+        TMS \-\&gt; PMS: 請求安裝 RRO APK (傳入 Uri)  
+        activate PMS  
+        PMS \--\&gt; TMS: 返回安裝結果  
+        deactivate PMS  
+    end  
+    alt 所有 RROs 安裝成功  
+        TMS \-\&gt; DB: 將新主題元資料寫入資料庫  
+        TMS \--\&gt; StoreApp: 返回安裝成功  
+    else 部分 RROs 安裝失敗  
+        TMS \-\&gt; PMS: 請求卸載已安裝的 RROs (回滾)  
+        TMS \--\&gt; StoreApp: 返回安裝失敗  
+    end  
+end
+
+group 主題應用請求 (applyTheme)  
+    StoreApp \-\&gt; TMS: \[AIDL\] applyThemeForUser(&#34;ThemeB&#34;, userId)  
+    TMS \-\&gt; TMS: 權限校驗  
+    TMS \-\&gt; DB: 查詢當前主題 (ThemeA) 的 RROs  
+    TMS \-\&gt; OMS: 迴圈停用 ThemeA 的所有 RROs  
+    TMS \-\&gt; DB: 查詢新主題 (ThemeB) 的 RROs  
+    TMS \-\&gt; OMS: 迴圈啟用 ThemeB 的所有 RROs  
+    TMS \-\&gt; DB: 更新 userId 的當前主題為 ThemeB  
+    TMS \--\&gt; StoreApp: 返回操作結果  
+end  
+deactivate TMS  
+@enduml
+</code></pre><p><img loading="lazy" src="/ethenslab/images/android-thememanagerservice-sw-architecture.png"></p>
+</li>
+<li>
+<p>AIDL 介面與 Parcelable 實現:<br>
+為實現模組化和資料傳輸，需要定義 AIDL 介面及相關的 Parcelable 資料類型。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-java" data-lang="java"><span style="display:flex;"><span><span style="color:#f92672">**</span>IThemeManagerService.<span style="color:#a6e22e">aidl</span><span style="color:#f92672">**</span> (核心服務介面)  
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// file: com/oem/themes/IThemeManagerService.aidl  </span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">package</span> com.oem.themes;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> android.net.Uri;  
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> com.oem.themes.ThemeInfo;  
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> com.oem.themes.CustomizationRequest;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">IThemeManagerService</span> {  
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">boolean</span> <span style="color:#a6e22e">installThemeForUser</span>(in List<span style="color:#960050;background-color:#1e0010">\</span><span style="color:#f92672">&lt;</span>Uri<span style="color:#960050;background-color:#1e0010">\</span><span style="color:#f92672">&gt;</span> apkUris, <span style="color:#66d9ef">int</span> userId);  
+</span></span><span style="display:flex;"><span>    List<span style="color:#960050;background-color:#1e0010">\</span><span style="color:#f92672">&lt;</span>ThemeInfo<span style="color:#960050;background-color:#1e0010">\</span><span style="color:#f92672">&gt;</span> getThemeListForUser(<span style="color:#66d9ef">int</span> userId);  
+</span></span><span style="display:flex;"><span>    ThemeInfo <span style="color:#a6e22e">getThemeInfoForUser</span>(String themeId, <span style="color:#66d9ef">int</span> userId);  
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">boolean</span> <span style="color:#a6e22e">applyThemeForUser</span>(String themeId, <span style="color:#66d9ef">int</span> userId);  
+</span></span><span style="display:flex;"><span>    ThemeInfo <span style="color:#a6e22e">getAppliedThemeForUser</span>(<span style="color:#66d9ef">int</span> userId);  
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">boolean</span> <span style="color:#a6e22e">rollbackTheme</span>(String themeId, <span style="color:#66d9ef">int</span> userId);  
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">boolean</span> <span style="color:#a6e22e">deleteThemeForUser</span>(String themeId, <span style="color:#66d9ef">int</span> userId);  
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">boolean</span> <span style="color:#a6e22e">applyCustomization</span>(in CustomizationRequest request, <span style="color:#66d9ef">int</span> userId);  
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">boolean</span> <span style="color:#a6e22e">clearCustomization</span>(<span style="color:#66d9ef">int</span> userId);  
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">boolean</span> <span style="color:#a6e22e">restoreDefaultTheme</span>(<span style="color:#66d9ef">int</span> userId);  
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div></li>
+</ul>
+<h3 id="44-主題預覽機制-需求-11">4.4. 主題預覽機制 (需求 #11)<a hidden class="anchor" aria-hidden="true" href="#44-主題預覽機制-需求-11">#</a></h3>
+<p>在「主題商店 App」內部的沙盒環境中實現，避免對系統進行實際的 RRO 覆蓋。</p>
+<ul>
+<li><strong>技術</strong>: 核心是<strong>跨 APK 載入資源</strong>。</li>
+<li><strong>流程</strong>:
+<ol>
+<li>在商店 App 中建立 PreviewActivity，其佈局模擬真實系統介面。</li>
+<li>透過 Context.createPackageContext() 建立指向目標 RRO APK 的 Context。</li>
+<li>利用此 Context 安全地載入 RRO APK 中的資源（顏色、圖示等），並手動應用到 PreviewActivity 的模擬控制項上。</li>
+</ol>
+</li>
+</ul>
+<h3 id="45-個性化主題定製-需求-9">4.5. 個性化主題定製 (需求 #9)<a hidden class="anchor" aria-hidden="true" href="#45-個性化主題定製-需求-9">#</a></h3>
+<p>此功能旨在允許使用者在不重新安裝完整主題包的情況下，對當前主題的特定參數（如顏色、字體）進行微調。鑑於在設備端動態產生並簽署 APK 的複雜性和安全風險，本方案提出以下三種業界主流的備選實現路徑。</p>
+<ul>
+<li><strong>方案 A (推薦): 參數驅動框架 (Parameter-Driven Framework)</strong>
+<ul>
+<li><strong>核心思想</strong>: 將「主題」的概念從靜態的資源包，轉變為由一組動態參數驅動。這是 MIUI、OneUI 等成熟主題引擎的典型做法。</li>
+<li><strong>實現</strong>:
+<ol>
+<li><strong>修改框架</strong>: 深度定製 Android Framework 的核心資源載入邏輯（AssetManager / ResourcesImpl）。使其在載入指定資源（如 R.color.accent_color）時，<strong>優先</strong>檢查一個由 TMS 管理的參數表（例如 /data/system/theme_params.xml）。</li>
+<li><strong>參數更新</strong>: 當使用者在主題商店中調整顏色時，商店 App 透過 TMS 的 applyCustomization 介面，僅僅是更新這個 XML 參數表中的一個鍵值對。</li>
+<li><strong>即時生效</strong>: 下一次任何應用請求該資源時，AssetManager 會直接讀取並返回參數表中的新值，無需重新安裝任何 APK，也無需重啟應用。</li>
+</ol>
+</li>
+<li><strong>優點</strong>: 極為靈活強大，支援任意參數的即時調整，性能開銷小。</li>
+<li><strong>缺點</strong>: 對 Framework 的修改最深入，開發和維護成本最高。</li>
+</ul>
+</li>
+<li><strong>方案 B (備選): 預編譯 RRO 組合 (Pre-compiled RRO Combination)</strong>
+<ul>
+<li><strong>核心思想</strong>: 預先為有限的定製選項製作多套 RROs，透過啟用/停用不同的 RRO 組合來實現個性化。這是 AOSP 動態色彩 (Monet) 和 Pixel Themes 的實現方式。</li>
+<li><strong>實現</strong>:
+<ol>
+<li><strong>預製 RROs</strong>: 在編譯時，為每種可定製的顏色（如 10 種）和字體（如 5 種）都製作一個獨立的、只包含該項資源的 RRO APK。</li>
+<li><strong>組合切換</strong>: 當使用者選擇「藍色」+「Roboto 字體」時，TMS 會呼叫 OMS，<strong>啟用</strong> blue_color.apk 和 roboto_font.apk，同時<strong>停用</strong>其他所有顏色和字體的 RROs。</li>
+</ol>
+</li>
+<li><strong>優點</strong>: 對 Framework 無侵入式修改，完全利用原生 RRO 機制，切換速度快。</li>
+<li><strong>缺點</strong>: 靈活性有限，只能在預設的選項中選擇；如果組合過多，會佔用較多的儲存空間。</li>
+</ul>
+</li>
+<li><strong>方案 C (特定場景): 外部資源載入 (External Asset Loading)</strong>
+<ul>
+<li><strong>核心思想</strong>: 將可變資源（如圖示、桌布）打包成獨立的非 APK 資料檔案（如 ZIP），由特定應用在執行時自行載入。</li>
+<li><strong>實現</strong>:
+<ol>
+<li><strong>修改目標應用</strong>: 需要修改 SystemUI、Launcher 等自家應用的程式碼，讓它們在啟動時檢查 TMS 指定的外部資源包路徑，並優先載入其中的資源。</li>
+<li><strong>TMS 職能</strong>: TMS 負責管理這些外部資源包的路徑和版本。</li>
+</ol>
+</li>
+<li><strong>優點</strong>: 繞過了 RRO 機制，更新靈活。</li>
+<li><strong>缺點</strong>: <strong>無法影響第三方應用</strong>，只能用於自家應用的深度定製。</li>
+</ul>
+</li>
+</ul>
+<h3 id="46-跨裝置同步-需求-10">4.6. 跨裝置同步 (需求 #10)<a hidden class="anchor" aria-hidden="true" href="#46-跨裝置同步-需求-10">#</a></h3>
+<ul>
+<li><strong>後端</strong>: 需要 OEM 雲服務提供使用者帳戶系統和主題同步資料庫，記錄使用者購買和應用的主題。</li>
+<li><strong>設備端</strong>:
+<ol>
+<li><strong>主題商店 App</strong> 負責使用者登入和與雲端同步。</li>
+<li>當使用者在新設備上登入時，商店 App 從雲端拉取其主題列表。</li>
+<li>如果雲端記錄的主題在本地尚未安裝，商店 App 會提示或自動下載安裝。</li>
+<li>安裝完成後，商店 App 呼叫 TMS 的 applyThemeForUser() 介面，應用使用者在雲端記錄的主題，實現無縫體驗。</li>
+</ol>
+</li>
+</ul>
+<h3 id="47-相容性檢測與恢復預設-需求-12-14">4.7. 相容性檢測與恢復預設 (需求 #12, #14)<a hidden class="anchor" aria-hidden="true" href="#47-相容性檢測與恢復預設-需求-12-14">#</a></h3>
+<ul>
+<li><strong>相容性檢測</strong>:
+<ul>
+<li><strong>安裝時</strong>: TMS 監聽到 ACTION_PACKAGE_ADDED 後，會解析 RRO APK 的 minSdkVersion，若不滿足當前系統版本，則在資料庫中將其標記為「不相容」，商店 App 中不予顯示。</li>
+<li><strong>系統升級後</strong>: 開機時，TMS 會重新校驗所有已安裝主題的相容性。</li>
+</ul>
+</li>
+<li><strong>恢復預設</strong>:
+<ul>
+<li><strong>TMS 實現</strong>: restoreDefaultTheme(userId) 介面的核心邏輯是：查詢該使用者當前所有<strong>已啟用</strong>的 RROs，並呼叫 OMS.setEnabled(&hellip;, false) 將它們<strong>全部停用</strong>。</li>
+<li><strong>效果</strong>: 當所有動態 RROs 都被停用後，系統會自動回退到由<strong>編譯時靜態 Overlay</strong> 定義的出廠預設主題。</li>
+</ul>
+</li>
+</ul>
+<h2 id="5-安全性能與多語言-需求-7-8-13">5. 安全、性能與多語言 (需求 #7, #8, #13)<a hidden class="anchor" aria-hidden="true" href="#5-安全性能與多語言-需求-7-8-13">#</a></h2>
+<ul>
+<li><strong>安全與權限控制</strong>:
+<ul>
+<li><strong>簽署校驗</strong>: 所有主題包（尤其第三方）必須經過簽署校驗。</li>
+<li><strong>權限隔離</strong>: TMS 的 AIDL 介面必須進行嚴格的權限檢查，只允許擁有平台簽署的商店 App 呼叫。</li>
+<li><strong>安裝來源</strong>: 可限制只有主題商店 App 才有權安裝 RRO 類型的 APK。</li>
+</ul>
+</li>
+<li><strong>性能優化</strong>:
+<ul>
+<li><strong>非同步處理</strong>: 所有 TMS 的耗時操作（資料庫、檔案 IO、動態 RRO 產生）都必須在工作執行緒中進行。</li>
+<li><strong>智慧刷新</strong>: 應用主題後，應按需、精準地刷新受影響的 UI 進程，而不是粗暴地重啟整個系統。</li>
+</ul>
+</li>
+<li><strong>多語言支援</strong>:
+<ul>
+<li><strong>主題商店 App</strong>: 自身 UI 需支援多語言。</li>
+<li><strong>主題包</strong>: 鼓勵開發者在 RRO APK 的 res/ 目錄下提供多語言的字串資源 (values-en, values-ja 等)，主題名、描述等都應使用 @string/ 引用。</li>
+</ul>
+</li>
+</ul>
+<h2 id="6-總結">6. 總結<a hidden class="anchor" aria-hidden="true" href="#6-總結">#</a></h2>
+<p>本方案 v2.17 在原有基礎上進行了全面擴充和修正，形成了一套覆蓋從出廠定製到使用者個性化微調、從本地管理到雲端同步的全鏈路企業級主題引擎解決方案。方案在保持架構穩定性的同時，為所有 14 項核心需求提供了具體、可行的技術實現路徑，能夠有力支撐 OEM 廠商打造差異化、高黏性的使用者體驗。</p>
+<h2 id="7-附錄架構決策-appendix-architectural-decisions">7. 附錄：架構決策 (Appendix: Architectural Decisions)<a hidden class="anchor" aria-hidden="true" href="#7-附錄架構決策-appendix-architectural-decisions">#</a></h2>
+<h3 id="71-檔案傳遞機制fileprovider-vs-共享目錄">7.1. 檔案傳遞機制：FileProvider vs. 共享目錄<a hidden class="anchor" aria-hidden="true" href="#71-檔案傳遞機制fileprovider-vs-共享目錄">#</a></h3>
+<ul>
+<li><strong>問題</strong>: 主題商店 App (應用層) 如何安全地將解壓後的 RRO APK 檔案傳遞給 ThemeManagerService (框架層) 進行安裝？</li>
+<li><strong>方案 A (不推薦): 共享目錄</strong>
+<ul>
+<li><strong>描述</strong>: 在 /data 下建立一個雙方都能讀寫的「公共」目錄。</li>
+<li><strong>弊端</strong>:
+<ol>
+<li><strong>嚴重安全風險</strong>: 破壞了 Android 的應用沙盒模型。</li>
+<li><strong>違反 SELinux 策略</strong>: 需要修改系統核心的 SELinux 策略，為 system_server 和應用進程開設一個不安全的訪問通道，這會削弱整個系統的安全性。</li>
+</ol>
+</li>
+</ul>
+</li>
+<li><strong>方案 B (推薦): FileProvider + Uri 授權</strong>
+<ul>
+<li><strong>描述</strong>: 主題商店 App 將 APK 檔案放在自己的私有目錄，並透過 FileProvider 產生一個臨時的、帶授權的 content:// Uri。TMS 接收這個 Uri，並憑藉此次 IPC 呼叫獲得的臨時授權來讀取檔案。</li>
+<li><strong>優點</strong>:
+<ol>
+<li><strong>安全</strong>: 遵循 Android 官方推薦的標準，無需修改 SELinux，保證了沙盒的完整性。</li>
+<li><strong>最小權限</strong>: 授權是臨時的、針對特定檔案的，TMS 無法訪問商店 App 的任何其他私有檔案。</li>
+<li><strong>相容性好</strong>: 能夠平滑適配未來 Android 版本的安全更新。</li>
+</ol>
+</li>
+</ul>
+</li>
+<li><strong>結論</strong>: 為保證系統的安全性和穩定性，本方案<strong>明確採用 FileProvider + Uri 授權</strong>的機制進行跨進程檔案傳遞。</li>
+</ul>
+<h3 id="72-個性化定製實現方案選型">7.2. 個性化定製實現方案選型<a hidden class="anchor" aria-hidden="true" href="#72-個性化定製實現方案選型">#</a></h3>
+<ul>
+<li><strong>問題</strong>: 如何在不進行設備端 APK 簽署的情況下，實現使用者對主題參數的即時調整？</li>
+<li><strong>方案 A (推薦 - 功能強大): 參數驅動框架</strong>
+<ul>
+<li><strong>描述</strong>: 修改 AssetManager，使其載入資源時優先讀取一個由 TMS 管理的參數檔案。使用者定製時只修改此檔案。</li>
+<li><strong>優點</strong>: 極度靈活，支援任意參數即時調整，性能開銷小。</li>
+<li><strong>缺點</strong>: 對 Framework 修改最深入，開發和維護成本最高。</li>
+</ul>
+</li>
+<li><strong>方案 B (推薦 - 簡單穩定): 預編譯 RRO 組合</strong>
+<ul>
+<li><strong>描述</strong>: 預製多套針對不同參數（如顏色）的 RRO APKs，使用者定製時，TMS 負責啟用/停用正確的 RRO 組合。</li>
+<li><strong>優點</strong>: 對 Framework 無侵入式修改，完全利用原生 RRO 機制，穩定且切換快。</li>
+<li><strong>缺點</strong>: 靈活性有限，只能在預設選項中選擇，組合多時佔用儲存空間。</li>
+</ul>
+</li>
+<li><strong>結論</strong>: 對於追求極致個性化和靈活性的主題引擎，<strong>方案 A 是最佳選擇</strong>。對於追求實現簡單、風險可控的場景，<strong>方案 B 是一個非常穩健的備選方案</strong>。本方案的設計允許 TMS 在底層實現時，根據產品需求選擇其中一種或混合使用。</li>
+</ul>
+<h3 id="73-tms-部署模式核心服務-vs-應用內實現">7.3. TMS 部署模式：核心服務 vs. 應用內實現<a hidden class="anchor" aria-hidden="true" href="#73-tms-部署模式核心服務-vs-應用內實現">#</a></h3>
+<ul>
+<li>
+<p><strong>問題</strong>: ThemeManagerService 的邏輯應該部署在 system_server 核心服務中，還是直接在主題商店 App 內部實現？</p>
+</li>
+<li>
+<p><strong>架構對比圖</strong>:</p>
+<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml  
+skinparam shadowing false  
+skinparam defaultFontColor \#000000  
+skinparam package {  
+    BorderColor \#555555  
+    BackgroundColor \#FFFFFF  
+}  
+skinparam rectangle {  
+    BorderColor \#333333  
+    BackgroundColor \#FFFFFF  
+}
+
+title TMS 架构方案对比
+
+&#39; 左边：system\_server 方案  
+package &#34;方案 A：TMS 在 framework 层（system\_server）&#34; \#E3F2FD {  
+    rectangle &#34;应用层\\n- 主题商店 App（前端 UI）\\n- 其他授权主题客户端&#34; as A\_App  
+    rectangle &#34;Framework 层\\n- ThemeManagerService (TMS)\\n- OverlayManagerService (OMS)\\n- PackageManagerService (PMS)&#34; as A\_FW  
+    rectangle &#34;数据存储\\n- 主题数据库 (ThemeDB)\\n- 已安装 RRO APKs&#34; as A\_DB
+
+    A\_App \--\&gt; A\_FW : AIDL 调用  
+    A\_FW \--\&gt; A\_DB : 读写主题元数据 / 访问 RRO  
+}
+
+note right of A\_FW  
+\*\*优点：\*\*  
+\- 安全隔离彻底（system\_server）  
+\- 公共 API 可复用给多 App  
+\- 生命周期与系统一致，极稳定  
+\*\*缺点：\*\*  
+\- 迭代慢，需 OTA  
+\- IPC 有一定性能开销  
+\- 开发维护成本高  
+end note
+
+&#39; 右边：App 集成方案  
+package &#34;方案 B：TMS 集成在主题商店 App 内&#34; \#E0F2F1 {  
+    rectangle &#34;主题商店 App（包含 TMS 模块）\\n- UI 展示\\n- 主题管理逻辑\\n- 调用系统服务（OMS / PMS）&#34; as B\_App  
+    rectangle &#34;Framework 层\\n- OverlayManagerService (OMS)\\n- PackageManagerService (PMS)&#34; as B\_FW  
+    rectangle &#34;数据存储\\n- 主题数据库 (ThemeDB)\\n- 已安装 RRO APKs&#34; as B\_DB
+
+    B\_App \--\&gt; B\_FW : 直接系统 API 调用  
+    B\_App \--\&gt; B\_DB : 读写主题元数据 / 访问 RRO  
+}
+
+note right of B\_App  
+\*\*优点：\*\*  
+\- 迭代快（应用更新即可）  
+\- 架构简单，无需额外系统服务  
+\- 性能更好（减少一次 IPC）  
+\*\*缺点：\*\*  
+\- 安全性依赖 App 权限  
+\- 仅限单一商店使用  
+\- 商店 App 崩溃可能影响体验  
+end note
+
+@enduml
+</code></pre><p><img loading="lazy" src="/ethenslab/images/tms-solution-comparison.png"></p>
+</li>
+<li>
+<p><strong>结论</strong>: 儘管方案 A 在特定場景下可行，但為了構建一個<strong>安全、穩定且具備長期擴展性</strong>的企業級主題生態，本方案<strong>明確推薦並採用方案 B (核心服務)</strong>。</p>
+</li>
+</ul>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+<nav class="paginav">
+  <a class="next" href="https://ethen-cao.github.io/ethenslab/explore-ai/technical-design-for-seamless-full-screen-and-split-screen-switching-in-autonavi-map/">
+    <span class="title">Next »</span>
+    <br>
+    <span>Technical Design for Seamless Full Screen and Split Screen Switching in AutoNavi Map</span>
+  </a>
+</nav>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2025 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>
