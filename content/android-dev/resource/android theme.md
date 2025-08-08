@@ -1,10 +1,10 @@
 +++
 date = '2025-08-08T11:36:11+08:00'
 draft = false
-title = 'Resource'
+title = 'Android Theme'
 +++
 
-## Theme
+## 简介
 
 Android的**Theme（主题）**，简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。
 
