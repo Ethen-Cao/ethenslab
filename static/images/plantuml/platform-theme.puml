@@ -1,0 +1,48 @@
+@startuml
+skinparam backgroundColor #F9F9F9
+skinparam shadowing false
+skinparam rectangle {
+  BackgroundColor<<Base>> #BBDEFB
+  BackgroundColor<<Holo>> #90CAF9
+  BackgroundColor<<Material>> #A5D6A7
+  BorderColor #666666
+  FontColor #000000
+}
+
+title Android平台主题及其演进过程
+
+rectangle "Theme\n(API 1+)\n最基础系统主题" <<Base>> as Theme_Base
+
+rectangle "Theme.Holo\n(API 11 - 20)\n现代蓝色调主题" <<Holo>> as Theme_Holo
+
+rectangle "Theme.Material\n(API 21+)\nMaterial Design 规范" <<Material>> as Theme_Material
+
+rectangle "Theme.DeviceDefault\n(API 14+)\n设备定制默认主题" <<Base>> as Theme_DeviceDefault
+
+' 继承关系，表示演进顺序
+Theme_Base --> Theme_Holo : 继承/演进
+Theme_Holo --> Theme_Material : 演进至Material Design
+Theme_Base --> Theme_DeviceDefault : 并行发展
+
+' 标注版本信息
+note left of Theme_Base
+  Android 1.0+
+  2008年起
+end note
+
+note right of Theme_Holo
+  Android 3.0 - 4.4
+  API 11 - 20
+end note
+
+note right of Theme_Material
+  Android 5.0+
+  API 21+
+end note
+
+note left of Theme_DeviceDefault
+  Android 4.0+
+  API 14+
+end note
+
+@enduml
