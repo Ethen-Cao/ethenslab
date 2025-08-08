@@ -26,48 +26,58 @@ title Android 主题演进
 ' 强制垂直布局
 top to bottom direction
 
-together {
-    package "平台主题 (Platform)\n2008 ~ 2014" <<Framework>> #BBDEFB {
-        rectangle "Theme\n(API 1+)" as Theme_Base
-        rectangle "Theme.Holo\n(API 11+)" as Theme_Holo
-        rectangle "Theme.Holo.Light" as Theme_Holo_Light
-        rectangle "Theme.Holo.Light.DarkActionBar" as Theme_Holo_Light_DarkActionBar
-        rectangle "Theme.Holo.NoActionBar" as Theme_Holo_NoActionBar
-        rectangle "Theme.Material\n(API 21+)" as Theme_Material
-        rectangle "Theme.Material.Light" as Theme_Material_Light
-        rectangle "Theme.Material.Light.DarkActionBar" as Theme_Material_Light_DarkActionBar
-        rectangle "Theme.Material.NoActionBar" as Theme_Material_NoActionBar
-    }
 
-    package "AppCompat 兼容库主题\n2011 ~ 2018" <<Library>> #FFE0B2 {
-        rectangle "Theme.AppCompat" as Theme_AppCompat
-        rectangle "Theme.AppCompat.Light" as Theme_AppCompat_Light
-        rectangle "Theme.AppCompat.Light.DarkActionBar" as Theme_AppCompat_Light_DarkActionBar
-        rectangle "Theme.AppCompat.NoActionBar" as Theme_AppCompat_NoActionBar
-        rectangle "Theme.AppCompat.Dialog" as Theme_AppCompat_Dialog
-        rectangle "Theme.AppCompat.Dialog.Alert" as Theme_AppCompat_Dialog_Alert
-        rectangle "Theme.AppCompat.DayNight\n(API 14+)" as Theme_AppCompat_DayNight
-    }
-
-    package "Material Components (MDC)\n2018 ~ 2022" <<Library>> #C8E6C9 {
-        rectangle "Theme.MaterialComponents" as Theme_MC
-        rectangle "Theme.MaterialComponents.Light" as Theme_MC_Light
-        rectangle "Theme.MaterialComponents.DayNight" as Theme_MC_DayNight
-        rectangle "Theme.MaterialComponents.NoActionBar" as Theme_MC_NoActionBar
-        rectangle "Theme.MaterialComponents.Light.NoActionBar" as Theme_MC_Light_NoActionBar
-        rectangle "Theme.MaterialComponents.Dialog" as Theme_MC_Dialog
-        rectangle "Theme.MaterialComponents.Dialog.Alert" as Theme_MC_Dialog_Alert
-        rectangle "Theme.MaterialComponents.Bridge" as Theme_MC_Bridge
-    }
-
-    package "Material 3 (M3)\n2021 ~ 至今" <<Library>> #E1BEE7 {
-        rectangle "Theme.Material3.Light" as Theme_M3_Light
-        rectangle "Theme.Material3.Dark" as Theme_M3_Dark
-        rectangle "Theme.Material3.DayNight" as Theme_M3_DayNight
-        rectangle "Theme.Material3.DayNight.NoActionBar" as Theme_M3_DayNight_NoActionBar
-        rectangle "Theme.Material3.DynamicColors.DayNight\n(API 31+)" as Theme_M3_Dynamic
-    }
+package "平台主题 (Platform)\n2008 ~ 2014" <<Framework>> #BBDEFB {
+    rectangle "Theme\n(API 1+)" as Theme_Base
+    rectangle "Theme.Holo\n(API 11+)" as Theme_Holo
+    rectangle "Theme.Holo.Light" as Theme_Holo_Light
+    rectangle "Theme.Holo.Light.DarkActionBar" as Theme_Holo_Light_DarkActionBar
+    rectangle "Theme.Holo.NoActionBar" as Theme_Holo_NoActionBar
+    rectangle "Theme.Material\n(API 21+)" as Theme_Material
+    rectangle "Theme.Material.Light" as Theme_Material_Light
+    rectangle "Theme.Material.Light.DarkActionBar" as Theme_Material_Light_DarkActionBar
+    rectangle "Theme.Material.NoActionBar" as Theme_Material_NoActionBar
 }
+
+package "设备默认主题 (DeviceDefault)\n2011 ~ 至今" <<Framework>> #D1C4E9 {
+    rectangle "Theme.DeviceDefaultBases" as Theme_DeviceDefaultBases
+    rectangle "Theme.DeviceDefault" as Theme_DeviceDefault
+    rectangle "Theme.DeviceDefault.Light" as Theme_DeviceDefault_Light
+    rectangle "Theme.DeviceDefault.Dark" as Theme_DeviceDefault_Dark
+}
+
+
+package "AppCompat 兼容库主题\n2011 ~ 2018" <<Library>> #FFE0B2 {
+    rectangle "Theme.AppCompat" as Theme_AppCompat
+    rectangle "Theme.AppCompat.Light" as Theme_AppCompat_Light
+    rectangle "Theme.AppCompat.Light.DarkActionBar" as Theme_AppCompat_Light_DarkActionBar
+    rectangle "Theme.AppCompat.NoActionBar" as Theme_AppCompat_NoActionBar
+    rectangle "Theme.AppCompat.Dialog" as Theme_AppCompat_Dialog
+    rectangle "Theme.AppCompat.Dialog.Alert" as Theme_AppCompat_Dialog_Alert
+    rectangle "Theme.AppCompat.DayNight\n(API 14+)" as Theme_AppCompat_DayNight
+}
+
+package "Material Components (MDC)\n2018 ~ 2022" <<Library>> #C8E6C9 {
+    rectangle "Theme.MaterialComponents" as Theme_MC
+    rectangle "Theme.MaterialComponents.Light" as Theme_MC_Light
+    rectangle "Theme.MaterialComponents.DayNight" as Theme_MC_DayNight
+    rectangle "Theme.MaterialComponents.NoActionBar" as Theme_MC_NoActionBar
+    rectangle "Theme.MaterialComponents.Light.NoActionBar" as Theme_MC_Light_NoActionBar
+    rectangle "Theme.MaterialComponents.Dialog" as Theme_MC_Dialog
+    rectangle "Theme.MaterialComponents.Dialog.Alert" as Theme_MC_Dialog_Alert
+    rectangle "Theme.MaterialComponents.Bridge" as Theme_MC_Bridge
+}
+
+package "Material 3 (M3)\n2021 ~ 至今" <<Library>> #E1BEE7 {
+    rectangle "Theme.Material3.Light" as Theme_M3_Light
+    rectangle "Theme.Material3.Dark" as Theme_M3_Dark
+    rectangle "Theme.Material3.DayNight" as Theme_M3_DayNight
+    rectangle "Theme.Material3.DayNight.NoActionBar" as Theme_M3_DayNight_NoActionBar
+    rectangle "Theme.Material3.DynamicColors.DayNight\n(API 31+)" as Theme_M3_Dynamic
+}
+
+
+
 
 ' 继承关系（从上到下）
 Theme_Base --> Theme_Holo
@@ -79,6 +89,11 @@ Theme_Base --> Theme_Material
 Theme_Material --> Theme_Material_Light
 Theme_Material_Light --> Theme_Material_Light_DarkActionBar
 Theme_Material --> Theme_Material_NoActionBar
+
+Theme_Base --> Theme_DeviceDefaultBases
+Theme_DeviceDefaultBases --> Theme_DeviceDefault
+Theme_DeviceDefaultBases --> Theme_DeviceDefault_Light
+Theme_DeviceDefaultBases --> Theme_DeviceDefault_Dark
 
 Theme_Holo --> Theme_AppCompat
 Theme_Material --> Theme_AppCompat
