@@ -1,0 +1,66 @@
+@startuml
+' 兼容性样式设置
+skinparam defaultFontColor #000000
+skinparam shadowing false
+skinparam package {
+    BorderColor #555555
+    BackgroundColor #FFFFFF
+}
+skinparam component {
+    BorderColor #333333
+    BackgroundColor #FFFFFF
+}
+skinparam database {
+    BorderColor #BF360C
+    BackgroundColor #FBE9E7
+}
+
+package "OEM 云服务" #E3F2FD {
+    [主题商店后端] as Server
+    [用户账户与同步服务] as AccountServer
+}
+
+package "设备端" #E0F2F1 {
+    package "应用层 (User)" {
+        [主题商店 App (特权应用)] as StoreApp
+    }
+
+    package "框架层 (Framework)" {
+        [ThemeManagerService (TMS, OEM自研)] as TMS
+        [OverlayManagerService (OMS)] as OMS
+        [PackageManagerService (PMS)] as PMS
+        [AssetManager] as AssetMgr
+    }
+
+    package "底层 (Native)" {
+        database "已安装 RRO APKs" as RRO_APKs
+    }
+
+    package "数据存储" {
+        database "主题数据库 (SQLite)" as ThemeDB
+    }
+}
+
+' 云端与客户端交互
+Server <-down-> StoreApp : (1) 下载/上传主题包
+AccountServer <.down.> StoreApp : (10) 跨设备同步
+
+' 主题商店 App 调用主题管理服务
+StoreApp <.down.> TMS : (2) [AIDL] 业务请求，权限校验
+
+' 主题包安装流程
+StoreApp --> TMS : (2a) 安装/卸载主题包请求
+TMS --> PMS : (2b) 请求安装/卸载主题 APK
+PMS --> TMS : (2c) 返回安装/卸载结果
+TMS --> ThemeDB : (2d) 更新主题元数据
+TMS --> OMS : (2e) 启用/停用对应的 RRO
+
+' 主题激活与资源访问流程
+TMS .down.> PMS : (3) 监听 APK 状态
+TMS .down.> OMS : (4) 核心启用/停用 RROs
+TMS .down.> ThemeDB : (5) 读写主题元数据
+
+OMS .down.> AssetMgr : (6) 通过资源管理访问 RRO 资源
+AssetMgr .down.> RRO_APKs : (7) 读取已安装的 RRO APK 文件
+
+@enduml
