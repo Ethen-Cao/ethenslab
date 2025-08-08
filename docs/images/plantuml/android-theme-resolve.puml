@@ -36,13 +36,13 @@ activate JavaTheme
 JavaTheme -> JavaTheme: 如果 mTheme == null → 调用 AssetManager.createTheme()
 JavaTheme -> NativeLib: applyStyle(themeResId, force=true)
 note right
-  从指定 themeResId 开始，向父主题递归合并属性
-  形成继承链：
-  AppTheme →
-  Theme.MaterialComponents.DayNight →
-  Theme.AppCompat.DayNight →
-  Base.Theme.AppCompat →
-  Platform.Theme.DeviceDefault
+  从指定 themeResId 开始，向父主题递归合并属性  
+  形成继承链（以 Material 主题为例）：  
+  AppTheme →  
+  Theme.MaterialComponents.DayNight →  
+  Theme.AppCompat.DayNight →  
+  Base.Theme.AppCompat →  
+  Platform.Theme.Holo 或 Platform.Theme.Material（视 API 版本而定）
 end note
 deactivate JavaTheme
 
