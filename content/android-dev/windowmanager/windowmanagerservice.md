@@ -272,7 +272,7 @@ static final class DefaultProvider implements DisplayAreaPolicy.Provider {
 }
 ```
 
-![Window Type到Feature的映射关系表]](/ethenslab/images/windowtype-2-feature.png)
+![Window Type到Feature的映射关系表](/ethenslab/images/windowtype-2-feature.png)
 
 #### HierarchyBuilder.build 方法构建逻辑详解
 1. 宏观目标与设计哲学
