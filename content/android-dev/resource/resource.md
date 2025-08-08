@@ -111,13 +111,13 @@ Android主题演进和结构的图参考如下：
 
 平台主题演进：
 
-![Android platform theme](ethenslab/images/platform-theme.png)
+![Android platform theme](/ethenslab/images/platform-theme.png)
 
 ---
 
 ## Android uiMode 变化与主题加载机制
 
-![Android uiMode 变化与主题加载机制](ethenslab/images/theme.png)
+![Android uiMode 变化与主题加载机制](/ethenslab/images/theme.png)
 
 ## Android 主题加载以及属性查找流程
 

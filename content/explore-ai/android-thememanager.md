@@ -41,7 +41,7 @@ title = 'OEM 多品牌多用户动态主题引擎技术方案'
 一个逻辑上的“主题包”由一系列独立的 RRO APK 组成。
 * Manifest 规范:
     * <overlay android:targetPackage="包名" />: 必须。
-    * android:versionCode: 必须，用于版本管理。
+    * android:versionCode: 必须，用于版本管理。*
     * <uses-sdk android:minSdkVersion="..." />: 必须，用于兼容性检测。
     * <meta-data>: 建议增加自定义元数据，包括：
     * com.oem.theme.name: 主题名（可指向 @string/ 实现多语言）。
@@ -65,3 +65,80 @@ title = 'OEM 多品牌多用户动态主题引擎技术方案'
 
 ## 主题管理服务 (ThemeManagerService - TMS)
 作为 system_server 的核心服务，是所有主题业务逻辑的中枢。
+* AIDL 接口定义:
+    为实现模块化和数据传输，需要定义 AIDL 接口及相关的 Parcelable 数据类型。
+    ThemeInfo.aidl (用于传输主题元数据)
+    ```aidl
+    // file: com/oem/themes/ThemeInfo.aidl
+    package com.oem.themes;
+
+    // 定义一个可跨进程传输的主题信息对象
+    parcelable ThemeInfo;
+    ```
+
+    ThemeInfo.java参考实现
+    ```java
+    package com.oem.themes;
+
+    import android.os.Parcel;
+    import android.os.Parcelable;
+
+    public class ThemeInfo implements Parcelable {
+
+        // --- 这里是成员变量 ---
+        public String themeId;         // 主题的唯一标识符 (通常是包名)
+        public String themeName;       // 显示给用户的名称
+        public String author;          // 作者
+        public String versionName;     // 版本名, e.g., "v1.2"
+        public int versionCode;        // 版本号, e.g., 2
+        public boolean isCompatible;   // 是否与当前系统兼容
+        public boolean isCustomizable; // 是否支持个性化定制
+
+        // --- Parcelable 必需的构造函数和方法 ---
+
+        public ThemeInfo() {
+            // 默认构造函数
+        }
+
+        // 从 Parcel 对象中读取数据来反序列化
+        protected ThemeInfo(Parcel in) {
+            themeId = in.readString();
+            themeName = in.readString();
+            author = in.readString();
+            versionName = in.readString();
+            versionCode = in.readInt();
+            isCompatible = in.readByte() != 0;
+            isCustomizable = in.readByte() != 0;
+        }
+
+        // 将对象写入 Parcel 进行序列化
+        @Override
+        public void writeToParcel(Parcel dest, int flags) {
+            dest.writeString(themeId);
+            dest.writeString(themeName);
+            dest.writeString(author);
+            dest.writeString(versionName);
+            dest.writeInt(versionCode);
+            dest.writeByte((byte) (isCompatible ? 1 : 0));
+            dest.writeByte((byte) (isCustomizable ? 1 : 0));
+        }
+
+        @Override
+        public int describeContents() {
+            return 0;
+        }
+
+        // 必需的 CREATOR 字段，用于创建 ThemeInfo 实例
+        public static final Creator<ThemeInfo> CREATOR = new Creator<ThemeInfo>() {
+            @Override
+            public ThemeInfo createFromParcel(Parcel in) {
+                return new ThemeInfo(in);
+            }
+
+            @Override
+            public ThemeInfo[] newArray(int size) {
+                return new ThemeInfo[size];
+            }
+        };
+    }
+    ```
