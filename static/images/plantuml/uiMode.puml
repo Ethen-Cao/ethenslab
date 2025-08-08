@@ -89,7 +89,21 @@ note right
   4. 返回 values-night 目录中对应资源
 end note
 
-NativeLib --> AppActivity: 返回深色模式的颜色值/Drawable
+NativeLib -> NativeLib: **主题解析（Theme Resolution）**
+note right
+  1. 根据 Activity.setTheme() 或 Manifest 中的 themeId
+  2. 加载该主题的父主题链（parentTheme）
+     - 例: AppTheme → Theme.MaterialComponents.DayNight
+       → Theme.AppCompat.DayNight
+       → Base.Theme.AppCompat
+       → Platform.Theme.DeviceDefault
+  3. 在主题层级中查找 ?attr 引用
+  4. 若当前主题未定义该属性，则向父主题查找
+  5. 属性值若为资源引用，再次走 getBestMatch()
+  6. 最终结合 uiMode 选择正确的 values / values-night 资源
+end note
+
+NativeLib --> AppActivity: 返回最终解析的属性值/Drawable
 deactivate NativeLib
 
 AppActivity -> AppActivity: 使用深色资源渲染 UI 界面
