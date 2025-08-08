@@ -34,3 +34,34 @@ title = 'OEM 多品牌多用户动态主题引擎技术方案'
 ## 系统架构 (System Architecture)
 
 ![ThemeManagerService架构图](/ethenslab/images/android-thememanagerservice-sw-architecture.png)
+
+## 核心功能模块设计
+
+### 主题包规范 (Theme Package Specification)
+一个逻辑上的“主题包”由一系列独立的 RRO APK 组成。
+* Manifest 规范:
+    * <overlay android:targetPackage="包名" />: 必须。
+    * android:versionCode: 必须，用于版本管理。
+    * <uses-sdk android:minSdkVersion="..." />: 必须，用于兼容性检测。
+    * <meta-data>: 建议增加自定义元数据，包括：
+    * com.oem.theme.name: 主题名（可指向 @string/ 实现多语言）。
+    * com.oem.theme.author: 作者名。
+    * com.oem.theme.preview_assets: 指向主题预览图资源。
+    * com.oem.theme.is_customizable: (布林值) 声明是否支持个性化定制。
+
+### 编译时静态覆盖层 (需求 #1)
+此模块是实现品牌差异化的基础，负责定义设备的出厂默认风格。
+* 技术: 采用 AOSP 标准的编译时资源覆盖 (Build-time Resource Overlay)。
+* 实现：
+    1. 创建 Overlay 目录: 在 AOSP 源码的 device/ 目录下，为每个品牌或产品线创建独立的 Overlay 目录结构。例如：
+        ```shell
+        device/oem_name/
+            ├── brand_a/overlay/
+            └── brand_b/overlay/
+        ```
+    2. 覆写资源: 在各自的 Overlay 目录中，创建与 frameworks/base/core/res/ 相同的子目录结构，并放置需要覆写的资源文件。核心是覆写 themes_device_defaults.xml 来定义品牌专属的 Theme.DeviceDefault 主题。
+    3. 配置编译脚本: 在对应产品线的 .mk 编译脚本中，通过 PRODUCT_PACKAGE_OVERLAYS 变量指向该品牌专属的 Overlay 目录。
+* 目的: 确保不同产品线在编译时，其固件就包含了各自独特的品牌基因。这是所有后续动态主题的“回退”基准。
+
+## 主题管理服务 (ThemeManagerService - TMS)
+作为 system_server 的核心服务，是所有主题业务逻辑的中枢。
