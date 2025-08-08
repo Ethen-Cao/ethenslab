@@ -118,3 +118,8 @@ Android主题演进和结构的图参考如下：
 ## Android uiMode 变化与主题加载机制
 
 ![Android uiMode 变化与主题加载机制](ethenslab/images/theme.png)
+
+## Android 主题加载以及属性查找流程
+
+![Android uiMode 变化与主题加载机制](/ethenslab/images/android-theme-resolve.png)
+

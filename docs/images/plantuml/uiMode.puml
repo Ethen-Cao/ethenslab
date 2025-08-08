@@ -1,0 +1,113 @@
+@startuml
+skinparam defaultFontColor #000000
+skinparam shadowing false
+skinparam sequence {
+    LifeLineBorderColor #555555
+    ActorBorderColor #555555
+    ParticipantBorderColor #555555
+    ArrowColor #333333
+}
+skinparam note {
+    BackgroundColor #FFFFE0
+    BorderColor #A8A8A8
+}
+
+title Android 系统 uiMode 变化与主题加载流程
+
+actor "用户" as User
+
+box "Android 系统进程" #E3F2FD
+    participant "系统设置" as Settings
+    participant "UiModeManagerService" as UiModeMgr
+    participant "ActivityManagerService" as AMS
+end box
+
+box "应用进程" #E8F5E9
+    participant "ActivityThread(s)" as AppThread
+    participant "ResourcesManager" as ResManager
+    participant "Activity" as AppActivity
+    participant "AssetManager / ResTable\n(Native C++ 层)" as NativeLib
+end box
+
+User -> Settings: 点击“深色主题”开关
+activate Settings
+
+Settings -> UiModeMgr: 通知更新 uiMode 状态
+activate UiModeMgr
+
+UiModeMgr -> AMS: 更新全局 Configuration.uiMode
+activate AMS
+
+AMS -> AMS: 更新全局 Configuration
+note right
+  包含 uiMode = UI_MODE_NIGHT_YES
+end note
+AMS -> AppThread: **[IPC广播]** 通知所有应用配置变更
+deactivate AMS
+deactivate UiModeMgr
+
+activate AppThread
+
+AppThread -> AppThread: 执行 handleConfigurationChanged(newConfig)
+note right
+  收到配置变化通知
+  更新 Resources 配置
+end note
+
+AppThread -> ResManager: applyConfigurationToResources(newConfig)
+activate ResManager
+ResManager -> ResManager: 更新所有 Resources 实例的配置
+deactivate ResManager
+
+AppThread -> AppActivity: onConfigurationChanged(newConfig)
+activate AppActivity
+note right
+  若 Activity manifest 没声明处理 uiMode 配置变化，
+  系统默认调用 Activity.recreate() 重建
+end note
+
+alt Activity 未声明 configChanges=uiMode
+    AppActivity -> AppActivity: 调用 recreate() → onDestroy() → onCreate()
+else Activity 声明了 configChanges=uiMode
+    AppActivity -> AppActivity: 直接处理 onConfigurationChanged()
+end
+
+AppActivity -> AppActivity: setContentView(R.layout.activity_main)
+note right
+  加载布局
+  访问资源
+end note
+
+AppActivity -> NativeLib: 请求解析资源 (如: ?attr/myColor)
+activate NativeLib
+
+NativeLib -> NativeLib: **执行资源匹配算法 getBestMatch()**
+note right
+  1. 读取当前 Configuration（含 uiMode = NIGHT_YES）
+  2. 遍历所有资源目录（values/, values-night/等）
+  3. 计算综合匹配分数，选最高得分资源
+  4. 返回 values-night 目录中对应资源
+end note
+
+NativeLib -> NativeLib: **主题解析（Theme Resolution）**
+note right
+  1. 根据 Activity.setTheme() 或 Manifest 中的 themeId
+  2. 加载该主题的父主题链（parentTheme）
+     - 例: AppTheme → Theme.MaterialComponents.DayNight
+       → Theme.AppCompat.DayNight
+       → Base.Theme.AppCompat
+       → Platform.Theme.DeviceDefault
+  3. 在主题层级中查找 ?attr 引用
+  4. 若当前主题未定义该属性，则向父主题查找
+  5. 属性值若为资源引用，再次走 getBestMatch()
+  6. 最终结合 uiMode 选择正确的 values / values-night 资源
+end note
+
+NativeLib --> AppActivity: 返回最终解析的属性值/Drawable
+deactivate NativeLib
+
+AppActivity -> AppActivity: 使用深色资源渲染 UI 界面
+deactivate AppActivity
+deactivate AppThread
+
+@enduml
