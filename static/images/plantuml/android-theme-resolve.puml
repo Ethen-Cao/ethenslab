@@ -1,0 +1,88 @@
+@startuml
+!theme materia
+' 样式配置
+skinparam defaultFontColor #000000
+skinparam shadowing false
+skinparam sequence {
+    LifeLineBorderColor #555555
+    ActorBorderColor #555555
+    ParticipantBorderColor #555555
+    ArrowColor #333333
+}
+skinparam note {
+    BackgroundColor #FFFFE0
+    BorderColor #A8A8A8
+}
+
+title Android 主题属性查找完整流程 (?attr/myColor 示例)
+
+participant "LayoutInflater" as Inflater
+participant "Activity / Context" as AppActivity
+participant "Resources.Theme" as JavaTheme
+participant "AssetManager / ResTable\n(Native C++ 层)" as NativeLib
+
+' 前置动作：Activity 准备好自己的 Theme
+AppActivity -> JavaTheme: getTheme()
+note right
+  Activity 在 onCreate 时已准备好 Theme 对象
+  继承链示例：
+  AppTheme →
+  Theme.MaterialComponents.DayNight →
+  Theme.AppCompat.DayNight →
+  Base.Theme.AppCompat →
+  Platform.Theme.DeviceDefault
+end note
+
+' 流程开始：渲染布局
+Inflater -> Inflater: inflate(R.layout.my_view)
+note right: 在渲染 View 时，发现 XML 中使用了 `?attr/myColor`
+
+' 开始解析属性
+Inflater -> JavaTheme: obtainStyledAttributes({?attr/myColor})
+activate JavaTheme
+
+JavaTheme -> NativeLib: getValue(?attr/myColor)
+activate NativeLib
+note right: 调用 Native 方法开始在主题继承链中查找
+
+loop 在主题继承链中查找 (当前主题 -> 父主题 -> ...)
+    NativeLib -> NativeLib: 在当前层级主题中查找 attrId
+    
+    alt 成功找到属性
+        NativeLib -> NativeLib: 检查值的类型
+        
+        alt 是直接值 (例: #FFFF0000)
+            NativeLib --> JavaTheme: 返回该直接值 (raw value)
+            break
+            
+        else 是资源引用 (例: @color/red)
+            NativeLib -> NativeLib: **调用 getBestMatch(R.color.red)**
+            note right
+                1. 结合当前 Configuration (uiMode = NIGHT_YES)
+                2. 在 values/, values-night/ 等目录中
+                3. 选择与设备状态最匹配的资源
+            end note
+            NativeLib --> JavaTheme: 返回匹配到的最终资源值
+            break
+        end
+        
+    else 在当前层级未找到
+        NativeLib -> NativeLib: 获取父主题 (parentTheme)
+        
+        alt 父主题存在 (parent != null)
+             NativeLib -> NativeLib: 将父主题设为当前层级，继续循环
+        else 父主题为 null (已到继承链顶端)
+            NativeLib --> JavaTheme: **抛出 RuntimeException**
+            note right: ❌ 错误：属性未在主题或其父主题中定义！
+            break
+        end
+    end
+end
+
+deactivate NativeLib
+
+JavaTheme --> Inflater: 最终解析后的颜色值
+deactivate JavaTheme
+
+Inflater -> Inflater: 使用获取到的颜色值渲染 View
+@enduml
