@@ -1,48 +1,106 @@
 @startuml
+' === Style Configuration ===
 skinparam backgroundColor #F9F9F9
 skinparam shadowing false
+skinparam title {
+  FontColor #333333
+  FontSize 20
+  FontName "Verdana"
+}
 skinparam rectangle {
-  BackgroundColor<<Base>> #BBDEFB
-  BackgroundColor<<Holo>> #90CAF9
-  BackgroundColor<<Material>> #A5D6A7
   BorderColor #666666
   FontColor #000000
+  RoundCorner 10
 }
+skinparam stereotype {
+  FontColor #FFFFFF
+  BorderColor #555555
+  FontSize 10
+  FontName "Verdana"
+}
+skinparam rectangle<<Base>> {
+  BackgroundColor #CFD8DC
+  StereotypeFontColor #000000
+}
+skinparam rectangle<<Holo>> {
+  BackgroundColor #90CAF9
+}
+skinparam rectangle<<Material>> {
+  BackgroundColor #A5D6A7
+}
+skinparam rectangle<<MDC>> {
+  BackgroundColor #80CBC4
+  StereotypeFontColor #000000
+}
+skinparam rectangle<<Alias>> {
+  BackgroundColor #FFE082
+  BorderStyle dashed
+  StereotypeFontColor #000000
+}
+skinparam note {
+  BackgroundColor #FFF9C4
+  BorderColor #FBC02D
+  FontColor #333333
+}
+' skinparam note on link {
+'   BackgroundColor #FFFFFF
+'   BorderColor #42A5F5
+' }
 
-title Android平台主题及其演进过程
+title Android 主題核心演進
 
-rectangle "Theme\n(API 1+)\n最基础系统主题" <<Base>> as Theme_Base
+' === Core Theme Definitions (Corrected Stereotype Syntax) ===
+rectangle "Theme\n<size:10>最基礎系統主題" <<Base>> as Theme_Base
 
-rectangle "Theme.Holo\n(API 11 - 20)\n现代蓝色调主题" <<Holo>> as Theme_Holo
+rectangle "Theme.Holo\n<size:10>Holo Design, 現代化開端" <<Holo>> as Theme_Holo
 
-rectangle "Theme.Material\n(API 21+)\nMaterial Design 规范" <<Material>> as Theme_Material
+rectangle "Theme.Material\n<size:10>初代 Material Design" <<Material>> as Theme_Material
 
-rectangle "Theme.DeviceDefault\n(API 14+)\n设备定制默认主题" <<Base>> as Theme_DeviceDefault
+rectangle "Theme.MaterialComponents\n<size:10>現代 MDC, 當前標準" <<MDC>> as Theme_MDC
 
-' 继承关系，表示演进顺序
-Theme_Base --> Theme_Holo : 继承/演进
-Theme_Holo --> Theme_Material : 演进至Material Design
-Theme_Base --> Theme_DeviceDefault : 并行发展
+rectangle "Theme.DeviceDefault\n<size:10>指向裝置預設主題的別名" <<Alias>> as Theme_DeviceDefault
 
-' 标注版本信息
-note left of Theme_Base
-  Android 1.0+
-  2008年起
+
+' === Core Inheritance Chain ===
+Theme_Base <|-- Theme_Holo
+Theme_Material <|-- Theme_MDC
+
+' --- The Evolved Relationship ---
+Theme_Holo <|-- Theme_Material
+note on link
+  <b><color:#1976D2>繼承關係的演進</color></b>
+  * <b>過去 (API 21):</b>
+    程式碼中明確繼承自 Holo 以求相容。
+  * <b>現在 (如 Android 14):</b>
+    此直接繼承關係已被重構，不再於
+    程式碼中顯式聲明，已成為獨立主題。
 end note
 
-note right of Theme_Holo
-  Android 3.0 - 4.4
-  API 11 - 20
+
+' === DeviceDefault Alias Logic ===
+Theme_DeviceDefault ..> Theme_Holo : <size:10>指向 (API 14-20)
+Theme_DeviceDefault ..> Theme_Material : <size:10>指向 (API 21+)
+
+' === Version & API Level Notes ===
+note top of Theme_Base
+  Android 1.0+ (API 1)
+  (2008)
 end note
 
-note right of Theme_Material
-  Android 5.0+
-  API 21+
+note top of Theme_Holo
+  Android 3.0+ (API 11)
+  (2011)
 end note
 
-note left of Theme_DeviceDefault
-  Android 4.0+
-  API 14+
+note bottom of Theme_Material
+  Android 5.0+ (API 21)
+  (2014)
+end note
+
+note bottom of Theme_MDC
+  Android 9.0+ (MDC Library)
+  (API 28+)
+  <b><color:#C62828>當前開發首選</color></b>
 end note
 
 @enduml

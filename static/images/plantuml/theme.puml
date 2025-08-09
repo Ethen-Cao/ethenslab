@@ -21,11 +21,9 @@ skinparam note {
     FontColor #000000
 }
 
-title Android 主题演进
+title Android 主题演进（含 DeviceDefaultBase 修正）
 
-' 强制垂直布局
 top to bottom direction
-
 
 package "平台主题 (Platform)\n2008 ~ 2014" <<Framework>> #BBDEFB {
     rectangle "Theme\n(API 1+)" as Theme_Base
@@ -40,18 +38,18 @@ package "平台主题 (Platform)\n2008 ~ 2014" <<Framework>> #BBDEFB {
 }
 
 package "设备默认主题 (DeviceDefault)\n2011 ~ 至今" <<Framework>> #D1C4E9 {
-    rectangle "Theme.DeviceDefaultBases" as Theme_DeviceDefaultBases
+    rectangle "Theme.DeviceDefaultBase" as Theme_DeviceDefaultBase
     rectangle "Theme.DeviceDefault" as Theme_DeviceDefault
     rectangle "Theme.DeviceDefault.Light" as Theme_DeviceDefault_Light
     rectangle "Theme.DeviceDefault.Dark" as Theme_DeviceDefault_Dark
 }
-
 
 package "AppCompat 兼容库主题\n2011 ~ 2018" <<Library>> #FFE0B2 {
     rectangle "Theme.AppCompat" as Theme_AppCompat
     rectangle "Theme.AppCompat.Light" as Theme_AppCompat_Light
     rectangle "Theme.AppCompat.Light.DarkActionBar" as Theme_AppCompat_Light_DarkActionBar
     rectangle "Theme.AppCompat.NoActionBar" as Theme_AppCompat_NoActionBar
+    rectangle "Theme.AppCompat.Light.NoActionBar" as Theme_AppCompat_Light_NoActionBar
     rectangle "Theme.AppCompat.Dialog" as Theme_AppCompat_Dialog
     rectangle "Theme.AppCompat.Dialog.Alert" as Theme_AppCompat_Dialog_Alert
     rectangle "Theme.AppCompat.DayNight\n(API 14+)" as Theme_AppCompat_DayNight
@@ -76,13 +74,10 @@ package "Material 3 (M3)\n2021 ~ 至今" <<Library>> #E1BEE7 {
     rectangle "Theme.Material3.DynamicColors.DayNight\n(API 31+)" as Theme_M3_Dynamic
 }
 
-
-
-
-' 继承关系（从上到下）
+' 平台主题继承
 Theme_Base --> Theme_Holo
 Theme_Holo --> Theme_Holo_Light
-Theme_Holo_Light --> Theme_Holo_Light_DarkActionBar
+Theme_Holo --> Theme_Holo_Light_DarkActionBar
 Theme_Holo --> Theme_Holo_NoActionBar
 
 Theme_Base --> Theme_Material
@@ -90,29 +85,34 @@ Theme_Material --> Theme_Material_Light
 Theme_Material_Light --> Theme_Material_Light_DarkActionBar
 Theme_Material --> Theme_Material_NoActionBar
 
-Theme_Base --> Theme_DeviceDefaultBases
-Theme_DeviceDefaultBases --> Theme_DeviceDefault
-Theme_DeviceDefaultBases --> Theme_DeviceDefault_Light
-Theme_DeviceDefaultBases --> Theme_DeviceDefault_Dark
+' 设备默认主题继承
+Theme_Material --> Theme_DeviceDefaultBase
+Theme_DeviceDefaultBase --> Theme_DeviceDefault
+Theme_DeviceDefaultBase --> Theme_DeviceDefault_Light
+Theme_DeviceDefaultBase --> Theme_DeviceDefault_Dark
 
+' AppCompat 继承
 Theme_Holo --> Theme_AppCompat
 Theme_Material --> Theme_AppCompat
 Theme_AppCompat --> Theme_AppCompat_Light
 Theme_AppCompat_Light --> Theme_AppCompat_Light_DarkActionBar
 Theme_AppCompat --> Theme_AppCompat_NoActionBar
+Theme_AppCompat_Light --> Theme_AppCompat_Light_NoActionBar
 Theme_AppCompat --> Theme_AppCompat_Dialog
 Theme_AppCompat_Dialog --> Theme_AppCompat_Dialog_Alert
 Theme_AppCompat --> Theme_AppCompat_DayNight
 
+' MDC 继承（精确来源）
 Theme_AppCompat --> Theme_MC
 Theme_AppCompat_Light --> Theme_MC_Light
 Theme_AppCompat_DayNight --> Theme_MC_DayNight
-Theme_MC --> Theme_MC_NoActionBar
-Theme_MC_Light --> Theme_MC_Light_NoActionBar
-Theme_MC --> Theme_MC_Dialog
-Theme_MC_Dialog --> Theme_MC_Dialog_Alert
-Theme_MC --> Theme_MC_Bridge
+Theme_AppCompat_NoActionBar --> Theme_MC_NoActionBar
+Theme_AppCompat_Light_NoActionBar --> Theme_MC_Light_NoActionBar
+Theme_AppCompat_Dialog --> Theme_MC_Dialog
+Theme_AppCompat_Dialog_Alert --> Theme_MC_Dialog_Alert
+Theme_AppCompat --> Theme_MC_Bridge
 
+' M3 继承
 Theme_MC_Light --> Theme_M3_Light
 Theme_MC --> Theme_M3_Dark
 Theme_MC_DayNight --> Theme_M3_DayNight
