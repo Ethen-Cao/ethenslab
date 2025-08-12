@@ -1,0 +1,76 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+skinparam shadowing false
+skinparam roundCorner 5
+skinparam defaultFontColor #000000
+
+skinparam component {
+    BackgroundColor #FFFFFF
+    BorderColor #505050
+    ArrowColor #505050
+}
+
+skinparam system_ext {
+    BackgroundColor #F5F5F5
+    BorderColor #505050
+    ArrowColor #505050
+}
+
+' 定义流程节点
+System_Ext(stakeholder, "业务/利益相关方需求", "Business / Stakeholder Requirements")
+
+System_Ext(sys_req_top, "顶层系统需求", "System Requirements - Level 1")
+System_Ext(sys_req_alloc, "分配系统需求", "Allocated System Requirements - Level 2")
+System_Ext(sys_req_iface, "接口与约束需求", "Interface & Constraint Requirements - Level 3")
+
+System_Ext(sys_arch, "系统架构设计 (SYS.3)", "分配到硬件/软件")
+
+System_Ext(hw_req, "硬件需求分析 (HWE.1)", "")
+System_Ext(hw_arch, "硬件架构设计 (HWE.2)", "")
+System_Ext(hw_detail, "硬件详细设计 (HWE.3)", "")
+
+System_Ext(sw_req, "软件需求分析 (SWE.1)", "")
+System_Ext(sw_arch, "软件架构设计 (SWE.2)", "")
+System_Ext(sw_detail, "软件详细设计 (SWE.3)", "")
+
+' 测试右半边
+System_Ext(hw_unit_test, "硬件单元测试 (HWE.4)", "")
+System_Ext(hw_int_test, "硬件集成测试 (HWE.5)", "")
+
+System_Ext(sw_unit_test, "软件单元测试 (SWE.4)", "")
+System_Ext(sw_int_test, "软件集成测试 (SWE.5)", "")
+
+System_Ext(sys_int_test, "系统集成与测试 (SYS.4)", "")
+System_Ext(sys_qual_test, "系统验证/合格性测试 (SYS.5)", "")
+System_Ext(acceptance, "验收测试", "")
+
+' 左半边需求分解路径
+Rel(stakeholder, sys_req_top, "提炼业务目标")
+Rel(sys_req_top, sys_req_alloc, "功能/非功能/安全")
+Rel(sys_req_alloc, sys_req_iface, "细化约束和接口")
+Rel(sys_req_iface, sys_arch, "分配到硬件/软件")
+
+' 系统架构分支
+Rel(sys_arch, hw_req, "分配硬件需求")
+Rel(sys_arch, sw_req, "分配软件需求")
+
+Rel(hw_req, hw_arch, "设计硬件架构")
+Rel(hw_arch, hw_detail, "硬件详细设计")
+
+Rel(sw_req, sw_arch, "设计软件架构")
+Rel(sw_arch, sw_detail, "软件详细设计")
+
+' 右半边验证路径
+Rel(hw_detail, hw_unit_test, "硬件单元验证")
+Rel(hw_unit_test, hw_int_test, "硬件集成验证")
+Rel(hw_int_test, sys_int_test, "进入系统集成测试")
+
+Rel(sw_detail, sw_unit_test, "软件单元验证")
+Rel(sw_unit_test, sw_int_test, "软件集成验证")
+Rel(sw_int_test, sys_int_test, "进入系统集成测试")
+
+Rel(sys_int_test, sys_qual_test, "系统级验证")
+Rel(sys_qual_test, acceptance, "最终验收")
+
+@enduml

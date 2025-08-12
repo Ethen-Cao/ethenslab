@@ -1,0 +1,71 @@
+@startuml
+' C4-PlantUML库的引用
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+' 使用 skinparam 定义样式，兼容性更好
+skinparam defaultFontColor #000000
+skinparam shadowing false
+skinparam roundCorner 5
+
+skinparam component {
+    BackgroundColor #FFFFFF
+    BorderColor #505050
+    ArrowColor #505050
+}
+skinparam person {
+    BackgroundColor #FFFFFF
+    BorderColor #505050
+    ArrowColor #505050
+}
+skinparam system_ext {
+    BackgroundColor #F5F5F5
+    BorderColor #505050
+    ArrowColor #505050
+}
+
+
+' 自定义流程，用于创建V-Model中的元素
+!unquoted procedure VModel($alias, $label)
+    Person($alias, $label, "")
+!endprocedure
+
+!unquoted procedure Phase($alias, $label, $technique="")
+    System_Ext($alias, $label, $technique)
+!endprocedure
+
+
+' 创建图中的元素
+VModel(stakeholder, "客户/需求")
+
+Phase(sys_req, "SYS.2: 系统需求分析")
+Phase(sys_arch, "SYS.3: 系统架构设计")
+Phase(sw_req, "SWE.1: 软件需求分析")
+Phase(sw_arch, "SWE.2: 软件架构设计")
+Phase(sw_detail, "SWE.3: 软件详细设计")
+Phase(sw_unit_test, "SWE.4: 软件单元验证")
+Phase(sw_int_test, "SWE.5: 软件集成与集成测试")
+Phase(sys_int_test, "SYS.4: 系统集成与集成测试")
+Phase(sys_qual_test, "SYS.5: 系统合格性测试")
+
+VModel(acceptance, "验收")
+
+' 定义元素之间的关系
+stakeholder ..> sys_req
+
+' 修正后的流程：SYS.2 和 SYS.3 共同作为 SWE.1 的输入
+sys_req --> sys_arch
+sys_req --> sw_req : "  分配给软件的系统需求"
+
+sys_arch ..> sw_req : "  架构约束与接口定义"
+
+
+sw_req --> sw_arch
+sw_arch --> sw_detail
+
+sw_detail ..> sw_unit_test
+sw_unit_test --> sw_int_test
+sw_int_test --> sys_int_test
+sys_int_test --> sys_qual_test
+sys_qual_test ..> acceptance
+
+@enduml
