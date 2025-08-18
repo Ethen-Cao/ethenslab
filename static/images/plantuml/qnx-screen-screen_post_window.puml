@@ -1,0 +1,50 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Roboto, sans-serif"
+title screen_post_window 到 OpenWFD 的詳細通知流程
+
+actor "應用程式線程" as App
+participant "libscreen.so" as Lib
+participant "Screen 伺服器主線程" as Screen
+participant "顯示驅動/硬體" as Driver
+
+autonumber
+
+App -> Lib: screen_post_window(buffer)
+activate App
+activate Lib
+
+Lib -> Screen: MsgSend(請求更新視窗)
+note right of Lib: 打包請求並透過 IPC 發送
+activate Screen
+
+Screen -> Screen: 更新內部視窗狀態\n(標記為 "dirty")
+Screen --> Lib: MsgReply(確認收到)
+deactivate Screen
+
+Lib --> App: screen_post_window() 返回
+deactivate Lib
+deactivate App
+note right of App: 應用程式解除阻塞，\n可以開始渲染下一幀
+
+...一段時間後...
+
+Driver -> Screen: **VSYNC Pulse (脈衝通知)**
+note left of Driver: 硬體 VSYNC 中斷觸發
+activate Screen
+
+Screen -> Screen: 執行合成邏輯:\n遍歷所有 "dirty" 視窗
+Screen -> Screen: 收集所有待顯示的緩衝區
+
+Screen -> Driver: **wfdBindSourceToPipeline(...)**
+activate Driver
+note right of Screen: 為每個更新的圖層呼叫 OpenWFD API\n傳遞緩衝區物理地址
+
+Screen -> Driver: **wfdDeviceCommit(...)**
+note right of Driver: 驅動將所有更新\n提交到硬體暫存器
+
+Driver --> Screen: OpenWFD 呼叫返回
+deactivate Driver
+deactivate Screen
+
+@enduml
