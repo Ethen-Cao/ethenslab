@@ -1,0 +1,67 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam defaultFontColor #000000
+skinparam component {
+  FontColor #000000
+  BorderColor #333333
+  BackgroundColor #F8F8F8
+  ArrowColor #D2222D
+  ArrowFontColor #000000
+}
+skinparam package {
+  FontColor #000000
+  BorderColor #666666
+}
+skinparam database {
+    BorderColor #333333
+    BackgroundColor #FFFFFF
+}
+
+title QNX 圖形棧 Buffer 傳遞流程
+
+package "User Space" {
+  [QNX Application\n(e.g., HMI)] as App
+  [QNX Screen\n(Windowing System)] as Screen
+  [Graphics API\n(OpenGL ES + EGL)] as GLES
+  [OpenWFD Driver\n(libwfd.so)] as WFD
+}
+
+package "User-Space Drivers\n(Resource Managers)" {
+  [GPU Driver\n(user process)] as GPUDriver
+  [Display Driver\n(user process)] as DisplayDriver
+}
+
+package "Shared Memory / Video Buffers" {
+    database "Framebuffers\n(EGL/Screen Buffers)" as FB
+}
+
+package "Hardware" {
+    [GPU] as GPU
+    [Display Controller] as DisplayCtrl
+    artifact "Physical Display\n(e.g., HDMI, LVDS)" as Display
+}
+
+' == Buffer Allocation and Rendering Phase ==
+App -[hidden]down-Screen
+App -> Screen : 1. 請求 Window + Buffer\n//screen_create_window_buffers()//
+Screen -> App : 2. 回傳 Buffer Handle
+
+App -> GLES : 3. 發起繪圖指令\n//(eglSwapBuffers 等)//
+GLES -> GPUDriver : 4. 提交繪圖命令 (msg/devctl)
+GPUDriver -> GPU : 5. 控制 GPU 進行硬體渲染
+GPU ..> FB : 6. 將渲染結果寫入指定 Buffer
+
+' == Buffer Posting and Display Phase ==
+App -> Screen : 7. 通知 Buffer 繪製完成\n**//screen_post_window()//**
+Screen -[hidden]down-WFD
+Screen -> WFD : 8. 呼叫 WFD API\n**//wfdDeviceCommit()//**
+WFD --> DisplayDriver : 9. 透過 devctl() 配置顯示層 (Layer)\n   設定 Buffer 物理位址
+DisplayDriver -[hidden]down-DisplayCtrl
+DisplayDriver -> DisplayCtrl : 10. 更新顯示控制器暫存器\n    (Pointer Flip)
+
+DisplayCtrl ..> FB : 11. 從指定 Buffer 位址讀取像素資料\n    (Scanout)
+DisplayCtrl -[hidden]down-Display
+DisplayCtrl -> Display : 12. 輸出影像訊號到螢幕
+
+@enduml
