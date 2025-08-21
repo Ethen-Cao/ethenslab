@@ -193,6 +193,6 @@ eglSwapBuffers() 不是把图像“提交给 GPU”，而是：
 * **OpenGL ES** = 画图工具（怎么画）
 * **EGL** = 舞台管理（在哪画 & 把图送到屏幕）
 
-![](/ethenslab/images/qnx-screen-overview.png)
+![](/ethenslab/images/opengles-drawing-process.png)
 
 
