@@ -18,8 +18,12 @@
 &lt;p&gt;一个 QNX 应用程序从无到有，完成一帧 (frame) 窗口渲染并显示在屏幕上的完整过程。&lt;/p&gt;
 &lt;p&gt;整个过程可以分为两个核心阶段：&lt;/p&gt;
 &lt;ol&gt;
-&lt;li&gt;&lt;strong&gt;准备与渲染阶段&lt;/strong&gt;：应用程序获取绘图空间 (Buffer)，并使用 GPU 将内容绘制到这个空间中。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;提交与显示阶段&lt;/strong&gt;：应用程序通知系统绘制完成，由系统和硬件接手，将内容呈现在屏幕上。&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;准备与渲染阶段&lt;/strong&gt;：应用程序获取绘图空间 (Buffer)，并使用 GPU 将内容绘制到这个空间中。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;提交与显示阶段&lt;/strong&gt;：应用程序通知系统绘制完成，由系统和硬件接手，将内容呈现在屏幕上。&lt;/p&gt;
+&lt;/li&gt;
 &lt;/ol&gt;
 &lt;h3 id=&#34;第一阶段准备与渲染-steps-1-6&#34;&gt;第一阶段：准备与渲染 (Steps 1-6)&lt;/h3&gt;
 &lt;h4 id=&#34;步骤-1--2请求并获取窗口缓冲区-buffer&#34;&gt;&lt;strong&gt;步骤 1 &amp;amp; 2：请求并获取窗口缓冲区 (Buffer)&lt;/strong&gt;&lt;/h4&gt;

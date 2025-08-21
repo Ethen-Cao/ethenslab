@@ -9,6 +9,7 @@ skinparam component {
   ArrowColor #D2222D
   ArrowFontColor #000000
 }
+
 skinparam package {
   FontColor #000000
   BorderColor #666666
@@ -18,28 +19,30 @@ skinparam database {
     BackgroundColor #FFFFFF
 }
 
-title QNX 圖形棧 Buffer 傳遞流程
 
-package "User Space" {
+rectangle "User Space" {
   [QNX Application\n(e.g., HMI)] as App
   [QNX Screen\n(Windowing System)] as Screen
   [Graphics API\n(OpenGL ES + EGL)] as GLES
-  [OpenWFD Driver\n(libwfd.so)] as WFD
+  [OpenWFD client\n(libwfd.so)] as WFD
 }
 
-package "User-Space Drivers\n(Resource Managers)" {
+rectangle "User-Space Drivers\n(Resource Managers)" {
+  component "OpenWFD daemon" {
+    [Display Driver\n(user process)] as DisplayDriver
+  }
   [GPU Driver\n(user process)] as GPUDriver
-  [Display Driver\n(user process)] as DisplayDriver
+  
 }
 
-package "Shared Memory / Video Buffers" {
+rectangle "Shared Memory / Video Buffers" {
     database "Framebuffers\n(EGL/Screen Buffers)" as FB
 }
 
-package "Hardware" {
+rectangle "Hardware" {
     [GPU] as GPU
     [Display Controller] as DisplayCtrl
-    artifact "Physical Display\n(e.g., HDMI, LVDS)" as Display
+    rectangle "Physical Display" as Display
 }
 
 ' == Buffer Allocation and Rendering Phase ==

@@ -12,14 +12,16 @@ title = 'QNX Screen基础原理与流程'
 一个 QNX 应用程序从无到有，完成一帧 (frame) 窗口渲染并显示在屏幕上的完整过程。
 
 整个过程可以分为两个核心阶段：
-1.  **准备与渲染阶段**：应用程序获取绘图空间 (Buffer)，并使用 GPU 将内容绘制到这个空间中。
-2.  **提交与显示阶段**：应用程序通知系统绘制完成，由系统和硬件接手，将内容呈现在屏幕上。
 
+1.  **准备与渲染阶段**：应用程序获取绘图空间 (Buffer)，并使用 GPU 将内容绘制到这个空间中。
+
+2.  **提交与显示阶段**：应用程序通知系统绘制完成，由系统和硬件接手，将内容呈现在屏幕上。
 
 
 ### 第一阶段：准备与渲染 (Steps 1-6)
 
 #### **步骤 1 & 2：请求并获取窗口缓冲区 (Buffer)**
+
 * **执行者**：`QNX Application`, `QNX Screen`
 * **关键 API**：`screen_create_window_buffers()`
 
@@ -34,6 +36,45 @@ title = 'QNX Screen基础原理与流程'
 应用程序使用像 OpenGL ES 这样的标准图形 API 来描述要绘制的内容（例如按钮、仪表盘、3D 模型等）。这些 API 调用定义了图元的形状、纹理和颜色。
 
 当应用程序完成一帧的全部绘图指令描述后，它会调用一个像 `eglSwapBuffers()` 这样的关键函数。这个函数的调用意味着“我已经定义好这一帧的所有内容了”。EGL 函数库会将这些高级的绘图指令打包，通过 QNX 的 IPC 机制（通常是 `devctl`），将指令发送到 `GPU Driver` 这个独立的用户空间进程。
+
+##### eglSwapBuffers() 的作用
+
+eglSwapBuffers() 不是把图像“提交给 GPU”，而是：
+
+* Flush/提交之前累积的 OpenGL ES 命令，告诉 GPU 驱动“这些命令可以执行了”。
+
+* 交换前后缓冲区：把渲染目标从后台 buffer 翻转成前台 buffer。对 QNX/高通平台：这一步完成后，GPU 开始执行命令，把结果真正写进后台 buffer（即 framebuffer）。
+    
+在 QNX + 高通平台下，后台 buffer 的分配路径大致如下：
+
+* 应用创建 EGL surface 或 QNX Screen window：调用 eglCreateWindowSurface() 或 screen_create_window_buffers()。
+* Screen 负责分配 buffer：Screen 作为窗口系统和 buffer allocator，会根据需求分配 2～3 个 buffer（双缓冲或三缓冲）。
+
+分配时考虑：
+
+* 必须是 物理可连续 / 可 DMA 的内存
+* 必须满足 GPU tiling/对齐要求
+* 必须能被 Display Controller 直接 scanout
+
+底层内存分配机制
+
+在高通 BSP 中，这一步通常通过 ION/DMABUF 完成：
+
+* ION/DMABUF 分配一块显存
+* 返回一个 fd / handle
+* Screen 管理这些 handle，并把它映射到 EGL/应用进程的地址空间
+* 应用得到 buffer handle
+* 应用最终拿到的不是“物理地址”，而是一个 handle (screen_buffer_t) 或 EGL surface 绑定的 framebuffer。
+* GPU driver 使用这个 handle 来写像素，Display driver 使用同一个 handle 来做 scanout。
+
+##### Fence同步
+
+* 异步执行与 Fence 创建：eglSwapBuffers() 的核心就是将渲染任务“提交”出去，然后立即返回，让应用程序（CPU）可以继续处理下一帧的逻辑。GPU Driver 在接收到任务后，会创建一个与该任务关联的 Fence，这个 Fence 相当于一个“任务完成的回执单”。
+* Fence 的传递：
+    * EGL 在把 buffer 返回给 Screen 时，会把这个 Fence 一起交给 Screen。
+    * Screen 在调用 OpenWFD / Display Driver 时，会附带这个 Fence。
+    * Display Driver 不会立刻用 buffer，而是等待 Fence signal 触发（即 GPU 真正画完）后，才做 pointer flip
+* 等待与执行：Display Driver 作为消费者，拿到了这个“带条件”的 Buffer。它不会盲目地直接将其用于显示。它会等待这个 Fence 发出信号（signaled），这个信号的含义就是“GPU 已经画完了，这个 Buffer 的内容是完整且有效的”。只有确认了这一点，Display Driver 才会安全地执行 Pointer Flip，让显示控制器去读取这块内存。
 
 #### **步骤 5 & 6：硬件加速渲染**
 * **执行者**：`GPU Driver`, `GPU (Hardware)`, `Framebuffers (Shared Memory)`
@@ -80,3 +121,78 @@ title = 'QNX Screen基础原理与流程'
 ## screen_post_window
 
 ![screen_post_window](/ethenslab/images/qnx-screen-screen_post_window.png)
+
+
+## opengles & EGL
+
+在图形编程里 **OpenGL ES** 和 **EGL** 经常一起出现，但它们的职责完全不同：
+
+
+### 🔹 1. **OpenGL ES**
+
+* **全称**：OpenGL for Embedded Systems
+* **定位**：一个 **图形渲染 API**
+* **作用**：
+
+  * 提供一套函数（API），让应用能调用 GPU 来做 **绘制**。
+  * 主要负责 **"画什么"**：三角形、纹理、光照、着色器等。
+* **核心功能**：
+
+  * 定义图形流水线（顶点着色器、片段着色器）。
+  * 绘制 2D/3D 图形。
+  * 控制渲染状态、纹理、FrameBuffer 等。
+* **类比**：像一个画家，专注于如何画图。
+
+👉 **但 OpenGL ES 自己并不知道图要画到哪儿去（屏幕？窗口？内存？）**
+
+
+### 🔹 2. **EGL**
+
+* **全称**：Embedded-System Graphics Library (不是 OpenGL 的子集，独立标准)
+* **定位**：**上下文管理 & 平台接口库**
+* **作用**：
+
+  * 负责 **"在哪里画、怎么画"**。
+  * 建立应用和底层窗口系统/驱动之间的桥梁。
+* **核心功能**：
+
+  1. **连接窗口系统**（比如 Android 的 SurfaceFlinger / Linux 的 X11 / Wayland / QNX Screen）。
+  2. **创建渲染上下文**（OpenGL ES 必须依赖一个 Context 才能工作）。
+  3. **管理 Surface**（屏幕上的窗口、离屏缓冲区等）。
+  4. **缓冲区交换**（`eglSwapBuffers()`，把 GPU 渲染结果显示到屏幕）。
+* **类比**：像一个舞台管理者，负责搭建舞台、安排画布，最后通知观众看画。
+
+👉 **EGL 不负责绘图，它只提供“画布+上下文+显示通道”。绘制的动作要靠 OpenGL ES。**
+
+---
+
+### 🔹 3. 关系
+
+* **应用** → 调用 EGL：
+
+  * 选一个显示系统的窗口 / Surface。
+  * 创建一个 EGLContext。
+* **应用** → 使用 OpenGL ES：
+
+  * 在 EGLContext 里调用 `glDrawArrays()`、`glDrawElements()` 之类的函数来画图。
+* **应用** → 调用 EGL：
+
+  * `eglSwapBuffers()` 把绘制结果显示出来。
+
+---
+
+### 🔹 4. 举个例子（Android / QNX）
+
+1. EGL：连接到 SurfaceFlinger / QNX Screen，分配缓冲区，创建 EGLContext。
+2. OpenGL ES：用着色器绘制一个三角形到缓冲区。
+3. EGL：调用 `eglSwapBuffers()` 把三角形送到显示器。
+
+
+✅ **一句话总结**
+
+* **OpenGL ES** = 画图工具（怎么画）
+* **EGL** = 舞台管理（在哪画 & 把图送到屏幕）
+
+！[](/ethenslab/images/qnx-screen-overview.png)
+
+
