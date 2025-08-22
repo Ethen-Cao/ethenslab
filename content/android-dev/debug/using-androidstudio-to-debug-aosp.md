@@ -132,4 +132,4 @@ Android 使用 JDWP (Java Debug Wire Protocol) 进行 Java 进程调试：
 
 ### 原理图
 
-![](/ethenslab/static/images/androidstduio-native-debugger.png)
+![](/ethenslab/images/androidstduio-native-debugger.png)
