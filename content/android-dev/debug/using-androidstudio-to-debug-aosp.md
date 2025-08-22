@@ -4,9 +4,11 @@ draft = false
 title = '使用AndroidStudio调试AOSP'
 +++
 
+## 调试Java进程
+
 本文介绍如何在 Android Studio 中调试 AOSP (Android Open Source Project) 进程，尤其是像 system_server 这样的系统进程。调试 AOSP 与普通应用调试有所不同，需要借助 JDWP 协议和 adb 端口转发。
 
-## 前置条件
+### 前置条件
 
 环境准备：
 
@@ -26,7 +28,7 @@ title = '使用AndroidStudio调试AOSP'
     ```
     上述命令让 system_server 在启动时支持调试。
 
-## 调试原理
+### 调试原理
 
 Android 使用 JDWP (Java Debug Wire Protocol) 进行 Java 进程调试：
 
@@ -89,3 +91,45 @@ Android 使用 JDWP (Java Debug Wire Protocol) 进行 Java 进程调试：
 
     可以在 framework 层源码中打断点，例如 ActivityManagerService.java。
     IDE 会在对应断点暂停，允许查看堆栈、变量、线程等信息。
+
+
+## 调试Native进程
+
+1. 将 lldb-server 推送到设备：
+
+    ```shell
+    adb push prebuilts/clang/host/linux-x86/clang-r450784e/runtimes_ndk_cxx/aarch64/lldb-server /data/local/tmp/
+    adb shell chmod +x /data/local/tmp/lldb-server
+    ```
+
+2. 在设备上启动 lldb-server 并附加到目标进程
+    1. 获取目标进程 PID
+        ```shell
+        adb shell ps -A | grep cameraserver
+        ```
+        假设 PID = 2345。
+    2. 启动 lldb-server，以 gdbserver 模式附加：
+        ```shell
+        adb shell /data/local/tmp/lldb-server gdbserver *:5039 --attach 2345
+        ```
+        ⚠️ 注意：此时进程会被挂起，直到 IDE 连接
+3. 建立端口转发
+    ```shell
+    adb forward tcp:5039 tcp:5039
+    ```
+4. 在 Android Studio 配置调试
+    1. 打开 Run → Edit Configurations...
+    2. 点击 + → 选择 C/C++ Remote Debug
+    3. 配置关键参数：
+        * Name：例如 Debug CameraServer
+        * Executable：本地符号文件路径，例如 out/target/product/<device>/symbols/system/bin/cameraserver
+        * Debugger：本地 lldb 可执行文件，例如prebuilts/clang/host/linux-x86/lldb/bin/lldb
+        * Target Remote：localhost:5039
+5. 开始调试
+    * 在源码中设置断点。
+    * 点击调试按钮（绿色小虫子）。
+    * Android Studio 会连接到设备上的 lldb-server，附加进程并在断点处停下。
+
+### 原理图
+
+![](/ethenslab/static/images/androidstduio-native-debugger.png)

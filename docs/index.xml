@@ -259,8 +259,9 @@
       <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link>
       <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
       <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid>
-      <description>&lt;p&gt;本文介绍如何在 Android Studio 中调试 AOSP (Android Open Source Project) 进程，尤其是像 system_server 这样的系统进程。调试 AOSP 与普通应用调试有所不同，需要借助 JDWP 协议和 adb 端口转发。&lt;/p&gt;
-&lt;h2 id=&#34;前置条件&#34;&gt;前置条件&lt;/h2&gt;
+      <description>&lt;h2 id=&#34;调试java进程&#34;&gt;调试Java进程&lt;/h2&gt;
+&lt;p&gt;本文介绍如何在 Android Studio 中调试 AOSP (Android Open Source Project) 进程，尤其是像 system_server 这样的系统进程。调试 AOSP 与普通应用调试有所不同，需要借助 JDWP 协议和 adb 端口转发。&lt;/p&gt;
+&lt;h3 id=&#34;前置条件&#34;&gt;前置条件&lt;/h3&gt;
 &lt;p&gt;环境准备：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;一台可以刷入 AOSP 的设备或模拟器&lt;/li&gt;
@@ -277,7 +278,7 @@
 &lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell start
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;上述命令让 system_server 在启动时支持调试。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id=&#34;调试原理&#34;&gt;调试原理&lt;/h2&gt;
+&lt;h3 id=&#34;调试原理&#34;&gt;调试原理&lt;/h3&gt;
 &lt;p&gt;Android 使用 JDWP (Java Debug Wire Protocol) 进行 Java 进程调试：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;system_server 内部：包含一个 JDWP Listener 线程，负责接收调试命令并执行（挂起线程、返回堆栈、单步执行等）。&lt;/li&gt;

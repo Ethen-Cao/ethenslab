@@ -1,0 +1,28 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam rectangle {
+  BackgroundColor #f9f9f9
+  BorderColor #333333
+  RoundCorner 8
+}
+
+rectangle "PC (Host)" {
+  [Android Studio / LLDB 客户端] as IDE
+  [localhost:5039] as LocalPort
+}
+
+rectangle "adb" {
+  [adb forward tcp:5039 -> tcp:5039] as AdbForward
+}
+
+rectangle "Device" {
+  [lldb-server (监听 5039)] as LldbServer
+  [目标进程 (如 cameraserver)] as Target
+}
+
+IDE -down-> LocalPort
+LocalPort -down-> AdbForward
+AdbForward -down-> LldbServer
+LldbServer -down-> Target
+@enduml
