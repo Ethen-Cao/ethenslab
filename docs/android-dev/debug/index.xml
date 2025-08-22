@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Android 调试篇 on Ethen 的实验室</title>
+    <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/</link>
+    <description>Recent content in Android 调试篇 on Ethen 的实验室</description>
+    <generator>Hugo -- 0.148.2</generator>
+    <language>en</language>
+    <lastBuildDate>Fri, 08 Aug 2025 11:36:11 +0800</lastBuildDate>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/debug/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>使用AndroidStudio调试AOSP</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link>
+      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid>
+      <description>&lt;p&gt;本文介绍如何在 Android Studio 中调试 AOSP (Android Open Source Project) 进程，尤其是像 system_server 这样的系统进程。调试 AOSP 与普通应用调试有所不同，需要借助 JDWP 协议和 adb 端口转发。&lt;/p&gt;
+&lt;h2 id=&#34;前置条件&#34;&gt;前置条件&lt;/h2&gt;
+&lt;p&gt;环境准备：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;一台可以刷入 AOSP 的设备或模拟器&lt;/li&gt;
+&lt;li&gt;已编译好的 AOSP（推荐 userdebug 或 eng 构建）&lt;/li&gt;
+&lt;li&gt;PC 上安装 Android Studio（最新版）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;权限要求：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;设备必须支持 adb root&lt;/li&gt;
+&lt;li&gt;设备需要打开调试属性，例如：
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb root
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell setprop persist.system_server.debuggable &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell stop
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell start
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;上述命令让 system_server 在启动时支持调试。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;调试原理&#34;&gt;调试原理&lt;/h2&gt;
+&lt;p&gt;Android 使用 JDWP (Java Debug Wire Protocol) 进行 Java 进程调试：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;system_server 内部：包含一个 JDWP Listener 线程，负责接收调试命令并执行（挂起线程、返回堆栈、单步执行等）。&lt;/li&gt;
+&lt;li&gt;adb：提供 adb forward 功能，将 PC 本地端口与设备进程的 JDWP 通道连接起来。&lt;/li&gt;
+&lt;li&gt;Android Studio：作为调试器，通过 JDWP 协议与 system_server 通信。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;数据流示意：&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

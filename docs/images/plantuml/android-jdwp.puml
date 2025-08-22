@@ -1,0 +1,41 @@
+@startuml
+!theme plain
+skinparam rectangle {
+  BackgroundColor #f9f9f9
+  BorderColor #333
+  RoundCorner 15
+  Shadowing false
+}
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam defaultFontColor #000000
+
+rectangle "PC: Android Studio" {
+  [Debugger\n(Attach to localhost:8700)] as Debugger
+}
+
+
+
+rectangle "ADB (Port Forwarding)"  {
+  [Local Port 8700\n接收 IDE 的 JDWP 命令] as LocalPort
+  [Forward to JDWP\n(PID=1234)] as Forwarding
+}
+
+rectangle "Android 设备" {
+  rectangle "system_server (PID=1234)" {
+    [JDWP Listener Thread\n(处理调试命令)] as JDWPThread
+  }
+}
+
+' studio -[hidden]down-adb
+' adb -[hidden]down-"Android 设备" 
+
+' 调试链路
+Debugger ---> LocalPort : JDWP 命令
+LocalPort ---> Forwarding : adb forward
+Forwarding ---> JDWPThread : 转发调试请求
+JDWPThread ---> JDWPThread : 执行断点/获取堆栈/变量
+JDWPThread --> Forwarding
+Forwarding --> LocalPort
+LocalPort --> Debugger
+
+@enduml
