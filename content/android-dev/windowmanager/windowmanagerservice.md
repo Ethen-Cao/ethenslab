@@ -523,3 +523,69 @@ WindowContainer类图结构参考如下：
 9. ATMS 再次命令 WMS，将应用 B 的 ActivityRecord 放入 TaskFragment B 中。
 
 10. 完成布局: 所有应用都就位后，ATMS 提交最终的窗口布局，隐藏选择器界面，让包含两个 TaskFragment 的父 Task 完整地显示在屏幕上。
+
+
+
+## Window的可见性
+
+### 当一个Activity处于stopped的时候，再次返回到前台，其UI界面立刻就出现了。这是为什么？
+
+![](/ethenslab/images/window-visible.png)
+
+
+---
+
+后台切回前台时的 UI 恢复流程总结：
+
+1. **用户触发恢复**
+   用户点击应用图标或返回前台 → **ATMS** 开始驱动恢复流程。
+
+2. **ATMS 通知窗口可见**
+
+   * `ATMS` 调用 `ActivityRecord.makeVisible()`
+   * 进而调用 `WindowContainer.setVisibility(true)`
+   * 最终触发 `WMS.WindowState.performShowLocked()`
+   * **WMS 将窗口标记为可见，并把已有的 Surface buffer 提交给 SurfaceFlinger**
+
+3. **SurfaceFlinger 显示旧帧**
+
+   * 如果 `Surface` 缓存仍在（`mHasSurface = true`），SF 直接合成旧的 buffer。
+   * 用户立即看到之前的 UI（**旧帧**），保证界面快速响应，不出现黑屏/白屏。
+
+4. **生命周期回调开始**
+
+   * ATMS 随后调度 `ActivityThread.scheduleRestartActivity()`
+   * 应用进程进入 `onRestart() → onStart() → onResume()` 的生命周期调用。
+
+5. **Activity 触发新绘制**
+
+   * 在 `onResume()` 后，`ViewRootImpl` 开始一次新一帧的绘制流程
+   * 新 buffer 通过 `Surface` 提交给 **SurfaceFlinger**
+
+6. **SurfaceFlinger 显示新帧**
+
+   * 旧帧被替换，新绘制的内容合成到屏幕
+   * 用户最终看到 **最新 UI**，恢复过程完成。
+
+---
+
+## 🔹关键点
+
+* **UI 可见性和生命周期是解耦的**
+
+  * **可见性**：由 ATMS + WMS 提前控制，通过旧帧立刻显示
+  * **生命周期**：由 ActivityThread 异步调度，稍后才进入 onResume
+
+* **用户体验优化**
+
+  * 用户几乎“秒回”看到界面（旧帧撑场）
+  * 应用逻辑恢复稍后进行（生命周期回调 → 新帧绘制）
+
+---
+
+✅ 一句话总结：
+当 Activity 从后台切回前台时，**ATMS 先通过 WMS 把窗口设为可见并显示旧帧**，保证界面快速恢复；随后才调度 `onRestart/onStart/onResume`，应用在 `onResume()` 后提交新帧，最终由 SurfaceFlinger 显示最新 UI。
+
+---
+
+

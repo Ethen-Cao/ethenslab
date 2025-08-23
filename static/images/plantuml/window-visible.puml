@@ -1,0 +1,60 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam noteBackgroundColor #FFFACD
+skinparam noteBorderColor #FFA500
+
+actor User
+
+participant "ActivityTaskManagerService\n(ATMS)" as ATMS
+participant "ActivityRecord / WindowContainer" as AR
+participant "WindowManagerService\n(WMS)" as WMS
+participant "SurfaceFlinger" as SF
+participant "ActivityThread" as AT
+participant "Activity" as A
+
+== 恢复流程 ==
+
+User -> ATMS : 点击应用或返回前台
+
+' ATMS 主导恢复流程，告诉 ActivityRecord 显示窗口
+ATMS -> AR : makeVisible()\n// 设置可见性
+activate AR
+AR -> WMS : setVisibility(true)
+activate WMS
+WMS -> WMS : WindowState.performShowLocked()\n// 提交Surface buffer
+WMS -> SF : 提交Surface buffer (旧帧)
+deactivate WMS
+deactivate AR
+
+activate SF
+SF -> User : 显示旧UI画面 (黄色)\n// 来自Surface缓存
+deactivate SF
+
+note over AT, A
+// UI已可见，系统等待应用进程完成生命周期回调
+// Surface缓存状态: mHasSurface = true
+end note
+
+' 调度 ActivityThread 执行生命周期
+ATMS -> AT : scheduleRestartActivity(activityToken)\n// 通知应用进程恢复生命周期
+activate AT
+AT -> A : onRestart()
+A -> AT : 返回控制
+AT -> A : onStart()
+A -> AT : 返回控制
+AT -> A : onResume()
+A -> AT : 返回控制
+deactivate AT
+
+note over AT, SF
+// Activity.onResume() 之后，ViewRootImpl 发起新帧绘制
+// 提交新Surface buffer (绿色) 替换旧帧
+end note
+
+AT -> SF : 提交新绘制Surface buffer (绿色)
+activate SF
+SF -> User : 显示最新UI (绿色)
+deactivate SF
+
+@enduml
