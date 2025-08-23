@@ -276,104 +276,105 @@ static final class DefaultProvider implements DisplayAreaPolicy.Provider {
 
 #### HierarchyBuilder.build 方法构建逻辑详解
 1. 宏观目标与设计哲学
-build 方法是 Android 窗口管理系统中的“创世”引擎。其宏观目标是将一个高层、抽象的策略（由 Feature 特性表定义）转化为一个具体的、物理的、严格有序的 WindowContainer 层级树。
-这个过程必须遵循并实现以下设计原则（源自代码注释）：
-* 特性归属 (Feature Containment)：任何一个窗口，都必须被正确地放置在负责管辖它的那个 Feature 对应的 DisplayArea 容器之内。
-* Z-order 完整性 (Z-Order Integrity)：任意两个并列（兄弟关系）的 DisplayArea，它们所管辖的窗口层级区间不能有任何重叠。位于下方的 DisplayArea 的最高层级，必须小于或等于位于上方的 DisplayArea 的最低层级。
 
-为了实现这个复杂目标，算法采用了一种 **“蓝图-施工”** 的模式：先构建一个轻量级的、完整的 PendingArea 树（蓝图），然后再根据这个蓝图一次性地创建出所有真实的 DisplayArea 对象（施工）。
+    build 方法是 Android 窗口管理系统中的“创世”引擎。其宏观目标是将一个高层、抽象的策略（由 Feature 特性表定义）转化为一个具体的、物理的、严格有序的 WindowContainer 层级树。
+    这个过程必须遵循并实现以下设计原则（源自代码注释）：
+    * 特性归属 (Feature Containment)：任何一个窗口，都必须被正确地放置在负责管辖它的那个 Feature 对应的 DisplayArea 容器之内。
+    * Z-order 完整性 (Z-Order Integrity)：任意两个并列（兄弟关系）的 DisplayArea，它们所管辖的窗口层级区间不能有任何重叠。位于下方的 DisplayArea 的最高层级，必须小于或等于位于上方的 DisplayArea 的最低层级。
+
+    为了实现这个复杂目标，算法采用了一种 **“蓝图-施工”** 的模式：先构建一个轻量级的、完整的 PendingArea 树（蓝图），然后再根据这个蓝图一次性地创建出所有真实的 DisplayArea 对象（施工）。
 
 2. 核心数据结构与“建筑材料”
-在施工开始前，我们先了解一下几样关键的“建筑材料”：
 
-* Feature (特性)：高级别的“功能区规划”，例如“画中画区”、“单手模式影响区”等。它定义了自己对哪些窗口层级 (Layer) 生效。
-* Layer (层级)：Z-order 的基本单位，从 0 到 36 的整数。可以理解为建筑的“楼层”。
-* PendingArea (蓝图节点)：构建过程中的核心数据结构，一个临时的、代表最终 DisplayArea 的规划草稿。它包含了父子关系、所属特性、以及管辖的 Layer 区间等所有必要信息。
-* areaForLayer[] (施工辅助线/脚手架)：一个大小为 37 的 PendingArea 数组。它是一个动态指针数组，在构建过程的任意时刻，areaForLayer[i] 都指向第 i 层“当前最内层的父容器”，用来指导新节点应该挂载到哪里。
+    在施工开始前，我们先了解一下几样关键的“建筑材料”：
+    * Feature (特性)：高级别的“功能区规划”，例如“画中画区”、“单手模式影响区”等。它定义了自己对哪些窗口层级 (Layer) 生效。
+    * Layer (层级)：Z-order 的基本单位，从 0 到 36 的整数。可以理解为建筑的“楼层”。
+    * PendingArea (蓝图节点)：构建过程中的核心数据结构，一个临时的、代表最终 DisplayArea 的规划草稿。它包含了父子关系、所属特性、以及管辖的 Layer 区间等所有必要信息。
+    * areaForLayer[] (施工辅助线/脚手架)：一个大小为 37 的 PendingArea 数组。它是一个动态指针数组，在构建过程的任意时刻，areaForLayer[i] 都指向第 i 层“当前最内层的父容器”，用来指导新节点应该挂载到哪里。
 
 3. 算法执行流程详解
-build 方法的执行可以清晰地分为三个阶段：
+    build 方法的执行可以清晰地分为三个阶段：
 
-阶段一：构建特性框架 (Building the Feature Framework)
+    阶段一：构建特性框架 (Building the Feature Framework)
 
-* 这是第一个核心 for 循环，它的目标是根据 Feature 的定义，搭建出整个 DisplayArea 树的宏观结构和嵌套关系。
-* 按序遍历特性: 算法按照 mFeatures 列表的预定顺序，逐一处理每一个 Feature。这个顺序至关重要，先被处理的 Feature 会成为更外层的容器。
-* 遍历所有楼层: 对于每一个 Feature，算法会从第 0 层到第 36 层进行扫描，检查该 Feature 是否适用于当前楼层（查阅策略表中的 Y/N）。
-* 创建/复用决策:
-    * 当算法在某一层 L 发现需要应用 Feature F 时，它会检查是否可以复用上一个楼层为 F 创建的 PendingArea。
-    * 如果不行（例如，这是 F 遇到的第一个楼层，或者 L 层的父容器规划与 L-1 层不同，意味着连续性被“打断”），算法就必须创建一个新的 PendingArea，并将其作为 areaForLayer[L] 所指向的那个“当前父容器”的子节点。
-    * 更新“脚手架”: 在创建或复用 PendingArea 之后，算法会立刻更新 areaForLayer[L]，使其指向刚刚处理过的、更深一层的这个 PendingArea。这保证了下一个 Feature 在处理 L 层时，会被正确地嵌套在 F 的内部。
+    * 这是第一个核心 for 循环，它的目标是根据 Feature 的定义，搭建出整个 DisplayArea 树的宏观结构和嵌套关系。
+    * 按序遍历特性: 算法按照 mFeatures 列表的预定顺序，逐一处理每一个 Feature。这个顺序至关重要，先被处理的 Feature 会成为更外层的容器。
+    * 遍历所有楼层: 对于每一个 Feature，算法会从第 0 层到第 36 层进行扫描，检查该 Feature 是否适用于当前楼层（查阅策略表中的 Y/N）。
+    * 创建/复用决策:
+        * 当算法在某一层 L 发现需要应用 Feature F 时，它会检查是否可以复用上一个楼层为 F 创建的 PendingArea。
+        * 如果不行（例如，这是 F 遇到的第一个楼层，或者 L 层的父容器规划与 L-1 层不同，意味着连续性被“打断”），算法就必须创建一个新的 PendingArea，并将其作为 areaForLayer[L] 所指向的那个“当前父容器”的子节点。
+        * 更新“脚手架”: 在创建或复用 PendingArea 之后，算法会立刻更新 areaForLayer[L]，使其指向刚刚处理过的、更深一层的这个 PendingArea。这保证了下一个 Feature 在处理 L 层时，会被正确地嵌套在 F 的内部。
 
-这个阶段结束后，一个由 PendingArea 组成的、反映了所有 Feature 之间复杂嵌套和并列关系的“建筑框架”就搭建完成了。
-参考如下：
-```text
-RootDisplayArea (根)
- ├─ PendingArea (Layers 36) [Leaf/Tokens]
- ├─ PendingArea (Feature: HideDisplayCutout) [Layers 32-35]
- │   └─ PendingArea (Feature: OneHanded) [Layers 34-35]
- │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 34-35]
- │           └─ PendingArea (Layers 34-35) [Leaf/Tokens]
- │   └─ PendingArea (Feature: FullscreenMagnification) [Layer 33]
- │       └─ PendingArea (Layers 33) [Leaf/Tokens]
- │   └─ PendingArea (Feature: OneHanded) [Layer 32]
- │       └─ PendingArea (Layers 32) [Leaf/Tokens]
- └─ PendingArea (Feature: WindowedMagnification) [Layers 0-31]
-     ├─ PendingArea (Feature: HideDisplayCutout) [Layers 26-31]
-     │   └─ PendingArea (Feature: OneHanded) [Layers 26-31]
-     │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 29-31]
-     │       │   └─ PendingArea (Layers 29-31) [Leaf/Tokens]
-     │       ├─ PendingArea (Layers 28) [Leaf/Tokens for MagnificationOverlay]
-     │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 26-27]
-     │           └─ PendingArea (Layers 26-27) [Leaf/Tokens]
-     ├─ PendingArea (Layers 24-25) [Leaf/Tokens for NavigationBar]
-     ├─ PendingArea (Feature: HideDisplayCutout) [Layers 18-23]
-     │   └─ PendingArea (Feature: OneHanded) [Layers 18-23]
-     │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 18-23]
-     │           └─ PendingArea (Layers 18-23) [Leaf/Tokens]
-     ├─ PendingArea (Feature: OneHanded) [Layer 17]
-     │   └─ PendingArea (Feature: FullscreenMagnification) [Layer 17]
-     │       └─ PendingArea (Layers 17) [Leaf/Tokens for NotificationShade]
-     ├─ PendingArea (Feature: HideDisplayCutout) [Layer 16]
-     │   └─ PendingArea (Feature: OneHanded) [Layer 16]
-     │       └─ PendingArea (Feature: FullscreenMagnification) [Layer 16]
-     │           └─ PendingArea (Layers 16) [Leaf/Tokens]
-     ├─ PendingArea (Feature: OneHanded) [Layer 15]
-     │   └─ PendingArea (Feature: FullscreenMagnification) [Layer 15]
-     │       └─ PendingArea (Layers 15) [Leaf/Tokens for StatusBar]
-     └─ PendingArea (Feature: HideDisplayCutout) [Layers 0-14]
-         └─ PendingArea (Feature: OneHanded) [Layers 0-14]
-             ├─ PendingArea (Feature: FullscreenMagnification) [Layers 0-12]
-             │   ├─ PendingArea (Layers 3-12) [Leaf/Tokens]
-             │   ├─ PendingArea (Layers 2) [Leaf: TaskDisplayArea]
-             │   └─ PendingArea (Layers 0-1) [Leaf/Tokens for Wallpaper]
-             └─ PendingArea (Feature: ImePlaceholder) [Layers 13-14]
-                 └─ PendingArea (Layers 13-14) [Leaf: ImeContainer]
-```
+    这个阶段结束后，一个由 PendingArea 组成的、反映了所有 Feature 之间复杂嵌套和并列关系的“建筑框架”就搭建完成了。
+    参考如下：
+    ```text
+    RootDisplayArea (根)
+    ├─ PendingArea (Layers 36) [Leaf/Tokens]
+    ├─ PendingArea (Feature: HideDisplayCutout) [Layers 32-35]
+    │   └─ PendingArea (Feature: OneHanded) [Layers 34-35]
+    │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 34-35]
+    │           └─ PendingArea (Layers 34-35) [Leaf/Tokens]
+    │   └─ PendingArea (Feature: FullscreenMagnification) [Layer 33]
+    │       └─ PendingArea (Layers 33) [Leaf/Tokens]
+    │   └─ PendingArea (Feature: OneHanded) [Layer 32]
+    │       └─ PendingArea (Layers 32) [Leaf/Tokens]
+    └─ PendingArea (Feature: WindowedMagnification) [Layers 0-31]
+        ├─ PendingArea (Feature: HideDisplayCutout) [Layers 26-31]
+        │   └─ PendingArea (Feature: OneHanded) [Layers 26-31]
+        │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 29-31]
+        │       │   └─ PendingArea (Layers 29-31) [Leaf/Tokens]
+        │       ├─ PendingArea (Layers 28) [Leaf/Tokens for MagnificationOverlay]
+        │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 26-27]
+        │           └─ PendingArea (Layers 26-27) [Leaf/Tokens]
+        ├─ PendingArea (Layers 24-25) [Leaf/Tokens for NavigationBar]
+        ├─ PendingArea (Feature: HideDisplayCutout) [Layers 18-23]
+        │   └─ PendingArea (Feature: OneHanded) [Layers 18-23]
+        │       └─ PendingArea (Feature: FullscreenMagnification) [Layers 18-23]
+        │           └─ PendingArea (Layers 18-23) [Leaf/Tokens]
+        ├─ PendingArea (Feature: OneHanded) [Layer 17]
+        │   └─ PendingArea (Feature: FullscreenMagnification) [Layer 17]
+        │       └─ PendingArea (Layers 17) [Leaf/Tokens for NotificationShade]
+        ├─ PendingArea (Feature: HideDisplayCutout) [Layer 16]
+        │   └─ PendingArea (Feature: OneHanded) [Layer 16]
+        │       └─ PendingArea (Feature: FullscreenMagnification) [Layer 16]
+        │           └─ PendingArea (Layers 16) [Leaf/Tokens]
+        ├─ PendingArea (Feature: OneHanded) [Layer 15]
+        │   └─ PendingArea (Feature: FullscreenMagnification) [Layer 15]
+        │       └─ PendingArea (Layers 15) [Leaf/Tokens for StatusBar]
+        └─ PendingArea (Feature: HideDisplayCutout) [Layers 0-14]
+            └─ PendingArea (Feature: OneHanded) [Layers 0-14]
+                ├─ PendingArea (Feature: FullscreenMagnification) [Layers 0-12]
+                │   ├─ PendingArea (Layers 3-12) [Leaf/Tokens]
+                │   ├─ PendingArea (Layers 2) [Leaf: TaskDisplayArea]
+                │   └─ PendingArea (Layers 0-1) [Leaf/Tokens for Wallpaper]
+                └─ PendingArea (Feature: ImePlaceholder) [Layers 13-14]
+                    └─ PendingArea (Layers 13-14) [Leaf: ImeContainer]
+    ```
 
-阶段二：填充叶子容器 (Populating the Leaf Containers)
-这是第二个核心 for 循环。如果说第一阶段是搭建“功能区”，那这个阶段就是为每个功能区的每一层楼划分出最终的“房间”，这些“房间”将直接用来容纳 WindowState。
+    阶段二：填充叶子容器 (Populating the Leaf Containers)
+    这是第二个核心 for 循环。如果说第一阶段是搭建“功能区”，那这个阶段就是为每个功能区的每一层楼划分出最终的“房间”，这些“房间”将直接用来容纳 WindowState。
 
-1. 遍历所有楼层: 算法再次从第 0 层到第 36 层进行扫描。
-2. 确定房间类型: 在每一层，算法会通过 typeOfLayer() 查询策略，确定这一层需要什么类型的“房间”——是普通的 DisplayArea.Tokens，还是特殊的 TaskDisplayArea 或 ImeContainer。
-3. 创建/复用决策:
-* 与阶段一类似，算法会检查是否可以和上一层共用一个“叶子房间”(leafArea)。
-* 如果不行（例如，父容器的特性框架变了，或者房间类型变了），就必须创建一个新的 PendingArea 作为叶子容器，并将其挂载到 areaForLayer[layer] 所指向的那个“最内层框架”之下。
-4. 处理特殊房间:
-* 当遇到应用层 (LEAF_TYPE_TASK_CONTAINERS) 或输入法层 (LEAF_TYPE_IME_CONTAINERS) 时，算法不会创建新的 Tokens 房间，而是会将预先准备好的 TaskDisplayArea 或 ImeContainer 挂载到蓝图的正确位置。
-5. 确定管辖范围: 在复用 leafArea 的过程中，算法会不断更新 leafArea.mMaxLayer，以此来记录这个“房间”所跨越的连续楼层的范围。
+    1. 遍历所有楼层: 算法再次从第 0 层到第 36 层进行扫描。
+    2. 确定房间类型: 在每一层，算法会通过 typeOfLayer() 查询策略，确定这一层需要什么类型的“房间”——是普通的 DisplayArea.Tokens，还是特殊的 TaskDisplayArea 或 ImeContainer。
+    3. 创建/复用决策:
+        * 与阶段一类似，算法会检查是否可以和上一层共用一个“叶子房间”(leafArea)。
+        * 如果不行（例如，父容器的特性框架变了，或者房间类型变了），就必须创建一个新的 PendingArea 作为叶子容器，并将其挂载到 areaForLayer[layer] 所指向的那个“最内层框架”之下。
+    4. 处理特殊房间:
+        * 当遇到应用层 (LEAF_TYPE_TASK_CONTAINERS) 或输入法层 (LEAF_TYPE_IME_CONTAINERS) 时，算法不会创建新的 Tokens 房间，而是会将预先准备好的 TaskDisplayArea 或 ImeContainer 挂载到蓝图的正确位置。
+    5. 确定管辖范围: 在复用 leafArea 的过程中，算法会不断更新 leafArea.mMaxLayer，以此来记录这个“房间”所跨越的连续楼层的范围。
 
-这个阶段结束后，整个建筑蓝图就画完了。每一个楼层都被精确地规划到了一个最终的叶子容器中。
+    这个阶段结束后，整个建筑蓝图就画完了。每一个楼层都被精确地规划到了一个最终的叶子容器中。
 
-阶段三：实例化与收尾 (Instantiation and Finalization)
-蓝图已经完美，现在开始“施工”。
+    阶段三：实例化与收尾 (Instantiation and Finalization)
+    蓝图已经完美，现在开始“施工”。
 
-1. root.instantiateChildren(...): 这是收尾的关键。此方法会递归遍历整个 PendingArea 蓝图树（从 root 节点开始）。
-2. 创建真实对象: 在遍历过程中，它会 new DisplayArea(...) 和 new DisplayArea.Tokens(...)，创建出所有真实的 DisplayArea 对象。
-3. 建立父子关系: 根据蓝图中的父子链接，调用 parent.addChild(child)，将这些真实的 DisplayArea 对象组装成一棵与蓝图完全一致的、可供 WMS 使用的 WindowContainer 树。
-4. mRoot.onHierarchyBuilt(...): 通知 RootDisplayArea，层级树已经构建完毕，可以缓存相关信息并投入使用了。
+    1. root.instantiateChildren(...): 这是收尾的关键。此方法会递归遍历整个 PendingArea 蓝图树（从 root 节点开始）。
+    2. 创建真实对象: 在遍历过程中，它会 new DisplayArea(...) 和 new DisplayArea.Tokens(...)，创建出所有真实的 DisplayArea 对象。
+    3. 建立父子关系: 根据蓝图中的父子链接，调用 parent.addChild(child)，将这些真实的 DisplayArea 对象组装成一棵与蓝图完全一致的、可供 WMS 使用的 WindowContainer 树。
+    4. mRoot.onHierarchyBuilt(...): 通知 RootDisplayArea，层级树已经构建完毕，可以缓存相关信息并投入使用了。
 
-总结
-build 方法是一个高度确定性和逻辑严谨的算法。它通过两个核心阶段——先构建宏观的特性框架，再填充微观的叶子容器——将一份高层的、二维的策略表，精确地转换成了一棵复杂的、多维的、严格遵守 Z-order 的窗口容器树。这种“先规划蓝图，再统一施工”的设计，优雅地解决了 Android 窗口系统中极为复杂的层级布局问题。
+    总结
+    build 方法是一个高度确定性和逻辑严谨的算法。它通过两个核心阶段——先构建宏观的特性框架，再填充微观的叶子容器——将一份高层的、二维的策略表，精确地转换成了一棵复杂的、多维的、严格遵守 Z-order 的窗口容器树。这种“先规划蓝图，再统一施工”的设计，优雅地解决了 Android 窗口系统中极为复杂的层级布局问题。
 
 
 我们也可以通过 adb shell dumpsys window containers查看实际的DisplayContent层次结构：
