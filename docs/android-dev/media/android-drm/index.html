@@ -10,6 +10,7 @@
 <meta name="description" content="Widevine L1 DRM 播放流程解读
 下面的时序图展示了 Android 平台 Widevine L1 DRM 的核心工作原理，涵盖了 设备注册、许可证获取、视频解密与安全渲染 三个阶段，并特别标注了 安全关键点（Secure Path）。
 
+
 阶段1：设备首次注册 / 公钥上报
 
 
@@ -133,6 +134,7 @@ License Server 验证签名。 使用设备公钥加密 Content Key，并生成�
 <meta name="twitter:title" content="Android DRM 框架">
 <meta name="twitter:description" content="Widevine L1 DRM 播放流程解读
 下面的时序图展示了 Android 平台 Widevine L1 DRM 的核心工作原理，涵盖了 设备注册、许可证获取、视频解密与安全渲染 三个阶段，并特别标注了 安全关键点（Secure Path）。
+
 
 阶段1：设备首次注册 / 公钥上报
 
@@ -330,6 +332,7 @@ License Server 验证签名。
   </header> 
   <div class="post-content"><h2 id="widevine-l1-drm-播放流程解读">Widevine L1 DRM 播放流程解读<a hidden class="anchor" aria-hidden="true" href="#widevine-l1-drm-播放流程解读">#</a></h2>
 <p>下面的时序图展示了 <strong>Android 平台 Widevine L1 DRM</strong> 的核心工作原理，涵盖了 <strong>设备注册、许可证获取、视频解密与安全渲染</strong> 三个阶段，并特别标注了 <strong>安全关键点（Secure Path）</strong>。</p>
+<p><img loading="lazy" src="/ethenslab/images/drm-contentkey.png"></p>
 <hr>
 <h3 id="阶段1设备首次注册--公钥上报">阶段1：设备首次注册 / 公钥上报<a hidden class="anchor" aria-hidden="true" href="#阶段1设备首次注册--公钥上报">#</a></h3>
 <ol>
@@ -449,7 +452,6 @@ TEE 直接使用唯一的设备私钥来解密整个许可证，从而直接得�
 <li><strong>Secure Path 渲染</strong> 确保视频帧只能显示，不能被截屏、拷贝或录制。</li>
 </ul>
 <hr>
-<p><img loading="lazy" src="/ethenslab/images/drm-contentkey.png"></p>
 <h2 id="widevine-l1-生产预置流程">Widevine L1 生产预置流程<a hidden class="anchor" aria-hidden="true" href="#widevine-l1-生产预置流程">#</a></h2>
 <h3 id="概述">概述<a hidden class="anchor" aria-hidden="true" href="#概述">#</a></h3>
 <p>Widevine L1 的生产预置流程是设备从出厂到获得正式身份认证的一系列安全操作，用于保证 <strong>设备私钥不泄露</strong>，并让设备能够获得 <strong>Google 签名的合法证书</strong>，参与 Widevine DRM 的内容解密。整个流程由 OEM 工厂和 Google 云端签名服务共同完成，但 OEM 不持有 Google 的根私钥。</p>
