@@ -590,3 +590,165 @@ WindowContainer类图结构参考如下：
 ---
 
 
+下面是点击Home按键后，Activity 窗口可见 / 不可见的关键调用栈：
+
+```txt
+setVisibleRequested(boolean):1279, WindowContainer (com.android.server.wm), WindowContainer.java
+setVisibleRequested(boolean):5239, ActivityRecord (com.android.server.wm), ActivityRecord.java
+setVisibility(boolean, boolean):5357, ActivityRecord (com.android.server.wm), ActivityRecord.java
+setVisibility(boolean):5287, ActivityRecord (com.android.server.wm), ActivityRecord.java
+makeInvisible():6077, ActivityRecord (com.android.server.wm), ActivityRecord.java
+setActivityVisibilityState(ActivityRecord, ActivityRecord, boolean):226, EnsureActivitiesVisibleHelper (com.android.server.wm), EnsureActivitiesVisibleHelper.java
+process(ActivityRecord, int, boolean, boolean):144, EnsureActivitiesVisibleHelper (com.android.server.wm), EnsureActivitiesVisibleHelper.java
+updateActivityVisibilities(ActivityRecord, int, boolean, boolean):1157, TaskFragment (com.android.server.wm), TaskFragment.java
+lambda$ensureActivitiesVisible$20(ActivityRecord, int, boolean, boolean, Task):4878, Task (com.android.server.wm), Task.java
+$r8$lambda$glAS06h6u0gde7lZWW7SuxTbP1w(ActivityRecord, int, boolean, boolean, Task):0, Task (com.android.server.wm), Task.java
+accept(Object):0, Task$$ExternalSyntheticLambda16 (com.android.server.wm), R8$$SyntheticClass
+forAllLeafTasks(Consumer, boolean):3133, Task (com.android.server.wm), Task.java
+ensureActivitiesVisible(ActivityRecord, int, boolean, boolean):4877, Task (com.android.server.wm), Task.java
+lambda$ensureActivitiesVisible$49(ActivityRecord, int, boolean, boolean, Task):6414, DisplayContent (com.android.server.wm), DisplayContent.java
+$r8$lambda$hDxT-xcMlbyz81aqVyA-Ksg4aQ0(ActivityRecord, int, boolean, boolean, Task):0, DisplayContent (com.android.server.wm), DisplayContent.java
+accept(Object):0, DisplayContent$$ExternalSyntheticLambda32 (com.android.server.wm), R8$$SyntheticClass
+forAllRootTasks(Consumer, boolean):3145, Task (com.android.server.wm), Task.java
+forAllRootTasks(Consumer, boolean):2141, WindowContainer (com.android.server.wm), WindowContainer.java
+forAllRootTasks(Consumer, boolean):2141, WindowContainer (com.android.server.wm), WindowContainer.java
+forAllRootTasks(Consumer, boolean):2141, WindowContainer (com.android.server.wm), WindowContainer.java
+forAllRootTasks(Consumer, boolean):2141, WindowContainer (com.android.server.wm), WindowContainer.java
+forAllRootTasks(Consumer, boolean):2141, WindowContainer (com.android.server.wm), WindowContainer.java
+forAllRootTasks(Consumer, boolean):2141, WindowContainer (com.android.server.wm), WindowContainer.java
+forAllRootTasks(Consumer):2134, WindowContainer (com.android.server.wm), WindowContainer.java
+ensureActivitiesVisible(ActivityRecord, int, boolean, boolean):6413, DisplayContent (com.android.server.wm), DisplayContent.java
+ensureActivitiesVisible(ActivityRecord, int, boolean, boolean):1859, RootWindowContainer (com.android.server.wm), RootWindowContainer.java
+ensureActivitiesVisible(ActivityRecord, int, boolean):1840, RootWindowContainer (com.android.server.wm), RootWindowContainer.java
+completePause(boolean, ActivityRecord):1809, TaskFragment (com.android.server.wm), TaskFragment.java
+startPausing(boolean, boolean, ActivityRecord, String):1687, TaskFragment (com.android.server.wm), TaskFragment.java
+startPausing(boolean, ActivityRecord, String):1564, TaskFragment (com.android.server.wm), TaskFragment.java
+lambda$pauseBackTasks$5(ActivityRecord, int[], TaskFragment):1290, TaskDisplayArea (com.android.server.wm), TaskDisplayArea.java
+$r8$lambda$m5XHJk9c1RGMj6XWeVM475WcQIg(ActivityRecord, int[], TaskFragment):0, TaskDisplayArea (com.android.server.wm), TaskDisplayArea.java
+accept(Object):0, TaskDisplayArea$$ExternalSyntheticLambda9 (com.android.server.wm), R8$$SyntheticClass
+forAllLeafTaskFragments(Consumer, boolean):1893, TaskFragment (com.android.server.wm), TaskFragment.java
+lambda$pauseBackTasks$6(ActivityRecord, int[], Task):1287, TaskDisplayArea (com.android.server.wm), TaskDisplayArea.java
+$r8$lambda$FlQviUgsmrYxxHmk-YxKCIGWOPY(TaskDisplayArea, ActivityRecord, int[], Task):0, TaskDisplayArea (com.android.server.wm), TaskDisplayArea.java
+accept(Object):0, TaskDisplayArea$$ExternalSyntheticLambda6 (com.android.server.wm), R8$$SyntheticClass
+forAllLeafTasks(Consumer, boolean):3133, Task (com.android.server.wm), Task.java
+forAllLeafTasks(Consumer, boolean):2106, WindowContainer (com.android.server.wm), WindowContainer.java
+pauseBackTasks(ActivityRecord):1273, TaskDisplayArea (com.android.server.wm), TaskDisplayArea.java
+resumeTopActivity(ActivityRecord, ActivityOptions, boolean):1241, TaskFragment (com.android.server.wm), TaskFragment.java
+resumeTopActivityInnerLocked(ActivityRecord, ActivityOptions, boolean):5044, Task (com.android.server.wm), Task.java
+resumeTopActivityUncheckedLocked(ActivityRecord, ActivityOptions, boolean):4974, Task (com.android.server.wm), Task.java
+resumeTopActivityUncheckedLocked(ActivityRecord, ActivityOptions, boolean):4993, Task (com.android.server.wm), Task.java
+resumeFocusedTasksTopActivities(Task, ActivityRecord, ActivityOptions, boolean):2296, RootWindowContainer (com.android.server.wm), RootWindowContainer.java
+resumeTargetRootTaskIfNeeded():3041, ActivityStarter (com.android.server.wm), ActivityStarter.java
+recycleTask(Task, ActivityRecord, Task, NeededUriGrants):2261, ActivityStarter (com.android.server.wm), ActivityStarter.java
+startActivityInner(ActivityRecord, ActivityRecord, IVoiceInteractionSession, IVoiceInteractor, int, ActivityOptions, Task, TaskFragment, int, NeededUriGrants, int):1709, ActivityStarter (com.android.server.wm), ActivityStarter.java
+startActivityUnchecked(ActivityRecord, ActivityRecord, IVoiceInteractionSession, IVoiceInteractor, int, ActivityOptions, Task, TaskFragment, int, NeededUriGrants, int):1479, ActivityStarter (com.android.server.wm), ActivityStarter.java
+executeRequest(ActivityStarter$Request):1309, ActivityStarter (com.android.server.wm), ActivityStarter.java
+execute():742, ActivityStarter (com.android.server.wm), ActivityStarter.java
+startHomeActivity(Intent, ActivityInfo, String, TaskDisplayArea):198, ActivityStartController (com.android.server.wm), ActivityStartController.java
+startHomeOnTaskDisplayArea(int, String, TaskDisplayArea, boolean, boolean):1471, RootWindowContainer (com.android.server.wm), RootWindowContainer.java
+lambda$startHomeOnDisplay$11(int, String, boolean, boolean, TaskDisplayArea, Boolean):1410, RootWindowContainer (com.android.server.wm), RootWindowContainer.java
+$r8$lambda$zDbqLY8yVs2-CTsfHP7FhguhRoM(RootWindowContainer, int, String, boolean, boolean, TaskDisplayArea, Boolean):0, RootWindowContainer (com.android.server.wm), RootWindowContainer.java
+apply(Object, Object):0, RootWindowContainer$$ExternalSyntheticLambda5 (com.android.server.wm), R8$$SyntheticClass
+reduceOnAllTaskDisplayAreas(BiFunction, Object, boolean):505, TaskDisplayArea (com.android.server.wm), TaskDisplayArea.java
+reduceOnAllTaskDisplayAreas(BiFunction, Object, boolean):528, DisplayArea (com.android.server.wm), DisplayArea.java
+reduceOnAllTaskDisplayAreas(BiFunction, Object, boolean):528, DisplayArea (com.android.server.wm), DisplayArea.java
+reduceOnAllTaskDisplayAreas(BiFunction, Object, boolean):528, DisplayArea (com.android.server.wm), DisplayArea.java
+reduceOnAllTaskDisplayAreas(BiFunction, Object, boolean):528, DisplayArea (com.android.server.wm), DisplayArea.java
+reduceOnAllTaskDisplayAreas(BiFunction, Object, boolean):528, DisplayArea (com.android.server.wm), DisplayArea.java
+reduceOnAllTaskDisplayAreas(BiFunction, Object):2415, WindowContainer (com.android.server.wm), WindowContainer.java
+startHomeOnDisplay(int, String, int, boolean, boolean):1409, RootWindowContainer (com.android.server.wm), RootWindowContainer.java
+startHomeOnDisplay(int, String, int, boolean, boolean):6271, ActivityTaskManagerService$LocalService (com.android.server.wm), ActivityTaskManagerService.java
+startDockOrHome(int, boolean, boolean, String):5739, PhoneWindowManager (com.android.server.policy), PhoneWindowManager.java
+startDockOrHome(int, boolean, boolean):5744, PhoneWindowManager (com.android.server.policy), PhoneWindowManager.java
+launchHomeFromHotKey(int, boolean, boolean):3843, PhoneWindowManager (com.android.server.policy), PhoneWindowManager.java
+launchHomeFromHotKey(int):3795, PhoneWindowManager (com.android.server.policy), PhoneWindowManager.java
+handleShortPressOnHome(int):1691, PhoneWindowManager (com.android.server.policy), PhoneWindowManager.java
+-$$Nest$mhandleShortPressOnHome(PhoneWindowManager, int):0, PhoneWindowManager (com.android.server.policy), PhoneWindowManager.java
+lambda$handleHomeButton$0():1855, PhoneWindowManager$DisplayHomeButtonHandler (com.android.server.policy), PhoneWindowManager.java
+$r8$lambda$hXFruVBER4PKCDllpR87SxOxpM4(PhoneWindowManager$DisplayHomeButtonHandler):0, PhoneWindowManager$DisplayHomeButtonHandler (com.android.server.policy), PhoneWindowManager.java
+run():0, PhoneWindowManager$DisplayHomeButtonHandler$$ExternalSyntheticLambda0 (com.android.server.policy), R8$$SyntheticClass
+handleCallback(Message):958, Handler (android.os), Handler.java
+dispatchMessage(Message):99, Handler (android.os), Handler.java
+loopOnce(Looper, long, int):205, Looper (android.os), Looper.java
+loop():294, Looper (android.os), Looper.java
+run():67, HandlerThread (android.os), HandlerThread.java
+run():46, ServiceThread (com.android.server), ServiceThread.java
+run():45, UiThread (com.android.server), UiThread.java
+```
+---
+
+关键调用点解释
+
+1. **起点：用户操作触发 Home**
+
+   ```
+   PhoneWindowManager.handleShortPressOnHome()
+       → launchHomeFromHotKey()
+       → startDockOrHome()
+       → ActivityTaskManagerService.startHomeOnDisplay()
+   ```
+
+   这一步是 **用户按下 Home 键**，系统准备启动/显示 Home Activity。
+
+---
+
+2. **ATMS 驱动显示逻辑**
+
+   ```
+   ActivityStarter.startActivityInner()
+       → resumeTopActivityUncheckedLocked()
+       → TaskFragment.startPausing()
+       → RootWindowContainer.ensureActivitiesVisible()
+   ```
+
+   这里 ATMS 负责把当前正在显示的 Activity 置为不可见，同时确保目标 Activity (Home) 要变为可见。
+
+---
+
+3. **可见性分发**
+
+   ```
+   EnsureActivitiesVisibleHelper.setActivityVisibilityState()
+       → ActivityRecord.setVisibility(boolean)
+       → ActivityRecord.setVisibleRequested(boolean)
+   ```
+
+   **关键点**：
+
+   * `ActivityRecord.setVisibility()` 是 ATMS 控制一个 Activity 的对外可见性接口。
+   * 它内部调用 `setVisibleRequested(true/false)` 来改变窗口请求状态。
+
+---
+
+4. **WMS 层 WindowContainer 分发**
+
+   ```
+   WindowContainer.setVisibleRequested()
+       → onChildVisibleRequestedChanged()
+       → TaskFragment.onChildVisibleRequestedChanged()
+       → Task.onChildVisibleRequestedChanged()
+   ```
+
+   * 这里是 **层级分发**：从某个 ActivityRecord 一直上传到它所在的 Task / TaskFragment / DisplayContent。
+   * 作用是 **重新计算整个层级的可见性**（比如：如果 Task 内没有任何可见 Activity，那么 Task 也不可见）。
+
+---
+
+5. **最终效果**
+
+   * 更新 `mVisibleRequested` 标志（窗口是否被请求显示/隐藏）。
+   * 通知 WMS 后续的 **布局、动画、Surface 显示/隐藏** 流程。
+   * 如果是 `true` 且 Surface 已经存在，会走 `performShowLocked()` 把旧帧显示出来。
+   * 如果是 `false`，可能触发 `makeInvisible()`，最终 Surface 被隐藏或销毁。
+
+---
+
+## 🔹总结一句话
+
+这个调用栈说明：
+
+👉 当用户操作（比如按 Home）导致 Activity 切换时，**ATMS 会调用 `ActivityRecord.setVisibility()` → 内部调用 `setVisibleRequested(boolean)`**，从子窗口一路上传到 Task / Display 层，WMS 根据这个请求更新窗口层级的可见性，最终决定是否把窗口的 Surface 显示出来或者隐藏。
+
+---
+
+

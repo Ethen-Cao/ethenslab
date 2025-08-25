@@ -1,0 +1,36 @@
+@startuml
+!theme plain
+skinparam sequenceArrowColor #555555
+skinparam actorBorderColor #333333
+skinparam participantBorderColor #333333
+skinparam participantBackgroundColor #f9f9f9
+
+actor User as "User / App"
+
+participant TEE as "Device TEE / Widevine CDM"
+participant DeviceCert as "Device Certificate"
+participant LicenseServer as "License Server"
+participant MediaDrm as "MediaDrm API"
+
+== 设备首次注册 / 公钥上报 ==
+User -> TEE: 初始化 Widevine DRM
+TEE -> TEE: 生成 Device Key Pair\n(Private Key in TEE, Public Key)
+TEE -> DeviceCert: 生成 Device Certificate\n(Public Key + Device ID + Signature)
+DeviceCert -> LicenseServer: 上报 Device Certificate
+LicenseServer -> LicenseServer: 验证签名\n保存 Public Key
+
+== License 请求与 Content Key 加密 ==
+User -> MediaDrm: 请求播放加密视频
+MediaDrm -> LicenseServer: 发送 Device ID + Content ID
+LicenseServer -> LicenseServer: 查找设备 Public Key
+LicenseServer -> MediaDrm: 返回 Encrypted Content Key
+MediaDrm -> TEE: 提供 Encrypted Content Key
+TEE -> TEE: 使用私钥解密得到 Content Key
+TEE -> MediaDrm: Content Key 可用于解密视频流
+
+== 视频解密 ==
+MediaDrm -> TEE: 加密视频片段
+TEE -> TEE: 使用 Content Key 解密
+TEE -> User: 解密后帧渲染到屏幕
+
+@enduml
