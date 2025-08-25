@@ -4,9 +4,6 @@ draft = false
 title = 'Android DRM 框架'
 +++
 
-
-
-
 ## Widevine L1 DRM 播放流程解读
 
 下面的时序图展示了 **Android 平台 Widevine L1 DRM** 的核心工作原理，涵盖了 **设备注册、许可证获取、视频解密与安全渲染** 三个阶段，并特别标注了 **安全关键点（Secure Path）**。
