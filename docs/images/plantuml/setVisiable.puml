@@ -1,0 +1,30 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+  RoundCorner 15
+}
+
+rectangle "Activity 层" {
+  [Activity#setVisibleRequested]
+}
+
+rectangle "WindowManager 层" {
+  [ActivityRecord#setVisibleRequested] 
+  [WindowState#setVisibleRequested]
+  [WindowManagerService#updateFocusedWindowLocked]
+}
+
+rectangle "Display/Surface 层" {
+  [DisplayContent#setVisibleRequested]
+  [SurfaceControl#setVisibility]
+}
+
+[Activity#setVisibleRequested] --> [ActivityRecord#setVisibleRequested]
+[ActivityRecord#setVisibleRequested] --> [WindowState#setVisibleRequested]
+[WindowState#setVisibleRequested] --> [WindowManagerService#updateFocusedWindowLocked]
+[WindowManagerService#updateFocusedWindowLocked] --> [DisplayContent#setVisibleRequested]
+[DisplayContent#setVisibleRequested] --> [SurfaceControl#setVisibility]
+@enduml

@@ -1,0 +1,72 @@
+@startuml
+!theme plain
+skinparam sequenceArrowColor #555555
+skinparam actorBorderColor #333333
+skinparam participantBorderColor #333333
+skinparam participantBackgroundColor #f9f9f9
+skinparam defaultFontColor #000000
+
+title 远程密钥预置 (RKP) 完整时序图
+
+box "工厂端" #LightBlue
+  actor OEM
+  participant FactoryPC as "工厂 PC"
+  participant ExtractionTool as "rkp_factory_extraction_tool"
+  participant UploadTool as "device_info_uploader.py"
+end box
+
+box "云端" #LightGreen
+  participant GoogleServers as "Google 服务器"
+  database KeyDatabase as "密钥数据库"
+  participant SigningServer as "凭证签名服务器"
+end box
+
+box "用户端" #LightYellow
+  participant DeviceTEE as "设备 TEE"
+  participant App as "应用 / 系统服务"
+end box
+
+
+== 阶段 1: 工厂流程 (Factory Flow) ==
+OEM -> FactoryPC: 1. 启动设备公钥提取流程
+FactoryPC -> ExtractionTool: 2. 执行公钥提取工具
+ExtractionTool -> DeviceTEE: 3. 指令生成密钥对并提取公钥
+activate DeviceTEE
+note right: 设备生成唯一的硬件密钥对\n私钥永不离开 TEE
+DeviceTEE --> ExtractionTool: 4. 返回设备公钥 (DK_PUB)
+deactivate DeviceTEE
+FactoryPC -> UploadTool: 5. 执行上传工具，传入公钥数据
+UploadTool -> GoogleServers: 6. 上传设备公钥
+GoogleServers -> KeyDatabase: 7. 储存公钥以备后查
+
+
+== 阶段 2: 远程配置流程 (On-Device Flow) ==
+App -> DeviceTEE: 8. 触发密钥认证请求 (如 App 启动)
+activate DeviceTEE
+DeviceTEE -> DeviceTEE: 9. 生成启动凭证链 (BCC)
+DeviceTEE -> DeviceTEE: 10. 建立凭证签名请求 (CSR)
+DeviceTEE -> DeviceTEE: 11. 使用设备私钥对 CSR 进行签名
+DeviceTEE --> App: 12. 返回已签名的 CSR
+deactivate DeviceTEE
+
+App -> GoogleServers: 13. 发送凭证请求 (含 CSR 和 BCC)
+activate GoogleServers
+GoogleServers -> KeyDatabase: 14. 查询并验证 BCC 中的公钥是否存在
+alt 公钥验证成功
+    GoogleServers -> SigningServer: 15. 转发签名请求
+    activate SigningServer
+    SigningServer --> GoogleServers: 16. 返回签名的短期凭证
+    deactivate SigningServer
+    GoogleServers --> App: 17. 下发短期认证凭证
+else 公钥验证失败
+    GoogleServers --> App: 18. 拒绝请求
+end
+deactivate GoogleServers
+
+App -> DeviceTEE: 19. 提供获取的认证凭证
+activate DeviceTEE
+DeviceTEE -> DeviceTEE: 20. 验证并安全储存凭证
+DeviceTEE --> App: 21. 认证完成，设备可信
+deactivate DeviceTEE
+
+@enduml

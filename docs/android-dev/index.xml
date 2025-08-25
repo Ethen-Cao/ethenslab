@@ -6,7 +6,71 @@
     <description>Recent content in Android系统开发 on Ethen 的实验室</description>
     <generator>Hugo -- 0.148.2</generator>
     <language>en</language>
-    <lastBuildDate></lastBuildDate>
+    <lastBuildDate>Fri, 08 Aug 2025 11:36:11 +0800</lastBuildDate>
     <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Android DRM 框架</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</link>
+      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</guid>
+      <description>&lt;h2 id=&#34;widevine-l1-drm-播放流程解读&#34;&gt;Widevine L1 DRM 播放流程解读&lt;/h2&gt;
+&lt;p&gt;下面的时序图展示了 &lt;strong&gt;Android 平台 Widevine L1 DRM&lt;/strong&gt; 的核心工作原理，涵盖了 &lt;strong&gt;设备注册、许可证获取、视频解密与安全渲染&lt;/strong&gt; 三个阶段，并特别标注了 &lt;strong&gt;安全关键点（Secure Path）&lt;/strong&gt;。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h3 id=&#34;阶段1设备首次注册--公钥上报&#34;&gt;阶段1：设备首次注册 / 公钥上报&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;App 初始化 DRM&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;应用调用 &lt;code&gt;MediaDrm&lt;/code&gt;，系统初始化 DRM 会话。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;TEE 生成设备密钥对&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;设备在 TEE 内部生成 &lt;strong&gt;Device Key Pair&lt;/strong&gt;（公钥/私钥）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;私钥仅存在于 TEE 内部，绝不导出&lt;/strong&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;设备证书生成&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;TEE 通过 &lt;code&gt;generateProvisioningRequest()&lt;/code&gt; 生成设备证书，包含设备公钥和签名。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;上传设备证书&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;App 将证书发送给 License Server。&lt;/li&gt;
+&lt;li&gt;License Server 验证签名，并保存设备公钥，用于后续加密 Content Key。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h3 id=&#34;阶段2许可证请求与-content-key-加密&#34;&gt;阶段2：许可证请求与 Content Key 加密&lt;/h3&gt;
+&lt;ol start=&#34;5&#34;&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;生成许可证请求&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;App 调用 &lt;code&gt;getLicenseRequest(Content ID)&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;TEE 使用设备私钥对请求进行签名，保证请求合法性。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;发送许可证请求&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;App 将签名请求发送给 License Server。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;许可证生成&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;License Server 验证签名。&lt;/li&gt;
+&lt;li&gt;使用设备公钥加密 Content Key，并生成许可证响应。&lt;/li&gt;
+&lt;li&gt;加密后的许可证 = RSA_Encrypt(内容密钥, 设备公钥)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;许可证下发&lt;/strong&gt;&lt;/p&gt;</description>
+    </item>
   </channel>
 </rss>

@@ -1,0 +1,65 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam defaultFontColor #000000
+skinparam sequenceArrowColor #555555
+skinparam actorBorderColor #333333
+skinparam participantBorderColor #333333
+skinparam participantBackgroundColor #f9f9f9
+skinparam defaultFontColor #000000
+
+title Widevine L1 生产预置流程
+
+actor OEM
+participant FactoryPC as "工厂 PC"
+participant FactoryTool as "预置工具"
+participant DeviceTEE as "设备芯片 (TEE)"
+participant GoogleSigning as "Google 云端签名服务"
+database SecureStorage as "TEE 安全存储 (Fuse / Keybox / RPMB)"
+
+== 阶段 1: 密钥对生成 ==
+OEM -> FactoryPC: 1. 启动预置流程
+FactoryPC -> FactoryTool: 2. 运行预置工具
+FactoryTool -> DeviceTEE: 3. 指令生成密钥对
+activate DeviceTEE
+note right of DeviceTEE
+  在芯片内部，TEE 生成唯一 Device Key Pair
+  Device Private Key 永不导出
+end note
+DeviceTEE -> SecureStorage: 4. 安全存储 Device Private Key
+DeviceTEE --> FactoryTool: 5. 导出 Device Public Key (用于 CSR)
+deactivate DeviceTEE
+
+== 阶段 2: 证书签名请求 (CSR) ==
+FactoryTool -> FactoryTool: 6. 组合 CSR (包含 Public Key, Device ID)
+note right
+  CSR 是标准 PKI 请求
+  公钥+Device ID 用于申请签名证书
+end note
+FactoryTool -> GoogleSigning: 7. 通过加密通道 (VPN/HTTPS/专线) 发送 CSR
+activate GoogleSigning
+note right of GoogleSigning
+  Google 云端签名服务验证 OEM 授权
+  CSR 来源合法性
+end note
+
+== 阶段 3: 签名与证书返回 ==
+GoogleSigning -> GoogleSigning: 8. 使用 Google Root Private Key 对 CSR 数字签名
+GoogleSigning --> FactoryTool: 9. 返回签名的 Device Certificate
+deactivate GoogleSigning
+
+== 阶段 4: 证书注入与激活 ==
+FactoryTool -> DeviceTEE: 10. 注入签名的 Device Certificate
+activate DeviceTEE
+DeviceTEE -> DeviceTEE: 11. 验证签名 (使用 Google Root Public Key)
+alt 签名验证成功
+  DeviceTEE -> SecureStorage: 12. 永久存储 Device Certificate
+  DeviceTEE --> FactoryTool: 13. 返回成功状态
+else 签名验证失败
+  DeviceTEE --> FactoryTool: 14. 返回失败状态 (流程中止)
+end
+deactivate DeviceTEE
+
+FactoryTool -> FactoryPC: 15. 记录流程结果
+
+@enduml
