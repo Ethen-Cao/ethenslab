@@ -304,6 +304,42 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;p&gt;平台主题演进：&lt;/p&gt;</description>
     </item>
     <item>
+      <title>Chromium &#43; Android DRM 视频安全渲染流程说明</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link>
+      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid>
+      <description>&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/chromium-drm.png&#34;&gt;&lt;/p&gt;
+&lt;p&gt;这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。&lt;/p&gt;
+&lt;p&gt;整个流程的核心是确保&lt;strong&gt;内容密钥 (Content Key)&lt;/strong&gt; 和&lt;strong&gt;解密后的视频画面&lt;/strong&gt;始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。&lt;/p&gt;
+&lt;h2 id=&#34;流程详解&#34;&gt;&lt;strong&gt;流程详解&lt;/strong&gt;&lt;/h2&gt;
+&lt;h3 id=&#34;1-初始化与会话创建-步骤-1-3&#34;&gt;&lt;strong&gt;1. 初始化与会话创建 (步骤 1-3)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(1-2)&lt;/strong&gt; 当用户在浏览器中点击播放受保护的视频时，网页前端的 JavaScript 会通过 &lt;strong&gt;Encrypted Media Extensions (EME)&lt;/strong&gt; API 向浏览器发出请求，表明需要处理 DRM 内容。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(3)&lt;/strong&gt; EME 接着会调用 Android 系统底层的 &lt;strong&gt;&lt;code&gt;MediaDRM&lt;/code&gt; API&lt;/strong&gt;，在系统层级创建一个 DRM 会话。这一步为后续的授权请求和解密操作做好了准备。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;2-授权请求与获取-步骤-4-8&#34;&gt;&lt;strong&gt;2. 授权请求与获取 (步骤 4-8)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(4-6)&lt;/strong&gt; &lt;code&gt;MediaDRM&lt;/code&gt; API 指示 &lt;strong&gt;TEE (可信执行环境)&lt;/strong&gt; 内的 Widevine L1 模块生成一个加密的&lt;strong&gt;授权请求&lt;/strong&gt;。这个请求包含了设备的唯一凭证，并经过设备私钥签名。TEE 将这个请求数据返回给浏览器。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(7-8)&lt;/strong&gt; &lt;strong&gt;Chromium 浏览器&lt;/strong&gt; 负责处理网络通信。它将从 TEE 获取的授权请求，通过网络发送给&lt;strong&gt;授权服务器 (License Server)&lt;/strong&gt;。服务器在验证请求的合法性后，会回传一个加密的授权（其中包含了用设备公钥加密的 Content Key）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;3-授权处理与密钥提取-步骤-9-10&#34;&gt;&lt;strong&gt;3. 授权处理与密钥提取 (步骤 9-10)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(9)&lt;/strong&gt; 浏览器将从服务器获取的加密授权，通过 &lt;code&gt;MediaDRM&lt;/code&gt; API 传递下去。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(10)&lt;/strong&gt; 加密的授权最终被送达 &lt;strong&gt;TEE&lt;/strong&gt;。在 TEE 内部，Widevine L1 模块会使用其唯一的设备私钥来解密授权，从而安全地提取出 &lt;strong&gt;Content Key&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(Note)&lt;/strong&gt; 正如图中注释所示，&lt;strong&gt;Content Key 从此步骤开始，永远不会离开 TEE 的安全环境&lt;/strong&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;4-安全解密与渲染-步骤-11-14&#34;&gt;&lt;strong&gt;4. 安全解密与渲染 (步骤 11-14)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(11)&lt;/strong&gt; &lt;code&gt;MediaDRM&lt;/code&gt; 将一个指向 TEE 内部安全会话的&lt;strong&gt;句柄 (handle)&lt;/strong&gt;，连同加密的视频流，一起提供给 &lt;strong&gt;&lt;code&gt;MediaCodec&lt;/code&gt;&lt;/strong&gt;（Android 的媒体编解码器）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(12)&lt;/strong&gt; &lt;code&gt;MediaCodec&lt;/code&gt; 与 TEE 协同工作。加密的视频帧被送入 TEE 进行硬件级别的解密。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(Note)&lt;/strong&gt; 图中注释再次强调，&lt;strong&gt;解密后的明文视频帧会通过一个安全路径 (Secure Path) 直接传输&lt;/strong&gt;，完全绕过了浏览器和 Android 的应用程序层。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(13-14)&lt;/strong&gt; 这些明文帧被直接发送到 &lt;strong&gt;GPU / Display&lt;/strong&gt; 硬件进行渲染，最终用户在屏幕上看到播放的画面。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;核心安全原则总结&#34;&gt;&lt;strong&gt;核心安全原则总结&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;这份时序图完美地展示了 Widevine L1 的核心安全原则：&lt;/p&gt;</description>
+    </item>
+    <item>
       <title>使用AndroidStudio调试AOSP</title>
       <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link>
       <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
@@ -671,13 +707,6 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
       <pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate>
       <guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</guid>
       <description>&lt;p&gt;Activity Manager详解&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title></title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link>
-      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid>
-      <description></description>
     </item>
   </channel>
 </rss>

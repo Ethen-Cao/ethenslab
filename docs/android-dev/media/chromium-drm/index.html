@@ -5,9 +5,38 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <meta name="robots" content="index, follow">
-<title>Ethen 的实验室</title>
+<title>Chromium &#43; Android DRM 视频安全渲染流程说明 | Ethen 的实验室</title>
 <meta name="keywords" content="">
-<meta name="description" content=" - Ethen 的实验室">
+<meta name="description" content="
+这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。
+整个流程的核心是确保内容密钥 (Content Key) 和解密后的视频画面始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。
+流程详解
+1. 初始化与会话创建 (步骤 1-3)
+
+(1-2) 当用户在浏览器中点击播放受保护的视频时，网页前端的 JavaScript 会通过 Encrypted Media Extensions (EME) API 向浏览器发出请求，表明需要处理 DRM 内容。
+(3) EME 接着会调用 Android 系统底层的 MediaDRM API，在系统层级创建一个 DRM 会话。这一步为后续的授权请求和解密操作做好了准备。
+
+2. 授权请求与获取 (步骤 4-8)
+
+(4-6) MediaDRM API 指示 TEE (可信执行环境) 内的 Widevine L1 模块生成一个加密的授权请求。这个请求包含了设备的唯一凭证，并经过设备私钥签名。TEE 将这个请求数据返回给浏览器。
+(7-8) Chromium 浏览器 负责处理网络通信。它将从 TEE 获取的授权请求，通过网络发送给授权服务器 (License Server)。服务器在验证请求的合法性后，会回传一个加密的授权（其中包含了用设备公钥加密的 Content Key）。
+
+3. 授权处理与密钥提取 (步骤 9-10)
+
+(9) 浏览器将从服务器获取的加密授权，通过 MediaDRM API 传递下去。
+(10) 加密的授权最终被送达 TEE。在 TEE 内部，Widevine L1 模块会使用其唯一的设备私钥来解密授权，从而安全地提取出 Content Key。
+(Note) 正如图中注释所示，Content Key 从此步骤开始，永远不会离开 TEE 的安全环境。
+
+4. 安全解密与渲染 (步骤 11-14)
+
+(11) MediaDRM 将一个指向 TEE 内部安全会话的句柄 (handle)，连同加密的视频流，一起提供给 MediaCodec（Android 的媒体编解码器）。
+(12) MediaCodec 与 TEE 协同工作。加密的视频帧被送入 TEE 进行硬件级别的解密。
+(Note) 图中注释再次强调，解密后的明文视频帧会通过一个安全路径 (Secure Path) 直接传输，完全绕过了浏览器和 Android 的应用程序层。
+(13-14) 这些明文帧被直接发送到 GPU / Display 硬件进行渲染，最终用户在屏幕上看到播放的画面。
+
+
+核心安全原则总结
+这份时序图完美地展示了 Widevine L1 的核心安全原则：">
 <meta name="author" content="">
 <link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/">
 <link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.8d92b99258d2a8aea36dee98116af3631ad91e255aef20c2caa81c9459a68fd8.css" integrity="sha256-jZK5kljSqK6jbe6YEWrzYxrZHiVa7yDCyqgclFmmj9g=" rel="preload stylesheet" as="style">
@@ -57,14 +86,48 @@
     </style>
 </noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/">
   <meta property="og:site_name" content="Ethen 的实验室">
-  <meta property="og:title" content="Ethen 的实验室">
-  <meta property="og:description" content="一个关于Android以及智能座舱的开发知识库。">
+  <meta property="og:title" content="Chromium &#43; Android DRM 视频安全渲染流程说明">
+  <meta property="og:description" content="
+这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。
+整个流程的核心是确保内容密钥 (Content Key) 和解密后的视频画面始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。
+流程详解 1. 初始化与会话创建 (步骤 1-3) (1-2) 当用户在浏览器中点击播放受保护的视频时，网页前端的 JavaScript 会通过 Encrypted Media Extensions (EME) API 向浏览器发出请求，表明需要处理 DRM 内容。 (3) EME 接着会调用 Android 系统底层的 MediaDRM API，在系统层级创建一个 DRM 会话。这一步为后续的授权请求和解密操作做好了准备。 2. 授权请求与获取 (步骤 4-8) (4-6) MediaDRM API 指示 TEE (可信执行环境) 内的 Widevine L1 模块生成一个加密的授权请求。这个请求包含了设备的唯一凭证，并经过设备私钥签名。TEE 将这个请求数据返回给浏览器。 (7-8) Chromium 浏览器 负责处理网络通信。它将从 TEE 获取的授权请求，通过网络发送给授权服务器 (License Server)。服务器在验证请求的合法性后，会回传一个加密的授权（其中包含了用设备公钥加密的 Content Key）。 3. 授权处理与密钥提取 (步骤 9-10) (9) 浏览器将从服务器获取的加密授权，通过 MediaDRM API 传递下去。 (10) 加密的授权最终被送达 TEE。在 TEE 内部，Widevine L1 模块会使用其唯一的设备私钥来解密授权，从而安全地提取出 Content Key。 (Note) 正如图中注释所示，Content Key 从此步骤开始，永远不会离开 TEE 的安全环境。 4. 安全解密与渲染 (步骤 11-14) (11) MediaDRM 将一个指向 TEE 内部安全会话的句柄 (handle)，连同加密的视频流，一起提供给 MediaCodec（Android 的媒体编解码器）。 (12) MediaCodec 与 TEE 协同工作。加密的视频帧被送入 TEE 进行硬件级别的解密。 (Note) 图中注释再次强调，解密后的明文视频帧会通过一个安全路径 (Secure Path) 直接传输，完全绕过了浏览器和 Android 的应用程序层。 (13-14) 这些明文帧被直接发送到 GPU / Display 硬件进行渲染，最终用户在屏幕上看到播放的画面。 核心安全原则总结 这份时序图完美地展示了 Widevine L1 的核心安全原则：">
   <meta property="og:locale" content="en">
   <meta property="og:type" content="article">
     <meta property="article:section" content="android-dev">
+    <meta property="article:published_time" content="2025-08-08T11:36:11+08:00">
+    <meta property="article:modified_time" content="2025-08-08T11:36:11+08:00">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="">
-<meta name="twitter:description" content="">
+<meta name="twitter:title" content="Chromium &#43; Android DRM 视频安全渲染流程说明">
+<meta name="twitter:description" content="
+这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。
+整个流程的核心是确保内容密钥 (Content Key) 和解密后的视频画面始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。
+流程详解
+1. 初始化与会话创建 (步骤 1-3)
+
+(1-2) 当用户在浏览器中点击播放受保护的视频时，网页前端的 JavaScript 会通过 Encrypted Media Extensions (EME) API 向浏览器发出请求，表明需要处理 DRM 内容。
+(3) EME 接着会调用 Android 系统底层的 MediaDRM API，在系统层级创建一个 DRM 会话。这一步为后续的授权请求和解密操作做好了准备。
+
+2. 授权请求与获取 (步骤 4-8)
+
+(4-6) MediaDRM API 指示 TEE (可信执行环境) 内的 Widevine L1 模块生成一个加密的授权请求。这个请求包含了设备的唯一凭证，并经过设备私钥签名。TEE 将这个请求数据返回给浏览器。
+(7-8) Chromium 浏览器 负责处理网络通信。它将从 TEE 获取的授权请求，通过网络发送给授权服务器 (License Server)。服务器在验证请求的合法性后，会回传一个加密的授权（其中包含了用设备公钥加密的 Content Key）。
+
+3. 授权处理与密钥提取 (步骤 9-10)
+
+(9) 浏览器将从服务器获取的加密授权，通过 MediaDRM API 传递下去。
+(10) 加密的授权最终被送达 TEE。在 TEE 内部，Widevine L1 模块会使用其唯一的设备私钥来解密授权，从而安全地提取出 Content Key。
+(Note) 正如图中注释所示，Content Key 从此步骤开始，永远不会离开 TEE 的安全环境。
+
+4. 安全解密与渲染 (步骤 11-14)
+
+(11) MediaDRM 将一个指向 TEE 内部安全会话的句柄 (handle)，连同加密的视频流，一起提供给 MediaCodec（Android 的媒体编解码器）。
+(12) MediaCodec 与 TEE 协同工作。加密的视频帧被送入 TEE 进行硬件级别的解密。
+(Note) 图中注释再次强调，解密后的明文视频帧会通过一个安全路径 (Secure Path) 直接传输，完全绕过了浏览器和 Android 的应用程序层。
+(13-14) 这些明文帧被直接发送到 GPU / Display 硬件进行渲染，最终用户在屏幕上看到播放的画面。
+
+
+核心安全原则总结
+这份时序图完美地展示了 Widevine L1 的核心安全原则：">
 
 
 <script type="application/ld+json">
@@ -87,7 +150,7 @@
     {
       "@type": "ListItem",
       "position":  3 ,
-      "name": "",
+      "name": "Chromium + Android DRM 视频安全渲染流程说明",
       "item": "https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/"
     }
   ]
@@ -97,17 +160,17 @@
 {
   "@context": "https://schema.org",
   "@type": "BlogPosting",
-  "headline": "",
-  "name": "",
-  "description": "",
+  "headline": "Chromium + Android DRM 视频安全渲染流程说明",
+  "name": "Chromium \u002b Android DRM 视频安全渲染流程说明",
+  "description": "\n这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。\n整个流程的核心是确保内容密钥 (Content Key) 和解密后的视频画面始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。\n流程详解 1. 初始化与会话创建 (步骤 1-3) (1-2) 当用户在浏览器中点击播放受保护的视频时，网页前端的 JavaScript 会通过 Encrypted Media Extensions (EME) API 向浏览器发出请求，表明需要处理 DRM 内容。 (3) EME 接着会调用 Android 系统底层的 MediaDRM API，在系统层级创建一个 DRM 会话。这一步为后续的授权请求和解密操作做好了准备。 2. 授权请求与获取 (步骤 4-8) (4-6) MediaDRM API 指示 TEE (可信执行环境) 内的 Widevine L1 模块生成一个加密的授权请求。这个请求包含了设备的唯一凭证，并经过设备私钥签名。TEE 将这个请求数据返回给浏览器。 (7-8) Chromium 浏览器 负责处理网络通信。它将从 TEE 获取的授权请求，通过网络发送给授权服务器 (License Server)。服务器在验证请求的合法性后，会回传一个加密的授权（其中包含了用设备公钥加密的 Content Key）。 3. 授权处理与密钥提取 (步骤 9-10) (9) 浏览器将从服务器获取的加密授权，通过 MediaDRM API 传递下去。 (10) 加密的授权最终被送达 TEE。在 TEE 内部，Widevine L1 模块会使用其唯一的设备私钥来解密授权，从而安全地提取出 Content Key。 (Note) 正如图中注释所示，Content Key 从此步骤开始，永远不会离开 TEE 的安全环境。 4. 安全解密与渲染 (步骤 11-14) (11) MediaDRM 将一个指向 TEE 内部安全会话的句柄 (handle)，连同加密的视频流，一起提供给 MediaCodec（Android 的媒体编解码器）。 (12) MediaCodec 与 TEE 协同工作。加密的视频帧被送入 TEE 进行硬件级别的解密。 (Note) 图中注释再次强调，解密后的明文视频帧会通过一个安全路径 (Secure Path) 直接传输，完全绕过了浏览器和 Android 的应用程序层。 (13-14) 这些明文帧被直接发送到 GPU / Display 硬件进行渲染，最终用户在屏幕上看到播放的画面。 核心安全原则总结 这份时序图完美地展示了 Widevine L1 的核心安全原则：\n",
   "keywords": [
     
   ],
-  "articleBody": "",
-  "wordCount" : "0",
+  "articleBody": "\n这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。\n整个流程的核心是确保内容密钥 (Content Key) 和解密后的视频画面始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。\n流程详解 1. 初始化与会话创建 (步骤 1-3) (1-2) 当用户在浏览器中点击播放受保护的视频时，网页前端的 JavaScript 会通过 Encrypted Media Extensions (EME) API 向浏览器发出请求，表明需要处理 DRM 内容。 (3) EME 接着会调用 Android 系统底层的 MediaDRM API，在系统层级创建一个 DRM 会话。这一步为后续的授权请求和解密操作做好了准备。 2. 授权请求与获取 (步骤 4-8) (4-6) MediaDRM API 指示 TEE (可信执行环境) 内的 Widevine L1 模块生成一个加密的授权请求。这个请求包含了设备的唯一凭证，并经过设备私钥签名。TEE 将这个请求数据返回给浏览器。 (7-8) Chromium 浏览器 负责处理网络通信。它将从 TEE 获取的授权请求，通过网络发送给授权服务器 (License Server)。服务器在验证请求的合法性后，会回传一个加密的授权（其中包含了用设备公钥加密的 Content Key）。 3. 授权处理与密钥提取 (步骤 9-10) (9) 浏览器将从服务器获取的加密授权，通过 MediaDRM API 传递下去。 (10) 加密的授权最终被送达 TEE。在 TEE 内部，Widevine L1 模块会使用其唯一的设备私钥来解密授权，从而安全地提取出 Content Key。 (Note) 正如图中注释所示，Content Key 从此步骤开始，永远不会离开 TEE 的安全环境。 4. 安全解密与渲染 (步骤 11-14) (11) MediaDRM 将一个指向 TEE 内部安全会话的句柄 (handle)，连同加密的视频流，一起提供给 MediaCodec（Android 的媒体编解码器）。 (12) MediaCodec 与 TEE 协同工作。加密的视频帧被送入 TEE 进行硬件级别的解密。 (Note) 图中注释再次强调，解密后的明文视频帧会通过一个安全路径 (Secure Path) 直接传输，完全绕过了浏览器和 Android 的应用程序层。 (13-14) 这些明文帧被直接发送到 GPU / Display 硬件进行渲染，最终用户在屏幕上看到播放的画面。 核心安全原则总结 这份时序图完美地展示了 Widevine L1 的核心安全原则：\n密钥不离开 TEE：最敏感的 Content Key 始终被锁在硬件安全区内。 数据不离开安全路径：解密后的视频内容在任何时候都不会暴露给可以被拦截或复制的应用程序主内存，确保了端到端的内容保护。 ",
+  "wordCount" : "131",
   "inLanguage": "en",
-  "datePublished": "0001-01-01T00:00:00Z",
-  "dateModified": "0001-01-01T00:00:00Z",
+  "datePublished": "2025-08-08T11:36:11+08:00",
+  "dateModified": "2025-08-08T11:36:11+08:00",
   "mainEntityOfPage": {
     "@type": "WebPage",
     "@id": "https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/"
@@ -198,21 +261,63 @@
   <header class="post-header">
     <div class="breadcrumbs"><a href="https://ethen-cao.github.io/ethenslab/">Home</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/android-dev/">Android系统开发</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/android-dev/media/">Android Media技术文档</a></div>
     <h1 class="post-title entry-hint-parent">
-      
+      Chromium &#43; Android DRM 视频安全渲染流程说明
     </h1>
-    <div class="post-meta">0 min&nbsp;·&nbsp;0 words
+    <div class="post-meta"><span title='2025-08-08 11:36:11 +0800 CST'>August 8, 2025</span>&nbsp;·&nbsp;1 min&nbsp;·&nbsp;131 words
 
 </div>
   </header> 
+  <div class="post-content"><p><img loading="lazy" src="/ethenslab/images/chromium-drm.png"></p>
+<p>这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。</p>
+<p>整个流程的核心是确保<strong>内容密钥 (Content Key)</strong> 和<strong>解密后的视频画面</strong>始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。</p>
+<h2 id="流程详解"><strong>流程详解</strong><a hidden class="anchor" aria-hidden="true" href="#流程详解">#</a></h2>
+<h3 id="1-初始化与会话创建-步骤-1-3"><strong>1. 初始化与会话创建 (步骤 1-3)</strong><a hidden class="anchor" aria-hidden="true" href="#1-初始化与会话创建-步骤-1-3">#</a></h3>
+<ul>
+<li><strong>(1-2)</strong> 当用户在浏览器中点击播放受保护的视频时，网页前端的 JavaScript 会通过 <strong>Encrypted Media Extensions (EME)</strong> API 向浏览器发出请求，表明需要处理 DRM 内容。</li>
+<li><strong>(3)</strong> EME 接着会调用 Android 系统底层的 <strong><code>MediaDRM</code> API</strong>，在系统层级创建一个 DRM 会话。这一步为后续的授权请求和解密操作做好了准备。</li>
+</ul>
+<h3 id="2-授权请求与获取-步骤-4-8"><strong>2. 授权请求与获取 (步骤 4-8)</strong><a hidden class="anchor" aria-hidden="true" href="#2-授权请求与获取-步骤-4-8">#</a></h3>
+<ul>
+<li><strong>(4-6)</strong> <code>MediaDRM</code> API 指示 <strong>TEE (可信执行环境)</strong> 内的 Widevine L1 模块生成一个加密的<strong>授权请求</strong>。这个请求包含了设备的唯一凭证，并经过设备私钥签名。TEE 将这个请求数据返回给浏览器。</li>
+<li><strong>(7-8)</strong> <strong>Chromium 浏览器</strong> 负责处理网络通信。它将从 TEE 获取的授权请求，通过网络发送给<strong>授权服务器 (License Server)</strong>。服务器在验证请求的合法性后，会回传一个加密的授权（其中包含了用设备公钥加密的 Content Key）。</li>
+</ul>
+<h3 id="3-授权处理与密钥提取-步骤-9-10"><strong>3. 授权处理与密钥提取 (步骤 9-10)</strong><a hidden class="anchor" aria-hidden="true" href="#3-授权处理与密钥提取-步骤-9-10">#</a></h3>
+<ul>
+<li><strong>(9)</strong> 浏览器将从服务器获取的加密授权，通过 <code>MediaDRM</code> API 传递下去。</li>
+<li><strong>(10)</strong> 加密的授权最终被送达 <strong>TEE</strong>。在 TEE 内部，Widevine L1 模块会使用其唯一的设备私钥来解密授权，从而安全地提取出 <strong>Content Key</strong>。</li>
+<li><strong>(Note)</strong> 正如图中注释所示，<strong>Content Key 从此步骤开始，永远不会离开 TEE 的安全环境</strong>。</li>
+</ul>
+<h3 id="4-安全解密与渲染-步骤-11-14"><strong>4. 安全解密与渲染 (步骤 11-14)</strong><a hidden class="anchor" aria-hidden="true" href="#4-安全解密与渲染-步骤-11-14">#</a></h3>
+<ul>
+<li><strong>(11)</strong> <code>MediaDRM</code> 将一个指向 TEE 内部安全会话的<strong>句柄 (handle)</strong>，连同加密的视频流，一起提供给 <strong><code>MediaCodec</code></strong>（Android 的媒体编解码器）。</li>
+<li><strong>(12)</strong> <code>MediaCodec</code> 与 TEE 协同工作。加密的视频帧被送入 TEE 进行硬件级别的解密。</li>
+<li><strong>(Note)</strong> 图中注释再次强调，<strong>解密后的明文视频帧会通过一个安全路径 (Secure Path) 直接传输</strong>，完全绕过了浏览器和 Android 的应用程序层。</li>
+<li><strong>(13-14)</strong> 这些明文帧被直接发送到 <strong>GPU / Display</strong> 硬件进行渲染，最终用户在屏幕上看到播放的画面。</li>
+</ul>
+<hr>
+<h2 id="核心安全原则总结"><strong>核心安全原则总结</strong><a hidden class="anchor" aria-hidden="true" href="#核心安全原则总结">#</a></h2>
+<p>这份时序图完美地展示了 Widevine L1 的核心安全原则：</p>
+<ul>
+<li><strong>密钥不离开 TEE</strong>：最敏感的 Content Key 始终被锁在硬件安全区内。</li>
+<li><strong>数据不离开安全路径</strong>：解密后的视频内容在任何时候都不会暴露给可以被拦截或复制的应用程序主内存，确保了端到端的内容保护。</li>
+</ul>
+
+
+  </div>
 
   <footer class="post-footer">
     <ul class="post-tags">
     </ul>
 <nav class="paginav">
-  <a class="prev" href="https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/">
+  <a class="prev" href="https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/">
     <span class="title">« Prev</span>
     <br>
-    <span>ActivityManager 深度解析</span>
+    <span>Android Theme</span>
+  </a>
+  <a class="next" href="https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/">
+    <span class="title">Next »</span>
+    <br>
+    <span>使用AndroidStudio调试AOSP</span>
   </a>
 </nav>
 
