@@ -1,0 +1,41 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam defaultFontColor #000000
+skinparam sequenceArrowColor #555555
+skinparam participantBorderColor #333333
+skinparam participantBackgroundColor #f9f9f9
+
+title Chromium + Android DRM 视频安全渲染流程
+
+actor User
+participant "Chromium Browser" as Chromium
+participant "Encrypted Media Extensions (EME)" as EME
+participant "Android MediaDRM API" as MediaDRM
+participant "License Server" as LicenseServer
+participant "TEE / Widevine L1" as TEE
+participant "MediaCodec + Secure Path" as MediaCodec
+participant "GPU / Display" as Display
+
+== 用户播放视频 ==
+User -> Chromium : 1. 点击播放 DRM 视频
+Chromium -> EME : 2. 请求解密会话\n(InitData, Key System)
+EME -> MediaDRM : 3. 创建 DRM 会话
+MediaDRM -> TEE : 4. 请求生成许可证请求
+TEE --> MediaDRM : 5. 返回加密的许可证请求
+MediaDRM --> Chromium : 6. 返回许可证请求\n(需通过网络发送)
+Chromium -> LicenseServer : 7. 发送许可证请求
+LicenseServer --> Chromium : 8. 返回加密的许可证\n(含 Content Key)
+Chromium -> MediaDRM : 9. 提供加密的许可证
+MediaDRM -> TEE : 10. 处理许可证(解密 Content Key)
+note right of TEE
+  Content Key 永远保存在TEE内部
+end note
+MediaDRM -> MediaCodec : 11. 提供加密流与会话句柄
+MediaCodec -> TEE : 12. 硬件解码并解密
+note right of TEE
+  解密后的帧通过安全路径\n直接传输，不返回给App
+end note
+MediaCodec -> Display : 13. 渲染到 Surface
+User -> Display : 14. 看到视频画面
+@enduml
