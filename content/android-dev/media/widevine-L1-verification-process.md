@@ -8,6 +8,52 @@ title = '高通平台 Widevine L1 认证实施流程'
 
 ![](/ethenslab/images/widevine-L1-verification-process.png)
 
+
+1. **项目启动与平台选型**
+
+   * OEM（整车厂）根据车型、市场需求和 DRM 策略，决定采用 Widevine L1。
+   * 高通提供支持 L1 的硬件平台（SoC + TEE），并交付 BSP/SDK 及安全方案指导。
+
+2. **软件集成与安全路径实现**
+
+   * OEM 集成 Android OS、Chromium 和 Android DRM 框架。
+   * 通过调用 MediaDrm/CDM API 实现播放功能。
+   * 高通协助 OEM 完成安全视频路径 (SVP) 与安全音频路径 (SAP)，并提供 TrustZone、Keymaster、OEMCrypto 的技术支持。
+
+3. **Widevine Partner Portal 注册与工具获取**
+
+   * OEM 向 Google 申请 Widevine Partner Portal 访问权限。
+   * Google 提供 L1 安全规范文档、测试工具及测试用例，并下发测试用 Device Keybox（仅限开发与自测）。
+
+4. **内部自测与预认证准备**
+
+   * OEM 搭建 L1 测试环境并运行 Google L1 Test Suite，进行自测验证。
+   * 高通协助分析结果并解决安全相关问题，为正式认证做准备。
+
+5. **正式认证测试（由授权实验室执行）**
+
+   * OEM 将待测设备及自测结果提交至 Google 授权实验室（3PL）。
+   * 实验室使用 Google 官方 L1 Test Suite 执行测试，并将测试结果与报告上传至 Google。
+
+6. **Google L1 认证审核**
+
+   * Google 审核实验室提交的结果和报告。
+   * 重点审核 TEE（TrustZone）、OEMCrypto、SVP/SAP 等安全实现。
+   * 可能要求进行安全漏洞扫描或代码审计，并在必要时与 OEM 和高通进行技术澄清。
+
+7. **颁发 L1 证书与生产 Keybox**
+
+   * 若认证通过：Google 向 OEM 颁发 Widevine L1 证书和设备特定的 **生产 Keybox**。
+   * 若认证失败：Google 提供失败原因和改进建议，OEM 需回到开发或自测阶段进行修正后重新提交。
+
+8. **量产集成与最终验证**
+
+   * OEM 将 Widevine L1 证书和生产 Keybox 集成到量产软件中。
+   * 执行最终的功能验证和回归测试，确保 DRM 功能正常工作。
+   * 完成量产准备。
+
+---
+
 ## 认证实验室
 
 下面是目前已知的 Widevine L1 正式认证中，**由授权实验室（Widevine 3PL，即 Third-Party Labs）执行正式测试** 的一些主要合作伙伴名单：
@@ -96,7 +142,7 @@ Google 本身并不会亲自测试每个 OEM 设备，而是通过 **授权的�
 
 ### 5. 结论 ✅
 
-👉 对于 **OEM 车厂的 IVI 设备**，如果目标是 **Widevine L1 认证**：
+对于 **OEM 车厂的 IVI 设备**，如果目标是 **Widevine L1 认证**：
 
 * **一定需要经过 Google 授权的第三方实验室执行正式测试**，实验室测试结果 + Google 审核 才能最终获得 L1 证书与生产 Keybox。
 * OEM 内部自测只能作为预演和问题排查，不能替代正式认证。
