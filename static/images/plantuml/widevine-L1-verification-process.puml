@@ -1,0 +1,102 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #000000
+skinparam sequenceArrowColor #1941f3ff
+skinparam actorBorderColor #333333
+skinparam participantBorderColor #333333
+skinparam participantBackgroundColor #f9f9f9
+
+title **高通平台 Widevine L1 认证实施流程**
+
+box "整车厂 (OEM)" #LightBlue
+    participant 整车厂
+end box
+
+box "高通 (Qualcomm)" #LightGreen
+    participant 高通
+end box
+
+box "Google (Widevine)" #LightYellow
+    participant Google
+end box
+
+box "认证实验室 (Authorized Lab)" #LightPink
+    participant 实验室
+end box
+
+整车厂 -> 高通: **1. 项目启动与平台选型**
+activate 整车厂
+activate 高通
+整车厂 -> 整车厂: 确定车型、市场需求与DRM策略 (Widevine L1)
+高通 -> 高通: 提供支持Widevine L1的硬件平台 (SoC + TEE)
+高通 -> 整车厂: 交付L1兼容的BSP/SDK 及 安全方案指导
+deactivate 高通
+deactivate 整车厂
+
+整车厂 -> 高通: **2. 软件集成与安全路径实现**
+activate 整车厂
+activate 高通
+整车厂 -> 整车厂: 集成Android OS/Chromium与Android DRM框架
+整车厂 -> 整车厂: 调用MediaDrm / CDM API进行集成开发
+高通 -> 整车厂: 协助实现安全视频路径 (SVP) / 安全音频路径 (SAP)
+高通 -> 整车厂: 提供TrustZone / Keymaster / OEMCrypto相关技术支持与调试
+deactivate 高通
+deactivate 整车厂
+
+整车厂 -> Google: **3. Widevine Partner Portal 注册与工具获取**
+activate 整车厂
+activate Google
+Google -> 整车厂: 提供Widevine Partner Portal访问权限
+Google -> 整车厂: 下发L1安全规范文档、测试工具与测试用例
+Google -> 整车厂: 提供测试用 Device Keybox (仅用于集成和自测)
+deactivate Google
+deactivate 整车厂
+
+整车厂 -> 高通: **4. 内部自测与预认证准备**
+activate 整车厂
+activate 高通
+整车厂 -> 整车厂: 搭建L1认证测试环境 (含测试 Keybox)
+整车厂 -> 整车厂: 运行Google L1 Test Suite进行内部自测
+高通 -> 整车厂: 协助分析自测结果，提供技术支持以解决安全相关问题
+deactivate 高通
+deactivate 整车厂
+
+整车厂 -> 实验室: **5. 正式认证测试 (由授权实验室执行)**
+activate 整车厂
+activate 实验室
+整车厂 -> 实验室: 提交待测设备及自测结果
+实验室 -> 实验室: 使用Google官方L1 Test Suite执行认证测试
+实验室 -> Google: 上传认证测试结果与报告
+deactivate 实验室
+deactivate 整车厂
+
+Google -> Google: **6. Google L1 认证审核**
+activate Google
+Google -> Google: 审核实验室测试结果与报告
+Google -> Google: 详细审核TEE (TrustZone), OEMCrypto, SVP/SAP等安全实现
+Google -> Google: 可能要求进行安全性漏洞扫描或代码审计
+Google -> Google: 必要时与高通和整车厂进行技术澄清会议
+deactivate Google
+
+Google --> 整车厂: **7. 颁发L1证书与生产Keybox**
+activate Google
+activate 整车厂
+alt 认证通过
+    Google -> 整车厂: 颁发Widevine L1认证证书
+    Google -> 整车厂: 提供设备特定的生产 Keybox
+else 认证失败
+    Google -> 整车厂: 提供详细的失败原因和改进建议
+    整车厂 -> 整车厂: (返回步骤2或4进行修改和重新测试)
+end
+deactivate 整车厂
+deactivate Google
+
+整车厂 -> 整车厂: **8. 量产集成与最终验证**
+activate 整车厂
+整车厂 -> 整车厂: 将L1证书和生产Keybox集成到量产软件中
+整车厂 -> 整车厂: 进行最终的功能验证和回归测试，确保DRM正常工作
+整车厂 -> 整车厂: 准备量产发布
+deactivate 整车厂
+
+@enduml

@@ -6,8 +6,74 @@
     <description>Recent content on Ethen 的实验室</description>
     <generator>Hugo -- 0.148.2</generator>
     <language>en</language>
-    <lastBuildDate>Mon, 25 Aug 2025 11:36:11 +0800</lastBuildDate>
+    <lastBuildDate>Wed, 27 Aug 2025 11:36:11 +0800</lastBuildDate>
     <atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>高通平台 Widevine L1 认证实施流程</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link>
+      <pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid>
+      <description>&lt;h2 id=&#34;整体流程&#34;&gt;整体流程&lt;/h2&gt;
+&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png&#34;&gt;&lt;/p&gt;
+&lt;h2 id=&#34;认证实验室&#34;&gt;认证实验室&lt;/h2&gt;
+&lt;p&gt;下面是目前已知的 Widevine L1 正式认证中，&lt;strong&gt;由授权实验室（Widevine 3PL，即 Third-Party Labs）执行正式测试&lt;/strong&gt; 的一些主要合作伙伴名单：&lt;/p&gt;
+&lt;hr&gt;
+&lt;h3 id=&#34;widevine-授权第三方实验室3pl名单&#34;&gt;Widevine 授权第三方实验室（3PL）名单&lt;/h3&gt;
+&lt;p&gt;根据 Google 官方资料，“Widevine 3PL 计划允许经授权的第三方合作伙伴协助执行设备集成和认证流程” (&lt;a href=&#34;https://www.widevine.com/solutions/widevine-3pl?utm_source=chatgpt.com&#34; title=&#34;Widevine Third Party Labs (3PL)&#34;&gt;widevine.com&lt;/a&gt;)。目前公开列出的合作伙伴包括：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;AltiMedia&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;castLabs&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Irdeto&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Seirobotics&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Smartlabs.tv&lt;/strong&gt; (&lt;a href=&#34;https://www.widevine.com/solutions/widevine-3pl?utm_source=chatgpt.com&#34; title=&#34;Widevine Third Party Labs (3PL)&#34;&gt;widevine.com&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这些实验室具备 Google 的授权，可执行如下关键事项：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;执行 Widevine 测试计划（Test Suite）并提交测试结果至 Google&lt;/li&gt;
+&lt;li&gt;协助 OEM／SoC 厂商进行产品开发和集成支持&lt;/li&gt;
+&lt;li&gt;提供固件更新与后续维护相关协助 (&lt;a href=&#34;https://www.widevine.com/solutions/widevine-3pl?utm_source=chatgpt.com&#34; title=&#34;Widevine Third Party Labs (3PL)&#34;&gt;widevine.com&lt;/a&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h3 id=&#34;具体案例说明&#34;&gt;具体案例说明&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;castLabs&lt;/strong&gt; 不仅是认证测试实验室，同时也为硬件厂商或应用开发商加速 Widevine 认证流程，他们提供设备注册、CDM 功能测试、Keybox 请求支持，并协助加速官方认证流程 (&lt;a href=&#34;https://castlabs.com/widevine-certification/?utm_source=chatgpt.com&#34; title=&#34;Widevine CDM Device &amp;amp; App Certification - castLabs&#34;&gt;castLabs&lt;/a&gt;)。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h3 id=&#34;简要总结与建议&#34;&gt;简要总结与建议&lt;/h3&gt;
+&lt;table&gt;
+  &lt;thead&gt;
+      &lt;tr&gt;
+          &lt;th&gt;实验室名称&lt;/th&gt;
+          &lt;th&gt;角色与服务内容&lt;/th&gt;
+      &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+      &lt;tr&gt;
+          &lt;td&gt;AltiMedia&lt;/td&gt;
+          &lt;td&gt;执行测试并提交结果，支持整车厂/SoC 集成&lt;/td&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+          &lt;td&gt;castLabs&lt;/td&gt;
+          &lt;td&gt;广泛技术支持 + 加速认证服务&lt;/td&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+          &lt;td&gt;Irdeto&lt;/td&gt;
+          &lt;td&gt;参与第三方测试与集成支持&lt;/td&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+          &lt;td&gt;Seirobotics&lt;/td&gt;
+          &lt;td&gt;提供 Widevine 3PL 服务&lt;/td&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+          &lt;td&gt;Smartlabs.tv&lt;/td&gt;
+          &lt;td&gt;提供 Widevine 官方授权测试与支持&lt;/td&gt;
+      &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;oem-汽车厂商在-ivi-设备上获得-widevine-认证时第三方实验室3pl的作用和必要性&#34;&gt;OEM 汽车厂商在 IVI 设备上获得 Widevine 认证时，第三方实验室（3PL）的作用和必要性&lt;/h2&gt;
+&lt;p&gt;这个问题非常关键 ⚡，我帮你拆解一下 &lt;strong&gt;OEM 汽车厂商在 IVI 设备上获得 Widevine 认证时，第三方实验室（3PL）的作用和必要性&lt;/strong&gt;：&lt;/p&gt;</description>
+    </item>
     <item>
       <title>Chromium &#43; Android DRM 视频安全渲染流程说明</title>
       <link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link>

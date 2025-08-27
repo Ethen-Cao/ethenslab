@@ -89,6 +89,9 @@ title = 'Android DRM 框架'
 
 ---
 
+## Android DRM Software Stack
+
+![](/ethenslab/images/widevine-software-architect.png)
 
 ## Widevine L1 DRM 播放流程解读
 
