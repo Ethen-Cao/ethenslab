@@ -54,6 +54,102 @@ title = '高通平台 Widevine L1 认证实施流程'
 
 ---
 
+### **1. OEM（整车厂 / 汽车厂商）**
+
+* **角色定位**：最终责任方，认证是以 **整车或IVI设备产品** 为目标。
+* **职责**：
+
+  * 决定是否上马 Widevine L1 项目。
+  * 向 Google 提交认证申请，作为主要签署方。
+  * 提供测试样机给实验室。
+  * 确保整车或IVI系统满足 Google 的安全要求（TEE, Keymaster, HDCP, DRM pipeline 等）。
+* **典型互动**：
+
+  * 向 Tier1 厂商提出需求。
+  * 与 Google 签署相关协议。
+  * 最终对认证结果负责。
+
+---
+
+### **2. Tier1（一级供应商 / 车机厂）**
+
+* **角色定位**：为 OEM 提供 **IVI硬件/软件解决方案**。
+* **职责**：
+
+  * 基于 Qualcomm 平台（或其他SoC）开发 IVI 系统。
+  * 集成 Widevine DRM 相关组件（CDM, HAL, Secure OS）。
+  * 协助 OEM 处理认证流程中的问题。
+  * 提供调试、修复、合规性实现。
+* **典型互动**：
+
+  * 与 Qualcomm 合作调通 DRM stack。
+  * 与实验室沟通测试中发现的问题。
+  * 提交结果给 OEM 汇总。
+
+---
+
+### **3. Qualcomm（芯片厂 / 平台厂商）**
+
+* **角色定位**：提供底层 SoC 平台和安全执行环境 (TEE, TrustZone)。
+* **职责**：
+
+  * 提供 Widevine L1 的参考实现（CDM 安全库、Secure Processor 固件）。
+  * 保证硬件层安全特性（HDCP, Secure Video Path, Key ladder）。
+  * 向 Tier1 提供 BSP（Board Support Package）和 DRM 相关驱动。
+* **典型互动**：
+
+  * 向 OEM/Tier1 提供 L1-capable 平台。
+  * 参与 debug，但认证主体不是 Qualcomm。
+
+---
+
+### **4. Lab（第三方授权实验室）**
+
+* **角色定位**：Google 授权的独立实验室，负责执行 **正式认证测试**。
+* **职责**：
+
+  * 按照 Google 提供的 Test Plan 执行测试。
+  * 确认设备是否满足 Widevine 安全和性能要求。
+  * 出具测试报告提交给 Google。
+* **典型互动**：
+
+  * 与 OEM/Tier1 沟通测试流程、收样。
+  * 测试不通过时，要求整改并复测。
+
+---
+
+### **5. Google（Widevine Owner）**
+
+* **角色定位**：标准和认证的最终裁决者。
+* **职责**：
+
+  * 定义 Widevine L1 技术要求和安全模型。
+  * 授权实验室。
+  * 审核实验室测试报告并决定是否颁发认证。
+* **典型互动**：
+
+  * 与 OEM 签署协议。
+  * 只与实验室保持正式沟通（大部分情况下不会直接与 Tier1/Qualcomm 一对一沟通）。
+
+---
+
+### **关系总结**
+
+* **OEM**：项目 Owner & 最终认证主体。
+* **Tier1**：具体实现方 & 集成支持。
+* **Qualcomm**：提供 SoC & 底层 Widevine 能力。
+* **Lab**：执行测试 & 出报告。
+* **Google**：制定标准 & 最终发证。
+
+**关键点**：
+
+* 认证主体是 **OEM**，不是 Tier1 或 Qualcomm。
+* 测试必须通过 **Google 授权的 Lab**。
+* Qualcomm 提供平台支持，但不会替 OEM/Tier1 去认证。
+
+---
+
+
 ## 认证实验室
 
 下面是目前已知的 Widevine L1 正式认证中，**由授权实验室（Widevine 3PL，即 Third-Party Labs）执行正式测试** 的一些主要合作伙伴名单：
