@@ -8,7 +8,6 @@ title = '高通平台 Widevine L1 认证实施流程'
 
 ![](/ethenslab/images/widevine-L1-verification-process.png)
 
-
 1. **项目启动与平台选型**
 
    * OEM（整车厂）根据车型、市场需求和 DRM 策略，决定采用 Widevine L1。
@@ -236,7 +235,7 @@ Google 本身并不会亲自测试每个 OEM 设备，而是通过 **授权的�
 
 ---
 
-### 5. 结论 ✅
+### 5. 结论
 
 对于 **OEM 车厂的 IVI 设备**，如果目标是 **Widevine L1 认证**：
 
@@ -244,4 +243,3 @@ Google 本身并不会亲自测试每个 OEM 设备，而是通过 **授权的�
 * OEM 内部自测只能作为预演和问题排查，不能替代正式认证。
 
 ---
-
