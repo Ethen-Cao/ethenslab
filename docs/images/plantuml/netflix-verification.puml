@@ -1,0 +1,38 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam defaultFontColor #000000
+
+title Netflix DRM 流程与白名单验证
+
+actor User as "用户"
+participant Browser as "浏览器 (EME API)"
+participant CDM as "Widevine CDM\n(内容解密模块)"
+participant Netflix as "Netflix 服务器"
+participant TEE as "可信执行环境\n(硬件安全区)"
+
+autonumber "<b>[0]"
+
+User -> Browser: 打开 Netflix 并点击播放
+Browser -> Netflix: 请求视频流元数据 (Manifest)
+Netflix -> Browser: 返回视频清单\n包含 PSSH 初始化数据
+Browser -> Browser: 解析清单，识别出加密内容
+
+group EME (Encrypted Media Extensions) 流程
+    Browser -> CDM: 传递 PSSH，请求生成许可证请求\n(此时浏览器获知 CDM 安全级别 L1/L3)
+    CDM -> Browser: 返回许可证请求 (License Request)
+    Browser -> Netflix: 发送许可证请求\n(附带浏览器、CDM 等设备信息)
+    Netflix -> Netflix: **服务器端核心验证**\n1. 验证设备是否在白名单\n2. 检查 CDM 安全级别 (L1/L3)\n3. 验证用户账户、订阅和地区
+    alt 验证通过 (例如: 白名单内, L1, 4K订阅)
+        Netflix -> Browser: 发送加密的内容许可证 (License)
+        Browser -> CDM: 传递内容许可证
+        CDM -> TEE: 在安全区内处理许可证，获取内容密钥
+        TEE -> TEE: 使用密钥解密视频流
+        TEE -> User: 输出解密后的视频帧进行播放 (HD/4K)
+    else 验证失败或降级 (例如: 不在白名单, L3)
+        Netflix -> Browser: 发送限制性许可证或拒绝请求
+        Browser -> User: 播放低清视频 (SD) 或显示错误信息
+    end
+end
+
+@enduml

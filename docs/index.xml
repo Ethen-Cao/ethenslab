@@ -9,6 +9,46 @@
     <lastBuildDate>Wed, 27 Aug 2025 17:17:50 +0800</lastBuildDate>
     <atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml" />
     <item>
+      <title>Netflix DRM 流程与白名单验证</title>
+      <link>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</link>
+      <pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</guid>
+      <description>&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/netflix-verification.png&#34;&gt;&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;用户操作&lt;/strong&gt;：用户在浏览器中打开 Netflix 并点击播放。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;请求清单&lt;/strong&gt;：浏览器向 Netflix 服务器请求视频的元数据（Manifest 文件，如 MPD）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;获取初始化数据&lt;/strong&gt;：Netflix 服务器返回 Manifest 文件，其中包含了视频的加密信息和初始化数据（PSSH）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;生成许可证请求&lt;/strong&gt;：
+&lt;ul&gt;
+&lt;li&gt;浏览器通过 EME API 将 PSSH 数据传递给 CDM。&lt;/li&gt;
+&lt;li&gt;CDM 根据这些数据生成一个加密的“许可证请求 (License Request)”。&lt;/li&gt;
+&lt;li&gt;此时，浏览器已经可以查询到 CDM 的安全级别是 L1 还是 L3。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;发送请求至服务器&lt;/strong&gt;：浏览器将这个“许可证请求”连同自身的 User-Agent 等信息，一起发送给 Netflix 的许可证服务器。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;服务器端核心验证&lt;/strong&gt;：&lt;strong&gt;这是白名单验证发生的地方&lt;/strong&gt;。Netflix 服务器会对收到的所有信息进行严格校验：
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;设备信息&lt;/strong&gt;：浏览器类型、版本，操作系统，CDM 模块版本是否在允许的组合（白名单）内？&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;安全级别&lt;/strong&gt;：CDM 是否为 L1（硬件级解密，可播放高清）？&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;账户状态&lt;/strong&gt;：用户账户是否有效？订阅套餐是否支持高清/4K？地理位置是否在服务区内？&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;下发许可证&lt;/strong&gt;：
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;验证通过&lt;/strong&gt;：如果一切符合要求，服务器会生成一个包含解密密钥的“许可证 (License)”，并将其发送回浏览器。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;验证失败或降级&lt;/strong&gt;：如果设备不在白名单，或者 CDM 仅为 L3，服务器可能会只发放一个允许播放标清 (SD) 内容的许可证，或者直接拒绝请求。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;解密与播放&lt;/strong&gt;：
+&lt;ul&gt;
+&lt;li&gt;浏览器通过 EME API 将收到的“许可证”交给 CDM。&lt;/li&gt;
+&lt;li&gt;对于 L1 级别，CDM 会在硬件安全区（TEE - Trusted Execution Environment）内处理许可证，获取内容密钥，并解密视频流。&lt;/li&gt;
+&lt;li&gt;解密后的视频帧被安全地渲染到屏幕上。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;</description>
+    </item>
+    <item>
       <title>中国车企出海的智能座舱生态挑战</title>
       <link>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</link>
       <pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate>
