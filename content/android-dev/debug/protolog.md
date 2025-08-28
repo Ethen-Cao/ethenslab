@@ -1,6 +1,6 @@
 +++
 date = '2025-08-28T19:54:57+08:00'
-draft = false
+draft = true
 title = '深入解析 Android ProtoLog：高性能结构化日志系统'
 +++
 
@@ -196,3 +196,13 @@ $ adb logcat -b protolog | path/to/aosp/protologtool --viewer-conf my-custom-ser
 ```
 
 通过以上步骤，ROM 开发者就可以将 ProtoLog 的强大能力无缝集成到自己的定制化模块中，实现高效、可控的日志记录。
+
+
+## 系统ProtoLog
+
+1. 打开 WindowManagerService 的ProtoLog:
+
+    * 查看可以打开的ProtoGroup：
+    frameworks/base/core/java/com/android/internal/protolog/ProtoLogGroup.java
+    * 运行命令： adb shell cmd window logging enable-text XXX
+    * adb logcat
