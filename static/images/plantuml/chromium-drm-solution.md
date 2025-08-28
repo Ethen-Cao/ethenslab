@@ -1,0 +1,64 @@
+@startuml
+!theme plain
+skinparam defaultFontColor #000000
+skinparam titleFontSize 20
+skinparam rectangle {
+    roundCorner 8
+    shadowing false
+}
+
+title Chromium + Android DRM 架构 (精简版)
+
+package "用户空间 (User Space)" #LightBlue {
+    rectangle "Chromium 浏览器" as Browser {
+        rectangle "Blink 渲染引擎" as Blink
+        rectangle "EME API" as EME <<Encrypted Media Extensions>>
+    }
+
+    rectangle "Android 框架" as Framework {
+        rectangle "MediaDrm API" as MediaDrm
+    }
+
+    rectangle "Native 层" as Native {
+        rectangle "JNI Bridge → MediaDrm/DrmClient" as JNI
+    }
+}
+
+package "硬件抽象 & 内核" #LightGreen {
+    rectangle "DRM HAL (Vendor 实现)" as VendorHAL
+    rectangle "TEE 驱动" as TeeDriver <<Kernel Driver>>
+}
+
+package "安全世界 (Secure World)" #LightCoral {
+    rectangle "TEE OS (Trusty/QSEE)" as TeeOS
+    rectangle "DRM Trusted App (TA)" as DrmTA
+}
+
+' --- 调用流程 ---
+Browser -down-> EME : JS 调用
+EME -down-> MediaDrm : 请求 License / 解密
+MediaDrm -down-> JNI : JNI 调用原生
+JNI -down-> VendorHAL : HAL 接口调用
+VendorHAL -down-> TeeDriver : ioctl 调用
+TeeDriver -down-> TeeOS : SMC 切换到安全世界
+TeeOS -down-> DrmTA : 执行解密操作 / 密钥管理
+DrmTA --> TeeOS : 返回解密结果
+TeeOS --> TeeDriver : 返回
+TeeDriver --> VendorHAL : 返回
+VendorHAL --> JNI : 返回
+JNI --> MediaDrm : 返回
+MediaDrm --> EME : 返回 License / 解密状态
+EME --> Browser : 视频播放
+
+' --- 安全说明 ---
+note right of DrmTA
+  🔒 L1 DRM: 密钥永远不离开 TEE TA
+  🔓 L3 DRM: 仅软件解密，密钥在用户空间
+end note
+
+note left of Browser
+  ⚠️ 自研浏览器必须调用系统 Widevine CDM
+  否则无法播放 Netflix L1 内容
+end note
+
+@enduml

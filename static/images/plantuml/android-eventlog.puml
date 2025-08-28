@@ -1,0 +1,89 @@
+@startuml
+!theme plain
+
+' --- Skin Parameters ---
+skinparam defaultFontName "Roboto, Arial"
+skinparam defaultFontColor #000000
+skinparam componentStyle rectangle
+skinparam package {
+    BackgroundColor #f2f2f2
+    BorderColor #000000
+    RoundCorner 10
+}
+skinparam note {
+    BackgroundColor #ffffff
+    BorderColor #666666
+}
+
+' --- Component Definitions ---
+
+package "用戶進程 (User Process)" {
+    [App/Framework\n(AMS/WMS/...)] as App
+    [android.util.EventLog] as EventLogApi
+    [JNI] as JniLayer
+    [liblog.so] as Liblog
+}
+
+package "logd (Log Daemon)" as LogdPackage {
+    [Socket Listener] as LogdSocketListener
+    [Command Listener] as LogdCmdListener
+    [In-Memory Ring Buffers] as LogdBuffers
+
+    note left of LogdBuffers
+        包含多個緩衝區:
+        - **events** (EventLog)
+        - main
+        - system
+        - radio
+        - crash
+        - etc.
+    end note
+}
+
+package "日誌讀取客戶端 (Reader Client)" {
+    [logcat process] as Logcat
+    artifact "/system/etc/event-log-tags" as TagsFile
+}
+
+' --- Connections and Data Flow ---
+
+' Write Path (從 App 到 logd)
+App -down-> EventLogApi : calls EventLog.writeEvent(tag, values)
+EventLogApi -down-> JniLayer
+JniLayer -down-> Liblog : Native call
+
+' Interface: liblog to logd
+Liblog -down-> LogdSocketListener : **Interface: UNIX Domain Socket**\n/dev/socket/logdw
+note on link
+    **Protocol:**
+    寫入二進位的 logger_entry 數據
+    (包含 tag, pid, tid, timestamp, payload)
+end note
+
+
+' logd Internal Implementation
+LogdSocketListener -down-> LogdBuffers : 寫入 EventLog 到 "events" 緩衝區
+LogdCmdListener <--> LogdBuffers : 根據指令讀取緩衝區數據
+
+
+' Read Path (從 logcat 到 logd)
+Logcat -up-> LogdCmdListener : **Interface: UNIX Domain Socket**\n/dev/socket/logdr
+note on link
+    **Protocol:**
+    1. logcat 發送讀取指令 (e.g., read 'events' buffer)
+    2. logd 回傳二進位日誌流
+end note
+
+LogdCmdListener -> Logcat : **Data: Binary Log Stream**
+
+' logcat Translation Process
+Logcat ..> TagsFile : 讀取 Tag 定義文件進行解析
+note left of Logcat
+    logcat 內部實現:
+    1. 從 logd 接收二進位日誌流
+    2. 讀取 event-log-tags 文件，加載 Tag-ID -> 描述的映射
+    3. 將二進位日誌翻譯成人類可讀的文本
+    4. 輸出到 STDOUT
+end note
+
+@enduml
