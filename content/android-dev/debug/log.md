@@ -1,7 +1,7 @@
 +++
 date = '2025-08-27T11:36:11+08:00'
 draft = false
-title = 'ANdroid log机制'
+title = 'Android log机制'
 +++
 
 ![](/ethenslab/images/android-eventlog.png)

@@ -1,0 +1,31 @@
+@startuml
+
+skinparam defaultFontName "Noto Sans"
+skinparam defaultFontColor #1A1A1A
+skinparam defaultFontSize 14
+skinparam shadowing true
+
+package CarService {
+    class CarServiceImpl {
+
+    }
+
+    abstract VehicleStub {
+
+    }
+
+    class AidlVehicleStub extends VehicleStub
+
+    interface IVehicle
+
+
+    CarServiceImpl *--> VehicleStub
+    AidlVehicleStub *--> IVehicle
+
+}
+
+package VHal {
+    
+}
+
+@enduml

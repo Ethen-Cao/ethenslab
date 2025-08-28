@@ -1,0 +1,50 @@
+@startuml
+!theme plain
+
+title 异步 Oneway Binder 通信时序图
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam defaultFontColor #000000
+skinparam sequenceArrowColor #000000
+skinparam sequenceParticipantBorderColor #000000
+skinparam sequenceParticipantBackgroundColor #FFFFFF
+skinparam sequenceLifeLineBorderColor #000000
+skinparam noteBackgroundColor #F5F5F5
+skinparam noteBorderColor #000000
+skinparam noteFontColor #000000
+skinparam actorBorderColor #000000
+skinparam actorBackgroundColor #FFFFFF
+
+actor "Client 进程" as Client
+participant "内核 (Binder 驱动)" as Kernel
+participant "Server 进程" as Server
+participant "Binder 线程 A\n(空闲)" as ThreadA
+
+Client -> Kernel: 1. ioctl(..., BC_TRANSACTION)\n<font color=blue><size:10><i>flag: FLAG_ONEWAY</i></size></font>
+activate Client
+activate Kernel
+note over Kernel: 驱动收到 oneway 请求\n将事务放入 Server 的 **async_todo 队列**
+
+Kernel --> Client: 2. ioctl() **立即返回**
+deactivate Kernel
+note left of Client: **Client 线程不会被阻塞**,\n可以继续执行其他代码
+deactivate Client
+
+... Client 进程继续执行 ...
+
+note over Kernel: 在未来的某个时间点,\n驱动调度队列任务
+note over Kernel: **调度顺序 (正确):**\n1. 优先处理同步事务队列 (todo)\n2. 若无同步事务 → 处理异步队列 (async_todo)
+Kernel -> ThreadA: 3. **BR_ONEWAY** (分发异步任务)
+activate ThreadA
+
+note right of ThreadA: **消息处理 (本地方法调用)**
+ThreadA -> Server : 4. 调用 Stub.onTransact()
+activate Server
+Server -> Server: 执行用户实现的服务代码
+Server --> ThreadA !!: 5. onTransact() 执行完毕
+deactivate Server
+
+note over ThreadA: **关键区别**: oneway 调用\n**不需要回复 (BC_REPLY)**
+note over ThreadA: 任务完成, 线程直接再次 ioctl\n进入空闲状态, 等待下一个任务
+deactivate ThreadA
+
+@enduml

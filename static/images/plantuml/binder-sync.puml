@@ -1,0 +1,96 @@
+@startuml
+!theme plain
+
+title Binder 通信时序图
+skinparam defaultFontName "Roboto, sans-serif"
+skinparam defaultFontColor #000000
+skinparam sequenceArrowColor #000000
+skinparam sequenceParticipantBorderColor #000000
+skinparam sequenceParticipantBackgroundColor #FFFFFF
+skinparam sequenceLifeLineBorderColor #000000
+skinparam noteBackgroundColor #F5F5F5
+skinparam noteBorderColor #000000
+skinparam noteFontColor #000000
+skinparam actorBorderColor #000000
+skinparam actorBackgroundColor #FFFFFF
+
+actor "Client 进程" as Client
+participant "内核 (Binder 驱动)" as Kernel
+participant "Server 进程" as Server
+participant "Binder 线程 A\n(已存在,空闲)" as ThreadA
+participant "Binder 线程 B\n(新创建)" as ThreadB
+
+group 场景一: 线程池有空闲线程
+
+    Client -> Kernel: 1. ioctl(BINDER_WRITE_READ, BC_TRANSACTION)
+    activate Client
+    activate Kernel
+    note over Kernel: 收到 Client 请求\n查找 Server 进程的线程池
+
+    note over Kernel: **线程选择**: 发现 Binder 线程 A\n正在等待任务, 选择它
+    Kernel -> ThreadA: 2. BR_TRANSACTION (唤醒并分发任务)
+    deactivate Kernel
+    activate ThreadA
+    
+    note right of ThreadA: **消息处理 (本地方法调用)**
+    ThreadA -> Server : 3. 调用 Stub.onTransact()
+    activate Server
+    Server -> Server: 执行用户实现的服务代码
+    Server --> ThreadA !! : 4. onTransact() 执行完毕
+    deactivate Server
+    
+    ThreadA --> Kernel: 5. ioctl(BINDER_WRITE_READ, BC_REPLY)
+    activate Kernel
+    
+    Kernel --> Client: 6. ioctl() 返回, 收到结果
+    deactivate Kernel
+    deactivate Client
+    
+    note over ThreadA: 任务完成, 再次调用 ioctl 等待新任务
+    deactivate ThreadA
+end
+
+group 场景二: 线程池满载, 触发新线程创建
+
+    Client -> Kernel: 7. ioctl(BINDER_WRITE_READ, BC_TRANSACTION)
+    activate Client
+    activate Kernel
+    note over Kernel: 检查 Server 线程池, 发现所有线程都忙碌
+    note over Kernel: **触发条件**: 检测到有请求在排队积压\n且当前线程数 < 最大值
+
+    Kernel -> Server: 8. BR_SPAWN_LOOPER (指令)\n<font color=gray><size:10><i>(返回给某个正在ioctl等待的线程)</i></size></font>
+    activate Server
+    
+    note right of Server: **线程创建**
+    Server -> Server: 已有 Binder 线程调用\nspawnPooledThread()
+    create ThreadB
+    Server -> ThreadB: run()
+    deactivate Server
+    activate ThreadB
+    
+    ThreadB -> Kernel: 9. ioctl(BINDER_WRITE_READ, BC_ENTER_LOOPER)
+    note right of ThreadB: 新线程向驱动报到
+    
+    note over Kernel: 驱动收到新线程报到\n将积压的任务分发给它
+    Kernel -> ThreadB: 10. BR_TRANSACTION (分发任务)
+    deactivate Kernel
+    
+    note right of ThreadB: **消息处理 (本地方法调用)**
+    ThreadB -> Server : 11. 调用 Stub.onTransact()
+    activate Server
+    Server -> Server: 执行用户实现的服务代码
+    Server --> ThreadB !! : 12. onTransact() 执行完毕
+    deactivate Server
+    
+    ThreadB --> Kernel: 13. ioctl(BINDER_WRITE_READ, BC_REPLY)
+    activate Kernel
+    
+    Kernel --> Client: 14. ioctl() 返回, 收到结果
+    deactivate Kernel
+    deactivate Client
+    
+    note over ThreadB: 任务完成, 加入线程池等待新任务
+    deactivate ThreadB
+
+end
+@enduml
