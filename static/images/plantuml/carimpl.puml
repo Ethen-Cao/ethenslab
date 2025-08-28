@@ -14,6 +14,22 @@ package CarService {
 
     }
 
+    class ICarImpl {
+
+    }
+
+    interface CarSystemService {
+        void init();
+        void dump(IndentingPrintWriter writer);
+    }
+
+    ICarImpl *--> CarSystemService
+
+    interface CarServiceBase extends CarSystemService
+
+ 
+    
+
     class AidlVehicleStub extends VehicleStub
 
     interface IVehicle

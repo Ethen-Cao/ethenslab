@@ -1,0 +1,72 @@
+@startuml
+!theme plain
+
+title ProtoLog 工作机制流程图
+
+skinparam actor {
+    FontColor black
+}
+skinparam participant {
+    FontColor black
+}
+skinparam database {
+    FontColor black
+}
+skinparam note {
+    FontColor black
+}
+
+box "编译时 (Developer Machine)" #LightBlue
+  actor "开发者" as Dev
+  participant "Javac + ProtoLog 插件" as Compiler
+  database "Viewer 映射文件 (JSON)" as ViewerJSON
+end box
+
+box "运行时 (Android Device)" #LightGreen
+  participant "App/Framework 代码\n(已转换)" as AppCode
+  database "ProtoLog 专用缓冲区" as LogBuffer
+end box
+
+box "查看时 (Developer Machine)" #LightYellow
+  actor "开发者 (调试者)" as Debugger
+  participant "adb logcat -b protolog" as Adb
+  participant "protologtool (解码工具)" as Tool
+end box
+
+== 1. 编译流程 ==
+Dev -> Compiler: 编写代码: `ProtoLog.v("Log: %d", val)`
+activate Compiler
+
+Compiler -> Compiler: 1. 提取格式化字符串 "Log: %d"
+Compiler -> Compiler: 2. 计算哈希 ID (例如: 0x1234)
+Compiler -> AppCode: 3. **代码替换**为 `ProtoLogImpl.log(0x1234, val)`
+note right of Compiler: 此时，原始字符串已从代码中消失
+
+Compiler -> ViewerJSON: 4. **生成映射文件**\n{ "message": { "hash": "0x1234", "message": "Log: %d" } }
+deactivate Compiler
+
+== 2. 运行流程 ==
+AppCode -> AppCode: 检查日志组 (Log Group) 是否启用
+activate AppCode
+alt 日志组已启用
+    AppCode -> LogBuffer: **写入二进制日志**\n(级别, 0x1234, val 的值)
+    note right of AppCode: 无字符串操作，性能开销极低
+else 日志组未启用
+    AppCode -> AppCode: 直接跳过，几乎无开销
+end
+deactivate AppCode
+
+== 3. 查看与解码流程 ==
+Debugger -> Adb: 执行 `adb logcat -b protolog`
+activate Adb
+Adb -> LogBuffer: 从专用缓冲区读取二进制日志流
+LogBuffer --> Adb: 返回 (级别, 0x1234, val 的值)
+Adb -> Tool: 将二进制流通过管道 (pipe) 传递
+deactivate Adb
+activate Tool
+Tool -> ViewerJSON: 加载编译时生成的映射文件
+ViewerJSON --> Tool: 返回哈希 ID 与字符串的映射关系
+Tool -> Debugger: **解码并输出**人类可读的日志\n"V MyTag: Log: 42"
+deactivate Tool
+
+@enduml
