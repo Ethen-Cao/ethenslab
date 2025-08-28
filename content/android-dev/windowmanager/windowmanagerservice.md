@@ -747,7 +747,7 @@ run():45, UiThread (com.android.server), UiThread.java
 
 这个调用栈说明：
 
-👉 当用户操作（比如按 Home）导致 Activity 切换时，**ATMS 会调用 `ActivityRecord.setVisibility()` → 内部调用 `setVisibleRequested(boolean)`**，从子窗口一路上传到 Task / Display 层，WMS 根据这个请求更新窗口层级的可见性，最终决定是否把窗口的 Surface 显示出来或者隐藏。
+当用户操作（比如按 Home）导致 Activity 切换时，**ATMS 会调用 `ActivityRecord.setVisibility()` → 内部调用 `setVisibleRequested(boolean)`**，从子窗口一路上传到 Task / Display 层，WMS 根据这个请求更新窗口层级的可见性，最终决定是否把窗口的 Surface 显示出来或者隐藏。
 
 ---
 
