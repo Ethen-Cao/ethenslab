@@ -1,33 +1,112 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
-  <channel>
-    <title>Android Media技术文档 on Ethen 的实验室</title>
-    <link>https://ethen-cao.github.io/ethenslab/android-dev/media/</link>
-    <description>Recent content in Android Media技术文档 on Ethen 的实验室</description>
-    <generator>Hugo</generator>
-    <language>en</language>
-    <lastBuildDate>Wed, 27 Aug 2025 11:36:11 +0800</lastBuildDate>
-    <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/media/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>高通平台 Widevine L1 认证实施流程</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link>
-      <pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid>
-      <description>&lt;h2 id=&#34;整体流程&#34;&gt;整体流程&lt;/h2&gt;&#xA;&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;strong&gt;项目启动与平台选型&lt;/strong&gt;&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;OEM（整车厂）根据车型、市场需求和 DRM 策略，决定采用 Widevine L1。&lt;/li&gt;&#xA;&lt;li&gt;高通提供支持 L1 的硬件平台（SoC + TEE），并交付 BSP/SDK 及安全方案指导。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;strong&gt;软件集成与安全路径实现&lt;/strong&gt;&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;OEM 集成 Android OS、Chromium 和 Android DRM 框架。&lt;/li&gt;&#xA;&lt;li&gt;通过调用 MediaDrm/CDM API 实现播放功能。&lt;/li&gt;&#xA;&lt;li&gt;高通协助 OEM 完成安全视频路径 (SVP) 与安全音频路径 (SAP)，并提供 TrustZone、Keymaster、OEMCrypto 的技术支持。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;strong&gt;Widevine Partner Portal 注册与工具获取&lt;/strong&gt;&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;OEM 向 Google 申请 Widevine Partner Portal 访问权限。&lt;/li&gt;&#xA;&lt;li&gt;Google 提供 L1 安全规范文档、测试工具及测试用例，并下发测试用 Device Keybox（仅限开发与自测）。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;strong&gt;内部自测与预认证准备&lt;/strong&gt;&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;OEM 搭建 L1 测试环境并运行 Google L1 Test Suite，进行自测验证。&lt;/li&gt;&#xA;&lt;li&gt;高通协助分析结果并解决安全相关问题，为正式认证做准备。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;strong&gt;正式认证测试（由授权实验室执行）&lt;/strong&gt;&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;OEM 将待测设备及自测结果提交至 Google 授权实验室（3PL）。&lt;/li&gt;&#xA;&lt;li&gt;实验室使用 Google 官方 L1 Test Suite 执行测试，并将测试结果与报告上传至 Google。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Chromium &#43; Android DRM 视频安全渲染流程说明</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link>
-      <pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid>
-      <description>&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/chromium-drm.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;&#xA;&lt;p&gt;这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。&lt;/p&gt;&#xA;&lt;p&gt;整个流程的核心是确保&lt;strong&gt;内容密钥 (Content Key)&lt;/strong&gt; 和&lt;strong&gt;解密后的视频画面&lt;/strong&gt;始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。&lt;/p&gt;&#xA;&lt;h2 id=&#34;流程详解&#34;&gt;&lt;strong&gt;流程详解&lt;/strong&gt;&lt;/h2&gt;&#xA;&lt;h3 id=&#34;1-初始化与会话创建-步骤-1-3&#34;&gt;&lt;strong&gt;1. 初始化与会话创建 (步骤 1-3)&lt;/strong&gt;&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;(1-2)&lt;/strong&gt; 当用户在浏览器中点击播放受保护的视频时，网页前端的 JavaScript 会通过 &lt;strong&gt;Encrypted Media Extensions (EME)&lt;/strong&gt; API 向浏览器发出请求，表明需要处理 DRM 内容。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;(3)&lt;/strong&gt; EME 接着会调用 Android 系统底层的 &lt;strong&gt;&lt;code&gt;MediaDRM&lt;/code&gt; API&lt;/strong&gt;，在系统层级创建一个 DRM 会话。这一步为后续的授权请求和解密操作做好了准备。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;2-授权请求与获取-步骤-4-8&#34;&gt;&lt;strong&gt;2. 授权请求与获取 (步骤 4-8)&lt;/strong&gt;&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;(4-6)&lt;/strong&gt; &lt;code&gt;MediaDRM&lt;/code&gt; API 指示 &lt;strong&gt;TEE (可信执行环境)&lt;/strong&gt; 内的 Widevine L1 模块生成一个加密的&lt;strong&gt;授权请求&lt;/strong&gt;。这个请求包含了设备的唯一凭证，并经过设备私钥签名。TEE 将这个请求数据返回给浏览器。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;(7-8)&lt;/strong&gt; &lt;strong&gt;Chromium 浏览器&lt;/strong&gt; 负责处理网络通信。它将从 TEE 获取的授权请求，通过网络发送给&lt;strong&gt;授权服务器 (License Server)&lt;/strong&gt;。服务器在验证请求的合法性后，会回传一个加密的授权（其中包含了用设备公钥加密的 Content Key）。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;3-授权处理与密钥提取-步骤-9-10&#34;&gt;&lt;strong&gt;3. 授权处理与密钥提取 (步骤 9-10)&lt;/strong&gt;&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;(9)&lt;/strong&gt; 浏览器将从服务器获取的加密授权，通过 &lt;code&gt;MediaDRM&lt;/code&gt; API 传递下去。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;(10)&lt;/strong&gt; 加密的授权最终被送达 &lt;strong&gt;TEE&lt;/strong&gt;。在 TEE 内部，Widevine L1 模块会使用其唯一的设备私钥来解密授权，从而安全地提取出 &lt;strong&gt;Content Key&lt;/strong&gt;。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;(Note)&lt;/strong&gt; 正如图中注释所示，&lt;strong&gt;Content Key 从此步骤开始，永远不会离开 TEE 的安全环境&lt;/strong&gt;。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;4-安全解密与渲染-步骤-11-14&#34;&gt;&lt;strong&gt;4. 安全解密与渲染 (步骤 11-14)&lt;/strong&gt;&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;(11)&lt;/strong&gt; &lt;code&gt;MediaDRM&lt;/code&gt; 将一个指向 TEE 内部安全会话的&lt;strong&gt;句柄 (handle)&lt;/strong&gt;，连同加密的视频流，一起提供给 &lt;strong&gt;&lt;code&gt;MediaCodec&lt;/code&gt;&lt;/strong&gt;（Android 的媒体编解码器）。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;(12)&lt;/strong&gt; &lt;code&gt;MediaCodec&lt;/code&gt; 与 TEE 协同工作。加密的视频帧被送入 TEE 进行硬件级别的解密。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;(Note)&lt;/strong&gt; 图中注释再次强调，&lt;strong&gt;解密后的明文视频帧会通过一个安全路径 (Secure Path) 直接传输&lt;/strong&gt;，完全绕过了浏览器和 Android 的应用程序层。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;(13-14)&lt;/strong&gt; 这些明文帧被直接发送到 &lt;strong&gt;GPU / Display&lt;/strong&gt; 硬件进行渲染，最终用户在屏幕上看到播放的画面。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;hr&gt;&#xA;&lt;h2 id=&#34;核心安全原则总结&#34;&gt;&lt;strong&gt;核心安全原则总结&lt;/strong&gt;&lt;/h2&gt;&#xA;&lt;p&gt;这份时序图完美地展示了 Widevine L1 的核心安全原则：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Android DRM 框架</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</link>
-      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</guid>
-      <description>&lt;h2 id=&#34;widevine-overview&#34;&gt;Widevine Overview&lt;/h2&gt;&#xA;&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/Widevine_architect.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;&#xA;&lt;p&gt;这张图是 &lt;strong&gt;Widevine DRM（数字版权管理）视频播放流程&lt;/strong&gt; 的整体架构图，展示了从内容打包、分发到终端设备解密播放的完整链路。分步骤解读：&lt;/p&gt;&#xA;&lt;hr&gt;&#xA;&lt;h3 id=&#34;1-内容准备与分发&#34;&gt;1. &lt;strong&gt;内容准备与分发&lt;/strong&gt;&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;Source Media（原始媒体内容）&lt;/strong&gt;&#xA;这是未经加密的音视频源文件。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;Shaka Packager（打包器）&lt;/strong&gt;&#xA;将原始媒体文件进行 &lt;strong&gt;加密和分片&lt;/strong&gt;，并打包成 &lt;strong&gt;DASH Presentation（自适应流媒体格式）&lt;/strong&gt;。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;DASH Presentation&lt;/strong&gt;&#xA;是最终的媒体描述文件（如 MPD），里面包含分片信息、码率信息和加密标记。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;CDN（内容分发网络）&lt;/strong&gt;&#xA;DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器请求。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;hr&gt;&#xA;&lt;h3 id=&#34;2-授权与密钥服务&#34;&gt;2. &lt;strong&gt;授权与密钥服务&lt;/strong&gt;&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;License Service（许可证服务）&lt;/strong&gt;&#xA;管理内容密钥（KID、CEK），并根据终端请求签发播放许可证（License）。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;License Proxy&lt;/strong&gt;&#xA;充当中间层，接收终端的 License 请求并转发给 License Service，再把结果返回给终端。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;hr&gt;&#xA;&lt;h3 id=&#34;3-设备安全与密钥保护&#34;&gt;3. &lt;strong&gt;设备安全与密钥保护&lt;/strong&gt;&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;OEM（设备制造商）&lt;/strong&gt;&#xA;在设备中实现 &lt;strong&gt;OEMCrypto HAL&lt;/strong&gt;，并提供硬件安全环境（TEE、Secure OS）。&#xA;设备出厂时会存有 &lt;strong&gt;Lockbox（Keyboxes）&lt;/strong&gt;，这是设备的安全身份凭证。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;Keysith (Provisioning)&lt;/strong&gt;&#xA;用于设备首次激活时的 &lt;strong&gt;设备认证与密钥配置&lt;/strong&gt;，保证终端能安全接收 DRM 密钥。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;hr&gt;&#xA;&lt;h3 id=&#34;4-终端播放流程&#34;&gt;4. &lt;strong&gt;终端播放流程&lt;/strong&gt;&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;strong&gt;Media Player&lt;/strong&gt;&#xA;播放器解析 DASH MPD，从 CDN 拉取加密的媒体分片。&#xA;播放器检测到内容加密后，会通过 &lt;strong&gt;CDM（Content Decryption Module）&lt;/strong&gt; 请求解密。&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;strong&gt;CDM&lt;/strong&gt;&#xA;内容解密模块，负责：&lt;/p&gt;</description>
-    </item>
-  </channel>
-</rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Android Media技术文档 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/</link><description>Recent content in Android Media技术文档 on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Wed, 27 Aug 2025 11:36:11 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/media/index.xml" rel="self" type="application/rss+xml"/><item><title>高通平台 Widevine L1 认证实施流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid><description>&lt;h2 id="整体流程"&gt;整体流程&lt;/h2&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png" alt=""&gt;&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;项目启动与平台选型&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;OEM（整车厂）根据车型、市场需求和 DRM 策略，决定采用 Widevine L1。&lt;/li&gt;
+&lt;li&gt;高通提供支持 L1 的硬件平台（SoC + TEE），并交付 BSP/SDK 及安全方案指导。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;软件集成与安全路径实现&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;OEM 集成 Android OS、Chromium 和 Android DRM 框架。&lt;/li&gt;
+&lt;li&gt;通过调用 MediaDrm/CDM API 实现播放功能。&lt;/li&gt;
+&lt;li&gt;高通协助 OEM 完成安全视频路径 (SVP) 与安全音频路径 (SAP)，并提供 TrustZone、Keymaster、OEMCrypto 的技术支持。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Widevine Partner Portal 注册与工具获取&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;OEM 向 Google 申请 Widevine Partner Portal 访问权限。&lt;/li&gt;
+&lt;li&gt;Google 提供 L1 安全规范文档、测试工具及测试用例，并下发测试用 Device Keybox（仅限开发与自测）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;内部自测与预认证准备&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;OEM 搭建 L1 测试环境并运行 Google L1 Test Suite，进行自测验证。&lt;/li&gt;
+&lt;li&gt;高通协助分析结果并解决安全相关问题，为正式认证做准备。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;正式认证测试（由授权实验室执行）&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;OEM 将待测设备及自测结果提交至 Google 授权实验室（3PL）。&lt;/li&gt;
+&lt;li&gt;实验室使用 Google 官方 L1 Test Suite 执行测试，并将测试结果与报告上传至 Google。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Chromium + Android DRM 视频安全渲染流程说明</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link><pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/chromium-drm.png" alt=""&gt;&lt;/p&gt;
+&lt;p&gt;这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。&lt;/p&gt;
+&lt;p&gt;整个流程的核心是确保&lt;strong&gt;内容密钥 (Content Key)&lt;/strong&gt; 和&lt;strong&gt;解密后的视频画面&lt;/strong&gt;始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。&lt;/p&gt;
+&lt;h2 id="流程详解"&gt;&lt;strong&gt;流程详解&lt;/strong&gt;&lt;/h2&gt;
+&lt;h3 id="1-初始化与会话创建-步骤-1-3"&gt;&lt;strong&gt;1. 初始化与会话创建 (步骤 1-3)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(1-2)&lt;/strong&gt; 当用户在浏览器中点击播放受保护的视频时，网页前端的 JavaScript 会通过 &lt;strong&gt;Encrypted Media Extensions (EME)&lt;/strong&gt; API 向浏览器发出请求，表明需要处理 DRM 内容。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(3)&lt;/strong&gt; EME 接着会调用 Android 系统底层的 &lt;strong&gt;&lt;code&gt;MediaDRM&lt;/code&gt; API&lt;/strong&gt;，在系统层级创建一个 DRM 会话。这一步为后续的授权请求和解密操作做好了准备。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="2-授权请求与获取-步骤-4-8"&gt;&lt;strong&gt;2. 授权请求与获取 (步骤 4-8)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(4-6)&lt;/strong&gt; &lt;code&gt;MediaDRM&lt;/code&gt; API 指示 &lt;strong&gt;TEE (可信执行环境)&lt;/strong&gt; 内的 Widevine L1 模块生成一个加密的&lt;strong&gt;授权请求&lt;/strong&gt;。这个请求包含了设备的唯一凭证，并经过设备私钥签名。TEE 将这个请求数据返回给浏览器。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(7-8)&lt;/strong&gt; &lt;strong&gt;Chromium 浏览器&lt;/strong&gt; 负责处理网络通信。它将从 TEE 获取的授权请求，通过网络发送给&lt;strong&gt;授权服务器 (License Server)&lt;/strong&gt;。服务器在验证请求的合法性后，会回传一个加密的授权（其中包含了用设备公钥加密的 Content Key）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="3-授权处理与密钥提取-步骤-9-10"&gt;&lt;strong&gt;3. 授权处理与密钥提取 (步骤 9-10)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(9)&lt;/strong&gt; 浏览器将从服务器获取的加密授权，通过 &lt;code&gt;MediaDRM&lt;/code&gt; API 传递下去。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(10)&lt;/strong&gt; 加密的授权最终被送达 &lt;strong&gt;TEE&lt;/strong&gt;。在 TEE 内部，Widevine L1 模块会使用其唯一的设备私钥来解密授权，从而安全地提取出 &lt;strong&gt;Content Key&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(Note)&lt;/strong&gt; 正如图中注释所示，&lt;strong&gt;Content Key 从此步骤开始，永远不会离开 TEE 的安全环境&lt;/strong&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="4-安全解密与渲染-步骤-11-14"&gt;&lt;strong&gt;4. 安全解密与渲染 (步骤 11-14)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;(11)&lt;/strong&gt; &lt;code&gt;MediaDRM&lt;/code&gt; 将一个指向 TEE 内部安全会话的&lt;strong&gt;句柄 (handle)&lt;/strong&gt;，连同加密的视频流，一起提供给 &lt;strong&gt;&lt;code&gt;MediaCodec&lt;/code&gt;&lt;/strong&gt;（Android 的媒体编解码器）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(12)&lt;/strong&gt; &lt;code&gt;MediaCodec&lt;/code&gt; 与 TEE 协同工作。加密的视频帧被送入 TEE 进行硬件级别的解密。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(Note)&lt;/strong&gt; 图中注释再次强调，&lt;strong&gt;解密后的明文视频帧会通过一个安全路径 (Secure Path) 直接传输&lt;/strong&gt;，完全绕过了浏览器和 Android 的应用程序层。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;(13-14)&lt;/strong&gt; 这些明文帧被直接发送到 &lt;strong&gt;GPU / Display&lt;/strong&gt; 硬件进行渲染，最终用户在屏幕上看到播放的画面。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id="核心安全原则总结"&gt;&lt;strong&gt;核心安全原则总结&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;这份时序图完美地展示了 Widevine L1 的核心安全原则：&lt;/p&gt;</description></item><item><title>Android DRM 框架</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</guid><description>&lt;h2 id="widevine-overview"&gt;Widevine Overview&lt;/h2&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/Widevine_architect.png" alt=""&gt;&lt;/p&gt;
+&lt;p&gt;这张图是 &lt;strong&gt;Widevine DRM（数字版权管理）视频播放流程&lt;/strong&gt; 的整体架构图，展示了从内容打包、分发到终端设备解密播放的完整链路。分步骤解读：&lt;/p&gt;
+&lt;hr&gt;
+&lt;h3 id="1-内容准备与分发"&gt;1. &lt;strong&gt;内容准备与分发&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Source Media（原始媒体内容）&lt;/strong&gt;
+这是未经加密的音视频源文件。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Shaka Packager（打包器）&lt;/strong&gt;
+将原始媒体文件进行 &lt;strong&gt;加密和分片&lt;/strong&gt;，并打包成 &lt;strong&gt;DASH Presentation（自适应流媒体格式）&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;DASH Presentation&lt;/strong&gt;
+是最终的媒体描述文件（如 MPD），里面包含分片信息、码率信息和加密标记。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;CDN（内容分发网络）&lt;/strong&gt;
+DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器请求。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h3 id="2-授权与密钥服务"&gt;2. &lt;strong&gt;授权与密钥服务&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;License Service（许可证服务）&lt;/strong&gt;
+管理内容密钥（KID、CEK），并根据终端请求签发播放许可证（License）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;License Proxy&lt;/strong&gt;
+充当中间层，接收终端的 License 请求并转发给 License Service，再把结果返回给终端。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h3 id="3-设备安全与密钥保护"&gt;3. &lt;strong&gt;设备安全与密钥保护&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;OEM（设备制造商）&lt;/strong&gt;
+在设备中实现 &lt;strong&gt;OEMCrypto HAL&lt;/strong&gt;，并提供硬件安全环境（TEE、Secure OS）。
+设备出厂时会存有 &lt;strong&gt;Lockbox（Keyboxes）&lt;/strong&gt;，这是设备的安全身份凭证。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Keysith (Provisioning)&lt;/strong&gt;
+用于设备首次激活时的 &lt;strong&gt;设备认证与密钥配置&lt;/strong&gt;，保证终端能安全接收 DRM 密钥。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h3 id="4-终端播放流程"&gt;4. &lt;strong&gt;终端播放流程&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Media Player&lt;/strong&gt;
+播放器解析 DASH MPD，从 CDN 拉取加密的媒体分片。
+播放器检测到内容加密后，会通过 &lt;strong&gt;CDM（Content Decryption Module）&lt;/strong&gt; 请求解密。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;CDM&lt;/strong&gt;
+内容解密模块，负责：&lt;/p&gt;</description></item></channel></rss>

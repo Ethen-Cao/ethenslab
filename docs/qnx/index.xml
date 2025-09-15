@@ -1,19 +1,26 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
-  <channel>
-    <title>QNX基础原理 on Ethen 的实验室</title>
-    <link>https://ethen-cao.github.io/ethenslab/qnx/</link>
-    <description>Recent content in QNX基础原理 on Ethen 的实验室</description>
-    <generator>Hugo</generator>
-    <language>en</language>
-    <lastBuildDate>Sun, 03 Aug 2025 17:17:50 +0800</lastBuildDate>
-    <atom:link href="https://ethen-cao.github.io/ethenslab/qnx/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>QNX Screen基础原理与流程</title>
-      <link>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</link>
-      <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</guid>
-      <description>&lt;h2 id=&#34;qnx图形栈&#34;&gt;QNX图形栈&lt;/h2&gt;&#xA;&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/qnx-screen-overview.png&#34; alt=&#34;screen_post_window&#34;&gt;&lt;/p&gt;&#xA;&lt;p&gt;一个 QNX 应用程序从无到有，完成一帧 (frame) 窗口渲染并显示在屏幕上的完整过程。&lt;/p&gt;&#xA;&lt;p&gt;整个过程可以分为两个核心阶段：&lt;/p&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;strong&gt;准备与渲染阶段&lt;/strong&gt;：应用程序获取绘图空间 (Buffer)，并使用 GPU 将内容绘制到这个空间中。&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;strong&gt;提交与显示阶段&lt;/strong&gt;：应用程序通知系统绘制完成，由系统和硬件接手，将内容呈现在屏幕上。&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;h3 id=&#34;第一阶段准备与渲染-steps-1-6&#34;&gt;第一阶段：准备与渲染 (Steps 1-6)&lt;/h3&gt;&#xA;&lt;h4 id=&#34;步骤-1--2请求并获取窗口缓冲区-buffer&#34;&gt;&lt;strong&gt;步骤 1 &amp;amp; 2：请求并获取窗口缓冲区 (Buffer)&lt;/strong&gt;&lt;/h4&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;执行者&lt;/strong&gt;：&lt;code&gt;QNX Application&lt;/code&gt;, &lt;code&gt;QNX Screen&lt;/code&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;关键 API&lt;/strong&gt;：&lt;code&gt;screen_create_window_buffers()&lt;/code&gt;&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;一个应用程序（例如 HMI 界面）首先需要一块“画布”来进行绘制。它会调用 QNX Screen 提供的 API，请求创建一个窗口以及与之关联的一组（通常是两个或三个，用于实现双缓冲/三缓冲技术）图形缓冲区 (Framebuffers)。&lt;/p&gt;&#xA;&lt;p&gt;&lt;code&gt;QNX Screen&lt;/code&gt; 作为窗口系统管理者，并不会自己分配这块特殊的内存。它会通过 IPC (进程间通信) &lt;strong&gt;请求&lt;/strong&gt; &lt;code&gt;Display/GPU Driver&lt;/code&gt; (资源管理器) 来分配。驱动程序会分配一块符合硬件要求（例如物理上连续）的共享内存，并将其句柄 (handle) 返回给 &lt;code&gt;Screen&lt;/code&gt;。最后，&lt;code&gt;Screen&lt;/code&gt; 再将代表这些 Buffer 的句柄返回给应用程序。至此，应用程序拥有了可以在上面作画的“画布”。&lt;/p&gt;&#xA;&lt;h4 id=&#34;步骤-3--4提交绘图指令&#34;&gt;&lt;strong&gt;步骤 3 &amp;amp; 4：提交绘图指令&lt;/strong&gt;&lt;/h4&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;执行者&lt;/strong&gt;：&lt;code&gt;QNX Application&lt;/code&gt;, &lt;code&gt;Graphics API (OpenGL ES + EGL)&lt;/code&gt;, &lt;code&gt;GPU Driver&lt;/code&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;关键 API/机制&lt;/strong&gt;：&lt;code&gt;eglSwapBuffers()&lt;/code&gt;, QNX IPC (&lt;code&gt;msg&lt;/code&gt;/&lt;code&gt;devctl&lt;/code&gt;)&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;应用程序使用像 OpenGL ES 这样的标准图形 API 来描述要绘制的内容（例如按钮、仪表盘、3D 模型等）。这些 API 调用定义了图元的形状、纹理和颜色。&lt;/p&gt;</description>
-    </item>
-  </channel>
-</rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>QNX基础原理 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/qnx/</link><description>Recent content in QNX基础原理 on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Sun, 03 Aug 2025 17:17:50 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/qnx/index.xml" rel="self" type="application/rss+xml"/><item><title>QNX Screen基础原理与流程</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</guid><description>&lt;h2 id="qnx图形栈"&gt;QNX图形栈&lt;/h2&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/qnx-screen-overview.png" alt="screen_post_window"&gt;&lt;/p&gt;
+&lt;p&gt;一个 QNX 应用程序从无到有，完成一帧 (frame) 窗口渲染并显示在屏幕上的完整过程。&lt;/p&gt;
+&lt;p&gt;整个过程可以分为两个核心阶段：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;准备与渲染阶段&lt;/strong&gt;：应用程序获取绘图空间 (Buffer)，并使用 GPU 将内容绘制到这个空间中。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;提交与显示阶段&lt;/strong&gt;：应用程序通知系统绘制完成，由系统和硬件接手，将内容呈现在屏幕上。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="第一阶段准备与渲染-steps-1-6"&gt;第一阶段：准备与渲染 (Steps 1-6)&lt;/h3&gt;
+&lt;h4 id="步骤-1--2请求并获取窗口缓冲区-buffer"&gt;&lt;strong&gt;步骤 1 &amp;amp; 2：请求并获取窗口缓冲区 (Buffer)&lt;/strong&gt;&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;执行者&lt;/strong&gt;：&lt;code&gt;QNX Application&lt;/code&gt;, &lt;code&gt;QNX Screen&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;关键 API&lt;/strong&gt;：&lt;code&gt;screen_create_window_buffers()&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;一个应用程序（例如 HMI 界面）首先需要一块“画布”来进行绘制。它会调用 QNX Screen 提供的 API，请求创建一个窗口以及与之关联的一组（通常是两个或三个，用于实现双缓冲/三缓冲技术）图形缓冲区 (Framebuffers)。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;QNX Screen&lt;/code&gt; 作为窗口系统管理者，并不会自己分配这块特殊的内存。它会通过 IPC (进程间通信) &lt;strong&gt;请求&lt;/strong&gt; &lt;code&gt;Display/GPU Driver&lt;/code&gt; (资源管理器) 来分配。驱动程序会分配一块符合硬件要求（例如物理上连续）的共享内存，并将其句柄 (handle) 返回给 &lt;code&gt;Screen&lt;/code&gt;。最后，&lt;code&gt;Screen&lt;/code&gt; 再将代表这些 Buffer 的句柄返回给应用程序。至此，应用程序拥有了可以在上面作画的“画布”。&lt;/p&gt;
+&lt;h4 id="步骤-3--4提交绘图指令"&gt;&lt;strong&gt;步骤 3 &amp;amp; 4：提交绘图指令&lt;/strong&gt;&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;执行者&lt;/strong&gt;：&lt;code&gt;QNX Application&lt;/code&gt;, &lt;code&gt;Graphics API (OpenGL ES + EGL)&lt;/code&gt;, &lt;code&gt;GPU Driver&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;关键 API/机制&lt;/strong&gt;：&lt;code&gt;eglSwapBuffers()&lt;/code&gt;, QNX IPC (&lt;code&gt;msg&lt;/code&gt;/&lt;code&gt;devctl&lt;/code&gt;)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;应用程序使用像 OpenGL ES 这样的标准图形 API 来描述要绘制的内容（例如按钮、仪表盘、3D 模型等）。这些 API 调用定义了图元的形状、纹理和颜色。&lt;/p&gt;</description></item></channel></rss>
