@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Android Theme | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="简介
+Android的Theme（主题），简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。
+
+详细解释
+
+
+作用：统一管理应用界面风格，保持整体视觉一致性，避免在每个控件上单独设置样式。
+
+
+内容：包含颜色（primary color、accent color等）、文字样式、按钮样式、控件默认背景、动画、间距、图标等多种属性。
+
+
+继承：Theme是基于style构建的，且支持继承，常见有系统默认主题（如Theme.Holo、Theme.MaterialComponents），开发者可继承这些主题自定义。
+
+
+应用范围：
+
+全局：在AndroidManifest.xml中通过application标签的android:theme属性设置，影响整个App。
+局部：可在Activity或View中单独设置，覆盖全局主题。
+
+
+
+
+举例
+&lt;!-- 应用主题 --&gt;
+&lt;style name=&#34;AppTheme&#34; parent=&#34;Theme.MaterialComponents.DayNight.NoActionBar&#34;&gt;
+    &lt;item name=&#34;colorPrimary&#34;&gt;@color/my_primary_color&lt;/item&gt;
+    &lt;item name=&#34;colorAccent&#34;&gt;@color/my_accent_color&lt;/item&gt;
+    &lt;!-- 更多自定义属性 --&gt;
+&lt;/style&gt;
+在AndroidManifest.xml：
+&lt;application
+    android:theme=&#34;@style/AppTheme&#34;
+    ...&gt;
+
+主题与样式的区别
+
+样式（Style）：作用于单个View控件的外观定义（如按钮颜色、字体大小）。
+主题（Theme）：是作用于整个界面或应用的样式集合，包含大量样式属性，能控制全局控件默认行为和外观。
+
+
+主题的演进
+
+Theme.Holo：Android 3.x 引入的较早现代主题。
+Theme.AppCompat：支持旧版本Android的兼容库主题，广泛使用。
+Theme.MaterialComponents：实现Material Design规范，适合Android 5.0及以上。
+Theme.Material3：最新Material You设计，支持动态色彩等新特性。
+
+
+Android主题演进和结构的图参考如下：
+
+
+平台主题
+平台主题（Platform Theme），指的是 Android 操作系统自身提供的、内置在系统框架中的主题样式集合。它们是 Android 系统从一开始就带有的基础视觉风格，定义了系统默认的界面外观和控件样式。
+
+详细说明
+
+
+由谁提供：由 Android 系统平台（Framework）自带，随着系统版本升级而演进和扩展。
+
+
+作用：为所有应用和系统界面提供默认的视觉风格基准。
+
+
+特点：
+
+包含了一系列基础样式属性，例如颜色、字体、控件样式、背景等。
+应用默认继承平台主题（如果没有显式指定主题），保证了不同应用界面风格的一致性。
+是所有兼容库主题（如 AppCompat）和第三方主题的基底。
+
+
+
+
+常见的平台主题
+
+  
+      
+          主题名称
+          适用API版本
+          特点
+      
+  
+  
+      
+          Theme
+          API 1&#43;
+          最基础的系统主题
+      
+      
+          Theme.Holo
+          API 11（Android 3.0）到API 20
+          现代化蓝色调主题，首次引入较统一的视觉风格
+      
+      
+          Theme.Material
+          API 21（Android 5.0）及以后
+          实现 Google Material Design规范
+      
+      
+          Theme.DeviceDefault
+          API 14&#43;
+          根据设备定制的默认主题
+      
+  
+
+
+为什么要用平台主题？
+
+兼容性：系统提供的主题保证应用在不同Android版本上的基本一致性和兼容性。
+性能：系统主题经过优化，能保证界面流畅。
+扩展性：开发者可以基于平台主题进一步自定义自己的主题。
+
+
+平台主题与AppCompat主题的关系
+
+AppCompat是 Google 支持库提供的兼容方案，允许在旧版本Android（比如API 14以下）也能使用现代风格的控件和主题。
+AppCompat主题是基于平台主题（Holo 或 Material）做了二次封装和增强，实现更广泛的兼容。
+
+
+平台主题演进：">
+<meta name="author" content="">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css" integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="Android Theme">
+  <meta property="og:description" content="简介 Android的Theme（主题），简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。
+详细解释 作用：统一管理应用界面风格，保持整体视觉一致性，避免在每个控件上单独设置样式。
+内容：包含颜色（primary color、accent color等）、文字样式、按钮样式、控件默认背景、动画、间距、图标等多种属性。
+继承：Theme是基于style构建的，且支持继承，常见有系统默认主题（如Theme.Holo、Theme.MaterialComponents），开发者可继承这些主题自定义。
+应用范围：
+全局：在AndroidManifest.xml中通过application标签的android:theme属性设置，影响整个App。 局部：可在Activity或View中单独设置，覆盖全局主题。 举例 &lt;!-- 应用主题 --&gt; &lt;style name=&#34;AppTheme&#34; parent=&#34;Theme.MaterialComponents.DayNight.NoActionBar&#34;&gt; &lt;item name=&#34;colorPrimary&#34;&gt;@color/my_primary_color&lt;/item&gt; &lt;item name=&#34;colorAccent&#34;&gt;@color/my_accent_color&lt;/item&gt; &lt;!-- 更多自定义属性 --&gt; &lt;/style&gt; 在AndroidManifest.xml：
+&lt;application android:theme=&#34;@style/AppTheme&#34; ...&gt; 主题与样式的区别 样式（Style）：作用于单个View控件的外观定义（如按钮颜色、字体大小）。 主题（Theme）：是作用于整个界面或应用的样式集合，包含大量样式属性，能控制全局控件默认行为和外观。 主题的演进 Theme.Holo：Android 3.x 引入的较早现代主题。 Theme.AppCompat：支持旧版本Android的兼容库主题，广泛使用。 Theme.MaterialComponents：实现Material Design规范，适合Android 5.0及以上。 Theme.Material3：最新Material You设计，支持动态色彩等新特性。 Android主题演进和结构的图参考如下：
+平台主题 平台主题（Platform Theme），指的是 Android 操作系统自身提供的、内置在系统框架中的主题样式集合。它们是 Android 系统从一开始就带有的基础视觉风格，定义了系统默认的界面外观和控件样式。
+详细说明 由谁提供：由 Android 系统平台（Framework）自带，随着系统版本升级而演进和扩展。
+作用：为所有应用和系统界面提供默认的视觉风格基准。
+特点：
+包含了一系列基础样式属性，例如颜色、字体、控件样式、背景等。 应用默认继承平台主题（如果没有显式指定主题），保证了不同应用界面风格的一致性。 是所有兼容库主题（如 AppCompat）和第三方主题的基底。 常见的平台主题 主题名称 适用API版本 特点 Theme API 1&#43; 最基础的系统主题 Theme.Holo API 11（Android 3.0）到API 20 现代化蓝色调主题，首次引入较统一的视觉风格 Theme.Material API 21（Android 5.0）及以后 实现 Google Material Design规范 Theme.DeviceDefault API 14&#43; 根据设备定制的默认主题 为什么要用平台主题？ 兼容性：系统提供的主题保证应用在不同Android版本上的基本一致性和兼容性。 性能：系统主题经过优化，能保证界面流畅。 扩展性：开发者可以基于平台主题进一步自定义自己的主题。 平台主题与AppCompat主题的关系 AppCompat是 Google 支持库提供的兼容方案，允许在旧版本Android（比如API 14以下）也能使用现代风格的控件和主题。 AppCompat主题是基于平台主题（Holo 或 Material）做了二次封装和增强，实现更广泛的兼容。 平台主题演进：">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="android-dev">
+    <meta property="article:published_time" content="2025-08-08T11:36:11+08:00">
+    <meta property="article:modified_time" content="2025-08-08T11:36:11+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Android Theme">
+<meta name="twitter:description" content="简介
+Android的Theme（主题），简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。
+
+详细解释
+
+
+作用：统一管理应用界面风格，保持整体视觉一致性，避免在每个控件上单独设置样式。
+
+
+内容：包含颜色（primary color、accent color等）、文字样式、按钮样式、控件默认背景、动画、间距、图标等多种属性。
+
+
+继承：Theme是基于style构建的，且支持继承，常见有系统默认主题（如Theme.Holo、Theme.MaterialComponents），开发者可继承这些主题自定义。
+
+
+应用范围：
+
+全局：在AndroidManifest.xml中通过application标签的android:theme属性设置，影响整个App。
+局部：可在Activity或View中单独设置，覆盖全局主题。
+
+
+
+
+举例
+&lt;!-- 应用主题 --&gt;
+&lt;style name=&#34;AppTheme&#34; parent=&#34;Theme.MaterialComponents.DayNight.NoActionBar&#34;&gt;
+    &lt;item name=&#34;colorPrimary&#34;&gt;@color/my_primary_color&lt;/item&gt;
+    &lt;item name=&#34;colorAccent&#34;&gt;@color/my_accent_color&lt;/item&gt;
+    &lt;!-- 更多自定义属性 --&gt;
+&lt;/style&gt;
+在AndroidManifest.xml：
+&lt;application
+    android:theme=&#34;@style/AppTheme&#34;
+    ...&gt;
+
+主题与样式的区别
+
+样式（Style）：作用于单个View控件的外观定义（如按钮颜色、字体大小）。
+主题（Theme）：是作用于整个界面或应用的样式集合，包含大量样式属性，能控制全局控件默认行为和外观。
+
+
+主题的演进
+
+Theme.Holo：Android 3.x 引入的较早现代主题。
+Theme.AppCompat：支持旧版本Android的兼容库主题，广泛使用。
+Theme.MaterialComponents：实现Material Design规范，适合Android 5.0及以上。
+Theme.Material3：最新Material You设计，支持动态色彩等新特性。
+
+
+Android主题演进和结构的图参考如下：
+
+
+平台主题
+平台主题（Platform Theme），指的是 Android 操作系统自身提供的、内置在系统框架中的主题样式集合。它们是 Android 系统从一开始就带有的基础视觉风格，定义了系统默认的界面外观和控件样式。
+
+详细说明
+
+
+由谁提供：由 Android 系统平台（Framework）自带，随着系统版本升级而演进和扩展。
+
+
+作用：为所有应用和系统界面提供默认的视觉风格基准。
+
+
+特点：
+
+包含了一系列基础样式属性，例如颜色、字体、控件样式、背景等。
+应用默认继承平台主题（如果没有显式指定主题），保证了不同应用界面风格的一致性。
+是所有兼容库主题（如 AppCompat）和第三方主题的基底。
+
+
+
+
+常见的平台主题
+
+  
+      
+          主题名称
+          适用API版本
+          特点
+      
+  
+  
+      
+          Theme
+          API 1&#43;
+          最基础的系统主题
+      
+      
+          Theme.Holo
+          API 11（Android 3.0）到API 20
+          现代化蓝色调主题，首次引入较统一的视觉风格
+      
+      
+          Theme.Material
+          API 21（Android 5.0）及以后
+          实现 Google Material Design规范
+      
+      
+          Theme.DeviceDefault
+          API 14&#43;
+          根据设备定制的默认主题
+      
+  
+
+
+为什么要用平台主题？
+
+兼容性：系统提供的主题保证应用在不同Android版本上的基本一致性和兼容性。
+性能：系统主题经过优化，能保证界面流畅。
+扩展性：开发者可以基于平台主题进一步自定义自己的主题。
+
+
+平台主题与AppCompat主题的关系
+
+AppCompat是 Google 支持库提供的兼容方案，允许在旧版本Android（比如API 14以下）也能使用现代风格的控件和主题。
+AppCompat主题是基于平台主题（Holo 或 Material）做了二次封装和增强，实现更广泛的兼容。
+
+
+平台主题演进：">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Android系统开发",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Android Resource",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/resource/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  3 ,
+      "name": "Android Theme",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Android Theme",
+  "name": "Android Theme",
+  "description": "简介 Android的Theme（主题），简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。\n详细解释 作用：统一管理应用界面风格，保持整体视觉一致性，避免在每个控件上单独设置样式。\n内容：包含颜色（primary color、accent color等）、文字样式、按钮样式、控件默认背景、动画、间距、图标等多种属性。\n继承：Theme是基于style构建的，且支持继承，常见有系统默认主题（如Theme.Holo、Theme.MaterialComponents），开发者可继承这些主题自定义。\n应用范围：\n全局：在AndroidManifest.xml中通过application标签的android:theme属性设置，影响整个App。 局部：可在Activity或View中单独设置，覆盖全局主题。 举例 \u0026lt;!-- 应用主题 --\u0026gt; \u0026lt;style name=\u0026#34;AppTheme\u0026#34; parent=\u0026#34;Theme.MaterialComponents.DayNight.NoActionBar\u0026#34;\u0026gt; \u0026lt;item name=\u0026#34;colorPrimary\u0026#34;\u0026gt;@color/my_primary_color\u0026lt;/item\u0026gt; \u0026lt;item name=\u0026#34;colorAccent\u0026#34;\u0026gt;@color/my_accent_color\u0026lt;/item\u0026gt; \u0026lt;!-- 更多自定义属性 --\u0026gt; \u0026lt;/style\u0026gt; 在AndroidManifest.xml：\n\u0026lt;application android:theme=\u0026#34;@style/AppTheme\u0026#34; ...\u0026gt; 主题与样式的区别 样式（Style）：作用于单个View控件的外观定义（如按钮颜色、字体大小）。 主题（Theme）：是作用于整个界面或应用的样式集合，包含大量样式属性，能控制全局控件默认行为和外观。 主题的演进 Theme.Holo：Android 3.x 引入的较早现代主题。 Theme.AppCompat：支持旧版本Android的兼容库主题，广泛使用。 Theme.MaterialComponents：实现Material Design规范，适合Android 5.0及以上。 Theme.Material3：最新Material You设计，支持动态色彩等新特性。 Android主题演进和结构的图参考如下：\n平台主题 平台主题（Platform Theme），指的是 Android 操作系统自身提供的、内置在系统框架中的主题样式集合。它们是 Android 系统从一开始就带有的基础视觉风格，定义了系统默认的界面外观和控件样式。\n详细说明 由谁提供：由 Android 系统平台（Framework）自带，随着系统版本升级而演进和扩展。\n作用：为所有应用和系统界面提供默认的视觉风格基准。\n特点：\n包含了一系列基础样式属性，例如颜色、字体、控件样式、背景等。 应用默认继承平台主题（如果没有显式指定主题），保证了不同应用界面风格的一致性。 是所有兼容库主题（如 AppCompat）和第三方主题的基底。 常见的平台主题 主题名称 适用API版本 特点 Theme API 1+ 最基础的系统主题 Theme.Holo API 11（Android 3.0）到API 20 现代化蓝色调主题，首次引入较统一的视觉风格 Theme.Material API 21（Android 5.0）及以后 实现 Google Material Design规范 Theme.DeviceDefault API 14+ 根据设备定制的默认主题 为什么要用平台主题？ 兼容性：系统提供的主题保证应用在不同Android版本上的基本一致性和兼容性。 性能：系统主题经过优化，能保证界面流畅。 扩展性：开发者可以基于平台主题进一步自定义自己的主题。 平台主题与AppCompat主题的关系 AppCompat是 Google 支持库提供的兼容方案，允许在旧版本Android（比如API 14以下）也能使用现代风格的控件和主题。 AppCompat主题是基于平台主题（Holo 或 Material）做了二次封装和增强，实现更广泛的兼容。 平台主题演进：\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "简介 Android的Theme（主题），简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。\n详细解释 作用：统一管理应用界面风格，保持整体视觉一致性，避免在每个控件上单独设置样式。\n内容：包含颜色（primary color、accent color等）、文字样式、按钮样式、控件默认背景、动画、间距、图标等多种属性。\n继承：Theme是基于style构建的，且支持继承，常见有系统默认主题（如Theme.Holo、Theme.MaterialComponents），开发者可继承这些主题自定义。\n应用范围：\n全局：在AndroidManifest.xml中通过application标签的android:theme属性设置，影响整个App。 局部：可在Activity或View中单独设置，覆盖全局主题。 举例 ",
+  "wordCount" : "105",
+  "inLanguage": "en",
+  "datePublished": "2025-08-08T11:36:11+08:00",
+  "dateModified": "2025-08-08T11:36:11+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://ethen-cao.github.io/ethenslab/">Home</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/android-dev/">Android系统开发</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/android-dev/resource/">Android Resource</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Android Theme
+    </h1>
+    <div class="post-meta"><span title='2025-08-08 11:36:11 +0800 CST'>August 8, 2025</span>&nbsp;·&nbsp;1 min&nbsp;·&nbsp;105 words
+
+</div>
+  </header> 
+  <div class="post-content"><h2 id="简介">简介<a hidden class="anchor" aria-hidden="true" href="#简介">#</a></h2>
+<p>Android的<strong>Theme（主题）</strong>，简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。</p>
+<hr>
+<h3 id="详细解释">详细解释<a hidden class="anchor" aria-hidden="true" href="#详细解释">#</a></h3>
+<ul>
+<li>
+<p><strong>作用</strong>：统一管理应用界面风格，保持整体视觉一致性，避免在每个控件上单独设置样式。</p>
+</li>
+<li>
+<p><strong>内容</strong>：包含颜色（primary color、accent color等）、文字样式、按钮样式、控件默认背景、动画、间距、图标等多种属性。</p>
+</li>
+<li>
+<p><strong>继承</strong>：Theme是基于<code>style</code>构建的，且支持继承，常见有系统默认主题（如<code>Theme.Holo</code>、<code>Theme.MaterialComponents</code>），开发者可继承这些主题自定义。</p>
+</li>
+<li>
+<p><strong>应用范围</strong>：</p>
+<ul>
+<li><strong>全局</strong>：在<code>AndroidManifest.xml</code>中通过<code>application</code>标签的<code>android:theme</code>属性设置，影响整个App。</li>
+<li><strong>局部</strong>：可在<code>Activity</code>或<code>View</code>中单独设置，覆盖全局主题。</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3 id="举例">举例<a hidden class="anchor" aria-hidden="true" href="#举例">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-xml" data-lang="xml"><span style="display:flex;"><span><span style="color:#75715e">&lt;!-- 应用主题 --&gt;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">&lt;style</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#34;AppTheme&#34;</span> <span style="color:#a6e22e">parent=</span><span style="color:#e6db74">&#34;Theme.MaterialComponents.DayNight.NoActionBar&#34;</span><span style="color:#f92672">&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;item</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#34;colorPrimary&#34;</span><span style="color:#f92672">&gt;</span>@color/my_primary_color<span style="color:#f92672">&lt;/item&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;item</span> <span style="color:#a6e22e">name=</span><span style="color:#e6db74">&#34;colorAccent&#34;</span><span style="color:#f92672">&gt;</span>@color/my_accent_color<span style="color:#f92672">&lt;/item&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">&lt;!-- 更多自定义属性 --&gt;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">&lt;/style&gt;</span>
+</span></span></code></pre></div><p>在<code>AndroidManifest.xml</code>：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-xml" data-lang="xml"><span style="display:flex;"><span><span style="color:#f92672">&lt;application</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">android:theme=</span><span style="color:#e6db74">&#34;@style/AppTheme&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#960050;background-color:#1e0010">...</span><span style="color:#f92672">&gt;</span>
+</span></span></code></pre></div><hr>
+<h3 id="主题与样式的区别">主题与样式的区别<a hidden class="anchor" aria-hidden="true" href="#主题与样式的区别">#</a></h3>
+<ul>
+<li><strong>样式（Style）</strong>：作用于单个View控件的外观定义（如按钮颜色、字体大小）。</li>
+<li><strong>主题（Theme）</strong>：是作用于整个界面或应用的样式集合，包含大量样式属性，能控制全局控件默认行为和外观。</li>
+</ul>
+<hr>
+<h3 id="主题的演进">主题的演进<a hidden class="anchor" aria-hidden="true" href="#主题的演进">#</a></h3>
+<ul>
+<li><strong>Theme.Holo</strong>：Android 3.x 引入的较早现代主题。</li>
+<li><strong>Theme.AppCompat</strong>：支持旧版本Android的兼容库主题，广泛使用。</li>
+<li><strong>Theme.MaterialComponents</strong>：实现Material Design规范，适合Android 5.0及以上。</li>
+<li><strong>Theme.Material3</strong>：最新Material You设计，支持动态色彩等新特性。</li>
+</ul>
+<hr>
+<p>Android主题演进和结构的图参考如下：</p>
+<p><img alt="Android主题演进" loading="lazy" src="/ethenslab/images/theme.png"></p>
+<hr>
+<h3 id="平台主题">平台主题<a hidden class="anchor" aria-hidden="true" href="#平台主题">#</a></h3>
+<p><strong>平台主题（Platform Theme）</strong>，指的是 Android 操作系统自身提供的、内置在系统框架中的主题样式集合。它们是 Android 系统从一开始就带有的基础视觉风格，定义了系统默认的界面外观和控件样式。</p>
+<hr>
+<h4 id="详细说明">详细说明<a hidden class="anchor" aria-hidden="true" href="#详细说明">#</a></h4>
+<ul>
+<li>
+<p><strong>由谁提供</strong>：由 Android 系统平台（Framework）自带，随着系统版本升级而演进和扩展。</p>
+</li>
+<li>
+<p><strong>作用</strong>：为所有应用和系统界面提供默认的视觉风格基准。</p>
+</li>
+<li>
+<p><strong>特点</strong>：</p>
+<ul>
+<li>包含了一系列基础样式属性，例如颜色、字体、控件样式、背景等。</li>
+<li>应用默认继承平台主题（如果没有显式指定主题），保证了不同应用界面风格的一致性。</li>
+<li>是所有兼容库主题（如 AppCompat）和第三方主题的基底。</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h4 id="常见的平台主题">常见的平台主题<a hidden class="anchor" aria-hidden="true" href="#常见的平台主题">#</a></h4>
+<table>
+  <thead>
+      <tr>
+          <th>主题名称</th>
+          <th>适用API版本</th>
+          <th>特点</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><strong>Theme</strong></td>
+          <td>API 1+</td>
+          <td>最基础的系统主题</td>
+      </tr>
+      <tr>
+          <td><strong>Theme.Holo</strong></td>
+          <td>API 11（Android 3.0）到API 20</td>
+          <td>现代化蓝色调主题，首次引入较统一的视觉风格</td>
+      </tr>
+      <tr>
+          <td><strong>Theme.Material</strong></td>
+          <td>API 21（Android 5.0）及以后</td>
+          <td>实现 Google Material Design规范</td>
+      </tr>
+      <tr>
+          <td><strong>Theme.DeviceDefault</strong></td>
+          <td>API 14+</td>
+          <td>根据设备定制的默认主题</td>
+      </tr>
+  </tbody>
+</table>
+<hr>
+<h4 id="为什么要用平台主题">为什么要用平台主题？<a hidden class="anchor" aria-hidden="true" href="#为什么要用平台主题">#</a></h4>
+<ul>
+<li><strong>兼容性</strong>：系统提供的主题保证应用在不同Android版本上的基本一致性和兼容性。</li>
+<li><strong>性能</strong>：系统主题经过优化，能保证界面流畅。</li>
+<li><strong>扩展性</strong>：开发者可以基于平台主题进一步自定义自己的主题。</li>
+</ul>
+<hr>
+<h4 id="平台主题与appcompat主题的关系">平台主题与AppCompat主题的关系<a hidden class="anchor" aria-hidden="true" href="#平台主题与appcompat主题的关系">#</a></h4>
+<ul>
+<li>AppCompat是 Google 支持库提供的兼容方案，允许在旧版本Android（比如API 14以下）也能使用现代风格的控件和主题。</li>
+<li>AppCompat主题是基于平台主题（Holo 或 Material）做了二次封装和增强，实现更广泛的兼容。</li>
+</ul>
+<hr>
+<p>平台主题演进：</p>
+<p><img alt="Android platform theme" loading="lazy" src="/ethenslab/images/platform-theme.png"></p>
+<hr>
+<h2 id="android-uimode-变化与主题加载机制">Android uiMode 变化与主题加载机制<a hidden class="anchor" aria-hidden="true" href="#android-uimode-变化与主题加载机制">#</a></h2>
+<p><img alt="Android uiMode 变化与主题加载机制" loading="lazy" src="/ethenslab/images/uiMode.png"></p>
+<h2 id="android-主题加载以及属性查找流程">Android 主题加载以及属性查找流程<a hidden class="anchor" aria-hidden="true" href="#android-主题加载以及属性查找流程">#</a></h2>
+<p><img alt="Android 主题加载以及属性查找流程" loading="lazy" src="/ethenslab/images/android-theme-resolve.png"></p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+<nav class="paginav">
+  <a class="prev" href="https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/">
+    <span class="title">« Prev</span>
+    <br>
+    <span>Android DRM 框架</span>
+  </a>
+  <a class="next" href="https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/">
+    <span class="title">Next »</span>
+    <br>
+    <span>使用AndroidStudio调试AOSP</span>
+  </a>
+</nav>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2025 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

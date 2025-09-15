@@ -1,5 +1,20 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Android 调试篇 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/</link><description>Recent content in Android 调试篇 on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Thu, 28 Aug 2025 19:54:57 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/debug/index.xml" rel="self" type="application/rss+xml"/><item><title>深入解析 Android ProtoLog：高性能结构化日志系统</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protolog/</link><pubDate>Thu, 28 Aug 2025 19:54:57 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/protolog/</guid><description>&lt;p&gt;在 Android 系统开发和性能优化中，日志记录是一个不可或缺的工具。然而，传统的字符串日志（如 Log.d, Log.e）在高频或性能敏感的场景下会带来显著的开销。为了解决这个问题，Android 团队引入了一套名为 &lt;strong&gt;ProtoLog&lt;/strong&gt; 的高性能日志系统。本文将深入探讨 ProtoLog 的设计理念、工作机制、使用场景以及如何为 ROM 开发进行扩展。&lt;/p&gt;
-&lt;h2 id="1-简介protolog-是什么"&gt;&lt;strong&gt;1. 简介：ProtoLog 是什么？&lt;/strong&gt;&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Android 调试篇 on Ethen 的实验室</title>
+    <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/</link>
+    <description>Recent content in Android 调试篇 on Ethen 的实验室</description>
+    <generator>Hugo -- 0.150.0</generator>
+    <language>en</language>
+    <lastBuildDate>Thu, 28 Aug 2025 19:54:57 +0800</lastBuildDate>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/debug/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>深入解析 Android ProtoLog：高性能结构化日志系统</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protolog/</link>
+      <pubDate>Thu, 28 Aug 2025 19:54:57 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/protolog/</guid>
+      <description>&lt;p&gt;在 Android 系统开发和性能优化中，日志记录是一个不可或缺的工具。然而，传统的字符串日志（如 Log.d, Log.e）在高频或性能敏感的场景下会带来显著的开销。为了解决这个问题，Android 团队引入了一套名为 &lt;strong&gt;ProtoLog&lt;/strong&gt; 的高性能日志系统。本文将深入探讨 ProtoLog 的设计理念、工作机制、使用场景以及如何为 ROM 开发进行扩展。&lt;/p&gt;
+&lt;h2 id=&#34;1-简介protolog-是什么&#34;&gt;&lt;strong&gt;1. 简介：ProtoLog 是什么？&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;&lt;strong&gt;ProtoLog&lt;/strong&gt; 是一套高性能、低开销的日志记录框架，深度集成在 Android 开源项目 (AOSP) 中。它的核心思想是将日志记录对运行时性能的影响降到最低。&lt;/p&gt;
 &lt;p&gt;与传统的 android.util.Log 不同，ProtoLog &lt;strong&gt;不会在设备运行时处理和拼接日志字符串&lt;/strong&gt;。相反，它通过一个精巧的&lt;strong&gt;编译时转换&lt;/strong&gt;机制，将日志调用替换为写入紧凑二进制数据的指令。这使得即使在生产环境中开启大量日志，也不会对设备性能造成明显影响。&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;核心优势：&lt;/strong&gt;&lt;/p&gt;
@@ -9,7 +24,7 @@
 &lt;li&gt;&lt;strong&gt;编译时处理&lt;/strong&gt;：大部分工作（如解析格式化字符串）在编译代码时完成，而非在设备上。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;动态控制&lt;/strong&gt;：可以通过 adb 命令动态开启或关闭不同的日志组，无需重新编译或重启设备。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id="2-架构与工作机制"&gt;&lt;strong&gt;2. 架构与工作机制&lt;/strong&gt;&lt;/h2&gt;
+&lt;h2 id=&#34;2-架构与工作机制&#34;&gt;&lt;strong&gt;2. 架构与工作机制&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;ProtoLog 的魔力在于其独特的编译时处理流程。它主要由以下几个部分组成：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;ProtoLog API&lt;/strong&gt;：供开发者调用的日志接口，如 ProtoLog.d(GROUP, &amp;ldquo;format string %d&amp;rdquo;, value)。&lt;/li&gt;
@@ -17,22 +32,29 @@
 &lt;li&gt;&lt;strong&gt;二进制日志流&lt;/strong&gt;：设备上实际记录的数据格式，它不包含原始的字符串，并被写入一个专用的 protolog 日志缓冲区。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Viewer (查看器) 工具&lt;/strong&gt;：用于将设备上捕获的二进制日志流转换回人类可读的文本格式。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id="工作流程详解"&gt;&lt;strong&gt;工作流程详解&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id=&#34;工作流程详解&#34;&gt;&lt;strong&gt;工作流程详解&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;让我们通过一个例子来理解其完整的工作流程：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;编写代码&lt;br&gt;
 开发者在代码中写入一条 ProtoLog 日志：&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-java" data-lang="java"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;import&lt;/span&gt; com.android.server.wm.ProtoLogGroup; 
-&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;import&lt;/span&gt; com.android.internal.protolog.common.ProtoLog;
-&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ... &lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;ProtoLog.&lt;span style="color:#a6e22e"&gt;v&lt;/span&gt;(ProtoLogGroup.&lt;span style="color:#a6e22e"&gt;WM_DEBUG_ORIENTATION&lt;/span&gt;, &lt;span style="color:#e6db74"&gt;&amp;#34;Setting orientation to %d&amp;#34;&lt;/span&gt;, newOrientation);
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-java&#34; data-lang=&#34;java&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;import&lt;/span&gt; com.android.server.wm.ProtoLogGroup;  
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;import&lt;/span&gt; com.android.internal.protolog.common.ProtoLog;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// ...  &lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;ProtoLog.&lt;span style=&#34;color:#a6e22e&#34;&gt;v&lt;/span&gt;(ProtoLogGroup.&lt;span style=&#34;color:#a6e22e&#34;&gt;WM_DEBUG_ORIENTATION&lt;/span&gt;, &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Setting orientation to %d&amp;#34;&lt;/span&gt;, newOrientation);
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;编译时转换 (关键步骤)&lt;br&gt;
-当编译器（Javac）处理这段代码时，ProtoLog 的编译器插件会执行以下操作：&lt;/p&gt;</description></item><item><title>Android log机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-eventlog.png" alt=""&gt;&lt;/p&gt;
-&lt;h3 id="架構圖詳解"&gt;架構圖詳解&lt;/h3&gt;
+当编译器（Javac）处理这段代码时，ProtoLog 的编译器插件会执行以下操作：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android log机制</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link>
+      <pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid>
+      <description>&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/android-eventlog.png&#34;&gt;&lt;/p&gt;
+&lt;h3 id=&#34;架構圖詳解&#34;&gt;架構圖詳解&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;日誌寫入路徑 (Write Path)&lt;/strong&gt;&lt;/p&gt;
@@ -51,9 +73,16 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;日誌讀取與解析路徑 (Read &amp;amp; Parse Path)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>使用AndroidStudio调试AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid><description>&lt;h2 id="调试java进程"&gt;调试Java进程&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;日誌讀取與解析路徑 (Read &amp;amp; Parse Path)&lt;/strong&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>使用AndroidStudio调试AOSP</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link>
+      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid>
+      <description>&lt;h2 id=&#34;调试java进程&#34;&gt;调试Java进程&lt;/h2&gt;
 &lt;p&gt;本文介绍如何在 Android Studio 中调试 AOSP (Android Open Source Project) 进程，尤其是像 system_server 这样的系统进程。调试 AOSP 与普通应用调试有所不同，需要借助 JDWP 协议和 adb 端口转发。&lt;/p&gt;
-&lt;h3 id="前置条件"&gt;前置条件&lt;/h3&gt;
+&lt;h3 id=&#34;前置条件&#34;&gt;前置条件&lt;/h3&gt;
 &lt;p&gt;环境准备：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;一台可以刷入 AOSP 的设备或模拟器&lt;/li&gt;
@@ -64,17 +93,20 @@
 &lt;ul&gt;
 &lt;li&gt;设备必须支持 adb root&lt;/li&gt;
 &lt;li&gt;设备需要打开调试属性，例如：
-&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb root
-&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell setprop persist.system_server.debuggable &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell stop
-&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell start
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb root
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell setprop persist.system_server.debuggable &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell stop
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell start
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;上述命令让 system_server 在启动时支持调试。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id="调试原理"&gt;调试原理&lt;/h3&gt;
+&lt;h3 id=&#34;调试原理&#34;&gt;调试原理&lt;/h3&gt;
 &lt;p&gt;Android 使用 JDWP (Java Debug Wire Protocol) 进行 Java 进程调试：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;system_server 内部：包含一个 JDWP Listener 线程，负责接收调试命令并执行（挂起线程、返回堆栈、单步执行等）。&lt;/li&gt;
 &lt;li&gt;adb：提供 adb forward 功能，将 PC 本地端口与设备进程的 JDWP 通道连接起来。&lt;/li&gt;
 &lt;li&gt;Android Studio：作为调试器，通过 JDWP 协议与 system_server 通信。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;数据流示意：&lt;/p&gt;</description></item></channel></rss>
+&lt;p&gt;数据流示意：&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>
