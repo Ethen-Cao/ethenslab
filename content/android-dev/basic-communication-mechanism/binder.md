@@ -10,7 +10,7 @@ title = 'Binder'
 
 ## 异步通信
 
-![](/ethenslab/images/binder-async.png))
+![](/ethenslab/images/binder-async.png)
 
 ## 内存管理
 
