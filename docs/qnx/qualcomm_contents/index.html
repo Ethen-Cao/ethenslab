@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>contents.xml 属性与字段说明文档 | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="contents.xml 属性与字段说明文档
+1. 文档引言
+contents.xml 文件是高通（Qualcomm）平台 Meta-Build 系统的核心配置文件。它作为一个元构建清单 (Meta-Build Manifest)，以声明式 XML 的格式，精确定义了一个完整软件包从源代码到最终刷机包的所有环节。
+本说明文档旨在为开发者提供一份详尽的参考，解释 contents.xml 文件中各个 XML 标签、属性及字段的含义，帮助开发者理解、调试和定制复杂的构建流程。
+
+2. 顶层结构标签
+contents.xml 由多个顶层标签构成，每个标签负责一部分核心功能。
+
+  
+      
+          标签
+          含义
+      
+  
+  
+      
+          &lt;product_flavors&gt;
+          定义产品的不同“风味”或变种。
+      
+      
+          &lt;product_info&gt;
+          提供关于产品的元数据信息。
+      
+      
+          &lt;partition_info&gt;
+          定义与分区操作相关的信息。
+      
+      
+          &lt;builds_flat&gt;
+          核心部分，定义所有独立软件组件的构建信息。
+      
+      
+          &lt;build_tools&gt;
+          （可选）定义构建系统内部使用的工具。
+      
+      
+          &lt;external_tools&gt;
+          声明构建或调试过程中依赖的外部工具。
+      
+      
+          &lt;workflow&gt;
+          定义构建完成后的自动化处理与打包流程。
+      
+  
+
+
+3. 标签与属性详解
+3.1 &lt;product_flavors&gt; 区域
+此区域用于定义不同的产品形态。
+
+&lt;product_flavors cmm_pf_var=&quot;...&quot;&gt;
+
+属性: cmm_pf_var
+含义: 定义一个变量名，该变量用于在 CMM (常用于 Trace32 调试器) 脚本中存储当前选择的产品风味（Product Flavor）。构建系统会根据用户选择的风味（如 8155_la）为这个变量赋值。
+
+
+
+3.2 &lt;product_info&gt; 区域
+此区域提供构建的元数据信息。
+
+&lt;chipid flavor=&quot;...&quot; cmm_var=&quot;...&quot;&gt;
+
+属性: flavor
+含义: 建立产品风味与特定芯片 ID 之间的映射关系。这使得构建系统知道 8155_la 风味对应的是 SDM855 芯片。
+属性: cmm_var
+含义: 定义一个 CMM 脚本变量名。构建系统会将该标签的值赋给这个变量，供外部工具（尤其是 Trace32）使用。
+
+
+
+3.3 &lt;partition_info&gt; 区域
+此区域定义与分区操作相关的信息。">
+<meta name="author" content="">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css" integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="contents.xml 属性与字段说明文档">
+  <meta property="og:description" content="contents.xml 属性与字段说明文档 1. 文档引言 contents.xml 文件是高通（Qualcomm）平台 Meta-Build 系统的核心配置文件。它作为一个元构建清单 (Meta-Build Manifest)，以声明式 XML 的格式，精确定义了一个完整软件包从源代码到最终刷机包的所有环节。
+本说明文档旨在为开发者提供一份详尽的参考，解释 contents.xml 文件中各个 XML 标签、属性及字段的含义，帮助开发者理解、调试和定制复杂的构建流程。
+2. 顶层结构标签 contents.xml 由多个顶层标签构成，每个标签负责一部分核心功能。
+标签 含义 &lt;product_flavors&gt; 定义产品的不同“风味”或变种。 &lt;product_info&gt; 提供关于产品的元数据信息。 &lt;partition_info&gt; 定义与分区操作相关的信息。 &lt;builds_flat&gt; 核心部分，定义所有独立软件组件的构建信息。 &lt;build_tools&gt; （可选）定义构建系统内部使用的工具。 &lt;external_tools&gt; 声明构建或调试过程中依赖的外部工具。 &lt;workflow&gt; 定义构建完成后的自动化处理与打包流程。 3. 标签与属性详解 3.1 &lt;product_flavors&gt; 区域 此区域用于定义不同的产品形态。
+&lt;product_flavors cmm_pf_var=&#34;...&#34;&gt; 属性: cmm_pf_var 含义: 定义一个变量名，该变量用于在 CMM (常用于 Trace32 调试器) 脚本中存储当前选择的产品风味（Product Flavor）。构建系统会根据用户选择的风味（如 8155_la）为这个变量赋值。 3.2 &lt;product_info&gt; 区域 此区域提供构建的元数据信息。
+&lt;chipid flavor=&#34;...&#34; cmm_var=&#34;...&#34;&gt; 属性: flavor 含义: 建立产品风味与特定芯片 ID 之间的映射关系。这使得构建系统知道 8155_la 风味对应的是 SDM855 芯片。 属性: cmm_var 含义: 定义一个 CMM 脚本变量名。构建系统会将该标签的值赋给这个变量，供外部工具（尤其是 Trace32）使用。 3.3 &lt;partition_info&gt; 区域 此区域定义与分区操作相关的信息。">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="qnx">
+    <meta property="article:published_time" content="2025-09-22T12:11:50+08:00">
+    <meta property="article:modified_time" content="2025-09-22T12:11:50+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="contents.xml 属性与字段说明文档">
+<meta name="twitter:description" content="contents.xml 属性与字段说明文档
+1. 文档引言
+contents.xml 文件是高通（Qualcomm）平台 Meta-Build 系统的核心配置文件。它作为一个元构建清单 (Meta-Build Manifest)，以声明式 XML 的格式，精确定义了一个完整软件包从源代码到最终刷机包的所有环节。
+本说明文档旨在为开发者提供一份详尽的参考，解释 contents.xml 文件中各个 XML 标签、属性及字段的含义，帮助开发者理解、调试和定制复杂的构建流程。
+
+2. 顶层结构标签
+contents.xml 由多个顶层标签构成，每个标签负责一部分核心功能。
+
+  
+      
+          标签
+          含义
+      
+  
+  
+      
+          &lt;product_flavors&gt;
+          定义产品的不同“风味”或变种。
+      
+      
+          &lt;product_info&gt;
+          提供关于产品的元数据信息。
+      
+      
+          &lt;partition_info&gt;
+          定义与分区操作相关的信息。
+      
+      
+          &lt;builds_flat&gt;
+          核心部分，定义所有独立软件组件的构建信息。
+      
+      
+          &lt;build_tools&gt;
+          （可选）定义构建系统内部使用的工具。
+      
+      
+          &lt;external_tools&gt;
+          声明构建或调试过程中依赖的外部工具。
+      
+      
+          &lt;workflow&gt;
+          定义构建完成后的自动化处理与打包流程。
+      
+  
+
+
+3. 标签与属性详解
+3.1 &lt;product_flavors&gt; 区域
+此区域用于定义不同的产品形态。
+
+&lt;product_flavors cmm_pf_var=&quot;...&quot;&gt;
+
+属性: cmm_pf_var
+含义: 定义一个变量名，该变量用于在 CMM (常用于 Trace32 调试器) 脚本中存储当前选择的产品风味（Product Flavor）。构建系统会根据用户选择的风味（如 8155_la）为这个变量赋值。
+
+
+
+3.2 &lt;product_info&gt; 区域
+此区域提供构建的元数据信息。
+
+&lt;chipid flavor=&quot;...&quot; cmm_var=&quot;...&quot;&gt;
+
+属性: flavor
+含义: 建立产品风味与特定芯片 ID 之间的映射关系。这使得构建系统知道 8155_la 风味对应的是 SDM855 芯片。
+属性: cmm_var
+含义: 定义一个 CMM 脚本变量名。构建系统会将该标签的值赋给这个变量，供外部工具（尤其是 Trace32）使用。
+
+
+
+3.3 &lt;partition_info&gt; 区域
+此区域定义与分区操作相关的信息。">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "QNX基础原理",
+      "item": "https://ethen-cao.github.io/ethenslab/qnx/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "contents.xml 属性与字段说明文档",
+      "item": "https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "contents.xml 属性与字段说明文档",
+  "name": "contents.xml 属性与字段说明文档",
+  "description": "contents.xml 属性与字段说明文档 1. 文档引言 contents.xml 文件是高通（Qualcomm）平台 Meta-Build 系统的核心配置文件。它作为一个元构建清单 (Meta-Build Manifest)，以声明式 XML 的格式，精确定义了一个完整软件包从源代码到最终刷机包的所有环节。\n本说明文档旨在为开发者提供一份详尽的参考，解释 contents.xml 文件中各个 XML 标签、属性及字段的含义，帮助开发者理解、调试和定制复杂的构建流程。\n2. 顶层结构标签 contents.xml 由多个顶层标签构成，每个标签负责一部分核心功能。\n标签 含义 \u0026lt;product_flavors\u0026gt; 定义产品的不同“风味”或变种。 \u0026lt;product_info\u0026gt; 提供关于产品的元数据信息。 \u0026lt;partition_info\u0026gt; 定义与分区操作相关的信息。 \u0026lt;builds_flat\u0026gt; 核心部分，定义所有独立软件组件的构建信息。 \u0026lt;build_tools\u0026gt; （可选）定义构建系统内部使用的工具。 \u0026lt;external_tools\u0026gt; 声明构建或调试过程中依赖的外部工具。 \u0026lt;workflow\u0026gt; 定义构建完成后的自动化处理与打包流程。 3. 标签与属性详解 3.1 \u0026lt;product_flavors\u0026gt; 区域 此区域用于定义不同的产品形态。\n\u0026lt;product_flavors cmm_pf_var=\u0026quot;...\u0026quot;\u0026gt; 属性: cmm_pf_var 含义: 定义一个变量名，该变量用于在 CMM (常用于 Trace32 调试器) 脚本中存储当前选择的产品风味（Product Flavor）。构建系统会根据用户选择的风味（如 8155_la）为这个变量赋值。 3.2 \u0026lt;product_info\u0026gt; 区域 此区域提供构建的元数据信息。\n\u0026lt;chipid flavor=\u0026quot;...\u0026quot; cmm_var=\u0026quot;...\u0026quot;\u0026gt; 属性: flavor 含义: 建立产品风味与特定芯片 ID 之间的映射关系。这使得构建系统知道 8155_la 风味对应的是 SDM855 芯片。 属性: cmm_var 含义: 定义一个 CMM 脚本变量名。构建系统会将该标签的值赋给这个变量，供外部工具（尤其是 Trace32）使用。 3.3 \u0026lt;partition_info\u0026gt; 区域 此区域定义与分区操作相关的信息。\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "contents.xml 属性与字段说明文档 1. 文档引言 contents.xml 文件是高通（Qualcomm）平台 Meta-Build 系统的核心配置文件。它作为一个元构建清单 (Meta-Build Manifest)，以声明式 XML 的格式，精确定义了一个完整软件包从源代码到最终刷机包的所有环节。\n本说明文档旨在为开发者提供一份详尽的参考，解释 contents.xml 文件中各个 XML 标签、属性及字段的含义，帮助开发者理解、调试和定制复杂的构建流程。\n2. 顶层结构标签 contents.xml 由多个顶层标签构成，每个标签负责一部分核心功能。\n标签 含义 定义产品的不同“风味”或变种。 提供关于产品的元数据信息。 定义与分区操作相关的信息。 核心部分，定义所有独立软件组件的构建信息。 （可选）定义构建系统内部使用的工具。 声明构建或调试过程中依赖的外部工具。 定义构建完成后的自动化处理与打包流程。 3. 标签与属性详解 3.1 区域 此区域用于定义不同的产品形态。\n属性: cmm_pf_var 含义: 定义一个变量名，该变量用于在 CMM (常用于 Trace32 调试器) 脚本中存储当前选择的产品风味（Product Flavor）。构建系统会根据用户选择的风味（如 8155_la）为这个变量赋值。 3.2 区域 此区域提供构建的元数据信息。\n属性: flavor 含义: 建立产品风味与特定芯片 ID 之间的映射关系。这使得构建系统知道 8155_la 风味对应的是 SDM855 芯片。 属性: cmm_var 含义: 定义一个 CMM 脚本变量名。构建系统会将该标签的值赋给这个变量，供外部工具（尤其是 Trace32）使用。 3.3 区域 此区域定义与分区操作相关的信息。\n属性: fastboot_erase 含义: 一个布尔属性 (true/false)，用于告知 fastboot 刷机工具，在烧录此分区前是否应先执行擦除 (erase) 操作。 适用场景: 通常用于 modemst1, modemst2, fsg 等存储校准数据的分区，确保刷入新固件时不会被旧数据干扰。 3.4 区域 (核心) 这是文件最核心、最复杂的部分，定义了所有组件的详细构建信息。其下的 标签包含了丰富的子标签和属性。\n标签 定义需要烧录到设备的具体文件及其烧录规则。\n属性 含义 示例值 fastboot / fastboot_complete 指定 fastboot 模式下烧录的目标分区名。 boot_a backup_partition 在 A/B 系统中，指定主分区对应的备份分区名。 boot_b minimized 标记此文件是否属于“最小化构建”的一部分 (true/false)。 true ignore 如果为 true，构建系统在处理烧录任务时会忽略此文件。 true pil_split 标记该文件是用于 PIL 子系统的固件，需要被 pil-splitter.py 处理。 adsp sparse_image_path 标记该文件是一个稀疏镜像 (true/false)。 true gpt_file 用于多 LUN 存储，指示该 GPT 文件应用于哪个存储单元。 partition:0 cmm_file_var 为该文件在 CMM 脚本中定义一个变量名。 APPSBOOT_BINARY 标签 引用一个文件，该文件是构建过程的一部分，但不一定直接烧录。\n属性 含义 示例值 raw_partition 标记该 XML 文件是定义存储分区的“原始”配置文件 (true/false)。 true fat_file_* 模式匹配属性，标记该文件应被打包进一个 FAT 格式镜像中。 true *so_signed 标记该文件是需要特殊签名的动态库 (.so) (true/false)。 true 标签 定义用于 EDL 模式刷机的 Firehose 程序。\n属性 含义 示例值 firehose_type 指定 Firehose 程序的类型。 ddr, lite 3.5 区域 定义构建后期的自动化处理流程。\n属性: filter 含义: 步骤过滤器。构建系统可以按 filter 运行特定类别的步骤，如 partition, hlos, non_hlos。 属性: type 含义: 定义该步骤的操作类型，如 exec (执行), copy (复制), delete (删除)。 属性: storage_type 含义: 允许为不同的存储类型（如 ufs 或 emmc）定义不同的工作流步骤。 属性: flavor 含义: 限定此步骤仅在构建指定的产品风味时执行。 4. 总结 contents.xml 通过其丰富而精确的属性与字段集，为高通平台的复杂软件构建提供了强大的声明式控制能力。理解这些定义是掌握整个构建系统、进行高效开发和问题排查的基础。本文档旨在作为一份快速参考，帮助开发者清晰地认知其结构与含义。\n",
+  "wordCount" : "238",
+  "inLanguage": "en",
+  "datePublished": "2025-09-22T12:11:50+08:00",
+  "dateModified": "2025-09-22T12:11:50+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://ethen-cao.github.io/ethenslab/">Home</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/qnx/">QNX基础原理</a></div>
+    <h1 class="post-title entry-hint-parent">
+      contents.xml 属性与字段说明文档
+    </h1>
+    <div class="post-meta"><span title='2025-09-22 12:11:50 +0800 CST'>September 22, 2025</span>&nbsp;·&nbsp;2 min&nbsp;·&nbsp;238 words
+
+</div>
+  </header> 
+  <div class="post-content"><h2 id="contentsxml-属性与字段说明文档"><code>contents.xml</code> 属性与字段说明文档<a hidden class="anchor" aria-hidden="true" href="#contentsxml-属性与字段说明文档">#</a></h2>
+<h3 id="1-文档引言">1. 文档引言<a hidden class="anchor" aria-hidden="true" href="#1-文档引言">#</a></h3>
+<p><code>contents.xml</code> 文件是高通（Qualcomm）平台 Meta-Build 系统的核心配置文件。它作为一个<strong>元构建清单 (Meta-Build Manifest)</strong>，以声明式 XML 的格式，精确定义了一个完整软件包从源代码到最终刷机包的<strong>所有环节</strong>。</p>
+<p>本说明文档旨在为开发者提供一份详尽的参考，解释 <code>contents.xml</code> 文件中各个 XML 标签、属性及字段的含义，帮助开发者理解、调试和定制复杂的构建流程。</p>
+<hr>
+<h3 id="2-顶层结构标签">2. 顶层结构标签<a hidden class="anchor" aria-hidden="true" href="#2-顶层结构标签">#</a></h3>
+<p><code>contents.xml</code> 由多个顶层标签构成，每个标签负责一部分核心功能。</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">标签</th>
+          <th style="text-align: left">含义</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left"><code>&lt;product_flavors&gt;</code></td>
+          <td style="text-align: left">定义产品的不同“风味”或变种。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>&lt;product_info&gt;</code></td>
+          <td style="text-align: left">提供关于产品的元数据信息。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>&lt;partition_info&gt;</code></td>
+          <td style="text-align: left">定义与分区操作相关的信息。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>&lt;builds_flat&gt;</code></td>
+          <td style="text-align: left"><strong>核心部分</strong>，定义所有独立软件组件的构建信息。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>&lt;build_tools&gt;</code></td>
+          <td style="text-align: left">（可选）定义构建系统内部使用的工具。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>&lt;external_tools&gt;</code></td>
+          <td style="text-align: left">声明构建或调试过程中依赖的外部工具。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>&lt;workflow&gt;</code></td>
+          <td style="text-align: left">定义构建完成后的自动化处理与打包流程。</td>
+      </tr>
+  </tbody>
+</table>
+<hr>
+<h3 id="3-标签与属性详解">3. 标签与属性详解<a hidden class="anchor" aria-hidden="true" href="#3-标签与属性详解">#</a></h3>
+<h4 id="31"><strong>3.1 <code>&lt;product_flavors&gt;</code> 区域</strong><a hidden class="anchor" aria-hidden="true" href="#31">#</a></h4>
+<p>此区域用于定义不同的产品形态。</p>
+<ul>
+<li><strong><code>&lt;product_flavors cmm_pf_var=&quot;...&quot;&gt;</code></strong>
+<ul>
+<li><strong>属性</strong>: <code>cmm_pf_var</code></li>
+<li><strong>含义</strong>: 定义一个变量名，该变量用于在 CMM (常用于 Trace32 调试器) 脚本中存储当前选择的产品风味（Product Flavor）。构建系统会根据用户选择的风味（如 <code>8155_la</code>）为这个变量赋值。</li>
+</ul>
+</li>
+</ul>
+<h4 id="32"><strong>3.2 <code>&lt;product_info&gt;</code> 区域</strong><a hidden class="anchor" aria-hidden="true" href="#32">#</a></h4>
+<p>此区域提供构建的元数据信息。</p>
+<ul>
+<li><strong><code>&lt;chipid flavor=&quot;...&quot; cmm_var=&quot;...&quot;&gt;</code></strong>
+<ul>
+<li><strong>属性</strong>: <code>flavor</code></li>
+<li><strong>含义</strong>: 建立产品风味与特定芯片 ID 之间的映射关系。这使得构建系统知道 <code>8155_la</code> 风味对应的是 <code>SDM855</code> 芯片。</li>
+<li><strong>属性</strong>: <code>cmm_var</code></li>
+<li><strong>含义</strong>: 定义一个 CMM 脚本变量名。构建系统会将该标签的值赋给这个变量，供外部工具（尤其是 Trace32）使用。</li>
+</ul>
+</li>
+</ul>
+<h4 id="33"><strong>3.3 <code>&lt;partition_info&gt;</code> 区域</strong><a hidden class="anchor" aria-hidden="true" href="#33">#</a></h4>
+<p>此区域定义与分区操作相关的信息。</p>
+<ul>
+<li><strong><code>&lt;partition fastboot_erase=&quot;...&quot;&gt;</code></strong>
+<ul>
+<li><strong>属性</strong>: <code>fastboot_erase</code></li>
+<li><strong>含义</strong>: 一个布尔属性 (<code>true</code>/<code>false</code>)，用于告知 <code>fastboot</code> 刷机工具，在烧录此分区前是否应先执行擦除 (<code>erase</code>) 操作。</li>
+<li><strong>适用场景</strong>: 通常用于 <code>modemst1</code>, <code>modemst2</code>, <code>fsg</code> 等存储校准数据的分区，确保刷入新固件时不会被旧数据干扰。</li>
+</ul>
+</li>
+</ul>
+<h4 id="34"><strong>3.4 <code>&lt;builds_flat&gt;</code> 区域 (核心)</strong><a hidden class="anchor" aria-hidden="true" href="#34">#</a></h4>
+<p>这是文件最核心、最复杂的部分，定义了所有组件的详细构建信息。其下的 <code>&lt;build&gt;</code> 标签包含了丰富的子标签和属性。</p>
+<h5 id="download_file"><strong><code>&lt;download_file&gt;</code> 标签</strong><a hidden class="anchor" aria-hidden="true" href="#download_file">#</a></h5>
+<p>定义需要烧录到设备的具体文件及其烧录规则。</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">属性</th>
+          <th style="text-align: left">含义</th>
+          <th style="text-align: left">示例值</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left"><code>fastboot</code> / <code>fastboot_complete</code></td>
+          <td style="text-align: left">指定 <code>fastboot</code> 模式下烧录的目标分区名。</td>
+          <td style="text-align: left"><code>boot_a</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>backup_partition</code></td>
+          <td style="text-align: left">在 A/B 系统中，指定主分区对应的备份分区名。</td>
+          <td style="text-align: left"><code>boot_b</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>minimized</code></td>
+          <td style="text-align: left">标记此文件是否属于“最小化构建”的一部分 (<code>true</code>/<code>false</code>)。</td>
+          <td style="text-align: left"><code>true</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>ignore</code></td>
+          <td style="text-align: left">如果为 <code>true</code>，构建系统在处理烧录任务时会忽略此文件。</td>
+          <td style="text-align: left"><code>true</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>pil_split</code></td>
+          <td style="text-align: left">标记该文件是用于 PIL 子系统的固件，需要被 <code>pil-splitter.py</code> 处理。</td>
+          <td style="text-align: left"><code>adsp</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>sparse_image_path</code></td>
+          <td style="text-align: left">标记该文件是一个稀疏镜像 (<code>true</code>/<code>false</code>)。</td>
+          <td style="text-align: left"><code>true</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>gpt_file</code></td>
+          <td style="text-align: left">用于多 LUN 存储，指示该 GPT 文件应用于哪个存储单元。</td>
+          <td style="text-align: left"><code>partition:0</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>cmm_file_var</code></td>
+          <td style="text-align: left">为该文件在 CMM 脚本中定义一个变量名。</td>
+          <td style="text-align: left"><code>APPSBOOT_BINARY</code></td>
+      </tr>
+  </tbody>
+</table>
+<h5 id="file_ref"><strong><code>&lt;file_ref&gt;</code> 标签</strong><a hidden class="anchor" aria-hidden="true" href="#file_ref">#</a></h5>
+<p>引用一个文件，该文件是构建过程的一部分，但不一定直接烧录。</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">属性</th>
+          <th style="text-align: left">含义</th>
+          <th style="text-align: left">示例值</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left"><code>raw_partition</code></td>
+          <td style="text-align: left">标记该 XML 文件是定义存储分区的“原始”配置文件 (<code>true</code>/<code>false</code>)。</td>
+          <td style="text-align: left"><code>true</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>fat_file_*</code></td>
+          <td style="text-align: left">模式匹配属性，标记该文件应被打包进一个 FAT 格式镜像中。</td>
+          <td style="text-align: left"><code>true</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><code>*so_signed</code></td>
+          <td style="text-align: left">标记该文件是需要特殊签名的动态库 (<code>.so</code>) (<code>true</code>/<code>false</code>)。</td>
+          <td style="text-align: left"><code>true</code></td>
+      </tr>
+  </tbody>
+</table>
+<h5 id="device_programmer"><strong><code>&lt;device_programmer&gt;</code> 标签</strong><a hidden class="anchor" aria-hidden="true" href="#device_programmer">#</a></h5>
+<p>定义用于 EDL 模式刷机的 Firehose 程序。</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">属性</th>
+          <th style="text-align: left">含义</th>
+          <th style="text-align: left">示例值</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left"><code>firehose_type</code></td>
+          <td style="text-align: left">指定 Firehose 程序的类型。</td>
+          <td style="text-align: left"><code>ddr</code>, <code>lite</code></td>
+      </tr>
+  </tbody>
+</table>
+<hr>
+<h4 id="35"><strong>3.5 <code>&lt;workflow&gt;</code> 区域</strong><a hidden class="anchor" aria-hidden="true" href="#35">#</a></h4>
+<p>定义构建后期的自动化处理流程。</p>
+<ul>
+<li><strong><code>&lt;step filter=&quot;...&quot; type=&quot;...&quot; storage_type=&quot;...&quot; flavor=&quot;...&quot;&gt;</code></strong>
+<ul>
+<li><strong>属性</strong>: <code>filter</code></li>
+<li><strong>含义</strong>: 步骤过滤器。构建系统可以按 <code>filter</code> 运行特定类别的步骤，如 <code>partition</code>, <code>hlos</code>, <code>non_hlos</code>。</li>
+<li><strong>属性</strong>: <code>type</code></li>
+<li><strong>含义</strong>: 定义该步骤的操作类型，如 <code>exec</code> (执行), <code>copy</code> (复制), <code>delete</code> (删除)。</li>
+<li><strong>属性</strong>: <code>storage_type</code></li>
+<li><strong>含义</strong>: 允许为不同的存储类型（如 <code>ufs</code> 或 <code>emmc</code>）定义不同的工作流步骤。</li>
+<li><strong>属性</strong>: <code>flavor</code></li>
+<li><strong>含义</strong>: 限定此步骤仅在构建指定的产品风味时执行。</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3 id="4-总结">4. 总结<a hidden class="anchor" aria-hidden="true" href="#4-总结">#</a></h3>
+<p><code>contents.xml</code> 通过其丰富而精确的属性与字段集，为高通平台的复杂软件构建提供了强大的声明式控制能力。理解这些定义是掌握整个构建系统、进行高效开发和问题排查的基础。本文档旨在作为一份快速参考，帮助开发者清晰地认知其结构与含义。</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2025 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

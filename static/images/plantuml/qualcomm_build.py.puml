@@ -1,0 +1,72 @@
+@startuml
+' 设置Material风格，黑色字体
+!theme materia
+skinparam defaultFontName "sans-serif"
+skinparam defaultFontColor #000000
+skinparam shadowing false
+
+skinparam activity {
+  ArrowColor Black
+  BorderColor Black
+  BackgroundColor<<USER>> #FFDD99
+  BackgroundColor<<SCRIPT>> #99CCFF
+  BackgroundColor<<CONFIG>> #CCFFCC
+  BackgroundColor<<TOOL>> #FFBBBB
+  BackgroundColor<<OUTPUT>> #E6E6FA
+}
+
+title build.py 工作机制流程图
+
+|User/CI System|
+start
+:执行 `python build.py` 并传入参数
+(e.g., --nonhlos, --wflow_filter=...);
+note right
+  用户或自动化系统
+  触发构建流程
+end note
+
+|build.py|
+:初始化，解析命令行参数; <<SCRIPT>>
+
+:加载并解析 `contents.xml`; <<SCRIPT>>
+note left
+  使用 lib/meta_lib.py
+  将XML内容读入内存
+end note
+
+:创建版本信息文件 `Ver_Info.txt`; <<SCRIPT>>
+
+repeat
+  :读取 `<workflow>` 中的下一个 `<step>`; <<SCRIPT>>
+
+  if (步骤的 filter, flavor 等属性\n与命令行参数匹配?) then (yes)
+    :根据 `<step>` 的 `type` 属性\n(exec, copy, delete) 分派任务; <<SCRIPT>>
+
+    switch (step.type)
+    case ( exec )
+      :解析参数，调用外部工具脚本; <<TOOL>>
+      note right
+        例如: python ptool.py ...
+        或: python fat_creation.py ...
+      end note
+    case ( copy )
+      :执行文件/目录复制; <<SCRIPT>>
+    case ( delete )
+      :执行文件/目录删除; <<SCRIPT>>
+    endswitch
+  else (no)
+    :跳过此步骤;
+  endif
+repeat while (还有更多 `<step>`?) is (yes)
+
+:执行最终文件路径验证; <<SCRIPT>>
+note right
+  检查所有在 `contents.xml`
+  中声明的文件是否都已生成
+end note
+
+|User/CI System|
+:生成完整的刷机软件包; <<OUTPUT>>
+stop
+@enduml

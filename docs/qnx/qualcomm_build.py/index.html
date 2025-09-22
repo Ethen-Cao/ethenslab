@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>build.py 技术原理详解 | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="build.py 技术原理详解
+核心定位：声明式构建的执行引擎
+build.py 脚本是高通平台 Meta-Build 系统的核心自动化执行引擎。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的任务调度器和执行器。
+它的核心设计哲学是声明式驱动：开发者在 contents.xml 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 build.py 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。
+
+1. 输入 (Inputs)
+build.py 的正常运行依赖于以下几类输入：
+主要输入
+
+contents.xml: 这是最核心的输入，是整个构建过程的配置清单和指令集。build.py 的所有行为都由该文件驱动。
+
+次要输入
+
+命令行参数: 用户在执行脚本时传入的参数，用于控制脚本的行为模式。
+
+--nonhlos, --hlos: 过滤器，让脚本只执行与 NON-HLOS 或 HLOS 相关的任务。
+--wflow_filter=&lt;filter_name&gt;: 更精细的过滤器，让脚本只执行 &lt;workflow&gt; 中具有特定 filter 属性的步骤。
+--clean: 模式切换，让脚本执行清理任务而非构建任务。
+--imf: 模式切换，忽略文件路径验证。
+
+
+
+隐式输入
+
+各组件的编译产物: 脚本运行前，各个独立的软件模块（如 boot_images, tz_images, mpss, apps 等）必须已经完成各自的编译，并将其产物放置在 contents.xml 中指定的路径下。build.py 会去消费这些产物。
+配置文件: 如 partition_la.xml，它定义了分区布局，是生成 gpt_*.bin 和 rawprogram.xml 的输入源。
+
+
+2. 输出 (Outputs)
+脚本成功执行后，会生成一个结构化、可直接用于刷机的软件包。
+核心产物
+
+一个完整的、按产品风味（Flavor）和存储类型（Storage Type）组织的刷机包。
+
+具体文件清单
+
+刷机指令文件:
+
+rawprogram*.xml: 核心的 EDL 刷机脚本。
+patch*.xml: 动态修补脚本。
+
+
+分区表文件:
+
+gpt_*.bin: 二进制的 GUID 分区表文件。
+
+
+复合固件镜像:
+
+NON-HLOS.bin: 包含 Modem, aDSP, CDSP, WLAN 等固件的 FAT 格式镜像。
+BTFM.bin: 蓝牙固件镜像。
+dspso.bin: DSP 动态库镜像。
+
+
+签名与分割固件:
+
+multi_image.mbn: 经过安全签名的复合镜像。
+pil_split_bins/ 目录: 被 pil-splitter.py 分割后的固件，用于运行时加载。
+
+
+辅助与调试文件:
+
+Ver_Info.txt: JSON 格式的版本信息文件。
+gen_buildflavor.cmm: Trace32 调试器使用的脚本。
+
+
+
+
+3. 依赖 (Dependencies)
+build.py 的依赖可以分为四类：">
+<meta name="author" content="">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css" integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="build.py 技术原理详解">
+  <meta property="og:description" content="build.py 技术原理详解 核心定位：声明式构建的执行引擎 build.py 脚本是高通平台 Meta-Build 系统的核心自动化执行引擎。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的任务调度器和执行器。
+它的核心设计哲学是声明式驱动：开发者在 contents.xml 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 build.py 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。
+1. 输入 (Inputs) build.py 的正常运行依赖于以下几类输入：
+主要输入 contents.xml: 这是最核心的输入，是整个构建过程的配置清单和指令集。build.py 的所有行为都由该文件驱动。 次要输入 命令行参数: 用户在执行脚本时传入的参数，用于控制脚本的行为模式。 --nonhlos, --hlos: 过滤器，让脚本只执行与 NON-HLOS 或 HLOS 相关的任务。 --wflow_filter=&lt;filter_name&gt;: 更精细的过滤器，让脚本只执行 &lt;workflow&gt; 中具有特定 filter 属性的步骤。 --clean: 模式切换，让脚本执行清理任务而非构建任务。 --imf: 模式切换，忽略文件路径验证。 隐式输入 各组件的编译产物: 脚本运行前，各个独立的软件模块（如 boot_images, tz_images, mpss, apps 等）必须已经完成各自的编译，并将其产物放置在 contents.xml 中指定的路径下。build.py 会去消费这些产物。 配置文件: 如 partition_la.xml，它定义了分区布局，是生成 gpt_*.bin 和 rawprogram.xml 的输入源。 2. 输出 (Outputs) 脚本成功执行后，会生成一个结构化、可直接用于刷机的软件包。
+核心产物 一个完整的、按产品风味（Flavor）和存储类型（Storage Type）组织的刷机包。 具体文件清单 刷机指令文件: rawprogram*.xml: 核心的 EDL 刷机脚本。 patch*.xml: 动态修补脚本。 分区表文件: gpt_*.bin: 二进制的 GUID 分区表文件。 复合固件镜像: NON-HLOS.bin: 包含 Modem, aDSP, CDSP, WLAN 等固件的 FAT 格式镜像。 BTFM.bin: 蓝牙固件镜像。 dspso.bin: DSP 动态库镜像。 签名与分割固件: multi_image.mbn: 经过安全签名的复合镜像。 pil_split_bins/ 目录: 被 pil-splitter.py 分割后的固件，用于运行时加载。 辅助与调试文件: Ver_Info.txt: JSON 格式的版本信息文件。 gen_buildflavor.cmm: Trace32 调试器使用的脚本。 3. 依赖 (Dependencies) build.py 的依赖可以分为四类：">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="qnx">
+    <meta property="article:published_time" content="2025-09-22T12:11:50+08:00">
+    <meta property="article:modified_time" content="2025-09-22T12:11:50+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="build.py 技术原理详解">
+<meta name="twitter:description" content="build.py 技术原理详解
+核心定位：声明式构建的执行引擎
+build.py 脚本是高通平台 Meta-Build 系统的核心自动化执行引擎。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的任务调度器和执行器。
+它的核心设计哲学是声明式驱动：开发者在 contents.xml 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 build.py 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。
+
+1. 输入 (Inputs)
+build.py 的正常运行依赖于以下几类输入：
+主要输入
+
+contents.xml: 这是最核心的输入，是整个构建过程的配置清单和指令集。build.py 的所有行为都由该文件驱动。
+
+次要输入
+
+命令行参数: 用户在执行脚本时传入的参数，用于控制脚本的行为模式。
+
+--nonhlos, --hlos: 过滤器，让脚本只执行与 NON-HLOS 或 HLOS 相关的任务。
+--wflow_filter=&lt;filter_name&gt;: 更精细的过滤器，让脚本只执行 &lt;workflow&gt; 中具有特定 filter 属性的步骤。
+--clean: 模式切换，让脚本执行清理任务而非构建任务。
+--imf: 模式切换，忽略文件路径验证。
+
+
+
+隐式输入
+
+各组件的编译产物: 脚本运行前，各个独立的软件模块（如 boot_images, tz_images, mpss, apps 等）必须已经完成各自的编译，并将其产物放置在 contents.xml 中指定的路径下。build.py 会去消费这些产物。
+配置文件: 如 partition_la.xml，它定义了分区布局，是生成 gpt_*.bin 和 rawprogram.xml 的输入源。
+
+
+2. 输出 (Outputs)
+脚本成功执行后，会生成一个结构化、可直接用于刷机的软件包。
+核心产物
+
+一个完整的、按产品风味（Flavor）和存储类型（Storage Type）组织的刷机包。
+
+具体文件清单
+
+刷机指令文件:
+
+rawprogram*.xml: 核心的 EDL 刷机脚本。
+patch*.xml: 动态修补脚本。
+
+
+分区表文件:
+
+gpt_*.bin: 二进制的 GUID 分区表文件。
+
+
+复合固件镜像:
+
+NON-HLOS.bin: 包含 Modem, aDSP, CDSP, WLAN 等固件的 FAT 格式镜像。
+BTFM.bin: 蓝牙固件镜像。
+dspso.bin: DSP 动态库镜像。
+
+
+签名与分割固件:
+
+multi_image.mbn: 经过安全签名的复合镜像。
+pil_split_bins/ 目录: 被 pil-splitter.py 分割后的固件，用于运行时加载。
+
+
+辅助与调试文件:
+
+Ver_Info.txt: JSON 格式的版本信息文件。
+gen_buildflavor.cmm: Trace32 调试器使用的脚本。
+
+
+
+
+3. 依赖 (Dependencies)
+build.py 的依赖可以分为四类：">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "QNX基础原理",
+      "item": "https://ethen-cao.github.io/ethenslab/qnx/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "build.py 技术原理详解",
+      "item": "https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "build.py 技术原理详解",
+  "name": "build.py 技术原理详解",
+  "description": "build.py 技术原理详解 核心定位：声明式构建的执行引擎 build.py 脚本是高通平台 Meta-Build 系统的核心自动化执行引擎。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的任务调度器和执行器。\n它的核心设计哲学是声明式驱动：开发者在 contents.xml 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 build.py 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。\n1. 输入 (Inputs) build.py 的正常运行依赖于以下几类输入：\n主要输入 contents.xml: 这是最核心的输入，是整个构建过程的配置清单和指令集。build.py 的所有行为都由该文件驱动。 次要输入 命令行参数: 用户在执行脚本时传入的参数，用于控制脚本的行为模式。 --nonhlos, --hlos: 过滤器，让脚本只执行与 NON-HLOS 或 HLOS 相关的任务。 --wflow_filter=\u0026lt;filter_name\u0026gt;: 更精细的过滤器，让脚本只执行 \u0026lt;workflow\u0026gt; 中具有特定 filter 属性的步骤。 --clean: 模式切换，让脚本执行清理任务而非构建任务。 --imf: 模式切换，忽略文件路径验证。 隐式输入 各组件的编译产物: 脚本运行前，各个独立的软件模块（如 boot_images, tz_images, mpss, apps 等）必须已经完成各自的编译，并将其产物放置在 contents.xml 中指定的路径下。build.py 会去消费这些产物。 配置文件: 如 partition_la.xml，它定义了分区布局，是生成 gpt_*.bin 和 rawprogram.xml 的输入源。 2. 输出 (Outputs) 脚本成功执行后，会生成一个结构化、可直接用于刷机的软件包。\n核心产物 一个完整的、按产品风味（Flavor）和存储类型（Storage Type）组织的刷机包。 具体文件清单 刷机指令文件: rawprogram*.xml: 核心的 EDL 刷机脚本。 patch*.xml: 动态修补脚本。 分区表文件: gpt_*.bin: 二进制的 GUID 分区表文件。 复合固件镜像: NON-HLOS.bin: 包含 Modem, aDSP, CDSP, WLAN 等固件的 FAT 格式镜像。 BTFM.bin: 蓝牙固件镜像。 dspso.bin: DSP 动态库镜像。 签名与分割固件: multi_image.mbn: 经过安全签名的复合镜像。 pil_split_bins/ 目录: 被 pil-splitter.py 分割后的固件，用于运行时加载。 辅助与调试文件: Ver_Info.txt: JSON 格式的版本信息文件。 gen_buildflavor.cmm: Trace32 调试器使用的脚本。 3. 依赖 (Dependencies) build.py 的依赖可以分为四类：\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "build.py 技术原理详解 核心定位：声明式构建的执行引擎 build.py 脚本是高通平台 Meta-Build 系统的核心自动化执行引擎。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的任务调度器和执行器。\n它的核心设计哲学是声明式驱动：开发者在 contents.xml 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 build.py 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。\n1. 输入 (Inputs) build.py 的正常运行依赖于以下几类输入：\n主要输入 contents.xml: 这是最核心的输入，是整个构建过程的配置清单和指令集。build.py 的所有行为都由该文件驱动。 次要输入 命令行参数: 用户在执行脚本时传入的参数，用于控制脚本的行为模式。 --nonhlos, --hlos: 过滤器，让脚本只执行与 NON-HLOS 或 HLOS 相关的任务。 --wflow_filter=: 更精细的过滤器，让脚本只执行 中具有特定 filter 属性的步骤。 --clean: 模式切换，让脚本执行清理任务而非构建任务。 --imf: 模式切换，忽略文件路径验证。 隐式输入 各组件的编译产物: 脚本运行前，各个独立的软件模块（如 boot_images, tz_images, mpss, apps 等）必须已经完成各自的编译，并将其产物放置在 contents.xml 中指定的路径下。build.py 会去消费这些产物。 配置文件: 如 partition_la.xml，它定义了分区布局，是生成 gpt_*.bin 和 rawprogram.xml 的输入源。 2. 输出 (Outputs) 脚本成功执行后，会生成一个结构化、可直接用于刷机的软件包。\n核心产物 一个完整的、按产品风味（Flavor）和存储类型（Storage Type）组织的刷机包。 具体文件清单 刷机指令文件: rawprogram*.xml: 核心的 EDL 刷机脚本。 patch*.xml: 动态修补脚本。 分区表文件: gpt_*.bin: 二进制的 GUID 分区表文件。 复合固件镜像: NON-HLOS.bin: 包含 Modem, aDSP, CDSP, WLAN 等固件的 FAT 格式镜像。 BTFM.bin: 蓝牙固件镜像。 dspso.bin: DSP 动态库镜像。 签名与分割固件: multi_image.mbn: 经过安全签名的复合镜像。 pil_split_bins/ 目录: 被 pil-splitter.py 分割后的固件，用于运行时加载。 辅助与调试文件: Ver_Info.txt: JSON 格式的版本信息文件。 gen_buildflavor.cmm: Trace32 调试器使用的脚本。 3. 依赖 (Dependencies) build.py 的依赖可以分为四类：\n环境依赖: 一个能够运行脚本的 Python 环境。 文件依赖: contents.xml 必须存在且语法正确。 contents.xml 中引用的所有组件编译产物和配置文件必须存在于正确的路径。 模块依赖: 脚本同目录下的 lib/ 库，特别是 meta_lib.py，它提供了读写和解析 contents.xml 的核心功能。 工具依赖: contents.xml 的 中调用的所有外部工具必须存在，例如： ptool.py (用于处理分区) fat_creation.py, fatadd.py (用于创建 FAT 镜像) pil-splitter.py (用于分割 PIL 固件) sectools.py (用于安全签名) checksparse.py (用于处理稀疏镜像) 4. 具体工作流程 build.py 的工作流程严谨而清晰，可以概括为以下几个步骤：\n初始化与参数解析:\n脚本启动，首先使用 Python 的 OptionParser 模块解析用户传入的命令行参数（如 --nonhlos），确定本次运行的模式和过滤器。 加载配置清单:\n调用 lib/meta_lib.py 库，加载并解析 contents.xml 文件，将其内容读入内存，形成一个易于操作的数据对象（mi）。 预处理任务:\n创建输出目录结构（如 bin/8155_la, ufs/8155_la）。 从 mi 对象中读取所有组件的 build_id，生成 Ver_Info.txt 文件。 遍历并执行工作流 (核心):\n脚本定位到 contents.xml 中的 标签，并开始遍历其中的每一个 。 对于每一个 ： a. 过滤: 检查该步骤的 filter, flavor, storage_type 等属性是否与用户传入的命令行参数或当前环境匹配。如果不匹配，则跳过此步骤。 b. 分派: 根据步骤的 type 属性（exec, copy, delete），决定调用哪个内部处理函数（workflow_exec, workflow_copy 等）。 c. 执行: 对应的处理函数会： i. 解析 等标签中的变量（如 @tool_name, @src_file）。 ii. 准备好完整的命令行指令。 iii.调用 Python 的 subprocess 模块，执行该指令（例如 python ptool.py -x ...）。 后处理与验证:\n在所有匹配的工作流步骤执行完毕后，脚本会执行一次文件路径验证（除非被 --imf 禁用），确保 contents.xml 中声明的所有最终产物都已成功生成。 如果验证失败，脚本会报错并以失败状态退出。 5. 流程图 (PlantUML) 以下是使用 PlantUML 绘制的 build.py 工作机制流程图：\n@startuml ' 设置Material风格，黑色字体 !theme materia skinparam defaultFontName \"sans-serif\" skinparam defaultFontColor #000000 skinparam shadowing false skinparam activity { ArrowColor Black BorderColor Black BackgroundColor\u003c\u003e #FFDD99 BackgroundColor\u003c",
+  "wordCount" : "435",
+  "inLanguage": "en",
+  "datePublished": "2025-09-22T12:11:50+08:00",
+  "dateModified": "2025-09-22T12:11:50+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://ethen-cao.github.io/ethenslab/">Home</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/qnx/">QNX基础原理</a></div>
+    <h1 class="post-title entry-hint-parent">
+      build.py 技术原理详解
+    </h1>
+    <div class="post-meta"><span title='2025-09-22 12:11:50 +0800 CST'>September 22, 2025</span>&nbsp;·&nbsp;3 min&nbsp;·&nbsp;435 words
+
+</div>
+  </header> 
+  <div class="post-content"><h2 id="buildpy-技术原理详解"><code>build.py</code> 技术原理详解<a hidden class="anchor" aria-hidden="true" href="#buildpy-技术原理详解">#</a></h2>
+<h3 id="核心定位声明式构建的执行引擎">核心定位：声明式构建的执行引擎<a hidden class="anchor" aria-hidden="true" href="#核心定位声明式构建的执行引擎">#</a></h3>
+<p><code>build.py</code> 脚本是高通平台 Meta-Build 系统的核心<strong>自动化执行引擎</strong>。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的<strong>任务调度器和执行器</strong>。</p>
+<p>它的核心设计哲学是<strong>声明式驱动</strong>：开发者在 <code>contents.xml</code> 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 <code>build.py</code> 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。</p>
+<hr>
+<h3 id="1-输入-inputs">1. 输入 (Inputs)<a hidden class="anchor" aria-hidden="true" href="#1-输入-inputs">#</a></h3>
+<p><code>build.py</code> 的正常运行依赖于以下几类输入：</p>
+<h4 id="主要输入"><strong>主要输入</strong><a hidden class="anchor" aria-hidden="true" href="#主要输入">#</a></h4>
+<ul>
+<li><strong><code>contents.xml</code></strong>: 这是最核心的输入，是整个构建过程的<strong>配置清单和指令集</strong>。<code>build.py</code> 的所有行为都由该文件驱动。</li>
+</ul>
+<h4 id="次要输入"><strong>次要输入</strong><a hidden class="anchor" aria-hidden="true" href="#次要输入">#</a></h4>
+<ul>
+<li><strong>命令行参数</strong>: 用户在执行脚本时传入的参数，用于控制脚本的行为模式。
+<ul>
+<li><code>--nonhlos</code>, <code>--hlos</code>: 过滤器，让脚本只执行与 NON-HLOS 或 HLOS 相关的任务。</li>
+<li><code>--wflow_filter=&lt;filter_name&gt;</code>: 更精细的过滤器，让脚本只执行 <code>&lt;workflow&gt;</code> 中具有特定 <code>filter</code> 属性的步骤。</li>
+<li><code>--clean</code>: 模式切换，让脚本执行清理任务而非构建任务。</li>
+<li><code>--imf</code>: 模式切换，忽略文件路径验证。</li>
+</ul>
+</li>
+</ul>
+<h4 id="隐式输入"><strong>隐式输入</strong><a hidden class="anchor" aria-hidden="true" href="#隐式输入">#</a></h4>
+<ul>
+<li><strong>各组件的编译产物</strong>: 脚本运行前，各个独立的软件模块（如 <code>boot_images</code>, <code>tz_images</code>, <code>mpss</code>, <code>apps</code> 等）必须已经完成各自的编译，并将其产物放置在 <code>contents.xml</code> 中指定的路径下。<code>build.py</code> 会去消费这些产物。</li>
+<li><strong>配置文件</strong>: 如 <code>partition_la.xml</code>，它定义了分区布局，是生成 <code>gpt_*.bin</code> 和 <code>rawprogram.xml</code> 的输入源。</li>
+</ul>
+<hr>
+<h3 id="2-输出-outputs">2. 输出 (Outputs)<a hidden class="anchor" aria-hidden="true" href="#2-输出-outputs">#</a></h3>
+<p>脚本成功执行后，会生成一个结构化、可直接用于刷机的软件包。</p>
+<h4 id="核心产物"><strong>核心产物</strong><a hidden class="anchor" aria-hidden="true" href="#核心产物">#</a></h4>
+<ul>
+<li>一个<strong>完整的、按产品风味（Flavor）和存储类型（Storage Type）组织的刷机包</strong>。</li>
+</ul>
+<h4 id="具体文件清单"><strong>具体文件清单</strong><a hidden class="anchor" aria-hidden="true" href="#具体文件清单">#</a></h4>
+<ul>
+<li><strong>刷机指令文件</strong>:
+<ul>
+<li><code>rawprogram*.xml</code>: 核心的 EDL 刷机脚本。</li>
+<li><code>patch*.xml</code>: 动态修补脚本。</li>
+</ul>
+</li>
+<li><strong>分区表文件</strong>:
+<ul>
+<li><code>gpt_*.bin</code>: 二进制的 GUID 分区表文件。</li>
+</ul>
+</li>
+<li><strong>复合固件镜像</strong>:
+<ul>
+<li><code>NON-HLOS.bin</code>: 包含 Modem, aDSP, CDSP, WLAN 等固件的 FAT 格式镜像。</li>
+<li><code>BTFM.bin</code>: 蓝牙固件镜像。</li>
+<li><code>dspso.bin</code>: DSP 动态库镜像。</li>
+</ul>
+</li>
+<li><strong>签名与分割固件</strong>:
+<ul>
+<li><code>multi_image.mbn</code>: 经过安全签名的复合镜像。</li>
+<li><code>pil_split_bins/</code> 目录: 被 <code>pil-splitter.py</code> 分割后的固件，用于运行时加载。</li>
+</ul>
+</li>
+<li><strong>辅助与调试文件</strong>:
+<ul>
+<li><code>Ver_Info.txt</code>: JSON 格式的版本信息文件。</li>
+<li><code>gen_buildflavor.cmm</code>: Trace32 调试器使用的脚本。</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3 id="3-依赖-dependencies">3. 依赖 (Dependencies)<a hidden class="anchor" aria-hidden="true" href="#3-依赖-dependencies">#</a></h3>
+<p><code>build.py</code> 的依赖可以分为四类：</p>
+<ul>
+<li><strong>环境依赖</strong>:
+<ul>
+<li>一个能够运行脚本的 <strong>Python 环境</strong>。</li>
+</ul>
+</li>
+<li><strong>文件依赖</strong>:
+<ul>
+<li><strong><code>contents.xml</code></strong> 必须存在且语法正确。</li>
+<li><code>contents.xml</code> 中引用的所有<strong>组件编译产物</strong>和<strong>配置文件</strong>必须存在于正确的路径。</li>
+</ul>
+</li>
+<li><strong>模块依赖</strong>:
+<ul>
+<li>脚本同目录下的 <strong><code>lib/</code> 库</strong>，特别是 <code>meta_lib.py</code>，它提供了读写和解析 <code>contents.xml</code> 的核心功能。</li>
+</ul>
+</li>
+<li><strong>工具依赖</strong>:
+<ul>
+<li><code>contents.xml</code> 的 <code>&lt;workflow&gt;</code> 中调用的所有<strong>外部工具</strong>必须存在，例如：
+<ul>
+<li><code>ptool.py</code> (用于处理分区)</li>
+<li><code>fat_creation.py</code>, <code>fatadd.py</code> (用于创建 FAT 镜像)</li>
+<li><code>pil-splitter.py</code> (用于分割 PIL 固件)</li>
+<li><code>sectools.py</code> (用于安全签名)</li>
+<li><code>checksparse.py</code> (用于处理稀疏镜像)</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3 id="4-具体工作流程">4. 具体工作流程<a hidden class="anchor" aria-hidden="true" href="#4-具体工作流程">#</a></h3>
+<p><code>build.py</code> 的工作流程严谨而清晰，可以概括为以下几个步骤：</p>
+<ol>
+<li>
+<p><strong>初始化与参数解析</strong>:</p>
+<ul>
+<li>脚本启动，首先使用 Python 的 <code>OptionParser</code> 模块解析用户传入的命令行参数（如 <code>--nonhlos</code>），确定本次运行的模式和过滤器。</li>
+</ul>
+</li>
+<li>
+<p><strong>加载配置清单</strong>:</p>
+<ul>
+<li>调用 <code>lib/meta_lib.py</code> 库，加载并解析 <code>contents.xml</code> 文件，将其内容读入内存，形成一个易于操作的数据对象（<code>mi</code>）。</li>
+</ul>
+</li>
+<li>
+<p><strong>预处理任务</strong>:</p>
+<ul>
+<li>创建输出目录结构（如 <code>bin/8155_la</code>, <code>ufs/8155_la</code>）。</li>
+<li>从 <code>mi</code> 对象中读取所有组件的 <code>build_id</code>，生成 <code>Ver_Info.txt</code> 文件。</li>
+</ul>
+</li>
+<li>
+<p><strong>遍历并执行工作流 (核心)</strong>:</p>
+<ul>
+<li>脚本定位到 <code>contents.xml</code> 中的 <code>&lt;workflow&gt;</code> 标签，并开始遍历其中的每一个 <code>&lt;step&gt;</code>。</li>
+<li><strong>对于每一个 <code>&lt;step&gt;</code></strong>：
+a. <strong>过滤</strong>: 检查该步骤的 <code>filter</code>, <code>flavor</code>, <code>storage_type</code> 等属性是否与用户传入的命令行参数或当前环境匹配。如果不匹配，则跳过此步骤。
+b. <strong>分派</strong>: 根据步骤的 <code>type</code> 属性（<code>exec</code>, <code>copy</code>, <code>delete</code>），决定调用哪个内部处理函数（<code>workflow_exec</code>, <code>workflow_copy</code> 等）。
+c. <strong>执行</strong>: 对应的处理函数会：
+i.  解析 <code>&lt;params&gt;</code> 等标签中的变量（如 <code>@tool_name</code>, <code>@src_file</code>）。
+ii. 准备好完整的命令行指令。
+iii.调用 Python 的 <code>subprocess</code> 模块，执行该指令（例如 <code>python ptool.py -x ...</code>）。</li>
+</ul>
+</li>
+<li>
+<p><strong>后处理与验证</strong>:</p>
+<ul>
+<li>在所有匹配的工作流步骤执行完毕后，脚本会执行一次文件路径验证（除非被 <code>--imf</code> 禁用），确保 <code>contents.xml</code> 中声明的所有最终产物都已成功生成。</li>
+<li>如果验证失败，脚本会报错并以失败状态退出。</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h3 id="5-流程图-plantuml">5. 流程图 (PlantUML)<a hidden class="anchor" aria-hidden="true" href="#5-流程图-plantuml">#</a></h3>
+<p>以下是使用 PlantUML 绘制的 <code>build.py</code> 工作机制流程图：</p>
+<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml
+&#39; 设置Material风格，黑色字体
+!theme materia
+skinparam defaultFontName &#34;sans-serif&#34;
+skinparam defaultFontColor #000000
+skinparam shadowing false
+
+skinparam activity {
+  ArrowColor Black
+  BorderColor Black
+  BackgroundColor&lt;&lt;USER&gt;&gt; #FFDD99
+  BackgroundColor&lt;&lt;SCRIPT&gt;&gt; #99CCFF
+  BackgroundColor&lt;&lt;CONFIG&gt;&gt; #CCFFCC
+  BackgroundColor&lt;&lt;TOOL&gt;&gt; #FFBBBB
+  BackgroundColor&lt;&lt;OUTPUT&gt;&gt; #E6E6FA
+}
+
+title build.py 工作机制流程图
+
+|User/CI System|
+start
+:执行 `python build.py` 并传入参数
+(e.g., --nonhlos, --wflow_filter=...);
+note right
+  用户或自动化系统
+  触发构建流程
+end note
+
+|build.py|
+:初始化，解析命令行参数; &lt;&lt;SCRIPT&gt;&gt;
+
+:加载并解析 `contents.xml`; &lt;&lt;SCRIPT&gt;&gt;
+note left
+  使用 lib/meta_lib.py
+  将XML内容读入内存
+end note
+
+:创建版本信息文件 `Ver_Info.txt`; &lt;&lt;SCRIPT&gt;&gt;
+
+repeat
+  :读取 `&lt;workflow&gt;` 中的下一个 `&lt;step&gt;`; &lt;&lt;SCRIPT&gt;&gt;
+
+  if (步骤的 filter, flavor 等属性\n与命令行参数匹配?) then (yes)
+    :根据 `&lt;step&gt;` 的 `type` 属性\n(exec, copy, delete) 分派任务; &lt;&lt;SCRIPT&gt;&gt;
+
+    switch (step.type)
+    case ( exec )
+      :解析参数，调用外部工具脚本; &lt;&lt;TOOL&gt;&gt;
+      note right
+        例如: python ptool.py ...
+        或: python fat_creation.py ...
+      end note
+    case ( copy )
+      :执行文件/目录复制; &lt;&lt;SCRIPT&gt;&gt;
+    case ( delete )
+      :执行文件/目录删除; &lt;&lt;SCRIPT&gt;&gt;
+    endswitch
+  else (no)
+    :跳过此步骤;
+  endif
+repeat while (还有更多 `&lt;step&gt;`?) is (yes)
+
+:执行最终文件路径验证; &lt;&lt;SCRIPT&gt;&gt;
+note right
+  检查所有在 `contents.xml`
+  中声明的文件是否都已生成
+end note
+
+|User/CI System|
+:生成完整的刷机软件包; &lt;&lt;OUTPUT&gt;&gt;
+stop
+@enduml
+</code></pre><hr>
+<h3 id="6-其他关键点">6. 其他关键点<a hidden class="anchor" aria-hidden="true" href="#6-其他关键点">#</a></h3>
+<h4 id="常用命令行参数"><strong>常用命令行参数</strong><a hidden class="anchor" aria-hidden="true" href="#常用命令行参数">#</a></h4>
+<ul>
+<li><code>build.py --nonhlos</code>: 仅打包 <code>NON-HLOS.bin</code> 及相关固件，速度快，常用于底层固件开发。</li>
+<li><code>build.py --hlos</code>: 仅处理 <code>system</code>, <code>userdata</code> 等高层系统的镜像，如进行稀疏镜像转换。</li>
+<li><code>build.py</code>: 不带参数，执行所有工作流步骤，进行一次完整的打包。</li>
+<li><code>build.py --clean</code>: 清理 <code>bin/</code> 和 <code>ufs/</code> 目录中所有生成的文件，用于重新构建。</li>
+</ul>
+<h4 id="如何定制与调试"><strong>如何定制与调试</strong><a hidden class="anchor" aria-hidden="true" href="#如何定制与调试">#</a></h4>
+<ul>
+<li><strong>核心原则</strong>: <strong>永远不要直接修改 <code>build.py</code></strong>。它的通用性保证了其稳定性。所有的定制化需求都应该通过修改 <code>contents.xml</code> 来实现。</li>
+<li><strong>添加新固件</strong>: 要将一个新的固件（如 <code>new_fw.bin</code>）打包进 <code>NON-HLOS.bin</code>，只需在 <code>contents.xml</code> 的 <code>&lt;build&gt;</code> 部分添加一个指向该文件的 <code>&lt;file_ref fat_file_*=&quot;true&quot;&gt;</code> 标签即可。</li>
+<li><strong>调试技巧</strong>: 如果某个步骤失败，<code>build.py</code> 的日志会打印出它尝试执行的确切命令行。可以将该命令复制出来手动执行，以排查是工具本身的问题还是参数问题。</li>
+</ul>
+<h3 id="总结">总结<a hidden class="anchor" aria-hidden="true" href="#总结">#</a></h3>
+<p><code>build.py</code> 是一个设计精良的自动化脚本，它通过将**“做什么”（What）<strong>与</strong>“怎么做”（How）**彻底分离，实现了高度的灵活性和可维护性。开发者通过编写声明式的 <code>contents.xml</code> 来定义需求（What），而 <code>build.py</code> 则负责高效、可靠地执行这些需求（How），最终将复杂的软件组件整合成一个统一、规范的交付产物。</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2025 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>
