@@ -751,4 +751,8 @@ run():45, UiThread (com.android.server), UiThread.java
 
 ---
 
+## WMShell
+
+![](/ethenslab/images/WindowAnimation.png)
+
 

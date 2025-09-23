@@ -1,0 +1,117 @@
+@startuml
+title Refined App Launch Animation Sequence (with BLAST Sync)
+
+' Style settings based on user preference
+!theme materia
+skinparam defaultFontColor #000000
+skinparam sequenceMessageAlign center
+skinparam roundcorner 10
+
+skinparam participant {
+    BackgroundColor LightBlue
+    BorderColor Blue
+}
+skinparam actor {
+    BackgroundColor LightGreen
+    BorderColor Green
+}
+
+actor User
+
+box "Application Space" #LightGray
+    participant Launcher
+end box
+
+box "System Server (WMS/ATMS)" #AliceBlue
+    participant ATMS as "ActivityTaskManagerService"
+    participant WMS as "WindowManagerService"
+    participant WindowState as "WindowState\n(in WMS)"
+    participant WindowAnimator as "WindowAnimator\n(in WMS)"
+end box
+
+box "SystemUI Process" #LightYellow
+    participant SystemUI as "SystemUI (WMShell)"
+    participant ValueAnimator as "ValueAnimator\n(in SystemUI)"
+end box
+
+box "Native Compositor (SurfaceFlinger Process)" #MistyRose
+    participant SurfaceFlinger as "SurfaceFlinger"
+end box
+
+autonumber "<b>[0]"
+
+== 1. Initiation Phase ==
+User -> Launcher: Taps App Icon
+activate Launcher
+Launcher -> ATMS: startActivity(intent)
+deactivate Launcher
+activate ATMS
+
+ATMS -> WMS: prepareAppTransition(...)
+activate WMS
+WMS -> WMS: Create a `Transition` object to track state.
+WMS -> WMS: **Create BLAST Sync ID for this transition.**
+note right: 这是用于同步 WMS 和 Shell 事务的关键。
+WMS -> WindowState: Identify involved `WindowState`s\n(e.g., Launcher, new App)
+WMS -> WindowState: **Mark these `WindowState`s as controlled by shell.**
+note right of WindowState: This prevents WindowAnimator\nfrom applying legacy animations.
+WMS -> WindowState: Get `SurfaceControl` handles for these windows.
+
+== 2. Orchestration & Delegation ==
+WMS -> SystemUI: requestTransition(transition, surfaceControls, syncId)
+deactivate WMS
+activate SystemUI
+SystemUI -> ValueAnimator: new ValueAnimator(...)
+SystemUI -> ValueAnimator: addUpdateListener(...)
+note left of SystemUI: The listener will build a transaction\n with `setAlpha`, `setPosition` etc.
+SystemUI -> ValueAnimator: start()
+activate ValueAnimator
+
+== 3. VSYNC-Driven Animation Loop (Concurrent Execution) ==
+loop For each VSYNC frame (~16ms)
+    ... VSYNC Signal Triggers Frame Update ...
+
+    par **SystemUI Animator Updates**
+        ValueAnimator -> SystemUI: onAnimationUpdate(animation)
+        activate SystemUI
+        SystemUI -> SystemUI: Build a local `shellTransaction`\nwith new surface properties.
+        SystemUI -> SurfaceFlinger: **submitTransaction(shellTransaction, syncId)**
+        note right of SystemUI: 非阻塞提交事务，等待与 WMS 的事务同步。
+        deactivate SystemUI
+    else **WMS Animator Loop (Legacy & Sync)**
+        activate WindowAnimator
+        WindowAnimator -> WMS: animate(...)
+        loop for each WindowState ws
+            alt ws is **NOT** controlled by shell
+                WindowAnimator -> ws: Calculate legacy animation step.
+                WindowAnimator -> WindowAnimator: Add changes to `wmTransaction`.
+            end
+        end
+        WMS -> SurfaceFlinger: **submitTransaction(wmTransaction, syncId)**
+        note right of WMS: WMS 提交自己的事务，使用相同的 syncId。
+        deactivate WindowAnimator
+    end
+
+    ' --- Synchronization Point at SurfaceFlinger ---
+    activate SurfaceFlinger
+    SurfaceFlinger -> SurfaceFlinger: Waits for all transactions with the same `syncId`.
+    SurfaceFlinger -> SurfaceFlinger: **Atomically merges** `shellTransaction`, `wmTransaction`,\n and any others, then composites the final frame.
+    deactivate SurfaceFlinger
+end
+
+== 4. Completion Phase ==
+... Animators finish after ~300ms ...
+ValueAnimator -> SystemUI: onAnimationEnd()
+deactivate ValueAnimator
+
+SystemUI -> WMS: finishTransition(transition)
+deactivate SystemUI
+activate WMS
+WMS -> WindowState: **Unmark `WindowState`s as controlled by shell.**
+note right of WindowState: Control is returned to WMS.
+WMS -> WindowState: Update final logical properties\n(e.g., visibility=HIDDEN).
+WMS -> WMS: Clean up `Transition` object.
+deactivate WMS
+deactivate ATMS
+
+@enduml
