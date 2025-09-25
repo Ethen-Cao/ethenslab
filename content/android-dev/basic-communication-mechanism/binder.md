@@ -77,7 +77,7 @@ Binder 驱动对同步和异步消息的内存管理，遵循“**统一物理�
 
 以下是导致 oneway Binder 调用失败的主要原因，从最常见到最少见排列：
 
-### 1\. 目标进程（B进程）不存在或已死亡
+### 1. 目标进程（B进程）不存在或已死亡
 
 这是最常见的原因。如果 B 进程由于崩溃、被系统杀死（例如，低内存时）或者正常退出，而 A 进程仍然持有一个指向 B 进程服务的 Binder 代理对象，那么当 A 进程尝试通过这个代理发送消息时，Binder 驱动会发现目标进程已经不存在了。
 
@@ -105,7 +105,7 @@ Binder 驱动对同步和异步消息的内存管理，遵循“**统一物理�
     mService.asBinder().linkToDeath(mDeathRecipient, 0);
     ```
 
-### 2\. Binder 事务缓冲区已满
+### 2. Binder 事务缓冲区已满
 
 Binder 通信依赖于一块内核管理的共享内存作为缓冲区。虽然 oneway 调用不需要等待 B 进程处理完，但它仍然需要将数据（方法标识符和参数）从 A 进程复制到这个内核缓冲区。
 
@@ -116,7 +116,7 @@ Binder 通信依赖于一块内核管理的共享内存作为缓冲区。虽然 
       * 使用 `adb shell dumpsys binder` 或 `adb shell cat /sys/kernel/debug/binder/stats` 查看 Binder 的统计信息，关注失败的事务（failed transactions）数量。
       * 检查 B 进程是否有 ANR（Application Not Responding），如果 B 进程的主线程或 Binder 线程池被阻塞，它就无法及时处理收到的事务，导致缓冲区堆积。
 
-### 3\. 事务数据过大
+### 3. 事务数据过大
 
 Binder 事务能够承载的数据量是有限的，这个限制通常是 1MB 左右（实际上是整个 Binder 缓冲区的一部分）。如果你尝试在 oneway 调用中传递一个非常大的对象（例如一个巨大的 Bitmap 或 List），超过了这个限制，事务在发送阶段就会失败。
 
@@ -125,7 +125,7 @@ Binder 事务能够承载的数据量是有限的，这个限制通常是 1MB �
       * 在 Logcat 中直接搜索 `TransactionTooLargeException`。
       * 检查你通过 oneway 调用传递的数据大小。如果是图片或文件，应考虑使用其他 IPC 方式，如共享内存（Ashmem）或文件描述符（File Descriptor）。
 
-### 4\. 目标进程（B进程）无响应 (ANR)
+### 4. 目标进程（B进程）无响应 (ANR)
 
 即使 B 进程还活着，但如果它的 Binder 线程池中的所有线程都被长时间运行的任务占用了，或者主线程发生了 ANR，那么它就无法处理新的 Binder 请求。这会间接导致第 2 点中提到的“Binder 事务缓冲区已满”问题。ANR问题可能导致线程阻塞，间接导致异步线程处理能力下降。
 
@@ -133,7 +133,7 @@ Binder 事务能够承载的数据量是有限的，这个限制通常是 1MB �
 
   * **如何排查**: 在 `/data/anr/traces.txt` 文件中查找 B 进程的 ANR 日志，分析其线程堆栈，看 Binder 线程是否被卡住。
 
-### 5\. SELinux 权限问题
+### 5. SELinux 权限问题
 
 在现代 Android 系统中，SELinux（安全增强型 Linux）对进程间的通信有严格的访问控制。如果 A 进程的 SELinux 上下文没有被授予向 B 进程的服务发起 Binder 调用的权限，那么这个调用在内核层面就会被拒绝。
 
