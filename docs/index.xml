@@ -6,8 +6,30 @@
     <description>Recent content on Ethen 的实验室</description>
     <generator>Hugo -- 0.150.1</generator>
     <language>en</language>
-    <lastBuildDate>Mon, 22 Sep 2025 12:11:50 +0800</lastBuildDate>
+    <lastBuildDate>Sat, 27 Sep 2025 17:17:50 +0800</lastBuildDate>
     <atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>repo基础知识</title>
+      <link>https://ethen-cao.github.io/ethenslab/others/repo-%E5%9F%BA%E7%A1%80/</link>
+      <pubDate>Sat, 27 Sep 2025 17:17:50 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/others/repo-%E5%9F%BA%E7%A1%80/</guid>
+      <description>&lt;h2 id=&#34;基础概念&#34;&gt;基础概念&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 &lt;strong&gt;Manifest 仓库&lt;/strong&gt;获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;Gerrit：Gerrit 是一个代码审核服务器，通常作为 Git 仓库的代理层（proxy）。它不仅托管代码仓库，还提供代码审核功能（如 Code Review、Verified 分数）。在实际操作中，开发者的 repo sync 请求会通过 Gerrit 获取代码，而不是直接访问原始 Git 仓库。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;repo命令的含义：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;repo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;这行命令是使用 &lt;code&gt;repo&lt;/code&gt; 工具来初始化一个代码仓库的本地工作区。&lt;code&gt;repo&lt;/code&gt; 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。
+简单来说，这条命令的意思是：&lt;strong&gt;准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 &lt;code&gt;dev_rc16_3.1_20250730&lt;/code&gt;，同时使用 &lt;code&gt;qssi.xml&lt;/code&gt; 这个配置文件来决定具体下载哪些代码模块。&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;下面我们来逐段分解这个命令：&lt;/p&gt;</description>
+    </item>
     <item>
       <title>build.py 技术原理详解</title>
       <link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link>
@@ -1129,27 +1151,41 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;p&gt;应用程序使用像 OpenGL ES 这样的标准图形 API 来描述要绘制的内容（例如按钮、仪表盘、3D 模型等）。这些 API 调用定义了图元的形状、纹理和颜色。&lt;/p&gt;</description>
     </item>
     <item>
-      <title>软件开发、发布流水线</title>
+      <title>智能座舱软件开发 CI/CD 流程技术说明文档</title>
       <link>https://ethen-cao.github.io/ethenslab/others/ci-cd/</link>
       <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
       <guid>https://ethen-cao.github.io/ethenslab/others/ci-cd/</guid>
-      <description>&lt;h2 id=&#34;整体流程&#34;&gt;整体流程&lt;/h2&gt;
+      <description>&lt;h2 id=&#34;1-概述&#34;&gt;&lt;strong&gt;1. 概述&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;核心组件:&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;版本控制与代码审查&lt;/strong&gt;: Git, Repo, Gerrit&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;持续集成/持续交付 (CI/CD)&lt;/strong&gt;: Jenkins&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;质量管理&lt;/strong&gt;: SonarQube&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;制品库管理&lt;/strong&gt;: JFrog Artifactory&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;测试平台&lt;/strong&gt;: HIL (硬件在环) / SIL (软件在环)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;部署与发布&lt;/strong&gt;: OTA 服务器, TSP (车载信息服务提供商) 服务器&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;2-详细流程与技术实现原理&#34;&gt;&lt;strong&gt;2. 详细流程与技术实现原理&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/Intelligent-cabin-software-development-and-release-process.png&#34;&gt;&lt;/p&gt;
-&lt;h2 id=&#34;基础概念&#34;&gt;基础概念&lt;/h2&gt;
+&lt;h3 id=&#34;阶段-1--2-开发者工作流&#34;&gt;&lt;strong&gt;阶段 1 &amp;amp; 2: 开发者工作流&lt;/strong&gt;&lt;/h3&gt;
+&lt;p&gt;此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 &lt;strong&gt;Manifest 仓库&lt;/strong&gt;获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;Gerrit：Gerrit 是一个代码审核服务器，通常作为 Git 仓库的代理层（proxy）。它不仅托管代码仓库，还提供代码审核功能（如 Code Review、Verified 分数）。在实际操作中，开发者的 repo sync 请求会通过 Gerrit 获取代码，而不是直接访问原始 Git 仓库。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;repo命令的含义：&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;[00] &lt;code&gt;repo init&lt;/code&gt; 获取项目清单&lt;/strong&gt;:&lt;/p&gt;
 &lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;技术原理&lt;/strong&gt;: &lt;code&gt;repo&lt;/code&gt; 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。&lt;code&gt;repo init&lt;/code&gt; 命令的核心是克隆一个特殊的 &lt;strong&gt;Manifest 仓库&lt;/strong&gt;。该仓库包含一个 &lt;code&gt;manifest.xml&lt;/code&gt; 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（&lt;code&gt;&amp;lt;project&amp;gt;&lt;/code&gt;）、在哪个路径（&lt;code&gt;path&lt;/code&gt;）、以及使用哪个分支或 Tag（&lt;code&gt;revision&lt;/code&gt;）组成。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;code&gt;repo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;这行命令是使用 &lt;code&gt;repo&lt;/code&gt; 工具来初始化一个代码仓库的本地工作区。&lt;code&gt;repo&lt;/code&gt; 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。
-简单来说，这条命令的意思是：&lt;strong&gt;准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 &lt;code&gt;dev_rc16_3.1_20250730&lt;/code&gt;，同时使用 &lt;code&gt;qssi.xml&lt;/code&gt; 这个配置文件来决定具体下载哪些代码模块。&lt;/strong&gt;&lt;/p&gt;</description>
+&lt;p&gt;&lt;strong&gt;[01] &lt;code&gt;repo sync&lt;/code&gt; 同步所有源码&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;技术原理&lt;/strong&gt;: &lt;code&gt;repo&lt;/code&gt; 工具解析 &lt;code&gt;manifest.xml&lt;/code&gt; 文件，然后以极高的并发度（可配置）为每个 &lt;code&gt;&amp;lt;project&amp;gt;&lt;/code&gt; 执行 &lt;code&gt;git clone&lt;/code&gt; 或 &lt;code&gt;git fetch&lt;/code&gt; 操作。在我们的流程中，所有 Git 仓库都由 &lt;strong&gt;Gerrit&lt;/strong&gt; 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;[02] &lt;code&gt;repo start &amp;amp; git commit&lt;/code&gt; 本地开发&lt;/strong&gt;:&lt;/p&gt;</description>
     </item>
     <item>
       <title>WindowManagerService 解析</title>
