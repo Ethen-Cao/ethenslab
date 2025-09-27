@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>软件开发、发布流水线 | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="基础概念
+
+
+Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 Manifest 仓库获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。
+
+
+Gerrit：Gerrit 是一个代码审核服务器，通常作为 Git 仓库的代理层（proxy）。它不仅托管代码仓库，还提供代码审核功能（如 Code Review、Verified 分数）。在实际操作中，开发者的 repo sync 请求会通过 Gerrit 获取代码，而不是直接访问原始 Git 仓库。
+
+
+repo命令的含义：
+
+
+repo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml
+这行命令是使用 repo 工具来初始化一个代码仓库的本地工作区。repo 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。
+简单来说，这条命令的意思是：准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 dev_rc16_3.1_20250730，同时使用 qssi.xml 这个配置文件来决定具体下载哪些代码模块。
+下面我们来逐段分解这个命令：">
+<meta name="author" content="">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/others/ci-cd/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css" integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/others/ci-cd/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/others/ci-cd/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="软件开发、发布流水线">
+  <meta property="og:description" content="基础概念 Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 Manifest 仓库获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。
+Gerrit：Gerrit 是一个代码审核服务器，通常作为 Git 仓库的代理层（proxy）。它不仅托管代码仓库，还提供代码审核功能（如 Code Review、Verified 分数）。在实际操作中，开发者的 repo sync 请求会通过 Gerrit 获取代码，而不是直接访问原始 Git 仓库。
+repo命令的含义：
+repo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml
+这行命令是使用 repo 工具来初始化一个代码仓库的本地工作区。repo 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。 简单来说，这条命令的意思是：准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 dev_rc16_3.1_20250730，同时使用 qssi.xml 这个配置文件来决定具体下载哪些代码模块。
+下面我们来逐段分解这个命令：">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="others">
+    <meta property="article:published_time" content="2025-08-03T17:17:50+08:00">
+    <meta property="article:modified_time" content="2025-08-03T17:17:50+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="软件开发、发布流水线">
+<meta name="twitter:description" content="基础概念
+
+
+Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 Manifest 仓库获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。
+
+
+Gerrit：Gerrit 是一个代码审核服务器，通常作为 Git 仓库的代理层（proxy）。它不仅托管代码仓库，还提供代码审核功能（如 Code Review、Verified 分数）。在实际操作中，开发者的 repo sync 请求会通过 Gerrit 获取代码，而不是直接访问原始 Git 仓库。
+
+
+repo命令的含义：
+
+
+repo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml
+这行命令是使用 repo 工具来初始化一个代码仓库的本地工作区。repo 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。
+简单来说，这条命令的意思是：准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 dev_rc16_3.1_20250730，同时使用 qssi.xml 这个配置文件来决定具体下载哪些代码模块。
+下面我们来逐段分解这个命令：">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "杂记",
+      "item": "https://ethen-cao.github.io/ethenslab/others/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "软件开发、发布流水线",
+      "item": "https://ethen-cao.github.io/ethenslab/others/ci-cd/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "软件开发、发布流水线",
+  "name": "软件开发、发布流水线",
+  "description": "基础概念 Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 Manifest 仓库获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。\nGerrit：Gerrit 是一个代码审核服务器，通常作为 Git 仓库的代理层（proxy）。它不仅托管代码仓库，还提供代码审核功能（如 Code Review、Verified 分数）。在实际操作中，开发者的 repo sync 请求会通过 Gerrit 获取代码，而不是直接访问原始 Git 仓库。\nrepo命令的含义：\nrepo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml\n这行命令是使用 repo 工具来初始化一个代码仓库的本地工作区。repo 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。 简单来说，这条命令的意思是：准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 dev_rc16_3.1_20250730，同时使用 qssi.xml 这个配置文件来决定具体下载哪些代码模块。\n下面我们来逐段分解这个命令：\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "基础概念 Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 Manifest 仓库获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。\nGerrit：Gerrit 是一个代码审核服务器，通常作为 Git 仓库的代理层（proxy）。它不仅托管代码仓库，还提供代码审核功能（如 Code Review、Verified 分数）。在实际操作中，开发者的 repo sync 请求会通过 Gerrit 获取代码，而不是直接访问原始 Git 仓库。\nrepo命令的含义：\nrepo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml\n这行命令是使用 repo 工具来初始化一个代码仓库的本地工作区。repo 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。 简单来说，这条命令的意思是：准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 dev_rc16_3.1_20250730，同时使用 qssi.xml 这个配置文件来决定具体下载哪些代码模块。\n下面我们来逐段分解这个命令：\nrepo init\nrepo: 这是使用的工具名称。 init: 这是 repo 的一个子命令，意思是 “初始化 (initialize)”。它的作用是在你当前的目录下创建一个名为 .repo 的隐藏文件夹。这个文件夹里包含了 repo 工具的源代码以及一个关键的 “清单仓库 (manifest repository)\"。这个清单仓库本身也是一个 Git 仓库，它定义了整个项目由哪些子项目（也就是哪些 Git 仓库）组成。 执行 repo init 只是第一步，它只下载了项目的“目录”或“清单”，还没有下载任何实际的源代码。 -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest\n-u: 这个参数是 “URL” 的缩写，它指定了清单仓库所在的远程地址。 ssh://...: 这部分是具体的地址，我们可以进一步分析： ssh://: 表示使用 SSH (Secure Shell) 协议进行连接。这是一种安全的、加密的连接方式，通常用于公司内部的代码服务器。这需要你的电脑上已经配置好了正确的 SSH 密钥。 h-caoquanli: 这是你用来登录 SSH 服务器的用户名。 10.82.64.202: 这是代码服务器的 IP 地址。这是一个内网 IP，表明你正在连接一个公司内部的服务器，而不是像 GitHub 这样的公共服务器。 :8787: 这是 SSH 服务的端口号。标准的 SSH 端口是 22，这里使用了自定义端口 8787。 /8397/DLS-Qualcomm-U/manifest: 这是清单仓库在服务器上的具体路径。路径的起始 / 应该被理解为 相对于 Git 仓库存储的根路径，这个根路径是由服务器上的 Git/SSH 服务（例如 Gerrit, GitLab, 或者一个标准的 Git 服务）预先配置好的。在一个代码服务器上，成百上千个 Git 仓库通常被统一存放在一个主目录下，比如 /srv/git/，/var/opt/gitlab/git-data/repositories/ 或者 /home/git/repositories/ 等。这样做便于统一管理、备份和迁移。所以这个路径 /8397/DLS-Qualcomm-U/manifest 是一个逻辑路径或者相对路径，服务器端的 Git 服务会把它和你配置的基础路径拼接起来，构成服务器上的实际物理路径。假设服务器管理员将所有 Git 仓库的存储基础路径设置为 /var/git_repos/。当你执行 repo init 或者 git clone 时，你提供的 URL 中的路径 /8397/DLS-Qualcomm-U/manifest 会被服务器这样解析： 基础路径 + 你提供的路径 = 服务器上的实际路径 也就是：/var/git_repos/ + 8397/DLS-Qualcomm-U/manifest = /var/git_repos/8397/DLS-Qualcomm-U/manifest 所以，Git 服务最终会去服务器的 /var/git_repos/8397/DLS-Qualcomm-U/manifest 这个位置寻找清单仓库。 这部分合起来告诉 repo 工具：去哪里获取项目的“总目录”。 -b dev_rc16_3.1_20250730\n-b: 这个参数是 “branch” (分支) 的缩写。它指定了在清单仓库中要使用的分支。 dev_rc16_3.1_20250730: 这是分支的名称。在软件开发中，分支名通常包含了丰富的信息： dev: 可能表示这是一个开发 (development) 分支。 rc16: 可能表示 “Release Candidate 16”，即第16个发布候选版本。 3.1: 可能表示项目的主版本号。 20250730: 这是一个日期，表示该版本的代码基线是 2025年7月30日。 这部分的作用是：锁定一个特定的项目版本。通过切换清单仓库的分支，你可以获取项目在不同时间点或不同发布阶段的完整代码快照。\n-m qssi.xml\n-m: 这个参数是 “manifest” (清单文件) 的缩写。它指定了在清单仓库中要使用的具体 XML 文件名。 qssi.xml: 这是清单文件的名字。一个清单仓库里可以有多个 XML 文件，用于不同的产品配置或编译目标。 qssi 在高通的语境下，通常是 “Qualcomm Single System Image” 的缩写。这表明你正在初始化的代码是用于构建一个整合了多个子系统（如 Modem, Application Processor 等）的统一系统镜像。 这部分的作用是：选择一个特定的项目配置文件。比如，a.xml 可能是为产品A的配置，而 qssi.xml 可能是为某个特定平台的整合版配置。如果不指定 -m，repo 会默认使用 default.xml。\n总而言之，这条命令的完整含义是：\n在当前目录下，初始化一个 repo 工作区。该工作区的配置信息（即项目的构成清单）来自于地址为 ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest 的 Git 仓库。在获取清单时，请检出 (checkout) dev_rc16_3.1_20250730 分支，并使用该分支下的 qssi.xml 文件作为最终的项目清单。\nrepo init 成功执行后，你的 .repo 目录就已经配置好了。接下来，你需要运行：\nrepo sync repo sync 命令会读取 .repo/manifests/qssi.xml 文件，然后根据文件中列出的所有 Git 仓库地址和版本号，开始并行下载所有项目的实际源代码到你的本地工作区。这通常是一个漫长的、占用大量网络带宽和磁盘空间的过程。\n时序图 repo时序图 ",
+  "wordCount" : "268",
+  "inLanguage": "en",
+  "datePublished": "2025-08-03T17:17:50+08:00",
+  "dateModified": "2025-08-03T17:17:50+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/others/ci-cd/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://ethen-cao.github.io/ethenslab/">Home</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/others/">杂记</a></div>
+    <h1 class="post-title entry-hint-parent">
+      软件开发、发布流水线
+    </h1>
+    <div class="post-meta"><span title='2025-08-03 17:17:50 +0800 CST'>August 3, 2025</span>&nbsp;·&nbsp;2 min&nbsp;·&nbsp;268 words
+
+</div>
+  </header> 
+  <div class="post-content"><h2 id="基础概念">基础概念<a hidden class="anchor" aria-hidden="true" href="#基础概念">#</a></h2>
+<ul>
+<li>
+<p>Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 <strong>Manifest 仓库</strong>获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。</p>
+</li>
+<li>
+<p>Gerrit：Gerrit 是一个代码审核服务器，通常作为 Git 仓库的代理层（proxy）。它不仅托管代码仓库，还提供代码审核功能（如 Code Review、Verified 分数）。在实际操作中，开发者的 repo sync 请求会通过 Gerrit 获取代码，而不是直接访问原始 Git 仓库。</p>
+</li>
+<li>
+<p>repo命令的含义：</p>
+<ul>
+<li>
+<p><code>repo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml</code></p>
+<p>这行命令是使用 <code>repo</code> 工具来初始化一个代码仓库的本地工作区。<code>repo</code> 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。
+简单来说，这条命令的意思是：<strong>准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 <code>dev_rc16_3.1_20250730</code>，同时使用 <code>qssi.xml</code> 这个配置文件来决定具体下载哪些代码模块。</strong></p>
+<p>下面我们来逐段分解这个命令：</p>
+<ol>
+<li>
+<p><code>repo init</code></p>
+<ul>
+<li><strong><code>repo</code></strong>: 这是使用的工具名称。</li>
+<li><strong><code>init</code></strong>: 这是 <code>repo</code> 的一个子命令，意思是 “初始化 (initialize)”。它的作用是在你当前的目录下创建一个名为 <code>.repo</code> 的隐藏文件夹。这个文件夹里包含了 <code>repo</code> 工具的源代码以及一个关键的 &ldquo;清单仓库 (manifest repository)&quot;。这个清单仓库本身也是一个 Git 仓库，它定义了整个项目由哪些子项目（也就是哪些 Git 仓库）组成。
+<strong>执行 <code>repo init</code> 只是第一步，它只下载了项目的“目录”或“清单”，还没有下载任何实际的源代码。</strong></li>
+</ul>
+</li>
+<li>
+<p><code>-u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest</code></p>
+<ul>
+<li><strong><code>-u</code></strong>: 这个参数是 &ldquo;URL&rdquo; 的缩写，它指定了清单仓库所在的远程地址。</li>
+<li><strong><code>ssh://...</code></strong>: 这部分是具体的地址，我们可以进一步分析：
+<ul>
+<li><strong><code>ssh://</code></strong>: 表示使用 SSH (Secure Shell) 协议进行连接。这是一种安全的、加密的连接方式，通常用于公司内部的代码服务器。这需要你的电脑上已经配置好了正确的 SSH 密钥。</li>
+<li><strong><code>h-caoquanli</code></strong>: 这是你用来登录 SSH 服务器的用户名。</li>
+<li><strong><code>10.82.64.202</code></strong>: 这是代码服务器的 IP 地址。这是一个内网 IP，表明你正在连接一个公司内部的服务器，而不是像 GitHub 这样的公共服务器。</li>
+<li><strong><code>:8787</code></strong>: 这是 SSH 服务的端口号。标准的 SSH 端口是 22，这里使用了自定义端口 8787。</li>
+<li><strong><code>/8397/DLS-Qualcomm-U/manifest</code></strong>: 这是清单仓库在服务器上的具体路径。路径的起始 / 应该被理解为 相对于 Git 仓库存储的根路径，这个根路径是由服务器上的 Git/SSH 服务（例如 Gerrit, GitLab, 或者一个标准的 Git 服务）预先配置好的。在一个代码服务器上，成百上千个 Git 仓库通常被统一存放在一个主目录下，比如 /srv/git/，/var/opt/gitlab/git-data/repositories/ 或者 /home/git/repositories/ 等。这样做便于统一管理、备份和迁移。所以这个路径  /8397/DLS-Qualcomm-U/manifest 是一个逻辑路径或者相对路径，服务器端的 Git 服务会把它和你配置的基础路径拼接起来，构成服务器上的实际物理路径。假设服务器管理员将所有 Git 仓库的存储基础路径设置为 /var/git_repos/。当你执行 repo init 或者 git clone 时，你提供的 URL 中的路径 /8397/DLS-Qualcomm-U/manifest 会被服务器这样解析：
+<strong>基础路径 + 你提供的路径 = 服务器上的实际路径</strong>
+也就是：/var/git_repos/ + 8397/DLS-Qualcomm-U/manifest = /var/git_repos/8397/DLS-Qualcomm-U/manifest
+所以，Git 服务最终会去服务器的 /var/git_repos/8397/DLS-Qualcomm-U/manifest 这个位置寻找清单仓库。
+<strong>这部分合起来告诉 <code>repo</code> 工具：去哪里获取项目的“总目录”。</strong></li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><code>-b dev_rc16_3.1_20250730</code></p>
+<ul>
+<li><strong><code>-b</code></strong>: 这个参数是 &ldquo;branch&rdquo; (分支) 的缩写。它指定了在清单仓库中要使用的分支。</li>
+<li><strong><code>dev_rc16_3.1_20250730</code></strong>: 这是分支的名称。在软件开发中，分支名通常包含了丰富的信息：
+<ul>
+<li><strong><code>dev</code></strong>: 可能表示这是一个开发 (development) 分支。</li>
+<li><strong><code>rc16</code></strong>: 可能表示 &ldquo;Release Candidate 16&rdquo;，即第16个发布候选版本。</li>
+<li><strong><code>3.1</code></strong>: 可能表示项目的主版本号。</li>
+<li><strong><code>20250730</code></strong>: 这是一个日期，表示该版本的代码基线是 2025年7月30日。</li>
+</ul>
+</li>
+</ul>
+<p><strong>这部分的作用是：锁定一个特定的项目版本。通过切换清单仓库的分支，你可以获取项目在不同时间点或不同发布阶段的完整代码快照。</strong></p>
+</li>
+<li>
+<p><code>-m qssi.xml</code></p>
+<ul>
+<li><strong><code>-m</code></strong>: 这个参数是 &ldquo;manifest&rdquo; (清单文件) 的缩写。它指定了在清单仓库中要使用的具体 XML 文件名。</li>
+<li><strong><code>qssi.xml</code></strong>: 这是清单文件的名字。一个清单仓库里可以有多个 XML 文件，用于不同的产品配置或编译目标。
+<ul>
+<li><code>qssi</code> 在高通的语境下，通常是 &ldquo;Qualcomm Single System Image&rdquo; 的缩写。这表明你正在初始化的代码是用于构建一个整合了多个子系统（如 Modem, Application Processor 等）的统一系统镜像。</li>
+</ul>
+</li>
+</ul>
+<p><strong>这部分的作用是：选择一个特定的项目配置文件。比如，<code>a.xml</code> 可能是为产品A的配置，而 <code>qssi.xml</code> 可能是为某个特定平台的整合版配置。如果不指定 <code>-m</code>，<code>repo</code> 会默认使用 <code>default.xml</code>。</strong></p>
+</li>
+</ol>
+<p><strong>总而言之，这条命令的完整含义是：</strong></p>
+<blockquote>
+<p>在当前目录下，初始化一个 <code>repo</code> 工作区。该工作区的配置信息（即项目的构成清单）来自于地址为 <code>ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest</code> 的 Git 仓库。在获取清单时，请检出 (checkout) <code>dev_rc16_3.1_20250730</code> 分支，并使用该分支下的 <code>qssi.xml</code> 文件作为最终的项目清单。</p></blockquote>
+</li>
+<li>
+<p><code>repo init</code> 成功执行后，你的 <code>.repo</code> 目录就已经配置好了。接下来，你需要运行：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>repo sync
+</span></span></code></pre></div><p><code>repo sync</code> 命令会读取 <code>.repo/manifests/qssi.xml</code> 文件，然后根据文件中列出的所有 Git 仓库地址和版本号，开始并行下载所有项目的实际源代码到你的本地工作区。这通常是一个漫长的、占用大量网络带宽和磁盘空间的过程。</p>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="时序图">时序图<a hidden class="anchor" aria-hidden="true" href="#时序图">#</a></h2>
+<h3 id="repo时序图">repo时序图<a hidden class="anchor" aria-hidden="true" href="#repo时序图">#</a></h3>
+<p><img loading="lazy" src="/ethenslab/images/repo.png"></p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2025 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

@@ -1,0 +1,102 @@
+@startuml
+!theme materia
+skinparam defaultFontColor #000000
+skinparam SequenceLifeLineBorderColor black
+skinparam ArrowColor #555555
+autonumber "<b>[00]"
+
+title Git Clone/Fetch Over SSH: 详细交互时序图\n适用于 repo init/sync, git clone/fetch
+
+actor "User" as User
+participant "Repo/Git Client" as Client
+participant "SSH Client" as SSH_Client
+participant "SSH Server" as SSH_Server
+participant "Git Server Shell\n(Gerrit/GitLab等)" as Git_Shell
+participant "git-upload-pack" as Git_UploadPack
+
+User -> Client: repo init / git clone / git fetch ...
+activate Client
+
+group 1. SSH 认证
+    Client -> SSH_Client: 启动SSH连接到服务器
+    activate SSH_Client
+    SSH_Client -> SSH_Server: 发起 TCP 连接 (host, port)
+    activate SSH_Server
+    SSH_Server --> SSH_Client: SSH 握手, 认证请求
+    SSH_Client -> SSH_Server: 发送公钥进行身份认证
+    note over SSH_Server: 验证 authorized_keys 中的公钥
+    alt 认证成功
+        SSH_Server --> SSH_Client: 认证成功
+    else 认证失败
+        SSH_Server --> SSH_Client: 拒绝连接
+        deactivate SSH_Server
+        deactivate SSH_Client
+        Client --> User: 错误: SSH 认证失败
+        deactivate Client
+        return
+    end
+    
+    Client -> SSH_Client: 请求执行: "git-upload-pack '/path/to/repo.git'"
+    SSH_Client -> SSH_Server: 转发远程执行请求
+    note over SSH_Server, Git_Shell: authorized_keys 指定 command="git-shell -c ..."\n强制执行 Git_Shell，传入 SSH_ORIGINAL_COMMAND
+    SSH_Server -> Git_Shell: 执行预设的 git-shell 程序
+    activate Git_Shell
+end
+
+group 2. Git 协议协商
+    Git_Shell -> Git_Shell: 读取 SSH_ORIGINAL_COMMAND
+    Git_Shell -> Git_Shell: 权限检查, 日志记录
+    note over Git_Shell: 检查用户对仓库的读权限\n(e.g., Gerrit ACL: refs/* read)
+    alt 权限通过
+        Git_Shell -> Git_UploadPack: 启动 git-upload-pack 进程
+        activate Git_UploadPack
+    else 权限不足
+        Git_Shell --> Client: 错误: 无权访问仓库
+        deactivate Git_Shell
+        deactivate SSH_Server
+        deactivate SSH_Client
+        Client --> User: 错误: 权限不足
+        deactivate Client
+        return
+    end
+    
+    Git_UploadPack --> Client: **1. 引用宣告**: 发送 refs/heads/*, refs/tags/*
+    Client -> Git_UploadPack: **2. want**: 请求所需 refs (e.g., refs/heads/main)
+    Client -> Git_UploadPack: **3. have**: 发送本地已有 commits
+    Client -> Git_UploadPack: **4. done**: 完成协商
+end
+
+group 3. 数据打包与传输
+    Git_UploadPack -> Git_UploadPack: **5. 计算差异**: 找出客户端缺失的对象
+    Git_UploadPack -> Git_UploadPack: **6. 创建Packfile**: 打包 commits, trees, blobs
+    alt 传输成功
+        Git_UploadPack --> Client: **7. 数据流传输**: 发送Packfile\n(通过 Git_Shell -> SSH_Server -> SSH_Client)
+    else 传输失败
+        Git_UploadPack --> Client: 错误: 连接中断
+        deactivate Git_UploadPack
+        deactivate Git_Shell
+        deactivate SSH_Server
+        deactivate SSH_Client
+        Client --> User: 错误: 数据传输失败
+        deactivate Client
+        return
+    end
+end
+
+group 4. 客户端处理
+    Client -> Client: **8. 接收和校验** Packfile (验证 SHA-1 完整性)
+    alt git clone
+        Client -> Client: **9. 初始化仓库** 创建 .git/objects, refs
+    else git fetch
+        Client -> Client: **9. 更新仓库** 存储新对象到 .git/objects
+    end
+    Client -> Client: **10. 更新引用** refs/remotes/origin/* 或 refs/heads/*
+deactivate Git_UploadPack
+deactivate Git_Shell
+deactivate SSH_Server
+deactivate SSH_Client
+    
+Client --> User: 命令执行成功
+deactivate Client
+
+@enduml

@@ -1,0 +1,35 @@
+@startuml
+title DPIN 数据流走 SurfaceFlinger + DRM Secure Path
+
+actor App as "Android App (非DPIN)"
+participant DP_TX as "手机/PC DP TX (Source)"
+participant DP_RX as "车机 SoC DP RX PHY (DPIN)"
+participant HDCP as "HDCP Engine / TrustZone"
+participant Kernel as "内核驱动 (msm_drm)"
+participant HWC as "Hardware Composer"
+participant SF as "SurfaceFlinger"
+participant DPU as "Display Processing Unit"
+participant Panel as "车机屏幕"
+
+== 手机端发送视频 ==
+DP_TX -> DP_RX : 发送加密视频流 (Main Link)
+DP_TX -> HDCP : 发起 HDCP 握手 (AUX Channel)
+HDCP -> DP_TX : HDCP 握手成功
+
+== DPIN 接收 + 解密 ==
+DP_RX -> HDCP : 接收加密视频帧
+HDCP -> HDCP : 解密帧数据
+HDCP -> Kernel : 写入 Secure Video Buffer (IOMMU/SMMU)
+
+== 系统合成显示 ==
+Kernel -> HWC : 注册 DPIN External Display
+HWC -> SF : 告知有 Secure Layer
+SF -> DPU : 合成图层，保证 Secure Path
+DPU -> Panel : 扫描输出到屏幕
+
+== 系统 UI 与其他应用 ==
+App -> SF : 普通应用 Surface
+SF -> DPU : 叠加非 Secure Layer
+DPU -> Panel : 最终显示 (安全视频 + UI)
+
+@enduml

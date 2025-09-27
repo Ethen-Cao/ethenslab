@@ -1,0 +1,107 @@
+@startuml
+!theme materia-outline
+
+skinparam arrowThickness 1.5
+skinparam dpi 150
+skinparam SequenceLifeLineBorderColor black
+
+' === 1. 定义参与者和系统布局 (优化) ===
+participant "OEM 开发者" as Developer
+participant "Reviewers" as Reviewers
+participant "车辆" as Cars
+
+' node "Tier1 Server" {
+'     rectangle "Tier1 Git 仓库" as Tier1SourceCodeServer
+' }
+
+' node "OEM Server" {
+'     rectangle "Git 仓库 (由Gerrit托管)" as GitRepo {
+'         database "Manifests\n(清单仓库)" as Manifest
+'         database "AOSP & Proj Repos\n(源码仓库)" as AospGits
+'     }
+'     rectangle "Gerrit 代码审核服务器" as GerritServer
+'     rectangle "Jenkins CI/CD 服务器" as JenkinsServer
+'     rectangle "JFrog Artifacts\n(制品库)" as Artifacts
+'     rectangle "部署服务器" as DeployServer
+'     rectangle "OTA 更新服务器" as OTAServer
+'     rectangle "TSP 服务器\n(车联网服务平台)" as TSPServer
+' }
+
+' === 2. 定义交互流程 (优化版) ===
+autonumber "<b>[00]"
+
+box "阶段一: 基线代码导入 (管理员操作)" #LightGray
+    Tier1SourceCodeServer -> AospGits: **[Push]** 交付代码基线
+    note over Tier1SourceCodeServer, AospGits: 管理员强推 (bypass Gerrit审核)
+    
+    GerritServer -> Manifest: **[Update by Admin]** 推送更新manifest.xml
+    note over Manifest: 更新决定了repo sync的版本指向
+end box
+
+box "阶段二: OEM 开发者日常工作流" #LightBlue
+    Developer -> Manifest: **[repo init]** 获取项目清单
+    Developer -> AospGits: **[repo sync]** 同步所有源码
+    note over Developer, AospGits: 通过Gerrit代理，根据Manifest拉取
+    
+    Developer -> Developer: **[repo start & git commit]** 本地开发
+    
+    Developer -> GerritServer: **[repo upload]** 提交代码审核
+    
+    par 并行: CI验证 & 人工评审
+        GerritServer -> JenkinsServer: **[Webhook]** 触发CI验证 (编译/测试/扫描)
+        JenkinsServer -> JenkinsServer: 执行安全扫描 & 单元测试
+        alt 验证通过
+            JenkinsServer -> GerritServer: **[Feedback]** Verified +1
+        else 验证失败
+            JenkinsServer -> GerritServer: **[Feedback]** Verified -1
+            GerritServer --> Developer: 通知修复
+        end
+        
+        Reviewers -> GerritServer: **[Review]** 人工评审 & 打分
+    end par
+end box
+
+box "阶段三: 代码合入与版本发布 (CI/CD)" #LightGreen
+    GerritServer -> AospGits: **[Merge]** 审核通过, 合并代码
+    AospGits -> JenkinsServer: **[Webhook]** 触发Release构建
+    JenkinsServer -> JenkinsServer: **执行正式构建** (打包/归档)
+    alt 构建成功
+        JenkinsServer -> AospGits: **[Git Tag]** 创建Release版本标签
+        JenkinsServer -> Artifacts: **[Upload]** 上传构建产物 (OTA包)
+    else 构建失败
+        JenkinsServer --> GerritServer: 通知管理员重试
+    end
+end box
+
+box "阶段四: OTA 更新包部署" #Wheat
+    DeployServer -> Artifacts: **[Download]** 拉取OTA包
+    note over DeployServer: 从promoted仓库拉取 (e.g., release channel)
+    DeployServer -> DeployServer: **签名 (Signing)** OTA包
+    note over DeployServer: 自动化 (Jenkins) 或手动签名
+    DeployServer -> OTAServer: **[Upload]** 上传已签名的OTA包和元数据
+end box
+
+box "阶段五: OTA 推送与车辆更新" #LightCoral
+    DeployServer -> OTAServer: **[Campaign]** 创建升级活动
+    note over OTAServer: 根据策略 (灰度/分批/按区域)
+    
+    OTAServer -> TSPServer: **[Query]** 查询符合条件的车辆
+    TSPServer --> OTAServer: 返回车辆列表 (带认证)
+    
+    TSPServer -> Cars: **[Notify]** 推送升级通知
+    
+    Cars -> OTAServer: **[Check Update]** 检查更新 (车辆在线时)
+    OTAServer --> Cars: 返回元数据 (版本/依赖/强制标记)
+    
+    alt 用户同意或强制更新
+        Cars -> OTAServer: **[Download]** 下载OTA升级包
+        Cars -> Cars: **验证 & 执行升级** (安全条件下, e.g., 停车/电量足)
+        Cars -> TSPServer: **[Report]** 上报升级结果
+        TSPServer -> OTAServer: **[Update Status]** 同步车辆状态
+    else 下载/升级失败
+        Cars --> TSPServer: 上报错误
+        TSPServer --> OTAServer: 触发重试或回滚
+    end
+end box
+
+@enduml
