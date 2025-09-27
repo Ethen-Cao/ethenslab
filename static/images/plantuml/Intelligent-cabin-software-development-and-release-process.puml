@@ -1,0 +1,133 @@
+
+@startuml
+!theme materia
+skinparam SequenceLifeLineBorderColor black
+skinparam ArrowColor #555555
+skinparam defaultFontColor #000000
+autonumber "<b>[00]"
+
+title 智能座舱软件开发流程: 从代码下载到 OTA 发布
+
+' === 定义参与者 ===
+participant "开发者\n(Developer)" as Developer
+participant "审核者\n(Reviewer)" as Reviewer
+participant "Manifest 仓库\n(Manifest)" as Manifest
+participant "Git 仓库\n(AospGits)" as AospGits
+participant "Gerrit 服务器\n(GerritServer)" as GerritServer
+participant "Jenkins 服务器\n(JenkinsServer)" as JenkinsServer
+participant "JFrog 制品库\n(Artifacts)" as Artifacts
+participant "部署服务器\n(DeployServer)" as DeployServer
+participant "OTA 服务器\n(OTAServer)" as OTAServer
+participant "TSP 服务器\n(TSPServer)" as TSPServer
+participant "车辆\n(Cars)" as Cars
+
+' === 阶段 1: 代码下载 ===
+box "开发者工作流" #LightBlue
+  Developer -> Manifest: **[repo init]** 获取项目清单
+  note right: 初始化 repo 环境，拉取 manifest.xml
+  Developer -> AospGits: **[repo sync]** 同步所有源码
+  note right: 通过 Gerrit 代理，根据 Manifest 拉取
+end box
+
+' === 阶段 2: 代码提交 ===
+box "开发者工作流" #LightBlue
+  Developer -> Developer: **[repo start & git commit]** 本地开发
+  note right: 开发座舱功能 (e.g., UI, 导航模块)
+  Developer -> GerritServer: **[repo upload]** 提交代码审核
+  activate GerritServer
+end box
+
+' === 阶段 3: 代码审核 ===
+box "审核与验证" #LightGreen
+  par 并行: CI 验证 & 人工评审
+    GerritServer -> JenkinsServer: **[Webhook]** 触发 CI 验证
+    activate JenkinsServer
+    note right: 拉取 patchset 代码
+    JenkinsServer -> Artifacts: **[Download]** 拉取构建依赖
+    activate Artifacts
+    Artifacts --> JenkinsServer: 返回依赖
+    deactivate Artifacts
+    JenkinsServer -> JenkinsServer: **编译 & 单体测试** (e.g., GoogleTest)
+    alt 验证通过
+      JenkinsServer -> GerritServer: **[Feedback]** Verified +1
+    else 验证失败
+      JenkinsServer -> GerritServer: **[Feedback]** Verified -1
+      GerritServer --> Developer: 通知修复
+      Developer -> Developer: **修改代码** (git commit --amend)
+      Developer -> GerritServer: **[repo upload]** 提交新 patchset
+    end
+    deactivate JenkinsServer
+
+    Reviewer -> GerritServer: **[Review]** 人工评审 & 打分 (+2/-2)
+    note right: 检查代码质量、功能完整性
+  end par
+end box
+
+' === 阶段 4: 代码入库 ===
+box "代码合并" #LightGreen
+  alt 审核通过 (Verified +1 & Code-Review +2)
+    GerritServer -> AospGits: **[Merge]** 合并到主分支
+    deactivate GerritServer
+  else 审核拒绝
+    GerritServer --> Developer: 通知重新修改
+    Developer -> Developer: **修改代码** (git commit --amend)
+    Developer -> GerritServer: **[repo upload]** 提交新 patchset
+    activate GerritServer
+  end
+end box
+
+' === 阶段 5: Daily/Weekly 发布 ===
+box "CI/CD 发布" #Wheat
+  AospGits -> JenkinsServer: **[Webhook]** 触发 Release 构建
+  activate JenkinsServer
+  note right: 拉取主干最新代码
+  JenkinsServer -> JenkinsServer: **执行构建** (编译、集成测试、打包)
+  alt 构建成功
+    JenkinsServer -> AospGits: **[Git Tag]** 创建版本标签 (e.g., vX.Y.Z)
+    JenkinsServer -> Artifacts: **[Upload]** 上传构建产物 (e.g., OTA 包)
+    activate Artifacts
+    note right: 存储到 release 仓库 (Daily/Weekly)
+    deactivate Artifacts
+  else 构建失败
+    JenkinsServer --> GerritServer: 通知管理员重试
+  end
+  deactivate JenkinsServer
+end box
+
+' === 阶段 6: OTA 发布 ===
+box "OTA 部署" #LightCoral
+  DeployServer -> Artifacts: **[Download]** 拉取 OTA 包
+  activate Artifacts
+  note right: 从 release 仓库拉取
+  deactivate Artifacts
+  DeployServer -> DeployServer: **签名** OTA 包
+  note right: 自动或手动签名 (加密/验证)
+  DeployServer -> OTAServer: **[Upload]** 上传已签名 OTA 包及元数据
+  activate OTAServer
+end box
+
+' === 阶段 7: OTA 推送与车辆更新 ===
+box "OTA 更新" #LightCoral
+  DeployServer -> OTAServer: **[Campaign]** 创建升级活动
+  note right: 按策略 (灰度/分批/区域)
+  OTAServer -> TSPServer: **[Query]** 查询符合条件的车辆
+  activate TSPServer
+  TSPServer --> OTAServer: 返回车辆列表 (带认证)
+  TSPServer -> Cars: **[Notify]** 推送升级通知
+  Cars -> OTAServer: **[Check Update]** 检查更新
+  OTAServer --> Cars: 返回元数据 (版本、依赖、强制标记)
+  alt 用户同意或强制更新
+    Cars -> OTAServer: **[Download]** 下载 OTA 包
+    note right: 检查网络、电量等条件
+    Cars -> Cars: **验证 & 执行升级** (停车/安全条件下)
+    Cars -> TSPServer: **[Report]** 上报升级结果
+    TSPServer -> OTAServer: **[Update Status]** 同步车辆状态
+  else 下载/升级失败
+    Cars --> TSPServer: 上报错误
+    TSPServer --> OTAServer: 触发重试或回滚
+  end
+  deactivate OTAServer
+  deactivate TSPServer
+end box
+
+@enduml
