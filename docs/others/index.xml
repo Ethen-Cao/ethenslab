@@ -13,7 +13,9 @@
       <link>https://ethen-cao.github.io/ethenslab/others/ci-cd/</link>
       <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
       <guid>https://ethen-cao.github.io/ethenslab/others/ci-cd/</guid>
-      <description>&lt;h2 id=&#34;基础概念&#34;&gt;基础概念&lt;/h2&gt;
+      <description>&lt;h2 id=&#34;整体流程&#34;&gt;整体流程&lt;/h2&gt;
+&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/Intelligent-cabin-software-development-and-release-process.png&#34;&gt;&lt;/p&gt;
+&lt;h2 id=&#34;基础概念&#34;&gt;基础概念&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 &lt;strong&gt;Manifest 仓库&lt;/strong&gt;获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。&lt;/p&gt;
@@ -27,8 +29,7 @@
 &lt;li&gt;
 &lt;p&gt;&lt;code&gt;repo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml&lt;/code&gt;&lt;/p&gt;
 &lt;p&gt;这行命令是使用 &lt;code&gt;repo&lt;/code&gt; 工具来初始化一个代码仓库的本地工作区。&lt;code&gt;repo&lt;/code&gt; 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。
-简单来说，这条命令的意思是：&lt;strong&gt;准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 &lt;code&gt;dev_rc16_3.1_20250730&lt;/code&gt;，同时使用 &lt;code&gt;qssi.xml&lt;/code&gt; 这个配置文件来决定具体下载哪些代码模块。&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;下面我们来逐段分解这个命令：&lt;/p&gt;</description>
+简单来说，这条命令的意思是：&lt;strong&gt;准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 &lt;code&gt;dev_rc16_3.1_20250730&lt;/code&gt;，同时使用 &lt;code&gt;qssi.xml&lt;/code&gt; 这个配置文件来决定具体下载哪些代码模块。&lt;/strong&gt;&lt;/p&gt;</description>
     </item>
   </channel>
 </rss>

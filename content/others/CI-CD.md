@@ -4,6 +4,10 @@ draft = false
 title = '软件开发、发布流水线'
 +++
 
+## 整体流程
+
+![](/ethenslab/images/Intelligent-cabin-software-development-and-release-process.png)
+
 ## 基础概念
 
 * Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 **Manifest 仓库**获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。
@@ -62,9 +66,4 @@ title = '软件开发、发布流水线'
     ```
     `repo sync` 命令会读取 `.repo/manifests/qssi.xml` 文件，然后根据文件中列出的所有 Git 仓库地址和版本号，开始并行下载所有项目的实际源代码到你的本地工作区。这通常是一个漫长的、占用大量网络带宽和磁盘空间的过程。
 
-
-## 时序图
-
-### repo时序图
-
-![](/ethenslab/images/repo.png)
+    ![](/ethenslab/images/repo.png)
