@@ -1,0 +1,34 @@
+@startuml
+!theme plain
+
+title BR_ONEWAY_SPAM_SUSPECT 弱符号解析流程
+
+participant "libbinder.so\n(ProcessState.cpp)" as LB #LightGreen
+participant "CallStack (弱引用接口)" as CS #LightBlue
+participant "ld.so 动态链接器" as LD #LightGray
+participant "全局符号表\n(Global Symbol Table)" as GST #LightSkyBlue
+participant "libutilscallstack.so\n(CallStack 实现)" as LC #LightYellow
+
+== 触发 ONEWAY SPAM 检测 ==
+LB -> LB : switch(cmd)\ncase BR_ONEWAY_SPAM_SUSPECT
+LB -> CS : CallStack::getCurrent()
+
+== 符号解析 ==
+CS -> LD : 解析符号 getCurrentInternal (弱符号)
+LD -> GST : 在全局符号表查找
+
+alt 找到符号
+  GST -> LC : 命中 libutilscallstack 定义
+  LD --> CS : 返回 getCurrentInternal 地址
+  CS -> LC : 调用 getCurrentInternal()
+  LC --> CS : 返回当前堆栈
+  CS -> LB : 返回 CallStack 对象
+  LB -> LB : ALOGE 打印堆栈
+else 未找到符号
+  GST --> LD : 符号未解析
+  LD --> CS : 返回 nullptr
+  CS -> LB : 返回空堆栈
+  LB -> LB : ALOGE("not linked, returning null")
+end
+
+@enduml

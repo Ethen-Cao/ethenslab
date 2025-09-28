@@ -6,8 +6,33 @@
     <description>Recent content in Android 调试篇 on Ethen 的实验室</description>
     <generator>Hugo -- 0.150.1</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 28 Aug 2025 19:54:57 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 28 Sep 2025 11:36:11 +0800</lastBuildDate>
     <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/debug/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Binder spam detection原理</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link>
+      <pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</guid>
+      <description>&lt;h2 id=&#34;binder-spam-detection原理&#34;&gt;Binder spam detection原理&lt;/h2&gt;
+&lt;p&gt;当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;IPCThreadState: Process seems to be sending too many oneway calls.
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;核心原因&#34;&gt;核心原因&lt;/h3&gt;
+&lt;p&gt;这个日志的根本原因在于 &lt;strong&gt;Kernel 层的 Binder 驱动程序&lt;/strong&gt; 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 &lt;strong&gt;异步缓冲区空间 (async space) 严重不足&lt;/strong&gt;。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。&lt;/p&gt;
+&lt;p&gt;整个检测和通知流程可以概括为：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;客户端发起 Oneway 调用&lt;/strong&gt;：进程通过 &lt;code&gt;transact()&lt;/code&gt; 发起一个带有 &lt;code&gt;TF_ONE_WAY&lt;/code&gt; 标志的 Binder 调用。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内核分配缓冲区&lt;/strong&gt;：Binder 驱动在内核空间为这个 oneway 事务分配内存。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内核进行垃圾邮件检测 (Spam Detection)&lt;/strong&gt;：在分配内存时，内核会检查剩余的&lt;strong&gt;异步缓冲区空间&lt;/strong&gt;。如果空间低于某个阈值（总空间的 10%），驱动就会开始怀疑有进程在“滥发” oneway 调用。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;标记可疑事务&lt;/strong&gt;：如果异步空间过低，驱动会进一步检查当前发起调用的这个进程，是否占用了过多的 oneway 缓冲区（例如，超过 50 个缓冲区或总大小超过总空间的 25%）。如果满足条件，内核就会给这个事务的缓冲区打上 &lt;code&gt;oneway_spam_suspect&lt;/code&gt; 的标记。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内核返回特殊指令&lt;/strong&gt;：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 &lt;code&gt;oneway_spam_suspect&lt;/code&gt; 标记，内核就不会返回常规的 &lt;code&gt;BR_TRANSACTION_COMPLETE&lt;/code&gt;，而是返回一个特殊的 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt; 指令。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;用户空间打印日志&lt;/strong&gt;：客户端的 &lt;code&gt;IPCThreadState&lt;/code&gt; 在 &lt;code&gt;waitForResponse()&lt;/code&gt; 中接收并解析来自内核的指令。当它收到 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt; 时，就会打印出这条我们看到的错误日志。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id=&#34;代码分析&#34;&gt;代码分析&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;用户空间日志打印点 (IPCThreadState.cpp)&lt;/strong&gt;
+在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;</description>
+    </item>
     <item>
       <title>深入解析 Android ProtoLog：高性能结构化日志系统</title>
       <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protolog/</link>

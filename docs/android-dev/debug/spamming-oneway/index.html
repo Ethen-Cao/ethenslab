@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Binder spam detection原理 | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="Binder spam detection原理
+当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:
+IPCThreadState: Process seems to be sending too many oneway calls.
+核心原因
+这个日志的根本原因在于 Kernel 层的 Binder 驱动程序 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 异步缓冲区空间 (async space) 严重不足。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。
+整个检测和通知流程可以概括为：
+
+客户端发起 Oneway 调用：进程通过 transact() 发起一个带有 TF_ONE_WAY 标志的 Binder 调用。
+内核分配缓冲区：Binder 驱动在内核空间为这个 oneway 事务分配内存。
+内核进行垃圾邮件检测 (Spam Detection)：在分配内存时，内核会检查剩余的异步缓冲区空间。如果空间低于某个阈值（总空间的 10%），驱动就会开始怀疑有进程在“滥发” oneway 调用。
+标记可疑事务：如果异步空间过低，驱动会进一步检查当前发起调用的这个进程，是否占用了过多的 oneway 缓冲区（例如，超过 50 个缓冲区或总大小超过总空间的 25%）。如果满足条件，内核就会给这个事务的缓冲区打上 oneway_spam_suspect 的标记。
+内核返回特殊指令：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 oneway_spam_suspect 标记，内核就不会返回常规的 BR_TRANSACTION_COMPLETE，而是返回一个特殊的 BR_ONEWAY_SPAM_SUSPECT 指令。
+用户空间打印日志：客户端的 IPCThreadState 在 waitForResponse() 中接收并解析来自内核的指令。当它收到 BR_ONEWAY_SPAM_SUSPECT 时，就会打印出这条我们看到的错误日志。
+
+代码分析
+
+
+用户空间日志打印点 (IPCThreadState.cpp)
+在 IPCThreadState::waitForResponse 函数中，它处理从 Binder 驱动返回的各种指令 (BR_*)。其中就包括 BR_ONEWAY_SPAM_SUSPECT。">
+<meta name="author" content="">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css" integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="Binder spam detection原理">
+  <meta property="og:description" content="Binder spam detection原理 当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:
+IPCThreadState: Process seems to be sending too many oneway calls. 核心原因 这个日志的根本原因在于 Kernel 层的 Binder 驱动程序 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 异步缓冲区空间 (async space) 严重不足。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。
+整个检测和通知流程可以概括为：
+客户端发起 Oneway 调用：进程通过 transact() 发起一个带有 TF_ONE_WAY 标志的 Binder 调用。 内核分配缓冲区：Binder 驱动在内核空间为这个 oneway 事务分配内存。 内核进行垃圾邮件检测 (Spam Detection)：在分配内存时，内核会检查剩余的异步缓冲区空间。如果空间低于某个阈值（总空间的 10%），驱动就会开始怀疑有进程在“滥发” oneway 调用。 标记可疑事务：如果异步空间过低，驱动会进一步检查当前发起调用的这个进程，是否占用了过多的 oneway 缓冲区（例如，超过 50 个缓冲区或总大小超过总空间的 25%）。如果满足条件，内核就会给这个事务的缓冲区打上 oneway_spam_suspect 的标记。 内核返回特殊指令：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 oneway_spam_suspect 标记，内核就不会返回常规的 BR_TRANSACTION_COMPLETE，而是返回一个特殊的 BR_ONEWAY_SPAM_SUSPECT 指令。 用户空间打印日志：客户端的 IPCThreadState 在 waitForResponse() 中接收并解析来自内核的指令。当它收到 BR_ONEWAY_SPAM_SUSPECT 时，就会打印出这条我们看到的错误日志。 代码分析 用户空间日志打印点 (IPCThreadState.cpp) 在 IPCThreadState::waitForResponse 函数中，它处理从 Binder 驱动返回的各种指令 (BR_*)。其中就包括 BR_ONEWAY_SPAM_SUSPECT。">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="android-dev">
+    <meta property="article:published_time" content="2025-09-28T11:36:11+08:00">
+    <meta property="article:modified_time" content="2025-09-28T11:36:11+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Binder spam detection原理">
+<meta name="twitter:description" content="Binder spam detection原理
+当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:
+IPCThreadState: Process seems to be sending too many oneway calls.
+核心原因
+这个日志的根本原因在于 Kernel 层的 Binder 驱动程序 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 异步缓冲区空间 (async space) 严重不足。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。
+整个检测和通知流程可以概括为：
+
+客户端发起 Oneway 调用：进程通过 transact() 发起一个带有 TF_ONE_WAY 标志的 Binder 调用。
+内核分配缓冲区：Binder 驱动在内核空间为这个 oneway 事务分配内存。
+内核进行垃圾邮件检测 (Spam Detection)：在分配内存时，内核会检查剩余的异步缓冲区空间。如果空间低于某个阈值（总空间的 10%），驱动就会开始怀疑有进程在“滥发” oneway 调用。
+标记可疑事务：如果异步空间过低，驱动会进一步检查当前发起调用的这个进程，是否占用了过多的 oneway 缓冲区（例如，超过 50 个缓冲区或总大小超过总空间的 25%）。如果满足条件，内核就会给这个事务的缓冲区打上 oneway_spam_suspect 的标记。
+内核返回特殊指令：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 oneway_spam_suspect 标记，内核就不会返回常规的 BR_TRANSACTION_COMPLETE，而是返回一个特殊的 BR_ONEWAY_SPAM_SUSPECT 指令。
+用户空间打印日志：客户端的 IPCThreadState 在 waitForResponse() 中接收并解析来自内核的指令。当它收到 BR_ONEWAY_SPAM_SUSPECT 时，就会打印出这条我们看到的错误日志。
+
+代码分析
+
+
+用户空间日志打印点 (IPCThreadState.cpp)
+在 IPCThreadState::waitForResponse 函数中，它处理从 Binder 驱动返回的各种指令 (BR_*)。其中就包括 BR_ONEWAY_SPAM_SUSPECT。">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Android系统开发",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Android 调试篇",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/debug/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  3 ,
+      "name": "Binder spam detection原理",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Binder spam detection原理",
+  "name": "Binder spam detection原理",
+  "description": "Binder spam detection原理 当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:\nIPCThreadState: Process seems to be sending too many oneway calls. 核心原因 这个日志的根本原因在于 Kernel 层的 Binder 驱动程序 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 异步缓冲区空间 (async space) 严重不足。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。\n整个检测和通知流程可以概括为：\n客户端发起 Oneway 调用：进程通过 transact() 发起一个带有 TF_ONE_WAY 标志的 Binder 调用。 内核分配缓冲区：Binder 驱动在内核空间为这个 oneway 事务分配内存。 内核进行垃圾邮件检测 (Spam Detection)：在分配内存时，内核会检查剩余的异步缓冲区空间。如果空间低于某个阈值（总空间的 10%），驱动就会开始怀疑有进程在“滥发” oneway 调用。 标记可疑事务：如果异步空间过低，驱动会进一步检查当前发起调用的这个进程，是否占用了过多的 oneway 缓冲区（例如，超过 50 个缓冲区或总大小超过总空间的 25%）。如果满足条件，内核就会给这个事务的缓冲区打上 oneway_spam_suspect 的标记。 内核返回特殊指令：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 oneway_spam_suspect 标记，内核就不会返回常规的 BR_TRANSACTION_COMPLETE，而是返回一个特殊的 BR_ONEWAY_SPAM_SUSPECT 指令。 用户空间打印日志：客户端的 IPCThreadState 在 waitForResponse() 中接收并解析来自内核的指令。当它收到 BR_ONEWAY_SPAM_SUSPECT 时，就会打印出这条我们看到的错误日志。 代码分析 用户空间日志打印点 (IPCThreadState.cpp) 在 IPCThreadState::waitForResponse 函数中，它处理从 Binder 驱动返回的各种指令 (BR_*)。其中就包括 BR_ONEWAY_SPAM_SUSPECT。\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "Binder spam detection原理 当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:\nIPCThreadState: Process seems to be sending too many oneway calls. 核心原因 这个日志的根本原因在于 Kernel 层的 Binder 驱动程序 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 异步缓冲区空间 (async space) 严重不足。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。\n整个检测和通知流程可以概括为：\n客户端发起 Oneway 调用：进程通过 transact() 发起一个带有 TF_ONE_WAY 标志的 Binder 调用。 内核分配缓冲区：Binder 驱动在内核空间为这个 oneway 事务分配内存。 内核进行垃圾邮件检测 (Spam Detection)：在分配内存时，内核会检查剩余的异步缓冲区空间。如果空间低于某个阈值（总空间的 10%），驱动就会开始怀疑有进程在“滥发” oneway 调用。 标记可疑事务：如果异步空间过低，驱动会进一步检查当前发起调用的这个进程，是否占用了过多的 oneway 缓冲区（例如，超过 50 个缓冲区或总大小超过总空间的 25%）。如果满足条件，内核就会给这个事务的缓冲区打上 oneway_spam_suspect 的标记。 内核返回特殊指令：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 oneway_spam_suspect 标记，内核就不会返回常规的 BR_TRANSACTION_COMPLETE，而是返回一个特殊的 BR_ONEWAY_SPAM_SUSPECT 指令。 用户空间打印日志：客户端的 IPCThreadState 在 waitForResponse() 中接收并解析来自内核的指令。当它收到 BR_ONEWAY_SPAM_SUSPECT 时，就会打印出这条我们看到的错误日志。 代码分析 用户空间日志打印点 (IPCThreadState.cpp) 在 IPCThreadState::waitForResponse 函数中，它处理从 Binder 驱动返回的各种指令 (BR_*)。其中就包括 BR_ONEWAY_SPAM_SUSPECT。\n// IPCThreadState.cpp status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult) { // ... while (1) { // ... cmd = (uint32_t)mIn.readInt32(); // ... switch (cmd) { case BR_ONEWAY_SPAM_SUSPECT: ALOGE(\"Process seems to be sending too many oneway calls.\"); // \u003c-- 日志打印点 CallStack::logStack(\"oneway spamming\", nullptr, ANDROID_LOG_ERROR); [[fallthrough]]; case BR_TRANSACTION_COMPLETE: if (!reply \u0026\u0026 !acquireResult) goto finish; break; // ... } } // ... } 内核空间检测逻辑 (binder_alloc.c) 内核中的 binder_alloc_new_buf_locked 函数在为 oneway 事务分配缓冲区时，会调用 debug_low_async_space_locked 进行检测。\n// binder_alloc.c static struct binder_buffer *binder_alloc_new_buf_locked( ..., int is_async) { // ... if (is_async) { alloc-\u003efree_async_space -= size; // 减少可用的异步空间 // ... if (debug_low_async_space_locked(alloc)) buffer-\u003eoneway_spam_suspect = true; // \u003c-- 如果检测为 spam，设置标记 } // ... return buffer; } static bool debug_low_async_space_locked(struct binder_alloc *alloc) { // ... // 阈值1：只有当可用异步空间低于总空间的10%时，才开始检测 if (alloc-\u003efree_async_space \u003e= alloc-\u003ebuffer_size / 10) { alloc-\u003eoneway_spam_detected = false; return false; } // ... 计算当前进程已分配的 oneway 缓冲区数量和总大小 // 阈值2：如果进程的 oneway 缓冲区超过50个或总大小超过总空间的25% if (num_buffers \u003e 50 || total_alloc_size \u003e alloc-\u003ebuffer_size / 4) { // ... if (!alloc-\u003eoneway_spam_detected) { alloc-\u003eoneway_spam_detected = true; return true; // \u003c-- 返回 true，表示检测到 spam } } return false; } Spam detection 时序图 IPCThreadState CallStack retun null的原因 在IPCThreadState接收到驱动返回的BR_ONEWAY_SPAM_SUSPECT后，调用了CallStack的logStack打印出调用进程的堆栈。代码如下：\nswitch (cmd) { case BR_ONEWAY_SPAM_SUSPECT: ALOGE(\"Process seems to be sending too many oneway calls.\"); CallStack::logStack(\"oneway spamming\", nullptr, ANDROID_LOG_ERROR); [[fallthrough]]; 但在user版本中，堆栈并没有打印成功，而是打印了：CallStack::getCurrentInternal not linked, returning null，这又是为什么呢？\n原因分析 在 AOSP 中：\nlibbinder 负责 Binder IPC，IPCThreadState 是其核心类之一。\n当 Binder 检测到 oneway 调用发送过于频繁时，会触发 BR_ONEWAY_SPAM_SUSPECT。\n为了调试，libbinder 会尝试打印调用堆栈，调用 CallStack::getCurrent() 或 CallStack::logStack()。\nCallStack 的实现是弱符号，定义在 libutilscallstack.so 中：\nstatic CallStackUPtr CALLSTACK_WEAK getCurrentInternal(int32_t ignoreDepth); static void CALLSTACK_WEAK logStackInternal(...); 在 libbinder 中：\nauto stack = CallStack::getCurrent().get(); CallStack::logStack(\"oneway spamming\", stack, ANDROID_LOG_ERROR); 弱符号的特性：\n如果没有真正被链接（动态库未加载或者未导出符号），函数指针为 nullptr。\nCallStack 内部有保护逻辑：\nif (reinterpret_cast\u003cuintptr_t\u003e(getCurrentInternal) == 0) { ALOGW(\"CallStack::getCurrentInternal not linked, returning null\"); } if (reinterpret_cast\u003cuintptr_t\u003e(logStackInternal) == 0) { ALOG(LOG_WARN, logtag, \"CallStack::logStackInternal not linked\"); } 发生原因：\nIPCThreadState 调用了 CallStack::getCurrent()。\nCallStack::getCurrent() 内部依赖 弱符号 getCurrentInternal。\n弱符号定义在 libutilscallstack.so 中，但 libbinder在user版本没有链接 libutilscallstack。\n动态链接器查找全局符号表：\n进程自身（EXE）没有符号 已加载的库（此时 libutilscallstack 没有加载） 找不到 → 弱符号指针为 nullptr CallStack::getCurrent() 检测到 nullptr → 打印日志，并返回空指针。\nDemo演示 概览 目的：演示 C/C++ 中的弱符号（weak symbol）如何用于可选回调实现，以及链接器/运行时加载决策（DT_NEEDED / –as-needed）如何影响弱符号在运行时是否被解析。 核心文件： a.h — 弱符号声明：weak_function；以及库接口 call_from_a() a.cpp — call_from_a() 的实现，调用前检查 weak_function b.cpp / b.h — weak_function 的强实现 main.cpp — 程序入口：调用 call_from_a() Makefile — 构建两个可执行文件 main1（只链接 liba）和 main2（链接 liba 与 libb，并通过链接器选项确保 libb 被记录为运行时依赖） 可执行文件：main1、main2 设计要点（简明） 在 a.h 中使用 __attribute__((weak)) 声明 weak_function，使其成为弱符号；若进程中存在该符号的强实现（例如在 libb 中），运行时会使用强实现，否则弱符号地址为 NULL。 问题点：即便在链接命令中写了 -lb，链接器的默认行为（–as-needed）可能不会把 libb.so 写入可执行文件的 DT_NEEDED（因为可执行文件本身不直接引用 libb，而是由 liba 间接引用）。结果运行时不会自动加载 libb，弱符号仍然为 NULL。 解决办法（示例中）：在生成 main2 时使用 -Wl,–no-as-needed -lb -Wl,–as-needed 来强制将 libb 写入 DT_NEEDED（详见 Makefile 中的注释与命令）。 如何构建 在工程根目录运行： # ...existing code... make clean make （参见 Makefile 以及子目录 Makefile 和 Makefile）\n运行与验证步骤\n运行只链接 liba 的可执行：main1。\n# ...existing code... ./main1 预期输出（main1，不加载 libb）：\n[liba] call_from_a() called [liba] weak_function is NOT defined 原因：main1 的 DT_NEEDED 不包含 libb（见下），运行时不会加载 libb.so，weak_function 在运行时为 NULL，a 中做了空指针检查所以不会调用。\n检查 main1 的运行时依赖（DT_NEEDED）：\n# ...existing code... readelf -d ./main1 | grep NEEDED 预期结果：只看到 liba（和系统库），没有 libb。\n运行链接了 libb 的可执行：main2。\n# ...existing code... ./main2 预期输出（main2，加载 libb）：\n[liba] call_from_a() called [liba] weak_function is defined, calling it… [libb] weak_function() implementation called! 原因：在 Makefile 中生成 main2 时使用了 -Wl,–no-as-needed -lb -Wl,–as-needed，因此 libb 被记录在 DT_NEEDED，运行时加载 libb.so，weak_function 被解析为 libb 的强实现。\n检查 main2 的运行时依赖（DT_NEEDED）确认 libb 被记录：\n# ...existing code... readelf -d ./main2 | grep NEEDED 预期结果：能看到 libb.so 出现在 NEEDED 条目中（以及 liba.so 等）。\n进一步的静态/动态检查\n查看 liba.so 中对 weak symbol 的引用：\n# ...existing code... readelf -Ws liba/liba.so | grep weak_function 查看 libb.so 导出的符号：\n# ...existing code... nm -D libb/libb.so | grep weak_function 总结：\nweak symbol 的常见用途：可选回调、插件式可插拔实现、后向兼容等。 运行时解析依赖于进程地址空间是否载入了提供强定义的共享对象；仅仅在链接阶段写 -lb 并不总是能保证运行时加载 libb（取决于链接器的 as-needed 行为）。 代码结构和文件 weak_symbols$ tree . ├── liba │ ├── a.cpp │ ├── a.h │ ├── liba.so │ └── Makefile ├── libb │ ├── b.cpp │ ├── b.h │ ├── libb.so │ └── Makefile ├── main1 ├── main2 ├── main.cpp └── Makefile 3 directories, 12 files liba/a.h\n#pragma once #include // 声明一个弱符号函数 // 说明： // 1) `__attribute__((weak))` 将符号声明为“弱符号”。如果在链接时或运行时 // 找不到该符号的强定义（strong definition），弱符号可以被视为未定义而 // 不会产生链接错误（与普通未定义符号不同，普通未定义符号会导致链接失败）。 // 2) 运行时行为：如果进程的地址空间中存在该符号的强定义（例如由另一个共享库 // `libb.so` 提供并被加载到进程中），那么该强定义会被使用；否则弱符号的地址 // 为 NULL（或等价的未定义），调用前通常要先检查（如 `if (weak_function)`）。 // 3) 与共享库结合使用时的常见陷阱：即便在链接阶段命令里写了 `-lb`，链接器可能 // （在默认的 --as-needed 行为下）并不会把 `libb.so` 写入最终可执行文件的 DT_NEEDED // 条目——尤其当可执行文件本身并不直接引用 `libb` 中的符号，而是 `liba.so` // 间接引用时。结果运行时不会自动加载 `libb`，导致弱符号仍然为 NULL。请参考 // 示例仓库中的 Makefile 链接选项：可以用 `-Wl,--no-as-needed -lb -Wl,--as-needed` // 来强制记录 `libb.so` 为运行时依赖，或在程序里显式 dlopen `libb.so`。 // 4) 推荐用法：如果你依赖另一个库来提供可选的回调实现，使用弱符号并在调用前 // 做空指针检查是一种常见做法；但同时要保证运行时能把提供实现的库加载进来， // 否则该实现永远不会被调用。 __attribute__((weak)) void weak_function(); // A库提供的接口 void call_from_a(); liba/a.cpp\n#include \"a.h\" #include void call_from_a() { std::cout \u003c\u003c \"[liba] call_from_a() called\" \u003c\u003c std::endl; if (weak_function) { std::cout \u003c\u003c \"[liba] weak_function is defined, calling it...\" \u003c\u003c std::endl; weak_function(); } else { std::cout \u003c\u003c \"[liba] weak_function is NOT defined\" \u003c\u003c std::endl; } } liba/Makefile\nCXX := g++ CXXFLAGS := -Wall -fPIC -O2 TARGET := liba.so all: $(TARGET) $(TARGET): a.cpp a.h $(CXX) $(CXXFLAGS) -shared a.cpp -o $@ clean: rm -f $(TARGET) *.o lib/b.h\n#pragma once #include // libb 提供 weak_function 的实现 void weak_function(); lib/b.cpp\n#include \"b.h\" #include void weak_function() { std::cout \u003c\u003c \"[libb] weak_function() implementation called!\" \u003c\u003c std::endl; } lib/Makefile\nCXX := g++ CXXFLAGS := -Wall -fPIC -O2 TARGET := libb.so all: $(TARGET) $(TARGET): b.cpp b.h $(CXX) $(CXXFLAGS) -shared b.cpp -o $@ clean: rm -f $(TARGET) *.o main.cpp\n#include \"liba/a.h\" int main() { call_from_a(); return 0; } 顶层 Makefile\nCXX := g++ LDFLAGS := -L./liba -L./libb INCLUDES := -I./liba -I./libb all: main1 main2 # 只链接 liba main1: main.cpp liba/liba.so $(CXX) main.cpp -o $@ $(INCLUDES) $(LDFLAGS) -la -Wl,-rpath=./liba # 链接 liba 和 libb main2: main.cpp liba/liba.so libb/libb.so # Ensure libb is recorded in DT_NEEDED so the runtime linker loads it. # Use --no-as-needed/--as-needed around -lb to prevent the linker from # dropping libb when its symbols aren't directly referenced by the main # binary (they're referenced by liba instead). $(CXX) main.cpp -o $@ $(INCLUDES) $(LDFLAGS) -la -Wl,--no-as-needed -lb -Wl,--as-needed -Wl,-rpath=./liba:./libb liba/liba.so: $(MAKE) -C liba libb/libb.so: $(MAKE) -C libb clean: $(MAKE) -C liba clean $(MAKE) -C libb clean rm -f main1 main2 ",
+  "wordCount" : "978",
+  "inLanguage": "en",
+  "datePublished": "2025-09-28T11:36:11+08:00",
+  "dateModified": "2025-09-28T11:36:11+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://ethen-cao.github.io/ethenslab/">Home</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/android-dev/">Android系统开发</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/android-dev/debug/">Android 调试篇</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Binder spam detection原理
+    </h1>
+    <div class="post-meta"><span title='2025-09-28 11:36:11 +0800 CST'>September 28, 2025</span>&nbsp;·&nbsp;5 min&nbsp;·&nbsp;978 words
+
+</div>
+  </header> 
+  <div class="post-content"><h2 id="binder-spam-detection原理">Binder spam detection原理<a hidden class="anchor" aria-hidden="true" href="#binder-spam-detection原理">#</a></h2>
+<p>当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:</p>
+<pre tabindex="0"><code>IPCThreadState: Process seems to be sending too many oneway calls.
+</code></pre><h3 id="核心原因">核心原因<a hidden class="anchor" aria-hidden="true" href="#核心原因">#</a></h3>
+<p>这个日志的根本原因在于 <strong>Kernel 层的 Binder 驱动程序</strong> 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 <strong>异步缓冲区空间 (async space) 严重不足</strong>。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。</p>
+<p>整个检测和通知流程可以概括为：</p>
+<ol>
+<li><strong>客户端发起 Oneway 调用</strong>：进程通过 <code>transact()</code> 发起一个带有 <code>TF_ONE_WAY</code> 标志的 Binder 调用。</li>
+<li><strong>内核分配缓冲区</strong>：Binder 驱动在内核空间为这个 oneway 事务分配内存。</li>
+<li><strong>内核进行垃圾邮件检测 (Spam Detection)</strong>：在分配内存时，内核会检查剩余的<strong>异步缓冲区空间</strong>。如果空间低于某个阈值（总空间的 10%），驱动就会开始怀疑有进程在“滥发” oneway 调用。</li>
+<li><strong>标记可疑事务</strong>：如果异步空间过低，驱动会进一步检查当前发起调用的这个进程，是否占用了过多的 oneway 缓冲区（例如，超过 50 个缓冲区或总大小超过总空间的 25%）。如果满足条件，内核就会给这个事务的缓冲区打上 <code>oneway_spam_suspect</code> 的标记。</li>
+<li><strong>内核返回特殊指令</strong>：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 <code>oneway_spam_suspect</code> 标记，内核就不会返回常规的 <code>BR_TRANSACTION_COMPLETE</code>，而是返回一个特殊的 <code>BR_ONEWAY_SPAM_SUSPECT</code> 指令。</li>
+<li><strong>用户空间打印日志</strong>：客户端的 <code>IPCThreadState</code> 在 <code>waitForResponse()</code> 中接收并解析来自内核的指令。当它收到 <code>BR_ONEWAY_SPAM_SUSPECT</code> 时，就会打印出这条我们看到的错误日志。</li>
+</ol>
+<h3 id="代码分析">代码分析<a hidden class="anchor" aria-hidden="true" href="#代码分析">#</a></h3>
+<ul>
+<li>
+<p><strong>用户空间日志打印点 (IPCThreadState.cpp)</strong>
+在 <code>IPCThreadState::waitForResponse</code> 函数中，它处理从 Binder 驱动返回的各种指令 (<code>BR_*</code>)。其中就包括 <code>BR_ONEWAY_SPAM_SUSPECT</code>。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// IPCThreadState.cpp
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>status_t IPCThreadState<span style="color:#f92672">::</span>waitForResponse(Parcel <span style="color:#f92672">*</span>reply, status_t <span style="color:#f92672">*</span>acquireResult)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">while</span> (<span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        cmd <span style="color:#f92672">=</span> (<span style="color:#66d9ef">uint32_t</span>)mIn.readInt32();
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">switch</span> (cmd) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> BR_ONEWAY_SPAM_SUSPECT:
+</span></span><span style="display:flex;"><span>            ALOGE(<span style="color:#e6db74">&#34;Process seems to be sending too many oneway calls.&#34;</span>); <span style="color:#75715e">// &lt;-- 日志打印点
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>            CallStack<span style="color:#f92672">::</span>logStack(<span style="color:#e6db74">&#34;oneway spamming&#34;</span>, <span style="color:#66d9ef">nullptr</span>,
+</span></span><span style="display:flex;"><span>                ANDROID_LOG_ERROR);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">[[fallthrough]]</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> BR_TRANSACTION_COMPLETE:
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>reply <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>acquireResult) <span style="color:#66d9ef">goto</span> finish;
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>}
+</span></span></code></pre></div></li>
+<li>
+<p><strong>内核空间检测逻辑 (binder_alloc.c)</strong>
+内核中的 <code>binder_alloc_new_buf_locked</code> 函数在为 oneway 事务分配缓冲区时，会调用 <code>debug_low_async_space_locked</code> 进行检测。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">// binder_alloc.c
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">struct</span> binder_buffer <span style="color:#f92672">*</span><span style="color:#a6e22e">binder_alloc_new_buf_locked</span>(
+</span></span><span style="display:flex;"><span>                ..., <span style="color:#66d9ef">int</span> is_async)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (is_async) {
+</span></span><span style="display:flex;"><span>        alloc<span style="color:#f92672">-&gt;</span>free_async_space <span style="color:#f92672">-=</span> size; <span style="color:#75715e">// 减少可用的异步空间
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (<span style="color:#a6e22e">debug_low_async_space_locked</span>(alloc))
+</span></span><span style="display:flex;"><span>            buffer<span style="color:#f92672">-&gt;</span>oneway_spam_suspect <span style="color:#f92672">=</span> true; <span style="color:#75715e">// &lt;-- 如果检测为 spam，设置标记
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">return</span> buffer;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">bool</span> <span style="color:#a6e22e">debug_low_async_space_locked</span>(<span style="color:#66d9ef">struct</span> binder_alloc <span style="color:#f92672">*</span>alloc)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#75715e">// 阈值1：只有当可用异步空间低于总空间的10%时，才开始检测
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (alloc<span style="color:#f92672">-&gt;</span>free_async_space <span style="color:#f92672">&gt;=</span> alloc<span style="color:#f92672">-&gt;</span>buffer_size <span style="color:#f92672">/</span> <span style="color:#ae81ff">10</span>) {
+</span></span><span style="display:flex;"><span>        alloc<span style="color:#f92672">-&gt;</span>oneway_spam_detected <span style="color:#f92672">=</span> false;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> false;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ... 计算当前进程已分配的 oneway 缓冲区数量和总大小
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 阈值2：如果进程的 oneway 缓冲区超过50个或总大小超过总空间的25%
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (num_buffers <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">50</span> <span style="color:#f92672">||</span> total_alloc_size <span style="color:#f92672">&gt;</span> alloc<span style="color:#f92672">-&gt;</span>buffer_size <span style="color:#f92672">/</span> <span style="color:#ae81ff">4</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>alloc<span style="color:#f92672">-&gt;</span>oneway_spam_detected) {
+</span></span><span style="display:flex;"><span>            alloc<span style="color:#f92672">-&gt;</span>oneway_spam_detected <span style="color:#f92672">=</span> true;
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> true; <span style="color:#75715e">// &lt;-- 返回 true，表示检测到 spam
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> false;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div></li>
+</ul>
+<hr>
+<h3 id="spam-detection-时序图">Spam detection 时序图<a hidden class="anchor" aria-hidden="true" href="#spam-detection-时序图">#</a></h3>
+<p><img loading="lazy" src="/ethenslab/images/spam-detection.png"></p>
+<h2 id="ipcthreadstate-callstack-retun-null的原因">IPCThreadState CallStack retun null的原因<a hidden class="anchor" aria-hidden="true" href="#ipcthreadstate-callstack-retun-null的原因">#</a></h2>
+<p>在IPCThreadState接收到驱动返回的BR_ONEWAY_SPAM_SUSPECT后，调用了CallStack的logStack打印出调用进程的堆栈。代码如下：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span>        <span style="color:#66d9ef">switch</span> (cmd) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> BR_ONEWAY_SPAM_SUSPECT:
+</span></span><span style="display:flex;"><span>        ALOGE(<span style="color:#e6db74">&#34;Process seems to be sending too many oneway calls.&#34;</span>);
+</span></span><span style="display:flex;"><span>        CallStack<span style="color:#f92672">::</span>logStack(<span style="color:#e6db74">&#34;oneway spamming&#34;</span>, <span style="color:#66d9ef">nullptr</span>,
+</span></span><span style="display:flex;"><span>            ANDROID_LOG_ERROR);
+</span></span><span style="display:flex;"><span>            <span style="color:#a6e22e">[[fallthrough]]</span>;
+</span></span></code></pre></div><p>但在user版本中，堆栈并没有打印成功，而是打印了：<strong>CallStack::getCurrentInternal not linked, returning null</strong>，这又是为什么呢？</p>
+<h3 id="原因分析">原因分析<a hidden class="anchor" aria-hidden="true" href="#原因分析">#</a></h3>
+<p>在 <strong>AOSP</strong> 中：</p>
+<ul>
+<li>
+<p><strong><code>libbinder</code></strong> 负责 Binder IPC，<code>IPCThreadState</code> 是其核心类之一。</p>
+</li>
+<li>
+<p>当 Binder 检测到 oneway 调用发送过于频繁时，会触发 <code>BR_ONEWAY_SPAM_SUSPECT</code>。</p>
+</li>
+<li>
+<p>为了调试，<code>libbinder</code> 会尝试打印调用堆栈，调用 <code>CallStack::getCurrent()</code> 或 <code>CallStack::logStack()</code>。</p>
+</li>
+<li>
+<p><strong><code>CallStack</code> 的实现是弱符号</strong>，定义在 <code>libutilscallstack.so</code> 中：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">static</span> CallStackUPtr CALLSTACK_WEAK <span style="color:#a6e22e">getCurrentInternal</span>(<span style="color:#66d9ef">int32_t</span> ignoreDepth);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">void</span> CALLSTACK_WEAK <span style="color:#a6e22e">logStackInternal</span>(...);
+</span></span></code></pre></div></li>
+<li>
+<p>在 <code>libbinder</code> 中：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">auto</span> stack <span style="color:#f92672">=</span> CallStack<span style="color:#f92672">::</span>getCurrent().get();
+</span></span><span style="display:flex;"><span>CallStack<span style="color:#f92672">::</span>logStack(<span style="color:#e6db74">&#34;oneway spamming&#34;</span>, stack, ANDROID_LOG_ERROR);
+</span></span></code></pre></div></li>
+<li>
+<p>弱符号的特性：</p>
+<ul>
+<li>
+<p>如果没有真正被链接（动态库未加载或者未导出符号），函数指针为 <code>nullptr</code>。</p>
+</li>
+<li>
+<p><code>CallStack</code> 内部有保护逻辑：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (<span style="color:#66d9ef">reinterpret_cast</span><span style="color:#f92672">&lt;</span>uintptr_t<span style="color:#f92672">&gt;</span>(getCurrentInternal) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>    ALOGW(<span style="color:#e6db74">&#34;CallStack::getCurrentInternal not linked, returning null&#34;</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (<span style="color:#66d9ef">reinterpret_cast</span><span style="color:#f92672">&lt;</span>uintptr_t<span style="color:#f92672">&gt;</span>(logStackInternal) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>    ALOG(LOG_WARN, logtag, <span style="color:#e6db74">&#34;CallStack::logStackInternal not linked&#34;</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div></li>
+</ul>
+</li>
+</ul>
+<hr>
+<p>发生原因：</p>
+<ol>
+<li>
+<p><code>IPCThreadState</code> 调用了 <code>CallStack::getCurrent()</code>。</p>
+</li>
+<li>
+<p><code>CallStack::getCurrent()</code> 内部依赖 <strong>弱符号 <code>getCurrentInternal</code></strong>。</p>
+</li>
+<li>
+<p>弱符号定义在 <code>libutilscallstack.so</code> 中，但 <strong>libbinder在user版本没有链接 libutilscallstack</strong>。</p>
+</li>
+<li>
+<p>动态链接器查找全局符号表：</p>
+<ul>
+<li>进程自身（EXE）没有符号</li>
+<li>已加载的库（此时 libutilscallstack 没有加载）</li>
+<li>找不到 → 弱符号指针为 <code>nullptr</code></li>
+</ul>
+</li>
+<li>
+<p><code>CallStack::getCurrent()</code> 检测到 <code>nullptr</code> → 打印日志，并返回空指针。</p>
+</li>
+</ol>
+<h3 id="demo演示">Demo演示<a hidden class="anchor" aria-hidden="true" href="#demo演示">#</a></h3>
+<h3 id="概览">概览<a hidden class="anchor" aria-hidden="true" href="#概览">#</a></h3>
+<ul>
+<li>目的：演示 C/C++ 中的弱符号（weak symbol）如何用于可选回调实现，以及链接器/运行时加载决策（DT_NEEDED / &ndash;as-needed）如何影响弱符号在运行时是否被解析。</li>
+<li>核心文件：
+<ul>
+<li>a.h — 弱符号声明：<code>weak_function</code>；以及库接口 <code>call_from_a()</code></li>
+<li>a.cpp — <code>call_from_a()</code> 的实现，调用前检查 <code>weak_function</code></li>
+<li>b.cpp / b.h — <code>weak_function</code> 的强实现</li>
+<li>main.cpp — 程序入口：调用 <code>call_from_a()</code></li>
+<li>Makefile — 构建两个可执行文件 main1（只链接 liba）和 main2（链接 liba 与 libb，并通过链接器选项确保 libb 被记录为运行时依赖）</li>
+<li>可执行文件：main1、main2</li>
+</ul>
+</li>
+</ul>
+<h3 id="设计要点简明">设计要点（简明）<a hidden class="anchor" aria-hidden="true" href="#设计要点简明">#</a></h3>
+<ul>
+<li>在 a.h 中使用 <code>__attribute__((weak))</code> 声明 <code>weak_function</code>，使其成为弱符号；若进程中存在该符号的强实现（例如在 libb 中），运行时会使用强实现，否则弱符号地址为 NULL。</li>
+<li>问题点：即便在链接命令中写了 <code>-lb</code>，链接器的默认行为（&ndash;as-needed）可能不会把 <code>libb.so</code> 写入可执行文件的 DT_NEEDED（因为可执行文件本身不直接引用 libb，而是由 liba 间接引用）。结果运行时不会自动加载 libb，弱符号仍然为 NULL。</li>
+<li>解决办法（示例中）：在生成 main2 时使用 -Wl,&ndash;no-as-needed -lb -Wl,&ndash;as-needed 来强制将 libb 写入 DT_NEEDED（详见 Makefile 中的注释与命令）。</li>
+</ul>
+<h3 id="如何构建">如何构建<a hidden class="anchor" aria-hidden="true" href="#如何构建">#</a></h3>
+<ul>
+<li>在工程根目录运行：</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e"># ...existing code...</span>
+</span></span><span style="display:flex;"><span>make clean
+</span></span><span style="display:flex;"><span>make
+</span></span></code></pre></div><p>（参见 Makefile 以及子目录 Makefile 和 Makefile）</p>
+<p>运行与验证步骤</p>
+<ol>
+<li>
+<p>运行只链接 liba 的可执行：main1。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e"># ...existing code...</span>
+</span></span><span style="display:flex;"><span>./main1
+</span></span></code></pre></div></li>
+</ol>
+<p>预期输出（main1，不加载 libb）：</p>
+<ul>
+<li>[liba] call_from_a() called</li>
+<li>[liba] weak_function is NOT defined</li>
+</ul>
+<p>原因：main1 的 DT_NEEDED 不包含 libb（见下），运行时不会加载 libb.so，<code>weak_function</code> 在运行时为 NULL，a 中做了空指针检查所以不会调用。</p>
+<ol start="2">
+<li>
+<p>检查 main1 的运行时依赖（DT_NEEDED）：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e"># ...existing code...</span>
+</span></span><span style="display:flex;"><span>readelf -d ./main1 | grep NEEDED
+</span></span></code></pre></div></li>
+</ol>
+<p>预期结果：只看到 liba（和系统库），没有 libb。</p>
+<ol start="3">
+<li>
+<p>运行链接了 libb 的可执行：main2。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e"># ...existing code...</span>
+</span></span><span style="display:flex;"><span>./main2
+</span></span></code></pre></div></li>
+</ol>
+<p>预期输出（main2，加载 libb）：</p>
+<ul>
+<li>[liba] call_from_a() called</li>
+<li>[liba] weak_function is defined, calling it&hellip;</li>
+<li>[libb] weak_function() implementation called!</li>
+</ul>
+<p>原因：在 Makefile 中生成 main2 时使用了 -Wl,&ndash;no-as-needed -lb -Wl,&ndash;as-needed，因此 libb 被记录在 DT_NEEDED，运行时加载 libb.so，<code>weak_function</code> 被解析为 libb 的强实现。</p>
+<ol start="4">
+<li>
+<p>检查 main2 的运行时依赖（DT_NEEDED）确认 libb 被记录：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e"># ...existing code...</span>
+</span></span><span style="display:flex;"><span>readelf -d ./main2 | grep NEEDED
+</span></span></code></pre></div></li>
+</ol>
+<p>预期结果：能看到 libb.so 出现在 NEEDED 条目中（以及 liba.so 等）。</p>
+<p>进一步的静态/动态检查</p>
+<ul>
+<li>
+<p>查看 liba.so 中对 weak symbol 的引用：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e"># ...existing code...</span>
+</span></span><span style="display:flex;"><span>readelf -Ws liba/liba.so | grep weak_function
+</span></span></code></pre></div></li>
+<li>
+<p>查看 libb.so 导出的符号：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-sh" data-lang="sh"><span style="display:flex;"><span><span style="color:#75715e"># ...existing code...</span>
+</span></span><span style="display:flex;"><span>nm -D libb/libb.so | grep weak_function
+</span></span></code></pre></div></li>
+</ul>
+<p>总结：</p>
+<ul>
+<li>weak symbol 的常见用途：可选回调、插件式可插拔实现、后向兼容等。</li>
+<li>运行时解析依赖于进程地址空间是否载入了提供强定义的共享对象；仅仅在链接阶段写 <code>-lb</code> 并不总是能保证运行时加载 libb（取决于链接器的 as-needed 行为）。</li>
+</ul>
+<h3 id="代码结构和文件">代码结构和文件<a hidden class="anchor" aria-hidden="true" href="#代码结构和文件">#</a></h3>
+<pre tabindex="0"><code>weak_symbols$ tree
+.
+├── liba
+│   ├── a.cpp
+│   ├── a.h
+│   ├── liba.so
+│   └── Makefile
+├── libb
+│   ├── b.cpp
+│   ├── b.h
+│   ├── libb.so
+│   └── Makefile
+├── main1
+├── main2
+├── main.cpp
+└── Makefile
+
+3 directories, 12 files
+</code></pre><hr>
+<p>liba/a.h</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">#pragma once
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;string&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// 声明一个弱符号函数
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 说明：
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//  1) `__attribute__((weak))` 将符号声明为“弱符号”。如果在链接时或运行时
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     找不到该符号的强定义（strong definition），弱符号可以被视为未定义而
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     不会产生链接错误（与普通未定义符号不同，普通未定义符号会导致链接失败）。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//  2) 运行时行为：如果进程的地址空间中存在该符号的强定义（例如由另一个共享库
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     `libb.so` 提供并被加载到进程中），那么该强定义会被使用；否则弱符号的地址
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     为 NULL（或等价的未定义），调用前通常要先检查（如 `if (weak_function)`）。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//  3) 与共享库结合使用时的常见陷阱：即便在链接阶段命令里写了 `-lb`，链接器可能
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     （在默认的 --as-needed 行为下）并不会把 `libb.so` 写入最终可执行文件的 DT_NEEDED
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     条目——尤其当可执行文件本身并不直接引用 `libb` 中的符号，而是 `liba.so`
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     间接引用时。结果运行时不会自动加载 `libb`，导致弱符号仍然为 NULL。请参考
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     示例仓库中的 Makefile 链接选项：可以用 `-Wl,--no-as-needed -lb -Wl,--as-needed`
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     来强制记录 `libb.so` 为运行时依赖，或在程序里显式 dlopen `libb.so`。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//  4) 推荐用法：如果你依赖另一个库来提供可选的回调实现，使用弱符号并在调用前
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     做空指针检查是一种常见做法；但同时要保证运行时能把提供实现的库加载进来，
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">//     否则该实现永远不会被调用。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>__attribute__((weak)) <span style="color:#66d9ef">void</span> weak_function();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// A库提供的接口
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">call_from_a</span>();
+</span></span></code></pre></div><hr>
+<p>liba/a.cpp</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&#34;a.h&#34;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;iostream&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">call_from_a</span>() {
+</span></span><span style="display:flex;"><span>    std<span style="color:#f92672">::</span>cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;[liba] call_from_a() called&#34;</span> <span style="color:#f92672">&lt;&lt;</span> std<span style="color:#f92672">::</span>endl;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (weak_function) {
+</span></span><span style="display:flex;"><span>        std<span style="color:#f92672">::</span>cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;[liba] weak_function is defined, calling it...&#34;</span> <span style="color:#f92672">&lt;&lt;</span> std<span style="color:#f92672">::</span>endl;
+</span></span><span style="display:flex;"><span>        weak_function();
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>        std<span style="color:#f92672">::</span>cout <span style="color:#f92672">&lt;&lt;</span> <span style="color:#e6db74">&#34;[liba] weak_function is NOT defined&#34;</span> <span style="color:#f92672">&lt;&lt;</span> std<span style="color:#f92672">::</span>endl;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><hr>
+<p>liba/Makefile</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Makefile" data-lang="Makefile"><span style="display:flex;"><span>CXX <span style="color:#f92672">:=</span> g++
+</span></span><span style="display:flex;"><span>CXXFLAGS <span style="color:#f92672">:=</span> -Wall -fPIC -O2
+</span></span><span style="display:flex;"><span>TARGET <span style="color:#f92672">:=</span> liba.so
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">all</span><span style="color:#f92672">:</span> <span style="color:#66d9ef">$(</span>TARGET<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">$(TARGET)</span><span style="color:#f92672">:</span> a.cpp a.h
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">$(</span>CXX<span style="color:#66d9ef">)</span> <span style="color:#66d9ef">$(</span>CXXFLAGS<span style="color:#66d9ef">)</span> -shared a.cpp -o $@
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">clean</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>	rm -f <span style="color:#66d9ef">$(</span>TARGET<span style="color:#66d9ef">)</span> *.o
+</span></span></code></pre></div><hr>
+<p>lib/b.h</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">#pragma once
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&lt;string&gt;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// libb 提供 weak_function 的实现
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">weak_function</span>();
+</span></span></code></pre></div><p>lib/b.cpp</p>
+<pre tabindex="0"><code>#include &#34;b.h&#34;
+#include &lt;iostream&gt;
+
+void weak_function() {
+    std::cout &lt;&lt; &#34;[libb] weak_function() implementation called!&#34; &lt;&lt; std::endl;
+}
+</code></pre><p>lib/Makefile</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Makefile" data-lang="Makefile"><span style="display:flex;"><span>CXX <span style="color:#f92672">:=</span> g++
+</span></span><span style="display:flex;"><span>CXXFLAGS <span style="color:#f92672">:=</span> -Wall -fPIC -O2
+</span></span><span style="display:flex;"><span>TARGET <span style="color:#f92672">:=</span> libb.so
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">all</span><span style="color:#f92672">:</span> <span style="color:#66d9ef">$(</span>TARGET<span style="color:#66d9ef">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">$(TARGET)</span><span style="color:#f92672">:</span> b.cpp b.h
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">$(</span>CXX<span style="color:#66d9ef">)</span> <span style="color:#66d9ef">$(</span>CXXFLAGS<span style="color:#66d9ef">)</span> -shared b.cpp -o $@
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">clean</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>	rm -f <span style="color:#66d9ef">$(</span>TARGET<span style="color:#66d9ef">)</span> *.o
+</span></span></code></pre></div><hr>
+<p>main.cpp</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&#34;liba/a.h&#34;</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">main</span>() {
+</span></span><span style="display:flex;"><span>    call_from_a();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>顶层 Makefile</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Makefile" data-lang="Makefile"><span style="display:flex;"><span>CXX <span style="color:#f92672">:=</span> g++
+</span></span><span style="display:flex;"><span>LDFLAGS <span style="color:#f92672">:=</span> -L./liba -L./libb
+</span></span><span style="display:flex;"><span>INCLUDES <span style="color:#f92672">:=</span> -I./liba -I./libb
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">all</span><span style="color:#f92672">:</span> main1 main2
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 只链接 liba
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#a6e22e">main1</span><span style="color:#f92672">:</span> main.cpp liba/liba.so
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">$(</span>CXX<span style="color:#66d9ef">)</span> main.cpp -o $@ <span style="color:#66d9ef">$(</span>INCLUDES<span style="color:#66d9ef">)</span> <span style="color:#66d9ef">$(</span>LDFLAGS<span style="color:#66d9ef">)</span> -la -Wl,-rpath<span style="color:#f92672">=</span>./liba
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 链接 liba 和 libb
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#a6e22e">main2</span><span style="color:#f92672">:</span> main.cpp liba/liba.so libb/libb.so
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e"># Ensure libb is recorded in DT_NEEDED so the runtime linker loads it.</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e"># Use --no-as-needed/--as-needed around -lb to prevent the linker from</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e"># dropping libb when its symbols aren&#39;t directly referenced by the main</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e"># binary (they&#39;re referenced by liba instead).</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">$(</span>CXX<span style="color:#66d9ef">)</span> main.cpp -o $@ <span style="color:#66d9ef">$(</span>INCLUDES<span style="color:#66d9ef">)</span> <span style="color:#66d9ef">$(</span>LDFLAGS<span style="color:#66d9ef">)</span> -la -Wl,--no-as-needed -lb -Wl,--as-needed -Wl,-rpath<span style="color:#f92672">=</span>./liba:./libb
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">liba/liba.so</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">$(</span>MAKE<span style="color:#66d9ef">)</span> -C liba
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">libb/libb.so</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">$(</span>MAKE<span style="color:#66d9ef">)</span> -C libb
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">clean</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">$(</span>MAKE<span style="color:#66d9ef">)</span> -C liba clean
+</span></span><span style="display:flex;"><span>	<span style="color:#66d9ef">$(</span>MAKE<span style="color:#66d9ef">)</span> -C libb clean
+</span></span><span style="display:flex;"><span>	rm -f main1 main2
+</span></span></code></pre></div>
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+<nav class="paginav">
+  <a class="next" href="https://ethen-cao.github.io/ethenslab/android-dev/debug/protolog/">
+    <span class="title">Next »</span>
+    <br>
+    <span>深入解析 Android ProtoLog：高性能结构化日志系统</span>
+  </a>
+</nav>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2025 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

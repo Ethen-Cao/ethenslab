@@ -1,0 +1,71 @@
+@startuml
+!theme plain
+
+actor "Client App" as App
+participant "IPCThreadState" as IPC
+participant "Binder Driver (Kernel)" as Kernel
+participant "binder_alloc (Kernel)" as Alloc
+
+title Oneway Spam Detection and Logging Sequence
+
+App -> IPC: transact(..., TF_ONE_WAY)
+activate IPC
+
+IPC -> IPC: writeTransactionData(BC_TRANSACTION, ...)
+IPC -> Kernel: talkWithDriver() via ioctl(BINDER_WRITE_READ)
+activate Kernel
+
+note over Kernel, Alloc: === Kernel Space ===
+
+Kernel -> Alloc: binder_alloc_new_buf(..., is_async=1)
+activate Alloc
+
+Alloc -> Alloc: binder_alloc_new_buf_locked(...)
+
+box "Spam Detection Logic" #LightBlue
+    Alloc -> Alloc: debug_low_async_space_locked()
+    activate Alloc
+    alt free_async_space < 10% of total AND (pid_buffers > 50 OR pid_size > 25% of total)
+        Alloc --> Alloc: return true
+    else
+        Alloc --> Alloc: return false
+    end
+    deactivate Alloc
+end box
+
+alt spam detected (returns true)
+    Alloc -> Alloc: buffer->oneway_spam_suspect = true
+end
+Alloc --> Kernel: return binder_buffer
+deactivate Alloc
+
+note right of Kernel
+  The transaction is queued for the target service.
+  For oneway calls, the driver immediately replies
+  to the calling client thread.
+end note
+
+alt buffer->oneway_spam_suspect == true
+    Kernel -> Kernel: Prepare reply command: BR_ONEWAY_SPAM_SUSPECT
+else
+    Kernel -> Kernel: Prepare reply command: BR_TRANSACTION_COMPLETE
+end
+
+Kernel --> IPC: ioctl returns with reply data
+deactivate Kernel
+
+note over App, IPC: === User Space ===
+
+IPC -> IPC: waitForResponse()
+activate IPC
+
+IPC -> IPC: Read command from input buffer
+alt received command is BR_ONEWAY_SPAM_SUSPECT
+    IPC -> IPC: ALOGE("Process seems to be sending too many oneway calls.")
+    IPC -> IPC: CallStack::logStack(...)
+end
+
+IPC --> App: transact() returns
+deactivate IPC
+
+@enduml
