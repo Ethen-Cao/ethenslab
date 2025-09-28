@@ -97,8 +97,6 @@ IPCThreadState: Process seems to be sending too many oneway calls.
     }
     ```
 
------
-
 ### Spam detection 时序图
 
 ![](/ethenslab/images/spam-detection.png)
@@ -156,8 +154,6 @@ IPCThreadState: Process seems to be sending too many oneway calls.
         ALOG(LOG_WARN, logtag, "CallStack::logStackInternal not linked");
     }
     ```
-
----
 
 发生原因：
 
