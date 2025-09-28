@@ -1,0 +1,35 @@
+@startuml
+' !theme plain
+skinparam defaultFontColor #000000
+skinparam shadowing false
+skinparam componentStyle uml2
+
+title CI 验证流程核心组件框图
+
+actor "开发者" as Dev
+
+package "CI/CD 核心服务" #LightGreen {
+  component "Gerrit 服务器" as Gerrit {
+    database "Gerrit Git 仓库" as Repos #LightYellow
+  }
+
+  node "Jenkins Controller" as JenkinsMaster #LightSkyBlue
+  node "Jenkins Agent(s)" as JenkinsAgent #LightBlue
+}
+
+' 定义交互流程
+Dev -right-> Gerrit : **1. 推送变更 (git push)**git push HEAD:refs/for/<branch>
+
+Gerrit -down-> JenkinsMaster : **2. 事件通知 (Webhook)**当 "Patchset Created" 事件发生，\n发送 JSON 数据 (含 refs/changes/XX/YYYYY/Z)
+
+JenkinsMaster -down-> JenkinsAgent : **3. 分配构建任务**\n<font size=10>携带 Gerrit 参数 (如 GERRIT_REFSPEC)\n调度到可用的构建节点
+
+JenkinsAgent -up-> Gerrit : **4. 拉取指定代码 (git fetch)**\n<font size=10>从 Gerrit Git 仓库\n拉取 refs/changes/XX/YYYYY/Z
+
+JenkinsAgent --> JenkinsAgent : **5. 执行验证**\n<font size=10>a. 静态代码分析\nb. 编译构建\nc. 单元测试
+
+JenkinsAgent ..> JenkinsMaster : **6. 同步构建结果**\n成功 / 失败，含日志 URL
+
+JenkinsMaster -up-> Gerrit : **7. 反馈验证状态 (API/SSH)**\n通过 Gerrit Trigger 插件\n设置 Verified +1/-1 标签\n并附上构建日志链接
+
+@enduml

@@ -46,6 +46,10 @@ title = '智能座舱软件开发 CI/CD 流程技术说明文档'
 * **[04] `[Webhook]` 触发 CI 验证**:
     * **技术原理**: Gerrit 通过其事件监听插件（如 its-hooks），在“新 Patchset 创建（PatchSet Created）”事件发生时，向 Jenkins 服务器预先配置的 URL 发送一个 HTTP POST 请求，即 Webhook。该请求的 Body 是一个 JSON 对象，包含了触发验证所需的所有元数据，如项目名、分支、Gerrit Change URL 以及最重要的 Git Checkout 引用（例如 `refs/changes/23/12323/1`）。
 
+    简化版的流程如下：
+
+    ![](/ethenslab/images/ci-cd-process.png)
+
 * **[05-15] Jenkins CI 验证流水线**:
     * **拉取 Patchset**: Jenkins 中的 Gerrit Trigger 插件会解析 Webhook 传入的 JSON，并使用其中的 Git 引用，精确地只拉取开发者提交的那个变更版本进行验证，而不是整个主干。
     * **[06-07] 静态代码分析**: Jenkins 调用 SonarQube Scanner 工具。Scanner 会在 Jenkins 的工作空间内分析代码，并将分析结果（代码异味、Bug、漏洞、覆盖率等）上报给 SonarQube 服务器。上报后，Jenkins 会通过 API 回调 SonarQube，检查本次分析是否通过了预设的**质量门禁 (Quality Gate)**。
