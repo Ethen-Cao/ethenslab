@@ -6,8 +6,64 @@
     <description>Recent content in Android 调试篇 on Ethen 的实验室</description>
     <generator>Hugo -- 0.150.1</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 28 Sep 2025 11:36:11 +0800</lastBuildDate>
+    <lastBuildDate>Mon, 29 Sep 2025 11:36:11 +0800</lastBuildDate>
     <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/debug/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Android Binder Proxy 限制机制</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</link>
+      <pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</guid>
+      <description>&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png&#34;&gt;
+本图描述了 Android 系统中 &lt;strong&gt;Binder Proxy 数量限制（BinderProxy Limit）&lt;/strong&gt; 的实现流程，涉及 &lt;code&gt;ActivityManagerService&lt;/code&gt;、&lt;code&gt;BinderInternal&lt;/code&gt;、JNI 层、&lt;code&gt;BpBinder&lt;/code&gt; 等关键组件。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;1-关键模块&#34;&gt;1. 关键模块&lt;/h2&gt;
+&lt;h3 id=&#34;11-java-层&#34;&gt;1.1 Java 层&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;ActivityManagerService (AMS)&lt;/strong&gt;
+系统服务的核心，负责启用 Binder Proxy 限制，并设置回调。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;BinderInternal&lt;/strong&gt;
+桥接 AMS 与 Native 层的接口类，提供&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;nSetBinderProxyCountEnabled&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;setBinderProxyCountCallback&lt;/code&gt;
+等方法。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;BinderProxyLimitListener / Delegate&lt;/strong&gt;
+当达到 Binder Proxy 数量上限时被触发，执行对应的回调逻辑。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h3 id=&#34;12-native-层-jni&#34;&gt;1.2 Native 层 (JNI)&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;libandroid_runtime&lt;/strong&gt;
+JNI 桥接库，实现了 &lt;code&gt;android_os_BinderInternal_setBinderProxyCountEnabled&lt;/code&gt; 与回调代理 &lt;code&gt;android_os_BinderInternal_proxyLimitcallback&lt;/code&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;libbinder&lt;/strong&gt;
+Binder 内核通信库，负责 Binder 代理对象的创建与管理。
+其中 &lt;code&gt;BpBinder::create&lt;/code&gt; 在生成 Binder 代理对象时进行计数与节流。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;2-调用流程&#34;&gt;2. 调用流程&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;AMS 启动限制&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;ActivityManagerService&lt;/code&gt; 调用
+&lt;code&gt;BinderInternal.nSetBinderProxyCountEnabled(true)&lt;/code&gt;
+以启用 Binder Proxy 限制。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description>
+    </item>
     <item>
       <title>Binder spam detection原理</title>
       <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link>
