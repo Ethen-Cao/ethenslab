@@ -1,0 +1,59 @@
+@startuml
+!theme plain
+
+actor User
+participant "Launcher\n(SystemUI)" as Launcher
+participant "ATMS\n(ActivityTaskManagerService)\n(system_server)" as ATMS
+participant "WMS\n(WindowManagerService)\n(system_server)" as WMS
+participant "SurfaceFlinger" as SF
+participant "AppProcessA\n(IApplicationThread)\n(ActivityA)" as AppA
+participant "AppProcessB\n(IApplicationThread)\n(ActivityB on Display2)" as AppB
+participant "AppProcessX\n(IApplicationThread)\n(ActivityX below A on Display1)" as AppX
+
+== 用户触发启动 ==
+User -> Launcher : 点击 App A 图标 (Display 2)
+Launcher -> ATMS : startActivity(intent{launchDisplayId=2, ...})
+
+== ATMS 内部决策（服务端对象修改） ==
+ATMS -> ATMS : 查找 ActivityRecord/TaskRecord\n决定将 Task/Activity 从 Display1 reparent 到 Display2\n(更新 TaskRecord.parent = TaskDisplayArea(display2))
+
+== 准备窗口转换（协调 WMS） ==
+ATMS -> WMS : prepareAppTransition()/request reparent
+
+== 对目标 Display 的前台 ActivityB 下发 pause ==
+ATMS -> AppB : IApplicationThread.schedulePauseActivity(B_token,...)
+AppB --> ATMS : pauseFinished (ack)
+
+== 对要移动的 ActivityA 下发 pause（应用进程会在 onPause 执行） ==
+ATMS -> AppA : IApplicationThread.schedulePauseActivity(A_token,...)
+AppA --> ATMS : pauseFinished (ack)
+
+== WMS 做 window/container reparent（Surface 层移动） ==
+ATMS -> WMS : reparentTaskWindowContainer(taskId, from=Display1, to=Display2)
+WMS -> SF : SurfaceControl.reparentLayers(...)/applyTransaction()
+WMS --> ATMS : reparentComplete
+
+alt 如果显示环境发生配置变化（density/大小等）
+  ATMS -> AppA : IApplicationThread.scheduleRelaunchActivity(A_token, newConfig,...)
+  AppA --> ATMS : relaunchDone (ack) // 可能导致 onDestroy/onCreate 或 onConfigurationChanged
+end
+
+== 恢复目标 Display 的 ActivityA（在 Display2 成为前台） ==
+ATMS -> AppA : IApplicationThread.scheduleResumeActivity(A_token,...)
+AppA --> ATMS : resumeFinished (ack)
+
+== 恢复源 Display 上的新栈顶 ActivityX ==
+ATMS -> AppX : IApplicationThread.scheduleResumeActivity(X_token,...)
+AppX --> ATMS : resumeFinished (ack)
+
+== 最终：更新每个 Display 的 top-resumed 状态 ==
+ATMS -> ATMS : 更新 mTopResumedActivity（per-display）
+
+note over ATMS, WMS
+  关键点：
+  - ATMS 在 system_server 内部仅操作 ActivityRecord/TaskRecord，\n
+    通过 IApplicationThread（Binder）让应用进程执行 onPause/onResume/relauch 等回调。
+  - WMS 负责实际的 WindowContainer/Surface 迁移并调用 SurfaceFlinger 做 layer reparent。
+end note
+
+@enduml
