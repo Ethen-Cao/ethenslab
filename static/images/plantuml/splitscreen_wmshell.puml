@@ -1,0 +1,95 @@
+@startuml
+!theme plain
+skinparam defaultFontColor #000000
+skinparam sequence {
+    ArrowColor #DimGray
+    LifeLineBorderColor #DimGray
+}
+title Android 14 分屏模式完整交互流程 (优化版)
+
+actor User
+
+participant "SystemUI / WMShell" as Shell
+participant "WindowManagerService (WMS)" as WMS
+participant "SurfaceFlinger (SF)" as SF
+
+autonumber
+
+group Phase 1: 用户启动分屏
+
+    User -> Shell: 通过手势或点击触发分屏
+    note right of Shell
+        由 **`SplitScreenController`** 处理用户输入。
+    end note
+
+    Shell -> WMS: 请求进入分屏模式 (`startTaskInSplitScreen`)
+
+    WMS -> Shell: **[Binder IPC]** 批准并委托动画\n`ITransitionPlayer.requestTransition(TransitionInfo)`
+    note left of WMS
+        WMS 将动画所需的所有信息
+        (起始/目标 Bounds, **SurfaceControl 句柄**等)
+        打包到 **`TransitionInfo`** 对象中传递。
+    end note
+
+    Shell -> Shell: 解析 `TransitionInfo`，获取 SurfaceControl 句柄
+    note right of Shell
+        对应 **`TransitionInfo$Change$1.createFromParcel`** 堆栈。
+        WMShell 在此获得了直接控制应用图层的“遥控器”。
+    end note
+
+    Shell -> Shell: `Transitions` 引擎启动 `ValueAnimator`
+    loop 动画每一帧 (由 Choreographer 驱动)
+        Shell -> Shell: 根据动画进度计算插值后的变换属性
+        Shell -> SF: `Transaction.setMatrix()` / `setPosition()` / `setWindowCrop()`... 并应用
+        note right of Shell
+            对应 **`Transitions.dispatchReady`** 堆栈。
+            WMShell 在动画期间高频更新图层属性。
+        end note
+    end loop
+
+    Shell -> WMS: **[Binder IPC]** 通知 WMS 动画播放完毕\n`onTransitionFinished()`
+
+    WMS -> WMS: 运行 `performSurfacePlacement` 布局流程
+    WMS -> SF: **`Transaction.setPosition()`** (via `buildFinishTransaction`)
+    note left of WMS
+        对应 **`Transition.buildFinishTransaction`** 堆栈。
+        WMS 在此固化窗口的最终静态位置，
+        完成从 WMShell 的**控制权交接**。
+    end note
+end
+
+... 分屏模式稳定 ...
+
+group Phase 2: 用户拖动分隔条
+
+    User -> Shell: 手指按下并拖动分隔条
+    loop 手指移动的每一帧
+        Shell -> Shell: **`SplitScreenController`** 实时计算新的窗口 Bounds
+        Shell -> SF: **`Transaction.setPosition()` & `setWindowCrop()`**
+        note right of Shell
+            为达到最佳响应速度，此过程由 **WMShell 独立完成**，
+            **WMS 在此期间不参与**。
+        end note
+    end loop
+end
+
+group Phase 3: 用户释放分隔条
+
+    User -> Shell: 手指松开，拖动结束
+    Shell -> WMS: **[Binder IPC]** 上报最终确定的分屏布局结果
+    note left of WMS
+        WMShell 告诉 WMS：“装修完成了，
+        这是最终的布局图纸，请存档。”
+    end note
+
+    WMS -> WMS: 再次运行 `performSurfacePlacement` 以应用新布局
+    WMS -> SF: **`Transaction.setPosition()`** (via `buildFinishTransaction`)
+    note left of WMS
+        与进入分屏时类似，WMS 再次
+        固化所有图层的最终静态位置，
+        确保系统的逻辑状态和显示状态一致。
+    end note
+
+end
+
+@enduml
