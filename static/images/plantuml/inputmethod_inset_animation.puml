@@ -1,0 +1,103 @@
+@startuml
+!theme plain
+skinparam actor {
+  FontColor black
+}
+skinparam participant {
+  FontColor black
+}
+skinparam sequence {
+  ActorBorderColor black
+  ActorFontColor black
+  ParticipantBorderColor #527BC6
+  ParticipantFontColor black
+  ArrowColor #434343
+  LifeLineBorderColor #527BC6
+}
+
+actor User
+
+box "App Process" #LightBlue
+participant Activity
+participant IMM as "InputMethodManager"
+participant VRI as "ViewRootImpl"
+participant SCTrans as "SurfaceControl.Transaction"
+end box
+
+box "System_Server Process" #LightGreen
+participant IMMS as "InputMethodManagerService"
+participant WMS as "WindowManagerService"
+end box
+
+box "IME Process" #LightGoldenRodYellow
+participant IMS as "InputMethodService"
+end box
+
+== 1. 用户请求显示键盘 ==
+User -> Activity: 点击 EditText
+Activity -> IMM: showSoftInput(view, flags)
+note right of IMM: App 开发者调用的入口 API
+
+== 2. 系统服务处理请求 (Binder 调用) ==
+IMM -> IMMS: showSoftInput(...)
+IMMS -> WMS: startInput(...)
+WMS -> IMMS: 返回 InputTarget 等信息
+IMMS -> IMS: showSoftInput(...)
+note right of IMS: 通知 IME 进程显示窗口
+
+== 3. WMS 准备 Insets 动画 ==
+IMS -> WMS: onShowHideSoftInputRequested(true)
+note right of WMS
+WMS 收到 IME 窗口显示请求，
+计算新的窗口布局和 Insets 状态，
+这是触发动画的源头。
+end note
+WMS -> WMS: controlWindowInsetsAnimation(...)
+note right of WMS
+WMS 判断当前窗口是否监听 Insets 动画，
+如果监听，则启动由 App 控制的动画流程。
+end note
+WMS -> VRI: dispatchApplyInsets(...)
+note right of VRI
+WMS 将新的 Insets 状态和动画控制器分发给 App 窗口。
+end note
+
+== 4. Insets 动画分发与执行 (App) ==
+VRI -> VRI: mView.dispatchApplyWindowInsets(insets)
+note right of VRI
+ViewRootImpl 是 Insets 分发的起点，会从 View 树的根节点遍历。
+end note
+VRI -> Activity: listener.onApplyWindowInsets(v, insets)
+note right of Activity
+开发者设置的 OnApplyWindowInsetsListener 被触发，
+进而触发 Animation Callback。
+end note
+
+alt InsetsAnimation.Callback 回调
+VRI -> Activity: callback.onPrepare(animation)
+VRI -> Activity: callback.onStart(animation, bounds)
+
+loop Animation frames
+    WMS -> VRI: dispatchInsetsAnimationProgress(insets, fraction)
+    VRI -> Activity: callback.onProgress(insets, animations, fraction)
+    note right of Activity
+      App 获取 fraction 和 imeInsets:
+      1. getRootWindowInsets()
+      2. onApplyWindowInsets()
+      3. WindowInsetsAnimation.Callback.onProgress()
+      App 根据 fraction + imeInsets 更新控件位置:
+      - layout 重新测量 (自动模式)
+      - translationY / margin (手动模式)
+    end note
+    Activity -> SCTrans: setMatrix(surface, fraction, imeInsets)
+    SCTrans -> SurfaceControl.Transaction: apply()
+end loop
+end
+
+== 5. 动画结束 ==
+WMS -> VRI: dispatchInsetsAnimationEnd()
+VRI -> Activity: callback.onEnd(animation)
+note right of Activity
+App 清理动画状态，最终 Insets 和布局固定。
+end note
+@enduml

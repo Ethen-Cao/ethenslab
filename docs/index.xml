@@ -65,6 +65,77 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description>
     </item>
     <item>
+      <title>Insets animation flow</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link>
+      <pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid>
+      <description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
+&lt;p&gt;以下是一些典型的应用场景，从最常见到更高级的交互：&lt;/p&gt;
+&lt;h3 id=&#34;1-核心场景键盘的显示与隐藏-messaging--input&#34;&gt;1. 核心场景：键盘的显示与隐藏 (Messaging &amp;amp; Input)&lt;/h3&gt;
+&lt;p&gt;这是最经典、最能体现其价值的场景。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;传统体验 (问题所在):&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;在一个聊天应用里，你点击底部的输入框。&lt;/li&gt;
+&lt;li&gt;键盘从底部滑出，这个动画是系统负责的。&lt;/li&gt;
+&lt;li&gt;在键盘动画的同时，应用收到一个“可用空间变小了”的通知。&lt;/li&gt;
+&lt;li&gt;应用为了防止输入框被键盘遮挡，只能&lt;strong&gt;跳变式地&lt;/strong&gt;将整个聊天列表和输入框向上移动。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;结果：&lt;/strong&gt; 用户会感觉键盘和聊天界面是两个独立的东西在动，体验很生硬。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;使用 Insets 动画 (解决方案):&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;点击输入框。&lt;/li&gt;
+&lt;li&gt;应用接管键盘的动画控制权。&lt;/li&gt;
+&lt;li&gt;在键盘从底部向上滑出的每一帧，应用都精确地计算出键盘的当前高度，并&lt;strong&gt;同步地、等速地&lt;/strong&gt;将自己的聊天列表和输入框也向上推。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;结果：&lt;/strong&gt; 在用户看来，整个过程是一个连贯的动画：&lt;strong&gt;仿佛是键盘“推”着聊天内容向上移动&lt;/strong&gt;，非常自然、流畅。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;table&gt;
+  &lt;thead&gt;
+      &lt;tr&gt;
+          &lt;th style=&#34;text-align: left&#34;&gt;场景&lt;/th&gt;
+          &lt;th style=&#34;text-align: left&#34;&gt;传统方式的问题&lt;/th&gt;
+          &lt;th style=&#34;text-align: left&#34;&gt;Insets 动画的效果&lt;/th&gt;
+      &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+      &lt;tr&gt;
+          &lt;td style=&#34;text-align: left&#34;&gt;聊天应用&lt;/td&gt;
+          &lt;td style=&#34;text-align: left&#34;&gt;键盘动画与内容移动分离，内容&lt;strong&gt;跳变&lt;/strong&gt;&lt;/td&gt;
+          &lt;td style=&#34;text-align: left&#34;&gt;键盘&lt;strong&gt;平滑推起&lt;/strong&gt;内容，动画无缝衔接&lt;/td&gt;
+      &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;2-沉浸式模式的过渡-video--photo-apps&#34;&gt;2. 沉浸式模式的过渡 (Video &amp;amp; Photo Apps)&lt;/h3&gt;
+&lt;p&gt;当应用进入或退出全屏（沉浸式）模式时，状态栏和导航栏会显示或隐藏。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;传统体验 (问题所在):&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;你在一个相册应用中全屏查看一张图片。你点击屏幕，希望退出全屏。&lt;/li&gt;
+&lt;li&gt;系统状态栏和导航栏&lt;strong&gt;突然出现&lt;/strong&gt;或&lt;strong&gt;淡入&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;应用内容区域（图片）为了适应变小的空间，&lt;strong&gt;突然缩放或移动&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;结果：&lt;/strong&gt; 动画不协调，感觉像是系统 UI 粗暴地“覆盖”在了内容上。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;使用 Insets 动画 (解决方案):&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;点击屏幕。&lt;/li&gt;
+&lt;li&gt;应用接管状态栏和导航栏的动画。&lt;/li&gt;
+&lt;li&gt;当状态栏从顶部滑入、导航栏从底部滑入的每一帧，应用都&lt;strong&gt;同步地、平滑地&lt;/strong&gt;将图片进行缩放和平移，使其正好填充在两个系统栏之间的新空间里。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;结果：&lt;/strong&gt; 整个过渡非常优雅，感觉像是&lt;strong&gt;画面和系统栏一起构成了一场精心编排的转场动画&lt;/strong&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;3-高级交互场景手势控制动画&#34;&gt;3. 高级交互场景：手势控制动画&lt;/h3&gt;
+&lt;p&gt;这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。&lt;/p&gt;</description>
+    </item>
+    <item>
       <title>Binder spam detection原理</title>
       <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link>
       <pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate>
@@ -1320,6 +1391,44 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
       <pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate>
       <guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</guid>
       <description>&lt;p&gt;Activity Manager详解&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title></title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell.log/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell.log/</guid>
+      <description>&lt;p&gt;09-30 17:05:03.689  2508  2508 D SplitScreenController: java.lang.Throwable
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.wm.shell.splitscreen.SplitScreenController.&lt;!-- raw HTML omitted --&gt;(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:3)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.wm.shell.dagger.WMShellModule_ProvideSplitScreenControllerFactory.provideSplitScreenController(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:37)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get0(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:118)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:23)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at dagger.internal.DoubleCheck.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:14)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get0(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:119)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:23)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at dagger.internal.DoubleCheck.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:14)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get0(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:153)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:23)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at dagger.internal.DoubleCheck.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:14)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get0(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:154)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:23)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at dagger.internal.DoubleCheck.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:14)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl.getShell(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:3)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.SystemUIInitializer.init(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:130)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.SystemUIAppComponentFactoryBase.access$createSystemUIInitializerInternal(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:22)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.SystemUIAppComponentFactoryBase$instantiateProviderCompat$1.onContextAvailable(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:9)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.keyguard.CustomizationProvider.attachInfo(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:8)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread.installProvider(ActivityThread.java:7765)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread.installContentProviders(ActivityThread.java:7276)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread.handleBindApplication(ActivityThread.java:6983)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread.-$$Nest$mhandleBindApplication(Unknown Source:0)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2236)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.os.Handler.dispatchMessage(Handler.java:106)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.os.Looper.loopOnce(Looper.java:205)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.os.Looper.loop(Looper.java:294)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread.main(ActivityThread.java:8177)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at java.lang.reflect.Method.invoke(Native Method)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
+09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:971)&lt;/p&gt;</description>
     </item>
     <item>
       <title></title>

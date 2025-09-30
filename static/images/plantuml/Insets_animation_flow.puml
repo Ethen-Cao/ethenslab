@@ -1,0 +1,39 @@
+@startuml
+!theme plain
+
+actor User
+participant "App UI Thread\n(Choreographer)" as AppUI
+participant "InsetsController\n(App)" as InsetsController
+participant "InsetsAnimationControlImpl\n(App)" as InsetsAnim
+participant "SyncRtSurfaceTransactionApplier\n(App)" as Applier
+participant "SurfaceControl.Transaction\n(App)" as Transaction
+participant "WindowManagerService\n(System)" as WMS
+participant "SurfaceFlinger\n(System)" as SF
+
+== Start Insets Animation ==
+User -> WMS : Request IME show (keyboard up)
+WMS -> InsetsController : startAnimation(imeShown = true)
+
+== App Animation Setup ==
+InsetsController -> InsetsAnim : Create InsetsAnimationControlImpl
+InsetsAnim -> AppUI : Register frame callback\n(via Choreographer)
+
+== Per-frame Animation ==
+AppUI -> InsetsAnim : onAnimationFrame()
+InsetsAnim -> Applier : applyParams(matrix, alpha)
+Applier -> Transaction : setMatrix(surface, ...)
+note right of Transaction
+  Expanded call stack inside app:
+   - InsetsAnimationControlImpl.setInsetsAndAlpha()
+   - InsetsAnimationThreadControlRunner.scheduleApplyChangeInsets()
+   - InsetsAnimationControlImpl.applyChangeInsets()
+   - SyncRtSurfaceTransactionApplier.applyParams()
+   - SurfaceControl.Transaction.setMatrix()
+end note
+Transaction -> SF : apply()
+
+== Finish ==
+InsetsAnim -> InsetsController : finish()
+InsetsController -> WMS : onAnimationFinish()
+
+@enduml

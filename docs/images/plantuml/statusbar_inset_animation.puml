@@ -1,0 +1,103 @@
+@startuml
+' --- THEME AND STYLING ---
+!theme plain
+skinparam actor {
+    FontColor black
+}
+skinparam participant {
+    FontColor black
+}
+skinparam sequence {
+    ActorBorderColor black
+    ActorFontColor black
+    ParticipantBorderColor #527BC6
+    ParticipantFontColor black
+    ArrowColor #434343
+    LifeLineBorderColor #527BC6
+}
+
+' --- PROCESS BOXES AND PARTICIPANTS ---
+box "App Process (PID: 4336)" #LightBlue
+    participant AppMain as "App Main Thread\n(com.UCMobile)"
+    participant AppAnim as "App Animation Thread"
+    participant AppRT as "App RenderThread"
+end box
+
+box "System_Server Process" #LightGreen
+    participant WMS as "WindowManagerService"
+end box
+
+box "SystemUI Process" #LightGray
+    participant SystemUI as "SystemUI"
+end box
+
+box "SurfaceFlinger Process" #LightCoral
+    participant SF as "SurfaceFlinger"
+end box
+
+' --- SEQUENCE FLOW ---
+== 1. 动画授权与准备 (Authorization & Preparation) ==
+AppMain -> WMS: requestInsetsAnimation(show/hide)
+note right of WMS
+    WMS 判定应用有权限控制 Insets，
+    创建 InsetsSourceControl 并授权给 App。
+end note
+
+WMS -> SystemUI: prepare StatusBar surface
+note right of SystemUI
+    SystemUI 准备好状态栏，但动画由 App 控制。
+end note
+
+WMS -> AppMain: controlWindowInsetsAnimation(InsetsSourceControl)
+note right of AppMain
+    App 收到 WMS 授权控制的 Insets leash，
+    创建 InsetsController 并准备执行动画。
+end note
+
+== 2. App 执行动画帧 (App Executes Animation Frames) ==
+AppMain -> AppAnim: InsetsController.show()
+note right of AppAnim
+    主线程启动动画，
+    将动画任务委托给专用的动画线程。
+end note
+
+loop 动画的每一帧 (Per Animation Frame)
+    AppAnim -> AppAnim: Choreographer.doFrame()
+    note right of AppAnim
+        VSYNC 驱动动画线程更新动画状态。
+        (e.g., ValueAnimator.doAnimationFrame)
+    end note
+
+    AppAnim -> AppRT: applyParams via SyncRtSurfaceTransactionApplier
+    note right of AppRT
+        动画线程将变换参数 (matrix/alpha)
+        调度到 RenderThread。
+    end note
+    
+    AppRT -> SF: transaction.apply()
+    note right of SF
+        RenderThread 提交 Transaction，
+        SurfaceFlinger 将其加入队列。
+    end note
+end
+
+== 3. 动画结束 (Animation Ends) ==
+AppAnim -> AppMain: onAnimationEnd
+note right of AppMain
+    动画播放完毕，回调通知主线程。
+end note
+
+AppMain -> WMS: onAnimationFinish()
+note right of WMS
+    App 主动调用 `finish()`，
+    通知 WMS 它已完成动画控制。
+end note
+
+SF -> SF: VSYNC Composition
+note right of SF
+    在 VSYNC 时刻，SurfaceFlinger
+    原子性地合成所有 queued Transactions，
+    更新屏幕显示。
+end note
+
+@enduml

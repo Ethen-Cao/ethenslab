@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Insets animation flow | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="Insets 动画 API 的核心价值在于消除系统 UI 动画和应用 UI 动画之间的“割裂感”，将两者融合成一个平滑、无缝的整体。
+以下是一些典型的应用场景，从最常见到更高级的交互：
+1. 核心场景：键盘的显示与隐藏 (Messaging &amp; Input)
+这是最经典、最能体现其价值的场景。
+
+
+传统体验 (问题所在):
+
+在一个聊天应用里，你点击底部的输入框。
+键盘从底部滑出，这个动画是系统负责的。
+在键盘动画的同时，应用收到一个“可用空间变小了”的通知。
+应用为了防止输入框被键盘遮挡，只能跳变式地将整个聊天列表和输入框向上移动。
+结果： 用户会感觉键盘和聊天界面是两个独立的东西在动，体验很生硬。
+
+
+
+使用 Insets 动画 (解决方案):
+
+点击输入框。
+应用接管键盘的动画控制权。
+在键盘从底部向上滑出的每一帧，应用都精确地计算出键盘的当前高度，并同步地、等速地将自己的聊天列表和输入框也向上推。
+结果： 在用户看来，整个过程是一个连贯的动画：仿佛是键盘“推”着聊天内容向上移动，非常自然、流畅。
+
+
+
+
+  
+      
+          场景
+          传统方式的问题
+          Insets 动画的效果
+      
+  
+  
+      
+          聊天应用
+          键盘动画与内容移动分离，内容跳变
+          键盘平滑推起内容，动画无缝衔接
+      
+  
+
+2. 沉浸式模式的过渡 (Video &amp; Photo Apps)
+当应用进入或退出全屏（沉浸式）模式时，状态栏和导航栏会显示或隐藏。
+
+
+传统体验 (问题所在):
+
+你在一个相册应用中全屏查看一张图片。你点击屏幕，希望退出全屏。
+系统状态栏和导航栏突然出现或淡入。
+应用内容区域（图片）为了适应变小的空间，突然缩放或移动。
+结果： 动画不协调，感觉像是系统 UI 粗暴地“覆盖”在了内容上。
+
+
+
+使用 Insets 动画 (解决方案):
+
+点击屏幕。
+应用接管状态栏和导航栏的动画。
+当状态栏从顶部滑入、导航栏从底部滑入的每一帧，应用都同步地、平滑地将图片进行缩放和平移，使其正好填充在两个系统栏之间的新空间里。
+结果： 整个过渡非常优雅，感觉像是画面和系统栏一起构成了一场精心编排的转场动画。
+
+
+
+3. 高级交互场景：手势控制动画
+这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。">
+<meta name="author" content="">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css" integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="Insets animation flow">
+  <meta property="og:description" content="Insets 动画 API 的核心价值在于消除系统 UI 动画和应用 UI 动画之间的“割裂感”，将两者融合成一个平滑、无缝的整体。
+以下是一些典型的应用场景，从最常见到更高级的交互：
+1. 核心场景：键盘的显示与隐藏 (Messaging &amp; Input) 这是最经典、最能体现其价值的场景。
+传统体验 (问题所在):
+在一个聊天应用里，你点击底部的输入框。 键盘从底部滑出，这个动画是系统负责的。 在键盘动画的同时，应用收到一个“可用空间变小了”的通知。 应用为了防止输入框被键盘遮挡，只能跳变式地将整个聊天列表和输入框向上移动。 结果： 用户会感觉键盘和聊天界面是两个独立的东西在动，体验很生硬。 使用 Insets 动画 (解决方案):
+点击输入框。 应用接管键盘的动画控制权。 在键盘从底部向上滑出的每一帧，应用都精确地计算出键盘的当前高度，并同步地、等速地将自己的聊天列表和输入框也向上推。 结果： 在用户看来，整个过程是一个连贯的动画：仿佛是键盘“推”着聊天内容向上移动，非常自然、流畅。 场景 传统方式的问题 Insets 动画的效果 聊天应用 键盘动画与内容移动分离，内容跳变 键盘平滑推起内容，动画无缝衔接 2. 沉浸式模式的过渡 (Video &amp; Photo Apps) 当应用进入或退出全屏（沉浸式）模式时，状态栏和导航栏会显示或隐藏。
+传统体验 (问题所在):
+你在一个相册应用中全屏查看一张图片。你点击屏幕，希望退出全屏。 系统状态栏和导航栏突然出现或淡入。 应用内容区域（图片）为了适应变小的空间，突然缩放或移动。 结果： 动画不协调，感觉像是系统 UI 粗暴地“覆盖”在了内容上。 使用 Insets 动画 (解决方案):
+点击屏幕。 应用接管状态栏和导航栏的动画。 当状态栏从顶部滑入、导航栏从底部滑入的每一帧，应用都同步地、平滑地将图片进行缩放和平移，使其正好填充在两个系统栏之间的新空间里。 结果： 整个过渡非常优雅，感觉像是画面和系统栏一起构成了一场精心编排的转场动画。 3. 高级交互场景：手势控制动画 这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="android-dev">
+    <meta property="article:published_time" content="2025-09-29T10:22:54+08:00">
+    <meta property="article:modified_time" content="2025-09-29T10:22:54+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Insets animation flow">
+<meta name="twitter:description" content="Insets 动画 API 的核心价值在于消除系统 UI 动画和应用 UI 动画之间的“割裂感”，将两者融合成一个平滑、无缝的整体。
+以下是一些典型的应用场景，从最常见到更高级的交互：
+1. 核心场景：键盘的显示与隐藏 (Messaging &amp; Input)
+这是最经典、最能体现其价值的场景。
+
+
+传统体验 (问题所在):
+
+在一个聊天应用里，你点击底部的输入框。
+键盘从底部滑出，这个动画是系统负责的。
+在键盘动画的同时，应用收到一个“可用空间变小了”的通知。
+应用为了防止输入框被键盘遮挡，只能跳变式地将整个聊天列表和输入框向上移动。
+结果： 用户会感觉键盘和聊天界面是两个独立的东西在动，体验很生硬。
+
+
+
+使用 Insets 动画 (解决方案):
+
+点击输入框。
+应用接管键盘的动画控制权。
+在键盘从底部向上滑出的每一帧，应用都精确地计算出键盘的当前高度，并同步地、等速地将自己的聊天列表和输入框也向上推。
+结果： 在用户看来，整个过程是一个连贯的动画：仿佛是键盘“推”着聊天内容向上移动，非常自然、流畅。
+
+
+
+
+  
+      
+          场景
+          传统方式的问题
+          Insets 动画的效果
+      
+  
+  
+      
+          聊天应用
+          键盘动画与内容移动分离，内容跳变
+          键盘平滑推起内容，动画无缝衔接
+      
+  
+
+2. 沉浸式模式的过渡 (Video &amp; Photo Apps)
+当应用进入或退出全屏（沉浸式）模式时，状态栏和导航栏会显示或隐藏。
+
+
+传统体验 (问题所在):
+
+你在一个相册应用中全屏查看一张图片。你点击屏幕，希望退出全屏。
+系统状态栏和导航栏突然出现或淡入。
+应用内容区域（图片）为了适应变小的空间，突然缩放或移动。
+结果： 动画不协调，感觉像是系统 UI 粗暴地“覆盖”在了内容上。
+
+
+
+使用 Insets 动画 (解决方案):
+
+点击屏幕。
+应用接管状态栏和导航栏的动画。
+当状态栏从顶部滑入、导航栏从底部滑入的每一帧，应用都同步地、平滑地将图片进行缩放和平移，使其正好填充在两个系统栏之间的新空间里。
+结果： 整个过渡非常优雅，感觉像是画面和系统栏一起构成了一场精心编排的转场动画。
+
+
+
+3. 高级交互场景：手势控制动画
+这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Android系统开发",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "WindowManager",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  3 ,
+      "name": "Insets animation flow",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Insets animation flow",
+  "name": "Insets animation flow",
+  "description": "Insets 动画 API 的核心价值在于消除系统 UI 动画和应用 UI 动画之间的“割裂感”，将两者融合成一个平滑、无缝的整体。\n以下是一些典型的应用场景，从最常见到更高级的交互：\n1. 核心场景：键盘的显示与隐藏 (Messaging \u0026amp; Input) 这是最经典、最能体现其价值的场景。\n传统体验 (问题所在):\n在一个聊天应用里，你点击底部的输入框。 键盘从底部滑出，这个动画是系统负责的。 在键盘动画的同时，应用收到一个“可用空间变小了”的通知。 应用为了防止输入框被键盘遮挡，只能跳变式地将整个聊天列表和输入框向上移动。 结果： 用户会感觉键盘和聊天界面是两个独立的东西在动，体验很生硬。 使用 Insets 动画 (解决方案):\n点击输入框。 应用接管键盘的动画控制权。 在键盘从底部向上滑出的每一帧，应用都精确地计算出键盘的当前高度，并同步地、等速地将自己的聊天列表和输入框也向上推。 结果： 在用户看来，整个过程是一个连贯的动画：仿佛是键盘“推”着聊天内容向上移动，非常自然、流畅。 场景 传统方式的问题 Insets 动画的效果 聊天应用 键盘动画与内容移动分离，内容跳变 键盘平滑推起内容，动画无缝衔接 2. 沉浸式模式的过渡 (Video \u0026amp; Photo Apps) 当应用进入或退出全屏（沉浸式）模式时，状态栏和导航栏会显示或隐藏。\n传统体验 (问题所在):\n你在一个相册应用中全屏查看一张图片。你点击屏幕，希望退出全屏。 系统状态栏和导航栏突然出现或淡入。 应用内容区域（图片）为了适应变小的空间，突然缩放或移动。 结果： 动画不协调，感觉像是系统 UI 粗暴地“覆盖”在了内容上。 使用 Insets 动画 (解决方案):\n点击屏幕。 应用接管状态栏和导航栏的动画。 当状态栏从顶部滑入、导航栏从底部滑入的每一帧，应用都同步地、平滑地将图片进行缩放和平移，使其正好填充在两个系统栏之间的新空间里。 结果： 整个过渡非常优雅，感觉像是画面和系统栏一起构成了一场精心编排的转场动画。 3. 高级交互场景：手势控制动画 这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "Insets 动画 API 的核心价值在于消除系统 UI 动画和应用 UI 动画之间的“割裂感”，将两者融合成一个平滑、无缝的整体。\n以下是一些典型的应用场景，从最常见到更高级的交互：\n1. 核心场景：键盘的显示与隐藏 (Messaging \u0026 Input) 这是最经典、最能体现其价值的场景。\n传统体验 (问题所在):\n在一个聊天应用里，你点击底部的输入框。 键盘从底部滑出，这个动画是系统负责的。 在键盘动画的同时，应用收到一个“可用空间变小了”的通知。 应用为了防止输入框被键盘遮挡，只能跳变式地将整个聊天列表和输入框向上移动。 结果： 用户会感觉键盘和聊天界面是两个独立的东西在动，体验很生硬。 使用 Insets 动画 (解决方案):\n点击输入框。 应用接管键盘的动画控制权。 在键盘从底部向上滑出的每一帧，应用都精确地计算出键盘的当前高度，并同步地、等速地将自己的聊天列表和输入框也向上推。 结果： 在用户看来，整个过程是一个连贯的动画：仿佛是键盘“推”着聊天内容向上移动，非常自然、流畅。 场景 传统方式的问题 Insets 动画的效果 聊天应用 键盘动画与内容移动分离，内容跳变 键盘平滑推起内容，动画无缝衔接 2. 沉浸式模式的过渡 (Video \u0026 Photo Apps) 当应用进入或退出全屏（沉浸式）模式时，状态栏和导航栏会显示或隐藏。\n传统体验 (问题所在):\n你在一个相册应用中全屏查看一张图片。你点击屏幕，希望退出全屏。 系统状态栏和导航栏突然出现或淡入。 应用内容区域（图片）为了适应变小的空间，突然缩放或移动。 结果： 动画不协调，感觉像是系统 UI 粗暴地“覆盖”在了内容上。 使用 Insets 动画 (解决方案):\n点击屏幕。 应用接管状态栏和导航栏的动画。 当状态栏从顶部滑入、导航栏从底部滑入的每一帧，应用都同步地、平滑地将图片进行缩放和平移，使其正好填充在两个系统栏之间的新空间里。 结果： 整个过渡非常优雅，感觉像是画面和系统栏一起构成了一场精心编排的转场动画。 3. 高级交互场景：手势控制动画 这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。\n场景描述：可拖拽的键盘 想象在一个笔记应用中，键盘已经弹出。你突然想看看被键盘挡住的文字，但又不想完全收起键盘。 实现方式： 应用可以监听屏幕上的向下拖拽手势。 当用户手指向下滑动时，应用利用 Insets 动画控制器，实时地将键盘的位置与用户手指的位置绑定。 用户向下滑动 100 像素，键盘就跟着下降 100 像素，同时笔记内容也跟着向下移动 100 像素。 当用户松手时，应用可以判断是应该让键盘弹回原位，还是完全收起。 结果： 键盘不再是一个简单的“开/关”状态，而是变成了一个可以被用户自由拖拽、控制的“物理”对象，提供了“预览”、“窥探”等高级交互可能性。 4. 复杂布局的协调动画 场景描述：带输入框的底部工作表 (BottomSheet) 一个地图应用，你点击某个地点，底部弹出一个包含评论输入框的 BottomSheet。 当你点击评论框时，需要同时弹出键盘。 传统体验 (问题所在): BottomSheet 弹出的动画和键盘弹出的动画很难协调，经常会发生一个先动、一个后动，或者位置计算错误导致界面抖动的问题。 使用 Insets 动画 (解决方案): 应用可以完全控制键盘的动画。当 BottomSheet 向上滑动时，应用可以精确地让键盘以同样的速度或一个协调的曲线跟随 BottomSheet 一起向上滑动，实现两个组件天衣无缝的组合动画。 总结 类别 场景举例 核心价值 基础体验优化 聊天/输入框 消除键盘与内容移动的割裂感，实现平滑过渡 视觉效果增强 视频/图片全屏 优雅地处理系统 UI 的显隐，实现沉浸式的转场 高级交互创新 手势拖拽键盘 将系统 UI 动画变为可交互的，响应用户手势 复杂布局协调 底部面板与键盘联动 精确同步多个运动组件，避免动画冲突和抖动 总而言之，Insets 动画 API 将原本属于系统“黑盒”的 UI 动画控制权开放给了应用，让开发者能够打造出体验更统一、交互更丰富的界面。\n时序图 StatusBar的Inset动画调用堆栈 09-30 18:21:07.769 4336 4655 D SurfaceControl: Surface(name=78b05bb StatusBar)/@0x8e6b5fe - animation-leash of insets_animation setMatrix: dsdx = 1.0, dtdx = 0.0, dtdy = 0.0, dsdy = 1.0 09-30 18:21:07.769 4336 4655 D SurfaceControl: java.lang.Throwable 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.SurfaceControl$Transaction.setMatrix(SurfaceControl.java:3081) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.SurfaceControl$Transaction.setMatrix(SurfaceControl.java:3100) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.SyncRtSurfaceTransactionApplier.applyParams(SyncRtSurfaceTransactionApplier.java:108) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsAnimationThreadControlRunner$1.applySurfaceParams(InsetsAnimationThreadControlRunner.java:90) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsAnimationControlImpl.applyChangeInsets(InsetsAnimationControlImpl.java:298) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsAnimationThreadControlRunner$1.scheduleApplyChangeInsets(InsetsAnimationThreadControlRunner.java:70) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsAnimationControlImpl.setInsetsAndAlpha(InsetsAnimationControlImpl.java:270) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsAnimationControlImpl.finish(InsetsAnimationControlImpl.java:331) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsController$InternalAnimationControlListener.onAnimationFinish(InsetsController.java:539) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsController$InternalAnimationControlListener$2.onAnimationEnd(InsetsController.java:462) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.animation.Animator$AnimatorListener.onAnimationEnd(Animator.java:711) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.animation.Animator$AnimatorCaller$$ExternalSyntheticLambda1.call(Unknown Source:4) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.animation.Animator.callOnList(Animator.java:669) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.animation.Animator.notifyListeners(Animator.java:608) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.animation.Animator.notifyEndListeners(Animator.java:633) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.animation.ValueAnimator.endAnimation(ValueAnimator.java:1306) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.animation.ValueAnimator.doAnimationFrame(ValueAnimator.java:1566) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.animation.AnimationHandler.doAnimationFrame(AnimationHandler.java:328) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.animation.AnimationHandler.-$$Nest$mdoAnimationFrame(Unknown Source:0) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.animation.AnimationHandler$1.doFrame(AnimationHandler.java:86) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1337) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1348) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.Choreographer.doCallbacks(Choreographer.java:952) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.Choreographer.doFrame(Choreographer.java:878) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.Choreographer$FrameDisplayEventReceiver.run(Choreographer.java:1322) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.os.Handler.handleCallback(Handler.java:958) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.os.Handler.dispatchMessage(Handler.java:99) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.os.Looper.loopOnce(Looper.java:205) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.os.Looper.loop(Looper.java:294) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.os.HandlerThread.run(HandlerThread.java:67) 09-30 18:21:07.769 4336 4655 D SurfaceControl: Created from: java.lang.Throwable 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.SurfaceControl.(SurfaceControl.java:1267) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsSourceControl.(InsetsSourceControl.java:71) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsController.collectSourceControls(InsetsController.java:1498) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsController.controlAnimationUncheckedInner(InsetsController.java:1349) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsController.controlAnimationUnchecked(InsetsController.java:1280) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsController.applyAnimation(InsetsController.java:1769) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsController.applyAnimation(InsetsController.java:1745) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsController.show(InsetsController.java:1140) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.InsetsController.show(InsetsController.java:1068) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.ViewRootImpl.controlInsetsForCompatibility(ViewRootImpl.java:2693) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.ViewRootImpl.performTraversals(ViewRootImpl.java:3179) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.ViewRootImpl.doTraversal(ViewRootImpl.java:2465) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.ViewRootImpl$TraversalRunnable.run(ViewRootImpl.java:9305) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1339) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1348) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.Choreographer.doCallbacks(Choreographer.java:952) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.Choreographer.doFrame(Choreographer.java:882) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.view.Choreographer$FrameDisplayEventReceiver.run(Choreographer.java:1322) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.os.Handler.handleCallback(Handler.java:958) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.os.Handler.dispatchMessage(Handler.java:99) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.os.Looper.loopOnce(Looper.java:205) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.os.Looper.loop(Looper.java:294) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at android.app.ActivityThread.main(ActivityThread.java:8177) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at java.lang.reflect.Method.invoke(Native Method) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552) 09-30 18:21:07.769 4336 4655 D SurfaceControl: at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:971) 流程图总览 该流程图详细描绘了一个现代 Android 系统中非常强大且高效的动画机制：由第三方应用临时接管并驱动系统级 UI（如此处的状态栏）动画的全过程。\n核心思想是，为了实现应用内容与系统 UI (如状态栏、导航栏、键盘) 之间天衣无缝的过渡动画，系统 (WMS) 可以选择将系统 UI 对应图层 (Surface) 的动画控制权，临时授权给当前的应用。应用在获得授权后，负责计算动画的每一帧，并通过 RenderThread 直接将变换指令提交给系统的最终合成器 SurfaceFlinger。\n这套机制彻底解决了过去因应用和系统动画不同步而导致的“跳变”或“割裂感”问题，创造出极致平滑的视觉体验。\n分步时序详解 整个流程可以分为三个主要阶段：\n阶段一：动画授权与准备 (Authorization \u0026 Preparation) 这个阶段是整个协作的“握手”和“授权”环节。\n应用发起请求: 故事始于您的应用 com.UCMobile (App) 向 WindowManagerService (WMS) 发起一个将导致界面 Insets 变化的请求，最常见的例子就是请求进入全屏模式。 WMS 决策与授权: WMS 作为系统窗口的“总管”，接收到请求。它判断需要隐藏状态栏，并且发现 com.UCMobile 应用具备处理并监听了此类动画的能力。因此，WMS 决定不亲自播放系统默认的隐藏动画，而是将这个任务委托出去。 移交控制权: WMS 通知 SystemUI 进程准备好状态栏，但不要播放动画。同时，WMS 创建一个 InsetsSourceControl 对象，它包含了一个关键的凭证——状态栏 Surface 的 Leash (一个可以被跨进程操作的“遥控器”)。WMS 随后通过 Binder 调用 controlWindowInsetsAnimation，将这个“遥控器”发送给 com.UCMobile 应用。 应用准备就绪: 应用的主线程 (AppMain) 收到授权后，在其内部创建 InsetsController 等管理类，为即将到来的动画做好准备。 阶段二：App 执行动画帧 (App Executes Animation Frames) 这是流程的核心，应用开始真正地“导演”这场动画。\n启动并委托动画: 应用主线程启动动画逻辑，但为了不阻塞主线程影响流畅性（这是一个关键的性能优化），它将计算和驱动动画的任务交给了另一个专用的动画线程 (AppAnim)。 VSYNC 驱动循环: 动画线程上的 Choreographer 与系统的显示刷新信号 (VSYNC) 同步。每当 VSYNC 信号到来时（例如每秒 60 或 120 次），Choreographer 就会触发一次 doFrame 回调，驱动动画向前“走”一帧。 计算并调度: 在 doFrame 回调中，ValueAnimator 等动画类会计算出当前帧状态栏应该处于的位置、透明度等属性。然后，动画线程并不直接操作视图，而是调用 applyParams 方法，将这些计算出的变换参数（如 Matrix 矩阵）调度给更为底层的渲染线程 (AppRT)。 提交渲染指令: 应用的 RenderThread 是一个专门与 GPU 和 SurfaceFlinger 打交道的线程。它接收到参数后，会创建一个 SurfaceControl.Transaction 对象（一个原子性的变更指令集），并将变换矩阵设置到它所持有的状态栏 Leash 上。最后，它调用 transaction.apply() 将这个指令集直接发送给 SurfaceFlinger。这个提交动作非常轻量，只是“发出命令”而已。 阶段三：动画结束 (Animation Ends) 动画结束回调: 由于动画是由应用内部的 ValueAnimator 驱动的，当它播放完毕时，会触发 onAnimationEnd 回调。 通知 WMS: 应用的动画线程通知主线程动画已结束。主线程随即调用 onAnimationFinish() 通知 WMS，表示“我已经完成了动画，现在可以将控制权交还了”。这标志着授权的结束。 SurfaceFlinger 最终合成: 在整个动画过程中，SurfaceFlinger 不断地接收来自 com.UCMobile 的 Transaction。在每个 VSYNC 时刻，SurfaceFlinger 会将收集到的所有 Transaction（无论来自哪个进程）一次性地、原子性地应用，然后将屏幕上所有图层（应用窗口、状态栏 Leash、导航栏等）合成为最终的一帧画面并显示在屏幕上。这保证了所有元素的运动都是完美同步的。 总结 这份流程图揭示了 Android UI 系统的一个精妙设计：通过授权和责任分离，实现了极致的性能和流畅度。应用负责计算动画逻辑，RenderThread 负责提交指令，SurfaceFlinger 负责最终合成。整个过程高效、解耦，是打造现代、流畅 Android 应用体验的关键所在。\n",
+  "wordCount" : "782",
+  "inLanguage": "en",
+  "datePublished": "2025-09-29T10:22:54+08:00",
+  "dateModified": "2025-09-29T10:22:54+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://ethen-cao.github.io/ethenslab/">Home</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/android-dev/">Android系统开发</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/">WindowManager</a></div>
+    <h1 class="post-title entry-hint-parent">
+      Insets animation flow
+    </h1>
+    <div class="post-meta"><span title='2025-09-29 10:22:54 +0800 CST'>September 29, 2025</span>&nbsp;·&nbsp;4 min&nbsp;·&nbsp;782 words
+
+</div>
+  </header> 
+  <div class="post-content"><p>Insets 动画 API 的核心价值在于<strong>消除系统 UI 动画和应用 UI 动画之间的“割裂感”</strong>，将两者融合成一个平滑、无缝的整体。</p>
+<p>以下是一些典型的应用场景，从最常见到更高级的交互：</p>
+<h3 id="1-核心场景键盘的显示与隐藏-messaging--input">1. 核心场景：键盘的显示与隐藏 (Messaging &amp; Input)<a hidden class="anchor" aria-hidden="true" href="#1-核心场景键盘的显示与隐藏-messaging--input">#</a></h3>
+<p>这是最经典、最能体现其价值的场景。</p>
+<ul>
+<li>
+<p><strong>传统体验 (问题所在):</strong></p>
+<ul>
+<li>在一个聊天应用里，你点击底部的输入框。</li>
+<li>键盘从底部滑出，这个动画是系统负责的。</li>
+<li>在键盘动画的同时，应用收到一个“可用空间变小了”的通知。</li>
+<li>应用为了防止输入框被键盘遮挡，只能<strong>跳变式地</strong>将整个聊天列表和输入框向上移动。</li>
+<li><strong>结果：</strong> 用户会感觉键盘和聊天界面是两个独立的东西在动，体验很生硬。</li>
+</ul>
+</li>
+<li>
+<p><strong>使用 Insets 动画 (解决方案):</strong></p>
+<ul>
+<li>点击输入框。</li>
+<li>应用接管键盘的动画控制权。</li>
+<li>在键盘从底部向上滑出的每一帧，应用都精确地计算出键盘的当前高度，并<strong>同步地、等速地</strong>将自己的聊天列表和输入框也向上推。</li>
+<li><strong>结果：</strong> 在用户看来，整个过程是一个连贯的动画：<strong>仿佛是键盘“推”着聊天内容向上移动</strong>，非常自然、流畅。</li>
+</ul>
+</li>
+</ul>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">场景</th>
+          <th style="text-align: left">传统方式的问题</th>
+          <th style="text-align: left">Insets 动画的效果</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">聊天应用</td>
+          <td style="text-align: left">键盘动画与内容移动分离，内容<strong>跳变</strong></td>
+          <td style="text-align: left">键盘<strong>平滑推起</strong>内容，动画无缝衔接</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="2-沉浸式模式的过渡-video--photo-apps">2. 沉浸式模式的过渡 (Video &amp; Photo Apps)<a hidden class="anchor" aria-hidden="true" href="#2-沉浸式模式的过渡-video--photo-apps">#</a></h3>
+<p>当应用进入或退出全屏（沉浸式）模式时，状态栏和导航栏会显示或隐藏。</p>
+<ul>
+<li>
+<p><strong>传统体验 (问题所在):</strong></p>
+<ul>
+<li>你在一个相册应用中全屏查看一张图片。你点击屏幕，希望退出全屏。</li>
+<li>系统状态栏和导航栏<strong>突然出现</strong>或<strong>淡入</strong>。</li>
+<li>应用内容区域（图片）为了适应变小的空间，<strong>突然缩放或移动</strong>。</li>
+<li><strong>结果：</strong> 动画不协调，感觉像是系统 UI 粗暴地“覆盖”在了内容上。</li>
+</ul>
+</li>
+<li>
+<p><strong>使用 Insets 动画 (解决方案):</strong></p>
+<ul>
+<li>点击屏幕。</li>
+<li>应用接管状态栏和导航栏的动画。</li>
+<li>当状态栏从顶部滑入、导航栏从底部滑入的每一帧，应用都<strong>同步地、平滑地</strong>将图片进行缩放和平移，使其正好填充在两个系统栏之间的新空间里。</li>
+<li><strong>结果：</strong> 整个过渡非常优雅，感觉像是<strong>画面和系统栏一起构成了一场精心编排的转场动画</strong>。</li>
+</ul>
+</li>
+</ul>
+<h3 id="3-高级交互场景手势控制动画">3. 高级交互场景：手势控制动画<a hidden class="anchor" aria-hidden="true" href="#3-高级交互场景手势控制动画">#</a></h3>
+<p>这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。</p>
+<ul>
+<li><strong>场景描述：可拖拽的键盘</strong>
+<ul>
+<li>想象在一个笔记应用中，键盘已经弹出。你突然想看看被键盘挡住的文字，但又不想完全收起键盘。</li>
+<li><strong>实现方式：</strong> 应用可以监听屏幕上的向下拖拽手势。</li>
+<li>当用户手指向下滑动时，应用利用 Insets 动画控制器，<strong>实时地将键盘的位置与用户手指的位置绑定</strong>。</li>
+<li>用户向下滑动 100 像素，键盘就跟着下降 100 像素，同时笔记内容也跟着向下移动 100 像素。</li>
+<li>当用户松手时，应用可以判断是应该让键盘弹回原位，还是完全收起。</li>
+<li><strong>结果：</strong> 键盘不再是一个简单的“开/关”状态，而是变成了一个<strong>可以被用户自由拖拽、控制的“物理”对象</strong>，提供了“预览”、“窥探”等高级交互可能性。</li>
+</ul>
+</li>
+</ul>
+<h3 id="4-复杂布局的协调动画">4. 复杂布局的协调动画<a hidden class="anchor" aria-hidden="true" href="#4-复杂布局的协调动画">#</a></h3>
+<ul>
+<li><strong>场景描述：带输入框的底部工作表 (BottomSheet)</strong>
+<ul>
+<li>一个地图应用，你点击某个地点，底部弹出一个包含评论输入框的 BottomSheet。</li>
+<li>当你点击评论框时，需要同时弹出键盘。</li>
+<li><strong>传统体验 (问题所在):</strong> BottomSheet 弹出的动画和键盘弹出的动画很难协调，经常会发生一个先动、一个后动，或者位置计算错误导致界面抖动的问题。</li>
+<li><strong>使用 Insets 动画 (解决方案):</strong> 应用可以完全控制键盘的动画。当 BottomSheet 向上滑动时，应用可以<strong>精确地让键盘以同样的速度或一个协调的曲线</strong>跟随 BottomSheet 一起向上滑动，实现两个组件天衣无缝的组合动画。</li>
+</ul>
+</li>
+</ul>
+<h3 id="总结">总结<a hidden class="anchor" aria-hidden="true" href="#总结">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">类别</th>
+          <th style="text-align: left">场景举例</th>
+          <th style="text-align: left">核心价值</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left"><strong>基础体验优化</strong></td>
+          <td style="text-align: left">聊天/输入框</td>
+          <td style="text-align: left">消除键盘与内容移动的<strong>割裂感</strong>，实现平滑过渡</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>视觉效果增强</strong></td>
+          <td style="text-align: left">视频/图片全屏</td>
+          <td style="text-align: left">优雅地处理系统 UI 的显隐，实现<strong>沉浸式</strong>的转场</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>高级交互创新</strong></td>
+          <td style="text-align: left">手势拖拽键盘</td>
+          <td style="text-align: left">将系统 UI 动画变为<strong>可交互</strong>的，响应用户手势</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>复杂布局协调</strong></td>
+          <td style="text-align: left">底部面板与键盘联动</td>
+          <td style="text-align: left">精确同步多个运动组件，避免<strong>动画冲突和抖动</strong></td>
+      </tr>
+  </tbody>
+</table>
+<p>总而言之，Insets 动画 API 将原本属于系统“黑盒”的 UI 动画控制权开放给了应用，让开发者能够打造出体验更统一、交互更丰富的界面。</p>
+<h3 id="时序图">时序图<a hidden class="anchor" aria-hidden="true" href="#时序图">#</a></h3>
+<p><img loading="lazy" src="/ethenslab/images/Insets_animation_flow.png"></p>
+<p><img loading="lazy" src="/ethenslab/images/inputmethod_inset_animation.png"></p>
+<h3 id="statusbar的inset动画调用堆栈">StatusBar的Inset动画调用堆栈<a hidden class="anchor" aria-hidden="true" href="#statusbar的inset动画调用堆栈">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-txt" data-lang="txt"><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: Surface(name=78b05bb StatusBar)/@0x8e6b5fe - animation-leash of insets_animation setMatrix: dsdx = 1.0, dtdx = 0.0, dtdy = 0.0, dsdy = 1.0
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: java.lang.Throwable
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.SurfaceControl$Transaction.setMatrix(SurfaceControl.java:3081)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.SurfaceControl$Transaction.setMatrix(SurfaceControl.java:3100)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.SyncRtSurfaceTransactionApplier.applyParams(SyncRtSurfaceTransactionApplier.java:108)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsAnimationThreadControlRunner$1.applySurfaceParams(InsetsAnimationThreadControlRunner.java:90)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsAnimationControlImpl.applyChangeInsets(InsetsAnimationControlImpl.java:298)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsAnimationThreadControlRunner$1.scheduleApplyChangeInsets(InsetsAnimationThreadControlRunner.java:70)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsAnimationControlImpl.setInsetsAndAlpha(InsetsAnimationControlImpl.java:270)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsAnimationControlImpl.finish(InsetsAnimationControlImpl.java:331)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsController$InternalAnimationControlListener.onAnimationFinish(InsetsController.java:539)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsController$InternalAnimationControlListener$2.onAnimationEnd(InsetsController.java:462)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.animation.Animator$AnimatorListener.onAnimationEnd(Animator.java:711)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.animation.Animator$AnimatorCaller$$ExternalSyntheticLambda1.call(Unknown Source:4)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.animation.Animator.callOnList(Animator.java:669)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.animation.Animator.notifyListeners(Animator.java:608)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.animation.Animator.notifyEndListeners(Animator.java:633)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.animation.ValueAnimator.endAnimation(ValueAnimator.java:1306)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.animation.ValueAnimator.doAnimationFrame(ValueAnimator.java:1566)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.animation.AnimationHandler.doAnimationFrame(AnimationHandler.java:328)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.animation.AnimationHandler.-$$Nest$mdoAnimationFrame(Unknown Source:0)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.animation.AnimationHandler$1.doFrame(AnimationHandler.java:86)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1337)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1348)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.Choreographer.doCallbacks(Choreographer.java:952)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.Choreographer.doFrame(Choreographer.java:878)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.Choreographer$FrameDisplayEventReceiver.run(Choreographer.java:1322)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.os.Handler.handleCallback(Handler.java:958)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.os.Handler.dispatchMessage(Handler.java:99)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.os.Looper.loopOnce(Looper.java:205)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.os.Looper.loop(Looper.java:294)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.os.HandlerThread.run(HandlerThread.java:67)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: Created from: java.lang.Throwable
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.SurfaceControl.&lt;init&gt;(SurfaceControl.java:1267)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsSourceControl.&lt;init&gt;(InsetsSourceControl.java:71)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsController.collectSourceControls(InsetsController.java:1498)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsController.controlAnimationUncheckedInner(InsetsController.java:1349)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsController.controlAnimationUnchecked(InsetsController.java:1280)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsController.applyAnimation(InsetsController.java:1769)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsController.applyAnimation(InsetsController.java:1745)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsController.show(InsetsController.java:1140)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.InsetsController.show(InsetsController.java:1068)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.ViewRootImpl.controlInsetsForCompatibility(ViewRootImpl.java:2693)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.ViewRootImpl.performTraversals(ViewRootImpl.java:3179)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.ViewRootImpl.doTraversal(ViewRootImpl.java:2465)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.ViewRootImpl$TraversalRunnable.run(ViewRootImpl.java:9305)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1339)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1348)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.Choreographer.doCallbacks(Choreographer.java:952)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.Choreographer.doFrame(Choreographer.java:882)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.view.Choreographer$FrameDisplayEventReceiver.run(Choreographer.java:1322)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.os.Handler.handleCallback(Handler.java:958)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.os.Handler.dispatchMessage(Handler.java:99)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.os.Looper.loopOnce(Looper.java:205)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.os.Looper.loop(Looper.java:294)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at android.app.ActivityThread.main(ActivityThread.java:8177)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at java.lang.reflect.Method.invoke(Native Method)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
+</span></span><span style="display:flex;"><span>09-30 18:21:07.769  4336  4655 D SurfaceControl: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:971)
+</span></span></code></pre></div><p><img loading="lazy" src="/ethenslab/images/statusbar_inset_animation.png"></p>
+<h4 id="流程图总览">流程图总览<a hidden class="anchor" aria-hidden="true" href="#流程图总览">#</a></h4>
+<p>该流程图详细描绘了一个现代 Android 系统中非常强大且高效的动画机制：<strong>由第三方应用临时接管并驱动系统级 UI（如此处的状态栏）动画的全过程</strong>。</p>
+<p>核心思想是，为了实现应用内容与系统 UI (如状态栏、导航栏、键盘) 之间天衣无缝的过渡动画，系统 (WMS) 可以选择将系统 UI 对应图层 (Surface) 的动画控制权，临时<strong>授权</strong>给当前的应用。应用在获得授权后，负责计算动画的每一帧，并通过 <code>RenderThread</code> 直接将变换指令提交给系统的最终合成器 <code>SurfaceFlinger</code>。</p>
+<p>这套机制彻底解决了过去因应用和系统动画不同步而导致的“跳变”或“割裂感”问题，创造出极致平滑的视觉体验。</p>
+<h4 id="分步时序详解">分步时序详解<a hidden class="anchor" aria-hidden="true" href="#分步时序详解">#</a></h4>
+<p>整个流程可以分为三个主要阶段：</p>
+<h5 id="阶段一动画授权与准备-authorization--preparation">阶段一：动画授权与准备 (Authorization &amp; Preparation)<a hidden class="anchor" aria-hidden="true" href="#阶段一动画授权与准备-authorization--preparation">#</a></h5>
+<p>这个阶段是整个协作的“握手”和“授权”环节。</p>
+<ol>
+<li><strong>应用发起请求</strong>: 故事始于您的应用 <code>com.UCMobile</code> (App) 向 <code>WindowManagerService</code> (WMS) 发起一个将导致界面 Insets 变化的请求，最常见的例子就是请求进入全屏模式。</li>
+<li><strong>WMS 决策与授权</strong>: WMS 作为系统窗口的“总管”，接收到请求。它判断需要隐藏状态栏，并且发现 <code>com.UCMobile</code> 应用具备处理并监听了此类动画的能力。因此，WMS 决定<strong>不亲自播放</strong>系统默认的隐藏动画，而是将这个任务<strong>委托</strong>出去。</li>
+<li><strong>移交控制权</strong>: WMS 通知 <code>SystemUI</code> 进程准备好状态栏，但不要播放动画。同时，WMS 创建一个 <code>InsetsSourceControl</code> 对象，它包含了一个关键的凭证——状态栏 Surface 的 Leash (一个可以被跨进程操作的“遥控器”)。WMS 随后通过 Binder 调用 <code>controlWindowInsetsAnimation</code>，将这个“遥控器”发送给 <code>com.UCMobile</code> 应用。</li>
+<li><strong>应用准备就绪</strong>: 应用的主线程 (<code>AppMain</code>) 收到授权后，在其内部创建 <code>InsetsController</code> 等管理类，为即将到来的动画做好准备。</li>
+</ol>
+<h5 id="阶段二app-执行动画帧-app-executes-animation-frames">阶段二：App 执行动画帧 (App Executes Animation Frames)<a hidden class="anchor" aria-hidden="true" href="#阶段二app-执行动画帧-app-executes-animation-frames">#</a></h5>
+<p>这是流程的核心，应用开始真正地“导演”这场动画。</p>
+<ol>
+<li><strong>启动并委托动画</strong>: 应用主线程启动动画逻辑，但为了不阻塞主线程影响流畅性（这是一个关键的性能优化），它将计算和驱动动画的任务交给了另一个专用的<strong>动画线程 (<code>AppAnim</code>)</strong>。</li>
+<li><strong>VSYNC 驱动循环</strong>: 动画线程上的 <code>Choreographer</code> 与系统的显示刷新信号 (VSYNC) 同步。每当 VSYNC 信号到来时（例如每秒 60 或 120 次），<code>Choreographer</code> 就会触发一次 <code>doFrame</code> 回调，驱动动画向前“走”一帧。</li>
+<li><strong>计算并调度</strong>: 在 <code>doFrame</code> 回调中，<code>ValueAnimator</code> 等动画类会计算出当前帧状态栏应该处于的位置、透明度等属性。然后，动画线程并<strong>不直接操作视图</strong>，而是调用 <code>applyParams</code> 方法，将这些计算出的变换参数（如 Matrix 矩阵）<strong>调度</strong>给更为底层的<strong>渲染线程 (<code>AppRT</code>)</strong>。</li>
+<li><strong>提交渲染指令</strong>: 应用的 <code>RenderThread</code> 是一个专门与 GPU 和 <code>SurfaceFlinger</code> 打交道的线程。它接收到参数后，会创建一个 <code>SurfaceControl.Transaction</code> 对象（一个原子性的变更指令集），并将变换矩阵设置到它所持有的状态栏 Leash 上。最后，它调用 <code>transaction.apply()</code> 将这个指令集直接发送给 <code>SurfaceFlinger</code>。这个提交动作非常轻量，只是“发出命令”而已。</li>
+</ol>
+<h5 id="阶段三动画结束-animation-ends">阶段三：动画结束 (Animation Ends)<a hidden class="anchor" aria-hidden="true" href="#阶段三动画结束-animation-ends">#</a></h5>
+<ol>
+<li><strong>动画结束回调</strong>: 由于动画是由应用内部的 <code>ValueAnimator</code> 驱动的，当它播放完毕时，会触发 <code>onAnimationEnd</code> 回调。</li>
+<li><strong>通知 WMS</strong>: 应用的动画线程通知主线程动画已结束。主线程随即调用 <code>onAnimationFinish()</code> 通知 WMS，表示“我已经完成了动画，现在可以将控制权交还了”。这标志着授权的结束。</li>
+<li><strong>SurfaceFlinger 最终合成</strong>: 在整个动画过程中，<code>SurfaceFlinger</code> 不断地接收来自 <code>com.UCMobile</code> 的 <code>Transaction</code>。在每个 VSYNC 时刻，<code>SurfaceFlinger</code> 会将收集到的所有 <code>Transaction</code>（无论来自哪个进程）一次性地、原子性地应用，然后将屏幕上所有图层（应用窗口、状态栏 Leash、导航栏等）合成为最终的一帧画面并显示在屏幕上。这保证了所有元素的运动都是完美同步的。</li>
+</ol>
+<h4 id="总结-1">总结<a hidden class="anchor" aria-hidden="true" href="#总结-1">#</a></h4>
+<p>这份流程图揭示了 Android UI 系统的一个精妙设计：通过<strong>授权</strong>和<strong>责任分离</strong>，实现了极致的性能和流畅度。应用负责<strong>计算</strong>动画逻辑，<code>RenderThread</code> 负责<strong>提交</strong>指令，<code>SurfaceFlinger</code> 负责最终<strong>合成</strong>。整个过程高效、解耦，是打造现代、流畅 Android 应用体验的关键所在。</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+<nav class="paginav">
+  <a class="prev" href="https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/">
+    <span class="title">« Prev</span>
+    <br>
+    <span>Android Binder Proxy 限制机制</span>
+  </a>
+  <a class="next" href="https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/">
+    <span class="title">Next »</span>
+    <br>
+    <span>Binder spam detection原理</span>
+  </a>
+</nav>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2025 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>
