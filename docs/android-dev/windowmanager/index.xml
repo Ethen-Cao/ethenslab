@@ -80,6 +80,50 @@
 &lt;p&gt;这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。&lt;/p&gt;</description>
     </item>
     <item>
+      <title>SplitScreenController flow</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</link>
+      <pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</guid>
+      <description>&lt;h2 id=&#34;时序图&#34;&gt;时序图&lt;/h2&gt;
+&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/splitscreen_wmshell.png&#34;&gt;&lt;/p&gt;
+&lt;h2 id=&#34;debug&#34;&gt;Debug&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;打印分屏区域&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell dumpsys activity service SystemUIService WMShell
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;dump SystemUI&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;Enable protolog&lt;/p&gt;
+&lt;p&gt;参考 &lt;code&gt;frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/ProtoLogController.java&lt;/code&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;查看protolog status：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; $ adb shell dumpsys activity service SystemUIService WMShell protolog status
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; SERVICE com.android.systemui/.SystemUIService e73cb38 pid&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;4871&lt;/span&gt; user&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; Client:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     com.android.systemui.wmshell.WMShell:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     ----------------------------------------------------------------------------
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     ProtoLog status: Disabled
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Enabled log groups: 
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Proto: TEST_GROUP WM_DEBUG_ADD_REMOVE WM_DEBUG_ANIM WM_DEBUG_APP_TRANSITIONS WM_DEBUG_APP_TRANSITIONS_ANIM WM_DEBUG_BACK_PREVIEW WM_DEBUG_BOOT WM_DEBUG_CONFIGURATION WM_DEBUG_CONTAINERS WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DRAW WM_DEBUG_DREAM WM_DEBUG_FOCUS WM_DEBUG_FOCUS_LIGHT WM_DEBUG_IME WM_DEBUG_IMMERSIVE WM_DEBUG_KEEP_SCREEN_ON WM_DEBUG_LOCKTASK WM_DEBUG_ORIENTATION WM_DEBUG_RECENTS_ANIMATIONS WM_DEBUG_REMOTE_ANIMATIONS WM_DEBUG_RESIZE WM_DEBUG_SCREEN_ON WM_DEBUG_STARTING_WINDOW WM_DEBUG_STATES WM_DEBUG_SWITCH WM_DEBUG_SYNC_ENGINE WM_DEBUG_TASKS WM_DEBUG_WALLPAPER WM_DEBUG_WINDOW_INSETS WM_DEBUG_WINDOW_MOVEMENT WM_DEBUG_WINDOW_ORGANIZER WM_DEBUG_WINDOW_TRANSITIONS WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DESKTOP_MODE WM_SHELL_DRAG_AND_DROP WM_SHELL_FLOATING_APPS WM_SHELL_FOLDABLE WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_RECENT_TASKS WM_SHELL_SPLIT_SCREEN WM_SHELL_STARTING_WINDOW WM_SHELL_SYSUI_EVENTS WM_SHELL_TASK_ORG WM_SHELL_TRANSITIONS WM_SHOW_SURFACE_ALLOC WM_SHOW_TRANSACTIONS
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Logcat: WM_DEBUG_BACK_PREVIEW WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DREAM WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DRAG_AND_DROP WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_SPLIT_SCREEN WM_SHELL_TRANSITIONS
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Logging definitions loaded: &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Dump took 2ms
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;enable protolog：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog start
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;/ol&gt;</description>
+    </item>
+    <item>
       <title>WindowManagerService 解析</title>
       <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</link>
       <pubDate>Tue, 29 Jul 2025 10:22:54 +0800</pubDate>
@@ -124,44 +168,6 @@
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title></title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell.log/</link>
-      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell.log/</guid>
-      <description>&lt;p&gt;09-30 17:05:03.689  2508  2508 D SplitScreenController: java.lang.Throwable
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.wm.shell.splitscreen.SplitScreenController.&lt;!-- raw HTML omitted --&gt;(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:3)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.wm.shell.dagger.WMShellModule_ProvideSplitScreenControllerFactory.provideSplitScreenController(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:37)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get0(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:118)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:23)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at dagger.internal.DoubleCheck.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:14)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get0(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:119)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:23)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at dagger.internal.DoubleCheck.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:14)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get0(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:153)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:23)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at dagger.internal.DoubleCheck.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:14)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get0(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:154)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl$SwitchingProvider.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:23)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at dagger.internal.DoubleCheck.get(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:14)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.dagger.DaggerReferenceGlobalRootComponent$WMComponentImpl.getShell(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:3)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.SystemUIInitializer.init(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:130)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.SystemUIAppComponentFactoryBase.access$createSystemUIInitializerInternal(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:22)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.SystemUIAppComponentFactoryBase$instantiateProviderCompat$1.onContextAvailable(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:9)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.systemui.keyguard.CustomizationProvider.attachInfo(go/retraceme b7eab7420076376e0041efdff558cb89d757dece22a32b7922faabcdeaeca84a:8)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread.installProvider(ActivityThread.java:7765)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread.installContentProviders(ActivityThread.java:7276)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread.handleBindApplication(ActivityThread.java:6983)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread.-$$Nest$mhandleBindApplication(Unknown Source:0)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2236)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.os.Handler.dispatchMessage(Handler.java:106)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.os.Looper.loopOnce(Looper.java:205)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.os.Looper.loop(Looper.java:294)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at android.app.ActivityThread.main(ActivityThread.java:8177)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at java.lang.reflect.Method.invoke(Native Method)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
-09-30 17:05:03.689  2508  2508 D SplitScreenController: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:971)&lt;/p&gt;</description>
     </item>
   </channel>
 </rss>
