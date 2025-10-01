@@ -6,8 +6,35 @@
     <description>Recent content on Ethen 的实验室</description>
     <generator>Hugo -- 0.150.1</generator>
     <language>en</language>
-    <lastBuildDate>Mon, 29 Sep 2025 11:36:11 +0800</lastBuildDate>
+    <lastBuildDate>Wed, 01 Oct 2025 11:36:11 +0800</lastBuildDate>
     <atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>使用 Visual Studio Code 高效开发 AOSP</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/</link>
+      <pubDate>Wed, 01 Oct 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/</guid>
+      <description>&lt;h2 id=&#34;概述&#34;&gt;&lt;strong&gt;概述&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;本文档旨在为 AOSP 开发者提供一份详尽的指南，说明如何将 Visual Studio Code (VS Code) 配置成一个功能强大、响应迅速的 C/C++/Java 代码开发环境。&lt;/p&gt;
+&lt;p&gt;传统的 AOSP 开发可能依赖于功能强大但资源消耗巨大的 IDE（如 Android Studio for platform a.k.a. IntelliJ），或者纯文本编辑器搭配命令行工具。本指南采用 &lt;code&gt;VS Code&lt;/code&gt; + &lt;code&gt;clangd&lt;/code&gt; 的组合，旨在达到两者的平衡：既拥有现代 IDE 的强大代码导航和智能感知能力，又保持了轻量级编辑器的流畅体验。&lt;/p&gt;
+&lt;h2 id=&#34;核心优势&#34;&gt;&lt;strong&gt;核心优势&lt;/strong&gt;&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;极致性能&lt;/strong&gt;：&lt;code&gt;clangd&lt;/code&gt; 提供了比其他方案更快的索引速度和近乎瞬时的代码补全、跳转响应。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;高度精确&lt;/strong&gt;：&lt;code&gt;clangd&lt;/code&gt; 与 AOSP 使用的 Clang 编译器同源，其代码分析、错误和警告提示与实际编译结果几乎完全一致。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;资源友好&lt;/strong&gt;：相较于大型 IDE，此方案在处理庞大的 AOSP 代码库时，内存和 CPU 占用更优。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;高度可定制&lt;/strong&gt;：可以根据个人习惯，通过丰富的 VS Code 扩展生态打造专属的开发环境。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;前期准备-prerequisites&#34;&gt;&lt;strong&gt;前期准备 (Prerequisites)&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;在开始配置 VS Code 之前，请确保完成以下准备工作。&lt;/p&gt;
+&lt;h3 id=&#34;硬件建议&#34;&gt;&lt;strong&gt;硬件建议&lt;/strong&gt;&lt;/h3&gt;
+&lt;p&gt;AOSP 是一个巨型项目。为了获得流畅体验，建议您的开发设备满足：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;内存 (RAM)&lt;/strong&gt;: 32 GB 或更多。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;存储 (Storage)&lt;/strong&gt;: 高速 SSD，并确保有至少 500 GB 的可用空间。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;CPU&lt;/strong&gt;: 8 核或更多。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;aosp-源码同步&#34;&gt;&lt;strong&gt;AOSP 源码同步&lt;/strong&gt;&lt;/h3&gt;
+&lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description>
+    </item>
     <item>
       <title>Android Binder Proxy 限制机制</title>
       <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</link>

@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>使用 Visual Studio Code 高效开发 AOSP | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="概述
+本文档旨在为 AOSP 开发者提供一份详尽的指南，说明如何将 Visual Studio Code (VS Code) 配置成一个功能强大、响应迅速的 C/C&#43;&#43;/Java 代码开发环境。
+传统的 AOSP 开发可能依赖于功能强大但资源消耗巨大的 IDE（如 Android Studio for platform a.k.a. IntelliJ），或者纯文本编辑器搭配命令行工具。本指南采用 VS Code &#43; clangd 的组合，旨在达到两者的平衡：既拥有现代 IDE 的强大代码导航和智能感知能力，又保持了轻量级编辑器的流畅体验。
+核心优势
+
+极致性能：clangd 提供了比其他方案更快的索引速度和近乎瞬时的代码补全、跳转响应。
+高度精确：clangd 与 AOSP 使用的 Clang 编译器同源，其代码分析、错误和警告提示与实际编译结果几乎完全一致。
+资源友好：相较于大型 IDE，此方案在处理庞大的 AOSP 代码库时，内存和 CPU 占用更优。
+高度可定制：可以根据个人习惯，通过丰富的 VS Code 扩展生态打造专属的开发环境。
+
+前期准备 (Prerequisites)
+在开始配置 VS Code 之前，请确保完成以下准备工作。
+硬件建议
+AOSP 是一个巨型项目。为了获得流畅体验，建议您的开发设备满足：
+
+内存 (RAM): 32 GB 或更多。
+存储 (Storage): 高速 SSD，并确保有至少 500 GB 的可用空间。
+CPU: 8 核或更多。
+
+AOSP 源码同步
+确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。">
+<meta name="author" content="">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css" integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="使用 Visual Studio Code 高效开发 AOSP">
+  <meta property="og:description" content="概述 本文档旨在为 AOSP 开发者提供一份详尽的指南，说明如何将 Visual Studio Code (VS Code) 配置成一个功能强大、响应迅速的 C/C&#43;&#43;/Java 代码开发环境。
+传统的 AOSP 开发可能依赖于功能强大但资源消耗巨大的 IDE（如 Android Studio for platform a.k.a. IntelliJ），或者纯文本编辑器搭配命令行工具。本指南采用 VS Code &#43; clangd 的组合，旨在达到两者的平衡：既拥有现代 IDE 的强大代码导航和智能感知能力，又保持了轻量级编辑器的流畅体验。
+核心优势 极致性能：clangd 提供了比其他方案更快的索引速度和近乎瞬时的代码补全、跳转响应。 高度精确：clangd 与 AOSP 使用的 Clang 编译器同源，其代码分析、错误和警告提示与实际编译结果几乎完全一致。 资源友好：相较于大型 IDE，此方案在处理庞大的 AOSP 代码库时，内存和 CPU 占用更优。 高度可定制：可以根据个人习惯，通过丰富的 VS Code 扩展生态打造专属的开发环境。 前期准备 (Prerequisites) 在开始配置 VS Code 之前，请确保完成以下准备工作。
+硬件建议 AOSP 是一个巨型项目。为了获得流畅体验，建议您的开发设备满足：
+内存 (RAM): 32 GB 或更多。 存储 (Storage): 高速 SSD，并确保有至少 500 GB 的可用空间。 CPU: 8 核或更多。 AOSP 源码同步 确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="android-dev">
+    <meta property="article:published_time" content="2025-10-01T11:36:11+08:00">
+    <meta property="article:modified_time" content="2025-10-01T11:36:11+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="使用 Visual Studio Code 高效开发 AOSP">
+<meta name="twitter:description" content="概述
+本文档旨在为 AOSP 开发者提供一份详尽的指南，说明如何将 Visual Studio Code (VS Code) 配置成一个功能强大、响应迅速的 C/C&#43;&#43;/Java 代码开发环境。
+传统的 AOSP 开发可能依赖于功能强大但资源消耗巨大的 IDE（如 Android Studio for platform a.k.a. IntelliJ），或者纯文本编辑器搭配命令行工具。本指南采用 VS Code &#43; clangd 的组合，旨在达到两者的平衡：既拥有现代 IDE 的强大代码导航和智能感知能力，又保持了轻量级编辑器的流畅体验。
+核心优势
+
+极致性能：clangd 提供了比其他方案更快的索引速度和近乎瞬时的代码补全、跳转响应。
+高度精确：clangd 与 AOSP 使用的 Clang 编译器同源，其代码分析、错误和警告提示与实际编译结果几乎完全一致。
+资源友好：相较于大型 IDE，此方案在处理庞大的 AOSP 代码库时，内存和 CPU 占用更优。
+高度可定制：可以根据个人习惯，通过丰富的 VS Code 扩展生态打造专属的开发环境。
+
+前期准备 (Prerequisites)
+在开始配置 VS Code 之前，请确保完成以下准备工作。
+硬件建议
+AOSP 是一个巨型项目。为了获得流畅体验，建议您的开发设备满足：
+
+内存 (RAM): 32 GB 或更多。
+存储 (Storage): 高速 SSD，并确保有至少 500 GB 的可用空间。
+CPU: 8 核或更多。
+
+AOSP 源码同步
+确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Android系统开发",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Android 调试篇",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/debug/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  3 ,
+      "name": "使用 Visual Studio Code 高效开发 AOSP",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "使用 Visual Studio Code 高效开发 AOSP",
+  "name": "使用 Visual Studio Code 高效开发 AOSP",
+  "description": "概述 本文档旨在为 AOSP 开发者提供一份详尽的指南，说明如何将 Visual Studio Code (VS Code) 配置成一个功能强大、响应迅速的 C/C++/Java 代码开发环境。\n传统的 AOSP 开发可能依赖于功能强大但资源消耗巨大的 IDE（如 Android Studio for platform a.k.a. IntelliJ），或者纯文本编辑器搭配命令行工具。本指南采用 VS Code + clangd 的组合，旨在达到两者的平衡：既拥有现代 IDE 的强大代码导航和智能感知能力，又保持了轻量级编辑器的流畅体验。\n核心优势 极致性能：clangd 提供了比其他方案更快的索引速度和近乎瞬时的代码补全、跳转响应。 高度精确：clangd 与 AOSP 使用的 Clang 编译器同源，其代码分析、错误和警告提示与实际编译结果几乎完全一致。 资源友好：相较于大型 IDE，此方案在处理庞大的 AOSP 代码库时，内存和 CPU 占用更优。 高度可定制：可以根据个人习惯，通过丰富的 VS Code 扩展生态打造专属的开发环境。 前期准备 (Prerequisites) 在开始配置 VS Code 之前，请确保完成以下准备工作。\n硬件建议 AOSP 是一个巨型项目。为了获得流畅体验，建议您的开发设备满足：\n内存 (RAM): 32 GB 或更多。 存储 (Storage): 高速 SSD，并确保有至少 500 GB 的可用空间。 CPU: 8 核或更多。 AOSP 源码同步 确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "概述 本文档旨在为 AOSP 开发者提供一份详尽的指南，说明如何将 Visual Studio Code (VS Code) 配置成一个功能强大、响应迅速的 C/C++/Java 代码开发环境。\n传统的 AOSP 开发可能依赖于功能强大但资源消耗巨大的 IDE（如 Android Studio for platform a.k.a. IntelliJ），或者纯文本编辑器搭配命令行工具。本指南采用 VS Code + clangd 的组合，旨在达到两者的平衡：既拥有现代 IDE 的强大代码导航和智能感知能力，又保持了轻量级编辑器的流畅体验。\n核心优势 极致性能：clangd 提供了比其他方案更快的索引速度和近乎瞬时的代码补全、跳转响应。 高度精确：clangd 与 AOSP 使用的 Clang 编译器同源，其代码分析、错误和警告提示与实际编译结果几乎完全一致。 资源友好：相较于大型 IDE，此方案在处理庞大的 AOSP 代码库时，内存和 CPU 占用更优。 高度可定制：可以根据个人习惯，通过丰富的 VS Code 扩展生态打造专属的开发环境。 前期准备 (Prerequisites) 在开始配置 VS Code 之前，请确保完成以下准备工作。\n硬件建议 AOSP 是一个巨型项目。为了获得流畅体验，建议您的开发设备满足：\n内存 (RAM): 32 GB 或更多。 存储 (Storage): 高速 SSD，并确保有至少 500 GB 的可用空间。 CPU: 8 核或更多。 AOSP 源码同步 确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。\n生成编译数据库 (compile_commands.json) 这是整个配置的基石。该文件告诉 clangd 如何编译项目中的每一个文件。\n在 AOSP 源码根目录执行以下命令：\n# 确保已设置好编译环境 source build/envsetup.sh lunch aosp_arm64-eng # 或您选择的其他目标 # 生成 compile_commands.json (推荐使用 Soong) # 对于 Android 11 及以上版本: SOONG_GEN_COMPDB=1 build/soong/soong_ui.bash --make-mode blueprint # 或者使用 m a.k.a. make: # m nothing generate-ninja-compdb 执行成功后，您的 AOSP 根目录下会出现一个 compile_commands.json 文件。\n安装 clangd 虽然 AOSP 预构建工具链中可能包含 clangd，但最稳定可靠的方式是使用您系统包管理器安装的最新版本。\n# 对于 Ubuntu/Debian sudo apt update sudo apt install clangd # 对于 macOS brew install clangd VS Code 环境配置步骤 步骤 1：安装推荐扩展 打开 VS Code，进入扩展市场，安装以下两个扩展：\nclangd\n发布者: LLVM Project (llvm-vs-code-extensions) 作用: 提供核心的 C/C++ 语言服务（智能感知、代码跳转、错误检查等）。 C/C++\n发布者: Microsoft (ms-vscode.cpptools) 作用: 我们将禁用它的智能感知功能，但保留其强大的 C++ 调试功能。 步骤 2：禁用冲突的 IntelliSense 引擎 为了防止 clangd 和微软 C/C++ 扩展的语言服务发生冲突，我们需要禁用后者的 IntelliSense 引擎。\n按下 Ctrl + , 打开 VS Code 设置。 搜索 C_Cpp.intelliSenseEngine。 将其值从 Default 修改为 Disabled。 步骤 3：创建工作区配置文件 (.vscode/settings.json) 为避免污染全局 VS Code 设置，我们将为 AOSP 项目创建专用的工作区配置。\n在 AOSP 源码根目录创建一个 .vscode 文件夹。 在该文件夹下创建一个 settings.json 文件。 将以下内容完整复制到 settings.json 文件中： { // ====== clangd Configuration for AOSP ====== // 1. 指定 clangd 的路径 (如果 'which clangd' 的结果不同，请修改) \"clangd.path\": \"/usr/bin/clangd\", // 2. 为 clangd 提供启动参数，这是性能和准确性的关键 \"clangd.arguments\": [ // (推荐) 加快索引速度，请根据您的 CPU 核心数量调整 \"-j=16\", // 明确告诉 clangd 编译数据库的位置 \"--compile-commands-dir=${workspaceFolder}\", // 关键！让 clangd 查询 AOSP 的编译器来发现系统头文件路径 \"--query-driver=${workspaceFolder}/prebuilts/clang/host/linux-x86/clang-stable/bin/clang\", // 启用更丰富的类型和参数名称提示 \"--inlay-hints\", // 启用后台索引，提高启动速度 \"--background-index\" ], // ====== Editor and Other Settings ====== // 3. 将 C/C++ 文件关联到 clangd \"files.associations\": { \"*.c\": \"c\", \"*.cpp\": \"cpp\", \"*.h\": \"cpp\" }, // 4. (推荐) 隐藏庞大的目录，提升文件浏览器性能 \"files.exclude\": { \"**/.git\": true, \"out/\": true }, // 5. (推荐) 提升在大型项目中搜索的性能 \"search.exclude\": { \"**/node_modules\": true, \"out/\": true } } 启动与验证 首次索引 保存好配置后，重启 VS Code。clangd 会立即开始对整个 AOSP 项目进行索引。这是一个一次性的、非常消耗资源的过程。您可以通过 VS Code 右下角的状态栏查看索引进度。在此期间请保持耐心。\n验证配置是否成功 检查输出面板： 打开输出面板 (Ctrl + Shift + U)。 在下拉菜单中选择 clangd。 您应该能看到 clangd 的启动日志，并且没有致命错误。 测试代码导航： 打开一个 C++ 文件，例如 frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp。 右键点击一个类或函数，选择 “转到定义 (Go to Definition)” 或按 F12。 如果 VS Code 能够快速、准确地跳转，说明您的配置已完美生效！ 高级技巧与建议 Java 支持: 安装 Extension Pack for Java (redhat.java-extensionpack) 扩展以获得完整的 Java 语言支持。 Git 集成: 安装 GitLens (eamodio.gitlens) 扩展，极大增强 VS Code 的 Git 功能。 远程开发: 如果您在远程服务器上构建 AOSP，强烈推荐使用 VS Code 的 Remote - SSH 扩展。它能让您在本地获得与远程服务器上完全一致的开发体验。 切换产品: 如果您通过 lunch 切换了不同的产品并重新编译，建议重新生成 compile_commands.json 以确保 IntelliSense 的准确性。 常见问题 (Troubleshooting) 问题: 提示 “找不到头文件” (Header not found)\n解答: 绝大多数情况是 compile_commands.json 文件有问题，或者 settings.json 中 --query-driver 的路径不正确。请仔细检查这两个配置。 问题: clangd 启动失败或在输出面板报错\n解答: 检查 clangd.path 是否正确指向了您系统上的 clangd 可执行文件。 问题: VS Code 变得非常卡顿，CPU/内存占用很高\n解答: 如果是首次打开项目，这是正常的索引过程。请耐心等待其完成。如果问题持续存在，可以尝试在 clangd.arguments 中降低 -j 参数的值（例如 -j=4），以减少索引时占用的 CPU 核心数。 ",
+  "wordCount" : "430",
+  "inLanguage": "en",
+  "datePublished": "2025-10-01T11:36:11+08:00",
+  "dateModified": "2025-10-01T11:36:11+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://ethen-cao.github.io/ethenslab/">Home</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/android-dev/">Android系统开发</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/android-dev/debug/">Android 调试篇</a></div>
+    <h1 class="post-title entry-hint-parent">
+      使用 Visual Studio Code 高效开发 AOSP
+    </h1>
+    <div class="post-meta"><span title='2025-10-01 11:36:11 +0800 CST'>October 1, 2025</span>&nbsp;·&nbsp;3 min&nbsp;·&nbsp;430 words
+
+</div>
+  </header> 
+  <div class="post-content"><h2 id="概述"><strong>概述</strong><a hidden class="anchor" aria-hidden="true" href="#概述">#</a></h2>
+<p>本文档旨在为 AOSP 开发者提供一份详尽的指南，说明如何将 Visual Studio Code (VS Code) 配置成一个功能强大、响应迅速的 C/C++/Java 代码开发环境。</p>
+<p>传统的 AOSP 开发可能依赖于功能强大但资源消耗巨大的 IDE（如 Android Studio for platform a.k.a. IntelliJ），或者纯文本编辑器搭配命令行工具。本指南采用 <code>VS Code</code> + <code>clangd</code> 的组合，旨在达到两者的平衡：既拥有现代 IDE 的强大代码导航和智能感知能力，又保持了轻量级编辑器的流畅体验。</p>
+<h2 id="核心优势"><strong>核心优势</strong><a hidden class="anchor" aria-hidden="true" href="#核心优势">#</a></h2>
+<ul>
+<li><strong>极致性能</strong>：<code>clangd</code> 提供了比其他方案更快的索引速度和近乎瞬时的代码补全、跳转响应。</li>
+<li><strong>高度精确</strong>：<code>clangd</code> 与 AOSP 使用的 Clang 编译器同源，其代码分析、错误和警告提示与实际编译结果几乎完全一致。</li>
+<li><strong>资源友好</strong>：相较于大型 IDE，此方案在处理庞大的 AOSP 代码库时，内存和 CPU 占用更优。</li>
+<li><strong>高度可定制</strong>：可以根据个人习惯，通过丰富的 VS Code 扩展生态打造专属的开发环境。</li>
+</ul>
+<h2 id="前期准备-prerequisites"><strong>前期准备 (Prerequisites)</strong><a hidden class="anchor" aria-hidden="true" href="#前期准备-prerequisites">#</a></h2>
+<p>在开始配置 VS Code 之前，请确保完成以下准备工作。</p>
+<h3 id="硬件建议"><strong>硬件建议</strong><a hidden class="anchor" aria-hidden="true" href="#硬件建议">#</a></h3>
+<p>AOSP 是一个巨型项目。为了获得流畅体验，建议您的开发设备满足：</p>
+<ul>
+<li><strong>内存 (RAM)</strong>: 32 GB 或更多。</li>
+<li><strong>存储 (Storage)</strong>: 高速 SSD，并确保有至少 500 GB 的可用空间。</li>
+<li><strong>CPU</strong>: 8 核或更多。</li>
+</ul>
+<h3 id="aosp-源码同步"><strong>AOSP 源码同步</strong><a hidden class="anchor" aria-hidden="true" href="#aosp-源码同步">#</a></h3>
+<p>确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。</p>
+<h3 id="生成编译数据库-"><strong>生成编译数据库 (<code>compile_commands.json</code>)</strong><a hidden class="anchor" aria-hidden="true" href="#生成编译数据库-">#</a></h3>
+<p>这是整个配置的基石。该文件告诉 <code>clangd</code> 如何编译项目中的每一个文件。</p>
+<p>在 AOSP 源码根目录执行以下命令：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># 确保已设置好编译环境</span>
+</span></span><span style="display:flex;"><span>source build/envsetup.sh
+</span></span><span style="display:flex;"><span>lunch aosp_arm64-eng <span style="color:#75715e"># 或您选择的其他目标</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 生成 compile_commands.json (推荐使用 Soong)</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 对于 Android 11 及以上版本:</span>
+</span></span><span style="display:flex;"><span>SOONG_GEN_COMPDB<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span> build/soong/soong_ui.bash --make-mode blueprint
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 或者使用 m a.k.a. make:</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># m nothing generate-ninja-compdb</span>
+</span></span></code></pre></div><p>执行成功后，您的 AOSP 根目录下会出现一个 <code>compile_commands.json</code> 文件。</p>
+<h3 id="安装-clangd"><strong>安装 clangd</strong><a hidden class="anchor" aria-hidden="true" href="#安装-clangd">#</a></h3>
+<p>虽然 AOSP 预构建工具链中可能包含 <code>clangd</code>，但最稳定可靠的方式是使用您系统包管理器安装的最新版本。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># 对于 Ubuntu/Debian</span>
+</span></span><span style="display:flex;"><span>sudo apt update
+</span></span><span style="display:flex;"><span>sudo apt install clangd
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 对于 macOS</span>
+</span></span><span style="display:flex;"><span>brew install clangd
+</span></span></code></pre></div><hr>
+<h2 id="vs-code-环境配置步骤"><strong>VS Code 环境配置步骤</strong><a hidden class="anchor" aria-hidden="true" href="#vs-code-环境配置步骤">#</a></h2>
+<h3 id="步骤-1安装推荐扩展"><strong>步骤 1：安装推荐扩展</strong><a hidden class="anchor" aria-hidden="true" href="#步骤-1安装推荐扩展">#</a></h3>
+<p>打开 VS Code，进入扩展市场，安装以下两个扩展：</p>
+<ol>
+<li>
+<p><strong><code>clangd</code></strong></p>
+<ul>
+<li>发布者: <code>LLVM Project (llvm-vs-code-extensions)</code></li>
+<li>作用: 提供核心的 C/C++ 语言服务（智能感知、代码跳转、错误检查等）。</li>
+</ul>
+</li>
+<li>
+<p><strong><code>C/C++</code></strong></p>
+<ul>
+<li>发布者: <code>Microsoft (ms-vscode.cpptools)</code></li>
+<li>作用: 我们将禁用它的智能感知功能，但保留其强大的 <strong>C++ 调试功能</strong>。</li>
+</ul>
+</li>
+</ol>
+<h3 id="步骤-2禁用冲突的-intellisense-引擎"><strong>步骤 2：禁用冲突的 IntelliSense 引擎</strong><a hidden class="anchor" aria-hidden="true" href="#步骤-2禁用冲突的-intellisense-引擎">#</a></h3>
+<p>为了防止 <code>clangd</code> 和微软 C/C++ 扩展的语言服务发生冲突，我们需要禁用后者的 IntelliSense 引擎。</p>
+<ol>
+<li>按下 <code>Ctrl + ,</code> 打开 VS Code 设置。</li>
+<li>搜索 <code>C_Cpp.intelliSenseEngine</code>。</li>
+<li>将其值从 <code>Default</code> 修改为 <code>Disabled</code>。</li>
+</ol>
+<h3 id="步骤-3创建工作区配置文件-"><strong>步骤 3：创建工作区配置文件 (<code>.vscode/settings.json</code>)</strong><a hidden class="anchor" aria-hidden="true" href="#步骤-3创建工作区配置文件-">#</a></h3>
+<p>为避免污染全局 VS Code 设置，我们将为 AOSP 项目创建专用的工作区配置。</p>
+<ol>
+<li>在 AOSP 源码根目录创建一个 <code>.vscode</code> 文件夹。</li>
+<li>在该文件夹下创建一个 <code>settings.json</code> 文件。</li>
+<li>将以下内容完整复制到 <code>settings.json</code> 文件中：</li>
+</ol>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ====== clangd Configuration for AOSP ======
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 1. 指定 clangd 的路径 (如果 &#39;which clangd&#39; 的结果不同，请修改)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">&#34;clangd.path&#34;</span>: <span style="color:#e6db74">&#34;/usr/bin/clangd&#34;</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 2. 为 clangd 提供启动参数，这是性能和准确性的关键
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">&#34;clangd.arguments&#34;</span>: [
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// (推荐) 加快索引速度，请根据您的 CPU 核心数量调整
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;-j=16&#34;</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 明确告诉 clangd 编译数据库的位置
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;--compile-commands-dir=${workspaceFolder}&#34;</span>,
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 关键！让 clangd 查询 AOSP 的编译器来发现系统头文件路径
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;--query-driver=${workspaceFolder}/prebuilts/clang/host/linux-x86/clang-stable/bin/clang&#34;</span>,
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 启用更丰富的类型和参数名称提示
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;--inlay-hints&#34;</span>,
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 启用后台索引，提高启动速度
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#e6db74">&#34;--background-index&#34;</span>
+</span></span><span style="display:flex;"><span>    ],
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ====== Editor and Other Settings ======
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 3. 将 C/C++ 文件关联到 clangd
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">&#34;files.associations&#34;</span>: {
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;*.c&#34;</span>: <span style="color:#e6db74">&#34;c&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;*.cpp&#34;</span>: <span style="color:#e6db74">&#34;cpp&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;*.h&#34;</span>: <span style="color:#e6db74">&#34;cpp&#34;</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 4. (推荐) 隐藏庞大的目录，提升文件浏览器性能
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">&#34;files.exclude&#34;</span>: {
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;**/.git&#34;</span>: <span style="color:#66d9ef">true</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;out/&#34;</span>: <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 5. (推荐) 提升在大型项目中搜索的性能
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">&#34;search.exclude&#34;</span>: {
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;**/node_modules&#34;</span>: <span style="color:#66d9ef">true</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;out/&#34;</span>: <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><hr>
+<h2 id="启动与验证"><strong>启动与验证</strong><a hidden class="anchor" aria-hidden="true" href="#启动与验证">#</a></h2>
+<h3 id="首次索引"><strong>首次索引</strong><a hidden class="anchor" aria-hidden="true" href="#首次索引">#</a></h3>
+<p>保存好配置后，<strong>重启 VS Code</strong>。<code>clangd</code> 会立即开始对整个 AOSP 项目进行索引。这是一个一次性的、非常消耗资源的过程。您可以通过 VS Code 右下角的状态栏查看索引进度。在此期间请保持耐心。</p>
+<h3 id="验证配置是否成功"><strong>验证配置是否成功</strong><a hidden class="anchor" aria-hidden="true" href="#验证配置是否成功">#</a></h3>
+<ol>
+<li><strong>检查输出面板</strong>：
+<ul>
+<li>打开输出面板 (<code>Ctrl + Shift + U</code>)。</li>
+<li>在下拉菜单中选择 <code>clangd</code>。</li>
+<li>您应该能看到 <code>clangd</code> 的启动日志，并且没有致命错误。</li>
+</ul>
+</li>
+<li><strong>测试代码导航</strong>：
+<ul>
+<li>打开一个 C++ 文件，例如 <code>frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp</code>。</li>
+<li>右键点击一个类或函数，选择 <strong>“转到定义 (Go to Definition)”</strong> 或按 <code>F12</code>。</li>
+<li>如果 VS Code 能够快速、准确地跳转，说明您的配置已完美生效！</li>
+</ul>
+</li>
+</ol>
+<h2 id="高级技巧与建议"><strong>高级技巧与建议</strong><a hidden class="anchor" aria-hidden="true" href="#高级技巧与建议">#</a></h2>
+<ul>
+<li><strong>Java 支持</strong>: 安装 <code>Extension Pack for Java (redhat.java-extensionpack)</code> 扩展以获得完整的 Java 语言支持。</li>
+<li><strong>Git 集成</strong>: 安装 <code>GitLens (eamodio.gitlens)</code> 扩展，极大增强 VS Code 的 Git 功能。</li>
+<li><strong>远程开发</strong>: 如果您在远程服务器上构建 AOSP，强烈推荐使用 VS Code 的 <strong>Remote - SSH</strong> 扩展。它能让您在本地获得与远程服务器上完全一致的开发体验。</li>
+<li><strong>切换产品</strong>: 如果您通过 <code>lunch</code> 切换了不同的产品并重新编译，建议重新生成 <code>compile_commands.json</code> 以确保 IntelliSense 的准确性。</li>
+</ul>
+<h2 id="常见问题-troubleshooting"><strong>常见问题 (Troubleshooting)</strong><a hidden class="anchor" aria-hidden="true" href="#常见问题-troubleshooting">#</a></h2>
+<ul>
+<li>
+<p><strong>问题: 提示 &ldquo;找不到头文件&rdquo; (Header not found)</strong></p>
+<ul>
+<li><strong>解答</strong>: 绝大多数情况是 <code>compile_commands.json</code> 文件有问题，或者 <code>settings.json</code> 中 <code>--query-driver</code> 的路径不正确。请仔细检查这两个配置。</li>
+</ul>
+</li>
+<li>
+<p><strong>问题: <code>clangd</code> 启动失败或在输出面板报错</strong></p>
+<ul>
+<li><strong>解答</strong>: 检查 <code>clangd.path</code> 是否正确指向了您系统上的 <code>clangd</code> 可执行文件。</li>
+</ul>
+</li>
+<li>
+<p><strong>问题: VS Code 变得非常卡顿，CPU/内存占用很高</strong></p>
+<ul>
+<li><strong>解答</strong>: 如果是首次打开项目，这是正常的索引过程。请耐心等待其完成。如果问题持续存在，可以尝试在 <code>clangd.arguments</code> 中降低 <code>-j</code> 参数的值（例如 <code>-j=4</code>），以减少索引时占用的 CPU 核心数。</li>
+</ul>
+</li>
+</ul>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+<nav class="paginav">
+  <a class="next" href="https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/">
+    <span class="title">Next »</span>
+    <br>
+    <span>Android Binder Proxy 限制机制</span>
+  </a>
+</nav>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2025 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>
