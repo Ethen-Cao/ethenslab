@@ -4,7 +4,7 @@
     <title>WindowManager on Ethen 的实验室</title>
     <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/</link>
     <description>Recent content in WindowManager on Ethen 的实验室</description>
-    <generator>Hugo -- 0.150.1</generator>
+    <generator>Hugo -- 0.151.0</generator>
     <language>en</language>
     <lastBuildDate>Mon, 29 Sep 2025 10:22:54 +0800</lastBuildDate>
     <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/index.xml" rel="self" type="application/rss+xml" />
@@ -100,6 +100,10 @@
 &lt;p&gt;Enable protolog&lt;/p&gt;
 &lt;p&gt;参考 &lt;code&gt;frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/ProtoLogController.java&lt;/code&gt;:&lt;/p&gt;
 &lt;ul&gt;
+&lt;li&gt;help命令：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell help
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
 &lt;li&gt;查看protolog status：&lt;/li&gt;
 &lt;/ul&gt;
 &lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; $ adb shell dumpsys activity service SystemUIService WMShell protolog status

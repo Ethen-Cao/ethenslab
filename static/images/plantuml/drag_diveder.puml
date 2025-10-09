@@ -1,0 +1,115 @@
+@startuml
+!theme materia
+skinparam defaultFontColor #000000
+skinparam sequence {
+    ArrowColor #DimGray
+    LifeLineBorderColor #DimGray
+}
+title Android 14 分屏分隔条拖动与释放流程
+
+actor User
+
+box "SystemUI Process" #LightBlue
+    participant "SplitWindowManager" as SWM
+    participant "SplitLayout" as SL
+    participant "StageCoordinator" as SC
+    participant "ValueAnimator" as Animator
+end box
+participant "WindowManagerService (WMS)" as WMS
+participant "SurfaceFlinger (SF)" as SF
+
+autonumber
+
+group Phase 1: 用户拖动分隔条 (实时更新)
+
+    User -> SWM: 手指按下并移动 (Touch Event)
+    activate SWM
+
+    loop 每一帧手指移动
+        SWM -> SL: onDrag(currentPosition)
+        activate SL
+
+        SL -> SL: updateDivideBounds(currentPosition)
+        SL -> SC: **onLayoutSizeChanging()** (Callback)
+        deactivate SL
+        activate SC
+
+        SC -> SL: updateSurfaceBounds()
+        activate SL
+
+        SL -> SL: **applySurfaceChanges()**
+        note right of SL
+            获取最新的 Bounds,
+            创建 SurfaceControl.Transaction
+        end note
+        
+        SL -> SF: `Transaction.setPosition()` & `setWindowCrop()`
+        deactivate SL
+        deactivate SC
+    end loop
+    deactivate SWM
+    
+end
+
+... 用户持续拖动 ...
+
+group Phase 2: 用户释放分隔条 (动画吸附 & 状态固化)
+
+    User -> SWM: 手指松开 (Touch Up Event)
+    activate SWM
+
+    SWM -> SL: snapToTarget(currentPosition)
+    activate SL
+    
+    SL -> SL: **flingDividePosition(from, to)**
+    note right of SL
+        计算出最终吸附位置 (Snap Target)
+    end note
+    
+    SL -> Animator: **new ValueAnimator().start()**
+    deactivate SL
+    activate Animator
+    
+    loop 动画每一帧 (e.g., 250ms)
+        Animator -> SL: onAnimationUpdate(interpolatedValue)
+        activate SL
+        
+        SL -> SL: updateDivideBounds(interpolatedValue)
+        SL -> SC: **onLayoutSizeChanging()**
+        deactivate SL
+        activate SC
+        
+        SC -> SL: updateSurfaceBounds()
+        activate SL
+        
+        SL -> SL: **applySurfaceChanges()**
+        SL -> SF: `Transaction.setPosition()` & `setWindowCrop()`
+        deactivate SL
+        deactivate SC
+    end loop
+    deactivate Animator
+
+    SL -> SC: **onLayoutSizeChanged()** (via AnimationEnd Callback)
+    activate SC
+    
+    SC -> SC: 创建 WindowContainerTransaction (WCT)\n并设置 Tasks 的最终 Bounds
+    
+    SC -> WMS: **[Binder IPC]** 应用 WCT (`applyTransaction`)
+    note left of WMS
+        这是 WMShell 将最终布局结果
+        上报给 WMS 的关键一步。
+    end note
+    
+    WMS -> WMS: **performSurfacePlacement()**
+    note left of WMS
+        WMS 更新其内部的窗口状态，
+        并准备一个最终的 Transaction
+        来固化所有图层的状态。
+    end note
+    
+    WMS -> SF: **`Transaction.setPosition()`** (via `buildFinishTransaction`)
+    deactivate SC
+    deactivate SWM
+
+end
+@enduml

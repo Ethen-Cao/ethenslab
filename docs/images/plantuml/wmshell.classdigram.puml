@@ -1,7 +1,26 @@
 @startuml
 
+skinparam ParticipantBackgroundColor #80DEEA
 
-WindowOrganizer -> IWindowOrganizerController:applyTransaction(WindowContainerTransaction t)
-IWindowOrganizerController -> WindowOrganizerController: applyTransaction(WindowContainerTransaction t)
+box "SystemUI"
+
+end box
+
+box "Aidl/BinderTread"
+participant ITransitionPlayer
+end box
+
+box "com.android.wm.shell" #E0F7FA
+  participant TransitionPlayerImpl
+  participant Transitions
+  participant WindowOrganizer
+  participant IWindowOrganizerController
+  participant WindowOrganizerController
+  participant SplitScreenController
+
+end box
+
+ITransitionPlayer -> TransitionPlayerImpl:onTransitionReady
+TransitionPlayerImpl -> Transitions:onTransitionReady
 
 @enduml

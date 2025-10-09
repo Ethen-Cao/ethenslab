@@ -25,6 +25,11 @@ title = 'SplitScreenController flow'
    
    参考 `frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/ProtoLogController.java`:
 
+   * help命令：
+    ```shell
+    $ adb shell dumpsys activity service SystemUIService WMShell help
+    ```
+    
    * 查看protolog status：
    ```shell
     $ adb shell dumpsys activity service SystemUIService WMShell protolog status

@@ -1,14 +1,227 @@
-<mxfile host="Electron" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.1.2 Chrome/138.0.7204.243 Electron/37.4.0 Safari/537.36" version="28.1.2">
+<mxfile host="Electron" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.2.5 Chrome/138.0.7204.251 Electron/37.6.1 Safari/537.36" version="28.2.5">
   <diagram name="第 1 页" id="EKDKbFcasAf3W2K9UPzu">
-    <mxGraphModel dx="994" dy="723" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="3901" dy="2202" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="TLbkeEMrMMAKLiIgm5Zt-1" value="Transitions" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="170" y="80" width="120" height="40" as="geometry" />
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-1" value="SplitScreenController" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="235" y="-130" width="160" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="TLbkeEMrMMAKLiIgm5Zt-2" value="DefaultTransitionHandler" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
-          <mxGeometry x="380" y="80" width="160" height="40" as="geometry" />
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-2" value="SplitLayout" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="285" y="-360" width="270" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-3" value="SplitWindowManager" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="195" y="-230" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-4" value="1" style="endArrow=open;html=1;endSize=12;startArrow=diamondThin;startSize=14;startFill=1;edgeStyle=orthogonalEdgeStyle;align=left;verticalAlign=bottom;rounded=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-2" target="74hEM54ITtvwUSmFD9Kp-3">
+          <mxGeometry x="-1" y="3" relative="1" as="geometry">
+            <mxPoint x="405" y="-60" as="sourcePoint" />
+            <mxPoint x="565" y="-60" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="353" y="-270" />
+              <mxPoint x="275" y="-270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-5" value="mSplitWindowManager" style="edgeLabel;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="74hEM54ITtvwUSmFD9Kp-4">
+          <mxGeometry x="0.1714" y="-2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-6" value="DividerSnapAlgorithm" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="475" y="-230" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-7" value="1" style="endArrow=open;html=1;endSize=12;startArrow=diamondThin;startSize=14;startFill=1;edgeStyle=orthogonalEdgeStyle;align=left;verticalAlign=bottom;rounded=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-2" target="74hEM54ITtvwUSmFD9Kp-6">
+          <mxGeometry x="-1" y="3" relative="1" as="geometry">
+            <mxPoint x="515" y="-300" as="sourcePoint" />
+            <mxPoint x="315" y="-210" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="488" y="-270" />
+              <mxPoint x="555" y="-270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-10" value="mDividerSnapAlgorithm" style="edgeLabel;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="74hEM54ITtvwUSmFD9Kp-7">
+          <mxGeometry x="0.1546" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-11" value="StageCoordinator" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="274" y="-580" width="270" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-12" value="SplitLayoutHandler" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="575" y="-430" width="130" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-13" value="" style="endArrow=block;dashed=1;endFill=0;endSize=12;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-11" target="74hEM54ITtvwUSmFD9Kp-12">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="365" y="-280" as="sourcePoint" />
+            <mxPoint x="525" y="-280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-14" value="SplitWindowManager.ParentContainerCallbacks" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry y="-440" width="270" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-15" value="1" style="endArrow=open;html=1;endSize=12;startArrow=diamondThin;startSize=14;startFill=1;align=left;verticalAlign=bottom;rounded=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-11" target="74hEM54ITtvwUSmFD9Kp-14">
+          <mxGeometry x="-0.8533" y="5" relative="1" as="geometry">
+            <mxPoint x="153" y="-420" as="sourcePoint" />
+            <mxPoint x="120" y="-450" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="135" y="-555" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-16" value="mParentContainerCallbacks" style="edgeLabel;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="74hEM54ITtvwUSmFD9Kp-15">
+          <mxGeometry x="0.1714" y="-2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-17" value="ShellTaskOrganizer" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-1790" y="-320" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-51" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;strokeColor=default;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;endArrow=open;endFill=1;endSize=12;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-18" target="74hEM54ITtvwUSmFD9Kp-40">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-53" value="mTaskOrganizerController" style="edgeLabel;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="74hEM54ITtvwUSmFD9Kp-51">
+          <mxGeometry x="0.7843" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-18" value="TaskOrganizer" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-1790" y="-445" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-19" value="" style="endArrow=block;dashed=1;endFill=0;endSize=12;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-17" target="74hEM54ITtvwUSmFD9Kp-18">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="-1645" y="-340" as="sourcePoint" />
+            <mxPoint x="-1569" y="55" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-20" value="TaskListener" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-559" y="-460" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-21" value="IWindowOrganizerController" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-590" y="-640" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-22" value="ITaskOrganizerController" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-349" y="-700" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-25" value="ActivityTaskManagerService" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-1329" y="-1120" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-36" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=default;align=left;verticalAlign=bottom;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;startArrow=diamondThin;startFill=1;startSize=14;endArrow=open;endSize=12;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-26" target="74hEM54ITtvwUSmFD9Kp-35">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-1090" y="-890" />
+              <mxPoint x="-980" y="-890" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-37" value="mTransitionController" style="edgeLabel;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="74hEM54ITtvwUSmFD9Kp-36">
+          <mxGeometry x="-0.0584" y="-2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-38" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=default;align=left;verticalAlign=bottom;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;startArrow=diamondThin;startFill=1;startSize=14;endArrow=open;endSize=12;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-26" target="74hEM54ITtvwUSmFD9Kp-32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-39" value="mTaskFragmentOrganizerController" style="edgeLabel;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="74hEM54ITtvwUSmFD9Kp-38">
+          <mxGeometry x="-0.1799" y="3" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-26" value="WindowOrganizerController" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-1430" y="-980" width="400" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-27" value="1" style="endArrow=open;html=1;endSize=12;startArrow=diamondThin;startSize=14;startFill=1;align=left;verticalAlign=bottom;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-25" target="74hEM54ITtvwUSmFD9Kp-26">
+          <mxGeometry x="-0.5578" y="9" relative="1" as="geometry">
+            <mxPoint x="-1012" y="-1060" as="sourcePoint" />
+            <mxPoint x="-1090" y="-970" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-28" value="mWindowOrganizerController" style="edgeLabel;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="74hEM54ITtvwUSmFD9Kp-27">
+          <mxGeometry x="0.1714" y="-2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=default;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;endArrow=block;endFill=0;endSize=12;exitX=0.25;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-29" target="74hEM54ITtvwUSmFD9Kp-40">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-1593" y="-770" />
+              <mxPoint x="-1645" y="-770" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-48" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=default;align=left;verticalAlign=bottom;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;startArrow=diamondThin;startFill=0;startSize=14;endArrow=open;endSize=12;flowAnimation=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-29" target="74hEM54ITtvwUSmFD9Kp-42">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-50" value="mTaskOrganizers" style="edgeLabel;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="74hEM54ITtvwUSmFD9Kp-48">
+          <mxGeometry x="0.536" y="2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-29" value="TaskOrganizerController" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-1650" y="-850" width="230" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-30" value="1" style="endArrow=open;html=1;endSize=12;startArrow=diamondThin;startSize=14;startFill=1;align=left;verticalAlign=bottom;rounded=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-26" target="74hEM54ITtvwUSmFD9Kp-29">
+          <mxGeometry x="-0.9184" y="-10" relative="1" as="geometry">
+            <mxPoint x="-1080" y="-953.54" as="sourcePoint" />
+            <mxPoint x="-990" y="-950" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-31" value="mTaskOrganizerController" style="edgeLabel;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="74hEM54ITtvwUSmFD9Kp-30">
+          <mxGeometry x="0.1714" y="-2" relative="1" as="geometry">
+            <mxPoint x="-16" y="-17" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-32" value="TaskFragmentOrganizerController" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-1329" y="-840" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-33" value="ITaskFragmentOrganizerController" style="rounded=1;whiteSpace=wrap;strokeColor=default;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=default;fillColor=#FFCCBC;" vertex="1" parent="1">
+          <mxGeometry x="-1329" y="-730" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-34" value="" style="endArrow=block;dashed=1;endFill=0;endSize=12;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-32" target="74hEM54ITtvwUSmFD9Kp-33">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="-1310" y="-730" as="sourcePoint" />
+            <mxPoint x="-1310" y="-790" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-35" value="TransitionController" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-1040" y="-840" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-40" value="ITaskOrganizerController" style="rounded=1;whiteSpace=wrap;fillColor=#FFCCBC;" vertex="1" parent="1">
+          <mxGeometry x="-1765" y="-730" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-42" value="ITaskOrganizer" style="rounded=1;whiteSpace=wrap;strokeColor=default;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=default;fillColor=#FFCCBC;" vertex="1" parent="1">
+          <mxGeometry x="-1495" y="-730" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;dashed=1;dashPattern=8 8;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-44" target="74hEM54ITtvwUSmFD9Kp-42">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-44" value="addStartingWindow&#xa;removeStartingWindow&#xa;onTaskAppeared&#xa;onTaskInfoChanged" style="shape=note;whiteSpace=wrap;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="-1600" y="-630" width="140" height="61" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-47" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;dashPattern=8 8;strokeColor=default;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;endArrow=none;endFill=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-46" target="74hEM54ITtvwUSmFD9Kp-40">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-46" value="registerTaskOrganizer&#xa;unregisterTaskOrganizer&#xa;createRootTask&#xa;deleteRootTask" style="shape=note;whiteSpace=wrap;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="-1950" y="-740" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-56" value="ITaskOrganizer.Stub" style="rounded=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="-1497.5" y="-445" width="125" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-57" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=default;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;endArrow=block;endFill=0;endSize=12;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-56" target="74hEM54ITtvwUSmFD9Kp-42">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-1385" y="-680" as="sourcePoint" />
+            <mxPoint x="-1490" y="-610" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="74hEM54ITtvwUSmFD9Kp-58" value="" style="endArrow=open;startArrow=circlePlus;endFill=0;startFill=0;endSize=8;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="74hEM54ITtvwUSmFD9Kp-18" target="74hEM54ITtvwUSmFD9Kp-56">
+          <mxGeometry width="160" relative="1" as="geometry">
+            <mxPoint x="-1660" y="-570" as="sourcePoint" />
+            <mxPoint x="-1500" y="-570" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>
