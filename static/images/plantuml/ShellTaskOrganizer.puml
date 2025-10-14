@@ -1,0 +1,71 @@
+@startuml
+!theme plain
+skinparam defaultFontColor #000
+
+title SystemUI 中 ShellTaskOrganizer 的创建与初始化过程
+
+participant "SystemUI App" as App
+participant "WMComponent (Dagger)" as Dagger
+participant "WMShellImpl" as ShellImpl
+participant "ShellTaskOrganizer" as STO
+participant "ShellTransitions" as Transitions
+participant "SplitScreenController" as SplitScreen
+
+autonumber "<b>[0]"
+
+' 1. The initial request from the application
+App -> Dagger: 请求获取 WMShell 实例
+
+activate Dagger
+' 2. Dagger starts resolving dependencies for WMShellImpl
+Dagger -> Dagger: 解析 WMShellImpl 的构造函数依赖
+note right of Dagger
+  发现需要:
+  - ShellTaskOrganizer
+  - ShellTransitions
+  - SplitScreenController
+  ...等多个实例
+end note
+
+' 3. Dagger creates ShellTaskOrganizer first
+Dagger -> Dagger: 寻找 ShellTaskOrganizer 的提供者
+note right of Dagger: 找到 @Provides provideShellTaskOrganizer()
+
+create STO
+Dagger -> STO: create()
+note right of STO: 实例被创建并缓存 (@WMSingleton)
+
+' 4. Dagger creates other controllers, injecting the STO instance
+Dagger -> Dagger: 创建其他依赖 (如 ShellTransitions)
+create Transitions
+Dagger -> Transitions: create(stoInstance)
+note left of Transitions: 注入刚才已缓存的 STO 实例
+
+Dagger -> Dagger: 创建其他依赖 (如 SplitScreenController)
+create SplitScreen
+Dagger -> SplitScreen: create(stoInstance)
+note left of SplitScreen: 再次注入同一个 STO 实例
+
+' 5. All dependencies are ready, Dagger creates WMShellImpl
+create ShellImpl
+Dagger -> ShellImpl: new(sto, transitions, splitScreen, ...)
+Dagger --> App: 返回 WMShellImpl 实例
+deactivate Dagger
+
+' 6. Post-creation initialization
+App -> ShellImpl: 执行初始化 (eg: onShellInit())
+activate ShellImpl
+
+ShellImpl -> Transitions: init()
+activate Transitions
+Transitions -> STO: registerTransitionPlayer()
+deactivate Transitions
+
+ShellImpl -> SplitScreen: init()
+activate SplitScreen
+SplitScreen -> STO: registerListener()
+deactivate SplitScreen
+
+deactivate ShellImpl
+
+@enduml
