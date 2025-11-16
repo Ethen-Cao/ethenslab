@@ -9,7 +9,6 @@
 &lt;li&gt;两者之间通过 &lt;strong&gt;QNX Hypervisor&lt;/strong&gt; 实现虚拟化隔离；&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;virtio-net&lt;/strong&gt; 提供了一条高性能的“虚拟网线”，把 Android guest 的网络栈接入 QNX Host 的网络栈，再通过物理网卡连到车外 &lt;strong&gt;T-Box / 外部网络&lt;/strong&gt;。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;理解这条 virtio-net 通道的工作原理，对于分析「Android App 上不了网」「Android 某段时间全断网」「按应用分流到不同 VLAN」这类问题非常重要。&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id="2-整体架构总览"&gt;2. 整体架构总览&lt;/h2&gt;
 &lt;p&gt;按图的布局，从右到左是：&lt;/p&gt;
@@ -19,7 +18,19 @@
 &lt;li&gt;&lt;strong&gt;QNX Host（包含 io-pkt / qvm / 驱动等）&lt;/strong&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;T-Box / 外部网络&lt;/strong&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;自顶向下的数据路径（单向发送）可以概括为：&lt;/p&gt;</description></item><item><title>build.py 技术原理详解</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid><description>&lt;h2 id="buildpy-技术原理详解"&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
+&lt;p&gt;自顶向下的数据路径（单向发送）可以概括为：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Android App
+→ Java 网络库
+→ libc
+→ Linux 网络协议栈
+→ virtio-net 驱动
+→ virtqueue / shared memory
+→ qvm process 中的 vdev-virtio-net
+→ QNX Host io-pkt 中的 vdevpeer
+→ bridge / route / VLAN
+→ 物理网卡驱动
+→ T-Box / 外部网络&lt;/p&gt;</description></item><item><title>build.py 技术原理详解</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid><description>&lt;h2 id="buildpy-技术原理详解"&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
 &lt;h3 id="核心定位声明式构建的执行引擎"&gt;核心定位：声明式构建的执行引擎&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 脚本是高通平台 Meta-Build 系统的核心&lt;strong&gt;自动化执行引擎&lt;/strong&gt;。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的&lt;strong&gt;任务调度器和执行器&lt;/strong&gt;。&lt;/p&gt;
 &lt;p&gt;它的核心设计哲学是&lt;strong&gt;声明式驱动&lt;/strong&gt;：开发者在 &lt;code&gt;contents.xml&lt;/code&gt; 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 &lt;code&gt;build.py&lt;/code&gt; 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。&lt;/p&gt;

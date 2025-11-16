@@ -19,8 +19,6 @@ title = 'QNX-Android IVI 架构中的 virtio-net 通信'
 * 两者之间通过 **QNX Hypervisor** 实现虚拟化隔离；
 * **virtio-net** 提供了一条高性能的“虚拟网线”，把 Android guest 的网络栈接入 QNX Host 的网络栈，再通过物理网卡连到车外 **T-Box / 外部网络**。
 
-理解这条 virtio-net 通道的工作原理，对于分析「Android App 上不了网」「Android 某段时间全断网」「按应用分流到不同 VLAN」这类问题非常重要。
-
 ---
 
 ## 2. 整体架构总览
@@ -349,4 +347,4 @@ ifconfig vp_la up
   * vdev-virtio-net 是否正确消费 virtqueue；
   * vdevpeer 与 io-pkt 是否正常工作（包是否到达 `vp_la`）。
 
-这套 virtio-net 架构是 QNX-Android IVI 系统中最关键的“网络桥”，理解本文描述的路径，有助于你在设计 VLAN 分流、应用分网卡（Android 内按 UID 分配 Network）、排查偶发断网等问题时，更有把握地定位到哪一层出了问题。
+这套 virtio-net 架构是 QNX-Android IVI 系统中最关键的“网络桥”，理解本文描述的路径，有助于在设计 VLAN 分流、应用分网卡（Android 内按 UID 分配 Network）、排查偶发断网等问题时，更有把握地定位到哪一层出了问题。

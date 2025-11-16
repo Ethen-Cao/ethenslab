@@ -9,7 +9,6 @@
 &lt;li&gt;两者之间通过 &lt;strong&gt;QNX Hypervisor&lt;/strong&gt; 实现虚拟化隔离；&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;virtio-net&lt;/strong&gt; 提供了一条高性能的“虚拟网线”，把 Android guest 的网络栈接入 QNX Host 的网络栈，再通过物理网卡连到车外 &lt;strong&gt;T-Box / 外部网络&lt;/strong&gt;。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;理解这条 virtio-net 通道的工作原理，对于分析「Android App 上不了网」「Android 某段时间全断网」「按应用分流到不同 VLAN」这类问题非常重要。&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id="2-整体架构总览"&gt;2. 整体架构总览&lt;/h2&gt;
 &lt;p&gt;按图的布局，从右到左是：&lt;/p&gt;
@@ -19,7 +18,19 @@
 &lt;li&gt;&lt;strong&gt;QNX Host（包含 io-pkt / qvm / 驱动等）&lt;/strong&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;T-Box / 外部网络&lt;/strong&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;自顶向下的数据路径（单向发送）可以概括为：&lt;/p&gt;</description></item><item><title>使用 Visual Studio Code 高效开发 AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/</link><pubDate>Wed, 01 Oct 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/</guid><description>&lt;h2 id="概述"&gt;&lt;strong&gt;概述&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;自顶向下的数据路径（单向发送）可以概括为：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Android App
+→ Java 网络库
+→ libc
+→ Linux 网络协议栈
+→ virtio-net 驱动
+→ virtqueue / shared memory
+→ qvm process 中的 vdev-virtio-net
+→ QNX Host io-pkt 中的 vdevpeer
+→ bridge / route / VLAN
+→ 物理网卡驱动
+→ T-Box / 外部网络&lt;/p&gt;</description></item><item><title>使用 Visual Studio Code 高效开发 AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/</link><pubDate>Wed, 01 Oct 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/</guid><description>&lt;h2 id="概述"&gt;&lt;strong&gt;概述&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;本文档旨在为 AOSP 开发者提供一份详尽的指南，说明如何将 Visual Studio Code (VS Code) 配置成一个功能强大、响应迅速的 C/C++/Java 代码开发环境。&lt;/p&gt;
 &lt;p&gt;传统的 AOSP 开发可能依赖于功能强大但资源消耗巨大的 IDE（如 Android Studio for platform a.k.a. IntelliJ），或者纯文本编辑器搭配命令行工具。本指南采用 &lt;code&gt;VS Code&lt;/code&gt; + &lt;code&gt;clangd&lt;/code&gt; 的组合，旨在达到两者的平衡：既拥有现代 IDE 的强大代码导航和智能感知能力，又保持了轻量级编辑器的流畅体验。&lt;/p&gt;
 &lt;h2 id="核心优势"&gt;&lt;strong&gt;核心优势&lt;/strong&gt;&lt;/h2&gt;
