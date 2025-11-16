@@ -1,50 +1,49 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
-  <channel>
-    <title>Ethen 的实验室</title>
-    <link>https://ethen-cao.github.io/ethenslab/</link>
-    <description>Recent content on Ethen 的实验室</description>
-    <generator>Hugo -- 0.151.0</generator>
-    <language>en</language>
-    <lastBuildDate>Wed, 01 Oct 2025 11:36:11 +0800</lastBuildDate>
-    <atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>使用 Visual Studio Code 高效开发 AOSP</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/</link>
-      <pubDate>Wed, 01 Oct 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/</guid>
-      <description>&lt;h2 id=&#34;概述&#34;&gt;&lt;strong&gt;概述&lt;/strong&gt;&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/</link><description>Recent content on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Sat, 15 Nov 2025 17:17:50 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml"/><item><title>QNX-Android IVI 架构中的 virtio-net 通信</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx_hypervisor_net/</link><pubDate>Sat, 15 Nov 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx_hypervisor_net/</guid><description>&lt;p&gt;本文基于一张 QNX Host + Android guest + Hypervisor + T-Box 的 virtio-net 架构图整理而成，图中展示了从 Android App 到车外 T-Box 的完整网络路径。&lt;/p&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/virtio-net.drawio.png"&gt;&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;在典型的 QNX-Android 车机（IVI）架构中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Android guest&lt;/strong&gt; 负责 UI、应用、车载 App；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;QNX Host&lt;/strong&gt; 作为宿主 OS，负责底层驱动、网络、网关逻辑等；&lt;/li&gt;
+&lt;li&gt;两者之间通过 &lt;strong&gt;QNX Hypervisor&lt;/strong&gt; 实现虚拟化隔离；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;virtio-net&lt;/strong&gt; 提供了一条高性能的“虚拟网线”，把 Android guest 的网络栈接入 QNX Host 的网络栈，再通过物理网卡连到车外 &lt;strong&gt;T-Box / 外部网络&lt;/strong&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;理解这条 virtio-net 通道的工作原理，对于分析「Android App 上不了网」「Android 某段时间全断网」「按应用分流到不同 VLAN」这类问题非常重要。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="2-整体架构总览"&gt;2. 整体架构总览&lt;/h2&gt;
+&lt;p&gt;按图的布局，从右到左是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Android guest&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Hypervisor（在底部，负责虚拟化）&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;QNX Host（包含 io-pkt / qvm / 驱动等）&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;T-Box / 外部网络&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;自顶向下的数据路径（单向发送）可以概括为：&lt;/p&gt;</description></item><item><title>使用 Visual Studio Code 高效开发 AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/</link><pubDate>Wed, 01 Oct 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/vscode-aosp/</guid><description>&lt;h2 id="概述"&gt;&lt;strong&gt;概述&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;本文档旨在为 AOSP 开发者提供一份详尽的指南，说明如何将 Visual Studio Code (VS Code) 配置成一个功能强大、响应迅速的 C/C++/Java 代码开发环境。&lt;/p&gt;
 &lt;p&gt;传统的 AOSP 开发可能依赖于功能强大但资源消耗巨大的 IDE（如 Android Studio for platform a.k.a. IntelliJ），或者纯文本编辑器搭配命令行工具。本指南采用 &lt;code&gt;VS Code&lt;/code&gt; + &lt;code&gt;clangd&lt;/code&gt; 的组合，旨在达到两者的平衡：既拥有现代 IDE 的强大代码导航和智能感知能力，又保持了轻量级编辑器的流畅体验。&lt;/p&gt;
-&lt;h2 id=&#34;核心优势&#34;&gt;&lt;strong&gt;核心优势&lt;/strong&gt;&lt;/h2&gt;
+&lt;h2 id="核心优势"&gt;&lt;strong&gt;核心优势&lt;/strong&gt;&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;极致性能&lt;/strong&gt;：&lt;code&gt;clangd&lt;/code&gt; 提供了比其他方案更快的索引速度和近乎瞬时的代码补全、跳转响应。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;高度精确&lt;/strong&gt;：&lt;code&gt;clangd&lt;/code&gt; 与 AOSP 使用的 Clang 编译器同源，其代码分析、错误和警告提示与实际编译结果几乎完全一致。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;资源友好&lt;/strong&gt;：相较于大型 IDE，此方案在处理庞大的 AOSP 代码库时，内存和 CPU 占用更优。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;高度可定制&lt;/strong&gt;：可以根据个人习惯，通过丰富的 VS Code 扩展生态打造专属的开发环境。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id=&#34;前期准备-prerequisites&#34;&gt;&lt;strong&gt;前期准备 (Prerequisites)&lt;/strong&gt;&lt;/h2&gt;
+&lt;h2 id="前期准备-prerequisites"&gt;&lt;strong&gt;前期准备 (Prerequisites)&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;在开始配置 VS Code 之前，请确保完成以下准备工作。&lt;/p&gt;
-&lt;h3 id=&#34;硬件建议&#34;&gt;&lt;strong&gt;硬件建议&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="硬件建议"&gt;&lt;strong&gt;硬件建议&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;AOSP 是一个巨型项目。为了获得流畅体验，建议您的开发设备满足：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;内存 (RAM)&lt;/strong&gt;: 32 GB 或更多。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;存储 (Storage)&lt;/strong&gt;: 高速 SSD，并确保有至少 500 GB 的可用空间。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;CPU&lt;/strong&gt;: 8 核或更多。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;aosp-源码同步&#34;&gt;&lt;strong&gt;AOSP 源码同步&lt;/strong&gt;&lt;/h3&gt;
-&lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Android Binder Proxy 限制机制</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</link>
-      <pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</guid>
-      <description>&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png&#34;&gt;
+&lt;h3 id="aosp-源码同步"&gt;&lt;strong&gt;AOSP 源码同步&lt;/strong&gt;&lt;/h3&gt;
+&lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png"&gt;
 本图描述了 Android 系统中 &lt;strong&gt;Binder Proxy 数量限制（BinderProxy Limit）&lt;/strong&gt; 的实现流程，涉及 &lt;code&gt;ActivityManagerService&lt;/code&gt;、&lt;code&gt;BinderInternal&lt;/code&gt;、JNI 层、&lt;code&gt;BpBinder&lt;/code&gt; 等关键组件。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h2 id=&#34;1-关键模块&#34;&gt;1. 关键模块&lt;/h2&gt;
-&lt;h3 id=&#34;11-java-层&#34;&gt;1.1 Java 层&lt;/h3&gt;
+&lt;h2 id="1-关键模块"&gt;1. 关键模块&lt;/h2&gt;
+&lt;h3 id="11-java-层"&gt;1.1 Java 层&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;ActivityManagerService (AMS)&lt;/strong&gt;
@@ -65,7 +64,7 @@
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;12-native-层-jni&#34;&gt;1.2 Native 层 (JNI)&lt;/h3&gt;
+&lt;h3 id="12-native-层-jni"&gt;1.2 Native 层 (JNI)&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;libandroid_runtime&lt;/strong&gt;
@@ -78,7 +77,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h2 id=&#34;2-调用流程&#34;&gt;2. 调用流程&lt;/h2&gt;
+&lt;h2 id="2-调用流程"&gt;2. 调用流程&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;AMS 启动限制&lt;/strong&gt;&lt;/p&gt;
@@ -89,16 +88,31 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Insets animation flow</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link>
-      <pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid>
-      <description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Activity 跨屏幕迁移</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/static/images/activity-reparent.png"&gt;&lt;/p&gt;
+&lt;h2 id="分步说明与生命周期映射"&gt;分步说明（与生命周期映射）&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Launcher 发起&lt;/strong&gt;：用户点击 → Launcher 构造 &lt;code&gt;Intent&lt;/code&gt;（带 &lt;code&gt;launchDisplayId=2&lt;/code&gt;）并调用 &lt;code&gt;startActivity()&lt;/code&gt; 到 ATMS。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;ATMS 决策&lt;/strong&gt;：ATMS 在 system_server 内部查看 &lt;code&gt;ActivityRecord/TaskRecord&lt;/code&gt;，决定把某个 Task 从 Display1 移到 Display2（修改 parent：&lt;code&gt;TaskDisplayArea&lt;/code&gt;）。这一步只是服务端的数据结构变化，不会直接调用应用对象的方法。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;协调 WMS&lt;/strong&gt;：ATMS 通知 WMS 准备窗口切换（应用 transition），以便在 surface 层面上能做平滑迁移。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;暂停目标 Display 上的当前前台&lt;/strong&gt;（ActivityB）：为了保证目标 Display 上只会有一个 resumed Activity，ATMS 先对 Display2 上当前的前台 Activity（ActivityB）发 &lt;code&gt;IApplicationThread.schedulePauseActivity&lt;/code&gt;，等待应用进程回 ACK（pauseFinished）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;暂停将要被移动的 ActivityA（源 Display1）&lt;/strong&gt;：ATMS 对 ActivityA 发 &lt;code&gt;schedulePauseActivity&lt;/code&gt;，应用进程进入 &lt;code&gt;onPause()&lt;/code&gt;，并回 ACK。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;这一步非常重要：把要移动的 Activity 保持在非-resumed 状态，便于改变它的窗口所属 Display/Surface。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;WMS 做 Window/Surface reparent&lt;/strong&gt;：ATMS 请求 WMS 将对应的 &lt;code&gt;WindowContainer&lt;/code&gt;/task 窗口树从 Display1 移到 Display2；WMS 在 SurfaceControl 层（通过 SurfaceFlinger）把 layer 重新 attach 到目标 Display 的 layer stack。&lt;/p&gt;</description></item><item><title>Insets animation flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid><description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
 &lt;p&gt;以下是一些典型的应用场景，从最常见到更高级的交互：&lt;/p&gt;
-&lt;h3 id=&#34;1-核心场景键盘的显示与隐藏-messaging--input&#34;&gt;1. 核心场景：键盘的显示与隐藏 (Messaging &amp;amp; Input)&lt;/h3&gt;
+&lt;h3 id="1-核心场景键盘的显示与隐藏-messaging--input"&gt;1. 核心场景：键盘的显示与隐藏 (Messaging &amp;amp; Input)&lt;/h3&gt;
 &lt;p&gt;这是最经典、最能体现其价值的场景。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;
@@ -122,22 +136,22 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;table&gt;
-  &lt;thead&gt;
-      &lt;tr&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;场景&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;传统方式的问题&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;Insets 动画的效果&lt;/th&gt;
-      &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;聊天应用&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;键盘动画与内容移动分离，内容&lt;strong&gt;跳变&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;键盘&lt;strong&gt;平滑推起&lt;/strong&gt;内容，动画无缝衔接&lt;/td&gt;
-      &lt;/tr&gt;
-  &lt;/tbody&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: left"&gt;场景&lt;/th&gt;
+&lt;th style="text-align: left"&gt;传统方式的问题&lt;/th&gt;
+&lt;th style="text-align: left"&gt;Insets 动画的效果&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;聊天应用&lt;/td&gt;
+&lt;td style="text-align: left"&gt;键盘动画与内容移动分离，内容&lt;strong&gt;跳变&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;键盘&lt;strong&gt;平滑推起&lt;/strong&gt;内容，动画无缝衔接&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h3 id=&#34;2-沉浸式模式的过渡-video--photo-apps&#34;&gt;2. 沉浸式模式的过渡 (Video &amp;amp; Photo Apps)&lt;/h3&gt;
+&lt;h3 id="2-沉浸式模式的过渡-video--photo-apps"&gt;2. 沉浸式模式的过渡 (Video &amp;amp; Photo Apps)&lt;/h3&gt;
 &lt;p&gt;当应用进入或退出全屏（沉浸式）模式时，状态栏和导航栏会显示或隐藏。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;
@@ -159,25 +173,18 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;3-高级交互场景手势控制动画&#34;&gt;3. 高级交互场景：手势控制动画&lt;/h3&gt;
-&lt;p&gt;这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>SplitScreenController flow</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</link>
-      <pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</guid>
-      <description>&lt;h2 id=&#34;时序图&#34;&gt;时序图&lt;/h2&gt;
-&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/splitscreen_wmshell.png&#34;&gt;&lt;/p&gt;
-&lt;h2 id=&#34;debug&#34;&gt;Debug&lt;/h2&gt;
+&lt;h3 id="3-高级交互场景手势控制动画"&gt;3. 高级交互场景：手势控制动画&lt;/h3&gt;
+&lt;p&gt;这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。&lt;/p&gt;</description></item><item><title>SplitScreenController flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</guid><description>&lt;h2 id="时序图"&gt;时序图&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/splitscreen_wmshell.png"&gt;&lt;/p&gt;
+&lt;h2 id="debug"&gt;Debug&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;打印分屏区域&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell dumpsys activity service SystemUIService WMShell
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell dumpsys activity service SystemUIService WMShell
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;dump SystemUI&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;Enable protolog&lt;/p&gt;
@@ -185,40 +192,33 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;ul&gt;
 &lt;li&gt;help命令：&lt;/li&gt;
 &lt;/ul&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell help
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell help
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
 &lt;li&gt;查看protolog status：&lt;/li&gt;
 &lt;/ul&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; $ adb shell dumpsys activity service SystemUIService WMShell protolog status
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; SERVICE com.android.systemui/.SystemUIService e73cb38 pid&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;4871&lt;/span&gt; user&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; Client:
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     com.android.systemui.wmshell.WMShell:
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     ----------------------------------------------------------------------------
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     ProtoLog status: Disabled
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Enabled log groups: 
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Proto: TEST_GROUP WM_DEBUG_ADD_REMOVE WM_DEBUG_ANIM WM_DEBUG_APP_TRANSITIONS WM_DEBUG_APP_TRANSITIONS_ANIM WM_DEBUG_BACK_PREVIEW WM_DEBUG_BOOT WM_DEBUG_CONFIGURATION WM_DEBUG_CONTAINERS WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DRAW WM_DEBUG_DREAM WM_DEBUG_FOCUS WM_DEBUG_FOCUS_LIGHT WM_DEBUG_IME WM_DEBUG_IMMERSIVE WM_DEBUG_KEEP_SCREEN_ON WM_DEBUG_LOCKTASK WM_DEBUG_ORIENTATION WM_DEBUG_RECENTS_ANIMATIONS WM_DEBUG_REMOTE_ANIMATIONS WM_DEBUG_RESIZE WM_DEBUG_SCREEN_ON WM_DEBUG_STARTING_WINDOW WM_DEBUG_STATES WM_DEBUG_SWITCH WM_DEBUG_SYNC_ENGINE WM_DEBUG_TASKS WM_DEBUG_WALLPAPER WM_DEBUG_WINDOW_INSETS WM_DEBUG_WINDOW_MOVEMENT WM_DEBUG_WINDOW_ORGANIZER WM_DEBUG_WINDOW_TRANSITIONS WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DESKTOP_MODE WM_SHELL_DRAG_AND_DROP WM_SHELL_FLOATING_APPS WM_SHELL_FOLDABLE WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_RECENT_TASKS WM_SHELL_SPLIT_SCREEN WM_SHELL_STARTING_WINDOW WM_SHELL_SYSUI_EVENTS WM_SHELL_TASK_ORG WM_SHELL_TRANSITIONS WM_SHOW_SURFACE_ALLOC WM_SHOW_TRANSACTIONS
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Logcat: WM_DEBUG_BACK_PREVIEW WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DREAM WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DRAG_AND_DROP WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_SPLIT_SCREEN WM_SHELL_TRANSITIONS
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Logging definitions loaded: &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Dump took 2ms
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; $ adb shell dumpsys activity service SystemUIService WMShell protolog status
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; SERVICE com.android.systemui/.SystemUIService e73cb38 pid&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;4871&lt;/span&gt; user&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Client:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; com.android.systemui.wmshell.WMShell:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ----------------------------------------------------------------------------
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ProtoLog status: Disabled
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Enabled log groups:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Proto: TEST_GROUP WM_DEBUG_ADD_REMOVE WM_DEBUG_ANIM WM_DEBUG_APP_TRANSITIONS WM_DEBUG_APP_TRANSITIONS_ANIM WM_DEBUG_BACK_PREVIEW WM_DEBUG_BOOT WM_DEBUG_CONFIGURATION WM_DEBUG_CONTAINERS WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DRAW WM_DEBUG_DREAM WM_DEBUG_FOCUS WM_DEBUG_FOCUS_LIGHT WM_DEBUG_IME WM_DEBUG_IMMERSIVE WM_DEBUG_KEEP_SCREEN_ON WM_DEBUG_LOCKTASK WM_DEBUG_ORIENTATION WM_DEBUG_RECENTS_ANIMATIONS WM_DEBUG_REMOTE_ANIMATIONS WM_DEBUG_RESIZE WM_DEBUG_SCREEN_ON WM_DEBUG_STARTING_WINDOW WM_DEBUG_STATES WM_DEBUG_SWITCH WM_DEBUG_SYNC_ENGINE WM_DEBUG_TASKS WM_DEBUG_WALLPAPER WM_DEBUG_WINDOW_INSETS WM_DEBUG_WINDOW_MOVEMENT WM_DEBUG_WINDOW_ORGANIZER WM_DEBUG_WINDOW_TRANSITIONS WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DESKTOP_MODE WM_SHELL_DRAG_AND_DROP WM_SHELL_FLOATING_APPS WM_SHELL_FOLDABLE WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_RECENT_TASKS WM_SHELL_SPLIT_SCREEN WM_SHELL_STARTING_WINDOW WM_SHELL_SYSUI_EVENTS WM_SHELL_TASK_ORG WM_SHELL_TRANSITIONS WM_SHOW_SURFACE_ALLOC WM_SHOW_TRANSACTIONS
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Logcat: WM_DEBUG_BACK_PREVIEW WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DREAM WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DRAG_AND_DROP WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_SPLIT_SCREEN WM_SHELL_TRANSITIONS
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Logging definitions loaded: &lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Dump took 2ms
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
 &lt;li&gt;enable protolog：&lt;/li&gt;
 &lt;/ul&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog start
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog start
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
-&lt;/ol&gt;</description>
-    </item>
-    <item>
-      <title>Binder spam detection原理</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link>
-      <pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</guid>
-      <description>&lt;h2 id=&#34;binder-spam-detection原理&#34;&gt;Binder spam detection原理&lt;/h2&gt;
+&lt;/ol&gt;</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</guid><description>&lt;h2 id="binder-spam-detection原理"&gt;Binder spam detection原理&lt;/h2&gt;
 &lt;p&gt;当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:&lt;/p&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;IPCThreadState: Process seems to be sending too many oneway calls.
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;核心原因&#34;&gt;核心原因&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;IPCThreadState: Process seems to be sending too many oneway calls.
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="核心原因"&gt;核心原因&lt;/h3&gt;
 &lt;p&gt;这个日志的根本原因在于 &lt;strong&gt;Kernel 层的 Binder 驱动程序&lt;/strong&gt; 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 &lt;strong&gt;异步缓冲区空间 (async space) 严重不足&lt;/strong&gt;。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。&lt;/p&gt;
 &lt;p&gt;整个检测和通知流程可以概括为：&lt;/p&gt;
 &lt;ol&gt;
@@ -229,18 +229,11 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;内核返回特殊指令&lt;/strong&gt;：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 &lt;code&gt;oneway_spam_suspect&lt;/code&gt; 标记，内核就不会返回常规的 &lt;code&gt;BR_TRANSACTION_COMPLETE&lt;/code&gt;，而是返回一个特殊的 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt; 指令。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;用户空间打印日志&lt;/strong&gt;：客户端的 &lt;code&gt;IPCThreadState&lt;/code&gt; 在 &lt;code&gt;waitForResponse()&lt;/code&gt; 中接收并解析来自内核的指令。当它收到 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt; 时，就会打印出这条我们看到的错误日志。&lt;/li&gt;
 &lt;/ol&gt;
-&lt;h3 id=&#34;代码分析&#34;&gt;代码分析&lt;/h3&gt;
+&lt;h3 id="代码分析"&gt;代码分析&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;用户空间日志打印点 (IPCThreadState.cpp)&lt;/strong&gt;
-在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>repo基础知识</title>
-      <link>https://ethen-cao.github.io/ethenslab/others/repo-%E5%9F%BA%E7%A1%80/</link>
-      <pubDate>Sat, 27 Sep 2025 17:17:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/others/repo-%E5%9F%BA%E7%A1%80/</guid>
-      <description>&lt;h2 id=&#34;基础概念&#34;&gt;基础概念&lt;/h2&gt;
+在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;</description></item><item><title>repo基础知识</title><link>https://ethen-cao.github.io/ethenslab/others/repo-%E5%9F%BA%E7%A1%80/</link><pubDate>Sat, 27 Sep 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/repo-%E5%9F%BA%E7%A1%80/</guid><description>&lt;h2 id="基础概念"&gt;基础概念&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 &lt;strong&gt;Manifest 仓库&lt;/strong&gt;获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。&lt;/p&gt;
@@ -255,25 +248,18 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;p&gt;&lt;code&gt;repo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml&lt;/code&gt;&lt;/p&gt;
 &lt;p&gt;这行命令是使用 &lt;code&gt;repo&lt;/code&gt; 工具来初始化一个代码仓库的本地工作区。&lt;code&gt;repo&lt;/code&gt; 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。
 简单来说，这条命令的意思是：&lt;strong&gt;准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 &lt;code&gt;dev_rc16_3.1_20250730&lt;/code&gt;，同时使用 &lt;code&gt;qssi.xml&lt;/code&gt; 这个配置文件来决定具体下载哪些代码模块。&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;下面我们来逐段分解这个命令：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>build.py 技术原理详解</title>
-      <link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link>
-      <pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid>
-      <description>&lt;h2 id=&#34;buildpy-技术原理详解&#34;&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
-&lt;h3 id=&#34;核心定位声明式构建的执行引擎&#34;&gt;核心定位：声明式构建的执行引擎&lt;/h3&gt;
+&lt;p&gt;下面我们来逐段分解这个命令：&lt;/p&gt;</description></item><item><title>build.py 技术原理详解</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid><description>&lt;h2 id="buildpy-技术原理详解"&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
+&lt;h3 id="核心定位声明式构建的执行引擎"&gt;核心定位：声明式构建的执行引擎&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 脚本是高通平台 Meta-Build 系统的核心&lt;strong&gt;自动化执行引擎&lt;/strong&gt;。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的&lt;strong&gt;任务调度器和执行器&lt;/strong&gt;。&lt;/p&gt;
 &lt;p&gt;它的核心设计哲学是&lt;strong&gt;声明式驱动&lt;/strong&gt;：开发者在 &lt;code&gt;contents.xml&lt;/code&gt; 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 &lt;code&gt;build.py&lt;/code&gt; 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;1-输入-inputs&#34;&gt;1. 输入 (Inputs)&lt;/h3&gt;
+&lt;h3 id="1-输入-inputs"&gt;1. 输入 (Inputs)&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 的正常运行依赖于以下几类输入：&lt;/p&gt;
-&lt;h4 id=&#34;主要输入&#34;&gt;&lt;strong&gt;主要输入&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="主要输入"&gt;&lt;strong&gt;主要输入&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;contents.xml&lt;/code&gt;&lt;/strong&gt;: 这是最核心的输入，是整个构建过程的&lt;strong&gt;配置清单和指令集&lt;/strong&gt;。&lt;code&gt;build.py&lt;/code&gt; 的所有行为都由该文件驱动。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;次要输入&#34;&gt;&lt;strong&gt;次要输入&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="次要输入"&gt;&lt;strong&gt;次要输入&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;命令行参数&lt;/strong&gt;: 用户在执行脚本时传入的参数，用于控制脚本的行为模式。
 &lt;ul&gt;
@@ -284,19 +270,19 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;隐式输入&#34;&gt;&lt;strong&gt;隐式输入&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="隐式输入"&gt;&lt;strong&gt;隐式输入&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;各组件的编译产物&lt;/strong&gt;: 脚本运行前，各个独立的软件模块（如 &lt;code&gt;boot_images&lt;/code&gt;, &lt;code&gt;tz_images&lt;/code&gt;, &lt;code&gt;mpss&lt;/code&gt;, &lt;code&gt;apps&lt;/code&gt; 等）必须已经完成各自的编译，并将其产物放置在 &lt;code&gt;contents.xml&lt;/code&gt; 中指定的路径下。&lt;code&gt;build.py&lt;/code&gt; 会去消费这些产物。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;配置文件&lt;/strong&gt;: 如 &lt;code&gt;partition_la.xml&lt;/code&gt;，它定义了分区布局，是生成 &lt;code&gt;gpt_*.bin&lt;/code&gt; 和 &lt;code&gt;rawprogram.xml&lt;/code&gt; 的输入源。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;2-输出-outputs&#34;&gt;2. 输出 (Outputs)&lt;/h3&gt;
+&lt;h3 id="2-输出-outputs"&gt;2. 输出 (Outputs)&lt;/h3&gt;
 &lt;p&gt;脚本成功执行后，会生成一个结构化、可直接用于刷机的软件包。&lt;/p&gt;
-&lt;h4 id=&#34;核心产物&#34;&gt;&lt;strong&gt;核心产物&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="核心产物"&gt;&lt;strong&gt;核心产物&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;一个&lt;strong&gt;完整的、按产品风味（Flavor）和存储类型（Storage Type）组织的刷机包&lt;/strong&gt;。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;具体文件清单&#34;&gt;&lt;strong&gt;具体文件清单&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="具体文件清单"&gt;&lt;strong&gt;具体文件清单&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;刷机指令文件&lt;/strong&gt;:
 &lt;ul&gt;
@@ -330,62 +316,55 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;3-依赖-dependencies&#34;&gt;3. 依赖 (Dependencies)&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 的依赖可以分为四类：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>contents.xml 属性与字段说明文档</title>
-      <link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</link>
-      <pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</guid>
-      <description>&lt;h2 id=&#34;contentsxml-属性与字段说明文档&#34;&gt;&lt;code&gt;contents.xml&lt;/code&gt; 属性与字段说明文档&lt;/h2&gt;
-&lt;h3 id=&#34;1-文档引言&#34;&gt;1. 文档引言&lt;/h3&gt;
+&lt;h3 id="3-依赖-dependencies"&gt;3. 依赖 (Dependencies)&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 的依赖可以分为四类：&lt;/p&gt;</description></item><item><title>contents.xml 属性与字段说明文档</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</guid><description>&lt;h2 id="contentsxml-属性与字段说明文档"&gt;&lt;code&gt;contents.xml&lt;/code&gt; 属性与字段说明文档&lt;/h2&gt;
+&lt;h3 id="1-文档引言"&gt;1. 文档引言&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;contents.xml&lt;/code&gt; 文件是高通（Qualcomm）平台 Meta-Build 系统的核心配置文件。它作为一个&lt;strong&gt;元构建清单 (Meta-Build Manifest)&lt;/strong&gt;，以声明式 XML 的格式，精确定义了一个完整软件包从源代码到最终刷机包的&lt;strong&gt;所有环节&lt;/strong&gt;。&lt;/p&gt;
 &lt;p&gt;本说明文档旨在为开发者提供一份详尽的参考，解释 &lt;code&gt;contents.xml&lt;/code&gt; 文件中各个 XML 标签、属性及字段的含义，帮助开发者理解、调试和定制复杂的构建流程。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;2-顶层结构标签&#34;&gt;2. 顶层结构标签&lt;/h3&gt;
+&lt;h3 id="2-顶层结构标签"&gt;2. 顶层结构标签&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;contents.xml&lt;/code&gt; 由多个顶层标签构成，每个标签负责一部分核心功能。&lt;/p&gt;
 &lt;table&gt;
-  &lt;thead&gt;
-      &lt;tr&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;标签&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;含义&lt;/th&gt;
-      &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;定义产品的不同“风味”或变种。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;提供关于产品的元数据信息。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;定义与分区操作相关的信息。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;builds_flat&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;核心部分&lt;/strong&gt;，定义所有独立软件组件的构建信息。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;build_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;（可选）定义构建系统内部使用的工具。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;external_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;声明构建或调试过程中依赖的外部工具。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;workflow&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;定义构建完成后的自动化处理与打包流程。&lt;/td&gt;
-      &lt;/tr&gt;
-  &lt;/tbody&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: left"&gt;标签&lt;/th&gt;
+&lt;th style="text-align: left"&gt;含义&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;定义产品的不同“风味”或变种。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;提供关于产品的元数据信息。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;定义与分区操作相关的信息。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;builds_flat&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;核心部分&lt;/strong&gt;，定义所有独立软件组件的构建信息。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;build_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;（可选）定义构建系统内部使用的工具。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;external_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;声明构建或调试过程中依赖的外部工具。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;workflow&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;定义构建完成后的自动化处理与打包流程。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
 &lt;/table&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;3-标签与属性详解&#34;&gt;3. 标签与属性详解&lt;/h3&gt;
-&lt;h4 id=&#34;31&#34;&gt;&lt;strong&gt;3.1 &lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;h3 id="3-标签与属性详解"&gt;3. 标签与属性详解&lt;/h3&gt;
+&lt;h4 id="31"&gt;&lt;strong&gt;3.1 &lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;此区域用于定义不同的产品形态。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;&amp;lt;product_flavors cmm_pf_var=&amp;quot;...&amp;quot;&amp;gt;&lt;/code&gt;&lt;/strong&gt;
@@ -395,7 +374,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;32&#34;&gt;&lt;strong&gt;3.2 &lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="32"&gt;&lt;strong&gt;3.2 &lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;此区域提供构建的元数据信息。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;&amp;lt;chipid flavor=&amp;quot;...&amp;quot; cmm_var=&amp;quot;...&amp;quot;&amp;gt;&lt;/code&gt;&lt;/strong&gt;
@@ -407,16 +386,9 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;33&#34;&gt;&lt;strong&gt;3.3 &lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
-&lt;p&gt;此区域定义与分区操作相关的信息。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>深入解析 Android ProtoLog：高性能结构化日志系统</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protolog/</link>
-      <pubDate>Thu, 28 Aug 2025 19:54:57 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/protolog/</guid>
-      <description>&lt;p&gt;在 Android 系统开发和性能优化中，日志记录是一个不可或缺的工具。然而，传统的字符串日志（如 Log.d, Log.e）在高频或性能敏感的场景下会带来显著的开销。为了解决这个问题，Android 团队引入了一套名为 &lt;strong&gt;ProtoLog&lt;/strong&gt; 的高性能日志系统。本文将深入探讨 ProtoLog 的设计理念、工作机制、使用场景以及如何为 ROM 开发进行扩展。&lt;/p&gt;
-&lt;h2 id=&#34;1-简介protolog-是什么&#34;&gt;&lt;strong&gt;1. 简介：ProtoLog 是什么？&lt;/strong&gt;&lt;/h2&gt;
+&lt;h4 id="33"&gt;&lt;strong&gt;3.3 &lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;p&gt;此区域定义与分区操作相关的信息。&lt;/p&gt;</description></item><item><title>深入解析 Android ProtoLog：高性能结构化日志系统</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protolog/</link><pubDate>Thu, 28 Aug 2025 19:54:57 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/protolog/</guid><description>&lt;p&gt;在 Android 系统开发和性能优化中，日志记录是一个不可或缺的工具。然而，传统的字符串日志（如 Log.d, Log.e）在高频或性能敏感的场景下会带来显著的开销。为了解决这个问题，Android 团队引入了一套名为 &lt;strong&gt;ProtoLog&lt;/strong&gt; 的高性能日志系统。本文将深入探讨 ProtoLog 的设计理念、工作机制、使用场景以及如何为 ROM 开发进行扩展。&lt;/p&gt;
+&lt;h2 id="1-简介protolog-是什么"&gt;&lt;strong&gt;1. 简介：ProtoLog 是什么？&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;&lt;strong&gt;ProtoLog&lt;/strong&gt; 是一套高性能、低开销的日志记录框架，深度集成在 Android 开源项目 (AOSP) 中。它的核心思想是将日志记录对运行时性能的影响降到最低。&lt;/p&gt;
 &lt;p&gt;与传统的 android.util.Log 不同，ProtoLog &lt;strong&gt;不会在设备运行时处理和拼接日志字符串&lt;/strong&gt;。相反，它通过一个精巧的&lt;strong&gt;编译时转换&lt;/strong&gt;机制，将日志调用替换为写入紧凑二进制数据的指令。这使得即使在生产环境中开启大量日志，也不会对设备性能造成明显影响。&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;核心优势：&lt;/strong&gt;&lt;/p&gt;
@@ -426,7 +398,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;编译时处理&lt;/strong&gt;：大部分工作（如解析格式化字符串）在编译代码时完成，而非在设备上。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;动态控制&lt;/strong&gt;：可以通过 adb 命令动态开启或关闭不同的日志组，无需重新编译或重启设备。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id=&#34;2-架构与工作机制&#34;&gt;&lt;strong&gt;2. 架构与工作机制&lt;/strong&gt;&lt;/h2&gt;
+&lt;h2 id="2-架构与工作机制"&gt;&lt;strong&gt;2. 架构与工作机制&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;ProtoLog 的魔力在于其独特的编译时处理流程。它主要由以下几个部分组成：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;ProtoLog API&lt;/strong&gt;：供开发者调用的日志接口，如 ProtoLog.d(GROUP, &amp;ldquo;format string %d&amp;rdquo;, value)。&lt;/li&gt;
@@ -434,93 +406,86 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;二进制日志流&lt;/strong&gt;：设备上实际记录的数据格式，它不包含原始的字符串，并被写入一个专用的 protolog 日志缓冲区。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Viewer (查看器) 工具&lt;/strong&gt;：用于将设备上捕获的二进制日志流转换回人类可读的文本格式。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;工作流程详解&#34;&gt;&lt;strong&gt;工作流程详解&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="工作流程详解"&gt;&lt;strong&gt;工作流程详解&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;让我们通过一个例子来理解其完整的工作流程：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;编写代码&lt;br&gt;
 开发者在代码中写入一条 ProtoLog 日志：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-java&#34; data-lang=&#34;java&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;import&lt;/span&gt; com.android.server.wm.ProtoLogGroup;  
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;import&lt;/span&gt; com.android.internal.protolog.common.ProtoLog;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// ...  &lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;ProtoLog.&lt;span style=&#34;color:#a6e22e&#34;&gt;v&lt;/span&gt;(ProtoLogGroup.&lt;span style=&#34;color:#a6e22e&#34;&gt;WM_DEBUG_ORIENTATION&lt;/span&gt;, &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Setting orientation to %d&amp;#34;&lt;/span&gt;, newOrientation);
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-java" data-lang="java"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;import&lt;/span&gt; com.android.server.wm.ProtoLogGroup;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;import&lt;/span&gt; com.android.internal.protolog.common.ProtoLog;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ... &lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;ProtoLog.&lt;span style="color:#a6e22e"&gt;v&lt;/span&gt;(ProtoLogGroup.&lt;span style="color:#a6e22e"&gt;WM_DEBUG_ORIENTATION&lt;/span&gt;, &lt;span style="color:#e6db74"&gt;&amp;#34;Setting orientation to %d&amp;#34;&lt;/span&gt;, newOrientation);
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;编译时转换 (关键步骤)&lt;br&gt;
-当编译器（Javac）处理这段代码时，ProtoLog 的编译器插件会执行以下操作：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>智能座舱需求分析与技术分析模板</title>
-      <link>https://ethen-cao.github.io/ethenslab/ivi-solution/solution-template/requirements-analysis/</link>
-      <pubDate>Thu, 28 Aug 2025 16:25:03 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/ivi-solution/solution-template/requirements-analysis/</guid>
-      <description>&lt;h2 id=&#34;智能座舱需求分析与技术分析模板&#34;&gt;&lt;strong&gt;智能座舱需求分析与技术分析模板&amp;rsquo; / Intelligent Cockpit Requirement Analysis &amp;amp; Technical Review Template&lt;/strong&gt;&lt;/h2&gt;
-&lt;h2 id=&#34;1-需求背景-requirement-background&#34;&gt;&lt;strong&gt;1. 需求背景 (Requirement Background)&lt;/strong&gt;&lt;/h2&gt;
-&lt;h3 id=&#34;11-需求来源-requirement-source&#34;&gt;&lt;strong&gt;1.1 需求来源 (Requirement Source)&lt;/strong&gt;&lt;/h3&gt;
+当编译器（Javac）处理这段代码时，ProtoLog 的编译器插件会执行以下操作：&lt;/p&gt;</description></item><item><title>智能座舱需求分析与技术分析模板</title><link>https://ethen-cao.github.io/ethenslab/ivi-solution/solution-template/requirements-analysis/</link><pubDate>Thu, 28 Aug 2025 16:25:03 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/ivi-solution/solution-template/requirements-analysis/</guid><description>&lt;h2 id="智能座舱需求分析与技术分析模板"&gt;&lt;strong&gt;智能座舱需求分析与技术分析模板&amp;rsquo; / Intelligent Cockpit Requirement Analysis &amp;amp; Technical Review Template&lt;/strong&gt;&lt;/h2&gt;
+&lt;h2 id="1-需求背景-requirement-background"&gt;&lt;strong&gt;1. 需求背景 (Requirement Background)&lt;/strong&gt;&lt;/h2&gt;
+&lt;h3 id="11-需求来源-requirement-source"&gt;&lt;strong&gt;1.1 需求来源 (Requirement Source)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;&lt;input disabled=&#34;&#34; type=&#34;checkbox&#34;&gt; OEM&lt;/li&gt;
-&lt;li&gt;&lt;input disabled=&#34;&#34; type=&#34;checkbox&#34;&gt; Tier1&lt;/li&gt;
-&lt;li&gt;&lt;input disabled=&#34;&#34; type=&#34;checkbox&#34;&gt; 内部业务/产品部门 (Internal Business/Product Dept.)&lt;/li&gt;
-&lt;li&gt;&lt;input disabled=&#34;&#34; type=&#34;checkbox&#34;&gt; 合作伙伴 (Partners)&lt;/li&gt;
-&lt;li&gt;&lt;input disabled=&#34;&#34; type=&#34;checkbox&#34;&gt; 竞品分析 (Competitive Analysis)&lt;/li&gt;
+&lt;li&gt;&lt;input disabled="" type="checkbox"&gt; OEM&lt;/li&gt;
+&lt;li&gt;&lt;input disabled="" type="checkbox"&gt; Tier1&lt;/li&gt;
+&lt;li&gt;&lt;input disabled="" type="checkbox"&gt; 内部业务/产品部门 (Internal Business/Product Dept.)&lt;/li&gt;
+&lt;li&gt;&lt;input disabled="" type="checkbox"&gt; 合作伙伴 (Partners)&lt;/li&gt;
+&lt;li&gt;&lt;input disabled="" type="checkbox"&gt; 竞品分析 (Competitive Analysis)&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;12-业务目标-business-objectives&#34;&gt;&lt;strong&gt;1.2 业务目标 (Business Objectives)&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="12-业务目标-business-objectives"&gt;&lt;strong&gt;1.2 业务目标 (Business Objectives)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;解决的核心问题 (Core Problem to Solve):&lt;/strong&gt; &lt;code&gt;[描述用户痛点或技术瓶颈 / Describe user pain points or technical bottlenecks]&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;支撑的业务目标 (Supporting Business Objectives):&lt;/strong&gt; &lt;code&gt;[提升用户体验、降低成本、满足法规、实现技术领先等 / Enhance UX, reduce cost, meet regulations, achieve technical leadership, etc.]&lt;/code&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;13-用户场景与中心设计-user-scenarios--centered-design&#34;&gt;&lt;strong&gt;1.3 用户场景与中心设计 (User Scenarios &amp;amp; Centered Design)&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="13-用户场景与中心设计-user-scenarios--centered-design"&gt;&lt;strong&gt;1.3 用户场景与中心设计 (User Scenarios &amp;amp; Centered Design)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;典型用户 (Typical Users):&lt;/strong&gt; &lt;code&gt;[驾驶员 / 乘客 / 维修人员 / 云端平台等；包括边缘用户如老人、儿童或残障人士 / Driver / Passenger / Technician / Cloud Platform, etc.; include edge users like elderly, children, or people with disabilities]&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;场景描述 (User Story):&lt;/strong&gt; &lt;code&gt;[以故事形式描述用户使用场景及效果 / Describe user scenarios and outcomes in a story format]&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;用户旅程地图 (User Journey Map):&lt;/strong&gt; &lt;code&gt;[描述用户从接触到完成交互的完整路径，包括痛点和机会点；可选附图占位符 / Describe the user&#39;s complete path from initial contact to interaction completion, including pain points and opportunities; optional placeholder for a diagram]&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;用户旅程地图 (User Journey Map):&lt;/strong&gt; &lt;code&gt;[描述用户从接触到完成交互的完整路径，包括痛点和机会点；可选附图占位符 / Describe the user's complete path from initial contact to interaction completion, including pain points and opportunities; optional placeholder for a diagram]&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;用户验证机制 (User Validation Mechanism):&lt;/strong&gt; &lt;code&gt;[A/B测试、原型反馈、用户调研方法等，确保需求源于真实洞察 / A/B testing, prototype feedback, user research methods, etc., to ensure requirements are based on real insights]&lt;/code&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;14-竞品对比-competitive-analysis-可选optional&#34;&gt;&lt;strong&gt;1.4 竞品对比 (Competitive Analysis) (可选/Optional)&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="14-竞品对比-competitive-analysis-可选optional"&gt;&lt;strong&gt;1.4 竞品对比 (Competitive Analysis) (可选/Optional)&lt;/strong&gt;&lt;/h4&gt;
 &lt;table&gt;
-  &lt;thead&gt;
-      &lt;tr&gt;
-          &lt;th&gt;竞品 (Competitor)&lt;/th&gt;
-          &lt;th&gt;功能 (Feature)&lt;/th&gt;
-          &lt;th&gt;实现技术 (Technology)&lt;/th&gt;
-          &lt;th&gt;用户评分/市场份额 (Rating/Market Share)&lt;/th&gt;
-          &lt;th&gt;优缺点 (SWOT Analysis)&lt;/th&gt;
-      &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-      &lt;tr&gt;
-          &lt;td&gt;Tesla&lt;/td&gt;
-          &lt;td&gt;&lt;code&gt;[示例 / Example]&lt;/code&gt;&lt;/td&gt;
-          &lt;td&gt;&lt;code&gt;[示例 / Example]&lt;/code&gt;&lt;/td&gt;
-          &lt;td&gt;&lt;code&gt;[示例 / Example]&lt;/code&gt;&lt;/td&gt;
-          &lt;td&gt;&lt;code&gt;[Strengths/Weaknesses/Opportunities/Threats]&lt;/code&gt;&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td&gt;Xpeng&lt;/td&gt;
-          &lt;td&gt;&amp;hellip;&lt;/td&gt;
-          &lt;td&gt;&amp;hellip;&lt;/td&gt;
-          &lt;td&gt;&amp;hellip;&lt;/td&gt;
-          &lt;td&gt;&amp;hellip;&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td&gt;Nio&lt;/td&gt;
-          &lt;td&gt;&amp;hellip;&lt;/td&gt;
-          &lt;td&gt;&amp;hellip;&lt;/td&gt;
-          &lt;td&gt;&amp;hellip;&lt;/td&gt;
-          &lt;td&gt;&amp;hellip;&lt;/td&gt;
-      &lt;/tr&gt;
-  &lt;/tbody&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;竞品 (Competitor)&lt;/th&gt;
+&lt;th&gt;功能 (Feature)&lt;/th&gt;
+&lt;th&gt;实现技术 (Technology)&lt;/th&gt;
+&lt;th&gt;用户评分/市场份额 (Rating/Market Share)&lt;/th&gt;
+&lt;th&gt;优缺点 (SWOT Analysis)&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Tesla&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;[示例 / Example]&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;[示例 / Example]&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;[示例 / Example]&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;[Strengths/Weaknesses/Opportunities/Threats]&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Xpeng&lt;/td&gt;
+&lt;td&gt;&amp;hellip;&lt;/td&gt;
+&lt;td&gt;&amp;hellip;&lt;/td&gt;
+&lt;td&gt;&amp;hellip;&lt;/td&gt;
+&lt;td&gt;&amp;hellip;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Nio&lt;/td&gt;
+&lt;td&gt;&amp;hellip;&lt;/td&gt;
+&lt;td&gt;&amp;hellip;&lt;/td&gt;
+&lt;td&gt;&amp;hellip;&lt;/td&gt;
+&lt;td&gt;&amp;hellip;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
 &lt;/table&gt;
 &lt;hr&gt;
-&lt;h2 id=&#34;2-需求描述-requirement-specification&#34;&gt;&lt;strong&gt;2. 需求描述 (Requirement Specification)&lt;/strong&gt;&lt;/h2&gt;
-&lt;h3 id=&#34;21-功能需求-functional-requirements&#34;&gt;&lt;strong&gt;2.1 功能需求 (Functional Requirements)&lt;/strong&gt;&lt;/h3&gt;
+&lt;h2 id="2-需求描述-requirement-specification"&gt;&lt;strong&gt;2. 需求描述 (Requirement Specification)&lt;/strong&gt;&lt;/h2&gt;
+&lt;h3 id="21-功能需求-functional-requirements"&gt;&lt;strong&gt;2.1 功能需求 (Functional Requirements)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;FR-001:&lt;/strong&gt; &lt;code&gt;[条目化列出功能点 / List functional items]&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;FR-002:&lt;/strong&gt; &lt;code&gt;...&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;AI/ML需求 (AI/ML Requirements):&lt;/strong&gt; &lt;code&gt;[明确AI功能，如舱内监测、情感识别、预测性维护；包括多模态交互如语音/手势 / Specify AI functions, e.g., in-cabin monitoring, emotion recognition, predictive maintenance; include multi-modal interactions like voice/gesture]&lt;/code&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;22-非功能需求-non-functional-requirements-nfrs&#34;&gt;&lt;strong&gt;2.2 非功能需求 (Non-Functional Requirements, NFRs)&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="22-非功能需求-non-functional-requirements-nfrs"&gt;&lt;strong&gt;2.2 非功能需求 (Non-Functional Requirements, NFRs)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;性能 (Performance):&lt;/strong&gt; &lt;code&gt;[启动时间 &amp;lt; 500ms, 帧率 &amp;gt; 60fps, API响应 &amp;lt; 100ms / Boot time &amp;lt; 500ms, Frame rate &amp;gt; 60fps, API response &amp;lt; 100ms]&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;功耗 (Power Consumption):&lt;/strong&gt; &lt;code&gt;[待机/休眠功耗 &amp;lt; 10mA, 峰值增量 &amp;lt; 5W / Standby/sleep power &amp;lt; 10mA, Peak increase &amp;lt; 5W]&lt;/code&gt;&lt;/li&gt;
@@ -529,7 +494,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;用户体验 (User Experience):&lt;/strong&gt; &lt;code&gt;[流畅度、一致性、易用性、情感化交互 / Smoothness, consistency, usability, emotional interaction]&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;可持续性 (Sustainability):&lt;/strong&gt; &lt;code&gt;[碳足迹优化、能源效率指标，如支持电动车续航的功耗管理 / Carbon footprint optimization, energy efficiency metrics, e.g., power management to support EV range]&lt;/code&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;23-接口与依赖需求-interface--dependency-requirements&#34;&gt;&lt;strong&gt;2.3 接口与依赖需求 (Interface &amp;amp; Dependency Requirements)&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="23-接口与依赖需求-interface--dependency-requirements"&gt;&lt;strong&gt;2.3 接口与依赖需求 (Interface &amp;amp; Dependency Requirements)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;对内接口 (Internal Interfaces):&lt;/strong&gt; &lt;code&gt;[CAN总线、音视频服务、导航引擎API等 / CAN bus, A/V services, navigation engine APIs, etc.]&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;对外接口 (External Interfaces):&lt;/strong&gt; &lt;code&gt;[云端TSP平台、手机APP、第三方应用接口 / Cloud TSP platform, mobile app, 3rd-party application APIs]&lt;/code&gt;&lt;/li&gt;
@@ -537,22 +502,15 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;OS/中间件依赖 (OS/Middleware Dependencies):&lt;/strong&gt; &lt;code&gt;[Android/QNX/Hypervisor/Service Mesh/通信协议栈；包括软件定义车辆（SDV）如边缘计算、5G/V2X / Android/QNX/Hypervisor/Service Mesh/Protocol stacks; include SDV concepts like Edge Computing, 5G/V2X]&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;第三方库/服务依赖 (3rd-Party Library/Service Dependencies):&lt;/strong&gt; &lt;code&gt;[地图SDK、语音引擎、应用商店等 / Map SDK, speech engine, app store, etc.]&lt;/code&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;24-优先级评估-priority-assessment&#34;&gt;&lt;strong&gt;2.4 优先级评估 (Priority Assessment)&lt;/strong&gt;&lt;/h3&gt;
-&lt;p&gt;使用MoSCoW方法 (Using MoSCoW Method).&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Binder</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/</link>
-      <pubDate>Thu, 28 Aug 2025 14:30:02 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/</guid>
-      <description>&lt;h2 id=&#34;同步通信&#34;&gt;同步通信&lt;/h2&gt;
-&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/binder-sync.png&#34;&gt;&lt;/p&gt;
-&lt;h2 id=&#34;异步通信&#34;&gt;异步通信&lt;/h2&gt;
-&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/binder-async.png&#34;&gt;&lt;/p&gt;
-&lt;h2 id=&#34;内存管理&#34;&gt;内存管理&lt;/h2&gt;
-&lt;h3 id=&#34;binder-驱动的通信内存管理机制&#34;&gt;&lt;strong&gt;Binder 驱动的通信内存管理机制&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="24-优先级评估-priority-assessment"&gt;&lt;strong&gt;2.4 优先级评估 (Priority Assessment)&lt;/strong&gt;&lt;/h3&gt;
+&lt;p&gt;使用MoSCoW方法 (Using MoSCoW Method).&lt;/p&gt;</description></item><item><title>Binder</title><link>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/</link><pubDate>Thu, 28 Aug 2025 14:30:02 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/</guid><description>&lt;h2 id="同步通信"&gt;同步通信&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/binder-sync.png"&gt;&lt;/p&gt;
+&lt;h2 id="异步通信"&gt;异步通信&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/binder-async.png"&gt;&lt;/p&gt;
+&lt;h2 id="内存管理"&gt;内存管理&lt;/h2&gt;
+&lt;h3 id="binder-驱动的通信内存管理机制"&gt;&lt;strong&gt;Binder 驱动的通信内存管理机制&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;Binder 驱动的内存管理是一套内核层面的复杂机制，其核心目标是在进程间高效、安全地传输数据，并实现“一次拷贝”原则。&lt;/p&gt;
-&lt;h4 id=&#34;第一部分binder-通信内存的总体管理机制&#34;&gt;&lt;strong&gt;第一部分：Binder 通信内存的总体管理机制&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="第一部分binder-通信内存的总体管理机制"&gt;&lt;strong&gt;第一部分：Binder 通信内存的总体管理机制&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;该机制主要分为三个阶段：虚拟内存区的建立、事务缓冲区的分配与映射、以及事务缓冲区的释放。&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;1.1 进程虚拟内存区的建立&lt;/strong&gt;&lt;/p&gt;
 &lt;p&gt;当一个用户进程首次打开 &lt;code&gt;/dev/binder&lt;/code&gt; 设备并对其执行 &lt;code&gt;mmap()&lt;/code&gt; 系统调用时，Binder 驱动会执行 &lt;code&gt;binder_mmap()&lt;/code&gt; 内核函数。此函数的主要工作包括：&lt;/p&gt;
@@ -570,14 +528,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;地址空间映射&lt;/strong&gt;：驱动识别出目标进程（Server）后，并不会再次拷贝数据。它会执行一个核心操作：&lt;strong&gt;修改 Server 进程的内核页表&lt;/strong&gt;，将承载着数据的 &lt;code&gt;binder_buffer&lt;/code&gt; 的物理内存页，直接映射到 Server 进程在 1.1 阶段建立的 VMA 中。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;数据投递&lt;/strong&gt;：驱动将映射后的缓冲区在 Server 进程中的虚拟地址，连同事务命令（如 &lt;code&gt;BR_TRANSACTION&lt;/code&gt; 或 &lt;code&gt;BR_ONEWAY&lt;/code&gt;），一同投递给 Server 中等待的 Binder 线程。Server 线程可以直接访问该地址，如同访问进程内内存一样。&lt;/li&gt;
 &lt;/ol&gt;
-&lt;p&gt;&lt;strong&gt;1.3 事务缓冲区的释放&lt;/strong&gt;&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Netflix DRM 流程与白名单验证</title>
-      <link>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</link>
-      <pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</guid>
-      <description>&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/netflix-verification.png&#34;&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;1.3 事务缓冲区的释放&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Netflix DRM 流程与白名单验证</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/netflix-verification.png"&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;用户操作&lt;/strong&gt;：用户在浏览器中打开 Netflix 并点击播放。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;请求清单&lt;/strong&gt;：浏览器向 Netflix 服务器请求视频的元数据（Manifest 文件，如 MPD）。&lt;/li&gt;
@@ -610,14 +561,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;解密后的视频帧被安全地渲染到屏幕上。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
-&lt;/ol&gt;</description>
-    </item>
-    <item>
-      <title>中国车企出海的智能座舱生态挑战</title>
-      <link>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</link>
-      <pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</guid>
-      <description>&lt;h2 id=&#34;执行摘要&#34;&gt;&lt;strong&gt;执行摘要&lt;/strong&gt;&lt;/h2&gt;
+&lt;/ol&gt;</description></item><item><title>中国车企出海的智能座舱生态挑战</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</guid><description>&lt;h2 id="执行摘要"&gt;&lt;strong&gt;执行摘要&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;本报告旨在深入剖析中国汽车制造商在全球化进程中面临的核心战略困境：其在国内市场赖以成功的核心竞争力——一个高度集成、功能丰富的智能座舱生态系统——在国际市场上正转变为一项重大的挑战和复杂的难题。中国车企在国内通过将先进硬件与本土互联网巨头的服务深度捆绑，创造了“第三生活空间”的极致用户体验。然而，这种成功的模式具有高度的地域特殊性，其服务根基、技术平台和数据范式均难以直接移植到海外市场。&lt;/p&gt;
 &lt;p&gt;报告的核心发现可归结为三大挑战：&lt;/p&gt;
 &lt;ol&gt;
@@ -627,42 +571,35 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ol&gt;
 &lt;p&gt;本报告通过对蔚来、小鹏和上汽名爵在欧洲市场的具体策略进行案例分析，揭示了不同战略路径的利弊。最终，报告提出了一系列战略性建议，旨在帮助中国车企成功实现“解耦”，克服挑战：车企必须构建模块化、平台无关的软件架构；将“设计即隐私”作为全球产品开发的零日原则；重新定义包含手机互联功能的海外市场“最小可行产品”(MVP)；并以务实的价值主张，逐步培育全球开发者生态。唯有如此，中国车企才能将其在国内的智能座舱优势，转化为真正的全球竞争力。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h2 id=&#34;第一章镀金的牢笼解构中国智能座舱的本土优势&#34;&gt;&lt;strong&gt;第一章：镀金的牢笼：解构中国智能座舱的本土优势&lt;/strong&gt;&lt;/h2&gt;
+&lt;h2 id="第一章镀金的牢笼解构中国智能座舱的本土优势"&gt;&lt;strong&gt;第一章：镀金的牢笼：解构中国智能座舱的本土优势&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;本章节旨在建立一个基准，阐明中国智能座舱在国内市场取得领先地位的根本原因。分析将指出，这种领先优势不仅是技术层面的，更是结构性的，它与一个无法被简单出口的独特数字生态系统紧密相连。&lt;/p&gt;
-&lt;h3 id=&#34;11-第三空间革命从信息娱乐到极致体验&#34;&gt;&lt;strong&gt;1.1 “第三空间”革命：从信息娱乐到极致体验&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="11-第三空间革命从信息娱乐到极致体验"&gt;&lt;strong&gt;1.1 “第三空间”革命：从信息娱乐到极致体验&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;本节将详细阐述中国车企的顶层设计理念。它们销售的不仅仅是信息娱乐系统，而是一种全方位的车内生活体验。&lt;/p&gt;
 &lt;p&gt;这种理念的实现，首先依赖于强大的硬件基础。高通骁龙8155芯片已成为中国新势力品牌的标准配置，被小鹏、理想、极氪等广泛采用，为毫秒级的语音交互和复杂的多屏管理提供了算力保障 1。在此基础上，车企通过创新的座舱设计，将体验推向了新的高度。例如，小鹏汽车明确提出“第三生活空间”的概念，并通过其“5D座舱”将空调、香氛系统和按摩座椅与娱乐内容联动，创造出超越驾驶本身的多感官沉浸式体验 1。理想L9则通过双8155芯片驱动包括后排娱乐屏在内的五块屏幕，并融合手势控制，将车辆打造成一个“移动的家” 1。&lt;/p&gt;
 &lt;p&gt;这种体验的核心在于情感化和拟人化的交互。蔚来的NOMI车载人工智能伴侣便是典型代表，它不仅仅是一个语音助手，更是一个能够表达情感、与用户建立情感联系的交互中心，这极大地提升了用户粘性，将简单的命令与控制功能升华为一种陪伴关系 1。与此同时，AITO问界系列车型则深度整合了华为的HarmonyOS，实现了车内设备与用户其他智能终端的无缝流转与协同，将汽车彻底融入了华为的生态体系 1。这些实践共同将中国市场的智能座舱从一个功能性工具，提升到了一个承载用户工作、娱乐和休息的体验性空间。&lt;/p&gt;
-&lt;h3 id=&#34;12-超级集成生态与本土数字巨头的共生关系&#34;&gt;&lt;strong&gt;1.2 超级集成生态：与本土数字巨头的共生关系&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="12-超级集成生态与本土数字巨头的共生关系"&gt;&lt;strong&gt;1.2 超级集成生态：与本土数字巨头的共生关系&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;本节将展示构成这些极致体验的软件基石——即中国车企与本土互联网巨头之间深度且通常是排他性的合作关系。&lt;/p&gt;
 &lt;p&gt;这种共生关系体现在智能座舱的每一个核心功能模块中。在导航与地图服务领域，比亚迪的DiLink智能网联系统与高德地图进行了深度定制化开发，实现了手机与车机端账户信息的无缝同步，以及从手机一键发送位置到车的功能，极大地优化了车载导航的便利性和安全性 3。这与全球市场由谷歌地图和Waze主导的格局形成了鲜明对比。&lt;/p&gt;
 &lt;p&gt;在音乐与音频娱乐方面，蔚来与腾讯达成了战略合作，不仅集成了腾讯的音乐资源，还通过蔚来自研的SkyCore技术框架，将微信读书等小程序原生化地融入车机系统，为用户提供了连贯的数字内容消费体验 6。小鹏汽车则宣称其Xmart OS系统接入了超过17个第三方音频应用，构建了业内最全面的车载音频内容生态 8。&lt;/p&gt;
 &lt;p&gt;在语音交互和人工智能层面，尽管前端界面有各家车企的品牌标识（如NOMI），但其底层的自然语言处理和人工智能技术，往往是与专注于中文语境的中国科技公司（如科大讯飞等）紧密合作开发的。这种针对特定语言的深度优化，是其在国内市场实现高识别率和自然对话能力的关键，但这种核心竞争力也难以直接迁移到其他语言环境中。&lt;/p&gt;
 &lt;p&gt;最后，整个智能座舱系统都高度依赖于强大的云服务和频繁的整车OTA（空中下载技术）升级能力。这套体系的背后，是主要部署在中国境内的数据中心和网络基础设施，为车辆功能的持续迭代和用户数据的处理提供了支撑 1。&lt;/p&gt;
-&lt;h3 id=&#34;13-无法翻译的体验为何平移策略注定失败&#34;&gt;&lt;strong&gt;1.3 无法翻译的体验：为何“平移”策略注定失败&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="13-无法翻译的体验为何平移策略注定失败"&gt;&lt;strong&gt;1.3 无法翻译的体验：为何“平移”策略注定失败&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;本节将综合前述分析，论证为何简单的本地化（Localization）工作，远不足以将中国市场的成功模式复制到海外。&lt;/p&gt;
 &lt;p&gt;首先，中国用户习以为常的核心数字服务，在海外市场缺乏统一的替代品。例如，深度集成在车机系统中的移动支付（支付宝/微信支付）、无处不在的小程序生态以及社交媒体联动功能，在欧洲或北美市场并没有一个能够被普遍接受的对等解决方案。&lt;/p&gt;
 &lt;p&gt;其次，用户的交互习惯存在根本性差异。在中国市场，通过语音助手完成复杂、多步骤的任务已经成为一种普遍的用户行为。相比之下，在许多西方市场，用户更习惯于通过手机投屏系统（如Apple CarPlay和Android Auto）来使用他们熟悉的应用程序，这已成为主流的交互模式 10。&lt;/p&gt;
 &lt;p&gt;最关键的是，中国的智能座舱生态并非简单的应用程序集合，而是一个由相互关联的服务、统一的用户账户体系和数据档案构成的复杂网络。若想在海外市场复制这一模式，无异于从零开始，与一套全新的合作伙伴（例如用Spotify替代QQ音乐，用Google Maps替代高德地图）重建整个生态系统。这种重建的难度和成本是巨大的。&lt;/p&gt;
 &lt;p&gt;这种模式在国内市场构建的竞争优势，形成了一道“生态护城河”，有效地阻挡了国际竞争对手。然而，当中国车企试图走向全球时，这道“护城河”却变成了一个“镀金的牢笼”。其最引以为傲、与本土服务深度绑定的智能座舱功能，因无法剥离和替换，反而成为了出海的最大障碍，迫使它们必须在海外市场以一种全新的、不熟悉的方式参与竞争。此外，这种为国内复杂软件生态系统所做的硬件决策，也形成了路径依赖。例如，理想L9采用双8155芯片是为了驱动其复杂的五屏交互系统 1。当面向海外市场，软件堆栈必须大幅简化或替换时，原有的高端硬件配置可能就显得性能过剩，从而造成成本上的劣势，凸显了为特定市场制定的硬件策略在全球化背景下的不适应性。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h2 id=&#34;第二章平台的困境为全球用户重建数字地基&#34;&gt;&lt;strong&gt;第二章：平台的困境：为全球用户重建数字地基&lt;/strong&gt;&lt;/h2&gt;
+&lt;h2 id="第二章平台的困境为全球用户重建数字地基"&gt;&lt;strong&gt;第二章：平台的困境：为全球用户重建数字地基&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;本章节将分析中国车企为打造一个在国际市场上具有可行性的智能座舱，所必须面对的基础性技术与战略决策。其核心在于，如何从一个精心策划的、封闭的国内系统，过渡到一个标准化的、开放的全球平台。&lt;/p&gt;
-&lt;h3 id=&#34;21-android-automotive的必然性理解全球标准&#34;&gt;&lt;strong&gt;2.1 Android Automotive的必然性：理解全球标准&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="21-android-automotive的必然性理解全球标准"&gt;&lt;strong&gt;2.1 Android Automotive的必然性：理解全球标准&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;本节将首先厘清一个关键的技术概念，即Android Auto与Android Automotive OS (AAOS) 之间的本质区别，这一点对于理解后续的战略抉择至关重要。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;Android Auto&lt;/strong&gt; 是一种手机投屏解决方案。应用程序实际运行在用户的智能手机上，通过USB或无线方式，将其界面投影到车机屏幕上。它利用的是手机的计算能力和数据连接，其本身并非车辆的操作系统 12。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Android Automotive OS (AAOS)&lt;/strong&gt; 则是一个完整、独立的、基于Android的开源操作系统，它直接运行在车辆的硬件之上 16。AAOS控制着整个信息娱乐体验，并能与车辆的空调、驾驶辅助等底层功能深度集成。它的运行完全不依赖于手机 17。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;目前，越来越多的全球主流汽车制造商，包括沃尔沃、极星、通用汽车、福特以及雷诺-日产-三菱联盟，都已选择采用AAOS作为其下一代信息娱乐系统的基础平台，这使其正迅速成为行业的新标准 19。对于寻求全球化的中国车企而言，接纳AAOS不仅是技术上的选择，更是融入全球汽车软件生态的战略性一步。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Android log机制</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link>
-      <pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid>
-      <description>&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/android-eventlog.png&#34;&gt;&lt;/p&gt;
-&lt;h3 id=&#34;架構圖詳解&#34;&gt;架構圖詳解&lt;/h3&gt;
+&lt;p&gt;目前，越来越多的全球主流汽车制造商，包括沃尔沃、极星、通用汽车、福特以及雷诺-日产-三菱联盟，都已选择采用AAOS作为其下一代信息娱乐系统的基础平台，这使其正迅速成为行业的新标准 19。对于寻求全球化的中国车企而言，接纳AAOS不仅是技术上的选择，更是融入全球汽车软件生态的战略性一步。&lt;/p&gt;</description></item><item><title>Android log机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-eventlog.png"&gt;&lt;/p&gt;
+&lt;h3 id="架構圖詳解"&gt;架構圖詳解&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;日誌寫入路徑 (Write Path)&lt;/strong&gt;&lt;/p&gt;
@@ -681,15 +618,8 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;日誌讀取與解析路徑 (Read &amp;amp; Parse Path)&lt;/strong&gt;&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>高通平台 Widevine L1 认证实施流程</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link>
-      <pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid>
-      <description>&lt;h2 id=&#34;整体流程&#34;&gt;整体流程&lt;/h2&gt;
-&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png&#34;&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;日誌讀取與解析路徑 (Read &amp;amp; Parse Path)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>高通平台 Widevine L1 认证实施流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid><description>&lt;h2 id="整体流程"&gt;整体流程&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png"&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;项目启动与平台选型&lt;/strong&gt;&lt;/p&gt;
@@ -728,34 +658,27 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Chromium &#43; Android DRM 视频安全渲染流程说明</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link>
-      <pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid>
-      <description>&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/chromium-drm.png&#34;&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Chromium + Android DRM 视频安全渲染流程说明</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link><pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/chromium-drm.png"&gt;&lt;/p&gt;
 &lt;p&gt;这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。&lt;/p&gt;
 &lt;p&gt;整个流程的核心是确保&lt;strong&gt;内容密钥 (Content Key)&lt;/strong&gt; 和&lt;strong&gt;解密后的视频画面&lt;/strong&gt;始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。&lt;/p&gt;
-&lt;h2 id=&#34;流程详解&#34;&gt;&lt;strong&gt;流程详解&lt;/strong&gt;&lt;/h2&gt;
-&lt;h3 id=&#34;1-初始化与会话创建-步骤-1-3&#34;&gt;&lt;strong&gt;1. 初始化与会话创建 (步骤 1-3)&lt;/strong&gt;&lt;/h3&gt;
+&lt;h2 id="流程详解"&gt;&lt;strong&gt;流程详解&lt;/strong&gt;&lt;/h2&gt;
+&lt;h3 id="1-初始化与会话创建-步骤-1-3"&gt;&lt;strong&gt;1. 初始化与会话创建 (步骤 1-3)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;(1-2)&lt;/strong&gt; 当用户在浏览器中点击播放受保护的视频时，网页前端的 JavaScript 会通过 &lt;strong&gt;Encrypted Media Extensions (EME)&lt;/strong&gt; API 向浏览器发出请求，表明需要处理 DRM 内容。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;(3)&lt;/strong&gt; EME 接着会调用 Android 系统底层的 &lt;strong&gt;&lt;code&gt;MediaDRM&lt;/code&gt; API&lt;/strong&gt;，在系统层级创建一个 DRM 会话。这一步为后续的授权请求和解密操作做好了准备。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;2-授权请求与获取-步骤-4-8&#34;&gt;&lt;strong&gt;2. 授权请求与获取 (步骤 4-8)&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="2-授权请求与获取-步骤-4-8"&gt;&lt;strong&gt;2. 授权请求与获取 (步骤 4-8)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;(4-6)&lt;/strong&gt; &lt;code&gt;MediaDRM&lt;/code&gt; API 指示 &lt;strong&gt;TEE (可信执行环境)&lt;/strong&gt; 内的 Widevine L1 模块生成一个加密的&lt;strong&gt;授权请求&lt;/strong&gt;。这个请求包含了设备的唯一凭证，并经过设备私钥签名。TEE 将这个请求数据返回给浏览器。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;(7-8)&lt;/strong&gt; &lt;strong&gt;Chromium 浏览器&lt;/strong&gt; 负责处理网络通信。它将从 TEE 获取的授权请求，通过网络发送给&lt;strong&gt;授权服务器 (License Server)&lt;/strong&gt;。服务器在验证请求的合法性后，会回传一个加密的授权（其中包含了用设备公钥加密的 Content Key）。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;3-授权处理与密钥提取-步骤-9-10&#34;&gt;&lt;strong&gt;3. 授权处理与密钥提取 (步骤 9-10)&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="3-授权处理与密钥提取-步骤-9-10"&gt;&lt;strong&gt;3. 授权处理与密钥提取 (步骤 9-10)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;(9)&lt;/strong&gt; 浏览器将从服务器获取的加密授权，通过 &lt;code&gt;MediaDRM&lt;/code&gt; API 传递下去。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;(10)&lt;/strong&gt; 加密的授权最终被送达 &lt;strong&gt;TEE&lt;/strong&gt;。在 TEE 内部，Widevine L1 模块会使用其唯一的设备私钥来解密授权，从而安全地提取出 &lt;strong&gt;Content Key&lt;/strong&gt;。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;(Note)&lt;/strong&gt; 正如图中注释所示，&lt;strong&gt;Content Key 从此步骤开始，永远不会离开 TEE 的安全环境&lt;/strong&gt;。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;4-安全解密与渲染-步骤-11-14&#34;&gt;&lt;strong&gt;4. 安全解密与渲染 (步骤 11-14)&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="4-安全解密与渲染-步骤-11-14"&gt;&lt;strong&gt;4. 安全解密与渲染 (步骤 11-14)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;(11)&lt;/strong&gt; &lt;code&gt;MediaDRM&lt;/code&gt; 将一个指向 TEE 内部安全会话的&lt;strong&gt;句柄 (handle)&lt;/strong&gt;，连同加密的视频流，一起提供给 &lt;strong&gt;&lt;code&gt;MediaCodec&lt;/code&gt;&lt;/strong&gt;（Android 的媒体编解码器）。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;(12)&lt;/strong&gt; &lt;code&gt;MediaCodec&lt;/code&gt; 与 TEE 协同工作。加密的视频帧被送入 TEE 进行硬件级别的解密。&lt;/li&gt;
@@ -763,139 +686,125 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;(13-14)&lt;/strong&gt; 这些明文帧被直接发送到 &lt;strong&gt;GPU / Display&lt;/strong&gt; 硬件进行渲染，最终用户在屏幕上看到播放的画面。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h2 id=&#34;核心安全原则总结&#34;&gt;&lt;strong&gt;核心安全原则总结&lt;/strong&gt;&lt;/h2&gt;
-&lt;p&gt;这份时序图完美地展示了 Widevine L1 的核心安全原则：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution</title>
-      <link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</link>
-      <pubDate>Fri, 08 Aug 2025 19:49:26 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</guid>
-      <description>&lt;h1 id=&#34;oem-多品牌多使用者動態主題引擎技術方案&#34;&gt;OEM 多品牌多使用者動態主題引擎技術方案&lt;/h1&gt;
+&lt;h2 id="核心安全原则总结"&gt;&lt;strong&gt;核心安全原则总结&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;这份时序图完美地展示了 Widevine L1 的核心安全原则：&lt;/p&gt;</description></item><item><title>OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</link><pubDate>Fri, 08 Aug 2025 19:49:26 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</guid><description>&lt;h1 id="oem-多品牌多使用者動態主題引擎技術方案"&gt;OEM 多品牌多使用者動態主題引擎技術方案&lt;/h1&gt;
 &lt;table&gt;
-  &lt;thead&gt;
-      &lt;tr&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;版本&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;日期&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;作者&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;修訂說明&lt;/th&gt;
-      &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;2.18&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;2025-08-09&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;Gemini&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;在附錄中新增了“7.3 TMS 部署模式”的架構決策分析。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;2.19&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;2025-08-09&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;Gemini&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;根據使用者提供的圖表，在 7.3 章節中新增了 TMS 部署模式的 PlantUML 對比圖。&lt;/strong&gt;&lt;/td&gt;
-      &lt;/tr&gt;
-  &lt;/tbody&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: left"&gt;版本&lt;/th&gt;
+&lt;th style="text-align: left"&gt;日期&lt;/th&gt;
+&lt;th style="text-align: left"&gt;作者&lt;/th&gt;
+&lt;th style="text-align: left"&gt;修訂說明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;2.18&lt;/td&gt;
+&lt;td style="text-align: left"&gt;2025-08-09&lt;/td&gt;
+&lt;td style="text-align: left"&gt;Gemini&lt;/td&gt;
+&lt;td style="text-align: left"&gt;在附錄中新增了“7.3 TMS 部署模式”的架構決策分析。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;2.19&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;2025-08-09&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;Gemini&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;根據使用者提供的圖表，在 7.3 章節中新增了 TMS 部署模式的 PlantUML 對比圖。&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h2 id=&#34;1-方案概述-executive-summary&#34;&gt;1. 方案概述 (Executive Summary)&lt;/h2&gt;
+&lt;h2 id="1-方案概述-executive-summary"&gt;1. 方案概述 (Executive Summary)&lt;/h2&gt;
 &lt;p&gt;本方案旨在為 OEM 廠商設計一套企業級的、功能完備的 Android 動態主題引擎。該引擎不僅能滿足多品牌、多 SKU 的出廠預設風格差異化，更能透過功能強大的&lt;strong&gt;主題商店&lt;/strong&gt;，為使用者提供包括主題預覽、個性化微調、跨裝置同步在內的全方位個性化體驗。&lt;/p&gt;
 &lt;p&gt;方案核心是自研一個執行於 system_server 的&lt;strong&gt;主題管理服務 (ThemeManagerService, TMS)&lt;/strong&gt;，它作為主題生態的大腦，負責管理主題包的生命週期、處理多使用者環境下的權限與資料隔離、並向上層的&lt;strong&gt;主題商店應用&lt;/strong&gt;提供穩定的 AIDL 介面。&lt;/p&gt;
 &lt;p&gt;最終目標是打造一個穩定、高效、安全且可擴展的主題平台，不僅能強化 OEM 品牌形象，更能構建一個開放的第三方主題生態，提升使用者體驗與黏性。&lt;/p&gt;
-&lt;h2 id=&#34;2-核心需求與目標&#34;&gt;2. 核心需求與目標&lt;/h2&gt;
+&lt;h2 id="2-核心需求與目標"&gt;2. 核心需求與目標&lt;/h2&gt;
 &lt;p&gt;本方案旨在滿足以下 14 項核心需求：&lt;/p&gt;
 &lt;table&gt;
-  &lt;thead&gt;
-      &lt;tr&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;編號&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;需求描述&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;關鍵目標&lt;/th&gt;
-      &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;1&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;多品牌預設主題&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;實現不同產品線出廠時擁有獨特、固定的品牌視覺識別 (VI)。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;2&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;動態主題切換&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;允許使用者在不重啟設備的情況下，一鍵下載、安裝、應用、刪除主題。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;3&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;全域深度美化&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;主題效果需覆蓋系統框架、SystemUI、啟動器等多個核心應用，保證體驗一致性。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;4&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;多使用者資料隔離&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;在多使用者模式下，每個使用者的主題選擇和私有主題列表應相互獨立，互不影響。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;5&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;版本管理&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;支援主題的平滑升級與安全回滾，避免因版本問題導致系統不穩定。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;6&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;第三方生態&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;建立標準化的主題包開發規範，允許第三方開發者參與主題製作與分發。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;7&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;性能優化&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;主題切換應保證流暢快速，避免系統卡頓和耗電過快。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;8&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;安全與權限控制&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;確保主題包來源可信，防止惡意主題破壞系統安全或洩露使用者隱私。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;9&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;個性化主題定製&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;支援使用者對主題進行個性化定製，如調整顏色、字體、圖示樣式等。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;10&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;跨裝置同步&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;支援使用者跨裝置同步主題設定，實現無縫體驗。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;11&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;主題預覽功能&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;使用者可在應用前預覽主題效果，提升選擇體驗。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;12&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;主題相容性檢測&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;自動檢測主題與系統版本、應用相容性，避免主題導致功能異常。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;13&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;多語言支援&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;主題管理介面及主題包支援多語言，滿足全球使用者需求。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;14&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;主題恢復預設設定&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;提供一鍵恢復系統預設主題的功能，方便使用者快速回退。&lt;/td&gt;
-      &lt;/tr&gt;
-  &lt;/tbody&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: left"&gt;編號&lt;/th&gt;
+&lt;th style="text-align: left"&gt;需求描述&lt;/th&gt;
+&lt;th style="text-align: left"&gt;關鍵目標&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;1&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;多品牌預設主題&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;實現不同產品線出廠時擁有獨特、固定的品牌視覺識別 (VI)。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;2&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;動態主題切換&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;允許使用者在不重啟設備的情況下，一鍵下載、安裝、應用、刪除主題。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;3&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;全域深度美化&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;主題效果需覆蓋系統框架、SystemUI、啟動器等多個核心應用，保證體驗一致性。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;4&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;多使用者資料隔離&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;在多使用者模式下，每個使用者的主題選擇和私有主題列表應相互獨立，互不影響。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;5&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;版本管理&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;支援主題的平滑升級與安全回滾，避免因版本問題導致系統不穩定。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;6&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;第三方生態&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;建立標準化的主題包開發規範，允許第三方開發者參與主題製作與分發。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;7&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;性能優化&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;主題切換應保證流暢快速，避免系統卡頓和耗電過快。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;8&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;安全與權限控制&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;確保主題包來源可信，防止惡意主題破壞系統安全或洩露使用者隱私。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;9&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;個性化主題定製&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;支援使用者對主題進行個性化定製，如調整顏色、字體、圖示樣式等。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;10&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;跨裝置同步&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;支援使用者跨裝置同步主題設定，實現無縫體驗。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;11&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;主題預覽功能&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;使用者可在應用前預覽主題效果，提升選擇體驗。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;12&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;主題相容性檢測&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;自動檢測主題與系統版本、應用相容性，避免主題導致功能異常。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;13&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;多語言支援&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;主題管理介面及主題包支援多語言，滿足全球使用者需求。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;14&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;主題恢復預設設定&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;提供一鍵恢復系統預設主題的功能，方便使用者快速回退。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h2 id=&#34;3-系統架構-system-architecture&#34;&gt;3. 系統架構 (System Architecture)&lt;/h2&gt;
-&lt;p&gt;整體架構以自研的 TMS 為核心，協同系統原生服務，向上層應用提供能力。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Android DRM 框架</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</link>
-      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</guid>
-      <description>&lt;h2 id=&#34;widevine-overview&#34;&gt;Widevine Overview&lt;/h2&gt;
-&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/Widevine_architect.png&#34;&gt;&lt;/p&gt;
+&lt;h2 id="3-系統架構-system-architecture"&gt;3. 系統架構 (System Architecture)&lt;/h2&gt;
+&lt;p&gt;整體架構以自研的 TMS 為核心，協同系統原生服務，向上層應用提供能力。&lt;/p&gt;</description></item><item><title>Android DRM 框架</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</guid><description>&lt;h2 id="widevine-overview"&gt;Widevine Overview&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/Widevine_architect.png"&gt;&lt;/p&gt;
 &lt;p&gt;这张图是 &lt;strong&gt;Widevine DRM（数字版权管理）视频播放流程&lt;/strong&gt; 的整体架构图，展示了从内容打包、分发到终端设备解密播放的完整链路。分步骤解读：&lt;/p&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;1-内容准备与分发&#34;&gt;1. &lt;strong&gt;内容准备与分发&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="1-内容准备与分发"&gt;1. &lt;strong&gt;内容准备与分发&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;Source Media（原始媒体内容）&lt;/strong&gt;
 这是未经加密的音视频源文件。&lt;/li&gt;
@@ -907,7 +816,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器请求。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;2-授权与密钥服务&#34;&gt;2. &lt;strong&gt;授权与密钥服务&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="2-授权与密钥服务"&gt;2. &lt;strong&gt;授权与密钥服务&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;License Service（许可证服务）&lt;/strong&gt;
 管理内容密钥（KID、CEK），并根据终端请求签发播放许可证（License）。&lt;/li&gt;
@@ -915,7 +824,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 充当中间层，接收终端的 License 请求并转发给 License Service，再把结果返回给终端。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;3-设备安全与密钥保护&#34;&gt;3. &lt;strong&gt;设备安全与密钥保护&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="3-设备安全与密钥保护"&gt;3. &lt;strong&gt;设备安全与密钥保护&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;OEM（设备制造商）&lt;/strong&gt;
 在设备中实现 &lt;strong&gt;OEMCrypto HAL&lt;/strong&gt;，并提供硬件安全环境（TEE、Secure OS）。
@@ -924,7 +833,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 用于设备首次激活时的 &lt;strong&gt;设备认证与密钥配置&lt;/strong&gt;，保证终端能安全接收 DRM 密钥。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;4-终端播放流程&#34;&gt;4. &lt;strong&gt;终端播放流程&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="4-终端播放流程"&gt;4. &lt;strong&gt;终端播放流程&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;Media Player&lt;/strong&gt;
@@ -933,17 +842,10 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;CDM&lt;/strong&gt;
-内容解密模块，负责：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Android Theme</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</link>
-      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</guid>
-      <description>&lt;h2 id=&#34;简介&#34;&gt;简介&lt;/h2&gt;
+内容解密模块，负责：&lt;/p&gt;</description></item><item><title>Android Theme</title><link>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</guid><description>&lt;h2 id="简介"&gt;简介&lt;/h2&gt;
 &lt;p&gt;Android的&lt;strong&gt;Theme（主题）&lt;/strong&gt;，简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;详细解释&#34;&gt;详细解释&lt;/h3&gt;
+&lt;h3 id="详细解释"&gt;详细解释&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;作用&lt;/strong&gt;：统一管理应用界面风格，保持整体视觉一致性，避免在每个控件上单独设置样式。&lt;/p&gt;
@@ -963,25 +865,25 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;举例&#34;&gt;举例&lt;/h3&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-xml&#34; data-lang=&#34;xml&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&amp;lt;!-- 应用主题 --&amp;gt;&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;style&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;name=&lt;/span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;AppTheme&amp;#34;&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;parent=&lt;/span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Theme.MaterialComponents.DayNight.NoActionBar&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;&amp;gt;&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;item&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;name=&lt;/span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;colorPrimary&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;&amp;gt;&lt;/span&gt;@color/my_primary_color&lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;/item&amp;gt;&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;item&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;name=&lt;/span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;colorAccent&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;&amp;gt;&lt;/span&gt;@color/my_accent_color&lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;/item&amp;gt;&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;&amp;lt;!-- 更多自定义属性 --&amp;gt;&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;/style&amp;gt;&lt;/span&gt;
+&lt;h3 id="举例"&gt;举例&lt;/h3&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-xml" data-lang="xml"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&amp;lt;!-- 应用主题 --&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;&amp;lt;style&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;name=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;AppTheme&amp;#34;&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;parent=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;Theme.MaterialComponents.DayNight.NoActionBar&amp;#34;&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;item&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;name=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;colorPrimary&amp;#34;&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;@color/my_primary_color&lt;span style="color:#f92672"&gt;&amp;lt;/item&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#f92672"&gt;&amp;lt;item&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;name=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;colorAccent&amp;#34;&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;@color/my_accent_color&lt;span style="color:#f92672"&gt;&amp;lt;/item&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;&amp;lt;!-- 更多自定义属性 --&amp;gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;&amp;lt;/style&amp;gt;&lt;/span&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;在&lt;code&gt;AndroidManifest.xml&lt;/code&gt;：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-xml&#34; data-lang=&#34;xml&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;application&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#a6e22e&#34;&gt;android:theme=&lt;/span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;@style/AppTheme&amp;#34;&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;...&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;&amp;gt;&lt;/span&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-xml" data-lang="xml"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#f92672"&gt;&amp;lt;application&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6e22e"&gt;android:theme=&lt;/span&gt;&lt;span style="color:#e6db74"&gt;&amp;#34;@style/AppTheme&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#960050;background-color:#1e0010"&gt;...&lt;/span&gt;&lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;hr&gt;
-&lt;h3 id=&#34;主题与样式的区别&#34;&gt;主题与样式的区别&lt;/h3&gt;
+&lt;h3 id="主题与样式的区别"&gt;主题与样式的区别&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;样式（Style）&lt;/strong&gt;：作用于单个View控件的外观定义（如按钮颜色、字体大小）。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;主题（Theme）&lt;/strong&gt;：是作用于整个界面或应用的样式集合，包含大量样式属性，能控制全局控件默认行为和外观。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;主题的演进&#34;&gt;主题的演进&lt;/h3&gt;
+&lt;h3 id="主题的演进"&gt;主题的演进&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;Theme.Holo&lt;/strong&gt;：Android 3.x 引入的较早现代主题。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Theme.AppCompat&lt;/strong&gt;：支持旧版本Android的兼容库主题，广泛使用。&lt;/li&gt;
@@ -990,12 +892,12 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ul&gt;
 &lt;hr&gt;
 &lt;p&gt;Android主题演进和结构的图参考如下：&lt;/p&gt;
-&lt;p&gt;&lt;img alt=&#34;Android主题演进&#34; loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/theme.png&#34;&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Android主题演进" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/theme.png"&gt;&lt;/p&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;平台主题&#34;&gt;平台主题&lt;/h3&gt;
+&lt;h3 id="平台主题"&gt;平台主题&lt;/h3&gt;
 &lt;p&gt;&lt;strong&gt;平台主题（Platform Theme）&lt;/strong&gt;，指的是 Android 操作系统自身提供的、内置在系统框架中的主题样式集合。它们是 Android 系统从一开始就带有的基础视觉风格，定义了系统默认的界面外观和控件样式。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h4 id=&#34;详细说明&#34;&gt;详细说明&lt;/h4&gt;
+&lt;h4 id="详细说明"&gt;详细说明&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;由谁提供&lt;/strong&gt;：由 Android 系统平台（Framework）自带，随着系统版本升级而演进和扩展。&lt;/p&gt;
@@ -1013,62 +915,55 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h4 id=&#34;常见的平台主题&#34;&gt;常见的平台主题&lt;/h4&gt;
+&lt;h4 id="常见的平台主题"&gt;常见的平台主题&lt;/h4&gt;
 &lt;table&gt;
-  &lt;thead&gt;
-      &lt;tr&gt;
-          &lt;th&gt;主题名称&lt;/th&gt;
-          &lt;th&gt;适用API版本&lt;/th&gt;
-          &lt;th&gt;特点&lt;/th&gt;
-      &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-      &lt;tr&gt;
-          &lt;td&gt;&lt;strong&gt;Theme&lt;/strong&gt;&lt;/td&gt;
-          &lt;td&gt;API 1+&lt;/td&gt;
-          &lt;td&gt;最基础的系统主题&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td&gt;&lt;strong&gt;Theme.Holo&lt;/strong&gt;&lt;/td&gt;
-          &lt;td&gt;API 11（Android 3.0）到API 20&lt;/td&gt;
-          &lt;td&gt;现代化蓝色调主题，首次引入较统一的视觉风格&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td&gt;&lt;strong&gt;Theme.Material&lt;/strong&gt;&lt;/td&gt;
-          &lt;td&gt;API 21（Android 5.0）及以后&lt;/td&gt;
-          &lt;td&gt;实现 Google Material Design规范&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td&gt;&lt;strong&gt;Theme.DeviceDefault&lt;/strong&gt;&lt;/td&gt;
-          &lt;td&gt;API 14+&lt;/td&gt;
-          &lt;td&gt;根据设备定制的默认主题&lt;/td&gt;
-      &lt;/tr&gt;
-  &lt;/tbody&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;主题名称&lt;/th&gt;
+&lt;th&gt;适用API版本&lt;/th&gt;
+&lt;th&gt;特点&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Theme&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;API 1+&lt;/td&gt;
+&lt;td&gt;最基础的系统主题&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Theme.Holo&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;API 11（Android 3.0）到API 20&lt;/td&gt;
+&lt;td&gt;现代化蓝色调主题，首次引入较统一的视觉风格&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Theme.Material&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;API 21（Android 5.0）及以后&lt;/td&gt;
+&lt;td&gt;实现 Google Material Design规范&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Theme.DeviceDefault&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;API 14+&lt;/td&gt;
+&lt;td&gt;根据设备定制的默认主题&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
 &lt;/table&gt;
 &lt;hr&gt;
-&lt;h4 id=&#34;为什么要用平台主题&#34;&gt;为什么要用平台主题？&lt;/h4&gt;
+&lt;h4 id="为什么要用平台主题"&gt;为什么要用平台主题？&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;兼容性&lt;/strong&gt;：系统提供的主题保证应用在不同Android版本上的基本一致性和兼容性。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;性能&lt;/strong&gt;：系统主题经过优化，能保证界面流畅。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;扩展性&lt;/strong&gt;：开发者可以基于平台主题进一步自定义自己的主题。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h4 id=&#34;平台主题与appcompat主题的关系&#34;&gt;平台主题与AppCompat主题的关系&lt;/h4&gt;
+&lt;h4 id="平台主题与appcompat主题的关系"&gt;平台主题与AppCompat主题的关系&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;AppCompat是 Google 支持库提供的兼容方案，允许在旧版本Android（比如API 14以下）也能使用现代风格的控件和主题。&lt;/li&gt;
 &lt;li&gt;AppCompat主题是基于平台主题（Holo 或 Material）做了二次封装和增强，实现更广泛的兼容。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;p&gt;平台主题演进：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>使用AndroidStudio调试AOSP</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link>
-      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid>
-      <description>&lt;h2 id=&#34;调试java进程&#34;&gt;调试Java进程&lt;/h2&gt;
+&lt;p&gt;平台主题演进：&lt;/p&gt;</description></item><item><title>使用AndroidStudio调试AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid><description>&lt;h2 id="调试java进程"&gt;调试Java进程&lt;/h2&gt;
 &lt;p&gt;本文介绍如何在 Android Studio 中调试 AOSP (Android Open Source Project) 进程，尤其是像 system_server 这样的系统进程。调试 AOSP 与普通应用调试有所不同，需要借助 JDWP 协议和 adb 端口转发。&lt;/p&gt;
-&lt;h3 id=&#34;前置条件&#34;&gt;前置条件&lt;/h3&gt;
+&lt;h3 id="前置条件"&gt;前置条件&lt;/h3&gt;
 &lt;p&gt;环境准备：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;一台可以刷入 AOSP 的设备或模拟器&lt;/li&gt;
@@ -1079,27 +974,38 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;ul&gt;
 &lt;li&gt;设备必须支持 adb root&lt;/li&gt;
 &lt;li&gt;设备需要打开调试属性，例如：
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb root
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell setprop persist.system_server.debuggable &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell stop
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell start
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb root
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell setprop persist.system_server.debuggable &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell stop
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell start
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;上述命令让 system_server 在启动时支持调试。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;调试原理&#34;&gt;调试原理&lt;/h3&gt;
+&lt;h3 id="调试原理"&gt;调试原理&lt;/h3&gt;
 &lt;p&gt;Android 使用 JDWP (Java Debug Wire Protocol) 进行 Java 进程调试：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;system_server 内部：包含一个 JDWP Listener 线程，负责接收调试命令并执行（挂起线程、返回堆栈、单步执行等）。&lt;/li&gt;
 &lt;li&gt;adb：提供 adb forward 功能，将 PC 本地端口与设备进程的 JDWP 通道连接起来。&lt;/li&gt;
 &lt;li&gt;Android Studio：作为调试器，通过 JDWP 协议与 system_server 通信。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;数据流示意：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Technical Design for Seamless Full Screen and Split Screen Switching in AutoNavi Map</title>
-      <link>https://ethen-cao.github.io/ethenslab/explore-ai/technical-design-for-seamless-full-screen-and-split-screen-switching-in-autonavi-map/</link>
-      <pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/technical-design-for-seamless-full-screen-and-split-screen-switching-in-autonavi-map/</guid>
-      <description>&lt;h2 id=&#34;需求背景&#34;&gt;需求背景&lt;/h2&gt;
+&lt;p&gt;数据流示意：&lt;/p&gt;</description></item><item><title>Gunyah virtio-blk 通信机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>&lt;h2 id="block图"&gt;Block图&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/gunyah-virtio-blk.png"&gt;&lt;/p&gt;
+&lt;p&gt;下面是这张图的解读与要点说明（橙色=控制面，蓝色=数据面）：&lt;/p&gt;
+&lt;h3 id="总览"&gt;总览&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Guest 侧&lt;/strong&gt;：Android App 通过文件系统到 &lt;code&gt;virtio-blk&lt;/code&gt; 前端驱动（VblkFE）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;共享内存&lt;/strong&gt;：&lt;code&gt;Guest RAM (shared)&lt;/code&gt; 中包含 &lt;strong&gt;virtqueue(Avail/Used)&lt;/strong&gt; 元数据与 &lt;strong&gt;Guest Buffers&lt;/strong&gt; 数据缓冲区。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Host 侧&lt;/strong&gt;：&lt;code&gt;qcrosvm&lt;/code&gt;（VMM）实现 &lt;code&gt;virtio-blk&lt;/code&gt; &lt;strong&gt;后端&lt;/strong&gt;，通过 &lt;strong&gt;Gunyah Host Driver&lt;/strong&gt; 与 &lt;strong&gt;Gunyah Hypervisor&lt;/strong&gt; 交互；真实数据落在 &lt;strong&gt;Backing Storage&lt;/strong&gt;（镜像文件或块设备）上。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;分工&lt;/strong&gt;：Hypervisor 只做 &lt;strong&gt;陷入与中断路由&lt;/strong&gt;，&lt;strong&gt;不搬数据&lt;/strong&gt;；数据由 &lt;strong&gt;VMM↔Guest Buffers↔Disk&lt;/strong&gt; 在蓝色路径中完成。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="控制面橙色"&gt;控制面（橙色）&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;提交请求&lt;/strong&gt;：Guest 的 VblkFE 将 &lt;strong&gt;描述符&lt;/strong&gt;（指向 Guest Buffers 的 GPA、长度、方向）写入 &lt;strong&gt;Avail ring&lt;/strong&gt;，并对设备寄存器执行 &lt;strong&gt;MMIO QueueNotify&lt;/strong&gt;（kick）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;陷入与唤醒&lt;/strong&gt;：MMIO 被 Hypervisor 拦截，转交 Host 的 &lt;strong&gt;Gunyah Host Driver&lt;/strong&gt;，唤醒 &lt;strong&gt;qcrosvm&lt;/strong&gt; 的设备处理线程。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;队列处理&lt;/strong&gt;：VMM 读取 &lt;strong&gt;Avail ring&lt;/strong&gt;，解析描述符；完成 I/O 后更新 &lt;strong&gt;Used ring&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;中断返回&lt;/strong&gt;：VMM 请求 Host Driver 触发虚拟中断，Hypervisor 将 &lt;strong&gt;IRQ 注入 Guest&lt;/strong&gt;，通知前端有请求完成。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;blockquote&gt;
+&lt;p&gt;关键点：&lt;strong&gt;virtqueue 只承载“元数据与索引”&lt;/strong&gt;（哪块缓冲、多大、读写方向、完成状态），&lt;strong&gt;不承载数据本体&lt;/strong&gt;。&lt;/p&gt;</description></item><item><title>Technical Design for Seamless Full Screen and Split Screen Switching in AutoNavi Map</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/technical-design-for-seamless-full-screen-and-split-screen-switching-in-autonavi-map/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/technical-design-for-seamless-full-screen-and-split-screen-switching-in-autonavi-map/</guid><description>&lt;h2 id="需求背景"&gt;需求背景&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;核心功能
 基于 Android 平台 及 高德AutoSDK，开发一个车载地图应用。该应用需具备两种核心显示形态：&lt;/li&gt;
@@ -1108,21 +1014,21 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;li&gt;全屏模式: 地图占据整个屏幕，提供沉浸式导航体验。&lt;/li&gt;
 &lt;li&gt;分屏模式: 屏幕左侧约1/3区域显示车辆信息面板（如车模、转向灯状态等），右侧约2/3区域显示地图信息。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;ol start=&#34;2&#34;&gt;
+&lt;ol start="2"&gt;
 &lt;li&gt;交互要求&lt;/li&gt;
 &lt;/ol&gt;
 &lt;ul&gt;
 &lt;li&gt;应用界面下方存在一个常驻的Dock栏，栏上有一个“地图”按钮。&lt;/li&gt;
 &lt;li&gt;用户通过反复点击此按钮，可以在“全屏模式”与“分屏模式”之间循环切换。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;ol start=&#34;3&#34;&gt;
+&lt;ol start="3"&gt;
 &lt;li&gt;质量要求&lt;/li&gt;
 &lt;/ol&gt;
 &lt;ul&gt;
 &lt;li&gt;“丝滑”过渡: 两种模式之间的切换过程必须是流畅的动画，不能有任何视觉上的中断。&lt;/li&gt;
 &lt;li&gt;“三无”标准: 切换动画过程中，严禁出现任何黑屏、闪烁或卡顿掉帧现象，以确保高端、流畅的用户体验。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id=&#34;技术挑战与选型&#34;&gt;技术挑战与选型&lt;/h2&gt;
+&lt;h2 id="技术挑战与选型"&gt;技术挑战与选型&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;主要挑战
 在Android平台上，对一个正在进行实时、复杂内容渲染的视图（如地图）进行尺寸和位置的变更，是一项极具挑战性的任务。传统的视图动画或直接改变窗口尺寸的方案，往往会触发底层的Window重绘或Surface重建，这个过程耗时较长，极易导致以下问题：&lt;/li&gt;
@@ -1131,7 +1037,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;li&gt;闪烁/黑屏: 在旧的Surface被销毁、新的Surface尚未完全渲染内容的短暂间隙，屏幕会出现背景色或黑色，造成视觉闪烁。&lt;/li&gt;
 &lt;li&gt;卡顿: 如果布局计算和视图重绘的耗时超过了Android系统的一帧渲染时间（约16.6ms），就会导致掉帧，动画看起来就会卡顿、不连贯。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;ol start=&#34;2&#34;&gt;
+&lt;ol start="2"&gt;
 &lt;li&gt;核心方案选型
 为了克服上述挑战，我们选择采用Android官方推荐的、专为复杂UI动画设计的现代技术栈：MotionLayout + TextureView。&lt;/li&gt;
 &lt;/ol&gt;
@@ -1139,94 +1045,87 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;li&gt;MotionLayout：作为ConstraintLayout的子类，它专为动画而生。它允许我们以声明式的方式在XML中定义多个布局状态，并由系统在底层高效地计算和执行状态之间的过渡动画，性能极高且能轻松处理多视图联动。&lt;/li&gt;
 &lt;li&gt;TextureView：高德SDK默认可能使用SurfaceView渲染，它拥有独立的绘图表面，会“打穿”应用窗口，与Android的常规视图动画体系不兼容，是闪烁的主要根源。通过AMapOptions强制SDK使用TextureView，地图内容将被渲染到一个标准的图形纹理上，可以像普通View一样无缝参与到MotionLayout的动画体系中。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id=&#34;详细实现方案&#34;&gt;详细实现方案&lt;/h2&gt;
-&lt;h3 id=&#34;强制textureview并初始化sdk&#34;&gt;强制TextureView并初始化SDK&lt;/h3&gt;
+&lt;h2 id="详细实现方案"&gt;详细实现方案&lt;/h2&gt;
+&lt;h3 id="强制textureview并初始化sdk"&gt;强制TextureView并初始化SDK&lt;/h3&gt;
 &lt;p&gt;MainActivity.kt&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-java&#34; data-lang=&#34;java&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#a6e22e&#34;&gt;MainActivity&lt;/span&gt; : AppCompatActivity() {
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; lateinit &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; motionLayout: MotionLayout
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; lateinit &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; mapView: TextureMapView
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; lateinit &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; mapContainer: CardView
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; lateinit &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; carModelPanel: LinearLayout
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; lateinit &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; toggleButton: FloatingActionButton
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;private&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;var&lt;/span&gt; isFullScreen &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;true&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    override fun &lt;span style=&#34;color:#a6e22e&#34;&gt;onCreate&lt;/span&gt;(savedInstanceState: Bundle&lt;span style=&#34;color:#f92672&#34;&gt;?&lt;/span&gt;) {
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;super&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;onCreate&lt;/span&gt;(savedInstanceState)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 设置包含MotionLayout的主布局文件&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        setContentView(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;layout&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;activity_main_split&lt;/span&gt;)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        supportActionBar&lt;span style=&#34;color:#f92672&#34;&gt;?&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;hide&lt;/span&gt;()
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        MapsInitializer.&lt;span style=&#34;color:#a6e22e&#34;&gt;updatePrivacyAgree&lt;/span&gt;(&lt;span style=&#34;color:#66d9ef&#34;&gt;this&lt;/span&gt;,&lt;span style=&#34;color:#66d9ef&#34;&gt;true&lt;/span&gt;);
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        MapsInitializer.&lt;span style=&#34;color:#a6e22e&#34;&gt;updatePrivacyShow&lt;/span&gt;(&lt;span style=&#34;color:#66d9ef&#34;&gt;this&lt;/span&gt;,&lt;span style=&#34;color:#66d9ef&#34;&gt;true&lt;/span&gt;,&lt;span style=&#34;color:#66d9ef&#34;&gt;true&lt;/span&gt;);
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 初始化视图&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        motionLayout &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; findViewById(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;id&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;motion_layout_main&lt;/span&gt;)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapContainer &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; findViewById(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;id&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;map_container_card&lt;/span&gt;)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        carModelPanel &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; findViewById(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;id&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;car_model_panel&lt;/span&gt;)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        toggleButton &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; findViewById(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;id&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;fab_toggle_map&lt;/span&gt;)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 1. Create the options object&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        val aMapOptions &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; AMapOptions()
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 2. CRITICAL: Force the use of TextureView&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;//aMapOptions.useTextureView(true)&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 3. Pass the options into the MapView constructor&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; TextureMapView(&lt;span style=&#34;color:#66d9ef&#34;&gt;this&lt;/span&gt;)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 4. Add the MapView to its container&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        val mapContainer: CardView &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; findViewById(R.&lt;span style=&#34;color:#a6e22e&#34;&gt;id&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;map_container_card&lt;/span&gt;)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapContainer.&lt;span style=&#34;color:#a6e22e&#34;&gt;addView&lt;/span&gt;(mapView)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// 5. Forward the lifecycle event&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView.&lt;span style=&#34;color:#a6e22e&#34;&gt;onCreate&lt;/span&gt;(savedInstanceState)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;// --- 控制动画的核心逻辑 ---&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        toggleButton.&lt;span style=&#34;color:#a6e22e&#34;&gt;setOnClickListener&lt;/span&gt; {
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; (isFullScreen) {
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                &lt;span style=&#34;color:#75715e&#34;&gt;// 如果当前是全屏，则过渡到分屏状态&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                motionLayout.&lt;span style=&#34;color:#a6e22e&#34;&gt;transitionToEnd&lt;/span&gt;()
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            } &lt;span style=&#34;color:#66d9ef&#34;&gt;else&lt;/span&gt; {
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                &lt;span style=&#34;color:#75715e&#34;&gt;// 如果当前是分屏，则过渡回全屏状态&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                motionLayout.&lt;span style=&#34;color:#a6e22e&#34;&gt;transitionToStart&lt;/span&gt;()
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            }
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            isFullScreen &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;!&lt;/span&gt;isFullScreen
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        }
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;// --- 严格管理高德SDK的生命周期 ---&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;// 这是确保地图正常显示、避免内存泄漏的必要步骤&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    override fun &lt;span style=&#34;color:#a6e22e&#34;&gt;onResume&lt;/span&gt;() {
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;super&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;onResume&lt;/span&gt;()
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView.&lt;span style=&#34;color:#a6e22e&#34;&gt;onResume&lt;/span&gt;()
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    override fun &lt;span style=&#34;color:#a6e22e&#34;&gt;onPause&lt;/span&gt;() {
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;super&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;onPause&lt;/span&gt;()
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView.&lt;span style=&#34;color:#a6e22e&#34;&gt;onPause&lt;/span&gt;()
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    override fun &lt;span style=&#34;color:#a6e22e&#34;&gt;onDestroy&lt;/span&gt;() {
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;super&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;onDestroy&lt;/span&gt;()
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView.&lt;span style=&#34;color:#a6e22e&#34;&gt;onDestroy&lt;/span&gt;()
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    override fun &lt;span style=&#34;color:#a6e22e&#34;&gt;onSaveInstanceState&lt;/span&gt;(outState: Bundle) {
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;super&lt;/span&gt;.&lt;span style=&#34;color:#a6e22e&#34;&gt;onSaveInstanceState&lt;/span&gt;(outState)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        mapView.&lt;span style=&#34;color:#a6e22e&#34;&gt;onSaveInstanceState&lt;/span&gt;(outState)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;布局实现-motionlayout&#34;&gt;布局实现 (MotionLayout)&lt;/h3&gt;
-&lt;p&gt;我们使用MotionLayout作为根布局，并在其中定义两个核心功能区：车模面板和地图容器。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>DFMEA Introduction</title>
-      <link>https://ethen-cao.github.io/ethenslab/ivi-solution/dfmea/dfmea-introduction/</link>
-      <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/ivi-solution/dfmea/dfmea-introduction/</guid>
-      <description>&lt;h2 id=&#34;什么是dfmea&#34;&gt;什么是DFMEA&lt;/h2&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-java" data-lang="java"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;class&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;MainActivity&lt;/span&gt; : AppCompatActivity() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;private&lt;/span&gt; lateinit &lt;span style="color:#66d9ef"&gt;var&lt;/span&gt; motionLayout: MotionLayout
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;private&lt;/span&gt; lateinit &lt;span style="color:#66d9ef"&gt;var&lt;/span&gt; mapView: TextureMapView
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;private&lt;/span&gt; lateinit &lt;span style="color:#66d9ef"&gt;var&lt;/span&gt; mapContainer: CardView
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;private&lt;/span&gt; lateinit &lt;span style="color:#66d9ef"&gt;var&lt;/span&gt; carModelPanel: LinearLayout
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;private&lt;/span&gt; lateinit &lt;span style="color:#66d9ef"&gt;var&lt;/span&gt; toggleButton: FloatingActionButton
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;private&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;var&lt;/span&gt; isFullScreen &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; override fun &lt;span style="color:#a6e22e"&gt;onCreate&lt;/span&gt;(savedInstanceState: Bundle&lt;span style="color:#f92672"&gt;?&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;super&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;onCreate&lt;/span&gt;(savedInstanceState)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 设置包含MotionLayout的主布局文件&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; setContentView(R.&lt;span style="color:#a6e22e"&gt;layout&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;activity_main_split&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; supportActionBar&lt;span style="color:#f92672"&gt;?&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;hide&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; MapsInitializer.&lt;span style="color:#a6e22e"&gt;updatePrivacyAgree&lt;/span&gt;(&lt;span style="color:#66d9ef"&gt;this&lt;/span&gt;,&lt;span style="color:#66d9ef"&gt;true&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; MapsInitializer.&lt;span style="color:#a6e22e"&gt;updatePrivacyShow&lt;/span&gt;(&lt;span style="color:#66d9ef"&gt;this&lt;/span&gt;,&lt;span style="color:#66d9ef"&gt;true&lt;/span&gt;,&lt;span style="color:#66d9ef"&gt;true&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 初始化视图&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; motionLayout &lt;span style="color:#f92672"&gt;=&lt;/span&gt; findViewById(R.&lt;span style="color:#a6e22e"&gt;id&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;motion_layout_main&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; mapContainer &lt;span style="color:#f92672"&gt;=&lt;/span&gt; findViewById(R.&lt;span style="color:#a6e22e"&gt;id&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;map_container_card&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; carModelPanel &lt;span style="color:#f92672"&gt;=&lt;/span&gt; findViewById(R.&lt;span style="color:#a6e22e"&gt;id&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;car_model_panel&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; toggleButton &lt;span style="color:#f92672"&gt;=&lt;/span&gt; findViewById(R.&lt;span style="color:#a6e22e"&gt;id&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;fab_toggle_map&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 1. Create the options object&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; val aMapOptions &lt;span style="color:#f92672"&gt;=&lt;/span&gt; AMapOptions()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 2. CRITICAL: Force the use of TextureView&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;//aMapOptions.useTextureView(true)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 3. Pass the options into the MapView constructor&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; mapView &lt;span style="color:#f92672"&gt;=&lt;/span&gt; TextureMapView(&lt;span style="color:#66d9ef"&gt;this&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 4. Add the MapView to its container&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; val mapContainer: CardView &lt;span style="color:#f92672"&gt;=&lt;/span&gt; findViewById(R.&lt;span style="color:#a6e22e"&gt;id&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;map_container_card&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; mapContainer.&lt;span style="color:#a6e22e"&gt;addView&lt;/span&gt;(mapView)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 5. Forward the lifecycle event&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; mapView.&lt;span style="color:#a6e22e"&gt;onCreate&lt;/span&gt;(savedInstanceState)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// --- 控制动画的核心逻辑 ---&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; toggleButton.&lt;span style="color:#a6e22e"&gt;setOnClickListener&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (isFullScreen) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 如果当前是全屏，则过渡到分屏状态&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; motionLayout.&lt;span style="color:#a6e22e"&gt;transitionToEnd&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; } &lt;span style="color:#66d9ef"&gt;else&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 如果当前是分屏，则过渡回全屏状态&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; motionLayout.&lt;span style="color:#a6e22e"&gt;transitionToStart&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; isFullScreen &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#f92672"&gt;!&lt;/span&gt;isFullScreen
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// --- 严格管理高德SDK的生命周期 ---&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 这是确保地图正常显示、避免内存泄漏的必要步骤&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; override fun &lt;span style="color:#a6e22e"&gt;onResume&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;super&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;onResume&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; mapView.&lt;span style="color:#a6e22e"&gt;onResume&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; override fun &lt;span style="color:#a6e22e"&gt;onPause&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;super&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;onPause&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; mapView.&lt;span style="color:#a6e22e"&gt;onPause&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; override fun &lt;span style="color:#a6e22e"&gt;onDestroy&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;super&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;onDestroy&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; mapView.&lt;span style="color:#a6e22e"&gt;onDestroy&lt;/span&gt;()
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; override fun &lt;span style="color:#a6e22e"&gt;onSaveInstanceState&lt;/span&gt;(outState: Bundle) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;super&lt;/span&gt;.&lt;span style="color:#a6e22e"&gt;onSaveInstanceState&lt;/span&gt;(outState)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; mapView.&lt;span style="color:#a6e22e"&gt;onSaveInstanceState&lt;/span&gt;(outState)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="布局实现-motionlayout"&gt;布局实现 (MotionLayout)&lt;/h3&gt;
+&lt;p&gt;我们使用MotionLayout作为根布局，并在其中定义两个核心功能区：车模面板和地图容器。&lt;/p&gt;</description></item><item><title>DFMEA Introduction</title><link>https://ethen-cao.github.io/ethenslab/ivi-solution/dfmea/dfmea-introduction/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/ivi-solution/dfmea/dfmea-introduction/</guid><description>&lt;h2 id="什么是dfmea"&gt;什么是DFMEA&lt;/h2&gt;
 &lt;p&gt;DFMEA 的全称是 设计失效模式与影响分析 (Design Failure Mode and Effects Analysis)。&lt;/p&gt;
 &lt;p&gt;它是一套系统化、结构化的分析工具，主要应用在产品的设计和开发阶段。它的核心思想是**「事前预防，而非事后补救」**。&lt;/p&gt;
 &lt;p&gt;简单来说，DFMEA 就是由一群跨职能的专家团队（通常由设计工程师领导），在产品还处在图纸上或电脑模型中时，就主动去预测：&lt;/p&gt;
@@ -1242,7 +1141,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;在找出这些潜在风险后，团队会评估其严重程度，并采取改进行动，从根本上消除或降低这些设计缺陷，以确保最终产品的质量、可靠性和安全性。&lt;/p&gt;
-&lt;h2 id=&#34;dfmea-的目的与好处&#34;&gt;DFMEA 的目的与好处&lt;/h2&gt;
+&lt;h2 id="dfmea-的目的与好处"&gt;DFMEA 的目的与好处&lt;/h2&gt;
 &lt;p&gt;实施DFMEA的主要目的和好处包括：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;
@@ -1261,9 +1160,9 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;p&gt;建立知识库： DFMEA的分析过程和结果会被记录下来，成为公司宝贵的知识资产，为未来新产品的开发提供参考。&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id=&#34;dfmea-的核心分析流程&#34;&gt;DFMEA 的核心分析流程&lt;/h2&gt;
+&lt;h2 id="dfmea-的核心分析流程"&gt;DFMEA 的核心分析流程&lt;/h2&gt;
 &lt;p&gt;根据最新的AIAG &amp;amp; VDA FMEA标准，DFMEA通常遵循一个系统化的“七步法”流程：&lt;/p&gt;
-&lt;h3 id=&#34;第一步规划与准备-planning-and-preparation&#34;&gt;第一步：规划与准备 (Planning and Preparation)&lt;/h3&gt;
+&lt;h3 id="第一步规划与准备-planning-and-preparation"&gt;第一步：规划与准备 (Planning and Preparation)&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;定义范围： 明确要分析的是整个系统、某个子系统，还是一个零件。&lt;/li&gt;
 &lt;li&gt;成立团队： 组建一个跨职能团队，成员应包含设计、制造、品质、测试等领域的专家。&lt;/li&gt;
@@ -1277,40 +1176,27 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ol&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;利益相关者需求规格书 (STKRS / L1需求):即在 SYS.1 阶段的输出。包含了客户的原始期望、用户场景、业务目标等。它回答了“客户想要什么？”。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Gradle Asm Bytecode Transformation Plugin Principles Explained</title>
-      <link>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</link>
-      <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</guid>
-      <description>&lt;h1 id=&#34;gradle-asm-字节码转换插件原理解析&#34;&gt;Gradle ASM 字节码转换插件原理解析&lt;/h1&gt;
-&lt;h2 id=&#34;引言问题与解决方案&#34;&gt;引言：问题与解决方案&lt;/h2&gt;
+&lt;p&gt;利益相关者需求规格书 (STKRS / L1需求):即在 SYS.1 阶段的输出。包含了客户的原始期望、用户场景、业务目标等。它回答了“客户想要什么？”。&lt;/p&gt;</description></item><item><title>Gradle Asm Bytecode Transformation Plugin Principles Explained</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</guid><description>&lt;h1 id="gradle-asm-字节码转换插件原理解析"&gt;Gradle ASM 字节码转换插件原理解析&lt;/h1&gt;
+&lt;h2 id="引言问题与解决方案"&gt;引言：问题与解决方案&lt;/h2&gt;
 &lt;p&gt;问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。&lt;/p&gt;
 &lt;p&gt;解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。&lt;/p&gt;
 &lt;p&gt;我们采用的解决方案是创建一个自定义的 Gradle 插件，它利用 Android Gradle 插件 (AGP) 提供的转换 API 和 ASM 字节码操作框架，在编译期直接修改生成的 .class 文件，从根本上解决 API 的兼容性问题。&lt;/p&gt;
-&lt;h2 id=&#34;核心概念&#34;&gt;核心概念&lt;/h2&gt;
+&lt;h2 id="核心概念"&gt;核心概念&lt;/h2&gt;
 &lt;p&gt;要理解这个插件，首先需要了解几个核心概念：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;Java 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。&lt;/p&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>OEM 多品牌多用户动态主题引擎 — 软件架构设计文档</title>
-      <link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</link>
-      <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</guid>
-      <description>&lt;h1&gt;&lt;/h1&gt;
+&lt;p&gt;Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。&lt;/p&gt;</description></item><item><title>OEM 多品牌多用户动态主题引擎 — 软件架构设计文档</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</guid><description>&lt;h1&gt;&lt;/h1&gt;
 &lt;p&gt;&lt;strong&gt;版本&lt;/strong&gt;：1.0
 &lt;strong&gt;日期&lt;/strong&gt;：2025-08-08
 &lt;strong&gt;作者&lt;/strong&gt;：Assistant (基于您提供的需求与设计稿)&lt;/p&gt;
 &lt;blockquote&gt;
-&lt;p&gt;目标：基于您给定的 14 项核心需求，提供一份可执行的软件架构设计，包含架构决策、模块划分、接口定义、数据模型、部署/安全/性能要点、替代方案比较与风险缓解措施。本文档假定目标设备为量产 Android 设备（不可获取 platform 私钥），支持多品牌、多用户、主题商店、云同步、个性化微调。&lt;/p&gt;&lt;/blockquote&gt;
+&lt;p&gt;目标：基于您给定的 14 项核心需求，提供一份可执行的软件架构设计，包含架构决策、模块划分、接口定义、数据模型、部署/安全/性能要点、替代方案比较与风险缓解措施。本文档假定目标设备为量产 Android 设备（不可获取 platform 私钥），支持多品牌、多用户、主题商店、云同步、个性化微调。&lt;/p&gt;
+&lt;/blockquote&gt;
 &lt;hr&gt;
-&lt;h1 id=&#34;目录&#34;&gt;目录&lt;/h1&gt;
+&lt;h1 id="目录"&gt;目录&lt;/h1&gt;
 &lt;ol&gt;
 &lt;li&gt;概述&lt;/li&gt;
 &lt;li&gt;需求映射（与优先级）&lt;/li&gt;
@@ -1329,10 +1215,10 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 附录：PlantUML 示例（安装/应用序列）与示例 AIDL、表结构&lt;/li&gt;
 &lt;/ol&gt;
 &lt;hr&gt;
-&lt;h1 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h1&gt;
+&lt;h1 id="1-概述"&gt;1. 概述&lt;/h1&gt;
 &lt;p&gt;本架构旨在实现一个企业级、可扩展的主题引擎，满足 OEM 的多品牌预置需求、运行时主题切换、个性化微调、云端同步与多用户隔离。设计原则：&lt;strong&gt;安全优先 → 稳定性 → 可维护性 → 兼顾迭代速度&lt;/strong&gt;。在关键点（TMS 放置、个性化如何实现）提供两条可选路径并给出推荐。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h1 id=&#34;2-需求映射优先级&#34;&gt;2. 需求映射（优先级）&lt;/h1&gt;
+&lt;h1 id="2-需求映射优先级"&gt;2. 需求映射（优先级）&lt;/h1&gt;
 &lt;p&gt;将原始 14 项需求按优先级分为必需/强烈期望/可选：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;必需（M）&lt;/strong&gt;：多品牌预设（1），动态主题切换（2），全局深度美化（3），多用户隔离（4），安全与权限控制（8），兼容性检测与恢复默认（12/14）。&lt;/li&gt;
@@ -1341,17 +1227,10 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ul&gt;
 &lt;p&gt;架构设计将优先保证 M/H 级需求实现，并对 L 级给出实用可落地方案。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h1 id=&#34;3-总体架构两种部署选型&#34;&gt;3. 总体架构（两种部署选型）&lt;/h1&gt;
-&lt;h2 id=&#34;概览&#34;&gt;概览&lt;/h2&gt;
-&lt;p&gt;主要参与方：&lt;strong&gt;主题商店 App (StoreApp)&lt;/strong&gt;、&lt;strong&gt;ThemeManagerService (TMS)&lt;/strong&gt;、&lt;strong&gt;OverlayManagerService (OMS)&lt;/strong&gt;、&lt;strong&gt;PackageManagerService (PMS)&lt;/strong&gt;、&lt;strong&gt;AssetManager&lt;/strong&gt;、&lt;strong&gt;ThemeDB&lt;/strong&gt; 与 &lt;strong&gt;OEM 云服务&lt;/strong&gt;（Server / AccountServer）。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>QNX Screen基础原理与流程</title>
-      <link>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</link>
-      <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</guid>
-      <description>&lt;h2 id=&#34;qnx图形栈&#34;&gt;QNX图形栈&lt;/h2&gt;
-&lt;p&gt;&lt;img alt=&#34;screen_post_window&#34; loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/qnx-screen-overview.png&#34;&gt;&lt;/p&gt;
+&lt;h1 id="3-总体架构两种部署选型"&gt;3. 总体架构（两种部署选型）&lt;/h1&gt;
+&lt;h2 id="概览"&gt;概览&lt;/h2&gt;
+&lt;p&gt;主要参与方：&lt;strong&gt;主题商店 App (StoreApp)&lt;/strong&gt;、&lt;strong&gt;ThemeManagerService (TMS)&lt;/strong&gt;、&lt;strong&gt;OverlayManagerService (OMS)&lt;/strong&gt;、&lt;strong&gt;PackageManagerService (PMS)&lt;/strong&gt;、&lt;strong&gt;AssetManager&lt;/strong&gt;、&lt;strong&gt;ThemeDB&lt;/strong&gt; 与 &lt;strong&gt;OEM 云服务&lt;/strong&gt;（Server / AccountServer）。&lt;/p&gt;</description></item><item><title>QNX Screen基础原理与流程</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</guid><description>&lt;h2 id="qnx图形栈"&gt;QNX图形栈&lt;/h2&gt;
+&lt;p&gt;&lt;img alt="screen_post_window" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/qnx-screen-overview.png"&gt;&lt;/p&gt;
 &lt;p&gt;一个 QNX 应用程序从无到有，完成一帧 (frame) 窗口渲染并显示在屏幕上的完整过程。&lt;/p&gt;
 &lt;p&gt;整个过程可以分为两个核心阶段：&lt;/p&gt;
 &lt;ol&gt;
@@ -1362,27 +1241,20 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;p&gt;&lt;strong&gt;提交与显示阶段&lt;/strong&gt;：应用程序通知系统绘制完成，由系统和硬件接手，将内容呈现在屏幕上。&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;h3 id=&#34;第一阶段准备与渲染-steps-1-6&#34;&gt;第一阶段：准备与渲染 (Steps 1-6)&lt;/h3&gt;
-&lt;h4 id=&#34;步骤-1--2请求并获取窗口缓冲区-buffer&#34;&gt;&lt;strong&gt;步骤 1 &amp;amp; 2：请求并获取窗口缓冲区 (Buffer)&lt;/strong&gt;&lt;/h4&gt;
+&lt;h3 id="第一阶段准备与渲染-steps-1-6"&gt;第一阶段：准备与渲染 (Steps 1-6)&lt;/h3&gt;
+&lt;h4 id="步骤-1--2请求并获取窗口缓冲区-buffer"&gt;&lt;strong&gt;步骤 1 &amp;amp; 2：请求并获取窗口缓冲区 (Buffer)&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;执行者&lt;/strong&gt;：&lt;code&gt;QNX Application&lt;/code&gt;, &lt;code&gt;QNX Screen&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;关键 API&lt;/strong&gt;：&lt;code&gt;screen_create_window_buffers()&lt;/code&gt;&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;一个应用程序（例如 HMI 界面）首先需要一块“画布”来进行绘制。它会调用 QNX Screen 提供的 API，请求创建一个窗口以及与之关联的一组（通常是两个或三个，用于实现双缓冲/三缓冲技术）图形缓冲区 (Framebuffers)。&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;QNX Screen&lt;/code&gt; 作为窗口系统管理者，并不会自己分配这块特殊的内存。它会通过 IPC (进程间通信) &lt;strong&gt;请求&lt;/strong&gt; &lt;code&gt;Display/GPU Driver&lt;/code&gt; (资源管理器) 来分配。驱动程序会分配一块符合硬件要求（例如物理上连续）的共享内存，并将其句柄 (handle) 返回给 &lt;code&gt;Screen&lt;/code&gt;。最后，&lt;code&gt;Screen&lt;/code&gt; 再将代表这些 Buffer 的句柄返回给应用程序。至此，应用程序拥有了可以在上面作画的“画布”。&lt;/p&gt;
-&lt;h4 id=&#34;步骤-3--4提交绘图指令&#34;&gt;&lt;strong&gt;步骤 3 &amp;amp; 4：提交绘图指令&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="步骤-3--4提交绘图指令"&gt;&lt;strong&gt;步骤 3 &amp;amp; 4：提交绘图指令&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;执行者&lt;/strong&gt;：&lt;code&gt;QNX Application&lt;/code&gt;, &lt;code&gt;Graphics API (OpenGL ES + EGL)&lt;/code&gt;, &lt;code&gt;GPU Driver&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;关键 API/机制&lt;/strong&gt;：&lt;code&gt;eglSwapBuffers()&lt;/code&gt;, QNX IPC (&lt;code&gt;msg&lt;/code&gt;/&lt;code&gt;devctl&lt;/code&gt;)&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;应用程序使用像 OpenGL ES 这样的标准图形 API 来描述要绘制的内容（例如按钮、仪表盘、3D 模型等）。这些 API 调用定义了图元的形状、纹理和颜色。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>智能座舱软件开发 CI/CD 流程技术说明文档</title>
-      <link>https://ethen-cao.github.io/ethenslab/others/ci-cd/</link>
-      <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/others/ci-cd/</guid>
-      <description>&lt;h2 id=&#34;1-概述&#34;&gt;&lt;strong&gt;1. 概述&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;应用程序使用像 OpenGL ES 这样的标准图形 API 来描述要绘制的内容（例如按钮、仪表盘、3D 模型等）。这些 API 调用定义了图元的形状、纹理和颜色。&lt;/p&gt;</description></item><item><title>智能座舱软件开发 CI/CD 流程技术说明文档</title><link>https://ethen-cao.github.io/ethenslab/others/ci-cd/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/ci-cd/</guid><description>&lt;h2 id="1-概述"&gt;&lt;strong&gt;1. 概述&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;核心组件:&lt;/strong&gt;&lt;/p&gt;
 &lt;ul&gt;
@@ -1394,9 +1266,9 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;li&gt;&lt;strong&gt;部署与发布&lt;/strong&gt;: OTA 服务器, TSP (车载信息服务提供商) 服务器&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h2 id=&#34;2-详细流程与技术实现原理&#34;&gt;&lt;strong&gt;2. 详细流程与技术实现原理&lt;/strong&gt;&lt;/h2&gt;
-&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/Intelligent-cabin-software-development-and-release-process.png&#34;&gt;&lt;/p&gt;
-&lt;h3 id=&#34;阶段-1--2-开发者工作流&#34;&gt;&lt;strong&gt;阶段 1 &amp;amp; 2: 开发者工作流&lt;/strong&gt;&lt;/h3&gt;
+&lt;h2 id="2-详细流程与技术实现原理"&gt;&lt;strong&gt;2. 详细流程与技术实现原理&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/Intelligent-cabin-software-development-and-release-process.png"&gt;&lt;/p&gt;
+&lt;h3 id="阶段-1--2-开发者工作流"&gt;&lt;strong&gt;阶段 1 &amp;amp; 2: 开发者工作流&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;
@@ -1412,14 +1284,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;[02] &lt;code&gt;repo start &amp;amp; git commit&lt;/code&gt; 本地开发&lt;/strong&gt;:&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>WindowManagerService 解析</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</link>
-      <pubDate>Tue, 29 Jul 2025 10:22:54 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</guid>
-      <description>&lt;h2 id=&#34;windowmanagerservice-概述&#34;&gt;WindowManagerService 概述&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;[02] &lt;code&gt;repo start &amp;amp; git commit&lt;/code&gt; 本地开发&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title>WindowManagerService 解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</link><pubDate>Tue, 29 Jul 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</guid><description>&lt;h2 id="windowmanagerservice-概述"&gt;WindowManagerService 概述&lt;/h2&gt;
 &lt;p&gt;WindowManagerService（简称WMS）是Android系统中负责窗口（Window）管理的核心系统服务。它是屏幕上所有可见元素的“总管家”，决定了所有窗口的外观、行为和交互方式。&lt;/p&gt;
 &lt;p&gt;作为Android框架层（Framework Layer）的关键部分，WMS随系统启动，并稳定运行在权限极高的 system_server 进程中。这个位置赋予了它管理所有应用窗口和系统窗口的最高权限。&lt;/p&gt;
 &lt;p&gt;WMS的角色像一个“总指挥”，它并不亲自执行所有底层操作，而是协调系统中的多个组件来共同完成对窗口的生命周期管理。其核心作用包括：&lt;/p&gt;
@@ -1443,9 +1308,9 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;p&gt;输入事件分发 (Input Event Dispatching): 作为输入系统的关键一环，WMS接收原始的触摸、按键等事件，准确判断事件应该由哪个窗口接收，并交由 InputDispatcher 进行精确投递。&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id=&#34;窗口的创建与管理&#34;&gt;窗口的创建与管理&lt;/h2&gt;
+&lt;h2 id="窗口的创建与管理"&gt;窗口的创建与管理&lt;/h2&gt;
 &lt;p&gt;窗口的创建请求总是由应用进程发起的，WMS 则是请求的响应者和执行者。&lt;/p&gt;
-&lt;p&gt;&lt;img alt=&#34;WindowState 创建时序示意图&#34; loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/windowstate-creation.png&#34;&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="WindowState 创建时序示意图" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/windowstate-creation.png"&gt;&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;触发流程&lt;/strong&gt;：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;应用层调用：当一个 Activity 的 onResume() 回调被触发，准备变得可见时，其内部的 PhoneWindow 会通过 WindowManager.addView() 方法将它的根视图（DecorView）添加到窗口中。这个调用是应用请求显示UI的起点。&lt;/li&gt;
@@ -1453,26 +1318,54 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;li&gt;Binder IPC 调用：ViewRootImpl 通过一个名为 IWindowSession 的 Binder 接口，向 WMS 发起一个远程调用，通常是 addToDisplay()。这个调用会携带两个核心信息：
 &lt;ul&gt;
 &lt;li&gt;Window Token: 一个唯一的 Binder 令牌，用于将这个窗口与 AMS 中的 ActivityRecord 关联起来，WMS据此知道这个窗口属于哪个Activity。
-&lt;img alt=&#34;WindowToken创建与使用示意图&#34; loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/windowtoken-creation-transport.png&#34;&gt;&lt;/li&gt;
+&lt;img alt="WindowToken创建与使用示意图" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/windowtoken-creation-transport.png"&gt;&lt;/li&gt;
 &lt;li&gt;WindowManager.LayoutParams: 一个包含了窗口所有期望属性的参数集，如窗口的类型（应用窗口、系统窗口）、尺寸（MATCH_PARENT等）、标志（FLAG_NOT_FOCUSABLE等）和 gravity。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>ActivityManager 深度解析</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</link>
-      <pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</guid>
-      <description>&lt;p&gt;Activity Manager详解&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title></title>
-      <link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link>
-      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid>
-      <description></description>
-    </item>
-  </channel>
-</rss>
+&lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>ActivityManager 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</guid><description>&lt;p&gt;Activity Manager详解&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity_raparent/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity_raparent/</guid><description>&lt;p&gt;当 &lt;code&gt;startActivity&lt;/code&gt; 请求将一个已存在于主屏的 &lt;code&gt;Activity&lt;/code&gt; 移动到副屏时，核心决策发生在 &lt;code&gt;ActivityStarter&lt;/code&gt; 的 &lt;code&gt;setTargetRootTaskIfNeeded&lt;/code&gt; 方法中。该方法会直接调用 &lt;code&gt;Task.reparent()&lt;/code&gt; 来执行跨屏迁移。由于继承关系，这个调用最终会执行 &lt;code&gt;WindowContainer.reparent()&lt;/code&gt; 方法，该方法是整个转场动画和窗口层级变更的真正起点，它在内部&lt;strong&gt;直接调用 &lt;code&gt;onDisplayChanged&lt;/code&gt;&lt;/strong&gt;，并将变更以递归方式通知到目标 &lt;code&gt;ActivityRecord&lt;/code&gt;。&lt;/p&gt;
+&lt;h3 id="从-startactivity-到-ondisplaychanged-的精确流程与调用堆栈"&gt;从 &lt;code&gt;startActivity&lt;/code&gt; 到 &lt;code&gt;onDisplayChanged&lt;/code&gt; 的精确流程与调用堆栈&lt;/h3&gt;
+&lt;h4 id="阶段一activitytaskmanagerservice--activitystarter---决策与指令发起"&gt;阶段一：ActivityTaskManagerService &amp;amp; ActivityStarter - 决策与指令发起&lt;/h4&gt;
+&lt;p&gt;此阶段在 &lt;code&gt;system_server&lt;/code&gt; 的 ATMS 线程中进行，&lt;code&gt;ActivityStarter&lt;/code&gt; 是核心决策者。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;入口: &lt;code&gt;ActivityTaskManagerService.startActivity()&lt;/code&gt;&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;用户或应用发起 &lt;code&gt;startActivity&lt;/code&gt; 请求，通过 Binder 调用进入 &lt;code&gt;ActivityTaskManagerService&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;ATMS 将请求委托给一个 &lt;code&gt;ActivityStarter&lt;/code&gt; 实例来处理。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;ActivityStarter.execute()&lt;/code&gt; -&amp;gt; &lt;code&gt;startActivityUnchecked()&lt;/code&gt; -&amp;gt; &lt;code&gt;startActivityInner()&lt;/code&gt;&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;这是所有 Activity 启动请求的统一处理流程。&lt;/li&gt;
+&lt;li&gt;在 &lt;code&gt;startActivityInner()&lt;/code&gt; 内部，系统会调用 &lt;code&gt;getReusableTask()&lt;/code&gt; 来寻找一个可以重用的、已存在的 &lt;code&gt;Task&lt;/code&gt;。在您的场景中，这一步会成功找到 &lt;code&gt;MainActivity&lt;/code&gt; 所在的 &lt;code&gt;Task&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;因为找到了 &lt;code&gt;reusedTask&lt;/code&gt;，流程会进入 &lt;code&gt;recycleTask()&lt;/code&gt; 方法。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;ActivityStarter.recycleTask()&lt;/code&gt; -&amp;gt; &lt;code&gt;setTargetRootTaskIfNeeded()&lt;/code&gt;: 做出 &lt;code&gt;reparent&lt;/code&gt; 决策&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/</guid><description>&lt;h3 id="transitionhandler"&gt;TransitionHandler&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;TransitionHandler&lt;/code&gt; 是一个&lt;strong&gt;接口 (Interface)&lt;/strong&gt;，它为 Shell 动画系统定义了一个**“动画处理器”&lt;strong&gt;的标准或&lt;/strong&gt;契约**。&lt;/p&gt;
+&lt;p&gt;可以把它想象成一个&lt;strong&gt;专家岗位说明书&lt;/strong&gt; 📜。任何一个类，只要实现了 &lt;code&gt;TransitionHandler&lt;/code&gt; 接口，就意味着它具备了处理一类特定窗口过渡动画的专业能力，并可以被 &lt;code&gt;Transitions&lt;/code&gt; （动画总调度室）统一管理和调度。&lt;/p&gt;
+&lt;h4 id="核心职责"&gt;核心职责&lt;/h4&gt;
+&lt;p&gt;一个 &lt;code&gt;TransitionHandler&lt;/code&gt; 实现类，其核心职责主要有两个：&lt;/p&gt;
+&lt;h5 id="1-认领任务-claim-the-job---通过-handlerequest-方法"&gt;1. 认领任务 (Claim the Job) - 通过 &lt;code&gt;handleRequest&lt;/code&gt; 方法&lt;/h5&gt;
+&lt;p&gt;这是 &lt;code&gt;TransitionHandler&lt;/code&gt; &lt;strong&gt;最关键&lt;/strong&gt;的职责。当 &lt;code&gt;Transitions.requestStartTransition&lt;/code&gt; 方法收到一个来自系统的动画请求时，它会遍历其内部的 &lt;code&gt;Handler&lt;/code&gt; 列表，并调用每个 &lt;code&gt;Handler&lt;/code&gt; 的 &lt;code&gt;handleRequest&lt;/code&gt; 方法。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;“这是我的活儿吗？”&lt;/strong&gt;: 在 &lt;code&gt;handleRequest&lt;/code&gt; 方法内部，&lt;code&gt;Handler&lt;/code&gt; 会检查传入的 &lt;code&gt;TransitionRequestInfo&lt;/code&gt;（动画请求信息），根据动画的类型 (&lt;code&gt;type&lt;/code&gt;)、触发任务 (&lt;code&gt;triggerTask&lt;/code&gt;)、窗口模式等信息，来判断这是否是自己应该处理的动画场景。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;例如，&lt;code&gt;RecentsTransitionHandler&lt;/code&gt; 会检查动画类型是否与“最近任务”相关。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;UnfoldTransitionHandler&lt;/code&gt; 会检查设备是否正在折叠/展开。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;如何认领&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;如果 &lt;code&gt;Handler&lt;/code&gt; 决定处理这个请求，它会返回一个 &lt;code&gt;WindowContainerTransaction&lt;/code&gt; 对象（即使这个对象是空的）。这就像举手说：“这个我来处理！”&lt;/li&gt;
+&lt;li&gt;如果 &lt;code&gt;Handler&lt;/code&gt; 认为这个请求不归自己管，它会返回 &lt;code&gt;null&lt;/code&gt;。&lt;code&gt;Transitions&lt;/code&gt; 看到 &lt;code&gt;null&lt;/code&gt; 后，就会继续去问下一个 &lt;code&gt;Handler&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h5 id="2-执行动画-execute-the-animation"&gt;2. 执行动画 (Execute the Animation)&lt;/h5&gt;
+&lt;p&gt;一旦一个 &lt;code&gt;Handler&lt;/code&gt; 通过返回非 &lt;code&gt;null&lt;/code&gt; 的 &lt;code&gt;WCT&lt;/code&gt; 成功“认领”了一个 &lt;code&gt;Transition&lt;/code&gt;，它就&lt;strong&gt;全权负责&lt;/strong&gt;这个 &lt;code&gt;Transition&lt;/code&gt; 的动画实现。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item></channel></rss>

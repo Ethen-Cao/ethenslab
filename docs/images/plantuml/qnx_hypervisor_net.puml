@@ -1,0 +1,107 @@
+@startuml
+!theme plain
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+
+
+rectangle "T-Box" as TBOX #LightYellow {
+}
+
+rectangle "IVI" as IVI #White {
+  ' ==== QNX Host（左） ====
+  rectangle "QNX Host" as Host #LightGreen {
+    rectangle "io-pkt" as IOPKT #MintCream {
+      component "vdevpeer\n(/dev/vdevpeer/vp_la)" as VdevPeer
+      component "bridge / route / VLAN" as Bridge
+      component "eth driver" as EthDrv
+    }
+
+    rectangle "qvm process" as QVM #White {
+      component "vdev-virtio-net\n(name = la_to_host)" as Vdev
+    }
+  }
+
+  ' ==== Android guest（右） ====
+  rectangle "Android guest" as Android #LightCyan {
+    component "Android App" as App
+    component "Java网络库" as JNet
+    component "libc" as Libc
+    component "linux 网络协议栈" as LNet
+    component "virtio-net驱动\n(eth0)" as VirtioFE
+    component "virtqueue / shared memory\n(TX/RX 环形队列 + desc)" as Shmem
+  }
+
+
+  ' ==== 底部 Hypervisor 条 ====
+  rectangle "\n\t\t\t\t\t\t\t\tHypervisor\t\t\t\t\t\t\t\t\n" as Hyper #DDDDDD {
+  }
+
+}
+
+
+
+
+' ====== Guest 内部调用链 ======
+App --> JNet
+JNet --> Libc
+Libc --> LNet
+LNet --> VirtioFE
+
+' ====== 数据路径：virtqueue buffer ======
+VirtioFE --> Shmem : 填写 desc / avail
+
+Shmem --> Vdev : vdev 访问\nvirtqueue buffer
+
+' ====== 事件路径：kick / guest exit / vdev ======
+
+' 1) guest 写 QueueNotify (MMIO) → guest exit
+VirtioFE --> Hyper : 写 virtio QueueNotify\n(MMIO -> guest exit)
+
+' 2) hypervisor 唤醒 qvm vCPU 线程
+Hyper -up-> QVM : VM exit 事件\n(含访问地址/队列号)
+
+' 3) qvm 调用 vdev-virtio-net 处理 kick
+QVM -[dashed]-> Vdev : vdev-virtio-net\nhandle_kick(queue_id)
+
+' ====== vdev-virtio-net ↔ vdevpeer / io-pkt ======
+Vdev -left-> VdevPeer : /dev/qvm/la/la_to_host\n↔ /dev/vdevpeer/vp_la
+
+VdevPeer --> Bridge
+Bridge --> EthDrv
+EthDrv -left-> TBOX
+
+
+' ====== 说明 Note ======
+
+note bottom of Shmem
+  virtqueue / shared memory:
+  - desc table (addr,len,flags,next)
+  - avail ring (guest 写入)
+  - used ring  (vdev 写回)
+end note
+
+note right of Hyper
+  Hypervisor 截获 guest 对 loc 0x1b018000
+  等 MMIO 区域的访问：
+  - 触发 guest exit
+  - 携带访问地址/数据
+end note
+
+note right of QVM
+  qvm 在 vCPU 线程里调用“run”接口：
+  - 正常时阻塞在 hypervisor 中
+  - 有 guest exit 时返回
+  - 根据 exit 地址分发到对应 vdev
+end note
+
+note right of Vdev
+  vdev-virtio-net 处理流程：
+  1. 根据 queue_id 找到 TX virtqueue
+  2. 扫描 avail ring 找新 desc
+  3. 通过共享地址空间访问 guest buffer
+  4. 用 iov/memcpy 取出以太帧数据
+  5. 交给 vdevpeer / io-pkt
+end note
+
+@enduml

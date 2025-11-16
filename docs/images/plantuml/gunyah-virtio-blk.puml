@@ -1,0 +1,60 @@
+@startuml
+!theme plain
+
+top to bottom direction
+
+legend right
+<color:#1F77B4>── Data Path（数据面）</color>
+<color:#FF7F0E>── Command / Control（控制面：kick/irq/索引/状态）</color>
+endlegend
+
+Frame "Android Guest (VM)" as G #LightCyan {
+  [Android Application] as App
+  package "Linux kernel" {
+    [FileSystem] as FS
+    [virtio-blk (frontend)] as VblkFE
+  }
+
+  App -[hidden]down-> FS
+  FS -[hidden]down-> VblkFE
+}
+
+frame "Guest RAM (shared)" as GRAM #CFD8DC {
+  component "Virtqueue (Avail/Used)\n[元数据: 描述符/索引/状态]\n+ Guest Buffers [数据缓冲]" as VQ
+}
+
+Frame "Linux Host" as H #LightGreen {
+  package "Userspace" {
+    [qcrosvm (VMM + virtio-blk backend)] as VMM
+  }
+  package "Kernelspace" {
+    [Gunyah Host Driver\n(ioeventfd/irqfd 等)] as GHDRV
+  }
+
+  VMM -[hidden]down-> GHDRV
+}
+
+
+rectangle "\n\t\t\t\tGunyah Hypervisor\t\t\t\t\n" as HV
+
+
+database "Backing Storage\n(Disk image / block dev)" as Disk
+
+' --- control plane (橙色) ---
+VblkFE -[#FF7F0E]--> VQ : 提交描述符(Avail ring)\n[CTRL]
+VblkFE -[#FF7F0E]down-> HV : MMIO QueueNotify\n[CTRL]
+HV -[#FF7F0E]up--> GHDRV : 陷入/事件\n[CTRL]
+GHDRV -[#FF7F0E]> VMM : 唤醒设备线程\n[CTRL]
+VMM -[#FF7F0E]-> VQ : 取描述符/更新 Used ring\n[CTRL]
+VMM -[#FF7F0E]down-> GHDRV : 请求注入虚拟中断(irqfd/ioctl)\n[CTRL]
+GHDRV -[#FF7F0E]down--> HV : 中断路由\n[CTRL]
+HV -[#FF7F0E]> VblkFE : 注入虚拟中断(IRQ)\n[CTRL]
+HV -[hidden]up-VQ
+' --- data plane (蓝色) ---
+App -[#1F77B4]> FS
+FS -[#1F77B4]> VblkFE : read()/write()
+VMM -[#1F77B4]> Disk : 读写后端存储
+VMM -[#1F77B4]> VQ : 通过描述符定位 Guest Buffers，\n把数据写入/读出这些缓冲区\n[DATA]
+VblkFE -[#1F77B4]> FS : 从 Guest Buffers 取/放数据，完成请求
+
+@enduml

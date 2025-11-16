@@ -1,0 +1,122 @@
+@startuml
+' Participants
+actor ActivityManager
+participant "ActivityStartController\n(ActivityStartController.java)" as ASC
+participant "ActivityStarter\n(ActivityStarter.java)" as AS
+participant "ActivityTaskManagerService\n(ATM / ActivityRecord)" as ATM
+participant "WindowManagerService\n(WindowManagerService.java)" as WMS
+participant "StartingSurfaceController\n(TaskOrganizerController/StartingSurface)" as SSC
+participant "DisplayContent\n(DisplayContent.java)\nmOpeningApps / mClosingApps" as DC
+participant "AppTransition\n(AppTransition.java)" as AT
+participant "TransitionController\n(AppTransitionController.java)" as TC
+participant "WindowAnimator\n(WindowAnimator.java)\nanimate()" as WA
+participant "WindowStateAnimator\n(WindowStateAnimator.java)" as WSA
+participant "SurfaceFlinger\n(SF)" as SF
+participant "ActivityThread (client)\n(App process B)" as ActivityThread
+participant "AppB (Activity B)\n(ActivityRecord B)" as AppB
+participant "AppA (Activity A)\n(ActivityRecord A)" as AppA
+
+== Launch request and Activity lifecycle ==
+ActivityManager -> ASC : requestStartActivity(intent B)
+activate ASC
+ASC -> AS : obtainStarter(...).execute()
+activate AS
+AS -> ATM : prepare ActivityRecord B / create token
+ATM -> WMS : notify starting window / starting-surface (via SSC)\n(e.g. TaskOrganizerController.addStartingWindow)
+activate WMS
+WMS -> SSC : beginDeferAddStartingWindow() (optional)
+SSC -> SSC : add starting-surface (starting window)
+SSC --> WMS : starting window added
+WMS -> DC : dc.prepareAppTransition(TRANSIT_OPEN / TRANSIT_NONE)
+activate DC
+DC -> AT : AT.prepareAppTransition(transit, flags)
+activate AT
+AT -> AT : mNextAppTransitionRequests.add(transit)\npost APP_TRANSITION_TIMEOUT_MS runnable
+deactivate AT
+DC --> WMS : prepared
+WMS -> DC : dc.mOpeningApps.add(ActivityRecord B)
+note right of DC: mOpeningApps contains B
+deactivate WMS
+deactivate AS
+deactivate ASC
+
+== Activity process lifecycle (client side) ==
+AS -> ActivityThread : start process / bind activity B\n(scheduleLaunchActivity)
+activate ActivityThread
+ActivityThread -> AppB : Activity B: onCreate()
+AppB -> ActivityThread : returns
+ActivityThread -> AppB : Activity B: onStart()
+ActivityThread -> AppB : Activity B: onResume()
+ActivityThread -> ActivityThread : attach Window / create ViewRootImpl
+ActivityThread -> WMS : attach window (ViewRootImpl setView)\n(WindowManager adds window -> WindowState)
+deactivate ActivityThread
+
+== Window/starting-window drawing events and interactions ==
+note over AppB,DC: Two common cases: starting-window displayed or starting-window replaced by real window
+
+' 1) Starting window gets drawn (splash)
+SSC -> DC : starting window drawn (reported by WindowState)
+DC -> AppB : ActivityRecord.onStartingWindowDrawn()
+activate AppB
+AppB -> DC : if (!mDisplayContent.mAppTransition.isReady() && isNextTransitionForward())\n=> mDisplayContent.executeAppTransition()
+DC -> TC : TC.setReady(this)
+DC -> AT : if (AT.isTransitionSet()) AT.setReady()
+AT -> WMS : AT.setReady() -> mWindowPlacerLocked.requestTraversal()
+deactivate AppB
+
+' 2) First real window drawn
+AppB -> DC : ActivityRecord.onFirstWindowDrawn(WindowState win)
+activate DC
+DC -> DC : removeStartingWindow() (if pure task)\nor schedule removal when all drawn
+DC -> WMS : updateReportedVisibilityLocked() -> maybe showAllWindowsLocked()
+note right of DC: onFirstWindowDrawn may cancel starting animation\nand call removeStartingWindow()
+deactivate DC
+
+' 3) All windows of token drawn -> checkAppWindowsReadyToShow
+WMS -> DC : (during animate/placement) DC.checkAppWindowsReadyToShow()
+activate DC
+DC -> DC : if (allDrawn) {\n   if (mFreezingScreen) stopFreezingScreen...\n   else setAppLayoutChanges(FINISH_LAYOUT_REDO_ANIM)\n   if (!mOpeningApps.contains(this) && canShowWindows()) showAllWindowsLocked()\n}
+DC -> WMS : maybe showAllWindowsLocked() -> call WindowState.performShowLocked()
+deactivate DC
+
+== AppTransition execute & animation start ==
+DC -> DC : DC.executeAppTransition() (when start condition met)
+activate DC
+DC -> TC : TC.setReady(this) // shell transition ready
+DC -> AT : if (AT.isTransitionSet()) AT.setReady()
+AT -> WMS : AT.setReady() -> mWindowPlacerLocked.requestTraversal()
+deactivate DC
+
+' Animation frame: WindowAnimator driven
+WA -> WA : Choreographer SF callback -> animate(frameTime)
+activate WA
+WA -> WMS : openSurfaceTransaction()
+activate WMS
+WA -> DC : DC.updateWindowsForAnimator() (mark entering/exiting)
+DC -> WSA : for each window: WSA.selectAnimationAndPrepare()
+activate WSA
+WSA -> WSA : load animation (AppTransition or window attrs)\ncreate AnimationAdapter
+WSA -> WA : register animation / SurfaceAnimator.startAnimation()
+deactivate WSA
+WA -> WMS : commit SurfaceControl.Transaction -> SF composite
+SF -> SF : composes frames (user sees animation)
+deactivate WMS
+deactivate WA
+
+== Animation finish -> exit cleanup ==
+WSA -> WSA : onAnimationFinished()
+WSA -> WMS : notify finished
+WMS -> AppA : WindowState.onExitAnimationDone() for exiting window A
+note right: onExitAnimationDone(): mDestroying=true;\nWinAnimator.hide(...); destroySurface() or mWmService.mDestroySurface.add(this)
+WMS -> WMS : process mDestroySurface list later -> destroySurfaceUnchecked()
+
+== AppTransition end and layout update ==
+AT -> DC : AT.setIdle() or AT.setTimeout() (on timeout)
+DC -> DC : handleAnimatingStoppedAndTransition():\n- mAppTransition.setIdle()\n- notify listeners\n- hide deferred wallpapers\n- onAppTransitionDone()\n- pendingLayoutChanges |= FINISH_LAYOUT_REDO_LAYOUT
+DC -> WMS : mWindowPlacerLocked.requestTraversal()
+
+' Report activity launched (metrics) once windows drawn
+DC -> ATM : ActivityRecord.onWindowsDrawn() -> mTaskSupervisor.reportActivityLaunched(...)
+note right of ATM: reports launch time / metrics to ActivityManager
+
+@enduml

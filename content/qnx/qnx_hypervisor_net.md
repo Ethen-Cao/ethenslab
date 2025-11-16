@@ -6,7 +6,7 @@ title = 'QNX-Android IVI 架构中的 virtio-net 通信'
 
 本文基于一张 QNX Host + Android guest + Hypervisor + T-Box 的 virtio-net 架构图整理而成，图中展示了从 Android App 到车外 T-Box 的完整网络路径。
 
-![](/ethen/images/virtio-net.drawio.png)
+![](/ethenslab/images/virtio-net.drawio.png)
 
 ---
 

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Gunyah开发笔记 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/gunyah/</link><description>Recent content in Gunyah开发笔记 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 04 Aug 2025 09:49:58 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/gunyah/index.xml" rel="self" type="application/rss+xml"/><item><title>Gunyah virtio-blk 通信机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>&lt;h2 id="block图"&gt;Block图&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/gunyah-virtio-blk.png"&gt;&lt;/p&gt;
+&lt;p&gt;下面是这张图的解读与要点说明（橙色=控制面，蓝色=数据面）：&lt;/p&gt;
+&lt;h3 id="总览"&gt;总览&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Guest 侧&lt;/strong&gt;：Android App 通过文件系统到 &lt;code&gt;virtio-blk&lt;/code&gt; 前端驱动（VblkFE）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;共享内存&lt;/strong&gt;：&lt;code&gt;Guest RAM (shared)&lt;/code&gt; 中包含 &lt;strong&gt;virtqueue(Avail/Used)&lt;/strong&gt; 元数据与 &lt;strong&gt;Guest Buffers&lt;/strong&gt; 数据缓冲区。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Host 侧&lt;/strong&gt;：&lt;code&gt;qcrosvm&lt;/code&gt;（VMM）实现 &lt;code&gt;virtio-blk&lt;/code&gt; &lt;strong&gt;后端&lt;/strong&gt;，通过 &lt;strong&gt;Gunyah Host Driver&lt;/strong&gt; 与 &lt;strong&gt;Gunyah Hypervisor&lt;/strong&gt; 交互；真实数据落在 &lt;strong&gt;Backing Storage&lt;/strong&gt;（镜像文件或块设备）上。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;分工&lt;/strong&gt;：Hypervisor 只做 &lt;strong&gt;陷入与中断路由&lt;/strong&gt;，&lt;strong&gt;不搬数据&lt;/strong&gt;；数据由 &lt;strong&gt;VMM↔Guest Buffers↔Disk&lt;/strong&gt; 在蓝色路径中完成。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="控制面橙色"&gt;控制面（橙色）&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;提交请求&lt;/strong&gt;：Guest 的 VblkFE 将 &lt;strong&gt;描述符&lt;/strong&gt;（指向 Guest Buffers 的 GPA、长度、方向）写入 &lt;strong&gt;Avail ring&lt;/strong&gt;，并对设备寄存器执行 &lt;strong&gt;MMIO QueueNotify&lt;/strong&gt;（kick）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;陷入与唤醒&lt;/strong&gt;：MMIO 被 Hypervisor 拦截，转交 Host 的 &lt;strong&gt;Gunyah Host Driver&lt;/strong&gt;，唤醒 &lt;strong&gt;qcrosvm&lt;/strong&gt; 的设备处理线程。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;队列处理&lt;/strong&gt;：VMM 读取 &lt;strong&gt;Avail ring&lt;/strong&gt;，解析描述符；完成 I/O 后更新 &lt;strong&gt;Used ring&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;中断返回&lt;/strong&gt;：VMM 请求 Host Driver 触发虚拟中断，Hypervisor 将 &lt;strong&gt;IRQ 注入 Guest&lt;/strong&gt;，通知前端有请求完成。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;blockquote&gt;
+&lt;p&gt;关键点：&lt;strong&gt;virtqueue 只承载“元数据与索引”&lt;/strong&gt;（哪块缓冲、多大、读写方向、完成状态），&lt;strong&gt;不承载数据本体&lt;/strong&gt;。&lt;/p&gt;</description></item></channel></rss>

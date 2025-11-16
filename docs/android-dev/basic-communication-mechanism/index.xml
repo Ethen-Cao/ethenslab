@@ -1,26 +1,11 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
-  <channel>
-    <title>基础通信 on Ethen 的实验室</title>
-    <link>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/</link>
-    <description>Recent content in 基础通信 on Ethen 的实验室</description>
-    <generator>Hugo -- 0.151.0</generator>
-    <language>en</language>
-    <lastBuildDate>Thu, 28 Aug 2025 14:30:02 +0800</lastBuildDate>
-    <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>Binder</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/</link>
-      <pubDate>Thu, 28 Aug 2025 14:30:02 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/</guid>
-      <description>&lt;h2 id=&#34;同步通信&#34;&gt;同步通信&lt;/h2&gt;
-&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/binder-sync.png&#34;&gt;&lt;/p&gt;
-&lt;h2 id=&#34;异步通信&#34;&gt;异步通信&lt;/h2&gt;
-&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/binder-async.png&#34;&gt;&lt;/p&gt;
-&lt;h2 id=&#34;内存管理&#34;&gt;内存管理&lt;/h2&gt;
-&lt;h3 id=&#34;binder-驱动的通信内存管理机制&#34;&gt;&lt;strong&gt;Binder 驱动的通信内存管理机制&lt;/strong&gt;&lt;/h3&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>基础通信 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/</link><description>Recent content in 基础通信 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Thu, 28 Aug 2025 14:30:02 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/index.xml" rel="self" type="application/rss+xml"/><item><title>Binder</title><link>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/</link><pubDate>Thu, 28 Aug 2025 14:30:02 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/</guid><description>&lt;h2 id="同步通信"&gt;同步通信&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/binder-sync.png"&gt;&lt;/p&gt;
+&lt;h2 id="异步通信"&gt;异步通信&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/binder-async.png"&gt;&lt;/p&gt;
+&lt;h2 id="内存管理"&gt;内存管理&lt;/h2&gt;
+&lt;h3 id="binder-驱动的通信内存管理机制"&gt;&lt;strong&gt;Binder 驱动的通信内存管理机制&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;Binder 驱动的内存管理是一套内核层面的复杂机制，其核心目标是在进程间高效、安全地传输数据，并实现“一次拷贝”原则。&lt;/p&gt;
-&lt;h4 id=&#34;第一部分binder-通信内存的总体管理机制&#34;&gt;&lt;strong&gt;第一部分：Binder 通信内存的总体管理机制&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="第一部分binder-通信内存的总体管理机制"&gt;&lt;strong&gt;第一部分：Binder 通信内存的总体管理机制&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;该机制主要分为三个阶段：虚拟内存区的建立、事务缓冲区的分配与映射、以及事务缓冲区的释放。&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;1.1 进程虚拟内存区的建立&lt;/strong&gt;&lt;/p&gt;
 &lt;p&gt;当一个用户进程首次打开 &lt;code&gt;/dev/binder&lt;/code&gt; 设备并对其执行 &lt;code&gt;mmap()&lt;/code&gt; 系统调用时，Binder 驱动会执行 &lt;code&gt;binder_mmap()&lt;/code&gt; 内核函数。此函数的主要工作包括：&lt;/p&gt;
@@ -38,7 +23,4 @@
 &lt;li&gt;&lt;strong&gt;地址空间映射&lt;/strong&gt;：驱动识别出目标进程（Server）后，并不会再次拷贝数据。它会执行一个核心操作：&lt;strong&gt;修改 Server 进程的内核页表&lt;/strong&gt;，将承载着数据的 &lt;code&gt;binder_buffer&lt;/code&gt; 的物理内存页，直接映射到 Server 进程在 1.1 阶段建立的 VMA 中。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;数据投递&lt;/strong&gt;：驱动将映射后的缓冲区在 Server 进程中的虚拟地址，连同事务命令（如 &lt;code&gt;BR_TRANSACTION&lt;/code&gt; 或 &lt;code&gt;BR_ONEWAY&lt;/code&gt;），一同投递给 Server 中等待的 Binder 线程。Server 线程可以直接访问该地址，如同访问进程内内存一样。&lt;/li&gt;
 &lt;/ol&gt;
-&lt;p&gt;&lt;strong&gt;1.3 事务缓冲区的释放&lt;/strong&gt;&lt;/p&gt;</description>
-    </item>
-  </channel>
-</rss>
+&lt;p&gt;&lt;strong&gt;1.3 事务缓冲区的释放&lt;/strong&gt;&lt;/p&gt;</description></item></channel></rss>

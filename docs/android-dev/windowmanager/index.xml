@@ -1,21 +1,28 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
-  <channel>
-    <title>WindowManager on Ethen 的实验室</title>
-    <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/</link>
-    <description>Recent content in WindowManager on Ethen 的实验室</description>
-    <generator>Hugo -- 0.151.0</generator>
-    <language>en</language>
-    <lastBuildDate>Mon, 29 Sep 2025 10:22:54 +0800</lastBuildDate>
-    <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>Insets animation flow</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link>
-      <pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid>
-      <description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>WindowManager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/</link><description>Recent content in WindowManager on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Sep 2025 10:22:54 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/index.xml" rel="self" type="application/rss+xml"/><item><title>Activity 跨屏幕迁移</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/static/images/activity-reparent.png"&gt;&lt;/p&gt;
+&lt;h2 id="分步说明与生命周期映射"&gt;分步说明（与生命周期映射）&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Launcher 发起&lt;/strong&gt;：用户点击 → Launcher 构造 &lt;code&gt;Intent&lt;/code&gt;（带 &lt;code&gt;launchDisplayId=2&lt;/code&gt;）并调用 &lt;code&gt;startActivity()&lt;/code&gt; 到 ATMS。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;ATMS 决策&lt;/strong&gt;：ATMS 在 system_server 内部查看 &lt;code&gt;ActivityRecord/TaskRecord&lt;/code&gt;，决定把某个 Task 从 Display1 移到 Display2（修改 parent：&lt;code&gt;TaskDisplayArea&lt;/code&gt;）。这一步只是服务端的数据结构变化，不会直接调用应用对象的方法。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;协调 WMS&lt;/strong&gt;：ATMS 通知 WMS 准备窗口切换（应用 transition），以便在 surface 层面上能做平滑迁移。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;暂停目标 Display 上的当前前台&lt;/strong&gt;（ActivityB）：为了保证目标 Display 上只会有一个 resumed Activity，ATMS 先对 Display2 上当前的前台 Activity（ActivityB）发 &lt;code&gt;IApplicationThread.schedulePauseActivity&lt;/code&gt;，等待应用进程回 ACK（pauseFinished）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;暂停将要被移动的 ActivityA（源 Display1）&lt;/strong&gt;：ATMS 对 ActivityA 发 &lt;code&gt;schedulePauseActivity&lt;/code&gt;，应用进程进入 &lt;code&gt;onPause()&lt;/code&gt;，并回 ACK。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;这一步非常重要：把要移动的 Activity 保持在非-resumed 状态，便于改变它的窗口所属 Display/Surface。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;WMS 做 Window/Surface reparent&lt;/strong&gt;：ATMS 请求 WMS 将对应的 &lt;code&gt;WindowContainer&lt;/code&gt;/task 窗口树从 Display1 移到 Display2；WMS 在 SurfaceControl 层（通过 SurfaceFlinger）把 layer 重新 attach 到目标 Display 的 layer stack。&lt;/p&gt;</description></item><item><title>Insets animation flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid><description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
 &lt;p&gt;以下是一些典型的应用场景，从最常见到更高级的交互：&lt;/p&gt;
-&lt;h3 id=&#34;1-核心场景键盘的显示与隐藏-messaging--input&#34;&gt;1. 核心场景：键盘的显示与隐藏 (Messaging &amp;amp; Input)&lt;/h3&gt;
+&lt;h3 id="1-核心场景键盘的显示与隐藏-messaging--input"&gt;1. 核心场景：键盘的显示与隐藏 (Messaging &amp;amp; Input)&lt;/h3&gt;
 &lt;p&gt;这是最经典、最能体现其价值的场景。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;
@@ -39,22 +46,22 @@
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;table&gt;
-  &lt;thead&gt;
-      &lt;tr&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;场景&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;传统方式的问题&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;Insets 动画的效果&lt;/th&gt;
-      &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;聊天应用&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;键盘动画与内容移动分离，内容&lt;strong&gt;跳变&lt;/strong&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;键盘&lt;strong&gt;平滑推起&lt;/strong&gt;内容，动画无缝衔接&lt;/td&gt;
-      &lt;/tr&gt;
-  &lt;/tbody&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: left"&gt;场景&lt;/th&gt;
+&lt;th style="text-align: left"&gt;传统方式的问题&lt;/th&gt;
+&lt;th style="text-align: left"&gt;Insets 动画的效果&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;聊天应用&lt;/td&gt;
+&lt;td style="text-align: left"&gt;键盘动画与内容移动分离，内容&lt;strong&gt;跳变&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;键盘&lt;strong&gt;平滑推起&lt;/strong&gt;内容，动画无缝衔接&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h3 id=&#34;2-沉浸式模式的过渡-video--photo-apps&#34;&gt;2. 沉浸式模式的过渡 (Video &amp;amp; Photo Apps)&lt;/h3&gt;
+&lt;h3 id="2-沉浸式模式的过渡-video--photo-apps"&gt;2. 沉浸式模式的过渡 (Video &amp;amp; Photo Apps)&lt;/h3&gt;
 &lt;p&gt;当应用进入或退出全屏（沉浸式）模式时，状态栏和导航栏会显示或隐藏。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;
@@ -76,25 +83,18 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;3-高级交互场景手势控制动画&#34;&gt;3. 高级交互场景：手势控制动画&lt;/h3&gt;
-&lt;p&gt;这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>SplitScreenController flow</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</link>
-      <pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</guid>
-      <description>&lt;h2 id=&#34;时序图&#34;&gt;时序图&lt;/h2&gt;
-&lt;p&gt;&lt;img loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/splitscreen_wmshell.png&#34;&gt;&lt;/p&gt;
-&lt;h2 id=&#34;debug&#34;&gt;Debug&lt;/h2&gt;
+&lt;h3 id="3-高级交互场景手势控制动画"&gt;3. 高级交互场景：手势控制动画&lt;/h3&gt;
+&lt;p&gt;这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。&lt;/p&gt;</description></item><item><title>SplitScreenController flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</guid><description>&lt;h2 id="时序图"&gt;时序图&lt;/h2&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/splitscreen_wmshell.png"&gt;&lt;/p&gt;
+&lt;h2 id="debug"&gt;Debug&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;打印分屏区域&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;adb shell dumpsys activity service SystemUIService WMShell
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell dumpsys activity service SystemUIService WMShell
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;dump SystemUI&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;Enable protolog&lt;/p&gt;
@@ -102,37 +102,30 @@
 &lt;ul&gt;
 &lt;li&gt;help命令：&lt;/li&gt;
 &lt;/ul&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell help
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell help
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
 &lt;li&gt;查看protolog status：&lt;/li&gt;
 &lt;/ul&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; $ adb shell dumpsys activity service SystemUIService WMShell protolog status
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; SERVICE com.android.systemui/.SystemUIService e73cb38 pid&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;4871&lt;/span&gt; user&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; Client:
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     com.android.systemui.wmshell.WMShell:
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     ----------------------------------------------------------------------------
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     ProtoLog status: Disabled
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Enabled log groups: 
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Proto: TEST_GROUP WM_DEBUG_ADD_REMOVE WM_DEBUG_ANIM WM_DEBUG_APP_TRANSITIONS WM_DEBUG_APP_TRANSITIONS_ANIM WM_DEBUG_BACK_PREVIEW WM_DEBUG_BOOT WM_DEBUG_CONFIGURATION WM_DEBUG_CONTAINERS WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DRAW WM_DEBUG_DREAM WM_DEBUG_FOCUS WM_DEBUG_FOCUS_LIGHT WM_DEBUG_IME WM_DEBUG_IMMERSIVE WM_DEBUG_KEEP_SCREEN_ON WM_DEBUG_LOCKTASK WM_DEBUG_ORIENTATION WM_DEBUG_RECENTS_ANIMATIONS WM_DEBUG_REMOTE_ANIMATIONS WM_DEBUG_RESIZE WM_DEBUG_SCREEN_ON WM_DEBUG_STARTING_WINDOW WM_DEBUG_STATES WM_DEBUG_SWITCH WM_DEBUG_SYNC_ENGINE WM_DEBUG_TASKS WM_DEBUG_WALLPAPER WM_DEBUG_WINDOW_INSETS WM_DEBUG_WINDOW_MOVEMENT WM_DEBUG_WINDOW_ORGANIZER WM_DEBUG_WINDOW_TRANSITIONS WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DESKTOP_MODE WM_SHELL_DRAG_AND_DROP WM_SHELL_FLOATING_APPS WM_SHELL_FOLDABLE WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_RECENT_TASKS WM_SHELL_SPLIT_SCREEN WM_SHELL_STARTING_WINDOW WM_SHELL_SYSUI_EVENTS WM_SHELL_TASK_ORG WM_SHELL_TRANSITIONS WM_SHOW_SURFACE_ALLOC WM_SHOW_TRANSACTIONS
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Logcat: WM_DEBUG_BACK_PREVIEW WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DREAM WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DRAG_AND_DROP WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_SPLIT_SCREEN WM_SHELL_TRANSITIONS
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Logging definitions loaded: &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;     Dump took 2ms
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; $ adb shell dumpsys activity service SystemUIService WMShell protolog status
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; SERVICE com.android.systemui/.SystemUIService e73cb38 pid&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;4871&lt;/span&gt; user&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Client:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; com.android.systemui.wmshell.WMShell:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ----------------------------------------------------------------------------
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ProtoLog status: Disabled
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Enabled log groups:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Proto: TEST_GROUP WM_DEBUG_ADD_REMOVE WM_DEBUG_ANIM WM_DEBUG_APP_TRANSITIONS WM_DEBUG_APP_TRANSITIONS_ANIM WM_DEBUG_BACK_PREVIEW WM_DEBUG_BOOT WM_DEBUG_CONFIGURATION WM_DEBUG_CONTAINERS WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DRAW WM_DEBUG_DREAM WM_DEBUG_FOCUS WM_DEBUG_FOCUS_LIGHT WM_DEBUG_IME WM_DEBUG_IMMERSIVE WM_DEBUG_KEEP_SCREEN_ON WM_DEBUG_LOCKTASK WM_DEBUG_ORIENTATION WM_DEBUG_RECENTS_ANIMATIONS WM_DEBUG_REMOTE_ANIMATIONS WM_DEBUG_RESIZE WM_DEBUG_SCREEN_ON WM_DEBUG_STARTING_WINDOW WM_DEBUG_STATES WM_DEBUG_SWITCH WM_DEBUG_SYNC_ENGINE WM_DEBUG_TASKS WM_DEBUG_WALLPAPER WM_DEBUG_WINDOW_INSETS WM_DEBUG_WINDOW_MOVEMENT WM_DEBUG_WINDOW_ORGANIZER WM_DEBUG_WINDOW_TRANSITIONS WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DESKTOP_MODE WM_SHELL_DRAG_AND_DROP WM_SHELL_FLOATING_APPS WM_SHELL_FOLDABLE WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_RECENT_TASKS WM_SHELL_SPLIT_SCREEN WM_SHELL_STARTING_WINDOW WM_SHELL_SYSUI_EVENTS WM_SHELL_TASK_ORG WM_SHELL_TRANSITIONS WM_SHOW_SURFACE_ALLOC WM_SHOW_TRANSACTIONS
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Logcat: WM_DEBUG_BACK_PREVIEW WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DREAM WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DRAG_AND_DROP WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_SPLIT_SCREEN WM_SHELL_TRANSITIONS
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Logging definitions loaded: &lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Dump took 2ms
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
 &lt;li&gt;enable protolog：&lt;/li&gt;
 &lt;/ul&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-shell&#34; data-lang=&#34;shell&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog start
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog start
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
-&lt;/ol&gt;</description>
-    </item>
-    <item>
-      <title>WindowManagerService 解析</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</link>
-      <pubDate>Tue, 29 Jul 2025 10:22:54 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</guid>
-      <description>&lt;h2 id=&#34;windowmanagerservice-概述&#34;&gt;WindowManagerService 概述&lt;/h2&gt;
+&lt;/ol&gt;</description></item><item><title>WindowManagerService 解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</link><pubDate>Tue, 29 Jul 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</guid><description>&lt;h2 id="windowmanagerservice-概述"&gt;WindowManagerService 概述&lt;/h2&gt;
 &lt;p&gt;WindowManagerService（简称WMS）是Android系统中负责窗口（Window）管理的核心系统服务。它是屏幕上所有可见元素的“总管家”，决定了所有窗口的外观、行为和交互方式。&lt;/p&gt;
 &lt;p&gt;作为Android框架层（Framework Layer）的关键部分，WMS随系统启动，并稳定运行在权限极高的 system_server 进程中。这个位置赋予了它管理所有应用窗口和系统窗口的最高权限。&lt;/p&gt;
 &lt;p&gt;WMS的角色像一个“总指挥”，它并不亲自执行所有底层操作，而是协调系统中的多个组件来共同完成对窗口的生命周期管理。其核心作用包括：&lt;/p&gt;
@@ -156,9 +149,9 @@
 &lt;p&gt;输入事件分发 (Input Event Dispatching): 作为输入系统的关键一环，WMS接收原始的触摸、按键等事件，准确判断事件应该由哪个窗口接收，并交由 InputDispatcher 进行精确投递。&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id=&#34;窗口的创建与管理&#34;&gt;窗口的创建与管理&lt;/h2&gt;
+&lt;h2 id="窗口的创建与管理"&gt;窗口的创建与管理&lt;/h2&gt;
 &lt;p&gt;窗口的创建请求总是由应用进程发起的，WMS 则是请求的响应者和执行者。&lt;/p&gt;
-&lt;p&gt;&lt;img alt=&#34;WindowState 创建时序示意图&#34; loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/windowstate-creation.png&#34;&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="WindowState 创建时序示意图" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/windowstate-creation.png"&gt;&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;触发流程&lt;/strong&gt;：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;应用层调用：当一个 Activity 的 onResume() 回调被触发，准备变得可见时，其内部的 PhoneWindow 会通过 WindowManager.addView() 方法将它的根视图（DecorView）添加到窗口中。这个调用是应用请求显示UI的起点。&lt;/li&gt;
@@ -166,12 +159,33 @@
 &lt;li&gt;Binder IPC 调用：ViewRootImpl 通过一个名为 IWindowSession 的 Binder 接口，向 WMS 发起一个远程调用，通常是 addToDisplay()。这个调用会携带两个核心信息：
 &lt;ul&gt;
 &lt;li&gt;Window Token: 一个唯一的 Binder 令牌，用于将这个窗口与 AMS 中的 ActivityRecord 关联起来，WMS据此知道这个窗口属于哪个Activity。
-&lt;img alt=&#34;WindowToken创建与使用示意图&#34; loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/windowtoken-creation-transport.png&#34;&gt;&lt;/li&gt;
+&lt;img alt="WindowToken创建与使用示意图" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/windowtoken-creation-transport.png"&gt;&lt;/li&gt;
 &lt;li&gt;WindowManager.LayoutParams: 一个包含了窗口所有期望属性的参数集，如窗口的类型（应用窗口、系统窗口）、尺寸（MATCH_PARENT等）、标志（FLAG_NOT_FOCUSABLE等）和 gravity。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description>
-    </item>
-  </channel>
-</rss>
+&lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/</guid><description>&lt;h3 id="transitionhandler"&gt;TransitionHandler&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;TransitionHandler&lt;/code&gt; 是一个&lt;strong&gt;接口 (Interface)&lt;/strong&gt;，它为 Shell 动画系统定义了一个**“动画处理器”&lt;strong&gt;的标准或&lt;/strong&gt;契约**。&lt;/p&gt;
+&lt;p&gt;可以把它想象成一个&lt;strong&gt;专家岗位说明书&lt;/strong&gt; 📜。任何一个类，只要实现了 &lt;code&gt;TransitionHandler&lt;/code&gt; 接口，就意味着它具备了处理一类特定窗口过渡动画的专业能力，并可以被 &lt;code&gt;Transitions&lt;/code&gt; （动画总调度室）统一管理和调度。&lt;/p&gt;
+&lt;h4 id="核心职责"&gt;核心职责&lt;/h4&gt;
+&lt;p&gt;一个 &lt;code&gt;TransitionHandler&lt;/code&gt; 实现类，其核心职责主要有两个：&lt;/p&gt;
+&lt;h5 id="1-认领任务-claim-the-job---通过-handlerequest-方法"&gt;1. 认领任务 (Claim the Job) - 通过 &lt;code&gt;handleRequest&lt;/code&gt; 方法&lt;/h5&gt;
+&lt;p&gt;这是 &lt;code&gt;TransitionHandler&lt;/code&gt; &lt;strong&gt;最关键&lt;/strong&gt;的职责。当 &lt;code&gt;Transitions.requestStartTransition&lt;/code&gt; 方法收到一个来自系统的动画请求时，它会遍历其内部的 &lt;code&gt;Handler&lt;/code&gt; 列表，并调用每个 &lt;code&gt;Handler&lt;/code&gt; 的 &lt;code&gt;handleRequest&lt;/code&gt; 方法。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;“这是我的活儿吗？”&lt;/strong&gt;: 在 &lt;code&gt;handleRequest&lt;/code&gt; 方法内部，&lt;code&gt;Handler&lt;/code&gt; 会检查传入的 &lt;code&gt;TransitionRequestInfo&lt;/code&gt;（动画请求信息），根据动画的类型 (&lt;code&gt;type&lt;/code&gt;)、触发任务 (&lt;code&gt;triggerTask&lt;/code&gt;)、窗口模式等信息，来判断这是否是自己应该处理的动画场景。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;例如，&lt;code&gt;RecentsTransitionHandler&lt;/code&gt; 会检查动画类型是否与“最近任务”相关。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;UnfoldTransitionHandler&lt;/code&gt; 会检查设备是否正在折叠/展开。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;如何认领&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;如果 &lt;code&gt;Handler&lt;/code&gt; 决定处理这个请求，它会返回一个 &lt;code&gt;WindowContainerTransaction&lt;/code&gt; 对象（即使这个对象是空的）。这就像举手说：“这个我来处理！”&lt;/li&gt;
+&lt;li&gt;如果 &lt;code&gt;Handler&lt;/code&gt; 认为这个请求不归自己管，它会返回 &lt;code&gt;null&lt;/code&gt;。&lt;code&gt;Transitions&lt;/code&gt; 看到 &lt;code&gt;null&lt;/code&gt; 后，就会继续去问下一个 &lt;code&gt;Handler&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h5 id="2-执行动画-execute-the-animation"&gt;2. 执行动画 (Execute the Animation)&lt;/h5&gt;
+&lt;p&gt;一旦一个 &lt;code&gt;Handler&lt;/code&gt; 通过返回非 &lt;code&gt;null&lt;/code&gt; 的 &lt;code&gt;WCT&lt;/code&gt; 成功“认领”了一个 &lt;code&gt;Transition&lt;/code&gt;，它就&lt;strong&gt;全权负责&lt;/strong&gt;这个 &lt;code&gt;Transition&lt;/code&gt; 的动画实现。&lt;/p&gt;</description></item></channel></rss>

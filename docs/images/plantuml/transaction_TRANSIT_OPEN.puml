@@ -1,0 +1,106 @@
+@startuml
+!theme plain
+
+title TRANSIT_OPEN (应用启动) 完整流程 (含Activity生命周期)
+
+actor User
+participant "Launcher"
+participant "ActivityTaskManagerService"
+participant "WindowManagerService"
+participant "TransitionController"
+participant "Transition"
+participant "Target App Process"
+participant "ShellTransitions"
+
+autonumber "<b>[0]"
+
+' Phase 1: Initiation via ActivityOptions
+User -> "Launcher": 点击应用图标
+activate "Launcher"
+
+"Launcher" -> "Launcher": 创建 Intent 和 ActivityOptions
+note right: ActivityOptions 包含了 Launcher\n希望自定义动画的意图
+"Launcher" -> "ActivityTaskManagerService": startActivity(intent, options.toBundle())
+deactivate "Launcher"
+activate "ActivityTaskManagerService"
+
+"ActivityTaskManagerService" -> "TransitionController": prepareTransition(TYPE_OPEN)
+note right of "TransitionController": ATMS 通知 TransitionController\n一个 Activity 启动即将发生
+activate "TransitionController"
+
+"TransitionController" -> "TransitionController": 解析 ActivityOptions, 决定使用 ShellTransitions
+
+create "Transition"
+"TransitionController" -> "Transition": new(TYPE_OPEN)
+note right of "Transition": **Transition 在系统服务内部被创建**
+"TransitionController" -> "Transition": startCollecting()
+note right of "Transition": 进入“收集中”状态
+
+deactivate "TransitionController"
+
+' Phase 2: State Collection & Sync
+"ActivityTaskManagerService" -> "ActivityTaskManagerService": 创建 ActivityRecord, Task, 设置可见性等
+"ActivityTaskManagerService" -> "TransitionController": (回调) 执行窗口变更操作
+activate "TransitionController"
+"TransitionController" -> "Transition": collect(targetTask), collect(targetActivity)
+note right of "Transition": 所有被改变的窗口容器都被“收集”
+deactivate "TransitionController"
+
+"ActivityTaskManagerService" -> "Target App Process": realStartActivity(...)
+deactivate "ActivityTaskManagerService"
+activate "Target App Process"
+
+' --- Activity 生命周期步骤 ---
+"Target App Process" -> "Target App Process": ActivityThread 处理启动消息, 创建 Activity 实例
+"Target App Process" -> "Target App Process": 调用 Activity.onCreate()
+note right: 开发者通常在此处调用 setContentView() 来设置界面布局
+"Target App Process" -> "Target App Process": 调用 Activity.onResume()
+note right: Activity 准备好与用户交互, 窗口即将变得可见
+
+"Target App Process" -> "WindowManagerService": addWindow(), 窗口绘制第一帧
+deactivate "Target App Process"
+activate "WindowManagerService"
+
+"WindowManagerService" -> "Transition": setReady(target, true)
+note right of "Transition": 目标窗口已绘制完成, 但尚未对用户可见
+
+' Phase 3: Animation Dispatch
+"WindowManagerService" -> "Transition": onTransactionReady()
+deactivate "WindowManagerService"
+activate "Transition"
+"Transition" -> "Transition": 计算动画目标, 打包成 TransitionInfo
+note right of "Transition": 状态变为“播放中” (PLAYING)
+"Transition" -> "TransitionController": (回调)
+deactivate "Transition"
+activate "TransitionController"
+
+"TransitionController" -> "ShellTransitions": onTransitionReady(token, info, startT, finishT)
+note right of "ShellTransitions"
+  通过 Binder 将动画所需的所有信息
+  (包括 "show" 指令) 一次性发送给 Shell
+end note
+deactivate "TransitionController"
+
+' Phase 4 & 5: Animation & Completion
+activate "ShellTransitions"
+"ShellTransitions" -> "ShellTransitions": 解析 info, 识别 type=OPEN, 执行动画
+note left of "ShellTransitions": 动画的第一帧使窗口对用户可见
+... 动画播放中 ...
+
+"ShellTransitions" -> "WindowManagerService": finishTransition(token)
+note right of "WindowManagerService": 通过 WindowOrganizer 代理调用
+deactivate "ShellTransitions"
+
+activate "WindowManagerService"
+"WindowManagerService" -> "TransitionController": finishTransition(token)
+activate "TransitionController"
+"TransitionController" -> "Transition": finishTransition()
+activate "Transition"
+"Transition" -> "Transition": 应用 finishTransaction, 清理资源
+note right of "Transition": 提交最终状态, 状态变为“已完成”
+deactivate "Transition"
+"TransitionController" -> "WindowManagerService": (完成)
+deactivate "TransitionController"
+deactivate "WindowManagerService"
+
+@enduml

@@ -1,30 +1,36 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
-  <channel>
-    <title>QNX基础原理 on Ethen 的实验室</title>
-    <link>https://ethen-cao.github.io/ethenslab/qnx/</link>
-    <description>Recent content in QNX基础原理 on Ethen 的实验室</description>
-    <generator>Hugo -- 0.151.0</generator>
-    <language>en</language>
-    <lastBuildDate>Mon, 22 Sep 2025 12:11:50 +0800</lastBuildDate>
-    <atom:link href="https://ethen-cao.github.io/ethenslab/qnx/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>build.py 技术原理详解</title>
-      <link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link>
-      <pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid>
-      <description>&lt;h2 id=&#34;buildpy-技术原理详解&#34;&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
-&lt;h3 id=&#34;核心定位声明式构建的执行引擎&#34;&gt;核心定位：声明式构建的执行引擎&lt;/h3&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>QNX基础原理 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/qnx/</link><description>Recent content in QNX基础原理 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Sat, 15 Nov 2025 17:17:50 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/qnx/index.xml" rel="self" type="application/rss+xml"/><item><title>QNX-Android IVI 架构中的 virtio-net 通信</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx_hypervisor_net/</link><pubDate>Sat, 15 Nov 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx_hypervisor_net/</guid><description>&lt;p&gt;本文基于一张 QNX Host + Android guest + Hypervisor + T-Box 的 virtio-net 架构图整理而成，图中展示了从 Android App 到车外 T-Box 的完整网络路径。&lt;/p&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/virtio-net.drawio.png"&gt;&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;在典型的 QNX-Android 车机（IVI）架构中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Android guest&lt;/strong&gt; 负责 UI、应用、车载 App；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;QNX Host&lt;/strong&gt; 作为宿主 OS，负责底层驱动、网络、网关逻辑等；&lt;/li&gt;
+&lt;li&gt;两者之间通过 &lt;strong&gt;QNX Hypervisor&lt;/strong&gt; 实现虚拟化隔离；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;virtio-net&lt;/strong&gt; 提供了一条高性能的“虚拟网线”，把 Android guest 的网络栈接入 QNX Host 的网络栈，再通过物理网卡连到车外 &lt;strong&gt;T-Box / 外部网络&lt;/strong&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;理解这条 virtio-net 通道的工作原理，对于分析「Android App 上不了网」「Android 某段时间全断网」「按应用分流到不同 VLAN」这类问题非常重要。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="2-整体架构总览"&gt;2. 整体架构总览&lt;/h2&gt;
+&lt;p&gt;按图的布局，从右到左是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Android guest&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Hypervisor（在底部，负责虚拟化）&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;QNX Host（包含 io-pkt / qvm / 驱动等）&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;T-Box / 外部网络&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;自顶向下的数据路径（单向发送）可以概括为：&lt;/p&gt;</description></item><item><title>build.py 技术原理详解</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid><description>&lt;h2 id="buildpy-技术原理详解"&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
+&lt;h3 id="核心定位声明式构建的执行引擎"&gt;核心定位：声明式构建的执行引擎&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 脚本是高通平台 Meta-Build 系统的核心&lt;strong&gt;自动化执行引擎&lt;/strong&gt;。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的&lt;strong&gt;任务调度器和执行器&lt;/strong&gt;。&lt;/p&gt;
 &lt;p&gt;它的核心设计哲学是&lt;strong&gt;声明式驱动&lt;/strong&gt;：开发者在 &lt;code&gt;contents.xml&lt;/code&gt; 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 &lt;code&gt;build.py&lt;/code&gt; 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;1-输入-inputs&#34;&gt;1. 输入 (Inputs)&lt;/h3&gt;
+&lt;h3 id="1-输入-inputs"&gt;1. 输入 (Inputs)&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 的正常运行依赖于以下几类输入：&lt;/p&gt;
-&lt;h4 id=&#34;主要输入&#34;&gt;&lt;strong&gt;主要输入&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="主要输入"&gt;&lt;strong&gt;主要输入&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;contents.xml&lt;/code&gt;&lt;/strong&gt;: 这是最核心的输入，是整个构建过程的&lt;strong&gt;配置清单和指令集&lt;/strong&gt;。&lt;code&gt;build.py&lt;/code&gt; 的所有行为都由该文件驱动。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;次要输入&#34;&gt;&lt;strong&gt;次要输入&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="次要输入"&gt;&lt;strong&gt;次要输入&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;命令行参数&lt;/strong&gt;: 用户在执行脚本时传入的参数，用于控制脚本的行为模式。
 &lt;ul&gt;
@@ -35,19 +41,19 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;隐式输入&#34;&gt;&lt;strong&gt;隐式输入&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="隐式输入"&gt;&lt;strong&gt;隐式输入&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;各组件的编译产物&lt;/strong&gt;: 脚本运行前，各个独立的软件模块（如 &lt;code&gt;boot_images&lt;/code&gt;, &lt;code&gt;tz_images&lt;/code&gt;, &lt;code&gt;mpss&lt;/code&gt;, &lt;code&gt;apps&lt;/code&gt; 等）必须已经完成各自的编译，并将其产物放置在 &lt;code&gt;contents.xml&lt;/code&gt; 中指定的路径下。&lt;code&gt;build.py&lt;/code&gt; 会去消费这些产物。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;配置文件&lt;/strong&gt;: 如 &lt;code&gt;partition_la.xml&lt;/code&gt;，它定义了分区布局，是生成 &lt;code&gt;gpt_*.bin&lt;/code&gt; 和 &lt;code&gt;rawprogram.xml&lt;/code&gt; 的输入源。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;2-输出-outputs&#34;&gt;2. 输出 (Outputs)&lt;/h3&gt;
+&lt;h3 id="2-输出-outputs"&gt;2. 输出 (Outputs)&lt;/h3&gt;
 &lt;p&gt;脚本成功执行后，会生成一个结构化、可直接用于刷机的软件包。&lt;/p&gt;
-&lt;h4 id=&#34;核心产物&#34;&gt;&lt;strong&gt;核心产物&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="核心产物"&gt;&lt;strong&gt;核心产物&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;一个&lt;strong&gt;完整的、按产品风味（Flavor）和存储类型（Storage Type）组织的刷机包&lt;/strong&gt;。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;具体文件清单&#34;&gt;&lt;strong&gt;具体文件清单&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="具体文件清单"&gt;&lt;strong&gt;具体文件清单&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;刷机指令文件&lt;/strong&gt;:
 &lt;ul&gt;
@@ -81,62 +87,55 @@
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;3-依赖-dependencies&#34;&gt;3. 依赖 (Dependencies)&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 的依赖可以分为四类：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>contents.xml 属性与字段说明文档</title>
-      <link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</link>
-      <pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</guid>
-      <description>&lt;h2 id=&#34;contentsxml-属性与字段说明文档&#34;&gt;&lt;code&gt;contents.xml&lt;/code&gt; 属性与字段说明文档&lt;/h2&gt;
-&lt;h3 id=&#34;1-文档引言&#34;&gt;1. 文档引言&lt;/h3&gt;
+&lt;h3 id="3-依赖-dependencies"&gt;3. 依赖 (Dependencies)&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 的依赖可以分为四类：&lt;/p&gt;</description></item><item><title>contents.xml 属性与字段说明文档</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</guid><description>&lt;h2 id="contentsxml-属性与字段说明文档"&gt;&lt;code&gt;contents.xml&lt;/code&gt; 属性与字段说明文档&lt;/h2&gt;
+&lt;h3 id="1-文档引言"&gt;1. 文档引言&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;contents.xml&lt;/code&gt; 文件是高通（Qualcomm）平台 Meta-Build 系统的核心配置文件。它作为一个&lt;strong&gt;元构建清单 (Meta-Build Manifest)&lt;/strong&gt;，以声明式 XML 的格式，精确定义了一个完整软件包从源代码到最终刷机包的&lt;strong&gt;所有环节&lt;/strong&gt;。&lt;/p&gt;
 &lt;p&gt;本说明文档旨在为开发者提供一份详尽的参考，解释 &lt;code&gt;contents.xml&lt;/code&gt; 文件中各个 XML 标签、属性及字段的含义，帮助开发者理解、调试和定制复杂的构建流程。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;2-顶层结构标签&#34;&gt;2. 顶层结构标签&lt;/h3&gt;
+&lt;h3 id="2-顶层结构标签"&gt;2. 顶层结构标签&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;contents.xml&lt;/code&gt; 由多个顶层标签构成，每个标签负责一部分核心功能。&lt;/p&gt;
 &lt;table&gt;
-  &lt;thead&gt;
-      &lt;tr&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;标签&lt;/th&gt;
-          &lt;th style=&#34;text-align: left&#34;&gt;含义&lt;/th&gt;
-      &lt;/tr&gt;
-  &lt;/thead&gt;
-  &lt;tbody&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;定义产品的不同“风味”或变种。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;提供关于产品的元数据信息。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;定义与分区操作相关的信息。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;builds_flat&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;核心部分&lt;/strong&gt;，定义所有独立软件组件的构建信息。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;build_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;（可选）定义构建系统内部使用的工具。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;external_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;声明构建或调试过程中依赖的外部工具。&lt;/td&gt;
-      &lt;/tr&gt;
-      &lt;tr&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;workflow&amp;gt;&lt;/code&gt;&lt;/td&gt;
-          &lt;td style=&#34;text-align: left&#34;&gt;定义构建完成后的自动化处理与打包流程。&lt;/td&gt;
-      &lt;/tr&gt;
-  &lt;/tbody&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: left"&gt;标签&lt;/th&gt;
+&lt;th style="text-align: left"&gt;含义&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;定义产品的不同“风味”或变种。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;提供关于产品的元数据信息。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;定义与分区操作相关的信息。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;builds_flat&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;&lt;strong&gt;核心部分&lt;/strong&gt;，定义所有独立软件组件的构建信息。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;build_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;（可选）定义构建系统内部使用的工具。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;external_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;声明构建或调试过程中依赖的外部工具。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;workflow&amp;gt;&lt;/code&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;定义构建完成后的自动化处理与打包流程。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
 &lt;/table&gt;
 &lt;hr&gt;
-&lt;h3 id=&#34;3-标签与属性详解&#34;&gt;3. 标签与属性详解&lt;/h3&gt;
-&lt;h4 id=&#34;31&#34;&gt;&lt;strong&gt;3.1 &lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;h3 id="3-标签与属性详解"&gt;3. 标签与属性详解&lt;/h3&gt;
+&lt;h4 id="31"&gt;&lt;strong&gt;3.1 &lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;此区域用于定义不同的产品形态。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;&amp;lt;product_flavors cmm_pf_var=&amp;quot;...&amp;quot;&amp;gt;&lt;/code&gt;&lt;/strong&gt;
@@ -146,7 +145,7 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;32&#34;&gt;&lt;strong&gt;3.2 &lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="32"&gt;&lt;strong&gt;3.2 &lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;此区域提供构建的元数据信息。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;&amp;lt;chipid flavor=&amp;quot;...&amp;quot; cmm_var=&amp;quot;...&amp;quot;&amp;gt;&lt;/code&gt;&lt;/strong&gt;
@@ -158,16 +157,9 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id=&#34;33&#34;&gt;&lt;strong&gt;3.3 &lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
-&lt;p&gt;此区域定义与分区操作相关的信息。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>QNX Screen基础原理与流程</title>
-      <link>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</link>
-      <pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</guid>
-      <description>&lt;h2 id=&#34;qnx图形栈&#34;&gt;QNX图形栈&lt;/h2&gt;
-&lt;p&gt;&lt;img alt=&#34;screen_post_window&#34; loading=&#34;lazy&#34; src=&#34;https://ethen-cao.github.io/ethenslab/images/qnx-screen-overview.png&#34;&gt;&lt;/p&gt;
+&lt;h4 id="33"&gt;&lt;strong&gt;3.3 &lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;p&gt;此区域定义与分区操作相关的信息。&lt;/p&gt;</description></item><item><title>QNX Screen基础原理与流程</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</guid><description>&lt;h2 id="qnx图形栈"&gt;QNX图形栈&lt;/h2&gt;
+&lt;p&gt;&lt;img alt="screen_post_window" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/qnx-screen-overview.png"&gt;&lt;/p&gt;
 &lt;p&gt;一个 QNX 应用程序从无到有，完成一帧 (frame) 窗口渲染并显示在屏幕上的完整过程。&lt;/p&gt;
 &lt;p&gt;整个过程可以分为两个核心阶段：&lt;/p&gt;
 &lt;ol&gt;
@@ -178,20 +170,17 @@
 &lt;p&gt;&lt;strong&gt;提交与显示阶段&lt;/strong&gt;：应用程序通知系统绘制完成，由系统和硬件接手，将内容呈现在屏幕上。&lt;/p&gt;
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;h3 id=&#34;第一阶段准备与渲染-steps-1-6&#34;&gt;第一阶段：准备与渲染 (Steps 1-6)&lt;/h3&gt;
-&lt;h4 id=&#34;步骤-1--2请求并获取窗口缓冲区-buffer&#34;&gt;&lt;strong&gt;步骤 1 &amp;amp; 2：请求并获取窗口缓冲区 (Buffer)&lt;/strong&gt;&lt;/h4&gt;
+&lt;h3 id="第一阶段准备与渲染-steps-1-6"&gt;第一阶段：准备与渲染 (Steps 1-6)&lt;/h3&gt;
+&lt;h4 id="步骤-1--2请求并获取窗口缓冲区-buffer"&gt;&lt;strong&gt;步骤 1 &amp;amp; 2：请求并获取窗口缓冲区 (Buffer)&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;执行者&lt;/strong&gt;：&lt;code&gt;QNX Application&lt;/code&gt;, &lt;code&gt;QNX Screen&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;关键 API&lt;/strong&gt;：&lt;code&gt;screen_create_window_buffers()&lt;/code&gt;&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;一个应用程序（例如 HMI 界面）首先需要一块“画布”来进行绘制。它会调用 QNX Screen 提供的 API，请求创建一个窗口以及与之关联的一组（通常是两个或三个，用于实现双缓冲/三缓冲技术）图形缓冲区 (Framebuffers)。&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;QNX Screen&lt;/code&gt; 作为窗口系统管理者，并不会自己分配这块特殊的内存。它会通过 IPC (进程间通信) &lt;strong&gt;请求&lt;/strong&gt; &lt;code&gt;Display/GPU Driver&lt;/code&gt; (资源管理器) 来分配。驱动程序会分配一块符合硬件要求（例如物理上连续）的共享内存，并将其句柄 (handle) 返回给 &lt;code&gt;Screen&lt;/code&gt;。最后，&lt;code&gt;Screen&lt;/code&gt; 再将代表这些 Buffer 的句柄返回给应用程序。至此，应用程序拥有了可以在上面作画的“画布”。&lt;/p&gt;
-&lt;h4 id=&#34;步骤-3--4提交绘图指令&#34;&gt;&lt;strong&gt;步骤 3 &amp;amp; 4：提交绘图指令&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="步骤-3--4提交绘图指令"&gt;&lt;strong&gt;步骤 3 &amp;amp; 4：提交绘图指令&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;执行者&lt;/strong&gt;：&lt;code&gt;QNX Application&lt;/code&gt;, &lt;code&gt;Graphics API (OpenGL ES + EGL)&lt;/code&gt;, &lt;code&gt;GPU Driver&lt;/code&gt;&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;关键 API/机制&lt;/strong&gt;：&lt;code&gt;eglSwapBuffers()&lt;/code&gt;, QNX IPC (&lt;code&gt;msg&lt;/code&gt;/&lt;code&gt;devctl&lt;/code&gt;)&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;应用程序使用像 OpenGL ES 这样的标准图形 API 来描述要绘制的内容（例如按钮、仪表盘、3D 模型等）。这些 API 调用定义了图元的形状、纹理和颜色。&lt;/p&gt;</description>
-    </item>
-  </channel>
-</rss>
+&lt;p&gt;应用程序使用像 OpenGL ES 这样的标准图形 API 来描述要绘制的内容（例如按钮、仪表盘、3D 模型等）。这些 API 调用定义了图元的形状、纹理和颜色。&lt;/p&gt;</description></item></channel></rss>

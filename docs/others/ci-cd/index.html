@@ -1,13 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" dir="auto">
-
-<head><meta charset="utf-8">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<meta name="robots" content="index, follow">
-<title>智能座舱软件开发 CI/CD 流程技术说明文档 | Ethen 的实验室</title>
-<meta name="keywords" content="">
-<meta name="description" content="1. 概述
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>智能座舱软件开发 CI/CD 流程技术说明文档 | Ethen 的实验室</title><meta name=keywords content><meta name=description content="1. 概述
 本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。
 核心组件:
 
@@ -21,87 +12,28 @@
 
 2. 详细流程与技术实现原理
 
-阶段 1 &amp; 2: 开发者工作流
+阶段 1 & 2: 开发者工作流
 此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。
 
 
 [00] repo init 获取项目清单:
 
-技术原理: repo 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。repo init 命令的核心是克隆一个特殊的 Manifest 仓库。该仓库包含一个 manifest.xml 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（&lt;project&gt;）、在哪个路径（path）、以及使用哪个分支或 Tag（revision）组成。
+技术原理: repo 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。repo init 命令的核心是克隆一个特殊的 Manifest 仓库。该仓库包含一个 manifest.xml 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（<project>）、在哪个路径（path）、以及使用哪个分支或 Tag（revision）组成。
 
 
 
 [01] repo sync 同步所有源码:
 
-技术原理: repo 工具解析 manifest.xml 文件，然后以极高的并发度（可配置）为每个 &lt;project&gt; 执行 git clone 或 git fetch 操作。在我们的流程中，所有 Git 仓库都由 Gerrit 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。
+技术原理: repo 工具解析 manifest.xml 文件，然后以极高的并发度（可配置）为每个 <project> 执行 git clone 或 git fetch 操作。在我们的流程中，所有 Git 仓库都由 Gerrit 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。
 
 
 
-[02] repo start &amp; git commit 本地开发:">
-<meta name="author" content="">
-<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/others/ci-cd/">
-<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css" integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as="style">
-<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
-<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
-<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
-<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
-<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
-<meta name="theme-color" content="#2e2e33">
-<meta name="msapplication-TileColor" content="#2e2e33">
-<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/others/ci-cd/">
-<noscript>
-    <style>
-        #theme-toggle,
-        .top-link {
-            display: none;
-        }
-
-    </style>
-    <style>
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --theme: rgb(29, 30, 32);
-                --entry: rgb(46, 46, 51);
-                --primary: rgb(218, 218, 219);
-                --secondary: rgb(155, 156, 157);
-                --tertiary: rgb(65, 66, 68);
-                --content: rgb(196, 196, 197);
-                --code-block-bg: rgb(46, 46, 51);
-                --code-bg: rgb(55, 56, 62);
-                --border: rgb(51, 51, 51);
-            }
-
-            .list {
-                background: var(--theme);
-            }
-
-            .list:not(.dark)::-webkit-scrollbar-track {
-                background: 0 0;
-            }
-
-            .list:not(.dark)::-webkit-scrollbar-thumb {
-                border-color: var(--theme);
-            }
-        }
-
-    </style>
-</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/others/ci-cd/">
-  <meta property="og:site_name" content="Ethen 的实验室">
-  <meta property="og:title" content="智能座舱软件开发 CI/CD 流程技术说明文档">
-  <meta property="og:description" content="1. 概述 本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。
+[02] repo start & git commit 本地开发:"><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/others/ci-cd/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/others/ci-cd/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/others/ci-cd/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="智能座舱软件开发 CI/CD 流程技术说明文档"><meta property="og:description" content="1. 概述 本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。
 核心组件:
-版本控制与代码审查: Git, Repo, Gerrit 持续集成/持续交付 (CI/CD): Jenkins 质量管理: SonarQube 制品库管理: JFrog Artifactory 测试平台: HIL (硬件在环) / SIL (软件在环) 部署与发布: OTA 服务器, TSP (车载信息服务提供商) 服务器 2. 详细流程与技术实现原理 阶段 1 &amp; 2: 开发者工作流 此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。
+版本控制与代码审查: Git, Repo, Gerrit 持续集成/持续交付 (CI/CD): Jenkins 质量管理: SonarQube 制品库管理: JFrog Artifactory 测试平台: HIL (硬件在环) / SIL (软件在环) 部署与发布: OTA 服务器, TSP (车载信息服务提供商) 服务器 2. 详细流程与技术实现原理 阶段 1 & 2: 开发者工作流 此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。
 [00] repo init 获取项目清单:
-技术原理: repo 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。repo init 命令的核心是克隆一个特殊的 Manifest 仓库。该仓库包含一个 manifest.xml 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（&lt;project&gt;）、在哪个路径（path）、以及使用哪个分支或 Tag（revision）组成。 [01] repo sync 同步所有源码:
-技术原理: repo 工具解析 manifest.xml 文件，然后以极高的并发度（可配置）为每个 &lt;project&gt; 执行 git clone 或 git fetch 操作。在我们的流程中，所有 Git 仓库都由 Gerrit 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。 [02] repo start &amp; git commit 本地开发:">
-  <meta property="og:locale" content="en">
-  <meta property="og:type" content="article">
-    <meta property="article:section" content="others">
-    <meta property="article:published_time" content="2025-08-03T17:17:50+08:00">
-    <meta property="article:modified_time" content="2025-08-03T17:17:50+08:00">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="智能座舱软件开发 CI/CD 流程技术说明文档">
-<meta name="twitter:description" content="1. 概述
+技术原理: repo 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。repo init 命令的核心是克隆一个特殊的 Manifest 仓库。该仓库包含一个 manifest.xml 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（<project>）、在哪个路径（path）、以及使用哪个分支或 Tag（revision）组成。 [01] repo sync 同步所有源码:
+技术原理: repo 工具解析 manifest.xml 文件，然后以极高的并发度（可配置）为每个 <project> 执行 git clone 或 git fetch 操作。在我们的流程中，所有 Git 仓库都由 Gerrit 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。 [02] repo start & git commit 本地开发:"><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="others"><meta property="article:published_time" content="2025-08-03T17:17:50+08:00"><meta property="article:modified_time" content="2025-08-03T17:17:50+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="智能座舱软件开发 CI/CD 流程技术说明文档"><meta name=twitter:description content="1. 概述
 本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。
 核心组件:
 
@@ -115,412 +47,26 @@
 
 2. 详细流程与技术实现原理
 
-阶段 1 &amp; 2: 开发者工作流
+阶段 1 & 2: 开发者工作流
 此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。
 
 
 [00] repo init 获取项目清单:
 
-技术原理: repo 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。repo init 命令的核心是克隆一个特殊的 Manifest 仓库。该仓库包含一个 manifest.xml 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（&lt;project&gt;）、在哪个路径（path）、以及使用哪个分支或 Tag（revision）组成。
+技术原理: repo 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。repo init 命令的核心是克隆一个特殊的 Manifest 仓库。该仓库包含一个 manifest.xml 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（<project>）、在哪个路径（path）、以及使用哪个分支或 Tag（revision）组成。
 
 
 
 [01] repo sync 同步所有源码:
 
-技术原理: repo 工具解析 manifest.xml 文件，然后以极高的并发度（可配置）为每个 &lt;project&gt; 执行 git clone 或 git fetch 操作。在我们的流程中，所有 Git 仓库都由 Gerrit 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。
+技术原理: repo 工具解析 manifest.xml 文件，然后以极高的并发度（可配置）为每个 <project> 执行 git clone 或 git fetch 操作。在我们的流程中，所有 Git 仓库都由 Gerrit 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。
 
 
 
-[02] repo start &amp; git commit 本地开发:">
-
-
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {
-      "@type": "ListItem",
-      "position":  1 ,
-      "name": "杂记",
-      "item": "https://ethen-cao.github.io/ethenslab/others/"
-    }, 
-    {
-      "@type": "ListItem",
-      "position":  2 ,
-      "name": "智能座舱软件开发 CI/CD 流程技术说明文档",
-      "item": "https://ethen-cao.github.io/ethenslab/others/ci-cd/"
-    }
-  ]
-}
-</script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BlogPosting",
-  "headline": "智能座舱软件开发 CI/CD 流程技术说明文档",
-  "name": "智能座舱软件开发 CI\/CD 流程技术说明文档",
-  "description": "1. 概述 本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。\n核心组件:\n版本控制与代码审查: Git, Repo, Gerrit 持续集成/持续交付 (CI/CD): Jenkins 质量管理: SonarQube 制品库管理: JFrog Artifactory 测试平台: HIL (硬件在环) / SIL (软件在环) 部署与发布: OTA 服务器, TSP (车载信息服务提供商) 服务器 2. 详细流程与技术实现原理 阶段 1 \u0026amp; 2: 开发者工作流 此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。\n[00] repo init 获取项目清单:\n技术原理: repo 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。repo init 命令的核心是克隆一个特殊的 Manifest 仓库。该仓库包含一个 manifest.xml 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（\u0026lt;project\u0026gt;）、在哪个路径（path）、以及使用哪个分支或 Tag（revision）组成。 [01] repo sync 同步所有源码:\n技术原理: repo 工具解析 manifest.xml 文件，然后以极高的并发度（可配置）为每个 \u0026lt;project\u0026gt; 执行 git clone 或 git fetch 操作。在我们的流程中，所有 Git 仓库都由 Gerrit 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。 [02] repo start \u0026amp; git commit 本地开发:\n",
-  "keywords": [
-    
-  ],
-  "articleBody": "1. 概述 本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。\n核心组件:\n版本控制与代码审查: Git, Repo, Gerrit 持续集成/持续交付 (CI/CD): Jenkins 质量管理: SonarQube 制品库管理: JFrog Artifactory 测试平台: HIL (硬件在环) / SIL (软件在环) 部署与发布: OTA 服务器, TSP (车载信息服务提供商) 服务器 2. 详细流程与技术实现原理 阶段 1 \u0026 2: 开发者工作流 此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。\n[00] repo init 获取项目清单:\n技术原理: repo 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。repo init 命令的核心是克隆一个特殊的 Manifest 仓库。该仓库包含一个 manifest.xml 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（）、在哪个路径（path）、以及使用哪个分支或 Tag（revision）组成。 [01] repo sync 同步所有源码:\n技术原理: repo 工具解析 manifest.xml 文件，然后以极高的并发度（可配置）为每个 执行 git clone 或 git fetch 操作。在我们的流程中，所有 Git 仓库都由 Gerrit 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。 [02] repo start \u0026 git commit 本地开发:\n技术原理: repo start . 是一个便捷命令，它会为清单中定义的所有项目统一创建一个同名的本地开发分支。开发者完成代码修改后，执行 git commit。一个关键的技术点是，repo init 时会自动在每个 Git 仓库的 .git/hooks/ 目录下安装一个 commit-msg 钩子。此钩子会在每次提交时自动生成一个唯一的 Change-Id，Gerrit 依靠此 ID 来跟踪同一次代码提交的多个不同版本（Patchset）。 [03] repo upload 提交代码审核:\n技术原理: 这是连接本地开发与CI流程的关键。repo upload 会扫描本地分支上所有已提交但尚未上传的 commit，并将它们推送到 Gerrit 一个特殊的 Git 引用（Ref）上：refs/for/。例如，推送到 develop 分支进行审核，实际推送的地址是 refs/for/develop。Gerrit 监听到这个特殊引用上有推送时，不会直接合并代码，而是将其转化为一个可供审查的变更（Change）。 阶段 3: 审核与验证 (门禁) 这是流程的自动化核心，通过“机器验证”和“人工评审”两个并行维度，建立起第一道质量门禁。\n[04] [Webhook] 触发 CI 验证:\n技术原理: Gerrit 通过其事件监听插件（如 its-hooks），在“新 Patchset 创建（PatchSet Created）”事件发生时，向 Jenkins 服务器预先配置的 URL 发送一个 HTTP POST 请求，即 Webhook。该请求的 Body 是一个 JSON 对象，包含了触发验证所需的所有元数据，如项目名、分支、Gerrit Change URL 以及最重要的 Git Checkout 引用（例如 refs/changes/23/12323/1）。 简化版的流程如下：\n[05-15] Jenkins CI 验证流水线:\n拉取 Patchset: Jenkins 中的 Gerrit Trigger 插件会解析 Webhook 传入的 JSON，并使用其中的 Git 引用，精确地只拉取开发者提交的那个变更版本进行验证，而不是整个主干。 [06-07] 静态代码分析: Jenkins 调用 SonarQube Scanner 工具。Scanner 会在 Jenkins 的工作空间内分析代码，并将分析结果（代码异味、Bug、漏洞、覆盖率等）上报给 SonarQube 服务器。上报后，Jenkins 会通过 API 回调 SonarQube，检查本次分析是否通过了预设的质量门禁 (Quality Gate)。 [08-09] 拉取构建依赖: 为加速编译，大型二进制依赖（如交叉编译工具链、SDK、第三方库）都预先存储在 JFrog Artifactory 中。Jenkins 通过 Artifactory 插件或 curl 命令，在编译前将这些依赖下载到构建环境中。 编译与单元测试: Jenkins 执行项目的编译脚本（如 make, bitbake），并在编译成功后运行单元测试套件（如 GoogleTest 框架生成的测试程序）。 [12-15] 结果反馈: Jenkins Pipeline 脚本会汇总以上所有步骤的执行结果（成功/失败）。然后，通过 Gerrit Trigger 插件提供的函数或直接调用 Gerrit 的 REST API，将结果写回 Gerrit。这包括一个标准化的评分（Verified +1 或 -1）和一个指向 Jenkins 构建日志的链接，实现了自动化的闭环反馈。 [16] 人工评审:\n技术原理: Gerrit 提供了一个可视化的 Web UI，允许审核者（Reviewer）对代码进行逐行评论、提出修改建议，并最终给出 Code-Review 评分。Gerrit 内部有强大的权限管理系统，可以配置只有特定用户组（如 Team Leader）才能给出 +2（最高批准分）。 阶段 4: 代码入库 [17] [Merge] 合并到主分支: 技术原理: 当一个 Gerrit Change 同时满足所有预设的标签条件（例如 Verified +1 和 Code-Review +2）后，其状态变为 “Ready to Submit”。拥有提交权限的用户点击 “Submit” 按钮，Gerrit 服务器会亲自执行 git merge (或 git rebase，取决于项目策略) 操作，将这次提交安全地合入到目标主干分支。整个过程由 Gerrit 服务端完成，保证了主干的稳定和一致性。 阶段 5: Daily/Weekly 发布 此阶段的目标是持续地产出可供测试团队使用的、集成了所有最新功能的完整系统版本。\n[18] [Time Trigger] 触发构建:\n技术原理: 这是 Jenkins 的核心功能之一，通过 Cron 表达式（如 H 2 * * * 代表每天凌晨2点）来配置定时任务。定时器会准时触发一个预设的 Release 构建流水线。 [19-22] Release 构建与归档:\n执行完整构建: 与 CI 验证不同，此任务会拉取主干分支在特定时间点的最新代码，执行一次完整的、干净的系统级构建。 创建 Git 标签: 构建成功后，Jenkins 会执行 git tag 命令，在代码仓库中为此次构建对应的 Commit 打上一个唯一的、不可变的标签（如 v2.5.0-daily-20250927），这对于版本追溯至关重要。 上传构建产物: Jenkins 使用 Artifactory 插件，将所有构建产物（系统镜像、SDK、map 文件、OTA 增量包等）连同元数据（如 Git Tag、构建耗时）一同上传到 JFrog Artifactory 的特定仓库（如 daily-releases）中进行版本化归档。 [23-26] 自动化集成测试:\n技术原理: 构建产物成功上传到 Artifactory 后，可以触发 Webhook 通知 Jenkins 执行下一步的集成测试任务。该任务包含自动化脚本（如 Ansible, Python），能够将 Artifactory 中的系统镜像自动部署（刷写）到 HIL/SIL 测试平台。部署完成后，会自动执行一套构建验证测试 (BVT) 脚本，检查系统的基本功能（如启动、联网、核心应用运行）是否正常，并生成测试报告。 阶段 6 \u0026 7: OTA 发布与更新 此阶段是将经过充分测试的稳定版本安全、可靠地推送到最终用户车辆上的过程。\n[27-31] OTA 包制作与部署:\n版本挑选与签名: 版本经理从 Artifactory 中挑选一个质量合格的稳定版。一个专门的部署服务器（或 Jenkins Job）会下载该版本，并使用生产环境的私钥对其进行数字签名。这个签名是车辆验证 OTA 包合法性的唯一依据。 上传至 OTA 服务器: 签名后的 OTA 包连同其元数据（版本号、更新日志、文件大小、哈希值等）通过 API 上传到 OTA 服务器。 [32-43] OTA 推送与车辆更新:\n[32] 升级活动 (Campaign) 创建: 版本经理在 OTA 服务器的管理后台创建一个升级活动，定义升级策略，如目标车辆群体（可通过 VIN 码、地区、车型等筛选）、发布方式（灰度、分批）和时间。 [33-35] 服务器协同与通知: OTA 服务器与 TSP 服务器协同工作。TSP 负责车辆的连接和身份管理。OTA 服务器请求 TSP 查询符合条件的车辆列表，然后由 TSP 通过其与车辆保持的长连接通道（如 MQTT）向目标车辆推送一个轻量级的升级通知。 [36-43] 车辆端更新流程: 检查与下载: 车辆的车机（IVI）或网关（Gateway）收到通知后，会主动向 OTA 服务器发起 HTTPS 请求检查更新详情，并在满足预设条件（如电量充足、网络良好、非行驶状态）时下载 OTA 包。 验证与升级: 下载完成后，车辆会使用其内部存储的公钥对 OTA 包的数字签名进行验证。验证通过后，才会进入升级流程（如 A/B 分区切换）。 结果上报: 升级完成后，车辆会将结果（成功/失败/错误码）上报给 TSP 服务器，TSP 再将状态同步给 OTA 服务器，用于监控整个升级活动的成功率。 ",
-  "wordCount" : "432",
-  "inLanguage": "en",
-  "datePublished": "2025-08-03T17:17:50+08:00",
-  "dateModified": "2025-08-03T17:17:50+08:00",
-  "mainEntityOfPage": {
-    "@type": "WebPage",
-    "@id": "https://ethen-cao.github.io/ethenslab/others/ci-cd/"
-  },
-  "publisher": {
-    "@type": "Organization",
-    "name": "Ethen 的实验室",
-    "logo": {
-      "@type": "ImageObject",
-      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
-    }
-  }
-}
-</script>
-</head>
-
-<body class="" id="top">
-<script>
-    if (localStorage.getItem("pref-theme") === "dark") {
-        document.body.classList.add('dark');
-    } else if (localStorage.getItem("pref-theme") === "light") {
-        document.body.classList.remove('dark')
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.body.classList.add('dark');
-    }
-
-</script>
-
-<header class="header">
-    <nav class="nav">
-        <div class="logo">
-            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
-            <div class="logo-switches">
-                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
-                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                    </svg>
-                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="5"></circle>
-                        <line x1="12" y1="1" x2="12" y2="3"></line>
-                        <line x1="12" y1="21" x2="12" y2="23"></line>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                        <line x1="1" y1="12" x2="3" y2="12"></line>
-                        <line x1="21" y1="12" x2="23" y2="12"></line>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
-                </button>
-            </div>
-        </div>
-        <ul id="menu">
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
-                    <span>Android系统开发</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
-                    <span>Android Automotive</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
-                    <span>QNX开发</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
-                    <span>智能座舱方案</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
-                    <span>Explore AI</span>
-                </a>
-            </li>
-        </ul>
-    </nav>
-</header>
-<main class="main">
-
-<article class="post-single">
-  <header class="post-header">
-    <div class="breadcrumbs"><a href="https://ethen-cao.github.io/ethenslab/">Home</a>&nbsp;»&nbsp;<a href="https://ethen-cao.github.io/ethenslab/others/">杂记</a></div>
-    <h1 class="post-title entry-hint-parent">
-      智能座舱软件开发 CI/CD 流程技术说明文档
-    </h1>
-    <div class="post-meta"><span title='2025-08-03 17:17:50 +0800 CST'>August 3, 2025</span>&nbsp;·&nbsp;3 min&nbsp;·&nbsp;432 words
-
-</div>
-  </header> 
-  <div class="post-content"><h2 id="1-概述"><strong>1. 概述</strong><a hidden class="anchor" aria-hidden="true" href="#1-概述">#</a></h2>
-<p>本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。</p>
-<p><strong>核心组件:</strong></p>
-<ul>
-<li><strong>版本控制与代码审查</strong>: Git, Repo, Gerrit</li>
-<li><strong>持续集成/持续交付 (CI/CD)</strong>: Jenkins</li>
-<li><strong>质量管理</strong>: SonarQube</li>
-<li><strong>制品库管理</strong>: JFrog Artifactory</li>
-<li><strong>测试平台</strong>: HIL (硬件在环) / SIL (软件在环)</li>
-<li><strong>部署与发布</strong>: OTA 服务器, TSP (车载信息服务提供商) 服务器</li>
-</ul>
-<hr>
-<h2 id="2-详细流程与技术实现原理"><strong>2. 详细流程与技术实现原理</strong><a hidden class="anchor" aria-hidden="true" href="#2-详细流程与技术实现原理">#</a></h2>
-<p><img loading="lazy" src="/ethenslab/images/Intelligent-cabin-software-development-and-release-process.png"></p>
-<h3 id="阶段-1--2-开发者工作流"><strong>阶段 1 &amp; 2: 开发者工作流</strong><a hidden class="anchor" aria-hidden="true" href="#阶段-1--2-开发者工作流">#</a></h3>
-<p>此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。</p>
-<ul>
-<li>
-<p><strong>[00] <code>repo init</code> 获取项目清单</strong>:</p>
-<ul>
-<li><strong>技术原理</strong>: <code>repo</code> 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。<code>repo init</code> 命令的核心是克隆一个特殊的 <strong>Manifest 仓库</strong>。该仓库包含一个 <code>manifest.xml</code> 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（<code>&lt;project&gt;</code>）、在哪个路径（<code>path</code>）、以及使用哪个分支或 Tag（<code>revision</code>）组成。</li>
-</ul>
-</li>
-<li>
-<p><strong>[01] <code>repo sync</code> 同步所有源码</strong>:</p>
-<ul>
-<li><strong>技术原理</strong>: <code>repo</code> 工具解析 <code>manifest.xml</code> 文件，然后以极高的并发度（可配置）为每个 <code>&lt;project&gt;</code> 执行 <code>git clone</code> 或 <code>git fetch</code> 操作。在我们的流程中，所有 Git 仓库都由 <strong>Gerrit</strong> 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。</li>
-</ul>
-</li>
-<li>
-<p><strong>[02] <code>repo start &amp; git commit</code> 本地开发</strong>:</p>
-<ul>
-<li><strong>技术原理</strong>: <code>repo start &lt;branch_name&gt; .</code> 是一个便捷命令，它会为清单中定义的所有项目统一创建一个同名的本地开发分支。开发者完成代码修改后，执行 <code>git commit</code>。一个关键的技术点是，<code>repo init</code> 时会自动在每个 Git 仓库的 <code>.git/hooks/</code> 目录下安装一个 <code>commit-msg</code> 钩子。此钩子会在每次提交时自动生成一个唯一的 <code>Change-Id</code>，Gerrit 依靠此 ID 来跟踪同一次代码提交的多个不同版本（Patchset）。</li>
-</ul>
-</li>
-<li>
-<p><strong>[03] <code>repo upload</code> 提交代码审核</strong>:</p>
-<ul>
-<li><strong>技术原理</strong>: 这是连接本地开发与CI流程的关键。<code>repo upload</code> 会扫描本地分支上所有已提交但尚未上传的 commit，并将它们推送到 Gerrit 一个特殊的 Git 引用（Ref）上：<code>refs/for/&lt;target_branch&gt;</code>。例如，推送到 <code>develop</code> 分支进行审核，实际推送的地址是 <code>refs/for/develop</code>。Gerrit 监听到这个特殊引用上有推送时，不会直接合并代码，而是将其转化为一个可供审查的变更（Change）。</li>
-</ul>
-</li>
-</ul>
-<h3 id="阶段-3-审核与验证-门禁"><strong>阶段 3: 审核与验证 (门禁)</strong><a hidden class="anchor" aria-hidden="true" href="#阶段-3-审核与验证-门禁">#</a></h3>
-<p>这是流程的自动化核心，通过“机器验证”和“人工评审”两个并行维度，建立起第一道质量门禁。</p>
-<ul>
-<li>
-<p><strong>[04] <code>[Webhook]</code> 触发 CI 验证</strong>:</p>
-<ul>
-<li><strong>技术原理</strong>: Gerrit 通过其事件监听插件（如 its-hooks），在“新 Patchset 创建（PatchSet Created）”事件发生时，向 Jenkins 服务器预先配置的 URL 发送一个 HTTP POST 请求，即 Webhook。该请求的 Body 是一个 JSON 对象，包含了触发验证所需的所有元数据，如项目名、分支、Gerrit Change URL 以及最重要的 Git Checkout 引用（例如 <code>refs/changes/23/12323/1</code>）。</li>
-</ul>
-<p>简化版的流程如下：</p>
-<p><img loading="lazy" src="/ethenslab/images/ci-cd-process.png"></p>
-</li>
-<li>
-<p><strong>[05-15] Jenkins CI 验证流水线</strong>:</p>
-<ul>
-<li><strong>拉取 Patchset</strong>: Jenkins 中的 Gerrit Trigger 插件会解析 Webhook 传入的 JSON，并使用其中的 Git 引用，精确地只拉取开发者提交的那个变更版本进行验证，而不是整个主干。</li>
-<li><strong>[06-07] 静态代码分析</strong>: Jenkins 调用 SonarQube Scanner 工具。Scanner 会在 Jenkins 的工作空间内分析代码，并将分析结果（代码异味、Bug、漏洞、覆盖率等）上报给 SonarQube 服务器。上报后，Jenkins 会通过 API 回调 SonarQube，检查本次分析是否通过了预设的<strong>质量门禁 (Quality Gate)</strong>。</li>
-<li><strong>[08-09] 拉取构建依赖</strong>: 为加速编译，大型二进制依赖（如交叉编译工具链、SDK、第三方库）都预先存储在 <strong>JFrog Artifactory</strong> 中。Jenkins 通过 Artifactory 插件或 <code>curl</code> 命令，在编译前将这些依赖下载到构建环境中。</li>
-<li><strong>编译与单元测试</strong>: Jenkins 执行项目的编译脚本（如 <code>make</code>, <code>bitbake</code>），并在编译成功后运行单元测试套件（如 GoogleTest 框架生成的测试程序）。</li>
-<li><strong>[12-15] 结果反馈</strong>: Jenkins Pipeline 脚本会汇总以上所有步骤的执行结果（成功/失败）。然后，通过 Gerrit Trigger 插件提供的函数或直接调用 Gerrit 的 REST API，将结果写回 Gerrit。这包括一个标准化的评分（<code>Verified +1</code> 或 <code>-1</code>）和一个指向 Jenkins 构建日志的链接，实现了自动化的闭环反馈。</li>
-</ul>
-</li>
-<li>
-<p><strong>[16] 人工评审</strong>:</p>
-<ul>
-<li><strong>技术原理</strong>: Gerrit 提供了一个可视化的 Web UI，允许审核者（Reviewer）对代码进行逐行评论、提出修改建议，并最终给出 <code>Code-Review</code> 评分。Gerrit 内部有强大的权限管理系统，可以配置只有特定用户组（如 Team Leader）才能给出 <code>+2</code>（最高批准分）。</li>
-</ul>
-</li>
-</ul>
-<h3 id="阶段-4-代码入库"><strong>阶段 4: 代码入库</strong><a hidden class="anchor" aria-hidden="true" href="#阶段-4-代码入库">#</a></h3>
-<ul>
-<li><strong>[17] <code>[Merge]</code> 合并到主分支</strong>:
-<ul>
-<li><strong>技术原理</strong>: 当一个 Gerrit Change 同时满足所有预设的标签条件（例如 <code>Verified +1</code> 和 <code>Code-Review +2</code>）后，其状态变为 “Ready to Submit”。拥有提交权限的用户点击 “Submit” 按钮，Gerrit 服务器会亲自执行 <code>git merge</code> (或 <code>git rebase</code>，取决于项目策略) 操作，将这次提交安全地合入到目标主干分支。整个过程由 Gerrit 服务端完成，保证了主干的稳定和一致性。</li>
-</ul>
-</li>
-</ul>
-<h3 id="阶段-5-dailyweekly-发布"><strong>阶段 5: Daily/Weekly 发布</strong><a hidden class="anchor" aria-hidden="true" href="#阶段-5-dailyweekly-发布">#</a></h3>
-<p>此阶段的目标是持续地产出可供测试团队使用的、集成了所有最新功能的完整系统版本。</p>
-<ul>
-<li>
-<p><strong>[18] <code>[Time Trigger]</code> 触发构建</strong>:</p>
-<ul>
-<li><strong>技术原理</strong>: 这是 Jenkins 的核心功能之一，通过 Cron 表达式（如 <code>H 2 * * *</code> 代表每天凌晨2点）来配置定时任务。定时器会准时触发一个预设的 Release 构建流水线。</li>
-</ul>
-</li>
-<li>
-<p><strong>[19-22] Release 构建与归档</strong>:</p>
-<ul>
-<li><strong>执行完整构建</strong>: 与 CI 验证不同，此任务会拉取主干分支在特定时间点的最新代码，执行一次完整的、干净的系统级构建。</li>
-<li><strong>创建 Git 标签</strong>: 构建成功后，Jenkins 会执行 <code>git tag</code> 命令，在代码仓库中为此次构建对应的 Commit 打上一个唯一的、不可变的标签（如 <code>v2.5.0-daily-20250927</code>），这对于版本追溯至关重要。</li>
-<li><strong>上传构建产物</strong>: Jenkins 使用 Artifactory 插件，将所有构建产物（系统镜像、SDK、map 文件、OTA 增量包等）连同元数据（如 Git Tag、构建耗时）一同上传到 JFrog Artifactory 的特定仓库（如 <code>daily-releases</code>）中进行版本化归档。</li>
-</ul>
-</li>
-<li>
-<p><strong>[23-26] 自动化集成测试</strong>:</p>
-<ul>
-<li><strong>技术原理</strong>: 构建产物成功上传到 Artifactory 后，可以触发 Webhook 通知 Jenkins 执行下一步的集成测试任务。该任务包含自动化脚本（如 Ansible, Python），能够将 Artifactory 中的系统镜像自动部署（刷写）到 <strong>HIL/SIL 测试平台</strong>。部署完成后，会自动执行一套<strong>构建验证测试 (BVT)</strong> 脚本，检查系统的基本功能（如启动、联网、核心应用运行）是否正常，并生成测试报告。</li>
-</ul>
-</li>
-</ul>
-<h3 id="阶段-6--7-ota-发布与更新"><strong>阶段 6 &amp; 7: OTA 发布与更新</strong><a hidden class="anchor" aria-hidden="true" href="#阶段-6--7-ota-发布与更新">#</a></h3>
-<p>此阶段是将经过充分测试的稳定版本安全、可靠地推送到最终用户车辆上的过程。</p>
-<ul>
-<li>
-<p><strong>[27-31] OTA 包制作与部署</strong>:</p>
-<ul>
-<li><strong>版本挑选与签名</strong>: 版本经理从 Artifactory 中挑选一个质量合格的稳定版。一个专门的部署服务器（或 Jenkins Job）会下载该版本，并使用生产环境的<strong>私钥</strong>对其进行数字签名。这个签名是车辆验证 OTA 包合法性的唯一依据。</li>
-<li><strong>上传至 OTA 服务器</strong>: 签名后的 OTA 包连同其元数据（版本号、更新日志、文件大小、哈希值等）通过 API 上传到 <strong>OTA 服务器</strong>。</li>
-</ul>
-</li>
-<li>
-<p><strong>[32-43] OTA 推送与车辆更新</strong>:</p>
-<ul>
-<li><strong>[32] 升级活动 (Campaign) 创建</strong>: 版本经理在 OTA 服务器的管理后台创建一个升级活动，定义升级策略，如目标车辆群体（可通过 VIN 码、地区、车型等筛选）、发布方式（灰度、分批）和时间。</li>
-<li><strong>[33-35] 服务器协同与通知</strong>: OTA 服务器与 <strong>TSP 服务器</strong>协同工作。TSP 负责车辆的连接和身份管理。OTA 服务器请求 TSP 查询符合条件的车辆列表，然后由 TSP 通过其与车辆保持的<strong>长连接通道</strong>（如 MQTT）向目标车辆推送一个轻量级的升级通知。</li>
-<li><strong>[36-43] 车辆端更新流程</strong>:
-<ol>
-<li><strong>检查与下载</strong>: 车辆的车机（IVI）或网关（Gateway）收到通知后，会主动向 OTA 服务器发起 HTTPS 请求检查更新详情，并在满足预设条件（如电量充足、网络良好、非行驶状态）时下载 OTA 包。</li>
-<li><strong>验证与升级</strong>: 下载完成后，车辆会使用其内部存储的<strong>公钥</strong>对 OTA 包的数字签名进行验证。验证通过后，才会进入升级流程（如 A/B 分区切换）。</li>
-<li><strong>结果上报</strong>: 升级完成后，车辆会将结果（成功/失败/错误码）上报给 TSP 服务器，TSP 再将状态同步给 OTA 服务器，用于监控整个升级活动的成功率。</li>
-</ol>
-</li>
-</ul>
-</li>
-</ul>
-<hr>
-
-
-  </div>
-
-  <footer class="post-footer">
-    <ul class="post-tags">
-    </ul>
-
-  </footer>
-</article>
-    </main>
-    
-<footer class="footer">
-        <span>&copy; 2025 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
-
-    <span>
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
-    </span>
-</footer>
-<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
-        <path d="M12 6H0l6-6z" />
-    </svg>
-</a>
-
-<script>
-    let menu = document.getElementById('menu')
-    if (menu) {
-        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
-        menu.onscroll = function () {
-            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
-        }
-    }
-
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener("click", function (e) {
-            e.preventDefault();
-            var id = this.getAttribute("href").substr(1);
-            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
-                    behavior: "smooth"
-                });
-            } else {
-                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
-            }
-            if (id === "top") {
-                history.replaceState(null, null, " ");
-            } else {
-                history.pushState(null, null, `#${id}`);
-            }
-        });
-    });
-
-</script>
-<script>
-    var mybutton = document.getElementById("top-link");
-    window.onscroll = function () {
-        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
-            mybutton.style.visibility = "visible";
-            mybutton.style.opacity = "1";
-        } else {
-            mybutton.style.visibility = "hidden";
-            mybutton.style.opacity = "0";
-        }
-    };
-
-</script>
-<script>
-    document.getElementById("theme-toggle").addEventListener("click", () => {
-        if (document.body.className.includes("dark")) {
-            document.body.classList.remove('dark');
-            localStorage.setItem("pref-theme", 'light');
-        } else {
-            document.body.classList.add('dark');
-            localStorage.setItem("pref-theme", 'dark');
-        }
-    })
-
-</script>
-<script>
-    document.querySelectorAll('pre > code').forEach((codeblock) => {
-        const container = codeblock.parentNode.parentNode;
-
-        const copybutton = document.createElement('button');
-        copybutton.classList.add('copy-code');
-        copybutton.innerHTML = 'copy';
-
-        function copyingDone() {
-            copybutton.innerHTML = 'copied!';
-            setTimeout(() => {
-                copybutton.innerHTML = 'copy';
-            }, 2000);
-        }
-
-        copybutton.addEventListener('click', (cb) => {
-            if ('clipboard' in navigator) {
-                navigator.clipboard.writeText(codeblock.textContent);
-                copyingDone();
-                return;
-            }
-
-            const range = document.createRange();
-            range.selectNodeContents(codeblock);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            try {
-                document.execCommand('copy');
-                copyingDone();
-            } catch (e) { };
-            selection.removeRange(range);
-        });
-
-        if (container.classList.contains("highlight")) {
-            container.appendChild(copybutton);
-        } else if (container.parentNode.firstChild == container) {
-            
-        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
-            
-            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
-        } else {
-            
-            codeblock.parentNode.appendChild(copybutton);
-        }
-    });
-</script>
-</body>
-
-</html>
+[02] repo start & git commit 本地开发:"><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"杂记","item":"https://ethen-cao.github.io/ethenslab/others/"},{"@type":"ListItem","position":2,"name":"智能座舱软件开发 CI/CD 流程技术说明文档","item":"https://ethen-cao.github.io/ethenslab/others/ci-cd/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"智能座舱软件开发 CI/CD 流程技术说明文档","name":"智能座舱软件开发 CI\/CD 流程技术说明文档","description":"1. 概述 本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。\n核心组件:\n版本控制与代码审查: Git, Repo, Gerrit 持续集成/持续交付 (CI/CD): Jenkins 质量管理: SonarQube 制品库管理: JFrog Artifactory 测试平台: HIL (硬件在环) / SIL (软件在环) 部署与发布: OTA 服务器, TSP (车载信息服务提供商) 服务器 2. 详细流程与技术实现原理 阶段 1 \u0026amp; 2: 开发者工作流 此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。\n[00] repo init 获取项目清单:\n技术原理: repo 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。repo init 命令的核心是克隆一个特殊的 Manifest 仓库。该仓库包含一个 manifest.xml 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（\u0026lt;project\u0026gt;）、在哪个路径（path）、以及使用哪个分支或 Tag（revision）组成。 [01] repo sync 同步所有源码:\n技术原理: repo 工具解析 manifest.xml 文件，然后以极高的并发度（可配置）为每个 \u0026lt;project\u0026gt; 执行 git clone 或 git fetch 操作。在我们的流程中，所有 Git 仓库都由 Gerrit 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。 [02] repo start \u0026amp; git commit 本地开发:\n","keywords":[],"articleBody":"1. 概述 本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。\n核心组件:\n版本控制与代码审查: Git, Repo, Gerrit 持续集成/持续交付 (CI/CD): Jenkins 质量管理: SonarQube 制品库管理: JFrog Artifactory 测试平台: HIL (硬件在环) / SIL (软件在环) 部署与发布: OTA 服务器, TSP (车载信息服务提供商) 服务器 2. 详细流程与技术实现原理 阶段 1 \u0026 2: 开发者工作流 此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。\n[00] repo init 获取项目清单:\n技术原理: repo 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。repo init 命令的核心是克隆一个特殊的 Manifest 仓库。该仓库包含一个 manifest.xml 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（）、在哪个路径（path）、以及使用哪个分支或 Tag（revision）组成。 [01] repo sync 同步所有源码:\n技术原理: repo 工具解析 manifest.xml 文件，然后以极高的并发度（可配置）为每个 执行 git clone 或 git fetch 操作。在我们的流程中，所有 Git 仓库都由 Gerrit 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。 [02] repo start \u0026 git commit 本地开发:\n技术原理: repo start . 是一个便捷命令，它会为清单中定义的所有项目统一创建一个同名的本地开发分支。开发者完成代码修改后，执行 git commit。一个关键的技术点是，repo init 时会自动在每个 Git 仓库的 .git/hooks/ 目录下安装一个 commit-msg 钩子。此钩子会在每次提交时自动生成一个唯一的 Change-Id，Gerrit 依靠此 ID 来跟踪同一次代码提交的多个不同版本（Patchset）。 [03] repo upload 提交代码审核:\n技术原理: 这是连接本地开发与CI流程的关键。repo upload 会扫描本地分支上所有已提交但尚未上传的 commit，并将它们推送到 Gerrit 一个特殊的 Git 引用（Ref）上：refs/for/。例如，推送到 develop 分支进行审核，实际推送的地址是 refs/for/develop。Gerrit 监听到这个特殊引用上有推送时，不会直接合并代码，而是将其转化为一个可供审查的变更（Change）。 阶段 3: 审核与验证 (门禁) 这是流程的自动化核心，通过“机器验证”和“人工评审”两个并行维度，建立起第一道质量门禁。\n[04] [Webhook] 触发 CI 验证:\n技术原理: Gerrit 通过其事件监听插件（如 its-hooks），在“新 Patchset 创建（PatchSet Created）”事件发生时，向 Jenkins 服务器预先配置的 URL 发送一个 HTTP POST 请求，即 Webhook。该请求的 Body 是一个 JSON 对象，包含了触发验证所需的所有元数据，如项目名、分支、Gerrit Change URL 以及最重要的 Git Checkout 引用（例如 refs/changes/23/12323/1）。 简化版的流程如下：\n[05-15] Jenkins CI 验证流水线:\n拉取 Patchset: Jenkins 中的 Gerrit Trigger 插件会解析 Webhook 传入的 JSON，并使用其中的 Git 引用，精确地只拉取开发者提交的那个变更版本进行验证，而不是整个主干。 [06-07] 静态代码分析: Jenkins 调用 SonarQube Scanner 工具。Scanner 会在 Jenkins 的工作空间内分析代码，并将分析结果（代码异味、Bug、漏洞、覆盖率等）上报给 SonarQube 服务器。上报后，Jenkins 会通过 API 回调 SonarQube，检查本次分析是否通过了预设的质量门禁 (Quality Gate)。 [08-09] 拉取构建依赖: 为加速编译，大型二进制依赖（如交叉编译工具链、SDK、第三方库）都预先存储在 JFrog Artifactory 中。Jenkins 通过 Artifactory 插件或 curl 命令，在编译前将这些依赖下载到构建环境中。 编译与单元测试: Jenkins 执行项目的编译脚本（如 make, bitbake），并在编译成功后运行单元测试套件（如 GoogleTest 框架生成的测试程序）。 [12-15] 结果反馈: Jenkins Pipeline 脚本会汇总以上所有步骤的执行结果（成功/失败）。然后，通过 Gerrit Trigger 插件提供的函数或直接调用 Gerrit 的 REST API，将结果写回 Gerrit。这包括一个标准化的评分（Verified +1 或 -1）和一个指向 Jenkins 构建日志的链接，实现了自动化的闭环反馈。 [16] 人工评审:\n技术原理: Gerrit 提供了一个可视化的 Web UI，允许审核者（Reviewer）对代码进行逐行评论、提出修改建议，并最终给出 Code-Review 评分。Gerrit 内部有强大的权限管理系统，可以配置只有特定用户组（如 Team Leader）才能给出 +2（最高批准分）。 阶段 4: 代码入库 [17] [Merge] 合并到主分支: 技术原理: 当一个 Gerrit Change 同时满足所有预设的标签条件（例如 Verified +1 和 Code-Review +2）后，其状态变为 “Ready to Submit”。拥有提交权限的用户点击 “Submit” 按钮，Gerrit 服务器会亲自执行 git merge (或 git rebase，取决于项目策略) 操作，将这次提交安全地合入到目标主干分支。整个过程由 Gerrit 服务端完成，保证了主干的稳定和一致性。 阶段 5: Daily/Weekly 发布 此阶段的目标是持续地产出可供测试团队使用的、集成了所有最新功能的完整系统版本。\n[18] [Time Trigger] 触发构建:\n技术原理: 这是 Jenkins 的核心功能之一，通过 Cron 表达式（如 H 2 * * * 代表每天凌晨2点）来配置定时任务。定时器会准时触发一个预设的 Release 构建流水线。 [19-22] Release 构建与归档:\n执行完整构建: 与 CI 验证不同，此任务会拉取主干分支在特定时间点的最新代码，执行一次完整的、干净的系统级构建。 创建 Git 标签: 构建成功后，Jenkins 会执行 git tag 命令，在代码仓库中为此次构建对应的 Commit 打上一个唯一的、不可变的标签（如 v2.5.0-daily-20250927），这对于版本追溯至关重要。 上传构建产物: Jenkins 使用 Artifactory 插件，将所有构建产物（系统镜像、SDK、map 文件、OTA 增量包等）连同元数据（如 Git Tag、构建耗时）一同上传到 JFrog Artifactory 的特定仓库（如 daily-releases）中进行版本化归档。 [23-26] 自动化集成测试:\n技术原理: 构建产物成功上传到 Artifactory 后，可以触发 Webhook 通知 Jenkins 执行下一步的集成测试任务。该任务包含自动化脚本（如 Ansible, Python），能够将 Artifactory 中的系统镜像自动部署（刷写）到 HIL/SIL 测试平台。部署完成后，会自动执行一套构建验证测试 (BVT) 脚本，检查系统的基本功能（如启动、联网、核心应用运行）是否正常，并生成测试报告。 阶段 6 \u0026 7: OTA 发布与更新 此阶段是将经过充分测试的稳定版本安全、可靠地推送到最终用户车辆上的过程。\n[27-31] OTA 包制作与部署:\n版本挑选与签名: 版本经理从 Artifactory 中挑选一个质量合格的稳定版。一个专门的部署服务器（或 Jenkins Job）会下载该版本，并使用生产环境的私钥对其进行数字签名。这个签名是车辆验证 OTA 包合法性的唯一依据。 上传至 OTA 服务器: 签名后的 OTA 包连同其元数据（版本号、更新日志、文件大小、哈希值等）通过 API 上传到 OTA 服务器。 [32-43] OTA 推送与车辆更新:\n[32] 升级活动 (Campaign) 创建: 版本经理在 OTA 服务器的管理后台创建一个升级活动，定义升级策略，如目标车辆群体（可通过 VIN 码、地区、车型等筛选）、发布方式（灰度、分批）和时间。 [33-35] 服务器协同与通知: OTA 服务器与 TSP 服务器协同工作。TSP 负责车辆的连接和身份管理。OTA 服务器请求 TSP 查询符合条件的车辆列表，然后由 TSP 通过其与车辆保持的长连接通道（如 MQTT）向目标车辆推送一个轻量级的升级通知。 [36-43] 车辆端更新流程: 检查与下载: 车辆的车机（IVI）或网关（Gateway）收到通知后，会主动向 OTA 服务器发起 HTTPS 请求检查更新详情，并在满足预设条件（如电量充足、网络良好、非行驶状态）时下载 OTA 包。 验证与升级: 下载完成后，车辆会使用其内部存储的公钥对 OTA 包的数字签名进行验证。验证通过后，才会进入升级流程（如 A/B 分区切换）。 结果上报: 升级完成后，车辆会将结果（成功/失败/错误码）上报给 TSP 服务器，TSP 再将状态同步给 OTA 服务器，用于监控整个升级活动的成功率。 ","wordCount":"432","inLanguage":"en","datePublished":"2025-08-03T17:17:50+08:00","dateModified":"2025-08-03T17:17:50+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/others/ci-cd/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/others/>杂记</a></div><h1 class="post-title entry-hint-parent">智能座舱软件开发 CI/CD 流程技术说明文档</h1><div class=post-meta><span title='2025-08-03 17:17:50 +0800 CST'>August 3, 2025</span>&nbsp;·&nbsp;3 min&nbsp;·&nbsp;432 words</div></header><div class=post-content><h2 id=1-概述><strong>1. 概述</strong><a hidden class=anchor aria-hidden=true href=#1-概述>#</a></h2><p>本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。</p><p><strong>核心组件:</strong></p><ul><li><strong>版本控制与代码审查</strong>: Git, Repo, Gerrit</li><li><strong>持续集成/持续交付 (CI/CD)</strong>: Jenkins</li><li><strong>质量管理</strong>: SonarQube</li><li><strong>制品库管理</strong>: JFrog Artifactory</li><li><strong>测试平台</strong>: HIL (硬件在环) / SIL (软件在环)</li><li><strong>部署与发布</strong>: OTA 服务器, TSP (车载信息服务提供商) 服务器</li></ul><hr><h2 id=2-详细流程与技术实现原理><strong>2. 详细流程与技术实现原理</strong><a hidden class=anchor aria-hidden=true href=#2-详细流程与技术实现原理>#</a></h2><p><img loading=lazy src=/ethenslab/images/Intelligent-cabin-software-development-and-release-process.png></p><h3 id=阶段-1--2-开发者工作流><strong>阶段 1 & 2: 开发者工作流</strong><a hidden class=anchor aria-hidden=true href=#阶段-1--2-开发者工作流>#</a></h3><p>此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。</p><ul><li><p><strong>[00] <code>repo init</code> 获取项目清单</strong>:</p><ul><li><strong>技术原理</strong>: <code>repo</code> 是 Google 为管理 Android 这类包含数百个 Git 仓库的超大型项目而开发的工具。<code>repo init</code> 命令的核心是克隆一个特殊的 <strong>Manifest 仓库</strong>。该仓库包含一个 <code>manifest.xml</code> 文件，此 XML 文件以声明式的方式定义了整个智能座舱项目由哪些 Git 仓库（<code>&lt;project></code>）、在哪个路径（<code>path</code>）、以及使用哪个分支或 Tag（<code>revision</code>）组成。</li></ul></li><li><p><strong>[01] <code>repo sync</code> 同步所有源码</strong>:</p><ul><li><strong>技术原理</strong>: <code>repo</code> 工具解析 <code>manifest.xml</code> 文件，然后以极高的并发度（可配置）为每个 <code>&lt;project></code> 执行 <code>git clone</code> 或 <code>git fetch</code> 操作。在我们的流程中，所有 Git 仓库都由 <strong>Gerrit</strong> 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。</li></ul></li><li><p><strong>[02] <code>repo start & git commit</code> 本地开发</strong>:</p><ul><li><strong>技术原理</strong>: <code>repo start &lt;branch_name> .</code> 是一个便捷命令，它会为清单中定义的所有项目统一创建一个同名的本地开发分支。开发者完成代码修改后，执行 <code>git commit</code>。一个关键的技术点是，<code>repo init</code> 时会自动在每个 Git 仓库的 <code>.git/hooks/</code> 目录下安装一个 <code>commit-msg</code> 钩子。此钩子会在每次提交时自动生成一个唯一的 <code>Change-Id</code>，Gerrit 依靠此 ID 来跟踪同一次代码提交的多个不同版本（Patchset）。</li></ul></li><li><p><strong>[03] <code>repo upload</code> 提交代码审核</strong>:</p><ul><li><strong>技术原理</strong>: 这是连接本地开发与CI流程的关键。<code>repo upload</code> 会扫描本地分支上所有已提交但尚未上传的 commit，并将它们推送到 Gerrit 一个特殊的 Git 引用（Ref）上：<code>refs/for/&lt;target_branch></code>。例如，推送到 <code>develop</code> 分支进行审核，实际推送的地址是 <code>refs/for/develop</code>。Gerrit 监听到这个特殊引用上有推送时，不会直接合并代码，而是将其转化为一个可供审查的变更（Change）。</li></ul></li></ul><h3 id=阶段-3-审核与验证-门禁><strong>阶段 3: 审核与验证 (门禁)</strong><a hidden class=anchor aria-hidden=true href=#阶段-3-审核与验证-门禁>#</a></h3><p>这是流程的自动化核心，通过“机器验证”和“人工评审”两个并行维度，建立起第一道质量门禁。</p><ul><li><p><strong>[04] <code>[Webhook]</code> 触发 CI 验证</strong>:</p><ul><li><strong>技术原理</strong>: Gerrit 通过其事件监听插件（如 its-hooks），在“新 Patchset 创建（PatchSet Created）”事件发生时，向 Jenkins 服务器预先配置的 URL 发送一个 HTTP POST 请求，即 Webhook。该请求的 Body 是一个 JSON 对象，包含了触发验证所需的所有元数据，如项目名、分支、Gerrit Change URL 以及最重要的 Git Checkout 引用（例如 <code>refs/changes/23/12323/1</code>）。</li></ul><p>简化版的流程如下：</p><p><img loading=lazy src=/ethenslab/images/ci-cd-process.png></p></li><li><p><strong>[05-15] Jenkins CI 验证流水线</strong>:</p><ul><li><strong>拉取 Patchset</strong>: Jenkins 中的 Gerrit Trigger 插件会解析 Webhook 传入的 JSON，并使用其中的 Git 引用，精确地只拉取开发者提交的那个变更版本进行验证，而不是整个主干。</li><li><strong>[06-07] 静态代码分析</strong>: Jenkins 调用 SonarQube Scanner 工具。Scanner 会在 Jenkins 的工作空间内分析代码，并将分析结果（代码异味、Bug、漏洞、覆盖率等）上报给 SonarQube 服务器。上报后，Jenkins 会通过 API 回调 SonarQube，检查本次分析是否通过了预设的<strong>质量门禁 (Quality Gate)</strong>。</li><li><strong>[08-09] 拉取构建依赖</strong>: 为加速编译，大型二进制依赖（如交叉编译工具链、SDK、第三方库）都预先存储在 <strong>JFrog Artifactory</strong> 中。Jenkins 通过 Artifactory 插件或 <code>curl</code> 命令，在编译前将这些依赖下载到构建环境中。</li><li><strong>编译与单元测试</strong>: Jenkins 执行项目的编译脚本（如 <code>make</code>, <code>bitbake</code>），并在编译成功后运行单元测试套件（如 GoogleTest 框架生成的测试程序）。</li><li><strong>[12-15] 结果反馈</strong>: Jenkins Pipeline 脚本会汇总以上所有步骤的执行结果（成功/失败）。然后，通过 Gerrit Trigger 插件提供的函数或直接调用 Gerrit 的 REST API，将结果写回 Gerrit。这包括一个标准化的评分（<code>Verified +1</code> 或 <code>-1</code>）和一个指向 Jenkins 构建日志的链接，实现了自动化的闭环反馈。</li></ul></li><li><p><strong>[16] 人工评审</strong>:</p><ul><li><strong>技术原理</strong>: Gerrit 提供了一个可视化的 Web UI，允许审核者（Reviewer）对代码进行逐行评论、提出修改建议，并最终给出 <code>Code-Review</code> 评分。Gerrit 内部有强大的权限管理系统，可以配置只有特定用户组（如 Team Leader）才能给出 <code>+2</code>（最高批准分）。</li></ul></li></ul><h3 id=阶段-4-代码入库><strong>阶段 4: 代码入库</strong><a hidden class=anchor aria-hidden=true href=#阶段-4-代码入库>#</a></h3><ul><li><strong>[17] <code>[Merge]</code> 合并到主分支</strong>:<ul><li><strong>技术原理</strong>: 当一个 Gerrit Change 同时满足所有预设的标签条件（例如 <code>Verified +1</code> 和 <code>Code-Review +2</code>）后，其状态变为 “Ready to Submit”。拥有提交权限的用户点击 “Submit” 按钮，Gerrit 服务器会亲自执行 <code>git merge</code> (或 <code>git rebase</code>，取决于项目策略) 操作，将这次提交安全地合入到目标主干分支。整个过程由 Gerrit 服务端完成，保证了主干的稳定和一致性。</li></ul></li></ul><h3 id=阶段-5-dailyweekly-发布><strong>阶段 5: Daily/Weekly 发布</strong><a hidden class=anchor aria-hidden=true href=#阶段-5-dailyweekly-发布>#</a></h3><p>此阶段的目标是持续地产出可供测试团队使用的、集成了所有最新功能的完整系统版本。</p><ul><li><p><strong>[18] <code>[Time Trigger]</code> 触发构建</strong>:</p><ul><li><strong>技术原理</strong>: 这是 Jenkins 的核心功能之一，通过 Cron 表达式（如 <code>H 2 * * *</code> 代表每天凌晨2点）来配置定时任务。定时器会准时触发一个预设的 Release 构建流水线。</li></ul></li><li><p><strong>[19-22] Release 构建与归档</strong>:</p><ul><li><strong>执行完整构建</strong>: 与 CI 验证不同，此任务会拉取主干分支在特定时间点的最新代码，执行一次完整的、干净的系统级构建。</li><li><strong>创建 Git 标签</strong>: 构建成功后，Jenkins 会执行 <code>git tag</code> 命令，在代码仓库中为此次构建对应的 Commit 打上一个唯一的、不可变的标签（如 <code>v2.5.0-daily-20250927</code>），这对于版本追溯至关重要。</li><li><strong>上传构建产物</strong>: Jenkins 使用 Artifactory 插件，将所有构建产物（系统镜像、SDK、map 文件、OTA 增量包等）连同元数据（如 Git Tag、构建耗时）一同上传到 JFrog Artifactory 的特定仓库（如 <code>daily-releases</code>）中进行版本化归档。</li></ul></li><li><p><strong>[23-26] 自动化集成测试</strong>:</p><ul><li><strong>技术原理</strong>: 构建产物成功上传到 Artifactory 后，可以触发 Webhook 通知 Jenkins 执行下一步的集成测试任务。该任务包含自动化脚本（如 Ansible, Python），能够将 Artifactory 中的系统镜像自动部署（刷写）到 <strong>HIL/SIL 测试平台</strong>。部署完成后，会自动执行一套<strong>构建验证测试 (BVT)</strong> 脚本，检查系统的基本功能（如启动、联网、核心应用运行）是否正常，并生成测试报告。</li></ul></li></ul><h3 id=阶段-6--7-ota-发布与更新><strong>阶段 6 & 7: OTA 发布与更新</strong><a hidden class=anchor aria-hidden=true href=#阶段-6--7-ota-发布与更新>#</a></h3><p>此阶段是将经过充分测试的稳定版本安全、可靠地推送到最终用户车辆上的过程。</p><ul><li><p><strong>[27-31] OTA 包制作与部署</strong>:</p><ul><li><strong>版本挑选与签名</strong>: 版本经理从 Artifactory 中挑选一个质量合格的稳定版。一个专门的部署服务器（或 Jenkins Job）会下载该版本，并使用生产环境的<strong>私钥</strong>对其进行数字签名。这个签名是车辆验证 OTA 包合法性的唯一依据。</li><li><strong>上传至 OTA 服务器</strong>: 签名后的 OTA 包连同其元数据（版本号、更新日志、文件大小、哈希值等）通过 API 上传到 <strong>OTA 服务器</strong>。</li></ul></li><li><p><strong>[32-43] OTA 推送与车辆更新</strong>:</p><ul><li><strong>[32] 升级活动 (Campaign) 创建</strong>: 版本经理在 OTA 服务器的管理后台创建一个升级活动，定义升级策略，如目标车辆群体（可通过 VIN 码、地区、车型等筛选）、发布方式（灰度、分批）和时间。</li><li><strong>[33-35] 服务器协同与通知</strong>: OTA 服务器与 <strong>TSP 服务器</strong>协同工作。TSP 负责车辆的连接和身份管理。OTA 服务器请求 TSP 查询符合条件的车辆列表，然后由 TSP 通过其与车辆保持的<strong>长连接通道</strong>（如 MQTT）向目标车辆推送一个轻量级的升级通知。</li><li><strong>[36-43] 车辆端更新流程</strong>:<ol><li><strong>检查与下载</strong>: 车辆的车机（IVI）或网关（Gateway）收到通知后，会主动向 OTA 服务器发起 HTTPS 请求检查更新详情，并在满足预设条件（如电量充足、网络良好、非行驶状态）时下载 OTA 包。</li><li><strong>验证与升级</strong>: 下载完成后，车辆会使用其内部存储的<strong>公钥</strong>对 OTA 包的数字签名进行验证。验证通过后，才会进入升级流程（如 A/B 分区切换）。</li><li><strong>结果上报</strong>: 升级完成后，车辆会将结果（成功/失败/错误码）上报给 TSP 服务器，TSP 再将状态同步给 OTA 服务器，用于监控整个升级活动的成功率。</li></ol></li></ul></li></ul><hr></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2025 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

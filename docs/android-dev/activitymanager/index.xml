@@ -1,19 +1,22 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
-  <channel>
-    <title>ActivityManager on Ethen 的实验室</title>
-    <link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/</link>
-    <description>Recent content in ActivityManager on Ethen 的实验室</description>
-    <generator>Hugo -- 0.151.0</generator>
-    <language>en</language>
-    <lastBuildDate>Mon, 29 Jul 2024 10:00:00 +0800</lastBuildDate>
-    <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>ActivityManager 深度解析</title>
-      <link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</link>
-      <pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</guid>
-      <description>&lt;p&gt;Activity Manager详解&lt;/p&gt;</description>
-    </item>
-  </channel>
-</rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>ActivityManager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/</link><description>Recent content in ActivityManager on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Jul 2024 10:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/index.xml" rel="self" type="application/rss+xml"/><item><title>ActivityManager 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</guid><description>&lt;p&gt;Activity Manager详解&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity_raparent/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity_raparent/</guid><description>&lt;p&gt;当 &lt;code&gt;startActivity&lt;/code&gt; 请求将一个已存在于主屏的 &lt;code&gt;Activity&lt;/code&gt; 移动到副屏时，核心决策发生在 &lt;code&gt;ActivityStarter&lt;/code&gt; 的 &lt;code&gt;setTargetRootTaskIfNeeded&lt;/code&gt; 方法中。该方法会直接调用 &lt;code&gt;Task.reparent()&lt;/code&gt; 来执行跨屏迁移。由于继承关系，这个调用最终会执行 &lt;code&gt;WindowContainer.reparent()&lt;/code&gt; 方法，该方法是整个转场动画和窗口层级变更的真正起点，它在内部&lt;strong&gt;直接调用 &lt;code&gt;onDisplayChanged&lt;/code&gt;&lt;/strong&gt;，并将变更以递归方式通知到目标 &lt;code&gt;ActivityRecord&lt;/code&gt;。&lt;/p&gt;
+&lt;h3 id="从-startactivity-到-ondisplaychanged-的精确流程与调用堆栈"&gt;从 &lt;code&gt;startActivity&lt;/code&gt; 到 &lt;code&gt;onDisplayChanged&lt;/code&gt; 的精确流程与调用堆栈&lt;/h3&gt;
+&lt;h4 id="阶段一activitytaskmanagerservice--activitystarter---决策与指令发起"&gt;阶段一：ActivityTaskManagerService &amp;amp; ActivityStarter - 决策与指令发起&lt;/h4&gt;
+&lt;p&gt;此阶段在 &lt;code&gt;system_server&lt;/code&gt; 的 ATMS 线程中进行，&lt;code&gt;ActivityStarter&lt;/code&gt; 是核心决策者。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;入口: &lt;code&gt;ActivityTaskManagerService.startActivity()&lt;/code&gt;&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;用户或应用发起 &lt;code&gt;startActivity&lt;/code&gt; 请求，通过 Binder 调用进入 &lt;code&gt;ActivityTaskManagerService&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;ATMS 将请求委托给一个 &lt;code&gt;ActivityStarter&lt;/code&gt; 实例来处理。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;ActivityStarter.execute()&lt;/code&gt; -&amp;gt; &lt;code&gt;startActivityUnchecked()&lt;/code&gt; -&amp;gt; &lt;code&gt;startActivityInner()&lt;/code&gt;&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;这是所有 Activity 启动请求的统一处理流程。&lt;/li&gt;
+&lt;li&gt;在 &lt;code&gt;startActivityInner()&lt;/code&gt; 内部，系统会调用 &lt;code&gt;getReusableTask()&lt;/code&gt; 来寻找一个可以重用的、已存在的 &lt;code&gt;Task&lt;/code&gt;。在您的场景中，这一步会成功找到 &lt;code&gt;MainActivity&lt;/code&gt; 所在的 &lt;code&gt;Task&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;因为找到了 &lt;code&gt;reusedTask&lt;/code&gt;，流程会进入 &lt;code&gt;recycleTask()&lt;/code&gt; 方法。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;ActivityStarter.recycleTask()&lt;/code&gt; -&amp;gt; &lt;code&gt;setTargetRootTaskIfNeeded()&lt;/code&gt;: 做出 &lt;code&gt;reparent&lt;/code&gt; 决策&lt;/strong&gt;&lt;/p&gt;</description></item></channel></rss>
