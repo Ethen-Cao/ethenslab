@@ -1,0 +1,187 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Roboto
+skinparam defaultFontSize 14
+skinparam defaultFontColor #000000
+skinparam arrowColor #000000
+skinparam linetype ortho
+
+' Force black fonts
+skinparam packageFontColor #000000
+skinparam componentFontColor #000000
+skinparam noteFontColor #000000
+skinparam interfaceFontColor #000000
+
+title Android 13 Display Architecture & SurfaceFlinger Components
+
+' ==========================================
+' 1. APP Layer
+' ==========================================
+package "Application Layer" {
+    component [Activity]
+}
+
+' ==========================================
+' 2. Framework Layer
+' ==========================================
+package "Framework Layer (Java)" {
+    
+    component [Surface] <<API>>
+    note right of [Surface]
+        App-side Buffer Producer
+        Used via ViewRootImpl
+    end note
+
+    package "WindowManagerService (WMS)" {
+        component [WindowManagerService]
+        component [DisplayContent]
+        component [WindowState]
+        
+        note bottom of [DisplayContent]
+            WindowContainer Root for a Display
+            Manages Z-Order / IME / Tokens
+        end note
+    }
+
+    package "DisplayManagerService (DMS)" {
+        component [DisplayManagerService]
+        
+        package "Display Adapters" {
+            component [LocalDisplayAdapter]
+            component [VirtualDisplayAdapter]
+        }
+
+        component [LogicalDisplay]
+        component [DisplayInfo]
+        
+        component [DisplayDevice (Java)]
+        component [DisplayDeviceInfo]
+
+        note right of [LogicalDisplay]
+            <b>Logical Display</b>
+            Holds <b>LayerStack ID</b>
+            Exposes DisplayInfo to Apps
+        end note
+
+        note right of [DisplayDeviceInfo]
+            <b>Physical Description</b>
+            (W/H, Modes, HDR, Address)
+            Filled by Adapter
+        end note
+    }
+}
+
+' ==========================================
+' 3. JNI Layer
+' ==========================================
+package "JNI Layer" {
+    component [android_view_SurfaceControl]
+    note right
+        JNI Wrapper for Native SurfaceControl
+    end note
+}
+
+' ==========================================
+' 4. libgui Layer
+' ==========================================
+package "Native Client (libgui)" {
+    component [SurfaceComposerClient]
+    component [SurfaceControl (C++)]
+    interface "ISurfaceComposer (Binder)" as IPC
+}
+
+' ==========================================
+' 5. SurfaceFlinger Layer
+' ==========================================
+package "SurfaceFlinger (Native Server)" {
+
+    component "SurfaceFlinger Main" {
+        component [DisplayDevice (SF Wrapper)]
+        note left of [DisplayDevice (SF Wrapper)]
+            SF State Object
+            Holds CE::Display
+        end note
+    }
+
+    ' CompositionEngine
+    package "CompositionEngine (Render Core)" #F9F9F9 {
+        component [CompositionEngine]
+        
+        component "Output Management" {
+            component [Output]<<abstract>>
+            note right of [Output]
+                <b>Abstract Render Target</b>
+                ColorSpace, Viewport, Transform
+            end note
+
+            component [Display (CE)]
+            note bottom of [Display (CE)]
+                Concrete Output Implementation
+                Drives Composition Loop
+            end note
+        }
+
+        component "Layer Management" {
+            component [OutputLayer]
+            note right of [OutputLayer]
+                <b>Layer Projection on Output</b>
+                VisibleRegion, CompositionType
+            end note
+        }
+
+        component [RenderSurface]
+        note bottom of [RenderSurface]
+            Wraps NativeWindow/EGLSurface
+            Target for GPU Composition
+        end note
+    }
+    
+    component [HWComposer]
+}
+
+' ==========================================
+' Relationships
+' ==========================================
+
+' --- App to Framework ---
+[Activity] --> [WindowManagerService] : Add Window / Layout
+[Activity] ..> [Surface] : Draw Content
+
+' --- WMS Internal ---
+[WindowManagerService] --> [DisplayContent] : Manage
+[DisplayContent] --> [WindowState] : Contain
+[WindowManagerService] --> [android_view_SurfaceControl] : Window Tx\n(create/reparent/setGeometry)
+
+' --- DMS Internal ---
+[DisplayManagerService] --> [LogicalDisplay] : Manage
+[LogicalDisplay] --> [DisplayInfo] : Generate & Expose
+[LogicalDisplay] --> [DisplayDevice (Java)] : Reference (Current)
+[DisplayDevice (Java)] --> [DisplayDeviceInfo] : Hold
+[LocalDisplayAdapter] ..> [DisplayDeviceInfo] : Create/Update
+[LocalDisplayAdapter] --> [DisplayDevice (Java)] : Wrap as Device
+
+' --- Adapters to Native (Creation) ---
+[LocalDisplayAdapter] --> [android_view_SurfaceControl] : getPhysicalDisplayIds / create
+[VirtualDisplayAdapter] --> [android_view_SurfaceControl] : createVirtualDisplay
+
+' --- DisplayDevice to Native (Configuration) ---
+[DisplayDevice (Java)] --> [android_view_SurfaceControl] : Configure\n(setDisplayLayerStack / Projection / PowerMode)
+
+' --- JNI/libgui to SF ---
+[android_view_SurfaceControl] --> [SurfaceControl (C++)] : Map
+[SurfaceControl (C++)] --> IPC : Binder Tx
+IPC --> [SurfaceFlinger Main]
+
+' --- SF Internal ---
+[SurfaceFlinger Main] *-- [CompositionEngine] : Own
+[SurfaceFlinger Main] --> [DisplayDevice (SF Wrapper)] : Maintain List
+[DisplayDevice (SF Wrapper)] *-- [Display (CE)] : Proxy / Hold
+
+' --- CompositionEngine Logic ---
+[Display (CE)] --|> [Output] : Inherit
+[Output] o-- [OutputLayer] : Contain (1:N)
+[Display (CE)] --> [RenderSurface] : GPU Draw Target (queueBuffer)
+[Display (CE)] --> [HWComposer] : Commit Layers / Set H/W Params
+
+@enduml

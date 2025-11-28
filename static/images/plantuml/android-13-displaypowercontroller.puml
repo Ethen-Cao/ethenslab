@@ -1,0 +1,154 @@
+@startuml
+!theme plain
+skinparam dpi 300
+autonumber
+
+participant "PowerManagerService" as PMS
+participant "DisplayPowerController\n(DPC)" as DPC
+participant "ObjectAnimator\n(ColorFade)" as Animator
+participant "MegaBackLightUtils" as MegaUtils
+participant "DisplayPowerState\n(DPS)" as DPS
+participant "ColorFade" as CF
+participant "SurfaceControl\n(SurfaceFlinger)" as SF
+participant "PhotonicModulator\n(Async Thread)" as PM
+participant "DisplayBlanker\n(DMS)" as Blanker
+participant "LocalDisplayAdapter\n(LDA)" as LDA
+
+== 场景 1: 请求亮屏 (Wake Up - 无动画) ==
+
+PMS -> DPC: requestPowerState(policy=BRIGHT)
+activate DPC
+    DPC -> DPC: updatePowerState()
+    activate DPC
+        note right of DPC: 1. 物理亮屏 (无 Fade In 动画)
+        DPC -> DPS: setScreenState(STATE_ON)
+        activate DPS
+            DPS -> PM: setState(STATE_ON, ...)
+            note right: 投递给 PM 线程
+        deactivate DPS
+        
+        activate PM
+            PM -> Blanker: requestDisplayState(STATE_ON, ...)
+            activate Blanker
+                Blanker -> LDA: requestDisplayStateLocked(STATE_ON)
+                activate LDA
+                    LDA -> SF: setDisplayPowerMode(ON)
+                    note right: 硬件点亮
+                deactivate LDA
+            deactivate Blanker
+        deactivate PM
+
+        note right of DPC: 2. 瞬间移除遮罩
+        opt ColorFade Enabled
+             DPC -> DPS: setColorFadeLevel(1.0f)
+             DPS -> CF: draw(1.0f)
+             CF -> SF: Transaction (Alpha=0, Hidden)
+        end
+
+    deactivate DPC
+deactivate DPC
+
+== 场景 2: 请求调节亮度 (Mega Porting - 无动画) ==
+
+PMS -> DPC: requestPowerState(brightness=0.8)
+activate DPC
+    DPC -> DPC: updatePowerState()
+    activate DPC
+        
+        note right of DPC: 直接设置模式 (无 RampAnimator)
+        DPC -> DPC: directSetScreenBrightness(0.8)
+        activate DPC
+            
+            note right of DPC: 1. 拦截并写节点
+            DPC -> MegaUtils: setBrightnessForDisplayId(...)
+            
+            note right of DPC: 2. 更新缓存
+            DPC -> DPS: setScreenBrightness(0.8)
+            activate DPS
+                DPS -> PM: setState(STATE_ON, 0.8)
+            deactivate DPS
+            
+            activate PM
+                PM -> Blanker: requestDisplayState(STATE_ON, 0.8)
+                note right: 同步状态到 Framework
+            deactivate PM
+            
+        deactivate DPC
+    deactivate DPC
+deactivate DPC
+
+== 场景 3: 请求灭屏 (Screen Off - 修正版) ==
+
+PMS -> DPC: requestPowerState(policy=OFF)
+activate DPC
+    DPC -> DPC: updatePowerState()
+    activate DPC
+        DPC -> DPC: animateScreenStateChange(STATE_OFF)
+        activate DPC
+            
+            note right of DPC: 检测到需要灭屏\n启动 ObjectAnimator (1.0 -> 0.0)
+            DPC -> Animator: start()
+            activate Animator
+            
+            loop 动画循环 (Choreographer Vsync)
+                
+                note right of Animator: 每一帧更新 Level
+                Animator -> DPS: setColorFadeLevel(val)
+                activate DPS
+                
+                note right of DPS: 1. 触发重绘 (核心)
+                DPS -> DPS: scheduleColorFadeDraw()
+                DPS -> CF: draw(val)
+                activate CF
+                    CF -> SF: Transaction (Layer Alpha变化)
+                    note right: SurfaceFlinger 合成黑色遮罩\n屏幕电源保持 ON
+                deactivate CF
+                
+                note right of DPS: 2. 触发状态更新 (非核心)
+                DPS -> DPS: scheduleScreenUpdate()
+                note right: 通知 PM，但 ScreenState 仍是 ON\n通常不产生实际硬件动作
+                
+                deactivate DPS
+            end
+            
+            Animator -> DPC: onAnimationEnd()
+            deactivate Animator
+            
+            DPC -> DPC: sendUpdatePowerState()
+            note right: 动画结束，触发逻辑再次进入
+            
+        deactivate DPC
+    deactivate DPC
+    
+    note right of DPC: 第二次进入，执行物理灭屏
+    DPC -> DPC: updatePowerState()
+    activate DPC
+        DPC -> DPC: animateScreenStateChange(STATE_OFF)
+        activate DPC
+        
+            DPC -> DPC: setScreenState(STATE_OFF)
+            
+            DPC -> DPS: setScreenState(STATE_OFF)
+            activate DPS
+                DPS -> PM: setState(STATE_OFF, ...)
+            deactivate DPS
+            
+            activate PM
+                PM -> Blanker: requestDisplayState(STATE_OFF, ...)
+                activate Blanker
+                    Blanker -> LDA: requestDisplayStateLocked(STATE_OFF)
+                    activate LDA
+                         LDA -> SF: setDisplayPowerMode(OFF)
+                         note right #FFDDDD: **物理断电 (Hardware OFF)**
+                    deactivate LDA
+                deactivate Blanker
+            deactivate PM
+            
+            DPC -> DPS: dismissColorFadeResources()
+            
+        deactivate DPC
+    deactivate DPC
+
+deactivate DPC
+
+@enduml

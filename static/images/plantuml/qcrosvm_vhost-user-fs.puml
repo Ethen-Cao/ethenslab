@@ -1,0 +1,93 @@
+@startuml
+!theme plain
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+
+skinparam nodesep 60
+skinparam componentMargin 15
+skinparam packageMargin 20
+skinparam shadowing false
+
+top to bottom direction
+title qcrosvm vhost-user-fs 架构与工作流
+
+' --- Guest VM ---
+package "Guest VM (Android)" as GuestVM {
+    [应用程序\n(Applications)] as App
+    
+    package "Guest Kernel" {
+        [VFS (Virtual File System)] as GVFS
+        [virtio-fs 驱动\n(virtio_fs.ko)] as GDriver
+    }
+    
+    note left of GDriver
+        Mount Command:
+        mount -t virtiofs <b>tag_name</b> /mnt/target
+    end note
+}
+
+' --- Host OS ---
+package "Host OS (Linux / QNX)" as HostOS {
+    
+    package "Control Plane (Setup)" {
+        component "qcrosvm (VMM Frontend)" as VMM #E6F2FF {
+            port "vhost-user-fs\nInterface" as VMM_If
+        }
+        note top of VMM
+            启动参数:
+            --vhost-user-fs /tmp/vfs.sock,<b>label=X</b>,<b>tag=tag_name</b>
+        end note
+    }
+
+    package "Data Plane (Backend)" {
+        component "virtiofsd (Daemon)" as Daemon #FFF2CC {
+            port "Socket Listener" as Daemon_Sock
+        }
+        note bottom of Daemon
+            启动参数:
+            --socket-path=/tmp/vfs.sock
+            --shared-dir=/data/share
+        end note
+        
+        database "Host Storage\n(/data/share)" as Disk
+    }
+
+    interface "Unix Domain Socket\n(/tmp/vfs.sock)" as UDS
+}
+
+' --- Hardware Layer ---
+package "Hardware / Hypervisor Layer" {
+    component "Gunyah Hypervisor" as Gunyah #EFEFEF
+    
+    node "Shared Memory\n(DAX Window)" as SharedMem #D5E8D4
+}
+
+' --- Relations ---
+
+' 1. Application flow
+App --> GVFS : File I/O (Read/Write)
+GVFS --> GDriver : Requests
+
+' 2. Control Plane Connection
+VMM_If <..> UDS : Connects
+UDS <..> Daemon_Sock : Listens
+note on link
+    <b>控制平面 (Control Path)</b>
+    1. 协商特性 (Features)
+    2. 交换内存布局 (Memory Regions)
+    3. 设置信号 (EventFDs)
+end note
+
+' 3. Data Plane (Zero Copy)
+GDriver <==> SharedMem : 直接内存访问 (DAX)\n无需数据拷贝
+SharedMem <==> Daemon : 映射 Host 文件内容
+
+' 4. Backend Execution
+Daemon <--> Disk : POSIX File Operations\n(open/read/write)
+
+' 5. Signaling
+GDriver ..> Gunyah : MMIO Trap / Doorbell
+Gunyah .down..> VMM : IRQ / Event (根据 <b>label</b>)
+VMM ..> Daemon : EventFD 通知 (通过 Socket 共享的文件描述符)
+
+@enduml

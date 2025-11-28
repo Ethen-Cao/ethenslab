@@ -1,0 +1,98 @@
+@startuml
+!theme plain
+autonumber "<b>[0]"
+
+skinparam backgroundColor #FFFFFF
+skinparam handwritten false
+skinparam shadowing false
+skinparam defaultFontName Roboto
+skinparam defaultFontSize 14
+skinparam defaultFontColor #000000
+
+skinparam sequence {
+    ArrowColor #000000
+    LifeLineBorderColor #000000
+    LifeLineBackgroundColor #FFFFFF
+    ParticipantBorderColor #000000
+    ParticipantBackgroundColor #EEEEEE
+    ParticipantFontColor #000000
+    ActorBorderColor #000000
+    ActorBackgroundColor #EEEEEE
+    ActorFontColor #000000
+}
+
+participant "DisplayDeviceRepository" as DDR
+participant "LogicalDisplayMapper" as LDM
+participant "Layout" as Layout
+participant "LogicalDisplay" as LD
+participant "DisplayDevice" as DD
+
+title LogicalDisplay Creation & LayerStack Generation Sequence
+
+== 设备添加事件 ==
+
+DDR -> LDM : onDisplayDeviceEventLocked(device, ADDED)
+activate LDM
+
+    LDM -> LDM : handleDisplayDeviceAddedLocked(device)
+    activate LDM
+    
+        LDM -> DD : getDisplayDeviceInfoLocked()
+        activate DD
+        DD --> LDM : DisplayDeviceInfo
+        deactivate DD
+
+        note right of LDM
+          分配 DisplayId
+        end note
+        LDM -> Layout : assignDisplayIdLocked(false)
+        activate Layout
+        Layout --> LDM : displayId
+        deactivate Layout
+
+        == LogicalDisplay 创建与 LayerStack 生成 ==
+
+        LDM -> LDM : createNewLogicalDisplayLocked(device, displayId)
+        activate LDM
+            
+            note right of LDM
+              **LayerStack 生成原理**:
+              assignLayerStackLocked(displayId)
+              目前实现直接返回 displayId
+            end note
+            LDM -> LDM : assignLayerStackLocked(displayId)
+            return layerStack (== displayId)
+
+            LDM -> LD ** : new LogicalDisplay(displayId, layerStack, device)
+            activate LD
+            LD --> LDM : display
+            deactivate LD
+
+            LDM -> LD : updateLocked(DisplayDeviceRepository)
+            activate LD
+            LD --> LDM
+            deactivate LD
+            
+            note right of LDM
+               将新创建的 LogicalDisplay 
+               存入 mLogicalDisplays 映射表
+            end note
+            LDM -> LDM : mLogicalDisplays.put(displayId, display)
+            
+        deactivate LDM
+
+        == 布局应用 ==
+
+        LDM -> LDM : applyLayoutLocked()
+        activate LDM
+        deactivate LDM
+
+        LDM -> LDM : updateLogicalDisplaysLocked()
+        activate LDM
+        deactivate LDM
+
+    deactivate LDM
+
+deactivate LDM
+
+@enduml

@@ -1,0 +1,133 @@
+@startuml
+!theme plain
+skinparam dpi 300
+autonumber
+
+participant "SystemServer" as SS
+participant "DisplayManagerService\n(DMS)" as DMS
+participant "DisplayManagerService.Handler" as DMSHandler
+participant "LocalDisplayAdapter" as LDA
+participant "LocalDisplayDevice" as LDD
+participant "DisplayDeviceRepository" as DDR
+participant "LogicalDisplayMapper" as LDM
+participant "LogicalDisplay" as LD
+participant "WindowManagerService\n(WMS)" as WMS
+
+== 启动与初始化 ==
+
+SS -> DMS: onStart()
+activate DMS
+    DMS -> DMS: loadStableDisplayValuesLocked()
+    DMS -> DMSHandler: sendEmptyMessage(MSG_REGISTER_DEFAULT_DISPLAY_ADAPTERS)
+deactivate DMS
+
+== 注册 Adapter 与发现物理屏幕 ==
+
+DMSHandler -> DMS: handleMessage(MSG_REGISTER_DEFAULT_DISPLAY_ADAPTERS)
+activate DMS
+    DMS -> DMS: registerDefaultDisplayAdapters()
+    activate DMS
+        create LDA
+        DMS -> LDA: new(syncRoot, context, handler, repo)
+        activate LDA
+            LDA -> LDA: Injector.getSurfaceControlProxy()
+        deactivate LDA
+        
+        DMS -> DMS: registerDisplayAdapterLocked(LDA)
+        activate DMS
+            DMS -> LDA: registerLocked()
+            activate LDA
+                LDA -> LDA: mInjector.getSurfaceControlProxy()\n.getPhysicalDisplayIds()
+                loop 对于每个物理ID
+                    LDA -> LDA: tryConnectDisplayLocked(physicalId)
+                    activate LDA
+                        create LDD
+                        LDA -> LDD: new(token, ..., isFirst)
+                        
+                        LDA -> LDA: sendDisplayDeviceEventLocked(device, ADDED)
+                        activate LDA
+                             LDA -> DMSHandler: post(runnable)
+                        deactivate LDA
+                    deactivate LDA
+                end loop
+            deactivate LDA
+        deactivate DMS
+    deactivate DMS
+deactivate DMS
+
+== 处理屏幕添加事件 ==
+
+DMSHandler -> LDA: Listener.onDisplayDeviceEvent(device, ADDED)
+activate LDA
+    LDA -> DDR: onDisplayDeviceEvent(device, ADDED)
+    activate DDR
+        DDR -> DDR: handleDisplayDeviceAdded(device)
+        activate DDR
+             DDR -> DDR: mDisplayDevices.add(device)
+             DDR -> DDR: sendEventLocked(device, ADDED)
+             activate DDR
+                 DDR -> LDM: onDisplayDeviceEventLocked(device, ADDED)
+                 activate LDM
+                     LDM -> LDM: handleDisplayDeviceAddedLocked(device)
+                     activate LDM
+                         LDM -> LDD: getDisplayDeviceInfoLocked()
+                         activate LDD
+                         return info
+                         
+                         opt 是默认屏幕
+                            LDM -> LDM: initializeDefaultDisplayDeviceLocked()
+                         end
+
+                         create LD
+                         LDM -> LD: new(displayId, layerStack, device)
+                         
+                         LDM -> LD: updateLocked(repo)
+                         
+                         LDM -> LDM: applyLayoutLocked()
+                         
+                         LDM -> LDM: updateLogicalDisplaysLocked()
+                         activate LDM
+                             LDM -> LDM: sendUpdatesForDisplaysLocked(ADDED)
+                             activate LDM
+                                 LDM -> DMS: Listener.onLogicalDisplayEventLocked(display, ADDED)
+                                 activate DMS
+                                     DMS -> DMS: handleLogicalDisplayAddedLocked(display)
+                                     activate DMS
+                                         DMS -> DMS: sendDisplayEventLocked(display, ADDED)
+                                         activate DMS
+                                             DMS -> DMSHandler: sendMessage(MSG_DELIVER_DISPLAY_EVENT, ADDED)
+                                         deactivate DMS
+                                     deactivate DMS
+                                 deactivate DMS
+                             deactivate LDM
+                         deactivate LDM
+                     deactivate LDM
+                 deactivate LDM
+             deactivate DDR
+        deactivate DDR
+    deactivate DDR
+deactivate LDA
+
+== 通知 WMS 创建 DisplayContent ==
+
+DMSHandler -> DMS: handleMessage(MSG_DELIVER_DISPLAY_EVENT, ADDED)
+activate DMS
+    DMS -> DMS: deliverDisplayEvent(displayId, ADDED)
+    activate DMS
+        note right of DMS: 此时通过 IDisplayManagerCallback \n或者本地监听通知 WMS
+        DMS -> WMS: onDisplayEvent(displayId, ADDED) \n(通过回调机制)
+        activate WMS
+             WMS -> WMS: onDisplayAdded(displayId)
+             activate WMS
+                 WMS -> WMS: mRoot.getDisplayContentOrCreate(displayId)
+                 activate WMS
+                     create "DisplayContent" as DC
+                     WMS -> DC: new(...)
+                     note right: DisplayContent 创建完成\n并初始化相关窗口容器
+                 deactivate WMS
+             deactivate WMS
+        deactivate WMS
+    deactivate DMS
+deactivate DMS
+
+@enduml

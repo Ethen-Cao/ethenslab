@@ -7,12 +7,13 @@
 - 跳过软链与非常规文件；防目录逃逸（realpath 仍须在扫描根内）
 - 避免自吃输出（跳过正在写的输出文件）
 - 默认排除常见密钥/证书等敏感后缀（可用 --unsafe 关闭）
-- 更稳健二进制判定（NUL + 不可打印比例）
+- 更稳健二进制判定（NUL + UTF-8 探测 + 字符密度启发式）
 - 体量限流：--max-bytes, --max-files
 功能增强：
-- --types/-t 指定类型，仅收集匹配的文件（Yocto 配置/配方、脚本、Python 等）
+- 支持混合输入：可同时指定目录（递归扫描）和文件（直接添加）
+- --types/-t 指定类型，仅收集匹配的文件
 - --list-types 查看可用类型与匹配规则
-- --types-config 载入 JSON 扩展/覆盖类型映射（exts/names/patterns/shebangs）
+- --types-config 载入 JSON 扩展/覆盖类型映射
 """
 
 import os
@@ -22,12 +23,14 @@ import json
 import fnmatch
 import argparse
 import stat
-from typing import Set, List, Dict, Tuple
+from typing import Set, List, Dict, Tuple, Optional
 
 # ----------------- 默认排除规则 -----------------
 EXCLUDE_DIRS: Set[str] = {
-    '.git', '__pycache__', 'node_modules', 'build',
-    'dist', 'target', '.vscode', '.idea', 'venv', '.env'
+    '.git', '__pycache__', 'node_modules', 
+    'dist','.vscode', '.idea', 'venv', '.env',
+    # 'target',
+    # 'build'
 }
 
 EXCLUDE_EXTS: Set[str] = {
@@ -99,7 +102,7 @@ FILE_TYPE_GROUPS: Dict[str, Dict[str, List[str]]] = {
     },
     # 设备树
     "dts": {
-        "exts": [".dts", ".dtsi"],
+        "exts": [".dts", ".dtsi",".dtso"],
         "names": [],
         "patterns": [],
         "shebangs": []
@@ -110,20 +113,67 @@ FILE_TYPE_GROUPS: Dict[str, Dict[str, List[str]]] = {
         "names": [],
         "patterns": [],
         "shebangs": []
-    }
+    },
+    # qnx_build_files
+    "qnx_build_files": {
+        "exts": [".ini", ".cfg",".tmpl",".build",".mk",".cmake",".sh", ".bash",".py"],
+        "names": [],
+        "patterns": [],
+        "shebangs": ["bash", "sh", "zsh","python"]
+    },
 }
 
 # ----------------- 工具函数 -----------------
 def sanitize_for_header(s: str) -> str:
-    """避免文件名中的控制字符破坏分隔结构。"""
     return s.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
 
-def looks_binary_by_chars(buf: bytes) -> bool:
-    """启发式：不可打印字符占比过高视为二进制。"""
+def looks_binary_by_chars(buf: bytes, threshold: float = 0.85) -> bool:
+    """
+    启发式：检查 buffer 中文本字符的占比。
+    如果 (文本字符数 / 总字节数) < threshold，则视为二进制。
+    """
     if not buf:
         return False
+    # 文本字符：32-126 (ASCII 可打印), 9 (\t), 10 (\n), 13 (\r)
     texty = sum((32 <= b <= 126) or b in (9, 10, 13) for b in buf)
-    return (texty / len(buf)) < 0.85
+    return (texty / len(buf)) < threshold
+
+def is_binary(filepath: str, chunk_size: int = 4096) -> bool:
+    """
+    判断文件是否为二进制文件。
+    策略：
+    1. NUL 字节检查 (忽略 BOM)。
+    2. UTF-8 严格解码尝试。
+    3. 失败则回退到字符密度检测 (阈值降低到 0.5)。
+    """
+    try:
+        with open(filepath, 'rb') as f:
+            chunk = f.read(chunk_size)
+        
+        # 1. 包含 NUL 字节通常意味着二进制，但要排除 UTF-16/32 BOM 的情况
+        if b'\x00' in chunk:
+            # 常见的 BOM 头
+            if chunk.startswith((b'\xff\xfe', b'\xfe\xff', b'\xff\xfe\x00\x00', b'\x00\x00\xfe\xff')):
+                # 有 BOM，可能是文本，暂不按 NUL 判死刑，交给后面的解码/密度检查
+                pass 
+            else:
+                return True
+        
+        # 2. 尝试严格 UTF-8 解码
+        try:
+            chunk.decode('utf-8')
+            return False  # 成功解码，肯定是文本
+        except UnicodeDecodeError:
+            pass
+
+        # 3. 解码失败，使用启发式兜底
+        # 既然 UTF-8 解码失败了，如果它还是文本，那说明是其他编码 (如 GBK, Latin-1)。
+        # 这里我们放宽阈值到 0.5，只要有一半像文本，就姑且认为是文本。
+        return looks_binary_by_chars(chunk, threshold=0.5)
+
+    except (IOError, PermissionError, OSError):
+        # 读不到文件，保守视为二进制以免报错中断
+        return True
 
 def is_regular_file(path: str) -> bool:
     try:
@@ -138,38 +188,7 @@ def is_symlink(path: str) -> bool:
     except Exception:
         return False
 
-def is_binary(filepath: str, chunk_size: int = 4096) -> bool:
-    """
-    更宽松且更准确的文本判定：
-    1) 若包含 NUL 直接认为二进制（UTF-16/32 BOM 豁免）。
-    2) 否则尝试以 UTF-8 严格解码——能解码则视为文本。
-    3) 严格解码失败时，再用“不可打印比例”启发式兜底。
-    4) 读错/无权限等异常，保守当作二进制以避免卡死。
-    """
-    try:
-        with open(filepath, 'rb') as f:
-            chunk = f.read(chunk_size)
-        if b'\x00' in chunk:
-            if chunk.startswith((b'\xff\xfe', b'\xfe\xff', b'\xff\xfe\x00\x00', b'\x00\x00\xfe\xff')):
-                return False
-            return True
-        # 尝试严格 UTF-8 解码
-        chunk.decode('utf-8')   # 成功即是文本
-        return False
-    except UnicodeDecodeError:
-        # 兜底：不可打印比例很高才当二进制（阈值放宽到 0.5）
-        def looks_binary_by_chars(buf: bytes) -> bool:
-            if not buf:
-                return False
-            texty = sum((32 <= b <= 126) or b in (9, 10, 13) for b in buf)
-            return (texty / len(buf)) < 0.5
-        return looks_binary_by_chars(chunk)
-    except (IOError, PermissionError, OSError):
-        return True
-
-
 def read_shebang(filepath: str) -> str:
-    """读取首行 shebang（若存在），返回小写字符串。"""
     try:
         with open(filepath, 'rb') as f:
             first = f.readline(256)
@@ -180,7 +199,6 @@ def read_shebang(filepath: str) -> str:
     return ""
 
 def generate_output_filename(base_name: str) -> str:
-    """如果输出文件已存在，则生成带时间戳的新文件名。"""
     if not os.path.exists(base_name):
         return base_name
     name, ext = os.path.splitext(base_name)
@@ -188,7 +206,6 @@ def generate_output_filename(base_name: str) -> str:
     return f"{name}_{timestamp}{ext}"
 
 def norm_ext(ext: str) -> str:
-    """标准化后缀：小写 + 以 . 开头。"""
     ext = ext.strip()
     if not ext:
         return ext
@@ -198,7 +215,6 @@ def norm_ext(ext: str) -> str:
 
 def merge_type_groups(base: Dict[str, Dict[str, List[str]]],
                       override: Dict[str, Dict[str, List[str]]]) -> Dict[str, Dict[str, List[str]]]:
-    """合并类型配置：支持覆写与扩展。"""
     result = {k: {kk: vv[:] for kk, vv in v.items()} for k, v in base.items()}
     for group, spec in override.items():
         if group not in result:
@@ -215,7 +231,6 @@ def merge_type_groups(base: Dict[str, Dict[str, List[str]]],
 
 def build_active_filters(groups: Dict[str, Dict[str, List[str]]],
                          selected: List[str]) -> Dict[str, Set[str]]:
-    """构建合并后的过滤器（用于快速判断是否匹配）。"""
     filt_exts: Set[str] = set()
     filt_names: Set[str] = set()
     filt_patterns: Set[str] = set()
@@ -236,7 +251,6 @@ def build_active_filters(groups: Dict[str, Dict[str, List[str]]],
     }
 
 def file_matches_types(file_path: str, rel_header_path: str, filt: Dict[str, Set[str]]) -> bool:
-    """仅用于过滤：判断文件是否匹配选中的类型规则。"""
     basename = os.path.basename(file_path)
     _, ext = os.path.splitext(basename)
     ext = ext.lower()
@@ -256,7 +270,6 @@ def file_matches_types(file_path: str, rel_header_path: str, filt: Dict[str, Set
 
 def detect_matched_groups(file_path: str, rel_header_path: str,
                           all_groups: Dict[str, Dict[str, List[str]]]) -> List[str]:
-    """仅用于展示：检测文件匹配的所有组名（用于输出标注）。"""
     basename = os.path.basename(file_path)
     _, ext = os.path.splitext(basename)
     ext = ext.lower()
@@ -286,32 +299,122 @@ def detect_matched_groups(file_path: str, rel_header_path: str,
 
 def _build_abs_excludes_for_root(abs_root_dir: str, exclude_dirs: Set[str]) -> Set[str]:
     """
-    将用户提供的排除目录映射为“针对该 root 的绝对前缀集合”：
-    - 绝对路径：直接加入（及其 realpath）
-    - 相对路径：与 root 拼接后加入（及其 realpath）
-    都以末尾加 os.sep 的形式作为“前缀”做 startswith 判断。
+    将排除目录映射为“针对该 root 的绝对前缀集合”。
+    优化：区分绝对路径和相对路径，避免不必要的 join。
     """
     out: Set[str] = set()
     for d in exclude_dirs:
-        # 原样绝对/相对两路都考虑
-        cands = []
         if os.path.isabs(d):
-            cands.append(d)
-        cands.append(os.path.join(abs_root_dir, d))
+            p = d
+        else:
+            p = os.path.join(abs_root_dir, d)
 
-        for c in cands:
-            try:
-                p = os.path.abspath(c)
-                out.add(p.rstrip(os.sep) + os.sep)
-                rp = os.path.realpath(p)
-                out.add(rp.rstrip(os.sep) + os.sep)
-            except Exception:
-                continue
+        try:
+            # 统一添加 abspath 和 realpath 两种形式
+            # 确保以 os.sep 结尾，用于 startswith 前缀匹配
+            abs_p = os.path.abspath(p)
+            out.add(abs_p.rstrip(os.sep) + os.sep)
+            
+            real_p = os.path.realpath(abs_p)
+            out.add(real_p.rstrip(os.sep) + os.sep)
+        except Exception:
+            continue
     return out
+
+# ----------------- 核心逻辑：处理并写入单个文件 -----------------
+def process_and_write_file(
+    file_path: str,
+    display_path: str,
+    outfile,
+    effective_exclude_exts: Set[str],
+    active_filter: Optional[Dict[str, Set[str]]],
+    type_groups: Dict[str, Dict[str, List[str]]],
+    max_bytes: int,
+    include_all_text: bool,
+    quiet: bool,
+    is_explicit_file: bool = False
+) -> bool:
+    """
+    处理单个文件：检查排除规则、二进制、类型匹配，然后写入。
+    返回 True 表示成功写入，False 表示被跳过。
+    """
+    # 1. 基础检查
+    if not is_explicit_file:
+        if not is_regular_file(file_path) or is_symlink(file_path):
+            return False
+    else:
+        # 显式模式下，如果不存在，直接返回
+        if not os.path.exists(file_path):
+             if not quiet:
+                 print(f"  ❌ 跳过：文件不存在 {file_path}")
+             return False
+        # 显式模式下，如果是目录，返回 False (应由主循环处理)
+        if os.path.isdir(file_path):
+            return False
+
+    # 2. 后缀排除
+    lname = os.path.basename(file_path).lower()
+    if any(lname.endswith(ext) for ext in effective_exclude_exts):
+        if is_explicit_file and not quiet:
+            print(f"  ⚠️  警告：文件 {display_path} 匹配排除后缀，已跳过。")
+        return False
+
+    # 3. 二进制判定 (使用统一优化后的逻辑)
+    if is_binary(file_path):
+        if is_explicit_file and not quiet:
+             print(f"  ⚠️  警告：文件 {display_path} 判定为二进制，已跳过。")
+        return False
+
+    # 4. 类型过滤
+    if not include_all_text:
+        if not file_matches_types(file_path, display_path, active_filter):
+            return False
+
+    # 5. 准备元数据
+    if include_all_text:
+        matched_str = "all-text"
+    else:
+        matched_groups = detect_matched_groups(file_path, display_path, type_groups)
+        matched_str = ", ".join(matched_groups) if matched_groups else "unknown"
+
+    # 6. 写入内容
+    try:
+        outfile.write(f"--- 文件路径: {display_path}\n")
+        outfile.write(f"--- 文件类型: {matched_str}\n")
+        outfile.write(f"--- 文件开始 ---\n\n")
+
+        truncated = False
+        if max_bytes and max_bytes > 0:
+            with open(file_path, 'rb') as rb:
+                data = rb.read(max_bytes + 1)
+            if len(data) > max_bytes:
+                data = data[:max_bytes]
+                truncated = True
+            text = data.decode('utf-8', errors='ignore')
+            outfile.write(text)
+        else:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as infile:
+                for line in infile:
+                    outfile.write(line)
+
+        if truncated:
+            outfile.write("\n\n--- ⏭ 内容已按 --max-bytes 截断 ---")
+
+        outfile.write("\n--- 文件结束 ---\n\n")
+        
+        if not quiet:
+            print(f"  ✅ 已添加: {display_path}  ({matched_str})")
+        return True
+
+    except Exception as e:
+        if not quiet:
+            print(f"  ❌ 错误：无法读取文件 {file_path}: {e}")
+        return False
+
 
 # ----------------- 主收集逻辑 -----------------
 def collect_files_to_single_file(
-    root_dirs: List[str],
+    paths: List[str],
     output_filename: str,
     extra_exclude_dirs: List[str],
     selected_types: List[str],
@@ -321,19 +424,17 @@ def collect_files_to_single_file(
     unsafe: bool,
     quiet: bool
 ) -> None:
-    """遍历目录，将符合条件的文本文件内容合并到一个输出文件。"""
+    """遍历路径列表（目录递归/文件直接），合并内容。"""
     include_all_text = not selected_types
     active_filter = build_active_filters(type_groups, selected_types) if selected_types else None
 
-    # 合并排除目录（目录名规则 + 用户规则）
+    # 合并排除目录
     normalized_extra_excludes = {os.path.normpath(d.rstrip('/')) for d in extra_exclude_dirs}
     name_based_excludes = EXCLUDE_DIRS.union(normalized_extra_excludes)
 
-    # 输出文件名与其绝对路径
     safe_output_filename = generate_output_filename(output_filename)
     safe_output_abs = os.path.abspath(safe_output_filename)
 
-    # 有效后缀排除
     effective_exclude_exts = set(EXCLUDE_EXTS)
     if not unsafe:
         effective_exclude_exts |= SENSITIVE_EXTS
@@ -342,123 +443,104 @@ def collect_files_to_single_file(
 
     try:
         with open(safe_output_filename, 'w', encoding='utf-8', errors='ignore') as outfile:
-            for root_dir in root_dirs:
-                abs_root_dir = os.path.abspath(root_dir)
-                if not os.path.isdir(abs_root_dir):
-                    if not quiet:
-                        print(f"⚠️  跳过：目录 '{root_dir}' 不存在。")
+            
+            for input_path in paths:
+                abs_input_path = os.path.abspath(input_path)
+                
+                # ----------- 情况 A: 输入是文件 -----------
+                if os.path.isfile(abs_input_path):
+                    # 检查是否是输出文件本身
+                    if abs_input_path == safe_output_abs:
+                        continue
+                    
+                    # 限流
+                    if max_files and file_count >= max_files:
+                        if not quiet: print(f"⏹️ 达到 --max-files 限制（{max_files}），停止。")
+                        return
+
+                    # 对于显式指定的文件，Display Path 使用相对当前目录的路径
+                    display_path = os.path.relpath(abs_input_path, os.getcwd())
+                    
+                    success = process_and_write_file(
+                        file_path=abs_input_path,
+                        display_path=display_path,
+                        outfile=outfile,
+                        effective_exclude_exts=effective_exclude_exts,
+                        active_filter=active_filter,
+                        type_groups=type_groups,
+                        max_bytes=max_bytes,
+                        include_all_text=include_all_text,
+                        quiet=quiet,
+                        is_explicit_file=True
+                    )
+                    if success:
+                        file_count += 1
                     continue
 
-                real_root = os.path.realpath(abs_root_dir)
-                # 针对该 root 的绝对排除前缀集合
-                abs_exclude_prefixes = _build_abs_excludes_for_root(abs_root_dir, name_based_excludes)
+                # ----------- 情况 B: 输入是目录 -----------
+                if not os.path.isdir(abs_input_path):
+                    if not quiet:
+                        print(f"⚠️  跳过：路径 '{input_path}' 不存在或不是目录/文件。")
+                    continue
+
+                # 目录处理逻辑
+                root_dir = input_path # 保持原始输入以便做 relpath
+                real_root = os.path.realpath(abs_input_path)
+                abs_exclude_prefixes = _build_abs_excludes_for_root(abs_input_path, name_based_excludes)
 
                 if not quiet:
-                    print(f"\n📁 开始处理目录: {abs_root_dir}")
+                    print(f"\n📁 开始扫描目录: {abs_input_path}")
 
-                for dirpath, dirnames, filenames in os.walk(abs_root_dir, topdown=True, followlinks=False):
-                    # 目录层过滤：按目录名、绝对路径前缀、以及软链目录跳过
+                for dirpath, dirnames, filenames in os.walk(abs_input_path, topdown=True, followlinks=False):
+                    # 目录剪枝
                     kept_dirnames = []
                     for d in dirnames:
                         full = os.path.join(dirpath, d)
-                        # 名称排除
-                        if d in name_based_excludes:
-                            continue
-                        # 绝对排除前缀
+                        if d in name_based_excludes: continue
+                        
                         abs_full = os.path.abspath(full)
                         real_full = os.path.realpath(abs_full)
                         if any(abs_full.startswith(p) or real_full.startswith(p) for p in abs_exclude_prefixes):
                             continue
-                        # 软链目录不进入
-                        if is_symlink(full):
-                            continue
+                        if is_symlink(full): continue
                         kept_dirnames.append(d)
-                    dirnames[:] = kept_dirnames  # 告诉 os.walk 不要深入被丢弃的目录
+                    dirnames[:] = kept_dirnames
 
                     for filename in filenames:
-                        # 限流：文件数量
                         if max_files and file_count >= max_files:
-                            if not quiet:
-                                print(f"⏹️ 达到 --max-files 限制（{max_files}），停止。")
+                            if not quiet: print(f"⏹️ 达到 --max-files 限制（{max_files}），停止。")
                             return
 
                         file_path = os.path.join(dirpath, filename)
-
+                        
                         # 跳过输出文件自身
                         try:
-                            if os.path.samefile(file_path, safe_output_abs):
-                                continue
-                        except Exception:
-                            pass
+                            if os.path.samefile(file_path, safe_output_abs): continue
+                        except Exception: pass
 
-                        # 仅处理常规文件；跳过软链
-                        if not is_regular_file(file_path) or is_symlink(file_path):
-                            continue
-
-                        # 后缀排除（含敏感）
-                        lname = filename.lower()
-                        if any(lname.endswith(ext) for ext in effective_exclude_exts):
-                            continue
-
-                        # 真实路径必须仍在扫描根内（防目录逃逸）
+                        # 防目录逃逸：真实路径必须仍在扫描根内
                         real_file = os.path.realpath(file_path)
                         if not (real_file == real_root or real_file.startswith(real_root + os.sep)):
                             continue
 
-                        # 二进制判定
-                        if is_binary(file_path):
-                            continue
+                        # 计算相对头路径
+                        relative_path = os.path.relpath(file_path, abs_input_path)
+                        header_path = sanitize_for_header(os.path.join(root_dir, relative_path).replace(os.sep, '/'))
 
-                        try:
-                            # header path 使用“相对项目根”的形式，避免泄露系统路径
-                            relative_path = os.path.relpath(file_path, abs_root_dir)
-                            header_path = sanitize_for_header(os.path.join(root_dir, relative_path).replace(os.sep, '/'))
-
-                            # 类型过滤（当指定 --types 时）
-                            if not include_all_text:
-                                if not file_matches_types(file_path, header_path, active_filter):
-                                    continue
-
-                            # 展示用：标注匹配组
-                            if include_all_text:
-                                matched_str = "all-text"
-                            else:
-                                matched_groups = detect_matched_groups(file_path, header_path, type_groups)
-                                matched_str = ", ".join(matched_groups) if matched_groups else "unknown"
-
-                            # 写入头
-                            outfile.write(f"--- 文件路径: {header_path}\n")
-                            outfile.write(f"--- 文件类型: {matched_str}\n")
-                            outfile.write(f"--- 文件开始 ---\n\n")
-
-                            # 体量限流：按 max_bytes 读取
-                            truncated = False
-                            if max_bytes and max_bytes > 0:
-                                # 先按字节读，粗暴但安全；编码按 utf-8 容错
-                                with open(file_path, 'rb') as rb:
-                                    data = rb.read(max_bytes + 1)
-                                if len(data) > max_bytes:
-                                    data = data[:max_bytes]
-                                    truncated = True
-                                text = data.decode('utf-8', errors='ignore')
-                                outfile.write(text)
-                            else:
-                                with open(file_path, 'r', encoding='utf-8', errors='ignore') as infile:
-                                    for line in infile:
-                                        outfile.write(line)
-
-                            if truncated:
-                                outfile.write("\n\n--- ⏭ 内容已按 --max-bytes 截断 ---")
-
-                            outfile.write("\n--- 文件结束 ---\n\n")
+                        success = process_and_write_file(
+                            file_path=file_path,
+                            display_path=header_path,
+                            outfile=outfile,
+                            effective_exclude_exts=effective_exclude_exts,
+                            active_filter=active_filter,
+                            type_groups=type_groups,
+                            max_bytes=max_bytes,
+                            include_all_text=include_all_text,
+                            quiet=quiet,
+                            is_explicit_file=False
+                        )
+                        if success:
                             file_count += 1
-
-                            if not quiet:
-                                print(f"  ✅ 已添加: {relative_path}  ({matched_str})")
-
-                        except Exception as e:
-                            if not quiet:
-                                print(f"  ❌ 错误：无法读取文件 {file_path}: {e}")
 
     except IOError as e:
         print(f"致命错误：无法写入到输出文件 {safe_output_filename}: {e}", file=sys.stderr)
@@ -471,16 +553,13 @@ def collect_files_to_single_file(
 
 # ----------------- 配置加载/展示 -----------------
 def load_types_config(path: str) -> Dict[str, Dict[str, List[str]]]:
-    """加载外部 JSON 类型配置并合并。"""
     try:
         with open(path, 'r', encoding='utf-8') as f:
             cfg = json.load(f)
-        if not isinstance(cfg, dict):
-            raise ValueError("类型配置必须是 JSON 对象（最外层字典）")
-        normed: Dict[str, Dict[str, List[str]]] = {}
+        if not isinstance(cfg, dict): raise ValueError("类型配置必须是 JSON 对象")
+        normed = {}
         for k, v in cfg.items():
-            if not isinstance(v, dict):
-                continue
+            if not isinstance(v, dict): continue
             normed[k] = {
                 "exts": [norm_ext(x) for x in v.get("exts", [])],
                 "names": v.get("names", []),
@@ -505,48 +584,46 @@ def list_types(groups: Dict[str, Dict[str, List[str]]]) -> None:
 # ----------------- 主入口 -----------------
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="将一个或多个目录下的源代码/配置合并为一个文本文件，用于 AI 代码分析（安全模式默认开启）。",
+        description="将源码/配置文件合并为一个文本文件。\n支持模式：\n1. 目录扫描：python collect.py dir1 dir2\n2. 指定文件：python collect.py file1.py file2.cpp\n3. 混合模式：python collect.py src/ main.py",
         formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument("directories", nargs="*", default=["."],
-                        help="要扫描的目录（默认：当前目录）")
-    parser.add_argument("--output", "-o", default="combined_code.txt",
-                        help="输出文件名（默认：combined_code.txt）")
+    parser.add_argument("paths", nargs="*", default=["."],
+                        help="要收集的路径（目录或文件），默认为当前目录")
+    parser.add_argument("--output", "-o", default="output.txt",
+                        help="输出文件名（默认：output.txt）")
     parser.add_argument("--exclude-dirs", "-e", nargs="+", default=[], metavar="DIR",
-                        help="额外排除的目录名或路径（相对路径按每个扫描根解析）")
+                        help="额外排除的目录名或路径（仅对目录扫描有效）")
     parser.add_argument("--types", "-t", nargs="+", default=[],
-                        help="指定收集的文件类型（如：yocto scripts python），不指定则收集所有文本文件")
+                        help="指定收集的文件类型（如：yocto scripts python）")
     parser.add_argument("--list-types", action="store_true",
                         help="列出可用类型并退出")
     parser.add_argument("--types-config", default="",
-                        help="JSON 文件路径，用于自定义类型映射（exts/names/patterns/shebangs）")
+                        help="JSON 文件路径，用于自定义类型映射")
     parser.add_argument("--max-bytes", type=int, default=8*1024*1024,
-                        help="单文件最大读取字节数（默认 8 MiB；0 表示不限制）")
+                        help="单文件最大读取字节数（默认 8 MiB）")
     parser.add_argument("--max-files", type=int, default=0,
                         help="最多采集的文件数（默认 0=不限制）")
     parser.add_argument("--unsafe", action="store_true",
-                        help="关闭敏感后缀屏蔽（.pem/.key/.pk8/.jks 等），慎用")
+                        help="关闭敏感后缀屏蔽")
     parser.add_argument("--quiet", action="store_true",
-                        help="静默模式，减少控制台输出")
+                        help="静默模式")
 
     args = parser.parse_args()
     args.exclude_dirs = [os.path.normpath(p) for p in args.exclude_dirs]
 
-    # 加载类型配置
     groups = load_types_config(args.types_config) if args.types_config else FILE_TYPE_GROUPS
 
     if args.list_types:
         list_types(groups)
         sys.exit(0)
 
-    # 校验类型
     unknown = [t for t in args.types if t and t not in groups]
     if unknown:
         print(f"⚠️  未知类型：{', '.join(unknown)}。可用类型见 --list-types。将忽略未知类型。")
         args.types = [t for t in args.types if t in groups]
 
     collect_files_to_single_file(
-        args.directories,
+        args.paths,
         args.output,
         args.exclude_dirs,
         args.types,

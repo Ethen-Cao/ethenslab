@@ -4,11 +4,19 @@ draft = true
 title = 'QNX Hypervisor 配置问题'
 +++
 
+这是一个非常核心的 QNX Hypervisor 配置问题。
+
+简单来说，`loc` (location) 指定的是这个虚拟设备（vdev）或透传设备（pass）**在 Guest VM（客户虚拟机）中的物理地址（Guest Physical Address, GPA）**。
+
+Guest OS（比如你这个配置中的 "la" - 可能是 Linux Android）会通过访问这个 `loc` 指定的地址来和该设备进行通信。
+
+-----
+
 ### `loc` 是如何确定的？
 
 `loc` 的确定方式取决于它是**虚拟设备 (`vdev`)** 还是**透传设备 (`pass`)**。
 
-#### 1. `pass` (设备透传)
+#### 1\. `pass` (设备透传)
 
 对于 `pass` 条目，`loc` 通常是**真实的硬件物理地址（Host Physical Address, HPA）**。
 
@@ -18,7 +26,7 @@ title = 'QNX Hypervisor 配置问题'
       * `pass loc mem:0x0a600000,0x100000,rwn=0x0a600000` \# USB0 core\_base
   * **原理：** 你告诉 Hypervisor：“请把 Host 上的这个真实硬件地址 `0x0F000000`，直接映射到 Guest VM 的物理地址 `0x0F000000` 上。” 这样 Guest OS 就能像在裸机上一样直接访问这个硬件。
 
-#### 2. `vdev` (虚拟设备)
+#### 2\. `vdev` (虚拟设备)
 
 对于 `vdev` 条目（例如 `vdev-virtio-*.so`），`loc` 是一个**由平台架构师选择的“虚拟”地址**。
 
@@ -53,21 +61,10 @@ title = 'QNX Hypervisor 配置问题'
       * **确保你的新 `loc` 地址不会与任何现有的地址范围重叠。** 任何重叠都会导致未定义的行为或系统崩溃。
       * 从你的配置文件来看，`0x1b...` 到 `0x1d...` 以及 `0x2D...` 这几个范围似乎是用于虚拟设备的，你可以尝试在这个附近找一个空闲的地址（例如 `0x1D0E0000`，假设它是空闲的）。
 
-2.  **（关键）修改 Guest OS 的设备树 (DTB)。**
+2.  **Guest OS 的设备树 (DTB)。**
 
       * 这是最重要的一步。你不能只在 `vm_config` 里添加。
       * 你必须在你的 Guest OS（LA）的 `.dts` 文件中添加一个新节点。
       * 这个新节点的 `reg` 属性**必须**包含你在第 1 步中选择的 `loc` 地址。
       * 你还需要为它分配一个未使用的虚拟中断号（例如 `intr gic:112`），并同样在 DTS 的 `interrupts` 属性中指定。
 
-3.  **在 `vm_config` 中添加 `vdev` 条目。**
-
-      * 使用你在第 1 步中选择的 `loc` 和中断号。
-
-> **总结：**
-> `loc` 的选择是一个“约定”。你必须在 Hypervisor (`vm_config`) 和 Guest OS (DTB) 之间建立一个**一致的**地址约定。
->
-> 1.  **检查 `vm_config`**，找到一个未被占用的物理地址。
-> 2.  **检查 Guest DTB**，找到一个未被占用的 GIC 中断号。
-> 3.  **修改 `vm_config`**，添加 `vdev ... loc <新地址> intr gic:<新中断号>`。
-> 4.  **修改 Guest DTB**，添加一个新设备节点，其 `reg` 和 `interrupts` 属性必须与第 3 步中的 `loc` 和 `intr` 完全匹配。
