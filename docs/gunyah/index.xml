@@ -16,4 +16,41 @@
 &lt;li&gt;&lt;strong&gt;中断返回&lt;/strong&gt;：VMM 请求 Host Driver 触发虚拟中断，Hypervisor 将 &lt;strong&gt;IRQ 注入 Guest&lt;/strong&gt;，通知前端有请求完成。&lt;/li&gt;
 &lt;/ol&gt;
 &lt;blockquote&gt;
-&lt;p&gt;关键点：&lt;strong&gt;virtqueue 只承载“元数据与索引”&lt;/strong&gt;（哪块缓冲、多大、读写方向、完成状态），&lt;strong&gt;不承载数据本体&lt;/strong&gt;。&lt;/p&gt;</description></item></channel></rss>
+&lt;p&gt;关键点：&lt;strong&gt;virtqueue 只承载“元数据与索引”&lt;/strong&gt;（哪块缓冲、多大、读写方向、完成状态），&lt;strong&gt;不承载数据本体&lt;/strong&gt;。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;h1 id="高通-gunyah-虚拟化平台设备树-device-tree-全解从源码到-boot-image"&gt;高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image&lt;/h1&gt;
+&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
+&lt;p&gt;本文将深入解析其文件结构、编译配置、构建流程以及打包机制。&lt;/p&gt;
+&lt;h2 id="1-源码结构与文件路径"&gt;1. 源码结构与文件路径&lt;/h2&gt;
+&lt;p&gt;在 Yocto 项目中，设备树源码通常独立于内核源码管理，位于 &lt;code&gt;vendor/qcom/opensource/base-devicetree&lt;/code&gt; 目录下。&lt;/p&gt;
+&lt;h3 id="关键文件类型与路径"&gt;关键文件类型与路径&lt;/h3&gt;
+&lt;p&gt;所有核心文件位于 &lt;code&gt;arch/arm64/boot/dts/qcom/&lt;/code&gt; 目录下：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;SoC 基础定义 (&lt;code&gt;.dtsi&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p.dtsi&lt;/code&gt;&lt;/strong&gt;: 定义了芯片级的硬件，如 CPU、中断控制器 (GIC)、总线、时钟等。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8x97p.dtsi&lt;/code&gt;&lt;/strong&gt;: 系列通用的定义。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;虚拟机资源定义 (&amp;ldquo;The Contract&amp;rdquo;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-vms.dtsi&lt;/code&gt;&lt;/strong&gt;: &lt;strong&gt;这是配置虚拟设备的核心文件&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;它定义了 &lt;code&gt;auto_vm&lt;/code&gt; (Android Guest) 的资源，包括：
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;reserved-memory&lt;/code&gt;&lt;/strong&gt;: 为 Virtio 环形缓冲区（Ring Buffers）预留的物理内存（带有 &lt;code&gt;gunyah-label&lt;/code&gt;）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;virtio-backends&lt;/code&gt;&lt;/strong&gt;: 定义 Host 内核可见的后端逻辑设备（带有 &lt;code&gt;qcom,label&lt;/code&gt;）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;gh-secure-vm-loader&lt;/code&gt;&lt;/strong&gt;: 将上述资源绑定到特定的 VMID。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;项目级覆盖 (Overlay) (&lt;code&gt;.dtso&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-overlay.dtso&lt;/code&gt;&lt;/strong&gt;: 通用的 Overlay入口。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-voyah-common-overlay.dtso&lt;/code&gt;&lt;/strong&gt;: &lt;strong&gt;特定项目（Voyah）的扩展配置&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;最佳实践&lt;/em&gt;：当需要添加新设备（如 &lt;code&gt;virtio-fs&lt;/code&gt;）时，推荐修改此文件，以利用其覆盖机制，避免破坏基础平台定义。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;板级顶层定义 (&lt;code&gt;.dts&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;</description></item></channel></rss>

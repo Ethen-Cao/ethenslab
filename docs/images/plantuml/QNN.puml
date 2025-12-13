@@ -1,0 +1,78 @@
+@startuml
+!theme plain
+
+' 设置全局样式，使用黑白简约风格，强调逻辑清晰
+skinparam componentStyle rectangle
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 14
+
+' --- 顶层：业务需求的爆发（痛点层） ---
+package "业务需求层：并发场景与算力争抢 (痛点)" as BusinessLayer {
+    component "安全类 (高保活)" as SafetyApps {
+        rectangle "DMS\n疲劳监测"
+        rectangle "OMS\n遗留检测"
+    }
+    
+    component "交互类 (高频发)" as InteractionApps {
+        rectangle "智能语音\n(ASR/TTS)"
+        rectangle "多模态\n手势识别"
+    }
+    
+    component "娱乐与服务 (低频/长尾)" as ServiceApps {
+        rectangle "哨兵模式"
+        rectangle "画质增强"
+    }
+}
+
+' 定义痛点描述
+note right of BusinessLayer
+  <b>业务痛点：</b>
+  1. <b>并发冲突</b>：多应用同时请求模型，导致卡顿。
+  2. <b>资源浪费</b>：闲置模型占用内存，高优业务进不来。
+  3. <b>安全隐患</b>：娱乐功能抢占了DMS的算力，导致安全监测失效。
+end note
+
+' --- 中间层：解决方案核心（你的框架） ---
+package "AI 算力统一管理框架 (VoyahQnnService)" as FrameworkLayer {
+    
+    component "统一接入网关" as Gateway {
+        [客户端 SDK / IPC 接口]
+    }
+
+    package "核心调度策略引擎" as CoreEngine {
+        component "优先级仲裁器" as Arbiter {
+            label "<b>关键价值：安全保障</b>\n确保DMS/OMS拥有\n绝对抢占权"
+        }
+        
+        component "动态算力调度" as Scheduler {
+             label "<b>关键价值：体验流畅</b>\n分时复用，错峰执行\n解决排队拥堵"
+        }
+        
+        component "模型生命周期管理" as Lifecycle {
+             label "<b>关键价值：降低成本</b>\n按需加载/卸载\n节省内存与显存"
+        }
+    }
+    
+    Gateway --> Arbiter
+    Arbiter -> Scheduler
+    Scheduler -> Lifecycle
+}
+
+' --- 底层：有限的硬件资源 ---
+package "硬件算力与执行层 (资源受限)" as HardwareLayer {
+    component "QNN AI Engine" as Engine {
+        rectangle "DSP / NPU\n(专用加速单元)" 
+        rectangle "GPU\n(通用计算)"
+        rectangle "Shared Memory\n(系统内存)"
+    }
+}
+
+' --- 连线关系 ---
+SafetyApps --> Gateway : 并发请求
+InteractionApps --> Gateway : 随机请求
+ServiceApps --> Gateway : 后台任务
+
+Lifecycle --> Engine : 统一下发与执行
+Engine .up.> Lifecycle : 状态反馈 / 算力水位
+
+@enduml

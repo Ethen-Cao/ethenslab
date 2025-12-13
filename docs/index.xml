@@ -121,7 +121,56 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;WMS 做 Window/Surface reparent&lt;/strong&gt;：ATMS 请求 WMS 将对应的 &lt;code&gt;WindowContainer&lt;/code&gt;/task 窗口树从 Display1 移到 Display2；WMS 在 SurfaceControl 层（通过 SurfaceFlinger）把 layer 重新 attach 到目标 Display 的 layer stack。&lt;/p&gt;</description></item><item><title>Insets animation flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid><description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;WMS 做 Window/Surface reparent&lt;/strong&gt;：ATMS 请求 WMS 将对应的 &lt;code&gt;WindowContainer&lt;/code&gt;/task 窗口树从 Display1 移到 Display2；WMS 在 SurfaceControl 层（通过 SurfaceFlinger）把 layer 重新 attach 到目标 Display 的 layer stack。&lt;/p&gt;</description></item><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
+&lt;p&gt;这个时序图展示了从底层物理屏幕发现到上层窗口管理容器创建的完整链路。&lt;/p&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-13-LogicalDisplay-creating-sequence.png"&gt;&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;初始化阶段&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 启动，在 &lt;code&gt;onStart&lt;/code&gt; 方法中发送 &lt;code&gt;MSG_REGISTER_DEFAULT_DISPLAY_ADAPTERS&lt;/code&gt; 消息。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 的 Handler 处理该消息，调用 &lt;code&gt;registerDefaultDisplayAdapters&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;在 &lt;code&gt;registerDefaultDisplayAdapters&lt;/code&gt; 中，创建 &lt;code&gt;LocalDisplayAdapter&lt;/code&gt; 实例并注册。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;LocalDisplayAdapter 发现设备&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;LocalDisplayAdapter&lt;/code&gt; 初始化时会从 &lt;code&gt;SurfaceControl&lt;/code&gt; 获取物理屏幕信息（通过 &lt;code&gt;SurfaceControlProxy&lt;/code&gt;）。&lt;/li&gt;
+&lt;li&gt;发现物理屏幕后，创建 &lt;code&gt;LocalDisplayDevice&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;调用 &lt;code&gt;sendDisplayDeviceEventLocked&lt;/code&gt; 发送 &lt;code&gt;DISPLAY_DEVICE_EVENT_ADDED&lt;/code&gt; 事件。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;DisplayDeviceRepository 处理事件&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;DisplayAdapter&lt;/code&gt; 将事件发送给 &lt;code&gt;DisplayDeviceRepository&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;DisplayDeviceRepository&lt;/code&gt; 将 &lt;code&gt;LocalDisplayDevice&lt;/code&gt; 添加到列表，并通知监听者，即 &lt;code&gt;LogicalDisplayMapper&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;LogicalDisplayMapper 创建 LogicalDisplay&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;LogicalDisplayMapper&lt;/code&gt; 收到 &lt;code&gt;DISPLAY_DEVICE_EVENT_ADDED&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;如果是默认屏幕，先进行初始化配置。&lt;/li&gt;
+&lt;li&gt;调用 &lt;code&gt;createNewLogicalDisplayLocked&lt;/code&gt; 创建 &lt;code&gt;LogicalDisplay&lt;/code&gt; 对象。&lt;/li&gt;
+&lt;li&gt;调用 &lt;code&gt;applyLayoutLocked&lt;/code&gt; 来根据设备状态配置布局。&lt;/li&gt;
+&lt;li&gt;最后调用 &lt;code&gt;updateLogicalDisplaysLocked&lt;/code&gt; 来更新整个系统的显示状态。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;通知系统和 WMS&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;updateLogicalDisplaysLocked&lt;/code&gt; 中，&lt;code&gt;LogicalDisplayMapper&lt;/code&gt; 通知 &lt;code&gt;DisplayManagerService&lt;/code&gt; (通过 &lt;code&gt;Listener&lt;/code&gt;) &lt;code&gt;LOGICAL_DISPLAY_EVENT_ADDED&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 收到事件，调用 &lt;code&gt;handleLogicalDisplayAddedLocked&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 发送 &lt;code&gt;DisplayManagerGlobal.EVENT_DISPLAY_ADDED&lt;/code&gt; 到 Handler。&lt;/li&gt;
+&lt;li&gt;Handler 处理消息，调用 &lt;code&gt;deliverDisplayEvent&lt;/code&gt; 通知所有注册的 &lt;code&gt;IDisplayManagerCallback&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;关键点&lt;/strong&gt;: &lt;code&gt;WindowManagerService&lt;/code&gt; 在初始化时通过 &lt;code&gt;DisplayManagerInternal&lt;/code&gt; 获取了 &lt;code&gt;DisplayManager&lt;/code&gt; 的回调或直接监听。但在代码中，WMS 实际上是通过 &lt;code&gt;DisplayManagerInternal.registerDisplayTransactionListener&lt;/code&gt; 或直接轮询/监听来感知的。&lt;/li&gt;
+&lt;li&gt;更具体的路径是：&lt;code&gt;DisplayManagerService&lt;/code&gt; 在 &lt;code&gt;handleLogicalDisplayAddedLocked&lt;/code&gt; 中会配置显示属性，并最终触发 &lt;code&gt;DisplayTransactionListener&lt;/code&gt; 或发送广播。&lt;/li&gt;
+&lt;li&gt;在 &lt;code&gt;WindowManagerService&lt;/code&gt; 中，通常通过 &lt;code&gt;DisplayManager&lt;/code&gt; 的回调 &lt;code&gt;onDisplayAdded&lt;/code&gt; 感知，然后调用 &lt;code&gt;mRoot.createDisplayContent&lt;/code&gt;。在提供的代码中，&lt;code&gt;DisplayManagerService&lt;/code&gt; 拥有 &lt;code&gt;mDisplayTransactionListeners&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 的 &lt;code&gt;handleLogicalDisplayAddedLocked&lt;/code&gt; 会调用 &lt;code&gt;sendDisplayEventLocked&lt;/code&gt;，进而触发回调。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;em&gt;补充：&lt;code&gt;WindowManagerService&lt;/code&gt; 如何创建 &lt;code&gt;DisplayContent&lt;/code&gt;&lt;/em&gt;&lt;/p&gt;</description></item><item><title>Insets animation flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid><description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
 &lt;p&gt;以下是一些典型的应用场景，从最常见到更高级的交互：&lt;/p&gt;
 &lt;h3 id="1-核心场景键盘的显示与隐藏-messaging--input"&gt;1. 核心场景：键盘的显示与隐藏 (Messaging &amp;amp; Input)&lt;/h3&gt;
 &lt;p&gt;这是最经典、最能体现其价值的场景。&lt;/p&gt;
@@ -629,7 +678,85 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;日誌讀取與解析路徑 (Read &amp;amp; Parse Path)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>高通平台 Widevine L1 认证实施流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid><description>&lt;h2 id="整体流程"&gt;整体流程&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;日誌讀取與解析路徑 (Read &amp;amp; Parse Path)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Protocol Buffers (Protobuf) 技术指南</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;Protocol Buffers&lt;/strong&gt; (简称 Protobuf) 是 Google 开发的一种语言无关、平台无关、可扩展的&lt;strong&gt;序列化结构数据&lt;/strong&gt;的机制。&lt;/p&gt;
+&lt;p&gt;相比于 XML 和 JSON，Protobuf 的主要特点是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;体积更小&lt;/strong&gt;：二进制格式，数据紧凑。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;速度更快&lt;/strong&gt;：解析和序列化速度极快。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;强类型&lt;/strong&gt;：通过 &lt;code&gt;.proto&lt;/code&gt; 文件定义数据结构，编译时自动生成代码。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;兼容性&lt;/strong&gt;：良好的向后兼容性支持。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;在 Android 系统中，Protobuf 被广泛用于 StatsD (指标上报)、Incidentd (事故报告)、Binder IPC 数据传输等场景。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="2-工作流程与架构"&gt;2. 工作流程与架构&lt;/h2&gt;
+&lt;p&gt;Protobuf 的核心工作流分为：&lt;strong&gt;定义&lt;/strong&gt;、&lt;strong&gt;编译&lt;/strong&gt;、&lt;strong&gt;使用&lt;/strong&gt;、&lt;strong&gt;序列化/反序列化&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/Protobuf.png"&gt;&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="3-语法指南-proto"&gt;3. 语法指南 (.proto)&lt;/h2&gt;
+&lt;p&gt;目前主流版本为 &lt;strong&gt;proto3&lt;/strong&gt;。以下是一个典型的 &lt;code&gt;.proto&lt;/code&gt; 文件示例。&lt;/p&gt;
+&lt;h3 id="31-基础结构"&gt;3.1 基础结构&lt;/h3&gt;
+&lt;p&gt;创建一个名为 &lt;code&gt;car_event.proto&lt;/code&gt; 的文件：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-protobuf" data-lang="protobuf"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// 1. 指定语法版本 (必须)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;syntax &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;proto3&amp;#34;&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt;&lt;span style="color:#75715e"&gt;// 2. 定义包名 (防止命名冲突)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#f92672"&gt;package&lt;/span&gt; com&lt;span style="color:#f92672"&gt;.&lt;/span&gt;example.cockpit;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt;&lt;span style="color:#75715e"&gt;// 3. 配置生成选项 (Java相关)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;option&lt;/span&gt; java_package &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;com.example.cockpit.proto&amp;#34;&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 生成的Java包路径
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;option&lt;/span&gt; java_outer_classname &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;CarEventProto&amp;#34;&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 生成的Java外层类名
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt;&lt;span style="color:#75715e"&gt;// 4. 定义消息 (Message)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;message&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;VehicleStatus&lt;/span&gt; {&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#75715e"&gt;// 字段格式: 类型 字段名 = 字段编号;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#75715e"&gt;// 标量类型
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;int32&lt;/span&gt; speed &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 整数
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;string&lt;/span&gt; vin_code &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;2&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 字符串
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;bool&lt;/span&gt; is_moving &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;3&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 布尔值
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#75715e"&gt;// 枚举类型
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;enum&lt;/span&gt; Gear {&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; GEAR_UNKNOWN &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// proto3 枚举第一个值必须为0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; GEAR_P &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; GEAR_R &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;2&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; GEAR_N &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;3&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; GEAR_D &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;4&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; }&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; Gear current_gear &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;4&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#75715e"&gt;// 嵌套消息
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; EngineInfo engine &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;5&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#75715e"&gt;// 数组 (Repeated)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;repeated&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;string&lt;/span&gt; error_codes &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;6&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 相当于 List&amp;lt;String&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;}&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;message&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;EngineInfo&lt;/span&gt; {&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;float&lt;/span&gt; rpm &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;float&lt;/span&gt; temperature &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;2&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt;}&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="32-关键概念"&gt;3.2 关键概念&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;字段编号 (Field Number)&lt;/strong&gt;：例如 &lt;code&gt;speed = 1&lt;/code&gt; 中的 &lt;code&gt;1&lt;/code&gt;。
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;非常重要&lt;/strong&gt;：这是二进制数据中字段的唯一标识，而不是字段名。&lt;/li&gt;
+&lt;li&gt;一旦数据投入使用，&lt;strong&gt;绝对不能修改&lt;/strong&gt;已存在字段的编号。&lt;/li&gt;
+&lt;li&gt;1~15 占用 1 个字节，16~2047 占用 2 个字节（建议将频繁使用的字段放在 1~15）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;类型映射&lt;/strong&gt;：
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;int32/int64&lt;/code&gt; -&amp;gt; Java &lt;code&gt;int/long&lt;/code&gt;, C++ &lt;code&gt;int32_t/int64_t&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;string&lt;/code&gt; -&amp;gt; Java &lt;code&gt;String&lt;/code&gt;, C++ &lt;code&gt;std::string&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;bool&lt;/code&gt; -&amp;gt; Java &lt;code&gt;boolean&lt;/code&gt;, C++ &lt;code&gt;bool&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h2 id="4-编译方法"&gt;4. 编译方法&lt;/h2&gt;
+&lt;p&gt;将 &lt;code&gt;.proto&lt;/code&gt; 文件转换为目标语言代码。&lt;/p&gt;</description></item><item><title>高通平台 Widevine L1 认证实施流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid><description>&lt;h2 id="整体流程"&gt;整体流程&lt;/h2&gt;
 &lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png"&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -1355,7 +1482,136 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;&lt;code&gt;ActivityStarter.recycleTask()&lt;/code&gt; -&amp;gt; &lt;code&gt;setTargetRootTaskIfNeeded()&lt;/code&gt;: 做出 &lt;code&gt;reparent&lt;/code&gt; 决策&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/</guid><description>&lt;h3 id="transitionhandler"&gt;TransitionHandler&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;ActivityStarter.recycleTask()&lt;/code&gt; -&amp;gt; &lt;code&gt;setTargetRootTaskIfNeeded()&lt;/code&gt;: 做出 &lt;code&gt;reparent&lt;/code&gt; 决策&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity_task_stack/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity_task_stack/</guid><description>&lt;p&gt;ACTIVITY MANAGER ACTIVITIES (dumpsys activity activities)
+Display #0 (activities from top to bottom):&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;Task{21a4759 #1 type=home U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Task{836b5dc #211 type=home I=com.android.launcher3/.uioverrides.QuickstepLauncher U=0 rootTaskId=1 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}
+mLastPausedActivity: ActivityRecord{6fa5a4f u0 com.android.launcher3/.uioverrides.QuickstepLauncher t211}
+mLastNonFullscreenBounds=Rect(260, 635 - 821, 1715)
+isSleeping=false
+topResumedActivity=ActivityRecord{6fa5a4f u0 com.android.launcher3/.uioverrides.QuickstepLauncher t211}
+&lt;ul&gt;
+&lt;li&gt;Hist #0: ActivityRecord{6fa5a4f u0 com.android.launcher3/.uioverrides.QuickstepLauncher t211}
+packageName=com.android.launcher3 processName=com.android.launcher3
+launchedFromUid=0 launchedFromPackage=null launchedFromFeature=null userId=0
+app=ProcessRecord{7863d74 2961:com.android.launcher3/u0a134}
+Intent { act=android.intent.action.MAIN cat=[android.intent.category.HOME] flg=0x10000100 cmp=com.android.launcher3/.uioverrides.QuickstepLauncher (has extras) }
+rootOfTask=true task=Task{836b5dc #211 type=home I=com.android.launcher3/.uioverrides.QuickstepLauncher}
+taskAffinity=null
+mActivityComponent=com.android.launcher3/.uioverrides.QuickstepLauncher
+baseDir=/system_ext/priv-app/Launcher3QuickStep/Launcher3QuickStep.apk
+dataDir=/data/user/0/com.android.launcher3
+stateNotNeeded=true componentSpecified=false mActivityType=home
+compat={420dpi} labelRes=0x7f11008e icon=0x7f080270 theme=0x7f12000c
+mLastReportedConfigurations:
+mGlobalConfig={1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h792dp 420dpi nrml long hdr widecg port finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2340) mAppBounds=Rect(0, 136 - 1080, 2214) mMaxBounds=Rect(0, 0 - 1080, 2340) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.15 fontWeightAdjustment=0}
+mOverrideConfig={1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h792dp 420dpi nrml long hdr widecg port finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2340) mAppBounds=Rect(0, 136 - 1080, 2214) mMaxBounds=Rect(0, 0 - 1080, 2340) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=home mAlwaysOnTop=undefined mRotation=ROTATION_0} s.2 fontWeightAdjustment=0}
+CurrentConfiguration={1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h792dp 420dpi nrml long hdr widecg port finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2340) mAppBounds=Rect(0, 136 - 1080, 2214) mMaxBounds=Rect(0, 0 - 1080, 2340) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=home mAlwaysOnTop=undefined mRotation=ROTATION_0} s.2 fontWeightAdjustment=0}
+RequestedOverrideConfiguration={0.0 ?mcc0mnc ?localeList ?layoutDir ?swdp ?wdp ?hdp ?density ?lsize ?long ?ldr ?wideColorGamut ?orien ?uimode ?night ?touch ?keyb/?/? ?nav/? winConfig={ mBounds=Rect(0, 0 - 0, 0) mAppBounds=null mMaxBounds=Rect(0, 0 - 0, 0) mDisplayRotation=undefined mWindowingMode=undefined mDisplayWindowingMode=undefined mActivityType=home mAlwaysOnTop=undefined mRotation=undefined} ?fontWeightAdjustment}
+taskDescription: label=&amp;ldquo;null&amp;rdquo; icon=null iconResource=/0 iconFilename=null primaryColor=fff2f1e5
+backgroundColor=fff2f1e5 statusBarColor=0 navigationBarColor=0
+backgroundColorFloating=fff2f1e5
+launchFailed=false launchCount=0 lastLaunchTime=-9m20s147ms
+mHaveState=false mIcicle=null
+state=RESUMED delayedResume=false finishing=false
+keysPaused=false inHistory=true idle=true
+occludesParent=true noDisplay=false immersive=false launchMode=2
+frozenBeforeDestroy=false forceNewConfig=false
+mActivityType=home
+mImeInsetsFrozenUntilStartInput=false
+windows=[Window{5cb5743 u0 com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher}]
+windowType=2 waitingToShow=true
+mOccludesParent=true
+overrideOrientation=SCREEN_ORIENTATION_NOSENSOR
+requestedOrientation=SCREEN_ORIENTATION_NOSENSOR
+mVisibleRequested=true mVisible=true mClientVisible=true reportedDrawn=true reportedVisible=true
+mNumInterestingWindows=1 mNumDrawnWindows=1 allDrawn=true lastAllDrawn=true)
+startingData=null firstWindowDrawn=true mIsExiting=false
+nowVisible=true lastVisibleTime=-1m3s817ms
+connections={ConnectionRecord{bc23dfe u0 com.android.launcher3/com.android.quickstep.TouchInteractionService:@f9045b9 flags=0x0}}
+resizeMode=RESIZE_MODE_RESIZEABLE
+mLastReportedMultiWindowMode=false mLastReportedPictureInPictureMode=false
+supportsSizeChanges=SIZE_CHANGES_UNSUPPORTED_METADATA
+configChanges=0xdf3
+neverSandboxDisplayApis=false
+alwaysSandboxDisplayApis=false
+areBoundsLetterboxed=false
+mCameraCompatControlState=hidden
+mCameraCompatControlEnabled=false&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;Task{46e36e5 #2 type=undefined U=0 visible=false visibleRequested=false mode=fullscreen translucent=true sz=2}
+mCreatedByOrganizer=true&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/native_crash_process/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/native_crash_process/</guid><description>&lt;p&gt;这个时序图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
+&lt;h3 id="native-process-crash-处理时序图"&gt;Native Process Crash 处理时序图&lt;/h3&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-Native-Process-Crash.png"&gt;&lt;/p&gt;
+&lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;信号拦截 (debuggerd_signal_handler)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;当 Native 进程 Crash 时，内核回调 &lt;code&gt;debuggerd_signal_handler&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;代码中显式使用了 &lt;code&gt;pthread_mutex_lock&lt;/code&gt; 确保同一时间只有一个线程处理 Crash。&lt;/li&gt;
+&lt;li&gt;为了在不耗尽原进程文件描述符（FD）的情况下执行操作，代码调用 &lt;code&gt;clone&lt;/code&gt; 创建了一个 &lt;strong&gt;Pseudothread&lt;/strong&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;启动 crash_dump (Exec)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Pseudothread 调用 &lt;code&gt;execle&lt;/code&gt; 启动 &lt;code&gt;/apex/com.android.runtime/bin/crash_dump64&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;这里通过管道（Pipe）传递了 &lt;code&gt;Crashing TID&lt;/code&gt; 和 &lt;code&gt;Pseudothread TID&lt;/code&gt; 给 &lt;code&gt;crash_dump&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;握手与 Ptrace&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;crash_dump&lt;/code&gt; 启动后，首先 &lt;code&gt;ptrace&lt;/code&gt; 附着（Seize）目标进程的所有线程 。&lt;/li&gt;
+&lt;li&gt;为了安全地读取内存，&lt;code&gt;crash_dump&lt;/code&gt; 通过管道写 &lt;code&gt;\1&lt;/code&gt; 通知 Pseudothread 。&lt;/li&gt;
+&lt;li&gt;Pseudothread 收到通知后，调用 &lt;code&gt;create_vm_process()&lt;/code&gt; ，本质上是 &lt;code&gt;fork&lt;/code&gt; 出一个子进程（镜像），供 &lt;code&gt;crash_dump&lt;/code&gt; 读取内存，防止在读取过程中因目标进程内存损坏而卡死。&lt;/li&gt;
+&lt;li&gt;Pseudothread 将 &lt;code&gt;CrashInfo&lt;/code&gt;（包含寄存器信息 &lt;code&gt;ucontext&lt;/code&gt;）写入管道发送给 &lt;code&gt;crash_dump&lt;/code&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;
+&lt;p&gt;基于提供AOSP的代码，以“Hi Google”为例，语音唤醒（Hotword Detection）的完整流程是一个跨进程、跨层级的复杂协作过程。它主要涉及&lt;strong&gt;底层硬件触发&lt;/strong&gt;、&lt;strong&gt;系统服务路由&lt;/strong&gt;、&lt;strong&gt;沙盒服务校验&lt;/strong&gt;以及&lt;strong&gt;上层应用响应&lt;/strong&gt;四个关键阶段。&lt;/p&gt;
+&lt;p&gt;以下是基于代码分析的时序流程：&lt;/p&gt;
+&lt;h3 id="第一阶段底层硬件触发与系统层接收-hardware-trigger--system-layer"&gt;第一阶段：底层硬件触发与系统层接收 (Hardware Trigger &amp;amp; System Layer)&lt;/h3&gt;
+&lt;p&gt;当用户说出“Hi Google”时，底层 DSP 芯片（SoundTrigger HAL）检测到声学特征，并向系统发送中断信号。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;HAL 层回调&lt;/strong&gt;:
+&lt;code&gt;SoundTriggerHw3Compat&lt;/code&gt;（或其他版本的 Compat 层）收到驱动层的回调。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;代码中 &lt;code&gt;ModelCallbackAdaper.recognitionCallback&lt;/code&gt; 被调用，它将底层的事件封装为 &lt;code&gt;RecognitionEventSys&lt;/code&gt; 并向上层传递 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Middleware 层传递&lt;/strong&gt;:
+事件经过 &lt;code&gt;SoundTriggerMiddlewareImpl&lt;/code&gt; 及一系列装饰器（Validation, Logging, Permission），最终到达 &lt;code&gt;SoundTriggerService&lt;/code&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;SoundTriggerService 处理&lt;/strong&gt;:
+&lt;code&gt;SoundTriggerService&lt;/code&gt; 通过其内部的 &lt;code&gt;SoundTriggerHelper&lt;/code&gt; 处理该事件。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;SoundTriggerHelper&lt;/code&gt; 的 &lt;code&gt;onRecognition&lt;/code&gt; 方法被触发，识别出这是 &lt;code&gt;KeyphraseRecognitionEvent&lt;/code&gt;（关键短语识别事件）。&lt;/li&gt;
+&lt;li&gt;紧接着调用 &lt;code&gt;onKeyphraseRecognitionLocked&lt;/code&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;回调 VoiceInteractionManagerService (VIMS)&lt;/strong&gt;:
+&lt;code&gt;SoundTriggerHelper&lt;/code&gt; 调用它持有的 &lt;code&gt;IRecognitionStatusCallback&lt;/code&gt;。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;在 VIMS 的上下文中，这个回调实际上是 &lt;code&gt;HotwordDetectionConnection&lt;/code&gt; 内部定义的 &lt;code&gt;SoundTriggerCallback&lt;/code&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="第二阶段路由至沙盒服务-routing-to-sandboxed-service"&gt;第二阶段：路由至沙盒服务 (Routing to Sandboxed Service)&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;VoiceInteractionManagerService&lt;/code&gt; 接收到硬件事件后，不会直接发给 Google App，而是先路由给运行在隔离进程中的 &lt;code&gt;HotwordDetectionService&lt;/code&gt; 进行校验。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/</guid><description>&lt;h3 id="transitionhandler"&gt;TransitionHandler&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;TransitionHandler&lt;/code&gt; 是一个&lt;strong&gt;接口 (Interface)&lt;/strong&gt;，它为 Shell 动画系统定义了一个**“动画处理器”&lt;strong&gt;的标准或&lt;/strong&gt;契约**。&lt;/p&gt;
 &lt;p&gt;可以把它想象成一个&lt;strong&gt;专家岗位说明书&lt;/strong&gt; 📜。任何一个类，只要实现了 &lt;code&gt;TransitionHandler&lt;/code&gt; 接口，就意味着它具备了处理一类特定窗口过渡动画的专业能力，并可以被 &lt;code&gt;Transitions&lt;/code&gt; （动画总调度室）统一管理和调度。&lt;/p&gt;
 &lt;h4 id="核心职责"&gt;核心职责&lt;/h4&gt;
@@ -1379,4 +1635,41 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;h5 id="2-执行动画-execute-the-animation"&gt;2. 执行动画 (Execute the Animation)&lt;/h5&gt;
-&lt;p&gt;一旦一个 &lt;code&gt;Handler&lt;/code&gt; 通过返回非 &lt;code&gt;null&lt;/code&gt; 的 &lt;code&gt;WCT&lt;/code&gt; 成功“认领”了一个 &lt;code&gt;Transition&lt;/code&gt;，它就&lt;strong&gt;全权负责&lt;/strong&gt;这个 &lt;code&gt;Transition&lt;/code&gt; 的动画实现。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item></channel></rss>
+&lt;p&gt;一旦一个 &lt;code&gt;Handler&lt;/code&gt; 通过返回非 &lt;code&gt;null&lt;/code&gt; 的 &lt;code&gt;WCT&lt;/code&gt; 成功“认领”了一个 &lt;code&gt;Transition&lt;/code&gt;，它就&lt;strong&gt;全权负责&lt;/strong&gt;这个 &lt;code&gt;Transition&lt;/code&gt; 的动画实现。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item><item><title/><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;h1 id="高通-gunyah-虚拟化平台设备树-device-tree-全解从源码到-boot-image"&gt;高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image&lt;/h1&gt;
+&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
+&lt;p&gt;本文将深入解析其文件结构、编译配置、构建流程以及打包机制。&lt;/p&gt;
+&lt;h2 id="1-源码结构与文件路径"&gt;1. 源码结构与文件路径&lt;/h2&gt;
+&lt;p&gt;在 Yocto 项目中，设备树源码通常独立于内核源码管理，位于 &lt;code&gt;vendor/qcom/opensource/base-devicetree&lt;/code&gt; 目录下。&lt;/p&gt;
+&lt;h3 id="关键文件类型与路径"&gt;关键文件类型与路径&lt;/h3&gt;
+&lt;p&gt;所有核心文件位于 &lt;code&gt;arch/arm64/boot/dts/qcom/&lt;/code&gt; 目录下：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;SoC 基础定义 (&lt;code&gt;.dtsi&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p.dtsi&lt;/code&gt;&lt;/strong&gt;: 定义了芯片级的硬件，如 CPU、中断控制器 (GIC)、总线、时钟等。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8x97p.dtsi&lt;/code&gt;&lt;/strong&gt;: 系列通用的定义。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;虚拟机资源定义 (&amp;ldquo;The Contract&amp;rdquo;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-vms.dtsi&lt;/code&gt;&lt;/strong&gt;: &lt;strong&gt;这是配置虚拟设备的核心文件&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;它定义了 &lt;code&gt;auto_vm&lt;/code&gt; (Android Guest) 的资源，包括：
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;reserved-memory&lt;/code&gt;&lt;/strong&gt;: 为 Virtio 环形缓冲区（Ring Buffers）预留的物理内存（带有 &lt;code&gt;gunyah-label&lt;/code&gt;）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;virtio-backends&lt;/code&gt;&lt;/strong&gt;: 定义 Host 内核可见的后端逻辑设备（带有 &lt;code&gt;qcom,label&lt;/code&gt;）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;gh-secure-vm-loader&lt;/code&gt;&lt;/strong&gt;: 将上述资源绑定到特定的 VMID。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;项目级覆盖 (Overlay) (&lt;code&gt;.dtso&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-overlay.dtso&lt;/code&gt;&lt;/strong&gt;: 通用的 Overlay入口。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-voyah-common-overlay.dtso&lt;/code&gt;&lt;/strong&gt;: &lt;strong&gt;特定项目（Voyah）的扩展配置&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;最佳实践&lt;/em&gt;：当需要添加新设备（如 &lt;code&gt;virtio-fs&lt;/code&gt;）时，推荐修改此文件，以利用其覆盖机制，避免破坏基础平台定义。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;板级顶层定义 (&lt;code&gt;.dts&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;</description></item></channel></rss>

@@ -1,0 +1,92 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam databaseStyle cylinder
+
+title Qualcomm Graphics Virtualization & HAB Failure Flow Architecture
+
+package "Guest VM (Android) - PID: 12951 (Example)" as GuestVM {
+    node "User Space" as GUS {
+        [RenderThread A] as RTA
+        [RenderThread B] as RTB
+        note bottom of RTB : Multiple threads in one PID\nshare the same connection.
+        
+        [HGSL UMD\n(libGLESv2.so, etc.)] as UMD
+        
+        RTA --> UMD : GL/Vk Calls
+        RTB --> UMD
+    }
+
+    node "Kernel Space" as GKS {
+        interface "/dev/hgsl" as DEV_HGSL
+        component "HGSL Driver\n(graphics-hgsl)" as HGSL_DRV {
+            [Process Priv Data\n(holds Sub-ID N)] as PRIV
+        }
+        component "HAB Frontend Driver\n(mmhab-drv / virtio)" as HAB_FE
+        
+        UMD --> DEV_HGSL : ioctl
+        DEV_HGSL --> HGSL_DRV
+        HGSL_DRV <-> HAB_FE : Defines VChan (VCID 191ff00d)\nUsing Sub-ID N
+    }
+}
+
+package "Virtualization Layer" {
+    interface "VirtIO / Shared Mem" as VIRTIO
+    HAB_FE <..> VIRTIO : Transport
+}
+
+package "Host PVM (Linux / SA8797)" as HostVM {
+    node "Kernel Space" as HKS {
+        component "HAB Backend Driver\n(mmhab-drv / vhost)" as HAB_BE {
+            [Open Queue\n(Waiting Requests)] as OPENQ
+            database "Forbidden List\n(Blacklist)" as FL #FFEEEE
+        }
+    }
+
+    node "User Space" as HUS {
+        [Host GSL Server\n(qc_gsl_server)] as GSL_SERVER
+    }
+
+    VIRTIO <..> HAB_BE : Transport
+
+    note right of FL
+        **THE ROOT CAUSE**
+        Kernel blocks MMID/Sub-ID
+        due to wrong close call.
+    end note
+}
+
+package "Hardware" {
+    [Adreno GPU] as GPU
+}
+
+'--- The Critical Failure Flow ---
+
+' autonumber 1
+HGSL_DRV -[#blue]> HAB_BE : **1. Connect Req (Sub-ID N)**
+HAB_BE -[#blue]> OPENQ : Enqueue Req
+
+' autonumber 2
+GSL_SERVER -[#blue]> HAB_BE : **2. habmm_socket_open()**
+HAB_BE -[#blue]> GSL_SERVER : Accept (Returns Handle H)
+
+' autonumber 3
+GSL_SERVER -> GSL_SERVER : **3. Recv Initial Data Fails**\n(e.g., empty packet)
+
+' autonumber 4
+GSL_SERVER -[#red] HAB_BE : **4. THE BUG: close(MMID | Sub-ID N)**\n(WRONG: Should use Handle H)
+
+' autonumber 5
+HAB_BE -[#red]> FL : **5. Add Sub-ID N to Forbidden List**\n(Kernel interprets as "Ban Service")
+
+' autonumber 6
+HGSL_DRV -[#gray]> HAB_BE : **6. Retry/Wait... (Timed Out)**
+HAB_BE -[#gray]> FL : Check Block status
+FL -[#red]> HAB_BE : **BLOCKED**
+
+' autonumber 7
+HGSL_DRV -[#orange]> HAB_BE : **7. Send CANCEL (VCID 191ff00d)**\n(Guest gives up)
+
+'--- Successful path for old apps ---
+GSL_SERVER -[hidden]-> GPU
+@enduml

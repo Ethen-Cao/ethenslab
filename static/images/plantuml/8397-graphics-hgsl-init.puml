@@ -1,0 +1,103 @@
+@startuml
+skinparam participantStyle equivalent
+autonumber
+
+participant "HGSL Driver\n(hgsl.c)" as DRV
+participant "HGSL Hyp Interface\n(hgsl_hyp.c)" as HYP
+participant "HGSL Socket\n(hgsl_hyp_socket.c)" as SOCK
+participant "HAB Kernel\n(msm_hab)" as HAB
+participant "Host / Backend" as HOST
+
+== 阶段 1: 驱动加载与初始化 ==
+
+DRV -> DRV: qcom_hgsl_probe()
+activate DRV
+    DRV -> DRV: hgsl_init_global_hyp_channel()
+    activate DRV
+        
+        note right of DRV: 尝试打开 GSL 库\n以建立全局通信链路
+        DRV -> HYP: hgsl_hyp_gsl_lib_open()
+        activate HYP
+            
+            HYP -> HYP: hgsl_hyp_channel_pool_get()
+            activate HYP
+            note right of HYP: 资源池为空，创建新通道
+            
+            HYP -> HYP: hgsl_rpc_create_channel()
+            activate HYP
+                
+                == 阶段 2: 初始握手 (Bootstrap Handshake) ==
+                note right of HYP: 此时 priv->conn_id == 0
+                
+                HYP -> HYP: hgsl_rpc_connect(conn_id=0)
+                HYP -> SOCK: gsl_hab_open(habfd=0)
+                activate SOCK
+                    SOCK -> HAB: habmm_socket_open(MM_GFX | 0)
+                    HAB --> SOCK: 返回临时 VCID
+                deactivate SOCK
+                
+                note right of HYP: 发送 RPC_HANDSHAKE\n获取正式 conn_id
+                HYP -> HYP: rpc_handshake()
+                activate HYP
+                    HYP -> SOCK: gsl_hab_send(RPC_HANDSHAKE)
+                    SOCK -> HAB: 发送数据
+                    HAB -> HOST: 传输
+                    ... Host 处理并分配 conn_id ...
+                    HOST -> HAB: 回复
+                    HAB -> SOCK: 接收数据
+                    SOCK -> HYP: gsl_hab_recv()
+                    HYP -> HYP: 解析出 priv->conn_id (例如 58)
+                deactivate HYP
+                
+                note right of HYP: 关闭临时连接
+                HYP -> SOCK: gsl_hab_close()
+                SOCK -> HAB: habmm_socket_close()
+                
+                == 阶段 3: 正式连接 (Actual Connection) ==
+                
+                HYP -> HYP: hgsl_rpc_connect(conn_id=58)
+                HYP -> SOCK: gsl_hab_open(habfd=58)
+                activate SOCK
+                    SOCK -> HAB: habmm_socket_open(MM_GFX | 58)
+                    HAB --> SOCK: 返回正式 VCID
+                deactivate SOCK
+                
+                == 阶段 4: 子握手 (Sub Handshake) ==
+                
+                HYP -> HYP: rpc_sub_handshake()
+                activate HYP
+                    note right of HYP: 发送 RPC_SUB_HANDSHAKE\n确认权限和配置
+                    HYP -> SOCK: gsl_hab_send(RPC_SUB_HANDSHAKE)
+                    SOCK -> HAB: 发送
+                    HAB -> HOST: 传输
+                    HOST -> HAB: 回复 Success
+                    HAB -> SOCK: 接收
+                    SOCK -> HYP: gsl_hab_recv()
+                deactivate HYP
+                
+            return hab_channel (已建立连接)
+            deactivate HYP
+            deactivate HYP
+            
+            == 阶段 5: 打开远程库 (Library Open) ==
+            
+            HYP -> HYP: gsl_rpc_transact(RPC_LIBRARY_OPEN)
+            activate HYP
+                HYP -> SOCK: gsl_hab_send()
+                SOCK -> HAB: habmm_socket_send()
+                HAB -> HOST: 发送请求
+                
+                HOST -> HAB: 处理并回复
+                HAB -> SOCK: habmm_socket_recv()
+                SOCK -> HYP: gsl_hab_recv()
+            deactivate HYP
+            
+        return 0 (Success)
+        deactivate HYP
+        
+    deactivate DRV
+deactivate DRV
+
+note over DRV: 驱动初始化完成\n全局通道已就绪
+
+@enduml

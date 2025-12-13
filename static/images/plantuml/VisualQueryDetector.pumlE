@@ -1,0 +1,90 @@
+@startuml
+' !theme materia
+skinparam componentStyle rectangle
+skinparam backgroundColor white
+skinparam defaultFontName sans-serif
+skinparam defaultFontSize 12
+
+' 定义颜色
+skinparam component {
+    BackgroundColor<<Host>> #E3F2FD
+    BorderColor<<Host>> #1E88E5
+    BackgroundColor<<System>> #E8F5E9
+    BorderColor<<System>> #43A047
+    BackgroundColor<<Isolated>> #FFF3E0
+    BorderColor<<Isolated>> #FB8C00
+    BackgroundColor<<Hardware>> #F3E5F5
+    BorderColor<<Hardware>> #8E24AA
+}
+
+package "Host App (Voice Assistant)" as HostApp {
+    component "VoiceInteractionService\n(VIS)" as VIS <<Host>>
+    component "VisualQueryDetector\n(Client)" as VQD <<Host>>
+    component "AlwaysOnHotwordDetector\n(Client)" as AOHD <<Host>>
+    
+    VIS -[hidden]-> VQD
+    VIS -[hidden]-> AOHD
+}
+
+package "System Server Process" as SystemServer {
+    component "VoiceInteractionManagerService" as VIMS <<System>>
+    component "VoiceInteractionManagerServiceImpl" as VIMS_Impl <<System>>
+    
+    package "HotwordDetectionConnection Module" {
+        component "HotwordDetectionConnection" as HDC <<System>>
+        component "VisualQueryDetectorSession" as VQD_Session <<System>>
+        component "DspTrustedHotwordDetectorSession" as DSP_Session <<System>>
+    }
+}
+
+package "Isolated Process (Sandbox)" as IsolatedProcess {
+    component "VisualQueryDetectionService" as VQDS <<Isolated>>
+    component "HotwordDetectionService" as HDS <<Isolated>>
+    
+    note right of VQDS
+      算法运行环境
+      无网络/磁盘权限
+      通过 SharedMemory 加载模型
+    end note
+}
+
+package "Hardware / HAL" as HardwareHAL {
+    component "Camera HAL" as Camera <<Hardware>>
+    component "Microphone" as Mic <<Hardware>>
+    component "SoundTrigger HAL(DSP)" as ST_HAL <<Hardware>>
+}
+
+' ' --- 关系连接 ---
+
+' Host 到 System 的连接
+VIS ..> VIMS : 1. bindService / onReady
+VQD --> VIMS : 2. startRecognition() / updateState()\n(IVoiceInteractionManagerService)
+AOHD --> VIMS : startRecognition()
+
+' ' System Server 内部连接
+' VIMS --> VIMS_Impl : 委托请求 (Per User)
+' VIMS_Impl --> HDC : 管理连接 [cite: 336]
+' HDC --> VQD_Session : 创建会话 (Visual) [cite: 471]
+' HDC --> DSP_Session : 创建会话 (Audio) [cite: 470]
+
+' ' System 到 Isolated 的连接 (Binder IPC)
+' VQD_Session <==> VQDS : ISandboxedDetectionService\n(AIDL)
+' DSP_Session <==> HDS : ISandboxedDetectionService\n(AIDL)
+
+' ' 细节交互流程 - 视觉唤醒
+' VQD_Session -> VQDS : detectWithVisualSignals() [cite: 4299]
+' VQDS --> VQD_Session : gainedAttention()\nstreamQuery() [cite: 4362]
+' VQD_Session --> VQD : onQueryDetected()\n(Binder Callback)
+
+' ' 细节交互流程 - 语音唤醒
+' ST_HAL -> DSP_Session : onKeyphraseDetected()\n(Hardware Trigger)
+' DSP_Session -> HDS : detectFromDspSource()\n(Software Validation) [cite: 430]
+' HDS --> DSP_Session : onDetected() [cite: 499]
+' DSP_Session --> AOHD : onDetected()
+
+' ' 硬件访问
+' VQDS ..> Camera : 读取视频流\n(检测注视)
+' VQDS ..> Mic : 读取音频流\n(辅助验证)
+' ST_HAL ..> Mic : 低功耗监听
+
+@enduml

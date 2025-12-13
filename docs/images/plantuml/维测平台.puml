@@ -1,0 +1,67 @@
+@startuml
+skinparam rectangle {
+  BackgroundColor White
+  BorderColor Black
+  RoundCorner 15
+  Shadowing true
+}
+
+title 智能座舱云端看板架构示意图
+
+'======================
+' 用户角色
+'======================
+actor "R&D Director" as RnD
+actor "After-Sales Technician" as SAT
+actor "Product Manager" as PM
+actor "Security & Compliance Officer" as SCO
+
+'======================
+' 端侧 (Host/Guest)
+'======================
+package "Vehicle Fleet\n(端侧)" as End {
+  rectangle "Android Guest\n- statsd埋点\n- Crash/ANR\n- Perfetto" as Guest
+  rectangle "Linux Host\n- eBPF采集\n- Perf\n- 日志收集" as Host
+}
+
+'======================
+' 边缘 (Edge Agent)
+'======================
+package "Edge Agent\n(边缘)" as Edge {
+  rectangle "数据清洗\n异常触发\n黑匣子快照组装" as EdgeAgent
+}
+
+'======================
+' 云端 (Cloud Platform)
+'======================
+package "Cloud Platform\n(云端)" as Cloud {
+  rectangle "研发质量总览\n(R&D Quality Dashboard)" as Dash1
+  rectangle "单车诊断工作台\n(Single Vehicle Diagnostics)" as Dash2
+  rectangle "问题聚类与根因分析\n(Issue Clustering & Analysis)" as Dash3
+  rectangle "版本体验记分卡\n(Version Experience Scorecard)" as Dash4
+  rectangle "策略配置与远程控制\n(Configuration & Remote Control)" as Dash5
+  rectangle "安全审计与合规中心\n(Security & Audit Center)" as Dash6
+  rectangle "异常预测与趋势预警\n(Anomaly Prediction & Trend Alert)" as Dash7
+  rectangle "用户体验热力图\n(UX Heatmap)" as Dash8
+  rectangle "版本与车型对比大盘\n(Version & Vehicle Comparison)" as Dash9
+  rectangle "数据使用与采集效率大盘\n(Data Usage & Efficiency)" as Dash10
+  rectangle "车辆健康指数\n(Vehicle Health Scorecard)" as Dash11
+  rectangle "AI智能分析看板\n(AI Insights Dashboard)" as Dash12
+}
+
+'======================
+' 数据流向
+'======================
+Guest --> EdgeAgent : 日志 & 埋点数据
+Host --> EdgeAgent : 日志 & 系统指标
+EdgeAgent --> Cloud : 清洗后数据上传
+
+'======================
+' 用户访问云端看板
+'======================
+Cloud --> RnD : Dash1, Dash3, Dash7, Dash10
+Cloud --> SAT : Dash2, Dash5, Dash11
+Cloud --> PM : Dash4, Dash8, Dash9
+Cloud --> SCO : Dash6, Dash12
+
+@enduml

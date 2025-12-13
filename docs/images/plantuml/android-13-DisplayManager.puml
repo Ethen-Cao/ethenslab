@@ -1,0 +1,127 @@
+@startuml
+!theme plain
+autonumber "<b>[0]"
+
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Roboto
+skinparam defaultFontSize 14
+skinparam maxMessageSize 250
+skinparam boxPadding 10
+
+box "Hardware & HAL" #F9F9F9
+    participant "HWC (HAL)" as HWC
+end box
+
+box "SurfaceFlinger (Native C++)" #EEEEEE
+    participant "SurfaceFlinger\n(Binder Thread)" as SF_Binder
+    participant "SurfaceFlinger\n(Main Thread)" as SF_Main
+    participant "CompositionEngine" as CE
+    participant "DisplayDevice" as SF_DD
+end box
+
+box "Framework (Java / DMS)" #DDF
+    participant "JNI / SurfaceControl" as JNI
+    participant "LocalDisplayAdapter" as LDA
+    participant "LogicalDisplayMapper" as LDM
+    participant "LogicalDisplay" as LD
+    participant "DisplayDevice (Java)" as Java_DD
+end box
+
+== 1. 物理连接与发现 (Native) ==
+
+HWC -> SF_Binder : onComposerHalHotplug(displayId, CONNECTED)
+activate SF_Binder
+    note right of SF_Binder
+        代码: onComposerHalHotplug
+        动作: mPendingHotplugEvents.push()
+        动作: setTransactionFlags()
+    end note
+    SF_Binder -> SF_Main : Signal Transaction
+deactivate SF_Binder
+
+SF_Main -> SF_Main : processDisplayHotplugEventsLocked()
+activate SF_Main
+    note right of SF_Main
+        1. 调用 HWC 获取 DisplayInfo (含 Address)
+        2. 创建 IBinder Token
+        3. 更新 mCurrentState.displays
+    end note
+
+    SF_Main -> JNI : dispatchDisplayHotplugEvent(timestamp, physicalId, token)
+    activate JNI
+        
+== 2. Framework 层对象创建 (Java) ==
+
+        JNI -> LDA : onHotplug(displayId, token)
+        activate LDA
+            note right of LDA
+                创建 Java 层的物理屏幕对象
+                LocalDisplayDevice 包含 Address
+            end note
+            LDA -> LDA : sendDisplayDeviceEventLocked(ADDED)
+            
+            LDA -> LDM : onDisplayDeviceEventLocked(ADDED)
+            activate LDM
+                LDM -> LDM : handleDisplayDeviceAddedLocked()
+                
+                note right of LDM
+                    **核心逻辑**:
+                    创建逻辑屏幕 LogicalDisplay
+                    并分配 LayerStack ID
+                end note
+                LDM -> LD ** : new LogicalDisplay(displayId, layerStack)
+                
+                LDM -> LD : configureDisplayLocked()
+                activate LD
+                    note left of LD
+                        **绑定**:
+                        告诉 Java层 DisplayDevice
+                        使用哪个 LayerStack
+                    end note
+                    LD -> Java_DD : setLayerStackLocked(layerStack)
+                    activate Java_DD
+                        Java_DD -> SF_Main : SurfaceControl.setDisplayLayerStack(token, layerStack)
+                        note right of SF_Main
+                           SF 接收到 LayerStack 设置事务
+                        end note
+                    deactivate Java_DD
+                deactivate LD
+            deactivate LDM
+        deactivate LDA
+    deactivate JNI
+
+    SF_Main -> SF_Main : handleTransactionLocked()
+    note right of SF_Main
+        处理来自 Java 层的 LayerStack 设置
+        将 LayerStack 写入 CurrentState
+    end note
+
+== 3. SurfaceFlinger 对象创建与合成准备 (Native) ==
+
+    SF_Main -> SF_Main : setupNewDisplayDeviceInternal()
+    activate SF_Main
+        note right of SF_Main
+            代码: setupNewDisplayDeviceInternal
+            时机: 事务提交阶段
+        end note
+        
+        SF_Main -> CE : createDisplay(args)
+        activate CE
+            note right of CE
+                创建 CompositionEngine::Display
+                (即 Output 的子类)
+            end note
+        CE --> SF_Main
+        deactivate CE
+
+        SF_Main -> SF_DD ** : new DisplayDevice(compositionDisplay)
+        note right of SF_DD
+            C++ DisplayDevice 创建完成
+            此时拥有了 LayerStack 和 Output
+            可以开始接收图层数据
+        end note
+    deactivate SF_Main
+
+deactivate SF_Main
+
+@enduml

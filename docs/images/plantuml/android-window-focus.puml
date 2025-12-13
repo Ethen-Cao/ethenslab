@@ -1,0 +1,84 @@
+@startuml
+!theme plain
+' autonumber "<b>[0]""
+
+box "Application Layer" #White
+participant "ViewRootImpl\n(App Process)" as App
+end box
+
+box "System Server (Java)" #EFEFEF
+participant "WindowManagerService\n(WMS)" as WMS
+participant "InputManagerService\n(IMS)" as IMS
+end box
+
+box "Input Flinger (Native)" #E1F5FE
+participant "InputDispatcher" as Dispatcher
+participant "FocusResolver" as Resolver
+end box
+
+title Android 窗口获取焦点核心流程 (Focus Pipeline)
+
+== 1. 触发阶段 (Trigger) ==
+App -> WMS: relayoutWindow() / addWindow()
+note right: 应用请求显示窗口\n或改变窗口属性
+
+activate WMS
+WMS -> WMS: performSurfacePlacement()
+note right: WMS 计算窗口层级(Z-Order)、\n可见性(Visibility)和区域(Bounds)
+
+== 2. 同步窗口信息 (Sync InputWindows) ==
+WMS -> WMS: updateInputWindows()
+note right: 将 Java 层的 WindowState\n转换为 Native 可读的 InputWindowHandle
+
+WMS -> IMS: setInputWindows(windows)
+activate IMS
+IMS -> Dispatcher: setInputWindows(windows)
+deactivate IMS
+
+activate Dispatcher
+
+== 3. 焦点仲裁 (Resolution) ==
+note over Dispatcher: 进入 Native 核心处理逻辑
+
+Dispatcher -> Resolver: setInputWindows(displayId, windows)
+activate Resolver
+
+Resolver -> Resolver: getFocusedWindowToken(displayId)
+note right: 获取当前持有焦点的 Token
+
+Resolver -> Resolver: isTokenFocusable(currentFocus)
+note right: 检查当前焦点窗口是否仍有效\n(Visible && Focusable && Enabled)
+
+alt Case A: 当前焦点依然有效
+    Resolver --> Dispatcher: return std::nullopt
+    note left: 焦点无需变更
+
+else Case B: 当前焦点失效 (被隐藏/移除)
+    Resolver -> Resolver: getFocusRequest(displayId)
+    note right: 查找是否有等待中的\nsetFocusedWindow请求
+
+    Resolver -> Resolver: updateFocusedWindow()
+    note right #FFCDD2: **关键点**: 更新 mFocusedWindowTokenByDisplay\n(你的补丁逻辑在此处生效)
+    
+    Resolver --> Dispatcher: return FocusChanges\n{oldFocus, newFocus}
+end
+deactivate Resolver
+
+== 4. 事件分发 (Dispatch) ==
+opt 发生焦点变化 (FocusChanges != null)
+    Dispatcher -> Dispatcher: onFocusChangedLocked(changes)
+    
+    par 通知失去焦点
+        Dispatcher -> App: InputChannel (Native -> Socket)
+        note right: 发送 focus = false 事件\n(给 oldFocus)
+    end
+    
+    par 通知获得焦点
+        Dispatcher -> App: InputChannel (Native -> Socket)
+        note right: 发送 focus = true 事件\n(给 newFocus)
+    end
+end
+
+deactivate Dispatcher
+deactivate WMS
+@enduml

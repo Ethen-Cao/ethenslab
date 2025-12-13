@@ -1,0 +1,100 @@
+@startuml
+!theme plain
+
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Roboto"
+skinparam defaultFontSize 13
+skinparam componentStyle rectangle
+skinparam linetype ortho
+
+title PC端诊断刷写智能座舱系统 - 架构示意图
+
+' =================== PC 侧 ===================
+package "PC端（开发 / 售后）" as PC {
+
+  node "诊断/刷写PC" as PC_HOST {
+    component "诊断刷写工具\n(Flash / Diag Client)" as PC_TOOL
+    component "通信适配层\n(UDS / DoIP / CAN)" as PC_COMM
+  }
+
+  node "VCI / 接口设备" as VCI {
+    component "VCI固件\n(协议栈 + 路由)" as VCI_FW
+    note bottom of VCI_FW
+      - USB / LAN 连接PC
+      - 向车辆侧输出:
+        * CAN(ISO15765)
+        * Ethernet(DoIP)
+    end note
+  }
+}
+
+' =================== 车辆侧 ===================
+node "车辆" as VEH {
+
+  node "网关ECU" as GW {
+    component "诊断路由\n(DoIP网关 / CAN网关)" as DIAG_ROUTER
+    note right of DIAG_ROUTER
+      - 终端识别 / 诊断路由
+      - 车内总线选择:
+        * 座舱域 CAN/ETH
+        * 动力域 CAN
+        * 其他子网
+    end note
+  }
+
+  package "智能座舱域" as COCKPIT {
+
+    node "座舱域控制器 CDC" as CDC {
+      component "Bootloader / FBL\n(编程引导程序)" as BOOT
+      component "运行时诊断服务\n(UDS Server / Dcm)" as DIAG_SERVER
+      component "刷写代理服务\n(镜像 / 分区管理)" as FLASH_AGENT
+      component "操作系统\n(QNX / Linux / Android)" as OS
+    }
+
+    node "其他座舱ECU\n(仪表 / RSE / 空调等)" as OTHER_ECU {
+      component "本地Bootloader" as OTHER_BOOT
+      component "本地诊断服务\n(UDS Server)" as OTHER_DIAG
+    }
+  }
+}
+
+' =================== 交互关系 ===================
+
+' PC 内部
+PC_TOOL --> PC_COMM : 诊断/刷写请求\n(ISO 14229 抽象API)
+
+' PC -> VCI
+PC_COMM --> VCI_FW : 诊断帧编码\nDoIP / ISO15765-CAN
+
+' VCI -> 车辆
+VCI_FW --> DIAG_ROUTER : 以太网(DoIP) / CAN FD
+
+' 网关路由到座舱域控制器
+DIAG_ROUTER --> DIAG_SERVER : UDS 诊断服务\n0x10/0x22/0x2E/0x19
+DIAG_ROUTER --> BOOT : UDS 编程服务\n0x34/0x36/0x37
+
+' 座舱域控制器内部协作
+DIAG_SERVER --> FLASH_AGENT : 编程请求\n(下载镜像 / 校验)
+FLASH_AGENT --> BOOT : 设置编程标志\n请求重启到Bootloader
+FLASH_AGENT --> OS : 写分区 / 校验 / 回滚控制
+
+' 网关路由到其他座舱ECU
+DIAG_ROUTER --> OTHER_DIAG : 运行时诊断
+DIAG_ROUTER --> OTHER_BOOT : 远程刷写\n(通过子网)
+
+' =================== 备注 ===================
+legend right
+  PC 侧：
+    - 诊断刷写工具：工厂/售后专用软件
+    - 通信适配层：统一UDS/DoIP/CAN接口
+    - VCI：将PC指令转换为车载总线报文
+
+  车辆侧：
+    - 网关ECU：诊断会话与路由中心
+    - 座舱域控制器：
+        * Bootloader：刷写阶段运行
+        * 诊断服务：常规故障诊断
+        * 刷写代理：镜像/分区/回滚控制
+endlegend
+
+@enduml

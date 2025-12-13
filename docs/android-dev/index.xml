@@ -1,1 +1,35 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android系统开发 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/</link><description>Recent content in Android系统开发 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate/><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/index.xml" rel="self" type="application/rss+xml"/></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android系统开发 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/</link><description>Recent content in Android系统开发 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 01 Jan 0001 00:00:00 +0000</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/index.xml" rel="self" type="application/rss+xml"/><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;
+&lt;p&gt;基于提供AOSP的代码，以“Hi Google”为例，语音唤醒（Hotword Detection）的完整流程是一个跨进程、跨层级的复杂协作过程。它主要涉及&lt;strong&gt;底层硬件触发&lt;/strong&gt;、&lt;strong&gt;系统服务路由&lt;/strong&gt;、&lt;strong&gt;沙盒服务校验&lt;/strong&gt;以及&lt;strong&gt;上层应用响应&lt;/strong&gt;四个关键阶段。&lt;/p&gt;
+&lt;p&gt;以下是基于代码分析的时序流程：&lt;/p&gt;
+&lt;h3 id="第一阶段底层硬件触发与系统层接收-hardware-trigger--system-layer"&gt;第一阶段：底层硬件触发与系统层接收 (Hardware Trigger &amp;amp; System Layer)&lt;/h3&gt;
+&lt;p&gt;当用户说出“Hi Google”时，底层 DSP 芯片（SoundTrigger HAL）检测到声学特征，并向系统发送中断信号。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;HAL 层回调&lt;/strong&gt;:
+&lt;code&gt;SoundTriggerHw3Compat&lt;/code&gt;（或其他版本的 Compat 层）收到驱动层的回调。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;代码中 &lt;code&gt;ModelCallbackAdaper.recognitionCallback&lt;/code&gt; 被调用，它将底层的事件封装为 &lt;code&gt;RecognitionEventSys&lt;/code&gt; 并向上层传递 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Middleware 层传递&lt;/strong&gt;:
+事件经过 &lt;code&gt;SoundTriggerMiddlewareImpl&lt;/code&gt; 及一系列装饰器（Validation, Logging, Permission），最终到达 &lt;code&gt;SoundTriggerService&lt;/code&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;SoundTriggerService 处理&lt;/strong&gt;:
+&lt;code&gt;SoundTriggerService&lt;/code&gt; 通过其内部的 &lt;code&gt;SoundTriggerHelper&lt;/code&gt; 处理该事件。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;SoundTriggerHelper&lt;/code&gt; 的 &lt;code&gt;onRecognition&lt;/code&gt; 方法被触发，识别出这是 &lt;code&gt;KeyphraseRecognitionEvent&lt;/code&gt;（关键短语识别事件）。&lt;/li&gt;
+&lt;li&gt;紧接着调用 &lt;code&gt;onKeyphraseRecognitionLocked&lt;/code&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;回调 VoiceInteractionManagerService (VIMS)&lt;/strong&gt;:
+&lt;code&gt;SoundTriggerHelper&lt;/code&gt; 调用它持有的 &lt;code&gt;IRecognitionStatusCallback&lt;/code&gt;。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;在 VIMS 的上下文中，这个回调实际上是 &lt;code&gt;HotwordDetectionConnection&lt;/code&gt; 内部定义的 &lt;code&gt;SoundTriggerCallback&lt;/code&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="第二阶段路由至沙盒服务-routing-to-sandboxed-service"&gt;第二阶段：路由至沙盒服务 (Routing to Sandboxed Service)&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;VoiceInteractionManagerService&lt;/code&gt; 接收到硬件事件后，不会直接发给 Google App，而是先路由给运行在隔离进程中的 &lt;code&gt;HotwordDetectionService&lt;/code&gt; 进行校验。&lt;/p&gt;</description></item></channel></rss>

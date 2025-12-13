@@ -1,0 +1,41 @@
+@startuml
+!theme plain
+
+
+actor "开发者" as Dev
+file "定义文件\n(.proto)" as ProtoFile
+component "编译器\n(protoc / stats-log-api-gen)" as Compiler
+
+package "生成产物 (Generated Code)" {
+    file "Java Class\n(.java)" as JavaCode
+    file "C++ Header/Source\n(.h/.cc)" as CppCode
+    file "Python Script\n(.py)" as PyCode
+}
+
+node "发送端应用 (Sender)" as AppSender
+node "接收端应用 (Receiver)" as AppReceiver
+database "存储/网络 (Binary)" as BinaryData
+
+' 流程关系
+Dev -> ProtoFile : 1. 定义数据结构
+ProtoFile -> Compiler : 2. 输入定义
+Compiler --> JavaCode : 3. 生成代码
+Compiler --> CppCode
+Compiler --> PyCode
+
+JavaCode ..> AppSender : 被引用 (API)
+CppCode ..> AppReceiver : 被引用 (API)
+
+AppSender -> BinaryData : 4. 序列化 (Serialize)
+note top of AppSender
+  将对象转换为
+  二进制字节流
+end note
+
+BinaryData -> AppReceiver : 5. 反序列化 (Deserialize)
+note top of AppReceiver
+  将二进制字节流
+  还原为对象
+end note
+
+@enduml

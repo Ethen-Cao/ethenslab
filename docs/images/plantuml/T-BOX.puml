@@ -1,0 +1,107 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 50
+
+title End-to-End Data Flow: Android IVI to T-Box Multi-APN
+caption 核心机制：Android 虚拟网卡 -> Host Bridge 转发 -> VLAN 子接口打标 -> T-Box 路由分流
+
+package "IVI System" as IVI {
+  node "SoC / Hardware" {
+    rectangle "Ethernet MAC/PHY (IVI_PHY)" as IVI_PHY
+  }
+
+  package "Host (dom0) / Hypervisor" {
+    component "vhost-net (Backend)" as VirtIO_BE
+    component "Linux Bridge / OVS" as Host_Bridge
+    
+    ' 修正：将 VLAN 接口和 Driver 放在同一路径上，体现层级
+    rectangle "Network Interface Stack" {
+        component "eth0.100 (VLAN 100)" as eth0_100
+        component "Host NIC Driver (eth0)" as Host_NIC_Drv
+    }
+  }
+
+  package "Guest (Android VM)" {
+    component "App (e.g., YouTube)" as App
+    component "Android NetStack" as AndroidNet
+    component "virtio-net (Frontend)" as VirtIO_FE
+  }
+}
+
+package "T-Box System" as TBox {
+  node "T-Box Hardware / Kernel" {
+    rectangle "Ethernet MAC/PHY (TBOX_PHY)" as TBOX_PHY
+    component "Linux NetStack\n(Route / NAT / Conntrack)" as NetStack
+
+    package "Virtual Interfaces" {
+      component "rmnet_data0\n(Internet)" as RM0
+      component "rmnet_data1\n(Private)" as RM1
+    }
+
+    component "RmNet Driver\n(QMAP Encapsulation)" as RmDriver
+  }
+
+  component "Modem Baseband (BB)" as Modem
+  component "Connection Manager\n(vendor daemon / QCMAP)" as CM
+
+  note bottom of CM
+    Control Plane (vendor-specific).
+    On Qualcomm platforms often QCMAP or a vendor daemon that issues QMI.
+    This component manages PDN setup and routing rules.
+  end note
+}
+
+' --- 1. Android 内部路径 ---
+App --> AndroidNet : 1. Socket Send
+AndroidNet --> VirtIO_FE : 2. eth0 (Guest IP)
+VirtIO_FE ..> VirtIO_BE : 3. VirtIO Ring (zero-copy)
+
+' --- 2. Host 处理与 VLAN 打标 (修正部分) ---
+VirtIO_BE --> Host_Bridge : Enter Bridge
+Host_Bridge --> eth0_100 : 4. Bridge Forwarding
+note right of Host_Bridge
+  Key Step 1: Bridge & VLAN
+  Bridge 将来自 Android 的包转发给
+  成员端口 eth0.100。
+end note
+
+eth0_100 --> Host_NIC_Drv : 5. 802.1Q Tagging
+note right of eth0_100
+  <b:Tagging happens here>
+  数据包离开子接口时，
+  被打上 VLAN 100 标签。
+end note
+
+Host_NIC_Drv --> IVI_PHY : 6. Physical Tx
+
+' --- 3. 物理传输 ---
+IVI_PHY <==> TBOX_PHY : 7. Ethernet Frame [Tag: 100]
+
+' --- 4. T-Box 路由决策 ---
+TBOX_PHY --> NetStack : 8. Ingress (Rx -> Strip VLAN -> IP Routing)
+note right of NetStack
+  Key Step 2: Routing Decision
+  内核根据 VLAN ID (来源于 ethX.100)
+  查路由表，将 IP 包转发给
+  对应的 rmnet 接口。
+end note
+
+NetStack --> RM0 : 9. Forwarding
+RM0 --> RmDriver : 10. Interface -> Driver
+
+' --- 5. Modem 发送 ---
+RmDriver --> Modem : 11. QMAP Frame (Mux ID: 1)
+note right of RmDriver
+  Key Step 3: QMAP Encapsulation
+  驱动添加 QMAP 头 (Mux ID 1)
+  并通过 PCIe/USB 发送给 Modem
+end note
+
+' --- 控制面连接 ---
+CM --> RmDriver : Control (QMI: Setup PDN)
+RmDriver --> CM : Status (Netlink)
+
+@enduml

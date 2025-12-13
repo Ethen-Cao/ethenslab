@@ -1,0 +1,81 @@
+@startuml
+!theme plain
+skinparam dpi 300
+autonumber
+
+participant "Client\n(App/WMS)" as Client
+participant "SurfaceFlinger" as SF
+participant "CompositionEngine" as CE
+participant "Display(CE)" as CD
+participant "HWComposer\n(HAL)" as HWC
+
+== 1. Layer 归属判定 (Rebuild Layer Stack) ==
+
+Client -> SF: setLayerStack(layer, stackId=0)
+Client -> SF: setDisplayLayerStack(displayToken, stackId=0)
+
+SF -> SF: handleMessageRefresh()
+activate SF
+    SF -> CE: present(refreshArgs)
+    activate CE
+    
+    CE -> CE: updateLayerState()
+    note right
+        遍历所有 Display
+        遍历所有 Layer
+        **匹配条件**: Display.layerStack == Layer.layerStack
+    end note
+
+    loop 对于每个 Display (例如 Display 0)
+        CE -> CD: getOutputLayers()
+        note right: 生成该屏幕需要显示的 OutputLayer 列表
+    end loop
+
+== 2. 合成策略规划 (Validate) ==
+
+    loop 对于每个 Display
+        CE -> HWC: validateDisplay(displayId, outTypes, outRequests)
+        activate HWC
+        note right 
+            HWC 查看所有 Layer，决定：
+            - 这个 Layer 我能处理 (Device Composition)
+            - 这个 Layer 我处理不了，你用 GPU 算 (Client Composition)
+        end note
+        HWC --> CE: return changes
+        deactivate HWC
+    end loop
+
+== 3. 执行 GPU 合成 (Client Composition) ==
+
+    loop 对于每个 Display
+        opt 存在需要 GPU 合成的 Layer
+            CE -> SF: renderCachedSets / drawLayers
+            SF -> "RenderEngine" : draw()
+            "RenderEngine" -> "FramebufferSurface" : queueBuffer()
+            note right: 绘制结果存入 BufferQueue
+        end
+    end loop
+
+== 4. 提交给 HWC (Present) ==
+
+    loop 对于每个 Display
+        opt 有 GPU 合成结果
+            "FramebufferSurface" -> HWC: setClientTarget(buffer)
+            note right: 将 GPU 画好的整张图作为一个特殊的 Layer 给 HWC
+        end
+        
+        CE -> HWC: presentDisplay(displayId)
+        activate HWC
+        note right
+            HWC 硬件控制器读取 ClientTarget (如有)
+            和标记为 Device Composition 的图层
+            进行最终硬件叠加输出到屏幕
+        end note
+        return
+        deactivate HWC
+    end loop
+    
+    deactivate CE
+deactivate SF
+
+@enduml

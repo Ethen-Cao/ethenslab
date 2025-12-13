@@ -1,0 +1,104 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 50
+
+title End-to-End Data Flow: Android IVI to T-Box Multi-APN
+caption 核心机制：Android 虚拟网卡 -> Host VLAN 打标 -> T-Box 路由分流 -> 映射特定 APN
+
+' 为什么数据包知道走哪条路：
+
+' 第一步：身份标记 (Key Step 1 - Host Side): Android 发出的只是普通 IP 包。关键在于 Host 层的网桥（Bridge/OVS）。我们在这里配置了策略，给 Android 的流量打上了 VLAN 100 的标签。这就像给数据包贴了个‘娱乐流量’的邮票。”
+
+' 第二步：路由分拣 (Key Step 2 - T-Box Kernel): “数据包带着这个 VLAN 100 标签通过网线到达 T-Box。T-Box 的 Linux 内核收到包后，会剥离标签并查路由表（Routing Table）。策略写着：‘凡是来自 VLAN 100 的，全部转发给 rmnet_data0 接口’。这就是分流的核心时刻。”
+
+' 第三步：通道传输 (Key Step 3 - Modem): “最后，rmnet_data0 接口对应的驱动会将数据包封装成 QMAP 格式，并标记 Mux ID = 1。Modem 硬件看到 ID 为 1，就知道用 Internet APN 的无线承载（Bearer）把它发射出去。”
+
+' 结论： “所以，Android 数据包之所以能走对 APN，全靠 链路层的 VLAN ID 和 网络层的路由表 配合完成的映射。”
+
+package "IVI System" as IVI {
+  node "SoC / Hardware" {
+    rectangle "Ethernet MAC/PHY (IVI_PHY)" as IVI_PHY
+  }
+
+  package "Host (dom0) / Hypervisor" {
+    component "vhost-net (Backend)" as VirtIO_BE
+    component "Linux Bridge / OVS" as Host_Bridge
+    component "Host NIC Driver" as Host_NIC_Drv
+  }
+
+  package "Guest (Android VM)" {
+    component "App (e.g., YouTube)" as App
+    component "Android NetStack" as AndroidNet
+    component "virtio-net (Frontend)" as VirtIO_FE
+  }
+}
+
+package "T-Box System" as T-Box{
+  node "T-Box Hardware / Kernel" {
+    rectangle "Ethernet MAC/PHY (TBOX_PHY)" as TBOX_PHY
+    component "Linux NetStack\n(Route/NAT/Conntrack)" as NetStack
+    
+    rectangle "Virtual Interfaces" {
+        component "rmnet_data0\n(Internet)" as RM0
+        component "rmnet_data1\n(Private)" as RM1
+    }
+    
+    component "RmNet Driver\n(QMAP Encapsulation)" as RmDriver
+  }
+
+  component "Modem Baseband (BB)" as Modem
+  component "Connection Manager" as CM
+  note bottom of CM
+  Control Plane
+  负责拨号逻辑的守护进程。
+  在高通平台通常是 QCMAP_ConnectionManager，
+  负责下发 QMI 指令建立 PDN 连接。
+end note
+}
+
+
+' --- 1. Android 内部路径 ---
+App --> AndroidNet : 1. Socket Send
+AndroidNet --> VirtIO_FE : 2. eth0 (Guest IP)
+VirtIO_FE ..> VirtIO_BE : 3. VirtIO Ring (Memory Copy)
+
+' --- 2. Host 处理与 VLAN 打标 ---
+VirtIO_BE --> Host_Bridge
+Host_Bridge --> Host_NIC_Drv : 4. Egress
+note right of Host_Bridge
+  Key Step 1: VLAN Mapping
+  Host 将 Android 流量绑定到
+  特定 VLAN (如 VLAN 100)
+end note
+
+' --- 3. 物理传输 ---
+Host_NIC_Drv --> IVI_PHY
+IVI_PHY <==> TBOX_PHY : 5. Ethernet Frame [Tag: VLAN 100]
+
+' --- 4. T-Box 路由决策 ---
+TBOX_PHY --> NetStack : 6. Ingress (解包 VLAN)
+note right of NetStack
+  Key Step 2: Routing Decision
+  根据 VLAN ID 或源 IP 查路由表:
+  "来自 VLAN 100 的包 -> 转发给 rmnet_data0"
+  "来自 VLAN 200 的包 -> 转发给 rmnet_data1"
+end note
+
+NetStack --> RM0 : 7. Forwarding
+RM0 --> RmDriver : 8. Kernel -> Driver
+
+' --- 5. Modem 发送 ---
+RmDriver --> Modem : 9. QMAP Frame (Mux ID: 1)
+note right of RmDriver
+  Key Step 3: QMAP Encapsulation
+  驱动在 IP 包前添加 QMAP 头
+  (Mux ID 1 对应 Internet APN)
+end note
+
+' --- 控制面连接 ---
+CM ..> RmDriver : Control (Setup PDN)
+
+@enduml

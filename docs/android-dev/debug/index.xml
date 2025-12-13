@@ -138,7 +138,85 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;日誌讀取與解析路徑 (Read &amp;amp; Parse Path)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>使用AndroidStudio调试AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid><description>&lt;h2 id="调试java进程"&gt;调试Java进程&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;日誌讀取與解析路徑 (Read &amp;amp; Parse Path)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Protocol Buffers (Protobuf) 技术指南</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;Protocol Buffers&lt;/strong&gt; (简称 Protobuf) 是 Google 开发的一种语言无关、平台无关、可扩展的&lt;strong&gt;序列化结构数据&lt;/strong&gt;的机制。&lt;/p&gt;
+&lt;p&gt;相比于 XML 和 JSON，Protobuf 的主要特点是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;体积更小&lt;/strong&gt;：二进制格式，数据紧凑。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;速度更快&lt;/strong&gt;：解析和序列化速度极快。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;强类型&lt;/strong&gt;：通过 &lt;code&gt;.proto&lt;/code&gt; 文件定义数据结构，编译时自动生成代码。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;兼容性&lt;/strong&gt;：良好的向后兼容性支持。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;在 Android 系统中，Protobuf 被广泛用于 StatsD (指标上报)、Incidentd (事故报告)、Binder IPC 数据传输等场景。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="2-工作流程与架构"&gt;2. 工作流程与架构&lt;/h2&gt;
+&lt;p&gt;Protobuf 的核心工作流分为：&lt;strong&gt;定义&lt;/strong&gt;、&lt;strong&gt;编译&lt;/strong&gt;、&lt;strong&gt;使用&lt;/strong&gt;、&lt;strong&gt;序列化/反序列化&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/Protobuf.png"&gt;&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="3-语法指南-proto"&gt;3. 语法指南 (.proto)&lt;/h2&gt;
+&lt;p&gt;目前主流版本为 &lt;strong&gt;proto3&lt;/strong&gt;。以下是一个典型的 &lt;code&gt;.proto&lt;/code&gt; 文件示例。&lt;/p&gt;
+&lt;h3 id="31-基础结构"&gt;3.1 基础结构&lt;/h3&gt;
+&lt;p&gt;创建一个名为 &lt;code&gt;car_event.proto&lt;/code&gt; 的文件：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-protobuf" data-lang="protobuf"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// 1. 指定语法版本 (必须)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;syntax &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;proto3&amp;#34;&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt;&lt;span style="color:#75715e"&gt;// 2. 定义包名 (防止命名冲突)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#f92672"&gt;package&lt;/span&gt; com&lt;span style="color:#f92672"&gt;.&lt;/span&gt;example.cockpit;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt;&lt;span style="color:#75715e"&gt;// 3. 配置生成选项 (Java相关)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;option&lt;/span&gt; java_package &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;com.example.cockpit.proto&amp;#34;&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 生成的Java包路径
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;option&lt;/span&gt; java_outer_classname &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;CarEventProto&amp;#34;&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 生成的Java外层类名
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt;&lt;span style="color:#75715e"&gt;// 4. 定义消息 (Message)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;message&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;VehicleStatus&lt;/span&gt; {&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#75715e"&gt;// 字段格式: 类型 字段名 = 字段编号;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#75715e"&gt;// 标量类型
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;int32&lt;/span&gt; speed &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 整数
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;string&lt;/span&gt; vin_code &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;2&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 字符串
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;bool&lt;/span&gt; is_moving &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;3&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 布尔值
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#75715e"&gt;// 枚举类型
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;enum&lt;/span&gt; Gear {&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; GEAR_UNKNOWN &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// proto3 枚举第一个值必须为0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; GEAR_P &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; GEAR_R &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;2&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; GEAR_N &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;3&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; GEAR_D &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;4&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; }&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; Gear current_gear &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;4&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#75715e"&gt;// 嵌套消息
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; EngineInfo engine &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;5&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#75715e"&gt;// 数组 (Repeated)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;repeated&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;string&lt;/span&gt; error_codes &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;6&lt;/span&gt;; &lt;span style="color:#75715e"&gt;// 相当于 List&amp;lt;String&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;}&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;message&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;EngineInfo&lt;/span&gt; {&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;float&lt;/span&gt; rpm &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;float&lt;/span&gt; temperature &lt;span style="color:#f92672"&gt;=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;2&lt;/span&gt;;&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#960050;background-color:#1e0010"&gt;&lt;/span&gt;}&lt;span style="color:#960050;background-color:#1e0010"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="32-关键概念"&gt;3.2 关键概念&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;字段编号 (Field Number)&lt;/strong&gt;：例如 &lt;code&gt;speed = 1&lt;/code&gt; 中的 &lt;code&gt;1&lt;/code&gt;。
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;非常重要&lt;/strong&gt;：这是二进制数据中字段的唯一标识，而不是字段名。&lt;/li&gt;
+&lt;li&gt;一旦数据投入使用，&lt;strong&gt;绝对不能修改&lt;/strong&gt;已存在字段的编号。&lt;/li&gt;
+&lt;li&gt;1~15 占用 1 个字节，16~2047 占用 2 个字节（建议将频繁使用的字段放在 1~15）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;类型映射&lt;/strong&gt;：
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;int32/int64&lt;/code&gt; -&amp;gt; Java &lt;code&gt;int/long&lt;/code&gt;, C++ &lt;code&gt;int32_t/int64_t&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;string&lt;/code&gt; -&amp;gt; Java &lt;code&gt;String&lt;/code&gt;, C++ &lt;code&gt;std::string&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;bool&lt;/code&gt; -&amp;gt; Java &lt;code&gt;boolean&lt;/code&gt;, C++ &lt;code&gt;bool&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h2 id="4-编译方法"&gt;4. 编译方法&lt;/h2&gt;
+&lt;p&gt;将 &lt;code&gt;.proto&lt;/code&gt; 文件转换为目标语言代码。&lt;/p&gt;</description></item><item><title>使用AndroidStudio调试AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid><description>&lt;h2 id="调试java进程"&gt;调试Java进程&lt;/h2&gt;
 &lt;p&gt;本文介绍如何在 Android Studio 中调试 AOSP (Android Open Source Project) 进程，尤其是像 system_server 这样的系统进程。调试 AOSP 与普通应用调试有所不同，需要借助 JDWP 协议和 adb 端口转发。&lt;/p&gt;
 &lt;h3 id="前置条件"&gt;前置条件&lt;/h3&gt;
 &lt;p&gt;环境准备：&lt;/p&gt;

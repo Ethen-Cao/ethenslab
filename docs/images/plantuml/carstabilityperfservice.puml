@@ -1,0 +1,117 @@
+@startuml
+' CarPerfStabilityCenter Architecture Diagram (PlantUML)
+' Version: 1.3
+' How to use: copy this PlantUML into a PlantUML editor (IntelliJ PlantUML plugin, plantuml.com/plantuml, or local plantuml.jar) and render PNG/SVG.
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+title CarPerfStabilityCenter - Monitoring Agent Architecture (V1.3)
+
+package "Vehicle Domain" {
+  node MCU as MCUAgent {
+    component "MCU Agent" as MCU_Agent
+    component "Heartbeat & Telemetry" as MCU_Heartbeat
+  }
+
+  node "SoC / Host (PVM)" as HOST {
+    component "Host Agent (PVM)" as Host_Agent
+    component "Host Collector: Logs/Perf/DRM/GPU" as Host_Collector
+    component "Local Store (Ringbuffer / FS)" as Host_Store
+  }
+
+  node "Guest VM (GVM / Android)" as GUEST {
+    component "Guest Agent (GVM)" as Guest_Agent
+    component "App/Service Watchers" as Guest_Watchers
+    component "Trace Capture (Perfetto/Systrace)" as Guest_Trace
+    component "Local Store (Ringbuffer / FS)" as Guest_Store
+  }
+
+  node Hypervisor {
+    component "Hypervisor Monitor" as Hyp_Mon
+    component "VirtIO / vCPU / IPC Watchers" as Hyp_Watch
+  }
+}
+
+node "In-Vehicle Network" as IVN {
+  component "RPC / Telemetry Bus" as TelemetryBus
+}
+
+node "CarPerfStabilityCenter (Edge)" as CPC {
+  component "Ingest API (gRPC / MQTT)" as Ingest
+  component "Event Normalizer / Validater" as Normalizer
+  component "RCA Engine (edge rules)" as RCA
+  component "Storage (Time-series + Blob)" as TSDB
+  component "Uploader (Filtered)" as Uploader
+  component "Local UI / Debug Console" as LocalUI
+}
+
+node "Cloud / Backend" as CLOUD {
+  component "Telemetry DB / TSDB" as Cloud_TSDB
+  component "Long-term Blob Storage" as Cloud_Blob
+  component "Analytics / Alerting" as Analytics
+  component "Dashboard / Ops UI" as Dashboard
+}
+
+' --- Data flows ---
+MCU_Agent -down-> TelemetryBus : heartbeat, pmic, temp, wake/events
+Host_Agent -down-> TelemetryBus : kernel logs, drm/gpu, perf counters
+Host_Collector -down-> Host_Store : circular logs, dumps
+Guest_Agent -down-> TelemetryBus : app crash, ANR, binder, sf errors
+Guest_Trace -down-> Guest_Store : perfetto traces (on trigger)
+Hyp_Mon -down-> TelemetryBus : vm-exit, vcpu stall, virtio errors
+
+TelemetryBus -right-> Ingest : batched protobuf/gRPC
+Ingest -right-> Normalizer : enrich (metadata, VM id, timestamp sync)
+Normalizer -right-> RCA : rule evaluation (edge alerts)
+Normalizer -down-> TSDB : metrics, events
+Normalizer -right-> Uploader : attachments & filtered traces
+Uploader -right-> Cloud_TSDB : metrics
+Uploader -down-> Cloud_Blob : trace blobs, tombstones
+RCA -down-> LocalUI : immediate debug alert + quick trace pull
+Analytics -left-> Cloud_TSDB : query
+Dashboard -left-> Cloud_TSDB : metrics
+Dashboard -left-> Cloud_Blob : attach blobs on event
+
+' --- Agent responsibilities & policies ---
+' note of MCU_Agent
+'   Responsibilities:
+'   * Local sampling & thresholding
+'   * On-trigger deep-dump capture (trace/log/kernel)
+'   * Adaptive rate-limited upload
+'   * Secure signing of events
+'   * Local retention and rotation
+' end note
+
+' --- Failure & fallback ---
+Host_Store --> Ingest : when network available (retry/backoff)
+Guest_Store --> Ingest
+
+' --- RCA example quick flow ---
+Host_Agent -> Ingest : Kernel panic event + pstore
+Ingest -> Normalizer : tag=panic, vm=host
+Normalizer -> RCA : run panic -> correlate with recent virtio errors
+RCA -> LocalUI : suggest root-cause candidates
+
+' --- visual grouping ---
+' package "Edge Collector" {
+'   MCU_Agent
+'   Host_Agent
+'   Guest_Agent
+'   Hyp_Mon
+'   TelemetryBus
+' }
+
+' package "Edge Processor" {
+'   Ingest
+'   Normalizer
+'   RCA
+'   TSDB
+'   LocalUI
+' }
+
+'
+' Styling keys
+skinparam handwritten false
+
+@enduml

@@ -1,0 +1,61 @@
+@startuml
+!theme plain
+skinparam dpi 300
+autonumber
+
+participant "SurfaceFlinger\n(Main Thread)" as SF
+participant "HWComposer\n(HAL)" as HWC
+participant "CompositionEngine" as CE
+
+== 1. 初始化与注册 ==
+
+-> SF: init()
+activate SF
+    SF -> CE: getHwComposer()
+    SF -> HWC: registerCallback(this)
+    note right: 告诉 HWC，有屏幕插拔告诉我
+deactivate SF
+
+== 2. HWC 发现物理屏幕 (Callback) ==
+
+HWC -> SF: onHotplug(displayId, connected=true)
+activate SF
+    note right: 例如发现中控屏 (Port 129)
+
+    SF -> SF: processDisplayHotplug(displayId, connected)
+    activate SF
+        group 创建基础元数据
+            SF -> CE: createPhysicalDisplay(displayId)
+            note right: 读取 EDID, 分辨率, 刷新率
+            
+            SF -> SF: mPhysicalDisplays.add(id, info)
+            
+            create "DisplayDeviceState" as State
+            SF -> State: new()
+            note right: 填充 physical 指针, isSecure 等
+            
+            SF -> SF: mCurrentState.displays.add(token, State)
+        end group
+        
+        SF -> SF: setTransactionFlags(eDisplayTransactionNeeded)
+        note right: 标记事务，通知主循环处理
+    deactivate SF
+deactivate SF
+
+== 3. 主循环处理 (Creation Trigger) ==
+
+-> SF: onMessageReceived(INVALIDATE)
+activate SF
+    SF -> SF: handleMessageTransaction()
+    SF -> SF: commitTransactionLocked()
+    
+    SF -> SF: processDisplayChangesLocked()
+    activate SF
+        loop 遍历 mCurrentState.displays
+            note right: 发现有新的 DisplayDeviceState\n且 mDisplays 中不存在
+            SF -> SF: processDisplayAdded(token, state)
+        end loop
+    deactivate SF
+deactivate SF
+
+@enduml

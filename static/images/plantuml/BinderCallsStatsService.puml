@@ -1,0 +1,58 @@
+@startuml
+!theme plain
+skinparam backgroundColor white
+skinparam roundcorner 10
+
+
+title BinderCallsStatsService 拦截原理
+
+box "Client Process" #f9f9f9
+  participant "Client App" as Client
+end box
+
+box "Kernel Space" #eaeaea
+  participant "Binder Driver" as Driver
+end box
+
+box "System Server Process" #e3f2fd
+  participant "Binder.java\n(Framework Core)" as BinderFramework
+  participant "BinderCallsStats\n(Observer)" as Observer
+  participant "Target Service\n(e.g. AMS/WMS)" as Service
+end box
+
+== IPC 通信开始 ==
+
+Client -> Driver: transact(CODE_START_ACTIVITY)
+activate Client
+Driver -> BinderFramework: execTransact()
+activate BinderFramework
+
+    group Hook Point: Pre-Execution
+        BinderFramework -> Observer: callStarted()
+        activate Observer
+        Observer -> Observer: 记录 Start CPU Time & RealTime
+        Observer --> BinderFramework: 返回 CallSession
+        deactivate Observer
+    end
+
+    BinderFramework -> Service: onTransact()
+    activate Service
+    note right of Service: 执行具体的系统服务逻辑\n(耗时主要发生在这里)
+    Service --> BinderFramework: 返回结果
+    deactivate Service
+
+    group Hook Point: Post-Execution
+        BinderFramework -> Observer: callEnded(session)
+        activate Observer
+        Observer -> Observer: 记录 End Time
+        Observer -> Observer: Calculate Duration\n(Latency, CPU Usage)
+        Observer -> Observer: Update Stats Map
+        deactivate Observer
+    end
+
+BinderFramework --> Driver: reply
+deactivate BinderFramework
+Driver --> Client: 返回数据
+deactivate Client
+
+@enduml

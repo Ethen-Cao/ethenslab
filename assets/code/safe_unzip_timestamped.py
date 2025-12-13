@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-safe_unzip_timestamped.py - 安全递归解压工具
-修改记录：
- - 输出目录格式改为: YYMMDD-HH-MM-SS_原目录名
- - 默认删除源文件 (使用 --keep 保留)
+safe_unzip_nested.py - 安全递归解压工具 (智能目录命名版)
+功能：
+ 1. 递归解压所有常见压缩包。
+ 2. 最外层解压时：创建 "时间戳_原文件名" 目录。
+ 3. 内部嵌套解压时：创建 "原文件名" 目录 (保持原始结构，不加时间戳)。
+ 4. 默认删除源压缩包 (使用 --keep 保留)。
 """
 import os
 import sys
@@ -14,7 +16,7 @@ import zipfile
 import tarfile
 import tempfile
 import gzip
-import datetime  # [新增] 用于生成时间戳
+import datetime
 from pathlib import Path, PurePosixPath
 from typing import Optional
 
@@ -70,14 +72,16 @@ class SecureUnzipper:
         except Exception:
             return None
 
-    def get_output_folder_name(self, filename: str) -> str:
+    def get_output_folder_name(self, filename: str, add_timestamp: bool = True) -> str:
         """
-        [修改] 生成输出目录名：YYMMDD-HH-MM-SS_原名称
+        生成输出目录名
+        :param filename: 原始文件名
+        :param add_timestamp:是否添加时间戳 (True=外层, False=内层)
         """
         lower = filename.lower()
-        base_name = filename + "_extracted" # default fallback
-
+        
         # 1. 确定基础名称 (去掉后缀)
+        base_name = filename + "_extracted" # default fallback
         found_suffix = False
         for suf in ('.tar.gz', '.tar.xz', '.tar.bz2', '.tar', '.tgz', '.txz', '.tbz'):
             if lower.endswith(suf):
@@ -86,14 +90,18 @@ class SecureUnzipper:
                 break
         
         if not found_suffix:
+            # 简单去除 .zip, .rar 等最后一个后缀
             if '.' in filename:
                 base_name = filename.rsplit('.', 1)[0]
             else:
                 base_name = filename
 
-        # 2. [新增] 添加时间戳前缀 (YYMMDD-HH-MM-SS)
-        timestamp = datetime.datetime.now().strftime("%y%m%d-%H-%M-%S")
-        return f"{timestamp}_{base_name}"
+        # 2. 根据层级决定是否添加时间戳
+        if add_timestamp:
+            timestamp = datetime.datetime.now().strftime("%y%m%d-%H-%M-%S")
+            return f"{timestamp}_{base_name}"
+        else:
+            return base_name
 
     def ensure_parent(self, p: Path):
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -102,7 +110,6 @@ class SecureUnzipper:
         """
         将 src_root 下的普通文件移动到 dst_root，跳过 symlink/特殊文件
         """
-        logger.debug(f"safe_move_contents: {src_root} -> {dst_root}")
         dst_root = dst_root.resolve()
         src_root = src_root.resolve()
 
@@ -279,7 +286,13 @@ class SecureUnzipper:
                 return False
 
     # ------------ recursion ------------
-    def process_recursive(self, target: Path, output_base: Optional[Path] = None):
+    def process_recursive(self, target: Path, output_base: Optional[Path] = None, is_nested: bool = False):
+        """
+        递归处理
+        :param target: 目标文件或目录
+        :param output_base: 指定输出基目录
+        :param is_nested: 标记当前处理的是否为嵌套文件 (True=不加时间戳, False=最外层加时间戳)
+        """
         try:
             target = target.resolve()
         except Exception as e:
@@ -293,7 +306,10 @@ class SecureUnzipper:
                 logger.error(f"Cannot list directory {target}: {e}")
                 return
             for child in children:
-                self.process_recursive(child, output_base=None)
+                # 遍历目录时，保持当前的嵌套状态
+                # 如果当前目录是用户输入的(is_nested=False)，则其子文件也是 False (顶层)
+                # 如果当前目录是解压出来的(is_nested=True)，则其子文件也是 True (嵌套)
+                self.process_recursive(child, output_base=None, is_nested=is_nested)
             return
 
         if not is_archive_path(target):
@@ -303,7 +319,9 @@ class SecureUnzipper:
         if fid and fid in self.processed_inodes:
             return
 
-        folder = self.get_output_folder_name(target.name)
+        # [逻辑核心]：如果是嵌套文件，add_timestamp=False；如果是顶层，add_timestamp=True
+        folder = self.get_output_folder_name(target.name, add_timestamp=not is_nested)
+        
         if output_base:
             final_out = output_base / folder
         else:
@@ -328,7 +346,8 @@ class SecureUnzipper:
             if fid:
                 self.processed_inodes.add(fid)
 
-            self.process_recursive(final_out, output_base=None)
+            # [递归关键]：解压出来的任何内容必定属于"嵌套内容"，所以 is_nested=True
+            self.process_recursive(final_out, output_base=None, is_nested=True)
         else:
             if final_out.exists():
                 try:
@@ -338,7 +357,7 @@ class SecureUnzipper:
                     pass
 
 def main():
-    parser = argparse.ArgumentParser(description="安全递归解压工具")
+    parser = argparse.ArgumentParser(description="安全递归解压工具 (外层带时间戳，内层保持原名)")
     parser.add_argument('inputs', nargs='+', help='输入文件或目录')
     parser.add_argument('-o', '--output', help='顶层输出目录')
     parser.add_argument('--keep', action='store_true', help='保留原始压缩包 (默认删除)')
@@ -363,11 +382,13 @@ def main():
         if not p.exists():
             logger.error(f"Input not found: {p}")
             continue
+        
+        # 初始调用，默认 is_nested=False，代表这是用户指定的最外层文件
         if p.is_file():
             out_base = global_out if global_out else p.parent
-            unzipper.process_recursive(p, output_base=out_base)
+            unzipper.process_recursive(p, output_base=out_base, is_nested=False)
         else:
-            unzipper.process_recursive(p, output_base=None)
+            unzipper.process_recursive(p, output_base=None, is_nested=False)
 
     logger.info("Done.")
 

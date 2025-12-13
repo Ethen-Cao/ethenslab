@@ -1,0 +1,92 @@
+@startuml
+skinparam participantStyle equivalent
+autonumber
+
+participant "HGSL Driver\n(hgsl_hyp.c)" as HGSL
+participant "HGSL Socket\n(hgsl_hyp_socket.c)" as SOCKET
+participant "HAB Interface\n(khab.c)" as KHAB
+participant "HAB Core\n(hab.c / hab_vchan.c)" as HAB
+participant "HAB Transport\n(hab_virtio.c)" as TRANS
+participant "Host / Backend\n(Hypervisor)" as HOST
+
+note over HGSL: 上层需要发送 RPC 消息\n发现没有可用通道
+
+== 阶段 1: 发起连接请求 ==
+
+HGSL -> HGSL: hgsl_hyp_channel_pool_get()
+activate HGSL
+    HGSL -> HGSL: hgsl_rpc_create_channel() [cite: 1531]
+    activate HGSL
+        HGSL -> HGSL: hgsl_rpc_connect() [cite: 1440]
+        
+        HGSL -> SOCKET: gsl_hab_open(habfd) 
+        activate SOCKET
+            note right of SOCKET: 使用 MMID = MM_GFX (401)\nSubID = 本地会话ID
+            
+            SOCKET -> KHAB: habmm_socket_open() 
+            activate KHAB
+                
+                KHAB -> HAB: hab_vchan_open() [cite: 3666]
+                activate HAB
+                    
+                    note right of HAB: 判断角色: Guest VM (Frontend)
+                    HAB -> HAB: frontend_open() [cite: 3598]
+                    activate HAB
+                        
+                        == 阶段 2: 分配虚拟通道 (VCID) ==
+                        HAB -> HAB: hab_vchan_alloc() [cite: 3741]
+                        activate HAB
+                            note right of HAB: idr_alloc 分配本地 ID\n组合生成 VCID (32位)
+                        deactivate HAB
+                        
+                        == 阶段 3: 发送握手请求 (INIT) ==
+                        HAB -> HAB: hab_open_request_send(TYPE_INIT) [cite: 3780]
+                        activate HAB
+                            HAB -> TRANS: physical_channel_send() [cite: 3187]
+                            TRANS -> HOST: VirtIO Add Outbuf (INIT Msg)
+                        deactivate HAB
+                        
+                        == 阶段 4: 等待响应 (Listen) ==
+                        HAB -> HAB: hab_open_listen() 
+                        note right of HAB: 线程进入睡眠，等待 Host 回复
+                        
+                        ... Host 处理请求 ...
+                        HOST -> TRANS: VirtIO Add Inbuf (INIT_ACK Msg)
+                        TRANS -> HAB: 收到中断/数据 -> 唤醒 hab_open_listen
+                        
+                        HAB -> HAB: 检查版本号 & 协议
+                        
+                        == 阶段 5: 完成握手 (DONE) ==
+                        HAB -> HAB: hab_open_request_send(TYPE_INIT_DONE) 
+                        activate HAB
+                            HAB -> TRANS: physical_channel_send()
+                            TRANS -> HOST: VirtIO Add Outbuf (INIT_DONE Msg)
+                        deactivate HAB
+                        
+                        return vchan (包含分配好的 VCID)
+                    deactivate HAB
+                    
+                return 0 (Success)
+            deactivate HAB
+            
+            KHAB --> SOCKET: 返回 0
+        deactivate KHAB
+        
+        SOCKET -> SOCKET: *habfd = VCID (更新句柄)
+        SOCKET --> HGSL: 返回 0
+        deactivate SOCKET
+
+    deactivate HGSL
+deactivate HGSL
+
+note over HGSL: 连接建立成功，habfd (VCID)\n现可用于发送 RPC 数据
+
+== 阶段 6: 业务数据传输 ==
+
+HGSL -> SOCKET: gsl_hab_send(VCID, Data...) [cite: 1103]
+SOCKET -> KHAB: habmm_socket_send() [cite: 4147]
+KHAB -> HAB: hab_vchan_send() [cite: 3644]
+HAB -> TRANS: physical_channel_send(TYPE_MSG) [cite: 3655]
+TRANS -> HOST: 发送业务数据 payload
+
+@enduml

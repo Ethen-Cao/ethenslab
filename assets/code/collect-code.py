@@ -28,7 +28,7 @@ from typing import Set, List, Dict, Tuple, Optional
 # ----------------- 默认排除规则 -----------------
 EXCLUDE_DIRS: Set[str] = {
     '.git', '__pycache__', 'node_modules', 
-    'dist','.vscode', '.idea', 'venv', '.env',
+    'dist','.vscode', '.idea', 'venv', '.env'
     # 'target',
     # 'build'
 }
@@ -116,10 +116,10 @@ FILE_TYPE_GROUPS: Dict[str, Dict[str, List[str]]] = {
     },
     # qnx_build_files
     "qnx_build_files": {
-        "exts": [".ini", ".cfg",".tmpl",".build",".mk",".cmake",".sh", ".bash",".py"],
+        "exts": [".ini", ".cfg",".tmpl",".build",".mk",".cmake",".sh", ".bash"],
         "names": [],
         "patterns": [],
-        "shebangs": ["bash", "sh", "zsh","python"]
+        "shebangs": ["bash", "sh", "zsh"]
     },
 }
 
@@ -500,8 +500,15 @@ def collect_files_to_single_file(
                         
                         abs_full = os.path.abspath(full)
                         real_full = os.path.realpath(abs_full)
-                        if any(abs_full.startswith(p) or real_full.startswith(p) for p in abs_exclude_prefixes):
+
+                        # FIX START: 给当前扫描的路径加上斜杠，以便与 exclude_prefixes (都带斜杠) 匹配
+                        abs_full_sep = abs_full + os.sep
+                        real_full_sep = real_full + os.sep
+                        
+                        if any(abs_full_sep.startswith(p) or real_full_sep.startswith(p) for p in abs_exclude_prefixes):
                             continue
+                        # FIX END
+
                         if is_symlink(full): continue
                         kept_dirnames.append(d)
                     dirnames[:] = kept_dirnames

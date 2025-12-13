@@ -1,0 +1,85 @@
+@startuml
+!theme plain
+skinparam dpi 300
+autonumber
+
+participant "SurfaceFlinger" as SF
+participant "CompositionEngine" as CE
+participant "Factory" as Factory
+participant "BufferQueue" as BQ
+participant "FramebufferSurface\n(Consumer)" as FBS
+participant "DisplayDevice" as DD
+
+== 进入 processDisplayAdded ==
+
+-> SF: processDisplayAdded(token, state)
+activate SF
+
+    group 1. 准备参数
+        SF -> SF: 解析 resolution & pixelFormat
+        note right: state.physical -> activeMode -> getResolution()
+    end group
+
+    group 2. 创建 CompositionEngine::Display (逻辑层)
+        create "Builder" as Builder
+        SF -> Builder: setId(physicalId)
+        SF -> Builder: setPixels(resolution)
+        SF -> Builder: setIsSecure(state.isSecure)
+        SF -> CE: createDisplay(builder.build())
+        activate CE
+            create "CompositionDisplay" as CD
+            CE -> CD: new()
+            return compositionDisplay
+        deactivate CE
+    end group
+
+    group 3. 创建 BufferQueue (传输管道)
+        SF -> Factory: createBufferQueue(&bqProducer, &bqConsumer)
+        activate Factory
+            create BQ
+            Factory -> BQ: new
+            return
+        deactivate Factory
+    end group
+
+    group 4. 创建 DisplaySurface (渲染目标/消费者)
+        alt 是物理屏幕 (Physical)
+            SF -> FBS: make(getHwComposer(), displayId, bqConsumer, ...)
+            activate FBS
+                FBS -> BQ: connect(listener=FBS)
+                note right: FramebufferSurface 作为消费者\n连接到 BufferQueue
+                return displaySurface
+            deactivate FBS
+        else 是虚拟屏幕 (Virtual)
+            SF -> SF: make VirtualDisplaySurface(...)
+        end
+    end group
+
+    group 5. 创建 DisplayDevice (整体封装)
+        SF -> SF: setupNewDisplayDeviceInternal(token, compositionDisplay, state, displaySurface, producer)
+        activate SF
+            create DD
+            SF -> DD: new DisplayDevice(compositionDisplay, displaySurface, ...)
+            activate DD
+                 DD -> CD: setOutputLayer(this)
+            deactivate DD
+            return display
+        deactivate SF
+    end group
+    
+    group 6. 收尾与注册
+        SF -> SF: mDisplays.try_emplace(token, display)
+        
+        opt 是 Primary Display
+            SF -> SF: initScheduler(display)
+        end
+        
+        opt 是 Physical Display
+            SF -> SF: dispatchDisplayHotplugEvent(id, true)
+            note right: 通知 Framework (DMS) 屏幕已准备好
+        end
+    end group
+
+deactivate SF
+
+@enduml

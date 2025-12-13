@@ -1,0 +1,55 @@
+@startuml
+!theme plain
+skinparam fontColor black
+skinparam ArrowColor black
+skinparam LifeLineBorderColor black
+skinparam sequenceMessageAlign center
+
+participant "qcrosvm vCPU Thread" as VCPU
+participant "qcrosvm Device Thread" as DT
+participant "Host Kernel (Gunyah Drv)" as KERNEL
+participant "Gunyah Hypervisor" as HYP
+participant "Android Guest OS" as GUEST
+
+note across: Phase 1: Start Execution
+
+VCPU -> KERNEL: 1. ioctl(GH_VCPU_RUN) [Blocking]
+activate KERNEL
+KERNEL -> HYP: 2. Hypercall (HVC)
+activate HYP
+HYP -> GUEST: 3. Context Switch, Run Guest
+deactivate HYP
+activate GUEST
+
+note across: Phase 2: I/O Encountered (e.g., Disk Write)
+
+GUEST -> HYP: 4. VM Exit (Write VirtIO Reg)
+deactivate GUEST
+activate HYP
+HYP -> KERNEL: 5. Notify Kernel (Guest needs I/O)
+deactivate HYP
+
+par Parallel Processing (Offload)
+    KERNEL -> DT: 6. Wakeup Device Thread (EventFD/IRQFD)
+    note right of KERNEL
+        vCPU Thread stays in Kernel
+        (May schedule() to yield CPU)
+    end note
+else
+    activate DT
+    DT -> DT: 7. Device Thread wakes in Userspace\nReads Shared Mem, Executes I/O
+end
+
+DT -> KERNEL: 8. I/O Complete, Inject IRQ
+deactivate DT
+
+KERNEL -> HYP: 9. Notify Hypervisor to Inject Virtual IRQ
+activate HYP
+
+note across: Phase 3: Continue Execution
+
+HYP -> GUEST: 10. Resume Guest Execution (Handle IRQ)
+deactivate HYP
+activate GUEST
+
+@enduml

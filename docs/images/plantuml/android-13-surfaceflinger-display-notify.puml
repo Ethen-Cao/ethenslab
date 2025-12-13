@@ -1,0 +1,109 @@
+@startuml
+!theme plain
+skinparam dpi 300
+autonumber
+
+box "Java Framework (SystemServer)" #EBF4FA
+    participant "DisplayManagerService\n(DMS)" as DMS
+    participant "LocalDisplayAdapter" as LDA
+    participant "LocalDisplayDevice" as LDD
+    participant "SurfaceControl\n(JNI)" as SC
+end box
+
+box "Native Framework (SurfaceFlinger)" #F5F5F5
+    participant "SurfaceFlinger\n(SF)" as SF
+    participant "HWComposer\n(HWC)" as HWC
+end box
+
+== 阶段 1: SurfaceFlinger 启动与硬件发现 (Native层) ==
+
+-> SF: init()
+activate SF
+SF -> HWC: registerCallbacks() (注册回调)
+activate HWC
+
+note right of HWC: 硬件层上报物理屏幕连接
+
+HWC --> SF: onHotplug(Port:129, Connected)
+SF -> SF: processDisplayAdded(129)
+note right of SF: 创建并存储 DisplayDevice 129
+
+HWC --> SF: onHotplug(Port:130, Connected)
+SF -> SF: processDisplayAdded(130)
+
+HWC --> SF: onHotplug(Port:131, Connected)
+SF -> SF: processDisplayAdded(131)
+
+deactivate HWC
+deactivate SF
+
+== 阶段 2: DMS 启动与主动拉取 (列表生成的关键时刻) ==
+
+-> DMS: onStart()
+activate DMS
+DMS -> LDA: new LocalDisplayAdapter(...)
+DMS -> LDA: registerLocked()
+activate LDA
+
+note right of LDA: **关键点**：DMS 启动时主动向 SF 询问屏幕列表
+
+LDA -> SC: getPhysicalDisplayIds()
+activate SC
+    SC -> SF: getPhysicalDisplayIds()
+    activate SF
+        SF -> SF: getPhysicalDisplayIdsLocked()
+        
+        note right of SF #FFDDDD
+            **风险逻辑发生处**：
+            1. 获取 Default/Active Display (可能是 131)
+            2. 将其放入列表首位
+            3. 加入其他屏幕
+            **返回结果**: [131, 129, 130]
+        end note
+        
+    return long[] displayIds
+    deactivate SF
+return long[] displayIds
+deactivate SC
+
+== 阶段 3: 遍历并通知 DMS (DisplayDevice 创建) ==
+
+loop 遍历 displayIds [131, 129, 130]
+    LDA -> LDA: tryConnectDisplayLocked(id)
+    activate LDA
+    
+    LDA -> SC: getPhysicalDisplayToken(id)
+    activate SC
+    SC -> SF: getPhysicalDisplayToken(id)
+    return IBinder token
+    deactivate SC
+
+    LDA -> SC: getStaticDisplayInfo(token)
+    activate SC
+    SC -> SF: getStaticDisplayInfo(token)
+    return DisplayInfo (宽/高/刷新率)
+    deactivate SC
+
+    create LDD
+    LDA -> LDD: new LocalDisplayDevice(token, ...)
+    note right: 为该物理屏幕创建 Java 层对象
+
+    LDA -> DMS: sendDisplayDeviceEvent(device, ADDED)
+    activate DMS
+        note right of DMS
+            DMS 收到 ADDED 事件
+            根据先后顺序分配 Logical ID
+            第一个收到的(131) -> Display 0
+        end note
+    deactivate DMS
+    deactivate LDA
+end
+
+== 阶段 4: 注册监听后续热插拔 ==
+
+LDA -> SC: new HotplugDisplayEventReceiver()
+note left: 注册 EventReceiver 以监听\n后续运行时的屏幕插拔
+deactivate LDA
+deactivate DMS
+
+@enduml
