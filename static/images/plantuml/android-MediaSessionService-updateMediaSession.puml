@@ -1,91 +1,166 @@
 @startuml
 skinparam sequenceMessageAlign center
-participant "App A" as AppA
-participant "App B" as AppB
-participant "AudioManager\n(AudioService)" as AM
-participant "MediaSessionService" as MSS
-participant "MediaSessionStack" as Stack
-participant "AudioPlayerStateMonitor" as Monitor
+skinparam noteFontSize 10
+skinparam participantPadding 10
+autonumber
 
-== 阶段 1: 应用 A 播放音乐 ==
+box "应用层 (Client)" #White
+    participant "App A" as AppA
+    participant "App B" as AppB
+    participant "AudioManager" as AM_Client
+end box
 
-AppA -> MSS: createSession(tag="AppA")
+box "系统音频服务 (Audio)" #LightBlue
+    participant "AudioService\n(System)" as AS
+    participant "AudioPlayerStateMonitor" as APSM
+end box
+
+box "系统媒体会话服务 (Media)" #LightYellow
+    participant "MediaSessionService" as MSS
+    participant "MediaSessionStack" as Stack
+end box
+
+== 阶段 1: App A 初始化并播放 ==
+
+note over AppA: App A 启动
+AppA -> MSS: createSession("AppA")
 activate MSS
 MSS -> Stack: addSession(RecordA)
 deactivate MSS
 
-AppA -> AM: requestAudioFocus()
-AppA -> AM: startPlayback() (AudioTrack/MediaPlayer)
-AM -> Monitor: onPlaybackConfigChanged(uid=A, active=true)
-activate Monitor
-Monitor -> Monitor: 更新排序列表: [A]
-Monitor -> MSS: onAudioPlayerActiveStateChanged
-deactivate Monitor
-
+AppA -> MSS: setPlaybackState(PLAYING, 0)
+AppA -> MSS: setActive(true)
 activate MSS
-MSS -> Stack: updateMediaButtonSessionIfNeeded()
-activate Stack
-Stack -> Monitor: getSortedAudioPlaybackClientUids()
-Monitor --> Stack: return [uid_A]
-Stack -> Stack: findMediaButtonSession(uid_A)
-Stack --> MSS: updateMediaButtonSession(RecordA)
-deactivate Stack
-MSS -> AM: 广播 MediaButtonSession 变更
+MSS -> Stack: onSessionActiveStateChanged(RecordA)
 deactivate MSS
 
-AppA -> MSS: setPlaybackState(PLAYING)
-MSS -> Stack: onPlaybackStateChanged(RecordA, PLAYING)
+AppA -> AM_Client: requestAudioFocus()
+AM_Client -> AS: requestAudioFocus()
+AS --> AppA: GRANTED
 
-== 阶段 2: 切换到应用 B，应用 B 播放 ==
+AppA -> AS: AudioTrack.play() (开始输出音频)
+activate AS
+    note right of AS: AudioService 检测到\nPlayback配置变更
+    AS -> APSM: onPlaybackConfigChanged(uid=A, active=true)
+    activate APSM
+        APSM -> APSM: 更新排序列表: [uid_A]
+        APSM -> MSS: onAudioPlayerActiveStateChanged(...)
+        activate MSS
+            MSS -> Stack: updateMediaButtonSessionIfNeeded()
+            activate Stack
+                Stack -> APSM: getSortedAudioPlaybackClientUids()
+                APSM --> Stack: return [uid_A]
+                Stack -> Stack: findMediaButtonSession(uid_A)
+                note right of Stack: 匹配到 RecordA
+                Stack --> MSS: updateMediaButtonSession(RecordA)
+                note right of MSS: **App A 成为 MediaButtonSession**
+            deactivate Stack
+        deactivate MSS
+    deactivate APSM
+deactivate AS
 
-AppB -> MSS: createSession(tag="AppB")
-activate MSS
-MSS -> Stack: addSession(RecordB)
-deactivate MSS
+== 阶段 2: 切换到 App B，申请焦点并播放 ==
 
-AppB -> AM: requestAudioFocus()
-note right of AM: App B 获得焦点\nApp A 失去焦点(LOSS_TRANSIENT)
+note over AppB: 用户切换到 App B
+AppB -> MSS: createSession("AppB")
+AppB -> MSS: setActive(true)
 
-AppB -> AM: startPlayback()
-AM -> Monitor: onPlaybackConfigChanged(uid=B, active=true)
-activate Monitor
-Monitor -> Monitor: 更新排序列表: [B, A]
-note right of Monitor: B 成为最后活跃的应用
-Monitor -> MSS: onAudioPlayerActiveStateChanged
-deactivate Monitor
+AppB -> AM_Client: requestAudioFocus()
+activate AM_Client
+AM_Client -> AS: requestAudioFocus()
+deactivate AM_Client
 
-activate MSS
-MSS -> Stack: updateMediaButtonSessionIfNeeded()
-activate Stack
-Stack -> Monitor: getSortedAudioPlaybackClientUids()
-Monitor --> Stack: return [uid_B, uid_A]
-Stack -> Stack: findMediaButtonSession(uid_B)
-note right of Stack: 发现 B 的 Session 匹配\nB 成为 MediaButtonSession
-Stack --> MSS: updateMediaButtonSession(RecordB)
-deactivate Stack
-MSS -> AM: 广播 MediaButtonSession 变更为 B
-deactivate MSS
+activate AS
+    note right of AS: 焦点逻辑: 暂停 A，授权 B
+    par 并行通知
+        AS -> AppA: onAudioFocusChange(LOSS_TRANSIENT)
+        note left of AppA: A 收到 Loss，准备暂停
+    else
+        AS --> AppB: GRANTED
+    end
+deactivate AS
+
+AppB -> AS: audioTrack.play() (B 开始出声)
+activate AS
+    AS -> APSM: onPlaybackConfigChanged(uid=B, active=true)
+    activate APSM
+        APSM -> APSM: 更新排序列表: [uid_B, uid_A]
+        note right of APSM: B 刚开始播放，置顶
+        APSM -> MSS: onAudioPlayerActiveStateChanged(...)
+        activate MSS
+            MSS -> Stack: updateMediaButtonSessionIfNeeded()
+            activate Stack
+                Stack -> APSM: getSortedAudioPlaybackClientUids()
+                APSM --> Stack: return [uid_B, uid_A]
+                Stack -> Stack: findMediaButtonSession(uid_B)
+                note right of Stack: 优先匹配列表首位 B
+                Stack --> MSS: updateMediaButtonSession(RecordB)
+                note right of MSS: **MediaButtonSession 变更为 App B**
+            deactivate Stack
+        deactivate MSS
+    deactivate APSM
+deactivate AS
 
 AppB -> MSS: setPlaybackState(PLAYING)
-
-== 阶段 3: 应用 A 暂停 ==
-
-AppA -> AppA: 收到 AudioFocus loss
-AppA -> AM: pausePlayback()
-AM -> Monitor: onPlaybackConfigChanged(uid=A, active=false)
-activate Monitor
-Monitor -> Monitor: 更新排序列表: [B]\n(A 不再 active)
-Monitor -> MSS: onAudioPlayerActiveStateChanged
-deactivate Monitor
-
-AppA -> MSS: setPlaybackState(PAUSED)
 activate MSS
-MSS -> Stack: onPlaybackStateChanged(RecordA, PAUSED)
-activate Stack
-Stack -> Monitor: getSortedAudioPlaybackClientUids()
-Monitor --> Stack: return [uid_B]
-note right of Stack: 列表首位仍是 B\nMediaButtonSession 保持为 B
-deactivate Stack
+MSS -> Stack: onPlaybackStateChanged(RecordB, PLAYING)
+deactivate MSS
+
+== 阶段 3: App A 响应焦点丢失 (执行暂停) ==
+
+activate AppA
+    note left of AppA: 响应步骤 8 的回调
+    AppA -> AS: AudioTrack.pause() (A 停止出声)
+    
+    activate AS
+        AS -> APSM: onPlaybackConfigChanged(uid=A, active=false)
+        activate APSM
+            APSM -> APSM: 更新排序列表: [uid_B]
+            note right of APSM: A 不再活跃，从列表移除\n(或移到底部)
+            APSM -> MSS: onAudioPlayerActiveStateChanged(...)
+            activate MSS
+                MSS -> Stack: updateMediaButtonSessionIfNeeded()
+                activate Stack
+                    Stack -> APSM: getSortedAudioPlaybackClientUids()
+                    APSM --> Stack: return [uid_B]
+                    Stack -> Stack: findMediaButtonSession(uid_B)
+                    note right of Stack: B 依然是首位，保持不变
+                deactivate Stack
+            deactivate MSS
+        deactivate APSM
+    deactivate AS
+
+    AppA -> MSS: setPlaybackState(PAUSED)
+    activate MSS
+        MSS -> Stack: onPlaybackStateChanged(RecordA, PAUSED)
+    deactivate MSS
+deactivate AppA
+
+== 阶段 4: App B 点击暂停 ==
+
+AppB -> AS: AudioTrack.pause()
+activate AS
+    AS -> APSM: onPlaybackConfigChanged(uid=B, active=false)
+    activate APSM
+        APSM -> APSM: 更新排序列表: [] (空)
+        APSM -> MSS: onAudioPlayerActiveStateChanged
+        activate MSS
+           MSS -> Stack: updateMediaButtonSessionIfNeeded()
+           activate Stack
+               Stack -> APSM: getSortedAudioPlaybackClientUids()
+               APSM --> Stack: return []
+               note right of Stack: 音频列表空了，回退到\nPlaybackState 检查逻辑
+               Stack -> Stack: 检查最近活跃的 Session
+               note right of Stack: B 是最后一个 active 的\n且未被销毁
+               Stack --> MSS: (保持 RecordB 或更新)
+           deactivate Stack
+        deactivate MSS
+    deactivate APSM
+deactivate AS
+
+AppB -> MSS: setPlaybackState(PAUSED)
+activate MSS
+MSS -> Stack: onPlaybackStateChanged(RecordB, PAUSED)
 deactivate MSS
 
 @enduml
