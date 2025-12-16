@@ -1,0 +1,353 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android DRM 框架 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='@startuml
+title Android MediaSession 管理与交互架构图 (优化版)
+top to bottom direction
+
+&#39; --- 样式定义 ---
+!define C4_COLOR(color) #color
+!define C4_BG_COLOR(color) C4_COLOR(color)
+!define C4_BORDER_COLOR(color) #Black
+
+skinparam component {
+    ArrowColor #666666
+    BorderColor #444444
+    BackgroundColor<<System>> C4_BG_COLOR(D4E157)
+    BackgroundColor<<Service>> C4_BG_COLOR(2B4353)
+    BackgroundColor<<Helper>> C4_BG_COLOR(7E57C2)
+    BackgroundColor<<Data>> C4_BG_COLOR(FFC107)
+    FontColor #0b0b0bff
+}
+
+skinparam rectangle {
+    StereotypeFontColor #FFFFFF
+    BackgroundColor<<App>> C4_BG_COLOR(4385F4)
+    BorderColor C4_BORDER_COLOR(4385F4)
+}
+
+&#39; --- 组件定义 ---
+
+rectangle "应用程序 (Client Process)" <<App>> {
+    component "MediaSession" as AppSession
+    component "AudioTrack / MediaPlayer" as AppPlayer
+    component "AudioManager" as AM_Client
+}
+
+package "System Server Process" {
+    
+    component "AudioService" as AudioService <<System>> {
+        note bottom
+            管理音频焦点
+            和物理播放状态
+        end note
+    }
+
+    rectangle "MediaSessionService (MSS)" as MSS_Rect <<Service>> {
+        component "ISessionManager (Binder)" as BinderInterface
+        component "MediaSessionService" as MSS_Core
+        
+        rectangle "组件协作区" #EEEEEE {
+            component "AudioPlayerStateMonitor" as Monitor <<Helper>> {
+                component "mSortedAudioPlaybackClientUids\n(List<Integer>)" as HistoryQueue <<Data>>
+            }
+            
+            component "MediaSessionStack" as Stack <<Data>> {
+                component "mMediaButtonSession\n(Reference)" as MBS <<Data>>
+                component "mSessions\n(List<Record>)" as SessionList <<Data>>
+            }
+        }
+    }
+}
+
+&#39; --- 关系与交互流程 ---
+
+&#39; 1. App 初始化
+AppSession -down-> BinderInterface : 1. createSession() / setActive()
+AppSession .right.> AppPlayer : 控制逻辑
+
+&#39; 2. App 播放音频
+AppPlayer -down-> AM_Client : 播放请求
+AM_Client -down-> AudioService : 2. start/pause/stop (Binder)
+
+&#39; 3. AudioService 通知 Monitor
+AudioService -right-> Monitor : 3. onPlaybackConfigChanged()\n(Via AudioManager Callback)
+
+&#39; 4. Monitor 更新历史队列并通知 MSS
+Monitor -> HistoryQueue : 更新 [uid_B, uid_A...]
+Monitor -down-> MSS_Core : 4. onAudioPlayerActiveStateChanged()
+
+&#39; 5. MSS 触发 Stack 更新
+MSS_Core -right-> Stack : 5. updateMediaButtonSessionIfNeeded()
+
+&#39; 6. Stack 核心决策循环
+Stack .up.> HistoryQueue : 6. getSortedAudioPlaybackClientUids()\n(获取音频历史)
+Stack -left-> Stack : 7. findMediaButtonSession(uid)\n(匹配 Session)
+
+&#39; 8. 清理与确立
+Stack .up.> Monitor : 8. cleanUpAudioPlaybackUids(uid)\n(清理旧的不活跃 UID)
+Stack -down-> MBS : 9. updateMediaButtonSession()\n(更新 mMediaButtonSession)
+
+&#39; 9. 最终事件分发
+User -right-> MSS_Core : 媒体按键 (Media Key)
+MSS_Core -down-> MBS : 查找目标
+MBS .up.> AppSession : 10. dispatchMediaKeyEvent()
+
+&#39; --- 注释 ---
+
+note right of HistoryQueue
+  **关键数据结构**
+  维护"最后播放"的 UID 列表。
+  即使 App 暂停，UID 也会保留在首位
+  直到被 cleanUp。
+end note
+
+note right of Stack
+  **决策大脑**
+  双轨制策略：
+  1. 优先查 Monitor 历史队列 (Audio Driven)
+  2. 队列为空查 Stack 活跃记录 (Priority Driven)
+end note
+
+note left of BinderInterface
+  SystemApi 入口
+end note
+
+@enduml
+优化的主要改动解释：
+
+
+AudioService 的加入：'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/media/android-mediasession/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/media/android-mediasession/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/media/android-mediasession/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Android DRM 框架"><meta property="og:description" content='@startuml title Android MediaSession 管理与交互架构图 (优化版) top to bottom direction &#39; --- 样式定义 --- !define C4_COLOR(color) #color !define C4_BG_COLOR(color) C4_COLOR(color) !define C4_BORDER_COLOR(color) #Black skinparam component { ArrowColor #666666 BorderColor #444444 BackgroundColor<<System>> C4_BG_COLOR(D4E157) BackgroundColor<<Service>> C4_BG_COLOR(2B4353) BackgroundColor<<Helper>> C4_BG_COLOR(7E57C2) BackgroundColor<<Data>> C4_BG_COLOR(FFC107) FontColor #0b0b0bff } skinparam rectangle { StereotypeFontColor #FFFFFF BackgroundColor<<App>> C4_BG_COLOR(4385F4) BorderColor C4_BORDER_COLOR(4385F4) } &#39; --- 组件定义 --- rectangle "应用程序 (Client Process)" <<App>> { component "MediaSession" as AppSession component "AudioTrack / MediaPlayer" as AppPlayer component "AudioManager" as AM_Client } package "System Server Process" { component "AudioService" as AudioService <<System>> { note bottom 管理音频焦点 和物理播放状态 end note } rectangle "MediaSessionService (MSS)" as MSS_Rect <<Service>> { component "ISessionManager (Binder)" as BinderInterface component "MediaSessionService" as MSS_Core rectangle "组件协作区" #EEEEEE { component "AudioPlayerStateMonitor" as Monitor <<Helper>> { component "mSortedAudioPlaybackClientUids\n(List<Integer>)" as HistoryQueue <<Data>> } component "MediaSessionStack" as Stack <<Data>> { component "mMediaButtonSession\n(Reference)" as MBS <<Data>> component "mSessions\n(List<Record>)" as SessionList <<Data>> } } } } &#39; --- 关系与交互流程 --- &#39; 1. App 初始化 AppSession -down-> BinderInterface : 1. createSession() / setActive() AppSession .right.> AppPlayer : 控制逻辑 &#39; 2. App 播放音频 AppPlayer -down-> AM_Client : 播放请求 AM_Client -down-> AudioService : 2. start/pause/stop (Binder) &#39; 3. AudioService 通知 Monitor AudioService -right-> Monitor : 3. onPlaybackConfigChanged()\n(Via AudioManager Callback) &#39; 4. Monitor 更新历史队列并通知 MSS Monitor -> HistoryQueue : 更新 [uid_B, uid_A...] Monitor -down-> MSS_Core : 4. onAudioPlayerActiveStateChanged() &#39; 5. MSS 触发 Stack 更新 MSS_Core -right-> Stack : 5. updateMediaButtonSessionIfNeeded() &#39; 6. Stack 核心决策循环 Stack .up.> HistoryQueue : 6. getSortedAudioPlaybackClientUids()\n(获取音频历史) Stack -left-> Stack : 7. findMediaButtonSession(uid)\n(匹配 Session) &#39; 8. 清理与确立 Stack .up.> Monitor : 8. cleanUpAudioPlaybackUids(uid)\n(清理旧的不活跃 UID) Stack -down-> MBS : 9. updateMediaButtonSession()\n(更新 mMediaButtonSession) &#39; 9. 最终事件分发 User -right-> MSS_Core : 媒体按键 (Media Key) MSS_Core -down-> MBS : 查找目标 MBS .up.> AppSession : 10. dispatchMediaKeyEvent() &#39; --- 注释 --- note right of HistoryQueue **关键数据结构** 维护"最后播放"的 UID 列表。 即使 App 暂停，UID 也会保留在首位 直到被 cleanUp。 end note note right of Stack **决策大脑** 双轨制策略： 1. 优先查 Monitor 历史队列 (Audio Driven) 2. 队列为空查 Stack 活跃记录 (Priority Driven) end note note left of BinderInterface SystemApi 入口 end note @enduml 优化的主要改动解释： AudioService 的加入：'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-08-08T11:36:11+08:00"><meta property="article:modified_time" content="2025-08-08T11:36:11+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android DRM 框架"><meta name=twitter:description content='@startuml
+title Android MediaSession 管理与交互架构图 (优化版)
+top to bottom direction
+
+&#39; --- 样式定义 ---
+!define C4_COLOR(color) #color
+!define C4_BG_COLOR(color) C4_COLOR(color)
+!define C4_BORDER_COLOR(color) #Black
+
+skinparam component {
+    ArrowColor #666666
+    BorderColor #444444
+    BackgroundColor<<System>> C4_BG_COLOR(D4E157)
+    BackgroundColor<<Service>> C4_BG_COLOR(2B4353)
+    BackgroundColor<<Helper>> C4_BG_COLOR(7E57C2)
+    BackgroundColor<<Data>> C4_BG_COLOR(FFC107)
+    FontColor #0b0b0bff
+}
+
+skinparam rectangle {
+    StereotypeFontColor #FFFFFF
+    BackgroundColor<<App>> C4_BG_COLOR(4385F4)
+    BorderColor C4_BORDER_COLOR(4385F4)
+}
+
+&#39; --- 组件定义 ---
+
+rectangle "应用程序 (Client Process)" <<App>> {
+    component "MediaSession" as AppSession
+    component "AudioTrack / MediaPlayer" as AppPlayer
+    component "AudioManager" as AM_Client
+}
+
+package "System Server Process" {
+    
+    component "AudioService" as AudioService <<System>> {
+        note bottom
+            管理音频焦点
+            和物理播放状态
+        end note
+    }
+
+    rectangle "MediaSessionService (MSS)" as MSS_Rect <<Service>> {
+        component "ISessionManager (Binder)" as BinderInterface
+        component "MediaSessionService" as MSS_Core
+        
+        rectangle "组件协作区" #EEEEEE {
+            component "AudioPlayerStateMonitor" as Monitor <<Helper>> {
+                component "mSortedAudioPlaybackClientUids\n(List<Integer>)" as HistoryQueue <<Data>>
+            }
+            
+            component "MediaSessionStack" as Stack <<Data>> {
+                component "mMediaButtonSession\n(Reference)" as MBS <<Data>>
+                component "mSessions\n(List<Record>)" as SessionList <<Data>>
+            }
+        }
+    }
+}
+
+&#39; --- 关系与交互流程 ---
+
+&#39; 1. App 初始化
+AppSession -down-> BinderInterface : 1. createSession() / setActive()
+AppSession .right.> AppPlayer : 控制逻辑
+
+&#39; 2. App 播放音频
+AppPlayer -down-> AM_Client : 播放请求
+AM_Client -down-> AudioService : 2. start/pause/stop (Binder)
+
+&#39; 3. AudioService 通知 Monitor
+AudioService -right-> Monitor : 3. onPlaybackConfigChanged()\n(Via AudioManager Callback)
+
+&#39; 4. Monitor 更新历史队列并通知 MSS
+Monitor -> HistoryQueue : 更新 [uid_B, uid_A...]
+Monitor -down-> MSS_Core : 4. onAudioPlayerActiveStateChanged()
+
+&#39; 5. MSS 触发 Stack 更新
+MSS_Core -right-> Stack : 5. updateMediaButtonSessionIfNeeded()
+
+&#39; 6. Stack 核心决策循环
+Stack .up.> HistoryQueue : 6. getSortedAudioPlaybackClientUids()\n(获取音频历史)
+Stack -left-> Stack : 7. findMediaButtonSession(uid)\n(匹配 Session)
+
+&#39; 8. 清理与确立
+Stack .up.> Monitor : 8. cleanUpAudioPlaybackUids(uid)\n(清理旧的不活跃 UID)
+Stack -down-> MBS : 9. updateMediaButtonSession()\n(更新 mMediaButtonSession)
+
+&#39; 9. 最终事件分发
+User -right-> MSS_Core : 媒体按键 (Media Key)
+MSS_Core -down-> MBS : 查找目标
+MBS .up.> AppSession : 10. dispatchMediaKeyEvent()
+
+&#39; --- 注释 ---
+
+note right of HistoryQueue
+  **关键数据结构**
+  维护"最后播放"的 UID 列表。
+  即使 App 暂停，UID 也会保留在首位
+  直到被 cleanUp。
+end note
+
+note right of Stack
+  **决策大脑**
+  双轨制策略：
+  1. 优先查 Monitor 历史队列 (Audio Driven)
+  2. 队列为空查 Stack 活跃记录 (Priority Driven)
+end note
+
+note left of BinderInterface
+  SystemApi 入口
+end note
+
+@enduml
+优化的主要改动解释：
+
+
+AudioService 的加入：'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Android Media技术文档","item":"https://ethen-cao.github.io/ethenslab/android-dev/media/"},{"@type":"ListItem","position":3,"name":"Android DRM 框架","item":"https://ethen-cao.github.io/ethenslab/android-dev/media/android-mediasession/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android DRM 框架","name":"Android DRM 框架","description":"@startuml title Android MediaSession 管理与交互架构图 (优化版) top to bottom direction \u0026#39; --- 样式定义 --- !define C4_COLOR(color) #color !define C4_BG_COLOR(color) C4_COLOR(color) !define C4_BORDER_COLOR(color) #Black skinparam component { ArrowColor #666666 BorderColor #444444 BackgroundColor\u0026lt;\u0026lt;System\u0026gt;\u0026gt; C4_BG_COLOR(D4E157) BackgroundColor\u0026lt;\u0026lt;Service\u0026gt;\u0026gt; C4_BG_COLOR(2B4353) BackgroundColor\u0026lt;\u0026lt;Helper\u0026gt;\u0026gt; C4_BG_COLOR(7E57C2) BackgroundColor\u0026lt;\u0026lt;Data\u0026gt;\u0026gt; C4_BG_COLOR(FFC107) FontColor #0b0b0bff } skinparam rectangle { StereotypeFontColor #FFFFFF BackgroundColor\u0026lt;\u0026lt;App\u0026gt;\u0026gt; C4_BG_COLOR(4385F4) BorderColor C4_BORDER_COLOR(4385F4) } \u0026#39; --- 组件定义 --- rectangle \u0026#34;应用程序 (Client Process)\u0026#34; \u0026lt;\u0026lt;App\u0026gt;\u0026gt; { component \u0026#34;MediaSession\u0026#34; as AppSession component \u0026#34;AudioTrack / MediaPlayer\u0026#34; as AppPlayer component \u0026#34;AudioManager\u0026#34; as AM_Client } package \u0026#34;System Server Process\u0026#34; { component \u0026#34;AudioService\u0026#34; as AudioService \u0026lt;\u0026lt;System\u0026gt;\u0026gt; { note bottom 管理音频焦点 和物理播放状态 end note } rectangle \u0026#34;MediaSessionService (MSS)\u0026#34; as MSS_Rect \u0026lt;\u0026lt;Service\u0026gt;\u0026gt; { component \u0026#34;ISessionManager (Binder)\u0026#34; as BinderInterface component \u0026#34;MediaSessionService\u0026#34; as MSS_Core rectangle \u0026#34;组件协作区\u0026#34; #EEEEEE { component \u0026#34;AudioPlayerStateMonitor\u0026#34; as Monitor \u0026lt;\u0026lt;Helper\u0026gt;\u0026gt; { component \u0026#34;mSortedAudioPlaybackClientUids\\n(List\u0026lt;Integer\u0026gt;)\u0026#34; as HistoryQueue \u0026lt;\u0026lt;Data\u0026gt;\u0026gt; } component \u0026#34;MediaSessionStack\u0026#34; as Stack \u0026lt;\u0026lt;Data\u0026gt;\u0026gt; { component \u0026#34;mMediaButtonSession\\n(Reference)\u0026#34; as MBS \u0026lt;\u0026lt;Data\u0026gt;\u0026gt; component \u0026#34;mSessions\\n(List\u0026lt;Record\u0026gt;)\u0026#34; as SessionList \u0026lt;\u0026lt;Data\u0026gt;\u0026gt; } } } } \u0026#39; --- 关系与交互流程 --- \u0026#39; 1. App 初始化 AppSession -down-\u0026gt; BinderInterface : 1. createSession() / setActive() AppSession .right.\u0026gt; AppPlayer : 控制逻辑 \u0026#39; 2. App 播放音频 AppPlayer -down-\u0026gt; AM_Client : 播放请求 AM_Client -down-\u0026gt; AudioService : 2. start/pause/stop (Binder) \u0026#39; 3. AudioService 通知 Monitor AudioService -right-\u0026gt; Monitor : 3. onPlaybackConfigChanged()\\n(Via AudioManager Callback) \u0026#39; 4. Monitor 更新历史队列并通知 MSS Monitor -\u0026gt; HistoryQueue : 更新 [uid_B, uid_A...] Monitor -down-\u0026gt; MSS_Core : 4. onAudioPlayerActiveStateChanged() \u0026#39; 5. MSS 触发 Stack 更新 MSS_Core -right-\u0026gt; Stack : 5. updateMediaButtonSessionIfNeeded() \u0026#39; 6. Stack 核心决策循环 Stack .up.\u0026gt; HistoryQueue : 6. getSortedAudioPlaybackClientUids()\\n(获取音频历史) Stack -left-\u0026gt; Stack : 7. findMediaButtonSession(uid)\\n(匹配 Session) \u0026#39; 8. 清理与确立 Stack .up.\u0026gt; Monitor : 8. cleanUpAudioPlaybackUids(uid)\\n(清理旧的不活跃 UID) Stack -down-\u0026gt; MBS : 9. updateMediaButtonSession()\\n(更新 mMediaButtonSession) \u0026#39; 9. 最终事件分发 User -right-\u0026gt; MSS_Core : 媒体按键 (Media Key) MSS_Core -down-\u0026gt; MBS : 查找目标 MBS .up.\u0026gt; AppSession : 10. dispatchMediaKeyEvent() \u0026#39; --- 注释 --- note right of HistoryQueue **关键数据结构** 维护\u0026#34;最后播放\u0026#34;的 UID 列表。 即使 App 暂停，UID 也会保留在首位 直到被 cleanUp。 end note note right of Stack **决策大脑** 双轨制策略： 1. 优先查 Monitor 历史队列 (Audio Driven) 2. 队列为空查 Stack 活跃记录 (Priority Driven) end note note left of BinderInterface SystemApi 入口 end note @enduml 优化的主要改动解释： AudioService 的加入：\n","keywords":[],"articleBody":"@startuml title Android MediaSession 管理与交互架构图 (优化版) top to bottom direction ' --- 样式定义 --- !define C4_COLOR(color) #color !define C4_BG_COLOR(color) C4_COLOR(color) !define C4_BORDER_COLOR(color) #Black skinparam component { ArrowColor #666666 BorderColor #444444 BackgroundColor\u003c\u003e C4_BG_COLOR(D4E157) BackgroundColor\u003c\u003e C4_BG_COLOR(2B4353) BackgroundColor\u003c\u003e C4_BG_COLOR(7E57C2) BackgroundColor\u003c\u003e C4_BG_COLOR(FFC107) FontColor #0b0b0bff } skinparam rectangle { StereotypeFontColor #FFFFFF BackgroundColor\u003c\u003e C4_BG_COLOR(4385F4) BorderColor C4_BORDER_COLOR(4385F4) } ' --- 组件定义 --- rectangle \"应用程序 (Client Process)\" \u003c\u003e { component \"MediaSession\" as AppSession component \"AudioTrack / MediaPlayer\" as AppPlayer component \"AudioManager\" as AM_Client } package \"System Server Process\" { component \"AudioService\" as AudioService \u003c\u003e { note bottom 管理音频焦点 和物理播放状态 end note } rectangle \"MediaSessionService (MSS)\" as MSS_Rect \u003c\u003e { component \"ISessionManager (Binder)\" as BinderInterface component \"MediaSessionService\" as MSS_Core rectangle \"组件协作区\" #EEEEEE { component \"AudioPlayerStateMonitor\" as Monitor \u003c\u003e { component \"mSortedAudioPlaybackClientUids\\n(List)\" as HistoryQueue \u003c\u003e } component \"MediaSessionStack\" as Stack \u003c\u003e { component \"mMediaButtonSession\\n(Reference)\" as MBS \u003c\u003e component \"mSessions\\n(List)\" as SessionList \u003c\u003e } } } } ' --- 关系与交互流程 --- ' 1. App 初始化 AppSession -down-\u003e BinderInterface : 1. createSession() / setActive() AppSession .right.\u003e AppPlayer : 控制逻辑 ' 2. App 播放音频 AppPlayer -down-\u003e AM_Client : 播放请求 AM_Client -down-\u003e AudioService : 2. start/pause/stop (Binder) ' 3. AudioService 通知 Monitor AudioService -right-\u003e Monitor : 3. onPlaybackConfigChanged()\\n(Via AudioManager Callback) ' 4. Monitor 更新历史队列并通知 MSS Monitor -\u003e HistoryQueue : 更新 [uid_B, uid_A...] Monitor -down-\u003e MSS_Core : 4. onAudioPlayerActiveStateChanged() ' 5. MSS 触发 Stack 更新 MSS_Core -right-\u003e Stack : 5. updateMediaButtonSessionIfNeeded() ' 6. Stack 核心决策循环 Stack .up.\u003e HistoryQueue : 6. getSortedAudioPlaybackClientUids()\\n(获取音频历史) Stack -left-\u003e Stack : 7. findMediaButtonSession(uid)\\n(匹配 Session) ' 8. 清理与确立 Stack .up.\u003e Monitor : 8. cleanUpAudioPlaybackUids(uid)\\n(清理旧的不活跃 UID) Stack -down-\u003e MBS : 9. updateMediaButtonSession()\\n(更新 mMediaButtonSession) ' 9. 最终事件分发 User -right-\u003e MSS_Core : 媒体按键 (Media Key) MSS_Core -down-\u003e MBS : 查找目标 MBS .up.\u003e AppSession : 10. dispatchMediaKeyEvent() ' --- 注释 --- note right of HistoryQueue **关键数据结构** 维护\"最后播放\"的 UID 列表。 即使 App 暂停，UID 也会保留在首位 直到被 cleanUp。 end note note right of Stack **决策大脑** 双轨制策略： 1. 优先查 Monitor 历史队列 (Audio Driven) 2. 队列为空查 Stack 活跃记录 (Priority Driven) end note note left of BinderInterface SystemApi 入口 end note @enduml 优化的主要改动解释： AudioService 的加入：\n原图：App 直接调 AudioManager，然后直接连到 Monitor，掩盖了跨进程通信细节。 新图：App -\u003e AudioManager (Client) -\u003e AudioService (System)。AudioService 才是所有音频状态的源头，它通过回调通知 Monitor。 Monitor 内部的 HistoryQueue：\n代码中 mSortedAudioPlaybackClientUids 是核心。我在图中将其显式画出。这解释了为什么 App B 暂停后，Stack 依然能从 Monitor 拿到 [uid_B] 而不是空列表。 Step 8: cleanUpAudioPlaybackUids：\n这是一个非常关键的回环调用。Stack 决定了谁是 MediaButtonSession 后，反过来命令 Monitor 清理掉排在这个 Session 之后的“垃圾”UID。这在原图中是缺失的。 组件归属调整：\n将 AudioPlayerStateMonitor 和 MediaSessionStack 放入 MediaSessionService 的矩形框内，并用“组件协作区”包裹，强调它们是在同一服务内部紧密协作的对象。 这个新图更准确地反映了代码逻辑：AudioService 驱动状态变化 -\u003e Monitor 记录历史 -\u003e Stack 基于历史做决策 -\u003e Stack 反向清理 Monitor 历史 -\u003e 确立 MediaButtonSession。\n","wordCount":"395","inLanguage":"en","datePublished":"2025-08-08T11:36:11+08:00","dateModified":"2025-08-08T11:36:11+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/media/android-mediasession/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/media/>Android Media技术文档</a></div><h1 class="post-title entry-hint-parent">Android DRM 框架</h1><div class=post-meta><span title='2025-08-08 11:36:11 +0800 CST'>August 8, 2025</span>&nbsp;·&nbsp;2 min&nbsp;·&nbsp;395 words</div></header><div class=post-content><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+title Android MediaSession 管理与交互架构图 (优化版)
+top to bottom direction
+
+&#39; --- 样式定义 ---
+!define C4_COLOR(color) #color
+!define C4_BG_COLOR(color) C4_COLOR(color)
+!define C4_BORDER_COLOR(color) #Black
+
+skinparam component {
+    ArrowColor #666666
+    BorderColor #444444
+    BackgroundColor&lt;&lt;System&gt;&gt; C4_BG_COLOR(D4E157)
+    BackgroundColor&lt;&lt;Service&gt;&gt; C4_BG_COLOR(2B4353)
+    BackgroundColor&lt;&lt;Helper&gt;&gt; C4_BG_COLOR(7E57C2)
+    BackgroundColor&lt;&lt;Data&gt;&gt; C4_BG_COLOR(FFC107)
+    FontColor #0b0b0bff
+}
+
+skinparam rectangle {
+    StereotypeFontColor #FFFFFF
+    BackgroundColor&lt;&lt;App&gt;&gt; C4_BG_COLOR(4385F4)
+    BorderColor C4_BORDER_COLOR(4385F4)
+}
+
+&#39; --- 组件定义 ---
+
+rectangle &#34;应用程序 (Client Process)&#34; &lt;&lt;App&gt;&gt; {
+    component &#34;MediaSession&#34; as AppSession
+    component &#34;AudioTrack / MediaPlayer&#34; as AppPlayer
+    component &#34;AudioManager&#34; as AM_Client
+}
+
+package &#34;System Server Process&#34; {
+    
+    component &#34;AudioService&#34; as AudioService &lt;&lt;System&gt;&gt; {
+        note bottom
+            管理音频焦点
+            和物理播放状态
+        end note
+    }
+
+    rectangle &#34;MediaSessionService (MSS)&#34; as MSS_Rect &lt;&lt;Service&gt;&gt; {
+        component &#34;ISessionManager (Binder)&#34; as BinderInterface
+        component &#34;MediaSessionService&#34; as MSS_Core
+        
+        rectangle &#34;组件协作区&#34; #EEEEEE {
+            component &#34;AudioPlayerStateMonitor&#34; as Monitor &lt;&lt;Helper&gt;&gt; {
+                component &#34;mSortedAudioPlaybackClientUids\n(List&lt;Integer&gt;)&#34; as HistoryQueue &lt;&lt;Data&gt;&gt;
+            }
+            
+            component &#34;MediaSessionStack&#34; as Stack &lt;&lt;Data&gt;&gt; {
+                component &#34;mMediaButtonSession\n(Reference)&#34; as MBS &lt;&lt;Data&gt;&gt;
+                component &#34;mSessions\n(List&lt;Record&gt;)&#34; as SessionList &lt;&lt;Data&gt;&gt;
+            }
+        }
+    }
+}
+
+&#39; --- 关系与交互流程 ---
+
+&#39; 1. App 初始化
+AppSession -down-&gt; BinderInterface : 1. createSession() / setActive()
+AppSession .right.&gt; AppPlayer : 控制逻辑
+
+&#39; 2. App 播放音频
+AppPlayer -down-&gt; AM_Client : 播放请求
+AM_Client -down-&gt; AudioService : 2. start/pause/stop (Binder)
+
+&#39; 3. AudioService 通知 Monitor
+AudioService -right-&gt; Monitor : 3. onPlaybackConfigChanged()\n(Via AudioManager Callback)
+
+&#39; 4. Monitor 更新历史队列并通知 MSS
+Monitor -&gt; HistoryQueue : 更新 [uid_B, uid_A...]
+Monitor -down-&gt; MSS_Core : 4. onAudioPlayerActiveStateChanged()
+
+&#39; 5. MSS 触发 Stack 更新
+MSS_Core -right-&gt; Stack : 5. updateMediaButtonSessionIfNeeded()
+
+&#39; 6. Stack 核心决策循环
+Stack .up.&gt; HistoryQueue : 6. getSortedAudioPlaybackClientUids()\n(获取音频历史)
+Stack -left-&gt; Stack : 7. findMediaButtonSession(uid)\n(匹配 Session)
+
+&#39; 8. 清理与确立
+Stack .up.&gt; Monitor : 8. cleanUpAudioPlaybackUids(uid)\n(清理旧的不活跃 UID)
+Stack -down-&gt; MBS : 9. updateMediaButtonSession()\n(更新 mMediaButtonSession)
+
+&#39; 9. 最终事件分发
+User -right-&gt; MSS_Core : 媒体按键 (Media Key)
+MSS_Core -down-&gt; MBS : 查找目标
+MBS .up.&gt; AppSession : 10. dispatchMediaKeyEvent()
+
+&#39; --- 注释 ---
+
+note right of HistoryQueue
+  **关键数据结构**
+  维护&#34;最后播放&#34;的 UID 列表。
+  即使 App 暂停，UID 也会保留在首位
+  直到被 cleanUp。
+end note
+
+note right of Stack
+  **决策大脑**
+  双轨制策略：
+  1. 优先查 Monitor 历史队列 (Audio Driven)
+  2. 队列为空查 Stack 活跃记录 (Priority Driven)
+end note
+
+note left of BinderInterface
+  SystemApi 入口
+end note
+
+@enduml
+</code></pre><h3 id=优化的主要改动解释>优化的主要改动解释：<a hidden class=anchor aria-hidden=true href=#优化的主要改动解释>#</a></h3><ol><li><p><strong>AudioService 的加入</strong>：</p><ul><li><strong>原图</strong>：App 直接调 <code>AudioManager</code>，然后直接连到 Monitor，掩盖了跨进程通信细节。</li><li><strong>新图</strong>：App -> <code>AudioManager</code> (Client) -> <code>AudioService</code> (System)。<code>AudioService</code> 才是所有音频状态的源头，它通过回调通知 <code>Monitor</code>。</li></ul></li><li><p><strong>Monitor 内部的 <code>HistoryQueue</code></strong>：</p><ul><li>代码中 <code>mSortedAudioPlaybackClientUids</code> 是核心。我在图中将其显式画出。这解释了为什么 App B 暂停后，Stack 依然能从 Monitor 拿到 <code>[uid_B]</code> 而不是空列表。</li></ul></li><li><p><strong>Step 8: <code>cleanUpAudioPlaybackUids</code></strong>：</p><ul><li>这是一个非常关键的<strong>回环调用</strong>。Stack 决定了谁是 MediaButtonSession 后，反过来命令 Monitor 清理掉排在这个 Session 之后的“垃圾”UID。这在原图中是缺失的。</li></ul></li><li><p><strong>组件归属调整</strong>：</p><ul><li>将 <code>AudioPlayerStateMonitor</code> 和 <code>MediaSessionStack</code> 放入 <code>MediaSessionService</code> 的矩形框内，并用“组件协作区”包裹，强调它们是在同一服务内部紧密协作的对象。</li></ul></li></ol><p>这个新图更准确地反映了代码逻辑：<strong>AudioService 驱动状态变化 -> Monitor 记录历史 -> Stack 基于历史做决策 -> Stack 反向清理 Monitor 历史 -> 确立 MediaButtonSession。</strong></p></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/><span class=title>« Prev</span><br><span>Android DRM 框架</span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/><span class=title>Next »</span><br><span>Android MediaSession 管理与路由机制</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2025 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

@@ -1,0 +1,32 @@
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    // 初始化 Mermaid
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
+<script>
+    (function(){
+        // 查找所有 plantuml 代码块 (兼容 ```plantuml 和 ```planuml)
+        // Hugo 生成的代码块结构通常是 <pre><code class="language-plantuml">...</code></pre>
+        const plantumlBlocks = document.querySelectorAll('pre > code.language-plantuml, pre > code.language-planuml');
+        
+        plantumlBlocks.forEach(codeBlock => {
+            const plantumlCode = codeBlock.innerText;
+            // 使用 plantuml-encoder 编码代码
+            const encoded = plantumlEncoder.encode(plantumlCode);
+            // 构造图片 URL (这里使用官方 server，也可以换成 https://kroki.io/plantuml/svg/)
+            const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
+            
+            // 创建 img 标签
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = "PlantUML Diagram";
+            img.style.maxWidth = "100%"; // 响应式宽度
+            
+            // 替换原始代码块
+            const preBlock = codeBlock.parentNode;
+            preBlock.parentNode.replaceChild(img, preBlock);
+        });
+    })();
+</script>

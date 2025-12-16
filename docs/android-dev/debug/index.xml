@@ -67,7 +67,31 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</guid><description>&lt;h2 id="binder-spam-detection原理"&gt;Binder spam detection原理&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>BinderCallsStatsService 技术详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/bindercallsstatsservice/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/bindercallsstatsservice/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;BinderCallsStatsService&lt;/code&gt; 是 Android System Server 进程中的一个系统服务，用于收集和统计发往 &lt;code&gt;system_server&lt;/code&gt; 的 Binder 调用信息。它是分析系统级卡顿、高 CPU 占用以及排查 ANR（Application Not Responding）问题的核心工具。&lt;/p&gt;
+&lt;p&gt;它能够回答以下关键问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;哪个 App 在疯狂调用系统服务？&lt;/li&gt;
+&lt;li&gt;哪个系统 API（如 &lt;code&gt;startActivity&lt;/code&gt;）是当前的性能瓶颈？&lt;/li&gt;
+&lt;li&gt;系统服务的卡顿是因为 CPU 耗时过长，还是因为锁竞争导致的排队？&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id="2-实现原理"&gt;2. 实现原理&lt;/h2&gt;
+&lt;h3 id="21-核心机制"&gt;2.1 核心机制&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;BinderCallsStatsService&lt;/code&gt; 的实现基于 Android Binder 框架提供的 &lt;strong&gt;Observer（观察者）模式&lt;/strong&gt;。它并不依赖底层的 Linux Kernel Trace，而是通过 Hook Java 层的 Binder 分发入口实现的。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;注入 (Injection)&lt;/strong&gt;: 服务启动时，通过 &lt;code&gt;Binder.setObserver()&lt;/code&gt; 将自身注册为全局 Binder 监听器。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;拦截 (Interception)&lt;/strong&gt;: 所有发往当前进程（system_server）的 Binder 请求，在执行具体的 Service 方法（如 &lt;code&gt;AMS.startActivity&lt;/code&gt;）之前，都会先经过 &lt;code&gt;Binder.execTransact&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;统计 (Measurement)&lt;/strong&gt;:
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Call Started&lt;/strong&gt;: 记录开始时的 CPU 时间（Thread Time）和墙上时间（Realtime）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Call Ended&lt;/strong&gt;: 记录结束时间，计算差值，并统计数据包大小。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;聚合 (Aggregation)&lt;/strong&gt;: 数据存储在内存中的哈希表中，按 UID 和方法名聚合，避免无限增长。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="22-架构时序图-plantuml"&gt;2.2 架构时序图 (PlantUML)&lt;/h3&gt;
+&lt;p&gt;以下图表展示了 Binder 调用是如何被拦截和统计的：&lt;/p&gt;</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</guid><description>&lt;h2 id="binder-spam-detection原理"&gt;Binder spam detection原理&lt;/h2&gt;
 &lt;p&gt;当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:&lt;/p&gt;
 &lt;pre tabindex="0"&gt;&lt;code&gt;IPCThreadState: Process seems to be sending too many oneway calls.
 &lt;/code&gt;&lt;/pre&gt;&lt;h3 id="核心原因"&gt;核心原因&lt;/h3&gt;

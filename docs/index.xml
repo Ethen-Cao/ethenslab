@@ -99,7 +99,31 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Activity 跨屏幕迁移</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/static/images/activity-reparent.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>BinderCallsStatsService 技术详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/bindercallsstatsservice/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/bindercallsstatsservice/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;BinderCallsStatsService&lt;/code&gt; 是 Android System Server 进程中的一个系统服务，用于收集和统计发往 &lt;code&gt;system_server&lt;/code&gt; 的 Binder 调用信息。它是分析系统级卡顿、高 CPU 占用以及排查 ANR（Application Not Responding）问题的核心工具。&lt;/p&gt;
+&lt;p&gt;它能够回答以下关键问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;哪个 App 在疯狂调用系统服务？&lt;/li&gt;
+&lt;li&gt;哪个系统 API（如 &lt;code&gt;startActivity&lt;/code&gt;）是当前的性能瓶颈？&lt;/li&gt;
+&lt;li&gt;系统服务的卡顿是因为 CPU 耗时过长，还是因为锁竞争导致的排队？&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id="2-实现原理"&gt;2. 实现原理&lt;/h2&gt;
+&lt;h3 id="21-核心机制"&gt;2.1 核心机制&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;BinderCallsStatsService&lt;/code&gt; 的实现基于 Android Binder 框架提供的 &lt;strong&gt;Observer（观察者）模式&lt;/strong&gt;。它并不依赖底层的 Linux Kernel Trace，而是通过 Hook Java 层的 Binder 分发入口实现的。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;注入 (Injection)&lt;/strong&gt;: 服务启动时，通过 &lt;code&gt;Binder.setObserver()&lt;/code&gt; 将自身注册为全局 Binder 监听器。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;拦截 (Interception)&lt;/strong&gt;: 所有发往当前进程（system_server）的 Binder 请求，在执行具体的 Service 方法（如 &lt;code&gt;AMS.startActivity&lt;/code&gt;）之前，都会先经过 &lt;code&gt;Binder.execTransact&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;统计 (Measurement)&lt;/strong&gt;:
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Call Started&lt;/strong&gt;: 记录开始时的 CPU 时间（Thread Time）和墙上时间（Realtime）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Call Ended&lt;/strong&gt;: 记录结束时间，计算差值，并统计数据包大小。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;聚合 (Aggregation)&lt;/strong&gt;: 数据存储在内存中的哈希表中，按 UID 和方法名聚合，避免无限增长。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="22-架构时序图-plantuml"&gt;2.2 架构时序图 (PlantUML)&lt;/h3&gt;
+&lt;p&gt;以下图表展示了 Binder 调用是如何被拦截和统计的：&lt;/p&gt;</description></item><item><title>Activity 跨屏幕迁移</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/static/images/activity-reparent.png"&gt;&lt;/p&gt;
 &lt;h2 id="分步说明与生命周期映射"&gt;分步说明（与生命周期映射）&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -980,7 +1004,99 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;CDM&lt;/strong&gt;
-内容解密模块，负责：&lt;/p&gt;</description></item><item><title>Android MediaSession 管理与路由机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+内容解密模块，负责：&lt;/p&gt;</description></item><item><title>Android DRM 框架</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-mediasession/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-mediasession/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+title Android MediaSession 管理与交互架构图 (优化版)
+top to bottom direction
+&amp;#39; --- 样式定义 ---
+!define C4_COLOR(color) #color
+!define C4_BG_COLOR(color) C4_COLOR(color)
+!define C4_BORDER_COLOR(color) #Black
+skinparam component {
+ArrowColor #666666
+BorderColor #444444
+BackgroundColor&amp;lt;&amp;lt;System&amp;gt;&amp;gt; C4_BG_COLOR(D4E157)
+BackgroundColor&amp;lt;&amp;lt;Service&amp;gt;&amp;gt; C4_BG_COLOR(2B4353)
+BackgroundColor&amp;lt;&amp;lt;Helper&amp;gt;&amp;gt; C4_BG_COLOR(7E57C2)
+BackgroundColor&amp;lt;&amp;lt;Data&amp;gt;&amp;gt; C4_BG_COLOR(FFC107)
+FontColor #0b0b0bff
+}
+skinparam rectangle {
+StereotypeFontColor #FFFFFF
+BackgroundColor&amp;lt;&amp;lt;App&amp;gt;&amp;gt; C4_BG_COLOR(4385F4)
+BorderColor C4_BORDER_COLOR(4385F4)
+}
+&amp;#39; --- 组件定义 ---
+rectangle &amp;#34;应用程序 (Client Process)&amp;#34; &amp;lt;&amp;lt;App&amp;gt;&amp;gt; {
+component &amp;#34;MediaSession&amp;#34; as AppSession
+component &amp;#34;AudioTrack / MediaPlayer&amp;#34; as AppPlayer
+component &amp;#34;AudioManager&amp;#34; as AM_Client
+}
+package &amp;#34;System Server Process&amp;#34; {
+component &amp;#34;AudioService&amp;#34; as AudioService &amp;lt;&amp;lt;System&amp;gt;&amp;gt; {
+note bottom
+管理音频焦点
+和物理播放状态
+end note
+}
+rectangle &amp;#34;MediaSessionService (MSS)&amp;#34; as MSS_Rect &amp;lt;&amp;lt;Service&amp;gt;&amp;gt; {
+component &amp;#34;ISessionManager (Binder)&amp;#34; as BinderInterface
+component &amp;#34;MediaSessionService&amp;#34; as MSS_Core
+rectangle &amp;#34;组件协作区&amp;#34; #EEEEEE {
+component &amp;#34;AudioPlayerStateMonitor&amp;#34; as Monitor &amp;lt;&amp;lt;Helper&amp;gt;&amp;gt; {
+component &amp;#34;mSortedAudioPlaybackClientUids\n(List&amp;lt;Integer&amp;gt;)&amp;#34; as HistoryQueue &amp;lt;&amp;lt;Data&amp;gt;&amp;gt;
+}
+component &amp;#34;MediaSessionStack&amp;#34; as Stack &amp;lt;&amp;lt;Data&amp;gt;&amp;gt; {
+component &amp;#34;mMediaButtonSession\n(Reference)&amp;#34; as MBS &amp;lt;&amp;lt;Data&amp;gt;&amp;gt;
+component &amp;#34;mSessions\n(List&amp;lt;Record&amp;gt;)&amp;#34; as SessionList &amp;lt;&amp;lt;Data&amp;gt;&amp;gt;
+}
+}
+}
+}
+&amp;#39; --- 关系与交互流程 ---
+&amp;#39; 1. App 初始化
+AppSession -down-&amp;gt; BinderInterface : 1. createSession() / setActive()
+AppSession .right.&amp;gt; AppPlayer : 控制逻辑
+&amp;#39; 2. App 播放音频
+AppPlayer -down-&amp;gt; AM_Client : 播放请求
+AM_Client -down-&amp;gt; AudioService : 2. start/pause/stop (Binder)
+&amp;#39; 3. AudioService 通知 Monitor
+AudioService -right-&amp;gt; Monitor : 3. onPlaybackConfigChanged()\n(Via AudioManager Callback)
+&amp;#39; 4. Monitor 更新历史队列并通知 MSS
+Monitor -&amp;gt; HistoryQueue : 更新 [uid_B, uid_A...]
+Monitor -down-&amp;gt; MSS_Core : 4. onAudioPlayerActiveStateChanged()
+&amp;#39; 5. MSS 触发 Stack 更新
+MSS_Core -right-&amp;gt; Stack : 5. updateMediaButtonSessionIfNeeded()
+&amp;#39; 6. Stack 核心决策循环
+Stack .up.&amp;gt; HistoryQueue : 6. getSortedAudioPlaybackClientUids()\n(获取音频历史)
+Stack -left-&amp;gt; Stack : 7. findMediaButtonSession(uid)\n(匹配 Session)
+&amp;#39; 8. 清理与确立
+Stack .up.&amp;gt; Monitor : 8. cleanUpAudioPlaybackUids(uid)\n(清理旧的不活跃 UID)
+Stack -down-&amp;gt; MBS : 9. updateMediaButtonSession()\n(更新 mMediaButtonSession)
+&amp;#39; 9. 最终事件分发
+User -right-&amp;gt; MSS_Core : 媒体按键 (Media Key)
+MSS_Core -down-&amp;gt; MBS : 查找目标
+MBS .up.&amp;gt; AppSession : 10. dispatchMediaKeyEvent()
+&amp;#39; --- 注释 ---
+note right of HistoryQueue
+**关键数据结构**
+维护&amp;#34;最后播放&amp;#34;的 UID 列表。
+即使 App 暂停，UID 也会保留在首位
+直到被 cleanUp。
+end note
+note right of Stack
+**决策大脑**
+双轨制策略：
+1. 优先查 Monitor 历史队列 (Audio Driven)
+2. 队列为空查 Stack 活跃记录 (Priority Driven)
+end note
+note left of BinderInterface
+SystemApi 入口
+end note
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="优化的主要改动解释"&gt;优化的主要改动解释：&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;AudioService 的加入&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>Android MediaSession 管理与路由机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;在 Android 系统中，&lt;strong&gt;MediaSessionService&lt;/strong&gt; 负责管理所有的媒体会话，并决定哪个应用应当接收媒体按键事件（如耳机线控的播放/暂停）。这一决策机制并非仅仅依赖应用自身的状态上报，而是深度结合了 &lt;strong&gt;AudioService&lt;/strong&gt; 的物理发声状态，实现了“所听即所得”的控制体验。&lt;/p&gt;
 &lt;h2 id="2-核心组件交互"&gt;2. 核心组件交互&lt;/h2&gt;
 &lt;ul&gt;
