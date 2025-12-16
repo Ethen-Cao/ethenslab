@@ -28,7 +28,7 @@ activate MSS
 MSS -> Stack: addSession(RecordA)
 deactivate MSS
 
-AppA -> MSS: setPlaybackState(PLAYING, 0)
+' 修正点：移除错误的提前 PLAYING 状态设置
 AppA -> MSS: setActive(true)
 activate MSS
 MSS -> Stack: onSessionActiveStateChanged(RecordA)
@@ -59,6 +59,12 @@ activate AS
     deactivate APSM
 deactivate AS
 
+' 修正点：在真正播放后才设置状态
+AppA -> MSS: setPlaybackState(PLAYING)
+activate MSS
+MSS -> Stack: onPlaybackStateChanged(RecordA, PLAYING)
+deactivate MSS
+
 == 阶段 2: 切换到 App B，申请焦点并播放 ==
 
 note over AppB: 用户切换到 App B
@@ -80,7 +86,7 @@ activate AS
     end
 deactivate AS
 
-AppB -> AS: audioTrack.play() (B 开始出声)
+AppB -> AS: AudioTrack.play() (B 开始出声)
 activate AS
     AS -> APSM: onPlaybackConfigChanged(uid=B, active=true)
     activate APSM
@@ -116,7 +122,7 @@ activate AppA
         AS -> APSM: onPlaybackConfigChanged(uid=A, active=false)
         activate APSM
             APSM -> APSM: 更新排序列表: [uid_B]
-            note right of APSM: A 不再活跃，从列表移除\n(或移到底部)
+            note right of APSM: A 不再活跃，从列表移除
             APSM -> MSS: onAudioPlayerActiveStateChanged(...)
             activate MSS
                 MSS -> Stack: updateMediaButtonSessionIfNeeded()
@@ -149,10 +155,10 @@ activate AS
            activate Stack
                Stack -> APSM: getSortedAudioPlaybackClientUids()
                APSM --> Stack: return []
-               note right of Stack: 音频列表空了，回退到\nPlaybackState 检查逻辑
-               Stack -> Stack: 检查最近活跃的 Session
+               note right of Stack: 音频列表空，检查最近活跃 Session
+               Stack -> Stack: 检查 PlaybackState 和 active
                note right of Stack: B 是最后一个 active 的\n且未被销毁
-               Stack --> MSS: (保持 RecordB 或更新)
+               Stack --> MSS: (保持 RecordB)
            deactivate Stack
         deactivate MSS
     deactivate APSM
