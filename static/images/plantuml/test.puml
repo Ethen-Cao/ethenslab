@@ -1,21 +1,71 @@
 @startuml
-' 應用 material design 風格並確保字體為黑色
-skinparam rectangle {
-    FontColor black
-    BorderColor #4285F4
-    BackgroundColor #E3F2FD
-}
+!theme plain
+skinparam backgroundColor white
+skinparam sequenceMessageAlign center
+skinparam noteBackgroundColor #FFEBEE
+skinparam noteBorderColor #D32F2F
 
-' 1. 定義三個矩形
-rectangle "Rectangle A" as A
-rectangle "Rectangle B" as B
-rectangle "Rectangle C" as C
+participant Cloud as "CloudDesk\n(App)"
+participant System as "Android System\n(MediaSessionService)"
+participant Wecar as "WecarFlow\n(Old App)"
 
-' 2. 將 B 放置在 C 的上方
-'    這會在右側創建一個垂直的 B/C 組
-B -[hidden]down-> C
+== 阶段 1: 抢夺焦点 (11:31:41.558) ==
 
-' 3. 將 A 放置在 B 的左側
-'    由於 B 和 C 已經垂直對齊，這會將 A 放在整個 B/C 組的左側
-A -[hidden]right-> B
+Cloud -> System: **1. requestAudioFocus()**\n(请求音频焦点)
+activate System
+
+System -> Wecar: onAudioFocusChange(LOSS)\n(通知失去焦点)
+Wecar -> System: pause()\n(暂停播放)
+
+note right of System
+    **【第一次检查点】**
+    系统触发 updateMediaButtonSession
+    1. 谁持有焦点? -> CloudDesk
+    2. CloudDesk 有 MediaSession 吗? -> **NO (未创建)**
+    --------------------
+    **结论：保持原状 (WecarFlow)**
+end note
+
+deactivate System
+
+== 阶段 2: 空窗期 (约 200ms) ==
+
+...CloudDesk 正在初始化 Session...
+
+== 阶段 3: 创建 Session (11:31:41.764) ==
+
+Cloud -> System: **2. new MediaSession()**\n(创建会话)
+activate System
+
+note right of System
+    **【第二次检查点】**
+    系统触发 updateMediaButtonSession
+    1. 有新 Session 注册
+    2. CloudDesk 正在播放音频(AudioTrack)吗? -> **NO**
+    3. 上一个活跃者是谁? -> WecarFlow
+    --------------------
+    **结论：保持原状 (WecarFlow)**
+    (因为系统倾向于不打断"Last Active"的应用，
+    除非新应用明确开始 AudioTrack 输出)
+end note
+
+deactivate System
+
+== 阶段 4: 按键事件 (11:31:44.980) ==
+
+[-> System: **按键事件: PLAY_PAUSE**
+activate System
+
+System -> System: 查找当前 MediaButtonSession target
+note right of System
+查表结果：WecarFlow
+end note
+
+System -> Wecar: **dispatchMediaKeyEvent**
+deactivate System
+
+Wecar -> Wecar: 收到按键 -> 恢复播放
+Wecar -> System: requestAudioFocus()
+System -> Cloud: onAudioFocusChange(LOSS) -> **CloudDesk 被销毁**
+
 @enduml

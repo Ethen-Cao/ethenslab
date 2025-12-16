@@ -1,0 +1,91 @@
+@startuml
+skinparam sequenceMessageAlign center
+participant "App A" as AppA
+participant "App B" as AppB
+participant "AudioManager\n(AudioService)" as AM
+participant "MediaSessionService" as MSS
+participant "MediaSessionStack" as Stack
+participant "AudioPlayerStateMonitor" as Monitor
+
+== 阶段 1: 应用 A 播放音乐 ==
+
+AppA -> MSS: createSession(tag="AppA")
+activate MSS
+MSS -> Stack: addSession(RecordA)
+deactivate MSS
+
+AppA -> AM: requestAudioFocus()
+AppA -> AM: startPlayback() (AudioTrack/MediaPlayer)
+AM -> Monitor: onPlaybackConfigChanged(uid=A, active=true)
+activate Monitor
+Monitor -> Monitor: 更新排序列表: [A]
+Monitor -> MSS: onAudioPlayerActiveStateChanged
+deactivate Monitor
+
+activate MSS
+MSS -> Stack: updateMediaButtonSessionIfNeeded()
+activate Stack
+Stack -> Monitor: getSortedAudioPlaybackClientUids()
+Monitor --> Stack: return [uid_A]
+Stack -> Stack: findMediaButtonSession(uid_A)
+Stack --> MSS: updateMediaButtonSession(RecordA)
+deactivate Stack
+MSS -> AM: 广播 MediaButtonSession 变更
+deactivate MSS
+
+AppA -> MSS: setPlaybackState(PLAYING)
+MSS -> Stack: onPlaybackStateChanged(RecordA, PLAYING)
+
+== 阶段 2: 切换到应用 B，应用 B 播放 ==
+
+AppB -> MSS: createSession(tag="AppB")
+activate MSS
+MSS -> Stack: addSession(RecordB)
+deactivate MSS
+
+AppB -> AM: requestAudioFocus()
+note right of AM: App B 获得焦点\nApp A 失去焦点(LOSS_TRANSIENT)
+
+AppB -> AM: startPlayback()
+AM -> Monitor: onPlaybackConfigChanged(uid=B, active=true)
+activate Monitor
+Monitor -> Monitor: 更新排序列表: [B, A]
+note right of Monitor: B 成为最后活跃的应用
+Monitor -> MSS: onAudioPlayerActiveStateChanged
+deactivate Monitor
+
+activate MSS
+MSS -> Stack: updateMediaButtonSessionIfNeeded()
+activate Stack
+Stack -> Monitor: getSortedAudioPlaybackClientUids()
+Monitor --> Stack: return [uid_B, uid_A]
+Stack -> Stack: findMediaButtonSession(uid_B)
+note right of Stack: 发现 B 的 Session 匹配\nB 成为 MediaButtonSession
+Stack --> MSS: updateMediaButtonSession(RecordB)
+deactivate Stack
+MSS -> AM: 广播 MediaButtonSession 变更为 B
+deactivate MSS
+
+AppB -> MSS: setPlaybackState(PLAYING)
+
+== 阶段 3: 应用 A 暂停 ==
+
+AppA -> AppA: 收到 AudioFocus loss
+AppA -> AM: pausePlayback()
+AM -> Monitor: onPlaybackConfigChanged(uid=A, active=false)
+activate Monitor
+Monitor -> Monitor: 更新排序列表: [B]\n(A 不再 active)
+Monitor -> MSS: onAudioPlayerActiveStateChanged
+deactivate Monitor
+
+AppA -> MSS: setPlaybackState(PAUSED)
+activate MSS
+MSS -> Stack: onPlaybackStateChanged(RecordA, PAUSED)
+activate Stack
+Stack -> Monitor: getSortedAudioPlaybackClientUids()
+Monitor --> Stack: return [uid_B]
+note right of Stack: 列表首位仍是 B\nMediaButtonSession 保持为 B
+deactivate Stack
+deactivate MSS
+
+@enduml
