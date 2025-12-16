@@ -980,7 +980,46 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;CDM&lt;/strong&gt;
-内容解密模块，负责：&lt;/p&gt;</description></item><item><title>Android Theme</title><link>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</guid><description>&lt;h2 id="简介"&gt;简介&lt;/h2&gt;
+内容解密模块，负责：&lt;/p&gt;</description></item><item><title>Android MediaSession 管理与路由机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;在 Android 系统中，&lt;strong&gt;MediaSessionService&lt;/strong&gt; 负责管理所有的媒体会话，并决定哪个应用应当接收媒体按键事件（如耳机线控的播放/暂停）。这一决策机制并非仅仅依赖应用自身的状态上报，而是深度结合了 &lt;strong&gt;AudioService&lt;/strong&gt; 的物理发声状态，实现了“所听即所得”的控制体验。&lt;/p&gt;
+&lt;h2 id="2-核心组件交互"&gt;2. 核心组件交互&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;AudioService &amp;amp; AudioPlayerStateMonitor (APSM)&lt;/strong&gt;:
+&lt;ul&gt;
+&lt;li&gt;作为“事实的来源”。APSM 监听底层 &lt;code&gt;AudioTrack&lt;/code&gt; 的状态。&lt;/li&gt;
+&lt;li&gt;维护一个 &lt;strong&gt;UID 历史队列 (&lt;code&gt;mSortedAudioPlaybackClientUids&lt;/code&gt;)&lt;/strong&gt;。这个队列按照“最后开始播放的时间”倒序排列。即使应用暂停播放，只要它未被后续应用挤出或被清理，它依然保留在队列中。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;MediaSessionService (MSS)&lt;/strong&gt;:
+&lt;ul&gt;
+&lt;li&gt;作为系统服务的中枢，协调 Audio 和 Media 组件。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;MediaSessionStack&lt;/strong&gt;:
+&lt;ul&gt;
+&lt;li&gt;作为“决策大脑”。它根据 APSM 提供的 UID 队列，在已注册的 Session 中查找匹配项，确定 &lt;strong&gt;MediaButtonSession&lt;/strong&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="3-mediabuttonsession-的选择逻辑"&gt;3. MediaButtonSession 的选择逻辑&lt;/h2&gt;
+&lt;p&gt;系统通过 &lt;code&gt;MediaSessionStack.updateMediaButtonSessionIfNeeded()&lt;/code&gt; 方法选择接收按键的目标。选择优先级如下：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Audio 驱动 (最高优先级)&lt;/strong&gt;:
+&lt;ul&gt;
+&lt;li&gt;系统优先查看 APSM 提供的音频 UID 列表。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;正在发声的应用&lt;/strong&gt;: 如果列表首位的应用正在发声 (&lt;code&gt;isActive=true&lt;/code&gt;)，且拥有 Session，它直接成为 MediaButtonSession。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;历史活跃的应用 (粘性机制)&lt;/strong&gt;: 如果列表首位的应用暂停了 (&lt;code&gt;isActive=false&lt;/code&gt;)，但它是列表中仅存的或最新的记录，且拥有 Session，它依然保持为 MediaButtonSession。这确保了用户暂停音乐后，按耳机键能恢复该应用的播放。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Stack 历史兜底 (低优先级)&lt;/strong&gt;:
+&lt;ul&gt;
+&lt;li&gt;只有当 APSM 的音频列表为空（所有记录都被清理）时，Stack 才会根据 Session 自身的 &lt;code&gt;PlaybackState&lt;/code&gt; 或 &lt;code&gt;Active&lt;/code&gt; 状态来选择最近的会话。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id="4-典型场景流程解析"&gt;4. 典型场景流程解析&lt;/h2&gt;
+&lt;p&gt;以下流程描述了用户从 App A 切换到 App B 并进行播放控制的完整生命周期。
+&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-MediaSessionService-updateMediaSession.png"&gt;&lt;/p&gt;</description></item><item><title>Android Theme</title><link>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</guid><description>&lt;h2 id="简介"&gt;简介&lt;/h2&gt;
 &lt;p&gt;Android的&lt;strong&gt;Theme（主题）&lt;/strong&gt;，简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。&lt;/p&gt;
 &lt;hr&gt;
 &lt;h3 id="详细解释"&gt;详细解释&lt;/h3&gt;

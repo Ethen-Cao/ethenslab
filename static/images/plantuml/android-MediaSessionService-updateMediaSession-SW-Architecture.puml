@@ -1,0 +1,113 @@
+@startuml
+title Android MediaSession 管理与交互架构图 (优化版)
+top to bottom direction
+
+' --- 样式定义 ---
+!define C4_COLOR(color) #color
+!define C4_BG_COLOR(color) C4_COLOR(color)
+!define C4_BORDER_COLOR(color) #Black
+
+skinparam component {
+    ArrowColor #0b0a0aff
+    BorderColor #030303ff
+    BackgroundColor<<System>> C4_BG_COLOR(D4E157)
+    BackgroundColor<<Service>> C4_BG_COLOR(2B4353)
+    BackgroundColor<<Helper>> C4_BG_COLOR(7E57C2)
+    BackgroundColor<<Data>> C4_BG_COLOR(FFC107)
+    FontColor #0b0b0bff
+}
+
+skinparam rectangle {
+    StereotypeFontColor #FFFFFF
+    BackgroundColor<<App>> C4_BG_COLOR(4385F4)
+    BorderColor C4_BORDER_COLOR(4385F4)
+}
+
+' --- 组件定义 ---
+
+rectangle "应用程序 (Client Process)" <<App>> {
+    component "MediaSession" as AppSession
+    component "AudioTrack / MediaPlayer" as AppPlayer
+    component "AudioManager" as AM_Client
+}
+
+package "System Server Process" {
+    
+    component "AudioService" as AudioService <<System>> {
+        ' note bottom
+        '     管理音频焦点
+        '     和物理播放状态
+        ' end note
+    }
+
+    rectangle "MediaSessionService (MSS)" as MSS_Rect <<Service>> {
+        component "ISessionManager (Binder)" as BinderInterface
+        component "MediaSessionService" as MSS_Core
+        
+        rectangle "组件协作区" #EEEEEE {
+            component "AudioPlayerStateMonitor" as Monitor <<Helper>> {
+                component "mSortedAudioPlaybackClientUids\n(List<Integer>)" as HistoryQueue <<Data>>
+            }
+            
+            component "MediaSessionStack" as Stack <<Data>> {
+                component "mMediaButtonSession\n(Reference)" as MBS <<Data>>
+                component "mSessions\n(List<Record>)" as SessionList <<Data>>
+            }
+        }
+    }
+}
+
+' --- 关系与交互流程 ---
+
+' 1. App 初始化
+AppSession -down-> BinderInterface : 1. createSession() / setActive()
+AppSession .right.> AppPlayer : 控制逻辑
+
+' 2. App 播放音频
+AppPlayer -down-> AM_Client : 播放请求
+AM_Client -down-> AudioService : 2. start/pause/stop (Binder)
+
+' 3. AudioService 通知 Monitor
+AudioService -right-> Monitor : 3. onPlaybackConfigChanged()\n(Via AudioManager Callback)
+
+' 4. Monitor 更新历史队列并通知 MSS
+Monitor -> HistoryQueue : 更新 [uid_B, uid_A...]
+Monitor -down-> MSS_Core : 4. onAudioPlayerActiveStateChanged()
+
+' 5. MSS 触发 Stack 更新
+MSS_Core -right-> Stack : 5. updateMediaButtonSessionIfNeeded()
+
+' 6. Stack 核心决策循环
+Stack .up.> HistoryQueue : 6. getSortedAudioPlaybackClientUids()\n(获取音频历史)
+Stack -left-> Stack : 7. findMediaButtonSession(uid)\n(匹配 Session)
+
+' 8. 清理与确立
+Stack .up.> Monitor : 8. cleanUpAudioPlaybackUids(uid)\n(清理旧的不活跃 UID)
+Stack -down-> MBS : 9. updateMediaButtonSession()\n(更新 mMediaButtonSession)
+
+' 9. 最终事件分发
+User -right-> MSS_Core : 媒体按键 (Media Key)
+MSS_Core -down-> MBS : 查找目标
+MBS .up.> AppSession : 10. dispatchMediaKeyEvent()
+
+' --- 注释 ---
+
+' note right of HistoryQueue
+'   **关键数据结构**
+'   维护"最后播放"的 UID 列表。
+'   即使 App 暂停，UID 也会保留在首位
+'   直到被 cleanUp。
+' end note
+
+' note right of Stack
+'   **决策大脑**
+'   双轨制策略：
+'   1. 优先查 Monitor 历史队列 (Audio Driven)
+'   2. 队列为空查 Stack 活跃记录 (Priority Driven)
+' end note
+
+' note left of BinderInterface
+'   SystemApi 入口
+' end note
+
+@enduml
