@@ -354,4 +354,29 @@
 &lt;hr&gt;
 &lt;h1 id="3-总体架构两种部署选型"&gt;3. 总体架构（两种部署选型）&lt;/h1&gt;
 &lt;h2 id="概览"&gt;概览&lt;/h2&gt;
-&lt;p&gt;主要参与方：&lt;strong&gt;主题商店 App (StoreApp)&lt;/strong&gt;、&lt;strong&gt;ThemeManagerService (TMS)&lt;/strong&gt;、&lt;strong&gt;OverlayManagerService (OMS)&lt;/strong&gt;、&lt;strong&gt;PackageManagerService (PMS)&lt;/strong&gt;、&lt;strong&gt;AssetManager&lt;/strong&gt;、&lt;strong&gt;ThemeDB&lt;/strong&gt; 与 &lt;strong&gt;OEM 云服务&lt;/strong&gt;（Server / AccountServer）。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item></channel></rss>
+&lt;p&gt;主要参与方：&lt;strong&gt;主题商店 App (StoreApp)&lt;/strong&gt;、&lt;strong&gt;ThemeManagerService (TMS)&lt;/strong&gt;、&lt;strong&gt;OverlayManagerService (OMS)&lt;/strong&gt;、&lt;strong&gt;PackageManagerService (PMS)&lt;/strong&gt;、&lt;strong&gt;AssetManager&lt;/strong&gt;、&lt;strong&gt;ThemeDB&lt;/strong&gt; 与 &lt;strong&gt;OEM 云服务&lt;/strong&gt;（Server / AccountServer）。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/npu-technology/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/npu-technology/</guid><description>&lt;h2 id="hexagon-dsp-的生态"&gt;Hexagon DSP 的生态&lt;/h2&gt;
+&lt;p&gt;在 Qualcomm Hexagon DSP 的生态中，可以把资源的使用方式明确划分为&lt;strong&gt;两条主要赛道&lt;/strong&gt;。它们针对的场景不同，开发难度不同，工具链也完全不同。&lt;/p&gt;
+&lt;h3 id="1-第一条赛道ai-推理-ai-inference"&gt;1. 第一条赛道：AI 推理 (AI Inference)&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;关键词&lt;/strong&gt;：TFLite, ONNX, SNPE, QNN, NNAPI
+&lt;strong&gt;核心逻辑&lt;/strong&gt;：&lt;strong&gt;“模型即代码” (Model is the code)&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;这是目前最主流的用法，主要用于深度学习。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;主要工作&lt;/strong&gt;：
+&lt;ul&gt;
+&lt;li&gt;训练模型（在 PC 上用 PyTorch/TensorFlow）。&lt;/li&gt;
+&lt;li&gt;量化模型（把 float32 转成 int8，为了 DSP 效率）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;配置&lt;/strong&gt;：你不需要写 DSP 代码，只需要在 App 里配置“代理”（Delegate）或“后端”（Backend）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;IDL 哪里去了？&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;高通（或 Google）已经提前写好了通用的 &lt;code&gt;.idl&lt;/code&gt; 和 &lt;code&gt;skel.so&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;比如 &lt;code&gt;libQnnDsp.so&lt;/code&gt; 或 &lt;code&gt;libhexagon_nn_skel.so&lt;/code&gt;。这些库就像一个“万能翻译官”，它能读懂你的神经网络层（Conv2d, Softmax 等），并指挥 DSP 去执行。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;优点&lt;/strong&gt;：开发快，不用懂 DSP 汇编，只要模型能跑通就行。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;缺点&lt;/strong&gt;：只能做神经网络相关的任务。如果你想做个特殊的“图像去雾算法”或者“音频变声”，这套框架帮不了你。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="2-第二条赛道通用计算-general-compute--heterogeneous-computing"&gt;2. 第二条赛道：通用计算 (General Compute / Heterogeneous Computing)&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;关键词&lt;/strong&gt;：Hexagon SDK, FastRPC, IDL, QAIC, C/C++, HVX/HMX
+&lt;strong&gt;核心逻辑&lt;/strong&gt;：&lt;strong&gt;“手写算子” (Custom Implementation)&lt;/strong&gt;&lt;/p&gt;</description></item></channel></rss>

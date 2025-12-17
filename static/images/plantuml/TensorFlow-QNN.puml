@@ -1,0 +1,92 @@
+@startuml
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+skinparam linetype ortho
+
+' 颜色定义
+skinparam component {
+  BackgroundColor<<App>> LightBlue
+  BackgroundColor<<Google>> LightGreen
+  BackgroundColor<<Qualcomm_CPU>> Yellow
+  BackgroundColor<<Qualcomm_DSP>> Orange
+  BackgroundColor<<System>> LightGrey
+  BackgroundColor<<Kernel>> Salmon
+}
+
+package "Apps CPU (Android运行环境)" {
+
+    package "User Space (用户空间)" {
+        component "你的 APP" as App <<App>>
+        component "LiteRT Runtime" as TFLite <<Google>>
+        
+        note right of TFLite
+            负责加载 .tflite 模型
+            及调用 Delegate
+        end note
+
+        package "QNN Client Side (APK / System Libs)" {
+            component "QNN Delegate\n(libQnnTFLiteDelegate.so)" as Delegate <<Qualcomm_CPU>>
+            component "QNN HTP Backend\n(libQnnHtp.so)" as HtpMgr <<Qualcomm_CPU>>
+            component "HTP Stub (V81)\n(libQnnHtpV81.so)" as Stub <<Qualcomm_CPU>>
+            
+            note right of Stub
+                **Client端代理**
+                负责打包指令
+                并不执行推理
+            end note
+        }
+
+        component "FastRPC Lib\n(libadsprpc.so)" as AdspRpcLib <<System>>
+    }
+
+    package "Kernel Space (内核空间)" {
+        component "FastRPC Driver" as FastRpcDrv <<Kernel>>
+        component "ION / SMMU\n(内存管理)" as MemMgr <<Kernel>>
+    }
+}
+
+package "Compute DSP (NPU/HTP运行环境)" {
+
+    package "QuRT Guest OS (实时系统)" {
+        component "FastRPC Framework" as DspRpcFw <<System>>
+    }
+
+    package "User PD (Protection Domain - 动态加载区)" {
+        component "HTP Skel (V81)\n(libQnnHtpV81Skel.so)" as Skel <<Qualcomm_DSP>>
+        
+        note right of Skel
+            **Server端实现**
+            真正的 NPU 推理逻辑
+            在此处执行
+        end note
+    }
+    
+    component "Hexagon HTP 硬件资源" as Hardware <<System>>
+}
+
+' --- 关系连线 ---
+
+' 1. 应用层调用
+App --> TFLite : 调用
+TFLite --> Delegate : 委托推理
+Delegate --> HtpMgr : 初始化
+
+' 2. QNN 内部加载
+HtpMgr --> Stub : dlopen (加载Stub库)
+
+' 3. RPC 调用链 (跨越边界的关键)
+Stub --> AdspRpcLib : remote_handle_invoke()
+AdspRpcLib --> FastRpcDrv : ioctl() (进入内核)
+
+' 4. 跨处理器通信 (Apps CPU -> DSP)
+FastRpcDrv <==> DspRpcFw : IPC / Shared Memory (SMMU)
+
+' 5. DSP 侧执行
+DspRpcFw --> Skel : 唤醒/调用 Skel
+Skel --> Hardware : 执行 HVX/HTP 指令
+
+' 6. 内存共享
+Stub .. MemMgr : 申请共享内存
+Skel .. MemMgr : 读取共享内存 (零拷贝)
+
+@enduml

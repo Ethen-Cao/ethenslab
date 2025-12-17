@@ -1613,6 +1613,7 @@ mCameraCompatControlEnabled=false&lt;/li&gt;
 mCreatedByOrganizer=true&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/native_crash_process/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/native_crash_process/</guid><description>&lt;p&gt;这个时序图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
 &lt;h3 id="native-process-crash-处理时序图"&gt;Native Process Crash 处理时序图&lt;/h3&gt;
 &lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-Native-Process-Crash.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img loading="lazy" src="android-Native-Process-Crash.png"&gt;&lt;/p&gt;
 &lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -1640,7 +1641,8 @@ mCreatedByOrganizer=true&lt;/p&gt;</description></item><item><title/><link>https
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;A -&amp;gt; B
+&lt;/code&gt;&lt;/pre&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;
 &lt;p&gt;基于提供AOSP的代码，以“Hi Google”为例，语音唤醒（Hotword Detection）的完整流程是一个跨进程、跨层级的复杂协作过程。它主要涉及&lt;strong&gt;底层硬件触发&lt;/strong&gt;、&lt;strong&gt;系统服务路由&lt;/strong&gt;、&lt;strong&gt;沙盒服务校验&lt;/strong&gt;以及&lt;strong&gt;上层应用响应&lt;/strong&gt;四个关键阶段。&lt;/p&gt;
 &lt;p&gt;以下是基于代码分析的时序流程：&lt;/p&gt;
 &lt;h3 id="第一阶段底层硬件触发与系统层接收-hardware-trigger--system-layer"&gt;第一阶段：底层硬件触发与系统层接收 (Hardware Trigger &amp;amp; System Layer)&lt;/h3&gt;
@@ -1698,7 +1700,32 @@ mCreatedByOrganizer=true&lt;/p&gt;</description></item><item><title/><link>https
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;h5 id="2-执行动画-execute-the-animation"&gt;2. 执行动画 (Execute the Animation)&lt;/h5&gt;
-&lt;p&gt;一旦一个 &lt;code&gt;Handler&lt;/code&gt; 通过返回非 &lt;code&gt;null&lt;/code&gt; 的 &lt;code&gt;WCT&lt;/code&gt; 成功“认领”了一个 &lt;code&gt;Transition&lt;/code&gt;，它就&lt;strong&gt;全权负责&lt;/strong&gt;这个 &lt;code&gt;Transition&lt;/code&gt; 的动画实现。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item><item><title/><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;h1 id="高通-gunyah-虚拟化平台设备树-device-tree-全解从源码到-boot-image"&gt;高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image&lt;/h1&gt;
+&lt;p&gt;一旦一个 &lt;code&gt;Handler&lt;/code&gt; 通过返回非 &lt;code&gt;null&lt;/code&gt; 的 &lt;code&gt;WCT&lt;/code&gt; 成功“认领”了一个 &lt;code&gt;Transition&lt;/code&gt;，它就&lt;strong&gt;全权负责&lt;/strong&gt;这个 &lt;code&gt;Transition&lt;/code&gt; 的动画实现。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/npu-technology/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/npu-technology/</guid><description>&lt;h2 id="hexagon-dsp-的生态"&gt;Hexagon DSP 的生态&lt;/h2&gt;
+&lt;p&gt;在 Qualcomm Hexagon DSP 的生态中，可以把资源的使用方式明确划分为&lt;strong&gt;两条主要赛道&lt;/strong&gt;。它们针对的场景不同，开发难度不同，工具链也完全不同。&lt;/p&gt;
+&lt;h3 id="1-第一条赛道ai-推理-ai-inference"&gt;1. 第一条赛道：AI 推理 (AI Inference)&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;关键词&lt;/strong&gt;：TFLite, ONNX, SNPE, QNN, NNAPI
+&lt;strong&gt;核心逻辑&lt;/strong&gt;：&lt;strong&gt;“模型即代码” (Model is the code)&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;这是目前最主流的用法，主要用于深度学习。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;主要工作&lt;/strong&gt;：
+&lt;ul&gt;
+&lt;li&gt;训练模型（在 PC 上用 PyTorch/TensorFlow）。&lt;/li&gt;
+&lt;li&gt;量化模型（把 float32 转成 int8，为了 DSP 效率）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;配置&lt;/strong&gt;：你不需要写 DSP 代码，只需要在 App 里配置“代理”（Delegate）或“后端”（Backend）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;IDL 哪里去了？&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;高通（或 Google）已经提前写好了通用的 &lt;code&gt;.idl&lt;/code&gt; 和 &lt;code&gt;skel.so&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;比如 &lt;code&gt;libQnnDsp.so&lt;/code&gt; 或 &lt;code&gt;libhexagon_nn_skel.so&lt;/code&gt;。这些库就像一个“万能翻译官”，它能读懂你的神经网络层（Conv2d, Softmax 等），并指挥 DSP 去执行。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;优点&lt;/strong&gt;：开发快，不用懂 DSP 汇编，只要模型能跑通就行。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;缺点&lt;/strong&gt;：只能做神经网络相关的任务。如果你想做个特殊的“图像去雾算法”或者“音频变声”，这套框架帮不了你。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="2-第二条赛道通用计算-general-compute--heterogeneous-computing"&gt;2. 第二条赛道：通用计算 (General Compute / Heterogeneous Computing)&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;关键词&lt;/strong&gt;：Hexagon SDK, FastRPC, IDL, QAIC, C/C++, HVX/HMX
+&lt;strong&gt;核心逻辑&lt;/strong&gt;：&lt;strong&gt;“手写算子” (Custom Implementation)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;h1 id="高通-gunyah-虚拟化平台设备树-device-tree-全解从源码到-boot-image"&gt;高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image&lt;/h1&gt;
 &lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
 &lt;p&gt;本文将深入解析其文件结构、编译配置、构建流程以及打包机制。&lt;/p&gt;
 &lt;h2 id="1-源码结构与文件路径"&gt;1. 源码结构与文件路径&lt;/h2&gt;
