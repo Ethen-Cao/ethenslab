@@ -1,3 +1,11 @@
+---
+title: "ActivityManager 深度解析"
+date: 2024-07-29T10:00:00+08:00 
+draft: true
+---
+
+
+
 ACTIVITY MANAGER ACTIVITIES (dumpsys activity activities)
 Display #0 (activities from top to bottom):
   * Task{21a4759 #1 type=home U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}
