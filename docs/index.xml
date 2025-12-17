@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/</link><description>Recent content on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Sat, 15 Nov 2025 17:17:50 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml"/><item><title>QNX-Android IVI 架构中的 virtio-net 通信</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx_hypervisor_net/</link><pubDate>Sat, 15 Nov 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx_hypervisor_net/</guid><description>&lt;p&gt;本文基于一张 QNX Host + Android guest + Hypervisor + T-Box 的 virtio-net 架构图整理而成，图中展示了从 Android App 到车外 T-Box 的完整网络路径。&lt;/p&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/virtio-net.drawio.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/virtio-net.drawio.png" alt="" /&gt;&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;在典型的 QNX-Android 车机（IVI）架构中：&lt;/p&gt;
@@ -50,7 +50,7 @@
 &lt;li&gt;&lt;strong&gt;CPU&lt;/strong&gt;: 8 核或更多。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id="aosp-源码同步"&gt;&lt;strong&gt;AOSP 源码同步&lt;/strong&gt;&lt;/h3&gt;
-&lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png"&gt;
+&lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png" alt="" /&gt;
 本图描述了 Android 系统中 &lt;strong&gt;Binder Proxy 数量限制（BinderProxy Limit）&lt;/strong&gt; 的实现流程，涉及 &lt;code&gt;ActivityManagerService&lt;/code&gt;、&lt;code&gt;BinderInternal&lt;/code&gt;、JNI 层、&lt;code&gt;BpBinder&lt;/code&gt; 等关键组件。&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id="1-关键模块"&gt;1. 关键模块&lt;/h2&gt;
@@ -123,7 +123,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;聚合 (Aggregation)&lt;/strong&gt;: 数据存储在内存中的哈希表中，按 UID 和方法名聚合，避免无限增长。&lt;/li&gt;
 &lt;/ol&gt;
 &lt;h3 id="22-架构时序图-plantuml"&gt;2.2 架构时序图 (PlantUML)&lt;/h3&gt;
-&lt;p&gt;以下图表展示了 Binder 调用是如何被拦截和统计的：&lt;/p&gt;</description></item><item><title>Activity 跨屏幕迁移</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/static/images/activity-reparent.png"&gt;&lt;/p&gt;
+&lt;p&gt;以下图表展示了 Binder 调用是如何被拦截和统计的：&lt;/p&gt;</description></item><item><title>Activity 跨屏幕迁移</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/activity-reparent.png" alt="" /&gt;&lt;/p&gt;
 &lt;h2 id="分步说明与生命周期映射"&gt;分步说明（与生命周期映射）&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -147,7 +147,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;WMS 做 Window/Surface reparent&lt;/strong&gt;：ATMS 请求 WMS 将对应的 &lt;code&gt;WindowContainer&lt;/code&gt;/task 窗口树从 Display1 移到 Display2；WMS 在 SurfaceControl 层（通过 SurfaceFlinger）把 layer 重新 attach 到目标 Display 的 layer stack。&lt;/p&gt;</description></item><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
 &lt;p&gt;这个时序图展示了从底层物理屏幕发现到上层窗口管理容器创建的完整链路。&lt;/p&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-13-LogicalDisplay-creating-sequence.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-13-LogicalDisplay-creating-sequence.png" alt="" /&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;初始化阶段&lt;/strong&gt;:&lt;/p&gt;
@@ -259,7 +259,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;h3 id="3-高级交互场景手势控制动画"&gt;3. 高级交互场景：手势控制动画&lt;/h3&gt;
 &lt;p&gt;这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。&lt;/p&gt;</description></item><item><title>SplitScreenController flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</guid><description>&lt;h2 id="时序图"&gt;时序图&lt;/h2&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/splitscreen_wmshell.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/splitscreen_wmshell.png" alt="" /&gt;&lt;/p&gt;
 &lt;h2 id="debug"&gt;Debug&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -588,9 +588,9 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;h3 id="24-优先级评估-priority-assessment"&gt;&lt;strong&gt;2.4 优先级评估 (Priority Assessment)&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;使用MoSCoW方法 (Using MoSCoW Method).&lt;/p&gt;</description></item><item><title>Binder</title><link>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/</link><pubDate>Thu, 28 Aug 2025 14:30:02 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/</guid><description>&lt;h2 id="同步通信"&gt;同步通信&lt;/h2&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/binder-sync.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binder-sync.png" alt="" /&gt;&lt;/p&gt;
 &lt;h2 id="异步通信"&gt;异步通信&lt;/h2&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/binder-async.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binder-async.png" alt="" /&gt;&lt;/p&gt;
 &lt;h2 id="内存管理"&gt;内存管理&lt;/h2&gt;
 &lt;h3 id="binder-驱动的通信内存管理机制"&gt;&lt;strong&gt;Binder 驱动的通信内存管理机制&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;Binder 驱动的内存管理是一套内核层面的复杂机制，其核心目标是在进程间高效、安全地传输数据，并实现“一次拷贝”原则。&lt;/p&gt;
@@ -612,7 +612,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;地址空间映射&lt;/strong&gt;：驱动识别出目标进程（Server）后，并不会再次拷贝数据。它会执行一个核心操作：&lt;strong&gt;修改 Server 进程的内核页表&lt;/strong&gt;，将承载着数据的 &lt;code&gt;binder_buffer&lt;/code&gt; 的物理内存页，直接映射到 Server 进程在 1.1 阶段建立的 VMA 中。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;数据投递&lt;/strong&gt;：驱动将映射后的缓冲区在 Server 进程中的虚拟地址，连同事务命令（如 &lt;code&gt;BR_TRANSACTION&lt;/code&gt; 或 &lt;code&gt;BR_ONEWAY&lt;/code&gt;），一同投递给 Server 中等待的 Binder 线程。Server 线程可以直接访问该地址，如同访问进程内内存一样。&lt;/li&gt;
 &lt;/ol&gt;
-&lt;p&gt;&lt;strong&gt;1.3 事务缓冲区的释放&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Netflix DRM 流程与白名单验证</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/netflix-verification.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;1.3 事务缓冲区的释放&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Netflix DRM 流程与白名单验证</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/netflix-verification.png" alt="" /&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;用户操作&lt;/strong&gt;：用户在浏览器中打开 Netflix 并点击播放。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;请求清单&lt;/strong&gt;：浏览器向 Netflix 服务器请求视频的元数据（Manifest 文件，如 MPD）。&lt;/li&gt;
@@ -682,7 +682,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;Android Auto&lt;/strong&gt; 是一种手机投屏解决方案。应用程序实际运行在用户的智能手机上，通过USB或无线方式，将其界面投影到车机屏幕上。它利用的是手机的计算能力和数据连接，其本身并非车辆的操作系统 12。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Android Automotive OS (AAOS)&lt;/strong&gt; 则是一个完整、独立的、基于Android的开源操作系统，它直接运行在车辆的硬件之上 16。AAOS控制着整个信息娱乐体验，并能与车辆的空调、驾驶辅助等底层功能深度集成。它的运行完全不依赖于手机 17。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;目前，越来越多的全球主流汽车制造商，包括沃尔沃、极星、通用汽车、福特以及雷诺-日产-三菱联盟，都已选择采用AAOS作为其下一代信息娱乐系统的基础平台，这使其正迅速成为行业的新标准 19。对于寻求全球化的中国车企而言，接纳AAOS不仅是技术上的选择，更是融入全球汽车软件生态的战略性一步。&lt;/p&gt;</description></item><item><title>Android log机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-eventlog.png"&gt;&lt;/p&gt;
+&lt;p&gt;目前，越来越多的全球主流汽车制造商，包括沃尔沃、极星、通用汽车、福特以及雷诺-日产-三菱联盟，都已选择采用AAOS作为其下一代信息娱乐系统的基础平台，这使其正迅速成为行业的新标准 19。对于寻求全球化的中国车企而言，接纳AAOS不仅是技术上的选择，更是融入全球汽车软件生态的战略性一步。&lt;/p&gt;</description></item><item><title>Android log机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-eventlog.png" alt="" /&gt;&lt;/p&gt;
 &lt;h3 id="架構圖詳解"&gt;架構圖詳解&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -715,7 +715,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;hr&gt;
 &lt;h2 id="2-工作流程与架构"&gt;2. 工作流程与架构&lt;/h2&gt;
 &lt;p&gt;Protobuf 的核心工作流分为：&lt;strong&gt;定义&lt;/strong&gt;、&lt;strong&gt;编译&lt;/strong&gt;、&lt;strong&gt;使用&lt;/strong&gt;、&lt;strong&gt;序列化/反序列化&lt;/strong&gt;。&lt;/p&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/Protobuf.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/Protobuf.png" alt="" /&gt;&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id="3-语法指南-proto"&gt;3. 语法指南 (.proto)&lt;/h2&gt;
 &lt;p&gt;目前主流版本为 &lt;strong&gt;proto3&lt;/strong&gt;。以下是一个典型的 &lt;code&gt;.proto&lt;/code&gt; 文件示例。&lt;/p&gt;
@@ -781,7 +781,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;hr&gt;
 &lt;h2 id="4-编译方法"&gt;4. 编译方法&lt;/h2&gt;
 &lt;p&gt;将 &lt;code&gt;.proto&lt;/code&gt; 文件转换为目标语言代码。&lt;/p&gt;</description></item><item><title>高通平台 Widevine L1 认证实施流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid><description>&lt;h2 id="整体流程"&gt;整体流程&lt;/h2&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png" alt="" /&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;项目启动与平台选型&lt;/strong&gt;&lt;/p&gt;
@@ -820,7 +820,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Chromium + Android DRM 视频安全渲染流程说明</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link><pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/chromium-drm.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Chromium + Android DRM 视频安全渲染流程说明</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link><pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/chromium-drm.png" alt="" /&gt;&lt;/p&gt;
 &lt;p&gt;这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。&lt;/p&gt;
 &lt;p&gt;整个流程的核心是确保&lt;strong&gt;内容密钥 (Content Key)&lt;/strong&gt; 和&lt;strong&gt;解密后的视频画面&lt;/strong&gt;始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。&lt;/p&gt;
 &lt;h2 id="流程详解"&gt;&lt;strong&gt;流程详解&lt;/strong&gt;&lt;/h2&gt;
@@ -963,7 +963,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/table&gt;
 &lt;h2 id="3-系統架構-system-architecture"&gt;3. 系統架構 (System Architecture)&lt;/h2&gt;
 &lt;p&gt;整體架構以自研的 TMS 為核心，協同系統原生服務，向上層應用提供能力。&lt;/p&gt;</description></item><item><title>Android DRM 框架</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</guid><description>&lt;h2 id="widevine-overview"&gt;Widevine Overview&lt;/h2&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/Widevine_architect.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/Widevine_architect.png" alt="" /&gt;&lt;/p&gt;
 &lt;p&gt;这张图是 &lt;strong&gt;Widevine DRM（数字版权管理）视频播放流程&lt;/strong&gt; 的整体架构图，展示了从内容打包、分发到终端设备解密播放的完整链路。分步骤解读：&lt;/p&gt;
 &lt;hr&gt;
 &lt;h3 id="1-内容准备与分发"&gt;1. &lt;strong&gt;内容准备与分发&lt;/strong&gt;&lt;/h3&gt;
@@ -1043,7 +1043,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ol&gt;
 &lt;h2 id="4-典型场景流程解析"&gt;4. 典型场景流程解析&lt;/h2&gt;
 &lt;p&gt;以下流程描述了用户从 App A 切换到 App B 并进行播放控制的完整生命周期。
-&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-MediaSessionService-updateMediaSession.png"&gt;&lt;/p&gt;</description></item><item><title>Android Theme</title><link>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</guid><description>&lt;h2 id="简介"&gt;简介&lt;/h2&gt;
+&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-MediaSessionService-updateMediaSession.png" alt="" /&gt;&lt;/p&gt;</description></item><item><title>Android Theme</title><link>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</guid><description>&lt;h2 id="简介"&gt;简介&lt;/h2&gt;
 &lt;p&gt;Android的&lt;strong&gt;Theme（主题）&lt;/strong&gt;，简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。&lt;/p&gt;
 &lt;hr&gt;
 &lt;h3 id="详细解释"&gt;详细解释&lt;/h3&gt;
@@ -1093,7 +1093,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ul&gt;
 &lt;hr&gt;
 &lt;p&gt;Android主题演进和结构的图参考如下：&lt;/p&gt;
-&lt;p&gt;&lt;img alt="Android主题演进" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/theme.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/theme.png" alt="Android主题演进" /&gt;&lt;/p&gt;
 &lt;hr&gt;
 &lt;h3 id="平台主题"&gt;平台主题&lt;/h3&gt;
 &lt;p&gt;&lt;strong&gt;平台主题（Platform Theme）&lt;/strong&gt;，指的是 Android 操作系统自身提供的、内置在系统框架中的主题样式集合。它们是 Android 系统从一开始就带有的基础视觉风格，定义了系统默认的界面外观和控件样式。&lt;/p&gt;
@@ -1189,7 +1189,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;li&gt;Android Studio：作为调试器，通过 JDWP 协议与 system_server 通信。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;数据流示意：&lt;/p&gt;</description></item><item><title>Gunyah virtio-blk 通信机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>&lt;h2 id="block图"&gt;Block图&lt;/h2&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/gunyah-virtio-blk.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/gunyah-virtio-blk.png" alt="" /&gt;&lt;/p&gt;
 &lt;p&gt;下面是这张图的解读与要点说明（橙色=控制面，蓝色=数据面）：&lt;/p&gt;
 &lt;h3 id="总览"&gt;总览&lt;/h3&gt;
 &lt;ul&gt;
@@ -1431,7 +1431,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;h1 id="3-总体架构两种部署选型"&gt;3. 总体架构（两种部署选型）&lt;/h1&gt;
 &lt;h2 id="概览"&gt;概览&lt;/h2&gt;
 &lt;p&gt;主要参与方：&lt;strong&gt;主题商店 App (StoreApp)&lt;/strong&gt;、&lt;strong&gt;ThemeManagerService (TMS)&lt;/strong&gt;、&lt;strong&gt;OverlayManagerService (OMS)&lt;/strong&gt;、&lt;strong&gt;PackageManagerService (PMS)&lt;/strong&gt;、&lt;strong&gt;AssetManager&lt;/strong&gt;、&lt;strong&gt;ThemeDB&lt;/strong&gt; 与 &lt;strong&gt;OEM 云服务&lt;/strong&gt;（Server / AccountServer）。&lt;/p&gt;</description></item><item><title>QNX Screen基础原理与流程</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen/</guid><description>&lt;h2 id="qnx图形栈"&gt;QNX图形栈&lt;/h2&gt;
-&lt;p&gt;&lt;img alt="screen_post_window" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/qnx-screen-overview.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/qnx-screen-overview.png" alt="screen_post_window" /&gt;&lt;/p&gt;
 &lt;p&gt;一个 QNX 应用程序从无到有，完成一帧 (frame) 窗口渲染并显示在屏幕上的完整过程。&lt;/p&gt;
 &lt;p&gt;整个过程可以分为两个核心阶段：&lt;/p&gt;
 &lt;ol&gt;
@@ -1468,7 +1468,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ul&gt;
 &lt;hr&gt;
 &lt;h2 id="2-详细流程与技术实现原理"&gt;&lt;strong&gt;2. 详细流程与技术实现原理&lt;/strong&gt;&lt;/h2&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/Intelligent-cabin-software-development-and-release-process.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/Intelligent-cabin-software-development-and-release-process.png" alt="" /&gt;&lt;/p&gt;
 &lt;h3 id="阶段-1--2-开发者工作流"&gt;&lt;strong&gt;阶段 1 &amp;amp; 2: 开发者工作流&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;此阶段是所有开发的起点，核心是为开发者提供一个高效、规范的本地开发环境。&lt;/p&gt;
 &lt;ul&gt;
@@ -1479,13 +1479,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;[01] &lt;code&gt;repo sync&lt;/code&gt; 同步所有源码&lt;/strong&gt;:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;技术原理&lt;/strong&gt;: &lt;code&gt;repo&lt;/code&gt; 工具解析 &lt;code&gt;manifest.xml&lt;/code&gt; 文件，然后以极高的并发度（可配置）为每个 &lt;code&gt;&amp;lt;project&amp;gt;&lt;/code&gt; 执行 &lt;code&gt;git clone&lt;/code&gt; 或 &lt;code&gt;git fetch&lt;/code&gt; 操作。在我们的流程中，所有 Git 仓库都由 &lt;strong&gt;Gerrit&lt;/strong&gt; 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;[02] &lt;code&gt;repo start &amp;amp; git commit&lt;/code&gt; 本地开发&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title>WindowManagerService 解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</link><pubDate>Tue, 29 Jul 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</guid><description>&lt;h2 id="windowmanagerservice-概述"&gt;WindowManagerService 概述&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;[01] &lt;code&gt;repo sync&lt;/code&gt; 同步所有源码&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title>WindowManagerService 解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</link><pubDate>Tue, 29 Jul 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</guid><description>&lt;h2 id="windowmanagerservice-概述"&gt;WindowManagerService 概述&lt;/h2&gt;
 &lt;p&gt;WindowManagerService（简称WMS）是Android系统中负责窗口（Window）管理的核心系统服务。它是屏幕上所有可见元素的“总管家”，决定了所有窗口的外观、行为和交互方式。&lt;/p&gt;
 &lt;p&gt;作为Android框架层（Framework Layer）的关键部分，WMS随系统启动，并稳定运行在权限极高的 system_server 进程中。这个位置赋予了它管理所有应用窗口和系统窗口的最高权限。&lt;/p&gt;
 &lt;p&gt;WMS的角色像一个“总指挥”，它并不亲自执行所有底层操作，而是协调系统中的多个组件来共同完成对窗口的生命周期管理。其核心作用包括：&lt;/p&gt;
@@ -1511,7 +1505,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ul&gt;
 &lt;h2 id="窗口的创建与管理"&gt;窗口的创建与管理&lt;/h2&gt;
 &lt;p&gt;窗口的创建请求总是由应用进程发起的，WMS 则是请求的响应者和执行者。&lt;/p&gt;
-&lt;p&gt;&lt;img alt="WindowState 创建时序示意图" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/windowstate-creation.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/windowstate-creation.png" alt="WindowState 创建时序示意图" /&gt;&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;触发流程&lt;/strong&gt;：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;应用层调用：当一个 Activity 的 onResume() 回调被触发，准备变得可见时，其内部的 PhoneWindow 会通过 WindowManager.addView() 方法将它的根视图（DecorView）添加到窗口中。这个调用是应用请求显示UI的起点。&lt;/li&gt;
@@ -1519,15 +1513,15 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;li&gt;Binder IPC 调用：ViewRootImpl 通过一个名为 IWindowSession 的 Binder 接口，向 WMS 发起一个远程调用，通常是 addToDisplay()。这个调用会携带两个核心信息：
 &lt;ul&gt;
 &lt;li&gt;Window Token: 一个唯一的 Binder 令牌，用于将这个窗口与 AMS 中的 ActivityRecord 关联起来，WMS据此知道这个窗口属于哪个Activity。
-&lt;img alt="WindowToken创建与使用示意图" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/windowtoken-creation-transport.png"&gt;&lt;/li&gt;
+&lt;img src="https://ethen-cao.github.io/ethenslab/images/windowtoken-creation-transport.png" alt="WindowToken创建与使用示意图" /&gt;&lt;/li&gt;
 &lt;li&gt;WindowManager.LayoutParams: 一个包含了窗口所有期望属性的参数集，如窗口的类型（应用窗口、系统窗口）、尺寸（MATCH_PARENT等）、标志（FLAG_NOT_FOCUSABLE等）和 gravity。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>ActivityManager 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</guid><description>&lt;p&gt;Activity Manager详解&lt;/p&gt;</description></item><item><title>ActivityManager 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/native_crash_process/</guid><description>&lt;p&gt;这个时序图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>crash_dump流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/native_crash_process/</guid><description>&lt;p&gt;下图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
 &lt;h3 id="native-process-crash-处理时序图"&gt;Native Process Crash 处理时序图&lt;/h3&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-Native-Process-Crash.png"&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img loading="lazy" src="./android-Native-Process-Crash.png"&gt;&lt;/p&gt;
+&lt;!-- ![](/ethenslab/images/android-Native-Process-Crash.png) --&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-Native-Process-Crash.png" alt="Native Crash" /&gt;&lt;/p&gt;
 &lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;

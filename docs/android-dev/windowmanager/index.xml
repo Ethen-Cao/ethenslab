@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>WindowManager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/</link><description>Recent content in WindowManager on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Sep 2025 10:22:54 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/index.xml" rel="self" type="application/rss+xml"/><item><title>Activity 跨屏幕迁移</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/static/images/activity-reparent.png"&gt;&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>WindowManager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/</link><description>Recent content in WindowManager on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Sep 2025 10:22:54 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/index.xml" rel="self" type="application/rss+xml"/><item><title>Activity 跨屏幕迁移</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/activity-reparent.png" alt="" /&gt;&lt;/p&gt;
 &lt;h2 id="分步说明与生命周期映射"&gt;分步说明（与生命周期映射）&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -85,7 +85,7 @@
 &lt;/ul&gt;
 &lt;h3 id="3-高级交互场景手势控制动画"&gt;3. 高级交互场景：手势控制动画&lt;/h3&gt;
 &lt;p&gt;这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。&lt;/p&gt;</description></item><item><title>SplitScreenController flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</guid><description>&lt;h2 id="时序图"&gt;时序图&lt;/h2&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/splitscreen_wmshell.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/splitscreen_wmshell.png" alt="" /&gt;&lt;/p&gt;
 &lt;h2 id="debug"&gt;Debug&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -151,7 +151,7 @@
 &lt;/ul&gt;
 &lt;h2 id="窗口的创建与管理"&gt;窗口的创建与管理&lt;/h2&gt;
 &lt;p&gt;窗口的创建请求总是由应用进程发起的，WMS 则是请求的响应者和执行者。&lt;/p&gt;
-&lt;p&gt;&lt;img alt="WindowState 创建时序示意图" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/windowstate-creation.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/windowstate-creation.png" alt="WindowState 创建时序示意图" /&gt;&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;触发流程&lt;/strong&gt;：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;应用层调用：当一个 Activity 的 onResume() 回调被触发，准备变得可见时，其内部的 PhoneWindow 会通过 WindowManager.addView() 方法将它的根视图（DecorView）添加到窗口中。这个调用是应用请求显示UI的起点。&lt;/li&gt;
@@ -159,7 +159,7 @@
 &lt;li&gt;Binder IPC 调用：ViewRootImpl 通过一个名为 IWindowSession 的 Binder 接口，向 WMS 发起一个远程调用，通常是 addToDisplay()。这个调用会携带两个核心信息：
 &lt;ul&gt;
 &lt;li&gt;Window Token: 一个唯一的 Binder 令牌，用于将这个窗口与 AMS 中的 ActivityRecord 关联起来，WMS据此知道这个窗口属于哪个Activity。
-&lt;img alt="WindowToken创建与使用示意图" loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/windowtoken-creation-transport.png"&gt;&lt;/li&gt;
+&lt;img src="https://ethen-cao.github.io/ethenslab/images/windowtoken-creation-transport.png" alt="WindowToken创建与使用示意图" /&gt;&lt;/li&gt;
 &lt;li&gt;WindowManager.LayoutParams: 一个包含了窗口所有期望属性的参数集，如窗口的类型（应用窗口、系统窗口）、尺寸（MATCH_PARENT等）、标志（FLAG_NOT_FOCUSABLE等）和 gravity。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;

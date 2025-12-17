@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android Media技术文档 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/</link><description>Recent content in Android Media技术文档 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Wed, 27 Aug 2025 11:36:11 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/media/index.xml" rel="self" type="application/rss+xml"/><item><title>高通平台 Widevine L1 认证实施流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid><description>&lt;h2 id="整体流程"&gt;整体流程&lt;/h2&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png" alt="" /&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;项目启动与平台选型&lt;/strong&gt;&lt;/p&gt;
@@ -38,7 +38,7 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Chromium + Android DRM 视频安全渲染流程说明</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link><pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/chromium-drm.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Chromium + Android DRM 视频安全渲染流程说明</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link><pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/chromium-drm.png" alt="" /&gt;&lt;/p&gt;
 &lt;p&gt;这份时序图详细描绘了在一个基于 Chromium 的 Android 浏览器中，播放受 Widevine L1 DRM 保护的视频时，从用户点击播放到影像最终显示在屏幕上的完整、端到端的安全流程。&lt;/p&gt;
 &lt;p&gt;整个流程的核心是确保&lt;strong&gt;内容密钥 (Content Key)&lt;/strong&gt; 和&lt;strong&gt;解密后的视频画面&lt;/strong&gt;始终处于硬件级别的安全保护之下，绝不泄漏到不安全的应用程序（浏览器）或操作系统主内存中。&lt;/p&gt;
 &lt;h2 id="流程详解"&gt;&lt;strong&gt;流程详解&lt;/strong&gt;&lt;/h2&gt;
@@ -68,7 +68,7 @@
 &lt;hr&gt;
 &lt;h2 id="核心安全原则总结"&gt;&lt;strong&gt;核心安全原则总结&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;这份时序图完美地展示了 Widevine L1 的核心安全原则：&lt;/p&gt;</description></item><item><title>Android DRM 框架</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</guid><description>&lt;h2 id="widevine-overview"&gt;Widevine Overview&lt;/h2&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/Widevine_architect.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/Widevine_architect.png" alt="" /&gt;&lt;/p&gt;
 &lt;p&gt;这张图是 &lt;strong&gt;Widevine DRM（数字版权管理）视频播放流程&lt;/strong&gt; 的整体架构图，展示了从内容打包、分发到终端设备解密播放的完整链路。分步骤解读：&lt;/p&gt;
 &lt;hr&gt;
 &lt;h3 id="1-内容准备与分发"&gt;1. &lt;strong&gt;内容准备与分发&lt;/strong&gt;&lt;/h3&gt;
@@ -148,4 +148,4 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ol&gt;
 &lt;h2 id="4-典型场景流程解析"&gt;4. 典型场景流程解析&lt;/h2&gt;
 &lt;p&gt;以下流程描述了用户从 App A 切换到 App B 并进行播放控制的完整生命周期。
-&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-MediaSessionService-updateMediaSession.png"&gt;&lt;/p&gt;</description></item></channel></rss>
+&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-MediaSessionService-updateMediaSession.png" alt="" /&gt;&lt;/p&gt;</description></item></channel></rss>

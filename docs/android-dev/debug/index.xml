@@ -18,7 +18,7 @@
 &lt;li&gt;&lt;strong&gt;CPU&lt;/strong&gt;: 8 核或更多。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id="aosp-源码同步"&gt;&lt;strong&gt;AOSP 源码同步&lt;/strong&gt;&lt;/h3&gt;
-&lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png"&gt;
+&lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png" alt="" /&gt;
 本图描述了 Android 系统中 &lt;strong&gt;Binder Proxy 数量限制（BinderProxy Limit）&lt;/strong&gt; 的实现流程，涉及 &lt;code&gt;ActivityManagerService&lt;/code&gt;、&lt;code&gt;BinderInternal&lt;/code&gt;、JNI 层、&lt;code&gt;BpBinder&lt;/code&gt; 等关键组件。&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id="1-关键模块"&gt;1. 关键模块&lt;/h2&gt;
@@ -142,7 +142,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;编译时转换 (关键步骤)&lt;br&gt;
-当编译器（Javac）处理这段代码时，ProtoLog 的编译器插件会执行以下操作：&lt;/p&gt;</description></item><item><title>Android log机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid><description>&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-eventlog.png"&gt;&lt;/p&gt;
+当编译器（Javac）处理这段代码时，ProtoLog 的编译器插件会执行以下操作：&lt;/p&gt;</description></item><item><title>Android log机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-eventlog.png" alt="" /&gt;&lt;/p&gt;
 &lt;h3 id="架構圖詳解"&gt;架構圖詳解&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -175,7 +175,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;hr&gt;
 &lt;h2 id="2-工作流程与架构"&gt;2. 工作流程与架构&lt;/h2&gt;
 &lt;p&gt;Protobuf 的核心工作流分为：&lt;strong&gt;定义&lt;/strong&gt;、&lt;strong&gt;编译&lt;/strong&gt;、&lt;strong&gt;使用&lt;/strong&gt;、&lt;strong&gt;序列化/反序列化&lt;/strong&gt;。&lt;/p&gt;
-&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/Protobuf.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/Protobuf.png" alt="" /&gt;&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id="3-语法指南-proto"&gt;3. 语法指南 (.proto)&lt;/h2&gt;
 &lt;p&gt;目前主流版本为 &lt;strong&gt;proto3&lt;/strong&gt;。以下是一个典型的 &lt;code&gt;.proto&lt;/code&gt; 文件示例。&lt;/p&gt;
@@ -266,4 +266,35 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;adb：提供 adb forward 功能，将 PC 本地端口与设备进程的 JDWP 通道连接起来。&lt;/li&gt;
 &lt;li&gt;Android Studio：作为调试器，通过 JDWP 协议与 system_server 通信。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;数据流示意：&lt;/p&gt;</description></item></channel></rss>
+&lt;p&gt;数据流示意：&lt;/p&gt;</description></item><item><title>crash_dump流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/native_crash_process/</guid><description>&lt;p&gt;下图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
+&lt;h3 id="native-process-crash-处理时序图"&gt;Native Process Crash 处理时序图&lt;/h3&gt;
+&lt;!-- ![](/ethenslab/images/android-Native-Process-Crash.png) --&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-Native-Process-Crash.png" alt="Native Crash" /&gt;&lt;/p&gt;
+&lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;信号拦截 (debuggerd_signal_handler)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;当 Native 进程 Crash 时，内核回调 &lt;code&gt;debuggerd_signal_handler&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;代码中显式使用了 &lt;code&gt;pthread_mutex_lock&lt;/code&gt; 确保同一时间只有一个线程处理 Crash。&lt;/li&gt;
+&lt;li&gt;为了在不耗尽原进程文件描述符（FD）的情况下执行操作，代码调用 &lt;code&gt;clone&lt;/code&gt; 创建了一个 &lt;strong&gt;Pseudothread&lt;/strong&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;启动 crash_dump (Exec)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Pseudothread 调用 &lt;code&gt;execle&lt;/code&gt; 启动 &lt;code&gt;/apex/com.android.runtime/bin/crash_dump64&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;这里通过管道（Pipe）传递了 &lt;code&gt;Crashing TID&lt;/code&gt; 和 &lt;code&gt;Pseudothread TID&lt;/code&gt; 给 &lt;code&gt;crash_dump&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;握手与 Ptrace&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;crash_dump&lt;/code&gt; 启动后，首先 &lt;code&gt;ptrace&lt;/code&gt; 附着（Seize）目标进程的所有线程 。&lt;/li&gt;
+&lt;li&gt;为了安全地读取内存，&lt;code&gt;crash_dump&lt;/code&gt; 通过管道写 &lt;code&gt;\1&lt;/code&gt; 通知 Pseudothread 。&lt;/li&gt;
+&lt;li&gt;Pseudothread 收到通知后，调用 &lt;code&gt;create_vm_process()&lt;/code&gt; ，本质上是 &lt;code&gt;fork&lt;/code&gt; 出一个子进程（镜像），供 &lt;code&gt;crash_dump&lt;/code&gt; 读取内存，防止在读取过程中因目标进程内存损坏而卡死。&lt;/li&gt;
+&lt;li&gt;Pseudothread 将 &lt;code&gt;CrashInfo&lt;/code&gt;（包含寄存器信息 &lt;code&gt;ucontext&lt;/code&gt;）写入管道发送给 &lt;code&gt;crash_dump&lt;/code&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item></channel></rss>

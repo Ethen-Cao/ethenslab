@@ -1,18 +1,16 @@
 ---
-title: "ActivityManager 深度解析"
+title: "crash_dump流程"
 date: 2024-07-29T10:00:00+08:00 
 draft: false
 ---
 
-
-
-这个时序图展示了从信号捕获、`crash_dump` 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。
+下图展示了从信号捕获、`crash_dump` 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。
 
 ### Native Process Crash 处理时序图
 
-![](/ethenslab/images/android-Native-Process-Crash.png)
+<!-- ![](/ethenslab/images/android-Native-Process-Crash.png) -->
 
-![](./android-Native-Process-Crash.png)
+![Native Crash](../../../static/images/android-Native-Process-Crash.png)
 
 ### 关键流程代码依据解析
 

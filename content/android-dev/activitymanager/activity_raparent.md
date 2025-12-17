@@ -4,9 +4,6 @@ date: 2024-07-29T10:00:00+08:00
 draft: true
 ---
 
-
-
-
 当 `startActivity` 请求将一个已存在于主屏的 `Activity` 移动到副屏时，核心决策发生在 `ActivityStarter` 的 `setTargetRootTaskIfNeeded` 方法中。该方法会直接调用 `Task.reparent()` 来执行跨屏迁移。由于继承关系，这个调用最终会执行 `WindowContainer.reparent()` 方法，该方法是整个转场动画和窗口层级变更的真正起点，它在内部**直接调用 `onDisplayChanged`**，并将变更以递归方式通知到目标 `ActivityRecord`。
 
 ### 从 `startActivity` 到 `onDisplayChanged` 的精确流程与调用堆栈
