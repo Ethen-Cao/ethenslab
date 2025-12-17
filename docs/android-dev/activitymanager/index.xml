@@ -1,1 +1,32 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>ActivityManager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/</link><description>Recent content in ActivityManager on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Jul 2024 10:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/index.xml" rel="self" type="application/rss+xml"/><item><title>ActivityManager 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</guid><description>&lt;p&gt;Activity Manager详解&lt;/p&gt;</description></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>ActivityManager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/</link><description>Recent content in ActivityManager on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Jul 2024 10:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/index.xml" rel="self" type="application/rss+xml"/><item><title>ActivityManager 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activitymanager/</guid><description>&lt;p&gt;Activity Manager详解&lt;/p&gt;</description></item><item><title>ActivityManager 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/native_crash_process/</guid><description>&lt;p&gt;这个时序图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
+&lt;h3 id="native-process-crash-处理时序图"&gt;Native Process Crash 处理时序图&lt;/h3&gt;
+&lt;p&gt;&lt;img loading="lazy" src="https://ethen-cao.github.io/ethenslab/images/android-Native-Process-Crash.png"&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img loading="lazy" src="./android-Native-Process-Crash.png"&gt;&lt;/p&gt;
+&lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;信号拦截 (debuggerd_signal_handler)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;当 Native 进程 Crash 时，内核回调 &lt;code&gt;debuggerd_signal_handler&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;代码中显式使用了 &lt;code&gt;pthread_mutex_lock&lt;/code&gt; 确保同一时间只有一个线程处理 Crash。&lt;/li&gt;
+&lt;li&gt;为了在不耗尽原进程文件描述符（FD）的情况下执行操作，代码调用 &lt;code&gt;clone&lt;/code&gt; 创建了一个 &lt;strong&gt;Pseudothread&lt;/strong&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;启动 crash_dump (Exec)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Pseudothread 调用 &lt;code&gt;execle&lt;/code&gt; 启动 &lt;code&gt;/apex/com.android.runtime/bin/crash_dump64&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;这里通过管道（Pipe）传递了 &lt;code&gt;Crashing TID&lt;/code&gt; 和 &lt;code&gt;Pseudothread TID&lt;/code&gt; 给 &lt;code&gt;crash_dump&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;握手与 Ptrace&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;crash_dump&lt;/code&gt; 启动后，首先 &lt;code&gt;ptrace&lt;/code&gt; 附着（Seize）目标进程的所有线程 。&lt;/li&gt;
+&lt;li&gt;为了安全地读取内存，&lt;code&gt;crash_dump&lt;/code&gt; 通过管道写 &lt;code&gt;\1&lt;/code&gt; 通知 Pseudothread 。&lt;/li&gt;
+&lt;li&gt;Pseudothread 收到通知后，调用 &lt;code&gt;create_vm_process()&lt;/code&gt; ，本质上是 &lt;code&gt;fork&lt;/code&gt; 出一个子进程（镜像），供 &lt;code&gt;crash_dump&lt;/code&gt; 读取内存，防止在读取过程中因目标进程内存损坏而卡死。&lt;/li&gt;
+&lt;li&gt;Pseudothread 将 &lt;code&gt;CrashInfo&lt;/code&gt;（包含寄存器信息 &lt;code&gt;ucontext&lt;/code&gt;）写入管道发送给 &lt;code&gt;crash_dump&lt;/code&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item></channel></rss>
