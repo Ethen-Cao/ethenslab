@@ -1,4 +1,8 @@
-# QNN HTP (ONNX Runtime) 架构与调用流程详解
++++
+date = '2025-08-27T17:17:50+08:00'
+draft = false
+title = 'QNN HTP (ONNX Runtime) 架构与调用流程详解'
++++
 
 ## 1. 概述
 

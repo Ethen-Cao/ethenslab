@@ -1,3 +1,9 @@
++++
+date = '2025-08-27T17:17:50+08:00'
+draft = false
+title = 'Hexagon DSP简介'
++++
+
 ## Hexagon DSP 的生态
 
 在 Qualcomm Hexagon DSP 的生态中，可以把资源的使用方式明确划分为**两条主要赛道**。它们针对的场景不同，开发难度不同，工具链也完全不同。

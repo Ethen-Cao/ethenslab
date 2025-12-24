@@ -1,4 +1,29 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Explore AI on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/</link><description>Recent content in Explore AI on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Wed, 27 Aug 2025 17:17:50 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/explore-ai/index.xml" rel="self" type="application/rss+xml"/><item><title>Netflix DRM 流程与白名单验证</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/netflix-verification.png" alt="" /&gt;&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Explore AI on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/</link><description>Recent content in Explore AI on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Wed, 27 Aug 2025 17:17:50 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/explore-ai/index.xml" rel="self" type="application/rss+xml"/><item><title>Hexagon DSP简介</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/hexagon-dsp%E7%AE%80%E4%BB%8B/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/hexagon-dsp%E7%AE%80%E4%BB%8B/</guid><description>&lt;h2 id="hexagon-dsp-的生态"&gt;Hexagon DSP 的生态&lt;/h2&gt;
+&lt;p&gt;在 Qualcomm Hexagon DSP 的生态中，可以把资源的使用方式明确划分为&lt;strong&gt;两条主要赛道&lt;/strong&gt;。它们针对的场景不同，开发难度不同，工具链也完全不同。&lt;/p&gt;
+&lt;h3 id="1-第一条赛道ai-推理-ai-inference"&gt;1. 第一条赛道：AI 推理 (AI Inference)&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;关键词&lt;/strong&gt;：TFLite, ONNX, SNPE, QNN, NNAPI
+&lt;strong&gt;核心逻辑&lt;/strong&gt;：&lt;strong&gt;“模型即代码” (Model is the code)&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;这是目前最主流的用法，主要用于深度学习。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;主要工作&lt;/strong&gt;：
+&lt;ul&gt;
+&lt;li&gt;训练模型（在 PC 上用 PyTorch/TensorFlow）。&lt;/li&gt;
+&lt;li&gt;量化模型（把 float32 转成 int8，为了 DSP 效率）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;配置&lt;/strong&gt;：你不需要写 DSP 代码，只需要在 App 里配置“代理”（Delegate）或“后端”（Backend）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;IDL 哪里去了？&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;高通（或 Google）已经提前写好了通用的 &lt;code&gt;.idl&lt;/code&gt; 和 &lt;code&gt;skel.so&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;比如 &lt;code&gt;libQnnDsp.so&lt;/code&gt; 或 &lt;code&gt;libhexagon_nn_skel.so&lt;/code&gt;。这些库就像一个“万能翻译官”，它能读懂你的神经网络层（Conv2d, Softmax 等），并指挥 DSP 去执行。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;优点&lt;/strong&gt;：开发快，不用懂 DSP 汇编，只要模型能跑通就行。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;缺点&lt;/strong&gt;：只能做神经网络相关的任务。如果你想做个特殊的“图像去雾算法”或者“音频变声”，这套框架帮不了你。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="2-第二条赛道通用计算-general-compute--heterogeneous-computing"&gt;2. 第二条赛道：通用计算 (General Compute / Heterogeneous Computing)&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;关键词&lt;/strong&gt;：Hexagon SDK, FastRPC, IDL, QAIC, C/C++, HVX/HMX
+&lt;strong&gt;核心逻辑&lt;/strong&gt;：&lt;strong&gt;“手写算子” (Custom Implementation)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Netflix DRM 流程与白名单验证</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/netflix-verification.png" alt="" /&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;用户操作&lt;/strong&gt;：用户在浏览器中打开 Netflix 并点击播放。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;请求清单&lt;/strong&gt;：浏览器向 Netflix 服务器请求视频的元数据（Manifest 文件，如 MPD）。&lt;/li&gt;
@@ -31,7 +56,96 @@
 &lt;li&gt;解密后的视频帧被安全地渲染到屏幕上。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
-&lt;/ol&gt;</description></item><item><title>中国车企出海的智能座舱生态挑战</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</guid><description>&lt;h2 id="执行摘要"&gt;&lt;strong&gt;执行摘要&lt;/strong&gt;&lt;/h2&gt;
+&lt;/ol&gt;</description></item><item><title>QNN HTP (ONNX Runtime) 架构与调用流程详解</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/onnx-runtime/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/onnx-runtime/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;本架构图展示了从 Android 应用层（CPU）到高通 Hexagon DSP（NPU）层的完整调用链路。核心机制是利用 &lt;strong&gt;FastRPC&lt;/strong&gt; 跨越处理器边界，将存储在 CPU 文件系统中的 NPU 驱动代码（Skel）动态加载到 DSP 中运行，从而实现模型的高性能推理。&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam defaultFontColor black
+skinparam arrowColor black
+skinparam nodeBorderColor #444444
+skinparam componentBorderColor black
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 50
+title QNN HTP (ONNX Runtime) Architecture Flow
+node &amp;#34;Qualcomm SoC (System on Chip)&amp;#34; {
+&amp;#39; --- CPU Subsystem (Android) ---
+node &amp;#34;CPU Subsystem (Application Processor)&amp;#34; as CPU_DOMAIN {
+&amp;#39; Layer 1: Application
+package &amp;#34;1. Android User Space (APK Process)&amp;#34; as LAYER_APP {
+component &amp;#34;Business Logic\n(Kotlin/Java/C++)&amp;#34; as AppCode
+note right of AppCode
+&amp;lt;b&amp;gt;关键配置:&amp;lt;/b&amp;gt;
+setenv(&amp;#34;ADSP_LIBRARY_PATH&amp;#34;,
+nativeLibraryDir, 1);
+end note
+frame &amp;#34;Native Libraries (jniLibs / lib/arm64)&amp;#34; {
+component &amp;#34;libonnxruntime.so&amp;#34; as ORT
+component &amp;#34;libonnxruntime_\nproviders_qnn.so&amp;#34; as QNN_EP
+package &amp;#34;QNN SDK CPU Libs&amp;#34; {
+component &amp;#34;libQnnHtp.so\n(Backend Manager)&amp;#34; as QnnHtp
+component &amp;#34;libQnnHtpV[xx]Stub.so\n(CPU Proxy)&amp;#34; as QnnStub
+}
+file &amp;#34;libQnnHtpV[xx]Skel.so\n(DSP Executable)&amp;#34; as SkelFile #yellow
+note bottom of SkelFile
+&amp;lt;b&amp;gt;Skel 文件&amp;lt;/b&amp;gt;
+虽然打包在 CPU 文件系统
+但必须由 FastRPC 读取并
+加载到 DSP 运行
+end note
+}
+file &amp;#34;Assets\n(model.onnx)&amp;#34; as Model
+}
+&amp;#39; Layer 2: System Libraries
+package &amp;#34;2. Android System / Vendor Libs&amp;#34; as LAYER_SYS {
+component &amp;#34;\t\t\t\t\t\t\tlibadsprpc.so(FastRPC Framework)\t\t\t\t\t\t\t&amp;#34; as FastRPC
+}
+&amp;#39; Layer 3: Kernel
+package &amp;#34;3. Linux Kernel Space&amp;#34; as LAYER_KERNEL {
+component &amp;#34;\t\t\t\t\t\t\tadsprpc.ko(FastRPC Driver)\t\t\t\t\t\t\t&amp;#34; as Driver
+component &amp;#34;ION / SMMU\n(Shared Memory)&amp;#34; as Mem
+}
+}
+&amp;#39; --- DSP Subsystem ---
+node &amp;#34;DSP Subsystem (Hexagon cDSP/HTP)&amp;#34; as DSP_DOMAIN {
+component &amp;#34;\t\t\t\t\t\t\tQuRT OS(Real-time Kernel)\t\t\t\t\t\t\t&amp;#34; as QuRT
+package &amp;#34;Signed PD (Protection Domain)&amp;#34; {
+component &amp;#34;\t\t\t\t\t\t\tSkel Instance(Running Code)\t\t\t\t\t\t\t&amp;#34; as SkelRun
+component &amp;#34;\t\t\t\t\t\t\tHTP Hardware(Tensor Cores)\t\t\t\t\t\t\t&amp;#34; as HTP_HW
+}
+}
+}
+&amp;#39; &amp;#39; --- 布局强制 ---
+&amp;#39; LAYER_APP -down-&amp;gt; LAYER_SYS
+&amp;#39; LAYER_SYS -down-&amp;gt; LAYER_KERNEL
+&amp;#39; LAYER_KERNEL -down-&amp;gt; DSP_DOMAIN
+&amp;#39; --- 详细调用关系 ---
+&amp;#39; 1. App 调用链
+AppCode -down-&amp;gt; ORT : 1. Run()
+ORT -down-&amp;gt; QNN_EP : 2. Get EP
+QNN_EP -down-&amp;gt; QnnHtp : 3. Create Backend
+QnnHtp -down-&amp;gt; QnnStub : 4. Load specific Stub\n(e.g. V81)
+&amp;#39; 2. RPC 桥接
+QnnStub -down-&amp;gt; FastRPC : 5. remote_handle_open()
+FastRPC -down-&amp;gt; Driver : 6. ioctl (FASTRPC_IOCTL_INVOKE)
+&amp;#39; 3. DSP 唤醒与交互
+Driver &amp;lt;-&amp;gt; QuRT : 7. Context Switch / Wake up
+&amp;#39; 4. Skel 加载回环 (The Side-load Loop)
+QuRT .up.&amp;gt; Driver : 8. Request &amp;#34;libQnnHtpV81Skel.so&amp;#34;
+Driver .up.&amp;gt; FastRPC : 9. Callback to User Space
+FastRPC .left.&amp;gt; SkelFile #red : &amp;lt;b&amp;gt;10. Read file from ADSP_LIBRARY_PATH&amp;lt;/b&amp;gt;
+FastRPC .down.&amp;gt; Mem : 11. Map to ION
+Mem .down.&amp;gt; SkelRun : 12. Load into PD
+&amp;#39; 5. 执行
+QuRT -down-&amp;gt; SkelRun : 13. Execute Graph
+SkelRun -down-&amp;gt; HTP_HW : 14. Compute
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="2-核心组件分层"&gt;2. 核心组件分层&lt;/h2&gt;
+&lt;h3 id="21-android-user-space-应用层"&gt;2.1 Android User Space (应用层)&lt;/h3&gt;
+&lt;p&gt;这是应用程序运行的进程空间，包含了业务代码和所有的第三方依赖库。&lt;/p&gt;</description></item><item><title>中国车企出海的智能座舱生态挑战</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</guid><description>&lt;h2 id="执行摘要"&gt;&lt;strong&gt;执行摘要&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;本报告旨在深入剖析中国汽车制造商在全球化进程中面临的核心战略困境：其在国内市场赖以成功的核心竞争力——一个高度集成、功能丰富的智能座舱生态系统——在国际市场上正转变为一项重大的挑战和复杂的难题。中国车企在国内通过将先进硬件与本土互联网巨头的服务深度捆绑，创造了“第三生活空间”的极致用户体验。然而，这种成功的模式具有高度的地域特殊性，其服务根基、技术平台和数据范式均难以直接移植到海外市场。&lt;/p&gt;
 &lt;p&gt;报告的核心发现可归结为三大挑战：&lt;/p&gt;
 &lt;ol&gt;
@@ -374,97 +488,7 @@ DLT_PARSER --&amp;gt;|显示日志，支持过滤和搜索| DLT_UI
 ECU --&amp;gt;|批量或压缩消息| TCP_NETWORK
 TCP_NETWORK --&amp;gt; DLT_SERVER
 DLT_SERVER --&amp;gt; DLT_PARSER
-&lt;/code&gt;&lt;/pre&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/onnx-runtime/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/onnx-runtime/</guid><description>&lt;h1 id="qnn-htp-onnx-runtime-架构与调用流程详解"&gt;QNN HTP (ONNX Runtime) 架构与调用流程详解&lt;/h1&gt;
-&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
-&lt;p&gt;本架构图展示了从 Android 应用层（CPU）到高通 Hexagon DSP（NPU）层的完整调用链路。核心机制是利用 &lt;strong&gt;FastRPC&lt;/strong&gt; 跨越处理器边界，将存储在 CPU 文件系统中的 NPU 驱动代码（Skel）动态加载到 DSP 中运行，从而实现模型的高性能推理。&lt;/p&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
-!theme plain
-skinparam backgroundColor white
-skinparam defaultFontName Arial
-skinparam defaultFontSize 14
-skinparam defaultFontColor black
-skinparam arrowColor black
-skinparam nodeBorderColor #444444
-skinparam componentBorderColor black
-skinparam linetype ortho
-skinparam nodesep 60
-skinparam ranksep 50
-title QNN HTP (ONNX Runtime) Architecture Flow
-node &amp;#34;Qualcomm SoC (System on Chip)&amp;#34; {
-&amp;#39; --- CPU Subsystem (Android) ---
-node &amp;#34;CPU Subsystem (Application Processor)&amp;#34; as CPU_DOMAIN {
-&amp;#39; Layer 1: Application
-package &amp;#34;1. Android User Space (APK Process)&amp;#34; as LAYER_APP {
-component &amp;#34;Business Logic\n(Kotlin/Java/C++)&amp;#34; as AppCode
-note right of AppCode
-&amp;lt;b&amp;gt;关键配置:&amp;lt;/b&amp;gt;
-setenv(&amp;#34;ADSP_LIBRARY_PATH&amp;#34;,
-nativeLibraryDir, 1);
-end note
-frame &amp;#34;Native Libraries (jniLibs / lib/arm64)&amp;#34; {
-component &amp;#34;libonnxruntime.so&amp;#34; as ORT
-component &amp;#34;libonnxruntime_\nproviders_qnn.so&amp;#34; as QNN_EP
-package &amp;#34;QNN SDK CPU Libs&amp;#34; {
-component &amp;#34;libQnnHtp.so\n(Backend Manager)&amp;#34; as QnnHtp
-component &amp;#34;libQnnHtpV[xx]Stub.so\n(CPU Proxy)&amp;#34; as QnnStub
-}
-file &amp;#34;libQnnHtpV[xx]Skel.so\n(DSP Executable)&amp;#34; as SkelFile #yellow
-note bottom of SkelFile
-&amp;lt;b&amp;gt;Skel 文件&amp;lt;/b&amp;gt;
-虽然打包在 CPU 文件系统
-但必须由 FastRPC 读取并
-加载到 DSP 运行
-end note
-}
-file &amp;#34;Assets\n(model.onnx)&amp;#34; as Model
-}
-&amp;#39; Layer 2: System Libraries
-package &amp;#34;2. Android System / Vendor Libs&amp;#34; as LAYER_SYS {
-component &amp;#34;\t\t\t\t\t\t\tlibadsprpc.so(FastRPC Framework)\t\t\t\t\t\t\t&amp;#34; as FastRPC
-}
-&amp;#39; Layer 3: Kernel
-package &amp;#34;3. Linux Kernel Space&amp;#34; as LAYER_KERNEL {
-component &amp;#34;\t\t\t\t\t\t\tadsprpc.ko(FastRPC Driver)\t\t\t\t\t\t\t&amp;#34; as Driver
-component &amp;#34;ION / SMMU\n(Shared Memory)&amp;#34; as Mem
-}
-}
-&amp;#39; --- DSP Subsystem ---
-node &amp;#34;DSP Subsystem (Hexagon cDSP/HTP)&amp;#34; as DSP_DOMAIN {
-component &amp;#34;\t\t\t\t\t\t\tQuRT OS(Real-time Kernel)\t\t\t\t\t\t\t&amp;#34; as QuRT
-package &amp;#34;Signed PD (Protection Domain)&amp;#34; {
-component &amp;#34;\t\t\t\t\t\t\tSkel Instance(Running Code)\t\t\t\t\t\t\t&amp;#34; as SkelRun
-component &amp;#34;\t\t\t\t\t\t\tHTP Hardware(Tensor Cores)\t\t\t\t\t\t\t&amp;#34; as HTP_HW
-}
-}
-}
-&amp;#39; &amp;#39; --- 布局强制 ---
-&amp;#39; LAYER_APP -down-&amp;gt; LAYER_SYS
-&amp;#39; LAYER_SYS -down-&amp;gt; LAYER_KERNEL
-&amp;#39; LAYER_KERNEL -down-&amp;gt; DSP_DOMAIN
-&amp;#39; --- 详细调用关系 ---
-&amp;#39; 1. App 调用链
-AppCode -down-&amp;gt; ORT : 1. Run()
-ORT -down-&amp;gt; QNN_EP : 2. Get EP
-QNN_EP -down-&amp;gt; QnnHtp : 3. Create Backend
-QnnHtp -down-&amp;gt; QnnStub : 4. Load specific Stub\n(e.g. V81)
-&amp;#39; 2. RPC 桥接
-QnnStub -down-&amp;gt; FastRPC : 5. remote_handle_open()
-FastRPC -down-&amp;gt; Driver : 6. ioctl (FASTRPC_IOCTL_INVOKE)
-&amp;#39; 3. DSP 唤醒与交互
-Driver &amp;lt;-&amp;gt; QuRT : 7. Context Switch / Wake up
-&amp;#39; 4. Skel 加载回环 (The Side-load Loop)
-QuRT .up.&amp;gt; Driver : 8. Request &amp;#34;libQnnHtpV81Skel.so&amp;#34;
-Driver .up.&amp;gt; FastRPC : 9. Callback to User Space
-FastRPC .left.&amp;gt; SkelFile #red : &amp;lt;b&amp;gt;10. Read file from ADSP_LIBRARY_PATH&amp;lt;/b&amp;gt;
-FastRPC .down.&amp;gt; Mem : 11. Map to ION
-Mem .down.&amp;gt; SkelRun : 12. Load into PD
-&amp;#39; 5. 执行
-QuRT -down-&amp;gt; SkelRun : 13. Execute Graph
-SkelRun -down-&amp;gt; HTP_HW : 14. Compute
-@enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="2-核心组件分层"&gt;2. 核心组件分层&lt;/h2&gt;
-&lt;h3 id="21-android-user-space-应用层"&gt;2.1 Android User Space (应用层)&lt;/h3&gt;
-&lt;p&gt;这是应用程序运行的进程空间，包含了业务代码和所有的第三方依赖库。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</guid><description>&lt;h1 id="polaris-10-全局事件-id-与注册表规范"&gt;Polaris 1.0 全局事件 ID 与注册表规范&lt;/h1&gt;
+&lt;/code&gt;&lt;/pre&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</guid><description>&lt;h1 id="polaris-10-全局事件-id-与注册表规范"&gt;Polaris 1.0 全局事件 ID 与注册表规范&lt;/h1&gt;
 &lt;p&gt;&lt;strong&gt;Global Event ID &amp;amp; Registry Specification&lt;/strong&gt;&lt;/p&gt;
 &lt;h2 id="版本历史"&gt;版本历史&lt;/h2&gt;
 &lt;table&gt;
@@ -597,29 +621,4 @@ SkelRun -down-&amp;gt; HTP_HW : 14. Compute
 &lt;hr&gt;
 &lt;h2 id="2-输入源规范source-of-truth"&gt;2. 输入源规范（Source of Truth）&lt;/h2&gt;
 &lt;h3 id="21-唯一输入源"&gt;2.1 唯一输入源&lt;/h3&gt;
-&lt;p&gt;自动化生成的&lt;strong&gt;唯一可信输入源&lt;/strong&gt;为：&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/qualcomm_npu/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/qualcomm_npu/</guid><description>&lt;h2 id="hexagon-dsp-的生态"&gt;Hexagon DSP 的生态&lt;/h2&gt;
-&lt;p&gt;在 Qualcomm Hexagon DSP 的生态中，可以把资源的使用方式明确划分为&lt;strong&gt;两条主要赛道&lt;/strong&gt;。它们针对的场景不同，开发难度不同，工具链也完全不同。&lt;/p&gt;
-&lt;h3 id="1-第一条赛道ai-推理-ai-inference"&gt;1. 第一条赛道：AI 推理 (AI Inference)&lt;/h3&gt;
-&lt;p&gt;&lt;strong&gt;关键词&lt;/strong&gt;：TFLite, ONNX, SNPE, QNN, NNAPI
-&lt;strong&gt;核心逻辑&lt;/strong&gt;：&lt;strong&gt;“模型即代码” (Model is the code)&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;这是目前最主流的用法，主要用于深度学习。&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;主要工作&lt;/strong&gt;：
-&lt;ul&gt;
-&lt;li&gt;训练模型（在 PC 上用 PyTorch/TensorFlow）。&lt;/li&gt;
-&lt;li&gt;量化模型（把 float32 转成 int8，为了 DSP 效率）。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;配置&lt;/strong&gt;：你不需要写 DSP 代码，只需要在 App 里配置“代理”（Delegate）或“后端”（Backend）。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;IDL 哪里去了？&lt;/strong&gt;
-&lt;ul&gt;
-&lt;li&gt;高通（或 Google）已经提前写好了通用的 &lt;code&gt;.idl&lt;/code&gt; 和 &lt;code&gt;skel.so&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;比如 &lt;code&gt;libQnnDsp.so&lt;/code&gt; 或 &lt;code&gt;libhexagon_nn_skel.so&lt;/code&gt;。这些库就像一个“万能翻译官”，它能读懂你的神经网络层（Conv2d, Softmax 等），并指挥 DSP 去执行。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;优点&lt;/strong&gt;：开发快，不用懂 DSP 汇编，只要模型能跑通就行。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;缺点&lt;/strong&gt;：只能做神经网络相关的任务。如果你想做个特殊的“图像去雾算法”或者“音频变声”，这套框架帮不了你。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id="2-第二条赛道通用计算-general-compute--heterogeneous-computing"&gt;2. 第二条赛道：通用计算 (General Compute / Heterogeneous Computing)&lt;/h3&gt;
-&lt;p&gt;&lt;strong&gt;关键词&lt;/strong&gt;：Hexagon SDK, FastRPC, IDL, QAIC, C/C++, HVX/HMX
-&lt;strong&gt;核心逻辑&lt;/strong&gt;：&lt;strong&gt;“手写算子” (Custom Implementation)&lt;/strong&gt;&lt;/p&gt;</description></item></channel></rss>
+&lt;p&gt;自动化生成的&lt;strong&gt;唯一可信输入源&lt;/strong&gt;为：&lt;/p&gt;</description></item></channel></rss>
