@@ -1503,7 +1503,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;p&gt;Java 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。&lt;/p&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。&lt;/p&gt;</description></item><item><title>OEM 多品牌多用户动态主题引擎 — 软件架构设计文档</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</guid><description>&lt;h1&gt;&lt;/h1&gt;
+&lt;p&gt;Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。&lt;/p&gt;</description></item><item><title>OEM 多品牌多用户动态主题引擎 — 软件架构设计文档</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</guid><description>&lt;h1 id="版本历史"&gt;版本历史&lt;/h1&gt;
 &lt;p&gt;&lt;strong&gt;版本&lt;/strong&gt;：1.0
 &lt;strong&gt;日期&lt;/strong&gt;：2025-08-08
 &lt;strong&gt;作者&lt;/strong&gt;：Assistant (基于您提供的需求与设计稿)&lt;/p&gt;
@@ -1722,27 +1722,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;h5 id="2-执行动画-execute-the-animation"&gt;2. 执行动画 (Execute the Animation)&lt;/h5&gt;
-&lt;p&gt;一旦一个 &lt;code&gt;Handler&lt;/code&gt; 通过返回非 &lt;code&gt;null&lt;/code&gt; 的 &lt;code&gt;WCT&lt;/code&gt; 成功“认领”了一个 &lt;code&gt;Transition&lt;/code&gt;，它就&lt;strong&gt;全权负责&lt;/strong&gt;这个 &lt;code&gt;Transition&lt;/code&gt; 的动画实现。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dltviewer/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dltviewer/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;flowchart TB
-%% 定义参与方
-ECU[&amp;#34;智能座舱 ECU&amp;#34;]
-TCP_NETWORK[&amp;#34;车载网络 / TCP&amp;#34;]
-DLT_SERVER[&amp;#34;PC 上 DLT Viewer TCP Server&amp;#34;]
-DLT_PARSER[&amp;#34;DLT Parser&amp;#34;]
-DLT_UI[&amp;#34;DLT Viewer UI&amp;#34;]
-%% 数据流
-ECU --&amp;gt;|建立 TCP 连接，握手 CONNECT| TCP_NETWORK
-TCP_NETWORK --&amp;gt; DLT_SERVER
-DLT_SERVER --&amp;gt;|返回 ACK，建立 Session| TCP_NETWORK
-TCP_NETWORK --&amp;gt; ECU
-ECU --&amp;gt;|发送 DLT 消息流 前置长度 + Header + Payload| TCP_NETWORK
-TCP_NETWORK --&amp;gt; DLT_SERVER
-DLT_SERVER --&amp;gt;|解析消息边界| DLT_PARSER
-DLT_PARSER --&amp;gt;|显示日志，支持过滤和搜索| DLT_UI
-%% 可选优化
-ECU --&amp;gt;|批量或压缩消息| TCP_NETWORK
-TCP_NETWORK --&amp;gt; DLT_SERVER
-DLT_SERVER --&amp;gt; DLT_PARSER
-&lt;/code&gt;&lt;/pre&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</guid><description>&lt;h1 id="polaris-10-全局事件-id-与注册表规范"&gt;Polaris 1.0 全局事件 ID 与注册表规范&lt;/h1&gt;
+&lt;p&gt;一旦一个 &lt;code&gt;Handler&lt;/code&gt; 通过返回非 &lt;code&gt;null&lt;/code&gt; 的 &lt;code&gt;WCT&lt;/code&gt; 成功“认领”了一个 &lt;code&gt;Transition&lt;/code&gt;，它就&lt;strong&gt;全权负责&lt;/strong&gt;这个 &lt;code&gt;Transition&lt;/code&gt; 的动画实现。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</guid><description>&lt;h1 id="polaris-10-全局事件-id-与注册表规范"&gt;Polaris 1.0 全局事件 ID 与注册表规范&lt;/h1&gt;
 &lt;p&gt;&lt;strong&gt;Global Event ID &amp;amp; Registry Specification&lt;/strong&gt;&lt;/p&gt;
 &lt;h2 id="版本历史"&gt;版本历史&lt;/h2&gt;
 &lt;table&gt;
