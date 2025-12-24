@@ -1,4 +1,9 @@
-# 高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image
++++
+date = '2025-08-04T09:49:58+08:00'
+draft = false
+title = '高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image'
++++
+
 
 在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。
 

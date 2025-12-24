@@ -16,8 +16,7 @@
 &lt;li&gt;&lt;strong&gt;中断返回&lt;/strong&gt;：VMM 请求 Host Driver 触发虚拟中断，Hypervisor 将 &lt;strong&gt;IRQ 注入 Guest&lt;/strong&gt;，通知前端有请求完成。&lt;/li&gt;
 &lt;/ol&gt;
 &lt;blockquote&gt;
-&lt;p&gt;关键点：&lt;strong&gt;virtqueue 只承载“元数据与索引”&lt;/strong&gt;（哪块缓冲、多大、读写方向、完成状态），&lt;strong&gt;不承载数据本体&lt;/strong&gt;。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;h1 id="高通-gunyah-虚拟化平台设备树-device-tree-全解从源码到-boot-image"&gt;高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image&lt;/h1&gt;
-&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
+&lt;p&gt;关键点：&lt;strong&gt;virtqueue 只承载“元数据与索引”&lt;/strong&gt;（哪块缓冲、多大、读写方向、完成状态），&lt;strong&gt;不承载数据本体&lt;/strong&gt;。&lt;/p&gt;</description></item><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
 &lt;p&gt;本文将深入解析其文件结构、编译配置、构建流程以及打包机制。&lt;/p&gt;
 &lt;h2 id="1-源码结构与文件路径"&gt;1. 源码结构与文件路径&lt;/h2&gt;
 &lt;p&gt;在 Yocto 项目中，设备树源码通常独立于内核源码管理，位于 &lt;code&gt;vendor/qcom/opensource/base-devicetree&lt;/code&gt; 目录下。&lt;/p&gt;
@@ -53,4 +52,11 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;板级顶层定义 (&lt;code&gt;.dts&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;</description></item></channel></rss>
+&lt;p&gt;&lt;strong&gt;板级顶层定义 (&lt;code&gt;.dts&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-voyah-v20.dts&lt;/code&gt;&lt;/strong&gt;: 针对具体硬件板卡的顶层描述文件。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id="2-编译配置-bitbake-recipe"&gt;2. 编译配置 (Bitbake Recipe)&lt;/h2&gt;
+&lt;p&gt;Yocto 构建系统通过 Recipe 来管理编译过程。&lt;/p&gt;</description></item></channel></rss>
