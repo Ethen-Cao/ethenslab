@@ -1,0 +1,72 @@
+@startmindmapbs
+title Polaris1.0 功能 WBS
+skinparam defaultFontName "Microsoft YaHei"
+left to right direction
+
+* Polaris1.0 功能分解
+** 核心KPI指标
+*** 千车严重故障率
+*** 应用崩溃率
+*** 待处理高危告警\n告警类型 + 影响车辆数 + 爆发趋势(↑) + 涉及版本
+    **** 安全相关：行驶过程中发生的黑屏、SystemServer 重启、仪表通信丢失
+    **** 爆发趋势：某一个特定的 Crash 指纹（Fingerprint）在过去 1 小时内上报量环比激增 50%
+    **** 资源枯竭：例如：某个车型在过去一个小时内，因内存不足导致的应用被系统杀死的数量环比激增 50%
+
+** 稳定性专项
+    *** Top Crash/ANR 榜单（按应用维度统计）
+    *** 系统重启详情（重启时间、重启原因、重启的域）
+        **** SystemServer重启实时上报
+        **** Android系统重启非实时上报
+        **** Linux Host重启非实时上报
+
+    *** Binder异常通信监控
+        **** 当监测到Android系统binder通信异常，记录事件。同时dump对应进程的binder status到perflog文件夹，生成perflog文件
+        **** 云端定时拉取perflog文件，建立事件和perflog文件的关联
+    *** 应用OOM事件监控
+        **** 当应用进程因为内存不足被系统杀死时，记录OOM事件，同时dump对应进程的内存使用情况到perflog文件夹，生成perflog文件
+        **** 云端定时拉取perflog文件，建立事件和perflog文件的关联
+
+    *** LMK事件监控
+        **** 当系统触发LMK（Low Memory Killer）机制杀死进程时，记录LMK事件，同时dump系统内存状态到perflog文件夹，生成perflog文件
+        **** 云端定时拉取perflog文件，建立事件和perflog文件的关联
+
+    *** 文件句柄泄漏监控
+        **** 当监测到进程文件句柄数异常增长时，记录文件句柄泄漏事件，同时dump对应进程的文件句柄信息到perflog文件夹，生成perflog文件
+        **** 云端定时拉取perflog文件，建立事件和perflog文件的关联
+
+    *** 核心进程crash监控
+        **** 当系统核心进程（如system_server、surfaceflinger等）发生crash时，记录crash事件，同时dump对应进程的日志和状态信息到perflog文件夹，生成perflog文件
+        **** 云端定时拉取perflog文件，建立事件和perflog文件的关联
+
+** 性能与体验专项
+    *** 应用性能监控
+        **** Activity启动速度监控
+        **** 主线程拥堵监控
+            ***** 当检测到主线程阻塞超过设定阈值时，记录拥堵事件，同时dump对应进程的主线程堆栈信息到perflog文件夹，生成perflog文件
+            ***** 云端定时拉取perflog文件，建立事件和perflog文件的关联
+        **** 界面流畅度监控
+            ***** 界面掉帧监控
+            ****** 当检测到界面掉帧超过设定阈值时，记录掉帧事件，每半个小时上报云端一次
+        **** 资源消耗监控
+            ***** CPU使用率监控
+            ***** 内存使用率监控
+
+    *** 系统性能监控
+        **** CPU消耗趋势
+        **** 内存消耗趋势
+        **** IO性能
+
+** 问题闭环与治理
+    *** 告警分级与路由
+    *** 自动归因与责任域识别
+    *** 修复验证与回归观测
+    *** 问题知识库沉淀
+
+** 遥测功能
+*** 远程输入adb shell命令，命令传递到车机执行，执行结果保存在座舱本地，云端定时拉取结果文件
+*** 远程操作治理
+**** 命令白名单
+**** 行车态禁止策略
+**** 操作审计与回溯
+
+@endmindmap

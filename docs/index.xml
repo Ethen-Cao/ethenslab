@@ -1608,7 +1608,250 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;h5 id="2-执行动画-execute-the-animation"&gt;2. 执行动画 (Execute the Animation)&lt;/h5&gt;
-&lt;p&gt;一旦一个 &lt;code&gt;Handler&lt;/code&gt; 通过返回非 &lt;code&gt;null&lt;/code&gt; 的 &lt;code&gt;WCT&lt;/code&gt; 成功“认领”了一个 &lt;code&gt;Transition&lt;/code&gt;，它就&lt;strong&gt;全权负责&lt;/strong&gt;这个 &lt;code&gt;Transition&lt;/code&gt; 的动画实现。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/npu-technology/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/npu-technology/</guid><description>&lt;h2 id="hexagon-dsp-的生态"&gt;Hexagon DSP 的生态&lt;/h2&gt;
+&lt;p&gt;一旦一个 &lt;code&gt;Handler&lt;/code&gt; 通过返回非 &lt;code&gt;null&lt;/code&gt; 的 &lt;code&gt;WCT&lt;/code&gt; 成功“认领”了一个 &lt;code&gt;Transition&lt;/code&gt;，它就&lt;strong&gt;全权负责&lt;/strong&gt;这个 &lt;code&gt;Transition&lt;/code&gt; 的动画实现。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dltviewer/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dltviewer/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;flowchart TB
+%% 定义参与方
+ECU[&amp;#34;智能座舱 ECU&amp;#34;]
+TCP_NETWORK[&amp;#34;车载网络 / TCP&amp;#34;]
+DLT_SERVER[&amp;#34;PC 上 DLT Viewer TCP Server&amp;#34;]
+DLT_PARSER[&amp;#34;DLT Parser&amp;#34;]
+DLT_UI[&amp;#34;DLT Viewer UI&amp;#34;]
+%% 数据流
+ECU --&amp;gt;|建立 TCP 连接，握手 CONNECT| TCP_NETWORK
+TCP_NETWORK --&amp;gt; DLT_SERVER
+DLT_SERVER --&amp;gt;|返回 ACK，建立 Session| TCP_NETWORK
+TCP_NETWORK --&amp;gt; ECU
+ECU --&amp;gt;|发送 DLT 消息流 前置长度 + Header + Payload| TCP_NETWORK
+TCP_NETWORK --&amp;gt; DLT_SERVER
+DLT_SERVER --&amp;gt;|解析消息边界| DLT_PARSER
+DLT_PARSER --&amp;gt;|显示日志，支持过滤和搜索| DLT_UI
+%% 可选优化
+ECU --&amp;gt;|批量或压缩消息| TCP_NETWORK
+TCP_NETWORK --&amp;gt; DLT_SERVER
+DLT_SERVER --&amp;gt; DLT_PARSER
+&lt;/code&gt;&lt;/pre&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/dpin_drm/</guid><description/></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/onnx-runtime/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/onnx-runtime/</guid><description>&lt;h1 id="qnn-htp-onnx-runtime-架构与调用流程详解"&gt;QNN HTP (ONNX Runtime) 架构与调用流程详解&lt;/h1&gt;
+&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;本架构图展示了从 Android 应用层（CPU）到高通 Hexagon DSP（NPU）层的完整调用链路。核心机制是利用 &lt;strong&gt;FastRPC&lt;/strong&gt; 跨越处理器边界，将存储在 CPU 文件系统中的 NPU 驱动代码（Skel）动态加载到 DSP 中运行，从而实现模型的高性能推理。&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam defaultFontColor black
+skinparam arrowColor black
+skinparam nodeBorderColor #444444
+skinparam componentBorderColor black
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 50
+title QNN HTP (ONNX Runtime) Architecture Flow
+node &amp;#34;Qualcomm SoC (System on Chip)&amp;#34; {
+&amp;#39; --- CPU Subsystem (Android) ---
+node &amp;#34;CPU Subsystem (Application Processor)&amp;#34; as CPU_DOMAIN {
+&amp;#39; Layer 1: Application
+package &amp;#34;1. Android User Space (APK Process)&amp;#34; as LAYER_APP {
+component &amp;#34;Business Logic\n(Kotlin/Java/C++)&amp;#34; as AppCode
+note right of AppCode
+&amp;lt;b&amp;gt;关键配置:&amp;lt;/b&amp;gt;
+setenv(&amp;#34;ADSP_LIBRARY_PATH&amp;#34;,
+nativeLibraryDir, 1);
+end note
+frame &amp;#34;Native Libraries (jniLibs / lib/arm64)&amp;#34; {
+component &amp;#34;libonnxruntime.so&amp;#34; as ORT
+component &amp;#34;libonnxruntime_\nproviders_qnn.so&amp;#34; as QNN_EP
+package &amp;#34;QNN SDK CPU Libs&amp;#34; {
+component &amp;#34;libQnnHtp.so\n(Backend Manager)&amp;#34; as QnnHtp
+component &amp;#34;libQnnHtpV[xx]Stub.so\n(CPU Proxy)&amp;#34; as QnnStub
+}
+file &amp;#34;libQnnHtpV[xx]Skel.so\n(DSP Executable)&amp;#34; as SkelFile #yellow
+note bottom of SkelFile
+&amp;lt;b&amp;gt;Skel 文件&amp;lt;/b&amp;gt;
+虽然打包在 CPU 文件系统
+但必须由 FastRPC 读取并
+加载到 DSP 运行
+end note
+}
+file &amp;#34;Assets\n(model.onnx)&amp;#34; as Model
+}
+&amp;#39; Layer 2: System Libraries
+package &amp;#34;2. Android System / Vendor Libs&amp;#34; as LAYER_SYS {
+component &amp;#34;\t\t\t\t\t\t\tlibadsprpc.so(FastRPC Framework)\t\t\t\t\t\t\t&amp;#34; as FastRPC
+}
+&amp;#39; Layer 3: Kernel
+package &amp;#34;3. Linux Kernel Space&amp;#34; as LAYER_KERNEL {
+component &amp;#34;\t\t\t\t\t\t\tadsprpc.ko(FastRPC Driver)\t\t\t\t\t\t\t&amp;#34; as Driver
+component &amp;#34;ION / SMMU\n(Shared Memory)&amp;#34; as Mem
+}
+}
+&amp;#39; --- DSP Subsystem ---
+node &amp;#34;DSP Subsystem (Hexagon cDSP/HTP)&amp;#34; as DSP_DOMAIN {
+component &amp;#34;\t\t\t\t\t\t\tQuRT OS(Real-time Kernel)\t\t\t\t\t\t\t&amp;#34; as QuRT
+package &amp;#34;Signed PD (Protection Domain)&amp;#34; {
+component &amp;#34;\t\t\t\t\t\t\tSkel Instance(Running Code)\t\t\t\t\t\t\t&amp;#34; as SkelRun
+component &amp;#34;\t\t\t\t\t\t\tHTP Hardware(Tensor Cores)\t\t\t\t\t\t\t&amp;#34; as HTP_HW
+}
+}
+}
+&amp;#39; &amp;#39; --- 布局强制 ---
+&amp;#39; LAYER_APP -down-&amp;gt; LAYER_SYS
+&amp;#39; LAYER_SYS -down-&amp;gt; LAYER_KERNEL
+&amp;#39; LAYER_KERNEL -down-&amp;gt; DSP_DOMAIN
+&amp;#39; --- 详细调用关系 ---
+&amp;#39; 1. App 调用链
+AppCode -down-&amp;gt; ORT : 1. Run()
+ORT -down-&amp;gt; QNN_EP : 2. Get EP
+QNN_EP -down-&amp;gt; QnnHtp : 3. Create Backend
+QnnHtp -down-&amp;gt; QnnStub : 4. Load specific Stub\n(e.g. V81)
+&amp;#39; 2. RPC 桥接
+QnnStub -down-&amp;gt; FastRPC : 5. remote_handle_open()
+FastRPC -down-&amp;gt; Driver : 6. ioctl (FASTRPC_IOCTL_INVOKE)
+&amp;#39; 3. DSP 唤醒与交互
+Driver &amp;lt;-&amp;gt; QuRT : 7. Context Switch / Wake up
+&amp;#39; 4. Skel 加载回环 (The Side-load Loop)
+QuRT .up.&amp;gt; Driver : 8. Request &amp;#34;libQnnHtpV81Skel.so&amp;#34;
+Driver .up.&amp;gt; FastRPC : 9. Callback to User Space
+FastRPC .left.&amp;gt; SkelFile #red : &amp;lt;b&amp;gt;10. Read file from ADSP_LIBRARY_PATH&amp;lt;/b&amp;gt;
+FastRPC .down.&amp;gt; Mem : 11. Map to ION
+Mem .down.&amp;gt; SkelRun : 12. Load into PD
+&amp;#39; 5. 执行
+QuRT -down-&amp;gt; SkelRun : 13. Execute Graph
+SkelRun -down-&amp;gt; HTP_HW : 14. Compute
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="2-核心组件分层"&gt;2. 核心组件分层&lt;/h2&gt;
+&lt;h3 id="21-android-user-space-应用层"&gt;2.1 Android User Space (应用层)&lt;/h3&gt;
+&lt;p&gt;这是应用程序运行的进程空间，包含了业务代码和所有的第三方依赖库。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</guid><description>&lt;h1 id="polaris-10-全局事件-id-与注册表规范"&gt;Polaris 1.0 全局事件 ID 与注册表规范&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;Global Event ID &amp;amp; Registry Specification&lt;/strong&gt;&lt;/p&gt;
+&lt;h2 id="版本历史"&gt;版本历史&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;文档版本&lt;/th&gt;
+&lt;th&gt;修改日期&lt;/th&gt;
+&lt;th&gt;修改人&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;V1.0&lt;/td&gt;
+&lt;td&gt;2025-12-XX&lt;/td&gt;
+&lt;td&gt;[xxx名字]&lt;/td&gt;
+&lt;td&gt;初始发布&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id="概述"&gt;概述&lt;/h2&gt;
+&lt;p&gt;为了支撑 Polaris 1.0 实现“端云一体”的性能与稳定性监控，解决跨 SoC（Android/Linux）与 MCU 的异构数据治理难题，并适配车云 SDK 的接口限制，本项目采用 &lt;strong&gt;“注册制 + 扁平化 ID”&lt;/strong&gt; 的管理模式。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;核心原则：&lt;/strong&gt;&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;ID 去语义化&lt;/strong&gt;：EventID 仅作为唯一索引（Key），不再承载复杂的业务含义。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;定义元数据化&lt;/strong&gt;：所有的业务属性（模块、等级、日志策略）统一在《全局注册表》中维护。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;文档即代码&lt;/strong&gt;：注册表是唯一可信来源，模版代码以及常量由注册表自动生成。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id="事件-id-编码规范"&gt;事件 ID 编码规范&lt;/h2&gt;
+&lt;p&gt;Polaris 事件 ID 采用 &lt;strong&gt;10 位纯数字&lt;/strong&gt; 格式，分为三个物理段。&lt;/p&gt;
+&lt;h3 id="id-结构公式"&gt;ID 结构公式&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;[Prefix (3位)]&lt;/code&gt; + &lt;code&gt;[Scope (1位)]&lt;/code&gt; + &lt;code&gt;[Sequence (6位)]&lt;/code&gt;&lt;/p&gt;
+&lt;h3 id="字段定义"&gt;字段定义&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;字段&lt;/th&gt;
+&lt;th&gt;位数&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;th&gt;取值定义&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Prefix&lt;/td&gt;
+&lt;td&gt;3&lt;/td&gt;
+&lt;td&gt;物理系统归属 (硬性约束）&lt;/td&gt;
+&lt;td&gt;666: Android 系统; 668: Linux Host 系统; 685: MCU 子系统&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Scope&lt;/td&gt;
+&lt;td&gt;1&lt;/td&gt;
+&lt;td&gt;管理域 (ID 分配权隔离）&lt;/td&gt;
+&lt;td&gt;0: 平台/系统维护; 1: 业务/应用维护&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Sequence&lt;/td&gt;
+&lt;td&gt;6&lt;/td&gt;
+&lt;td&gt;流水号 (全局唯一）&lt;/td&gt;
+&lt;td&gt;000001 ~ 999999 按申请顺序递增，不分类，不回退。&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id="全局事件注册表模版"&gt;全局事件注册表模版&lt;/h2&gt;
+&lt;p&gt;本注册表建议使用 &lt;strong&gt;Git 托管的 CSV 文件&lt;/strong&gt; 或 &lt;strong&gt;在线协作表格&lt;/strong&gt; 维护。它是生成 SDK 代码的唯一依据。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E8%87%AA%E5%8A%A8%E5%8C%96%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90%E8%A7%84%E8%8C%83%E8%A6%81%E6%B1%82/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/polaris-1.0-%E8%87%AA%E5%8A%A8%E5%8C%96%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90%E8%A7%84%E8%8C%83%E8%A6%81%E6%B1%82/</guid><description>&lt;h1 id="polaris-10-自动化代码生成规范要求"&gt;Polaris 1.0 自动化代码生成规范要求&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;Polaris Code Generation Specification&lt;/strong&gt;&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;版本&lt;/th&gt;
+&lt;th&gt;日期&lt;/th&gt;
+&lt;th&gt;作者&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;v1.0&lt;/td&gt;
+&lt;td&gt;2025-12-XX&lt;/td&gt;
+&lt;td&gt;Polaris Team&lt;/td&gt;
+&lt;td&gt;初始版本&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;hr&gt;
+&lt;h2 id="1-目标与原则goals--principles"&gt;1. 目标与原则（Goals &amp;amp; Principles）&lt;/h2&gt;
+&lt;h3 id="11-目标"&gt;1.1 目标&lt;/h3&gt;
+&lt;p&gt;自动化代码生成（Codegen）用于将 &lt;strong&gt;全局事件注册表&lt;/strong&gt; 转换为：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;强类型、可编译校验的 SDK 代码&lt;/li&gt;
+&lt;li&gt;跨语言一致（Java / C++）&lt;/li&gt;
+&lt;li&gt;可被 IDE 精准提示&lt;/li&gt;
+&lt;li&gt;在大规模事件数量下依然可维护&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="12-核心设计原则强制"&gt;1.2 核心设计原则（强制）&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;原则&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;类型安全优先&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;任何参数错误必须在&lt;strong&gt;编译期或构造期&lt;/strong&gt;暴露&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;去中心化&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;禁止生成集中式 God Class（如 Reporter 聚合类）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;一事件一类型&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;每个 Event 必须生成独立的 Context 类&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;构造即合法&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;构造函数必须保证必填字段完整;可选字段提供setter方法&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;生成代码可删可裁剪&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;未使用事件允许被 R8 / Linker 移除&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;Core 稳定，Generated 易变&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;Core SDK 不因新增事件而变化&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;hr&gt;
+&lt;h2 id="2-输入源规范source-of-truth"&gt;2. 输入源规范（Source of Truth）&lt;/h2&gt;
+&lt;h3 id="21-唯一输入源"&gt;2.1 唯一输入源&lt;/h3&gt;
+&lt;p&gt;自动化生成的&lt;strong&gt;唯一可信输入源&lt;/strong&gt;为：&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/qualcomm_npu/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/qualcomm_npu/</guid><description>&lt;h2 id="hexagon-dsp-的生态"&gt;Hexagon DSP 的生态&lt;/h2&gt;
 &lt;p&gt;在 Qualcomm Hexagon DSP 的生态中，可以把资源的使用方式明确划分为&lt;strong&gt;两条主要赛道&lt;/strong&gt;。它们针对的场景不同，开发难度不同，工具链也完全不同。&lt;/p&gt;
 &lt;h3 id="1-第一条赛道ai-推理-ai-inference"&gt;1. 第一条赛道：AI 推理 (AI Inference)&lt;/h3&gt;
 &lt;p&gt;&lt;strong&gt;关键词&lt;/strong&gt;：TFLite, ONNX, SNPE, QNN, NNAPI

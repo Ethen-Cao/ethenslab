@@ -1,0 +1,57 @@
+@startmindmap
+!theme plain
+skinparam defaultFontName "Microsoft YaHei"
+skinparam node {
+    FontColor black
+    BorderColor #333333
+    BackgroundColor white
+}
+skinparam arrowColor black
+left to right direction
+
+* Polaris1.0 体系化 WBS
+** 1. 标准与治理 (Governance)
+*** ID 分段分配策略 (Schema)
+**** Android: 6660-MM-CC-EE (模块-组件-错误)
+**** Linux: 6680-MM-CC-EE
+*** Description 通信协议 (JSON V1.0)
+*** 报警分级标准 (Mapping to Type 1/2/3)
+
+** 2. 核心监测探针 (Probes)
+*** 稳定性探针 (Stability)
+**** SystemServer Watchdog
+**** Binder Transaction Tracker
+**** Native Crash (Tombstone)
+*** 性能探针 (Performance)
+**** Launch Time Tracer
+**** Jank Monitor (掉帧)
+*** 资源探针 (Resource)
+**** Process Memory Poller
+**** Flash IO Monitor
+
+** 3. 边缘计算层 (Edge Computing) <font color=blue>[关键新增]</font>
+*** 信息压缩与指纹化
+**** Crash 堆栈 -> 生成 MD5 指纹 (用于去重)
+**** 提取关键信息 (进程名, 错误类型, 前台Activity)
+*** 流量与频控
+**** 相同指纹 1小时内限报 1 次 (防止刷爆流量)
+**** 组装 JSON Payload (确保 < 1000 bytes)
+*** 关联标记注入
+**** 生成 Polaris TraceID (UUID)
+**** 将 TraceID 写入 Log 文件头部 (用于云端缝合)
+
+** 4. 车云 SDK 适配器 (Adapter) <font color=blue>[针对性设计]</font>
+*** 接口映射 (Mapper)
+**** 映射 EventID
+**** 映射 Type (1=Info, 2=Exception, 3=Error)
+**** 映射 Level (0=Biz, 1=System)
+*** 大文件触发器
+**** 根据 Log 策略触发上传 (Trigger Log Upload)
+**** 管理本地 Log 轮转与清理
+
+** 5. 云端分析 (Analysis)
+*** 结构化解析
+**** JSON 解析 -> 结构化字段
+*** 自动关联
+**** EventID + LogPath -> 自动下载并展示大文件
+@endmindmap

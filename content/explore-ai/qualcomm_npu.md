@@ -117,11 +117,147 @@
 * 如果你有一个 **`.tflite`** 或 **`.onnx`** 文件，里面装满了卷积层（Conv）、激活层（Relu），那就是**途径 1**。
 * 如果你有一堆 **C++ 代码**，里面充满了 `for` 循环、`if` 判断、数学公式（FFT、矩阵求逆），那就是**途径 2**。
 
-
-
 ![Image of neural network architecture layers](../../static/images/licensed-image.jpeg)
 
-![Image of neural network architecture layers](/ethenslab/images/licensed-image.jpeg)
-
-
 **TFLite/SNPE 就像是一个“播放器”**，它只能播放“神经网络”这一种格式的“影片”。如果你想在这个播放器里运行一个 Excel 表格（复杂的逻辑控制），它是做不到的。
+
+
+## Hexagon SDK 和 Qualcomm AI Engine Direct SDK (QNN)的对比
+### 1. 核心定位区别
+
+| 特性 | **Hexagon SDK** | **Qualcomm AI Engine Direct SDK (QNN)** |
+| --- | --- | --- |
+| **全称** | Qualcomm Hexagon SDK | Qualcomm AI Engine Direct (QNN) |
+| **主要目标** | **通用 DSP 编程**。开发运行在 Hexagon DSP 上的任意 C/C++ 算法。 | **AI 模型推理**。在 SoC 各个核心上加速神经网络模型的运行。 |
+| **抽象层级** | **底层 (Low-level)**。直接操作 DSP 寄存器、HVX 向量指令、线程调度 (QuRT)。 | **高层 (High-level)**。抽象了硬件细节，提供统一的构图 API (AddNode, Execute)。 |
+| **支持硬件** | 仅限 **Hexagon DSP** (cDSP, aDSP, sDSP)。 | **全平台 (AI Engine)**：CPU, GPU (Adreno), DSP/HTP (Hexagon)。 |
+| **输入** | C/C++ 源代码、汇编代码。 | 训练好的 AI 模型 (ONNX, TFLite, PyTorch 等)。 |
+| **核心机制** | FastRPC (CPU 与 DSP 通信)。 | Backend (后端) 机制，自动调度到底层硬件。 |
+| **典型产物** | `libskel.so` (DSP 库), `libstub.so` (CPU 库)。 | `model.cpp/.bin`, `model.so`, `context.bin`。 |
+
+---
+
+### 2. 详细功能解析
+
+#### **Hexagon SDK (底层开发者工具)**
+
+它是给嵌入式开发者用的，让你能完全控制 DSP。
+
+* **用途**：
+* **非 AI 算法加速**：图像处理（ISP 后处理）、音频编解码、传感器融合算法。
+* **FastRPC 开发**：你需要自己定义 `.idl`，自己写 `stub` 和 `skel`，自己管理内存映射。
+* **自定义 AI 算子**：当 QNN 不支持某个算子时，你需要用 Hexagon SDK 手写这个算子的底层实现（Op Package）。
+
+
+* **你需要懂**：Hexagon 汇编、HVX/HMX 向量化指令、QuRT 操作系统、缓存管理。
+
+#### **QNN SDK (AI 应用开发者工具)**
+
+它是给 AI 算法工程师和 App 开发者用的，让你能快速部署模型。
+
+* **用途**：
+* **模型转换**：把 PyTorch/ONNX 模型转成 QNN 格式。
+* **统一推理**：用一套 API，你可以选择是在 CPU 上跑，还是 GPU 上跑，还是 HTP (DSP) 上跑，只需改个参数。
+* **图优化**：自动进行算子融合、量化、内存复用。
+
+
+* **你需要懂**：神经网络结构、量化（Int8/FP16）、模型转换工具链。
+
+---
+
+### 3. 它们的关系：上下游依赖
+
+这是最关键的理解点：**QNN SDK 的 HTP Backend 本质上是基于 Hexagon SDK 开发出来的一个超级复杂的“应用”。**
+
+* 高通内部团队使用 **Hexagon SDK** 开发了 QNN 的 HTP 后端驱动（即 `libQnnHtpVxxSkel.so`）。
+* 作为外部开发者，你直接使用 QNN SDK 提供的接口，实际上是间接调用了底层的 Hexagon 能力。
+
+### 4. 架构图解
+
+为了更直观地展示区别，我们来看它们在软件栈中的位置：
+
+```plantuml
+@startuml
+!theme plain
+skinparam backgroundColor white
+skinparam linetype ortho
+
+title Hexagon SDK vs. QNN SDK
+
+package "Android Application Layer" {
+    component "Camera App" as CamApp
+    component "AI Assistant App" as AIApp
+}
+
+package "Qualcomm AI Engine Direct (QNN SDK)" #e1f5fe {
+    component "QNN API" as QNN_API
+    component "QNN HTP Backend\n(libQnnHtp.so)" as HTP_Backend
+    note right of QNN_API
+        **QNN SDK 领域:**
+        关注模型、层、张量
+        自动调度
+    end note
+}
+
+package "Hexagon SDK" #fff9c4 {
+    component "FastRPC Framework\n(libadsprpc.so)" as FastRPC
+    interface "IDL Interfaces" as IDL
+    note right of FastRPC
+        **Hexagon SDK 领域:**
+        关注 RPC 通信、
+        内存映射、线程
+    end note
+}
+
+package "DSP Hardware (Signed PD)" {
+    component "QuRT OS"
+    
+    component "libQnnHtpV81Skel.so" as QnnSkel #e1f5fe
+    note bottom of QnnSkel
+        QNN 的 DSP 实现
+        (高通写好的)
+    end note
+    
+    component "libmy_algo_skel.so" as MyAlgo #fff9c4
+    note bottom of MyAlgo
+        **你自己用 Hexagon SDK 写的**
+        自定义算法库
+    end note
+}
+
+' Flow 1: AI Flow
+AIApp --> QNN_API : Run Model
+QNN_API --> HTP_Backend
+HTP_Backend --> FastRPC : Invoke
+FastRPC --> QnnSkel : Execute Graph
+
+' Flow 2: Custom Algo Flow
+CamApp --> IDL : Call my_func()
+IDL --> FastRPC : Invoke
+FastRPC --> MyAlgo : Execute C Code
+
+@enduml
+
+```
+
+### 5. 什么时候用哪个？
+
+* **场景 A：我要在手机上跑 YOLOv8 或 ResNet 模型。**
+* 👉 **用 QNN SDK**。这是标准用法，无需写底层 C 代码。
+
+
+* **场景 B：我有一个传统的 CV 算法（如高斯模糊、边缘检测），想搬到 DSP 上省电。**
+* 👉 **用 Hexagon SDK**。你需要定义 IDL，写 C/C++ 代码，编译成 Skel。
+
+
+* **场景 C：我在用 QNN 跑模型，但模型里有一个特殊的层（例如 `MySpecialLayer`），QNN 转换器报错说不支持。**
+* 👉 **两个都用**。
+* 你需要用 **Hexagon SDK** 编写这个算子的 DSP 实现（Op Package）。
+* 然后将其注册给 **QNN SDK**，让 QNN 在推理时调用你的代码。
+
+
+
+### 总结
+
+* **Hexagon SDK** 是给 **DSP 程序员** 用的，它是通用的、底层的。
+* **QNN SDK** 是给 **AI 工程师** 用的，它是专用的、高层的。
