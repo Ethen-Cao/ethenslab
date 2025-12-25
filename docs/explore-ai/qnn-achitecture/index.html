@@ -1,0 +1,108 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Ethen 的实验室</title><meta name=keywords content><meta name=description content="libadsprpc.so
+基于反汇编代码和我们之前的深度讨论，以下是 open_device_node 函数的详细工作流程总结。
+这个函数是 FastRPC 库 (libadsprpc.so) 建立 CPU 与 DSP 通信链路的第一步，其核心设计理念是**“效率优先，兼容兜底”**。
+
+1. 函数概览
+
+输入: domain_id (如 ADSP, CDSP, SDSP 的 ID)。
+输出: fd (File Descriptor，文件描述符)。如果成功，返回 >0 的整数；失败返回负数错误码。
+目的: 打开内核设备节点（Character Device Node），建立通往 DSP 的物理通道。
+
+
+2. 详细工作流程 (Step-by-Step)
+阶段一：路径准备 (Path Preparation)
+函数首先根据传入的 domain_id，准备三个候选的设备节点路径。这是一种“广撒网”的策略，以适应不同设备或 Android 版本的命名差异。
+
+安全节点 (High Priority): __ptr
+
+
+例如：/dev/adsprpc-smd-secure
+用于需要签名认证的安全计算场景。
+
+
+特定域节点 (Medium Priority): __ptr_00
+
+
+例如：/dev/adsprpc-smd-cdsp (针对 CDSP) 或 /dev/adsprpc-smd-adsp。
+
+
+默认通用节点 (Low Priority): __ptr_01
+
+
+通常是：/dev/adsprpc-smd
+这是最古老且最通用的节点。
+
+阶段二：直接尝试 (The Direct Open Loop)
+代码尝试通过 Linux 标准系统调用 open() 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。"><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/explore-ai/qnn-achitecture/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/explore-ai/qnn-achitecture/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/explore-ai/qnn-achitecture/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Ethen 的实验室"><meta property="og:description" content="libadsprpc.so 基于反汇编代码和我们之前的深度讨论，以下是 open_device_node 函数的详细工作流程总结。
+这个函数是 FastRPC 库 (libadsprpc.so) 建立 CPU 与 DSP 通信链路的第一步，其核心设计理念是**“效率优先，兼容兜底”**。
+1. 函数概览 输入: domain_id (如 ADSP, CDSP, SDSP 的 ID)。 输出: fd (File Descriptor，文件描述符)。如果成功，返回 >0 的整数；失败返回负数错误码。 目的: 打开内核设备节点（Character Device Node），建立通往 DSP 的物理通道。 2. 详细工作流程 (Step-by-Step) 阶段一：路径准备 (Path Preparation) 函数首先根据传入的 domain_id，准备三个候选的设备节点路径。这是一种“广撒网”的策略，以适应不同设备或 Android 版本的命名差异。
+安全节点 (High Priority): __ptr 例如：/dev/adsprpc-smd-secure 用于需要签名认证的安全计算场景。 特定域节点 (Medium Priority): __ptr_00 例如：/dev/adsprpc-smd-cdsp (针对 CDSP) 或 /dev/adsprpc-smd-adsp。 默认通用节点 (Low Priority): __ptr_01 通常是：/dev/adsprpc-smd 这是最古老且最通用的节点。 阶段二：直接尝试 (The Direct Open Loop) 代码尝试通过 Linux 标准系统调用 open() 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。"><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="explore-ai"><meta name=twitter:card content="summary"><meta name=twitter:title content><meta name=twitter:description content="libadsprpc.so
+基于反汇编代码和我们之前的深度讨论，以下是 open_device_node 函数的详细工作流程总结。
+这个函数是 FastRPC 库 (libadsprpc.so) 建立 CPU 与 DSP 通信链路的第一步，其核心设计理念是**“效率优先，兼容兜底”**。
+
+1. 函数概览
+
+输入: domain_id (如 ADSP, CDSP, SDSP 的 ID)。
+输出: fd (File Descriptor，文件描述符)。如果成功，返回 >0 的整数；失败返回负数错误码。
+目的: 打开内核设备节点（Character Device Node），建立通往 DSP 的物理通道。
+
+
+2. 详细工作流程 (Step-by-Step)
+阶段一：路径准备 (Path Preparation)
+函数首先根据传入的 domain_id，准备三个候选的设备节点路径。这是一种“广撒网”的策略，以适应不同设备或 Android 版本的命名差异。
+
+安全节点 (High Priority): __ptr
+
+
+例如：/dev/adsprpc-smd-secure
+用于需要签名认证的安全计算场景。
+
+
+特定域节点 (Medium Priority): __ptr_00
+
+
+例如：/dev/adsprpc-smd-cdsp (针对 CDSP) 或 /dev/adsprpc-smd-adsp。
+
+
+默认通用节点 (Low Priority): __ptr_01
+
+
+通常是：/dev/adsprpc-smd
+这是最古老且最通用的节点。
+
+阶段二：直接尝试 (The Direct Open Loop)
+代码尝试通过 Linux 标准系统调用 open() 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。"><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Explore AI","item":"https://ethen-cao.github.io/ethenslab/explore-ai/"},{"@type":"ListItem","position":2,"name":"","item":"https://ethen-cao.github.io/ethenslab/explore-ai/qnn-achitecture/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"","name":"","description":"libadsprpc.so 基于反汇编代码和我们之前的深度讨论，以下是 open_device_node 函数的详细工作流程总结。\n这个函数是 FastRPC 库 (libadsprpc.so) 建立 CPU 与 DSP 通信链路的第一步，其核心设计理念是**“效率优先，兼容兜底”**。\n1. 函数概览 输入: domain_id (如 ADSP, CDSP, SDSP 的 ID)。 输出: fd (File Descriptor，文件描述符)。如果成功，返回 \u0026gt;0 的整数；失败返回负数错误码。 目的: 打开内核设备节点（Character Device Node），建立通往 DSP 的物理通道。 2. 详细工作流程 (Step-by-Step) 阶段一：路径准备 (Path Preparation) 函数首先根据传入的 domain_id，准备三个候选的设备节点路径。这是一种“广撒网”的策略，以适应不同设备或 Android 版本的命名差异。\n安全节点 (High Priority): __ptr 例如：/dev/adsprpc-smd-secure 用于需要签名认证的安全计算场景。 特定域节点 (Medium Priority): __ptr_00 例如：/dev/adsprpc-smd-cdsp (针对 CDSP) 或 /dev/adsprpc-smd-adsp。 默认通用节点 (Low Priority): __ptr_01 通常是：/dev/adsprpc-smd 这是最古老且最通用的节点。 阶段二：直接尝试 (The Direct Open Loop) 代码尝试通过 Linux 标准系统调用 open() 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。\n","keywords":[],"articleBody":"libadsprpc.so 基于反汇编代码和我们之前的深度讨论，以下是 open_device_node 函数的详细工作流程总结。\n这个函数是 FastRPC 库 (libadsprpc.so) 建立 CPU 与 DSP 通信链路的第一步，其核心设计理念是**“效率优先，兼容兜底”**。\n1. 函数概览 输入: domain_id (如 ADSP, CDSP, SDSP 的 ID)。 输出: fd (File Descriptor，文件描述符)。如果成功，返回 \u003e0 的整数；失败返回负数错误码。 目的: 打开内核设备节点（Character Device Node），建立通往 DSP 的物理通道。 2. 详细工作流程 (Step-by-Step) 阶段一：路径准备 (Path Preparation) 函数首先根据传入的 domain_id，准备三个候选的设备节点路径。这是一种“广撒网”的策略，以适应不同设备或 Android 版本的命名差异。\n安全节点 (High Priority): __ptr 例如：/dev/adsprpc-smd-secure 用于需要签名认证的安全计算场景。 特定域节点 (Medium Priority): __ptr_00 例如：/dev/adsprpc-smd-cdsp (针对 CDSP) 或 /dev/adsprpc-smd-adsp。 默认通用节点 (Low Priority): __ptr_01 通常是：/dev/adsprpc-smd 这是最古老且最通用的节点。 阶段二：直接尝试 (The Direct Open Loop) 代码尝试通过 Linux 标准系统调用 open() 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。\n尝试 1: open(安全节点)\n成功 -\u003e 直接返回 FD (流程结束)。\n失败 -\u003e 检查原因。如果只是“文件不存在”或“权限不足”，记录日志并继续。\n尝试 2: open(特定域节点)\n成功 -\u003e 直接返回 FD (流程结束)。\n失败 -\u003e 记录日志并继续。\n尝试 3: open(默认节点)\n成功 -\u003e 直接返回 FD (流程结束)。\n失败 -\u003e 进入阶段三。\n阶段三：错误诊断与分流 (Diagnosis \u0026 Fork) 当三次 open 都失败时，函数检查最后一次失败的 errno (错误码)，决定下一步怎么走：\n情况 A：文件不存在 (ENOENT)\n这意味着内核驱动可能没加载，或者设备节点没创建。\n结果: 彻底失败，返回错误。\n情况 B：权限被拒绝 (EACCES, errno 13)\n这通常是 SELinux 拦截了非系统 App 对 /dev/ 的直接访问。\n决策: 激活 HAL 回退机制 (进入阶段四)。\n阶段四：HAL 救兵 (The HAL Fallback) 这是针对普通第三方 App 的兼容性路径。\n初始化客户端: 创建 C++ 对象 android::DspClient。 呼叫系统服务: 调用 open_hal_session。 这会触发 Binder IPC，向高权限的 HAL 服务发送请求。 代理打开: HAL 服务在它的进程里（有权限）打开设备节点。 传递句柄: HAL 通过 Binder 将打开的 FD 传递回当前进程。 返回: 函数最终返回这个由 HAL 帮忙打开的 FD。 3. 流程图解 (Visual Summary) graph TD start([Start: open_device_node]) --\u003e prep[准备路径: Secure, Specific, Default] prep --\u003e try1[尝试 1: 直接 open Secure 节点] try1 -- 成功 --\u003e success([返回 FD]) try1 -- 失败 --\u003e try2[尝试 2: 直接 open Specific 节点] try2 -- 成功 --\u003e success try2 -- 失败 --\u003e try3[尝试 3: 直接 open Default 节点] try3 -- 成功 --\u003e success try3 -- 失败 --\u003e checkErr{检查 errno 错误码} checkErr -- \"其他错误 (如文件不存在)\" --\u003e fail([返回 Error]) checkErr -- \"EACCES (权限被拒)\" --\u003e hal_start[启动 HAL 回退流程] subgraph \"HAL Fallback (Binder IPC)\" hal_start --\u003e call_hal[请求 HAL Service] call_hal --\u003e hal_open[HAL 打开设备] hal_open --\u003e binder_tx[Binder 传递 FD] end binder_tx --\u003e hal_success([收到 FD 并返回]) style hal_start fill:#f9f,stroke:#333,stroke-width:2px style success fill:#9f9,stroke:#333,stroke-width:2px style hal_success fill:#9f9,stroke:#333,stroke-width:2px 4. 核心总结 先斩后奏：总是优先尝试直接 open，因为系统调用（Syscall）比跨进程通信（Binder IPC）快得多。 智能回退：只有在明确遇到“权限拒绝”时才动用 HAL，避免了无谓的性能损耗。 多路兼容：通过尝试三个不同的设备路径，兼容了不同年代和不同配置的高通芯片平台。 这就是为什么无论是在 Root 过的设备 shell 中运行，还是在受限的 APK 中运行，FastRPC 都能正常工作的底层原因。\n","wordCount":"306","inLanguage":"en","datePublished":"0001-01-01T00:00:00Z","dateModified":"0001-01-01T00:00:00Z","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/explore-ai/qnn-achitecture/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/explore-ai/>Explore AI</a></div><h1 class="post-title entry-hint-parent"></h1><div class=post-meta>2 min&nbsp;·&nbsp;306 words</div></header><div class=post-content><h2 id=libadsprpcso>libadsprpc.so<a hidden class=anchor aria-hidden=true href=#libadsprpcso>#</a></h2><p>基于反汇编代码和我们之前的深度讨论，以下是 <code>open_device_node</code> 函数的详细工作流程总结。</p><p>这个函数是 FastRPC 库 (<code>libadsprpc.so</code>) 建立 CPU 与 DSP 通信链路的<strong>第一步</strong>，其核心设计理念是**“效率优先，兼容兜底”**。</p><hr><h3 id=1-函数概览>1. 函数概览<a hidden class=anchor aria-hidden=true href=#1-函数概览>#</a></h3><ul><li><strong>输入</strong>: <code>domain_id</code> (如 ADSP, CDSP, SDSP 的 ID)。</li><li><strong>输出</strong>: <code>fd</code> (File Descriptor，文件描述符)。如果成功，返回 <code>>0</code> 的整数；失败返回负数错误码。</li><li><strong>目的</strong>: 打开内核设备节点（Character Device Node），建立通往 DSP 的物理通道。</li></ul><hr><h3 id=2-详细工作流程-step-by-step>2. 详细工作流程 (Step-by-Step)<a hidden class=anchor aria-hidden=true href=#2-详细工作流程-step-by-step>#</a></h3><h4 id=阶段一路径准备-path-preparation><strong>阶段一：路径准备 (Path Preparation)</strong><a hidden class=anchor aria-hidden=true href=#阶段一路径准备-path-preparation>#</a></h4><p>函数首先根据传入的 <code>domain_id</code>，准备三个候选的设备节点路径。这是一种“广撒网”的策略，以适应不同设备或 Android 版本的命名差异。</p><ol><li><strong>安全节点 (High Priority)</strong>: <code>__ptr</code></li></ol><ul><li>例如：<code>/dev/adsprpc-smd-secure</code></li><li>用于需要签名认证的安全计算场景。</li></ul><ol start=2><li><strong>特定域节点 (Medium Priority)</strong>: <code>__ptr_00</code></li></ol><ul><li>例如：<code>/dev/adsprpc-smd-cdsp</code> (针对 CDSP) 或 <code>/dev/adsprpc-smd-adsp</code>。</li></ul><ol start=3><li><strong>默认通用节点 (Low Priority)</strong>: <code>__ptr_01</code></li></ol><ul><li>通常是：<code>/dev/adsprpc-smd</code></li><li>这是最古老且最通用的节点。</li></ul><h4 id=阶段二直接尝试-the-direct-open-loop><strong>阶段二：直接尝试 (The Direct Open Loop)</strong><a hidden class=anchor aria-hidden=true href=#阶段二直接尝试-the-direct-open-loop>#</a></h4><p>代码尝试通过 Linux 标准系统调用 <code>open()</code> 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。</p><ul><li><p><strong>尝试 1</strong>: <code>open(安全节点)</code></p></li><li><p>成功 -> <strong>直接返回 FD</strong> (流程结束)。</p></li><li><p>失败 -> 检查原因。如果只是“文件不存在”或“权限不足”，记录日志并继续。</p></li><li><p><strong>尝试 2</strong>: <code>open(特定域节点)</code></p></li><li><p>成功 -> <strong>直接返回 FD</strong> (流程结束)。</p></li><li><p>失败 -> 记录日志并继续。</p></li><li><p><strong>尝试 3</strong>: <code>open(默认节点)</code></p></li><li><p>成功 -> <strong>直接返回 FD</strong> (流程结束)。</p></li><li><p>失败 -> 进入阶段三。</p></li></ul><h4 id=阶段三错误诊断与分流-diagnosis--fork><strong>阶段三：错误诊断与分流 (Diagnosis & Fork)</strong><a hidden class=anchor aria-hidden=true href=#阶段三错误诊断与分流-diagnosis--fork>#</a></h4><p>当三次 <code>open</code> 都失败时，函数检查最后一次失败的 <code>errno</code> (错误码)，决定下一步怎么走：</p><ul><li><p><strong>情况 A：文件不存在 (<code>ENOENT</code>)</strong></p></li><li><p>这意味着内核驱动可能没加载，或者设备节点没创建。</p></li><li><p><strong>结果</strong>: 彻底失败，返回错误。</p></li><li><p><strong>情况 B：权限被拒绝 (<code>EACCES</code>, errno 13)</strong></p></li><li><p>这通常是 <strong>SELinux</strong> 拦截了非系统 App 对 <code>/dev/</code> 的直接访问。</p></li><li><p><strong>决策</strong>: 激活 <strong>HAL 回退机制</strong> (进入阶段四)。</p></li></ul><h4 id=阶段四hal-救兵-the-hal-fallback><strong>阶段四：HAL 救兵 (The HAL Fallback)</strong><a hidden class=anchor aria-hidden=true href=#阶段四hal-救兵-the-hal-fallback>#</a></h4><p>这是针对普通第三方 App 的兼容性路径。</p><ol><li><strong>初始化客户端</strong>: 创建 C++ 对象 <code>android::DspClient</code>。</li><li><strong>呼叫系统服务</strong>: 调用 <code>open_hal_session</code>。</li></ol><ul><li>这会触发 Binder IPC，向高权限的 HAL 服务发送请求。</li></ul><ol start=3><li><strong>代理打开</strong>: HAL 服务在它的进程里（有权限）打开设备节点。</li><li><strong>传递句柄</strong>: HAL 通过 Binder 将打开的 FD 传递回当前进程。</li><li><strong>返回</strong>: 函数最终返回这个由 HAL 帮忙打开的 FD。</li></ol><hr><h3 id=3-流程图解-visual-summary>3. 流程图解 (Visual Summary)<a hidden class=anchor aria-hidden=true href=#3-流程图解-visual-summary>#</a></h3><pre tabindex=0><code class=language-mermaid data-lang=mermaid>graph TD
+    start([Start: open_device_node]) --&gt; prep[准备路径: Secure, Specific, Default]
+    
+    prep --&gt; try1[尝试 1: 直接 open Secure 节点]
+    try1 -- 成功 --&gt; success([返回 FD])
+    try1 -- 失败 --&gt; try2[尝试 2: 直接 open Specific 节点]
+    
+    try2 -- 成功 --&gt; success
+    try2 -- 失败 --&gt; try3[尝试 3: 直接 open Default 节点]
+    
+    try3 -- 成功 --&gt; success
+    try3 -- 失败 --&gt; checkErr{检查 errno 错误码}
+    
+    checkErr -- &#34;其他错误 (如文件不存在)&#34; --&gt; fail([返回 Error])
+    
+    checkErr -- &#34;EACCES (权限被拒)&#34; --&gt; hal_start[启动 HAL 回退流程]
+    
+    subgraph &#34;HAL Fallback (Binder IPC)&#34;
+        hal_start --&gt; call_hal[请求 HAL Service]
+        call_hal --&gt; hal_open[HAL 打开设备]
+        hal_open --&gt; binder_tx[Binder 传递 FD]
+    end
+    
+    binder_tx --&gt; hal_success([收到 FD 并返回])
+    
+    style hal_start fill:#f9f,stroke:#333,stroke-width:2px
+    style success fill:#9f9,stroke:#333,stroke-width:2px
+    style hal_success fill:#9f9,stroke:#333,stroke-width:2px
+</code></pre><h3 id=4-核心总结>4. 核心总结<a hidden class=anchor aria-hidden=true href=#4-核心总结>#</a></h3><ol><li><strong>先斩后奏</strong>：总是优先尝试直接 <code>open</code>，因为系统调用（Syscall）比跨进程通信（Binder IPC）快得多。</li><li><strong>智能回退</strong>：只有在明确遇到“权限拒绝”时才动用 HAL，避免了无谓的性能损耗。</li><li><strong>多路兼容</strong>：通过尝试三个不同的设备路径，兼容了不同年代和不同配置的高通芯片平台。</li></ol><p>这就是为什么无论是在 Root 过的设备 shell 中运行，还是在受限的 APK 中运行，FastRPC 都能正常工作的底层原因。</p></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2025 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

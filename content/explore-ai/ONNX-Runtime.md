@@ -197,6 +197,174 @@ SkelRun -down-> HTP_HW : 14. Compute
 
 ---
 
+## 模型加载运行过程
+
+```plantuml
+@startuml
+!theme plain
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam defaultFontColor black
+skinparam arrowColor #333333
+skinparam nodesep 50
+skinparam ranksep 40
+skinparam linetype ortho
+
+' --- 样式定义 ---
+skinparam rectangle {
+    BackgroundColor #F5F5F5
+    BorderColor #9E9E9E
+    RoundCorner 6
+}
+skinparam component {
+    BackgroundColor #E3F2FD
+    BorderColor #1E88E5
+}
+skinparam file {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
+}
+
+title QNN HTP Architecture: Full Lifecycle (Fixed Directions)
+
+' --- 图例 (Legend) ---
+legend right
+    | 颜色 | 阶段 / 含义 |
+    | <#FF0000> | <b>Phase 1: 初始化与建图</b> (只运行一次) |
+    | <#0000FF> | <b>Side-load 回环</b> (驱动加载 Skel 文件) |
+    | <#008000> | <b>Phase 2: 推理执行</b> (每帧运行, 高频) |
+endlegend
+
+node "Qualcomm SoC" {
+
+    rectangle "CPU Subsystem (Application Processor)" as CPU_DOMAIN {
+
+        rectangle "1. App Process Space" as LAYER_APP {
+            component "App Code" as AppCode
+            file "Assets/model.onnx" as Model
+
+            rectangle "Native Libraries" {
+                component "ONNX Runtime" as ORT
+                component "QNN EP" as QNN_EP
+                
+                package "QNN SDK" {
+                    component "Backend Manager\n(libQnnHtp.so)" as QnnHtp
+                    component "Stub(CPU Proxy)\t\t" as QnnStub
+                }
+                
+                file "libQnnHtpVxxSkel.so\n(Disk Artifact)" as SkelFile
+            }
+        }
+
+        rectangle "2. System / Kernel" as LAYER_SYS {
+            component "FastRPC Lib" as FastRPC
+            component "FastRPC Driver" as Driver
+            database "Shared Memory\n(ION / DMA-BUF)" as Mem
+        }
+    }
+
+    rectangle "DSP Subsystem" as DSP_DOMAIN {
+        component "QuRT OS" as QuRT
+
+        package "Signed PD" {
+            component "Skel Instance\n(Running Code)" as SkelRun
+            component "HTP Hardware\n(NPU)" as HTP_HW
+        }
+    }
+}
+
+' =======================
+' 逻辑连线 (已修复方向问题)
+' =======================
+
+' --- Phase 1: Initialization (红色箭头) ---
+AppCode -[#FF0000]down-> ORT : 1. CreateSession
+ORT .[#FF0000]right.> Model : 2. Parse
+ORT -[#FF0000]down-> QNN_EP : 3. Delegate
+QNN_EP -[#FF0000]down-> QnnHtp : 4. Init
+QnnHtp -[#FF0000]down-> QnnStub : 5. Load Stub
+
+' RPC 建立
+QnnStub -[#FF0000]down-> FastRPC : 6. Open Session
+FastRPC -[#FF0000]down-> Driver : 7. ioctl
+
+' DSP 唤醒
+Driver -[#FF0000]down-> QuRT : 8. WakeUp & Create PD
+
+' --- Side-load Loop (蓝色箭头 - 加载回环) ---
+QuRT .[#0000FF]up.> Driver : 9. Request Load
+Driver .[#0000FF]up.> FastRPC : 10. Upcall
+FastRPC .[#0000FF]left.> SkelFile : 11. READ FILE
+FastRPC .[#0000FF]down.> Mem : 12. Map to Shared Mem
+Mem .[#0000FF]down.> SkelRun : 13. Load into DSP Mem
+
+' --- Phase 2: Execution (绿色箭头 - 已修复方向) ---
+AppCode -[#008000]right-> ORT : Run(Input)
+
+' 修复点：添加了 down 方向
+ORT -[#008000]down-> QNN_EP
+QNN_EP -[#008000]down-> QnnStub
+
+' 写入共享内存 (使用 dotted 线表示数据流，solid 线表示控制流)
+QnnStub .[#008000]right.> Mem : 14. Write Input Tensor\n数据不走 RPC 拷贝而是走共享内存
+
+' RPC 执行链
+QnnStub -[#008000]down-> FastRPC : 15. Invoke Execute
+FastRPC -[#008000]down-> Driver
+Driver -[#008000]down-> SkelRun : 16. Signal
+SkelRun -[#008000]down-> HTP_HW : 17. Compute
+
+@enduml
+```
+
+这是一段针对该 QNN HTP 架构流程图的详细专业解说。这段解说将图表分为三个逻辑阶段，清晰阐述了模型从加载到硬件执行的完整生命周期。
+
+---
+
+### **QNN HTP 架构全生命周期解说**
+
+这张架构图展示了使用 ONNX Runtime (ORT) 配合 QNN SDK 在高通 Hexagon NPU (HTP) 上运行 AI 模型的完整技术链路。流程被清晰地划分为三个阶段：**初始化（红色）**、**Side-load 回环（蓝色）以及推理执行（绿色）**。
+
+#### **第一阶段：初始化与建图 (Phase 1: Initialization)**
+
+> **图例颜色：红色 <font color="red">──></font>**
+> *这是“准备工作”，通常在应用启动时执行一次，耗时较长。*
+
+1. **应用发起**：业务代码 (`App Code`) 调用 ORT 的 `CreateSession` 接口。
+2. **模型解析 (CPU)**：**关键点！** ORT 在 CPU 侧直接读取并解析 `Assets/model.onnx` 文件。模型文件本身**不会**被发送到 DSP，ORT 负责理解网络结构并进行图分割。
+3. **任务委托**：ORT 识别到支持 NPU 加速的节点，将其委托给 `QNN EP`，随后层层传递至 `Backend Manager` 和 `Stub`。
+4. **握手与唤醒**：`Stub` (CPU 代理) 通过 `FastRPC` 向底层驱动发起 `open` 请求，驱动负责唤醒沉睡的 DSP 子系统，并在其上创建一个受保护的进程域 (Signed PD)。
+
+#### **第二阶段：Skel 加载回环 (The Side-load Loop)**
+
+> **图例颜色：蓝色 <font color="blue">..></font>**
+> *这是 QNN 架构的核心机制，发生在初始化阶段的内部，解决了 DSP 如何获取执行代码的问题。*
+
+1. **反向请求 (Upcall)**：DSP 被唤醒后，其内部的系统（QuRT/Loader）发现需要加载 HTP 硬件驱动逻辑，于是向 CPU 发起一个“请求加载文件”的反向 RPC 调用。
+2. **文件读取**：CPU 端的 `FastRPC Lib` 收到请求，根据环境变量（`ADSP_LIBRARY_PATH`）在磁盘的 Native 库路径下找到 `libQnnHtpVxxSkel.so` (Skel 文件)。
+3. **共享内存传输**：FastRPC **不**通过慢速的 RPC 协议拷贝文件内容，而是将文件直接映射到 **共享内存 (ION/DMA-BUF)** 中。
+4. **DSP 加载**：DSP 直接从共享内存读取 Skel 镜像并完成加载。至此，`Skel Instance` (服务端) 就位，准备好控制 HTP 硬件。
+
+#### **第三阶段：推理执行 (Phase 2: Execution)**
+
+> **图例颜色：绿色 <font color="green">──></font>**
+> *这是高频运行的阶段（如相机预览流每秒 30 帧），追求极致性能。*
+
+1. **零拷贝输入**：当应用调用 `Run()` 时，输入数据（如图片张量）被直接写入 **共享内存 (Mem)**。注意图中虚线所示，**大数据不走 RPC 协议拷贝**，这是高性能的关键。
+2. **轻量级指令**：`QnnStub` 仅通过 RPC 发送一条轻量级的 `Execute` 指令，告知 DSP 数据在共享内存的哪个位置。
+3. **硬件计算**：DSP 端的 `SkelRun` 收到指令，指挥 `HTP Hardware` (Tensor Cores) 全速运转。
+4. **结果返回**：计算完成后，结果同样通过共享内存返回给 CPU，完成一次推理。
+
+---
+
+### **核心总结**
+
+* **物理隔离**：模型文件 (`model.onnx`) 由 CPU 解析，Skel 库 (`.so`) 由 DSP 加载，两者物理存储位置和加载时机完全不同。
+* **反向加载**：DSP 是“大脑”，但它需要 CPU 这个“管家”帮忙从磁盘拿代码（Skel），这就是 Side-load 机制。
+* **性能优化**：控制流走 FastRPC，数据流走共享内存，实现了控制与数据分离，最大化了吞吐量。
+
+
 ## 4. 开发与调试重点
 
 * **Skel 文件必须打包**: 务必确保 `libQnnHtpV[xx]Skel.so` 被正确打包进 APK 的 `jniLibs` 或 `assets` 中。如果 DSP 请求文件时（步骤 8-10）在路径中找不到文件，初始化将直接失败。

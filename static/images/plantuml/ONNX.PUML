@@ -2,104 +2,120 @@
 !theme plain
 skinparam backgroundColor white
 skinparam defaultFontName Arial
-skinparam defaultFontSize 14
+skinparam defaultFontSize 13
 skinparam defaultFontColor black
-skinparam arrowColor black
-skinparam nodesep 60
-skinparam ranksep 50
+skinparam arrowColor #333333
+skinparam nodesep 50
+skinparam ranksep 40
+skinparam linetype ortho
+
+' --- 样式定义 ---
 skinparam rectangle {
-    BackgroundColor #ECEFF1
-    BorderColor #607D8B
-    RoundCorner 8
-}
-skinparam package {
-    BackgroundColor #E3F2FD
-    BorderColor #1E88E5
-    FontStyle bold
+    BackgroundColor #F5F5F5
+    BorderColor #9E9E9E
+    RoundCorner 6
 }
 skinparam component {
-    BackgroundColor #E8F5E9
-    BorderColor #2E7D32
+    BackgroundColor #E3F2FD
+    BorderColor #1E88E5
+}
+skinparam file {
+    BackgroundColor #FFF9C4
+    BorderColor #FBC02D
 }
 
-title QNN HTP (ONNX Runtime) Architecture Flow
+title QNN HTP Architecture: Full Lifecycle (Fixed Directions)
 
-node "Qualcomm SoC (System on Chip)" {
+' --- 图例 (Legend) ---
+legend right
+    | 颜色 | 阶段 / 含义 |
+    | <#FF0000> | <b>Phase 1: 初始化与建图</b> (只运行一次) |
+    | <#0000FF> | <b>Side-load 回环</b> (驱动加载 Skel 文件) |
+    | <#008000> | <b>Phase 2: 推理执行</b> (每帧运行, 高频) |
+endlegend
 
-    ' --- CPU Subsystem (Android) ---
+node "Qualcomm SoC" {
+
     rectangle "CPU Subsystem (Application Processor)" as CPU_DOMAIN {
 
-        rectangle "1. Android User Space (APK Process)" as LAYER_APP {
-            component "Business Logic\n(Kotlin/Java/C++)" as AppCode
-            note right of AppCode
-               <b>关键配置:</b>
-               setenv("ADSP_LIBRARY_PATH", 
-               nativeLibraryDir, 1);
-            end note
+        rectangle "1. App Process Space" as LAYER_APP {
+            component "App Code" as AppCode
+            file "Assets/model.onnx" as Model
 
-            package "Native Libraries (jniLibs / lib/arm64)" {
-                component "libonnxruntime.so" as ORT
-                component "libonnxruntime_providers_qnn.so" as QNN_EP
+            rectangle "Native Libraries" {
+                component "ONNX Runtime" as ORT
+                component "QNN EP" as QNN_EP
                 
-                package "QNN SDK CPU Libs" {
-                    component "libQnnHtp.so\n(Backend Manager)" as QnnHtp
-                    component "libQnnHtpV[xx]Stub.so\n(CPU Proxy)" as QnnStub
+                package "QNN SDK" {
+                    component "Backend Manager\n(libQnnHtp.so)" as QnnHtp
+                    component "Stub\n(CPU Proxy)" as QnnStub
                 }
                 
-                component "libQnnHtpV[xx]Skel.so\n(DSP Executable)" as SkelFile
-                note bottom of SkelFile
-                   <b>Skel 文件</b>
-                   虽然打包在 CPU 文件系统
-                   但必须由 FastRPC 读取并
-                   加载到 DSP 运行
-                end note
+                file "libQnnHtpVxxSkel.so\n(Disk Artifact)" as SkelFile
             }
-
-            component "Assets (model.onnx)" as Model
-            note top of Model
-               由 ORT 在 CPU 端
-               直接读取并解析
-            end note
         }
 
-        rectangle "2. Android System / Vendor Libs" as LAYER_SYS {
-            component "libadsprpc.so (FastRPC Framework)" as FastRPC
-        }
-
-        rectangle "3. Linux Kernel Space" as LAYER_KERNEL {
-            component "adsprpc.ko (FastRPC Driver)" as Driver
-            component "ION / SMMU\n(Shared Memory)" as Mem
+        rectangle "2. System / Kernel" as LAYER_SYS {
+            component "FastRPC Lib" as FastRPC
+            component "FastRPC Driver" as Driver
+            database "Shared Memory\n(ION / DMA-BUF)" as Mem
         }
     }
 
-    ' --- DSP Subsystem ---
-    rectangle "DSP Subsystem (Hexagon cDSP/HTP)" as DSP_DOMAIN {
-        component "QuRT OS (Real-time Kernel)" as QuRT
+    rectangle "DSP Subsystem" as DSP_DOMAIN {
+        component "QuRT OS" as QuRT
 
-        package "Signed PD (Protection Domain)" {
-            component "Skel Instance (Running Code)" as SkelRun
-            component "HTP Hardware (Tensor Cores)" as HTP_HW
+        package "Signed PD" {
+            component "Skel Instance\n(Running Code)" as SkelRun
+            component "HTP Hardware\n(NPU)" as HTP_HW
         }
     }
 }
 
-' --- 详细调用关系 ---
-AppCode -down-> ORT : 1. Run()
-ORT .left.> Model: Read & Parse
-ORT -down-> QNN_EP : 2. Get EP
-QNN_EP -down-> QnnHtp : 3. Create Backend
-QnnHtp -down-> QnnStub : 4. Load specific Stub
+' =======================
+' 逻辑连线 (已修复方向问题)
+' =======================
 
-QnnStub -down-> FastRPC : 5. remote_handle_open()
-FastRPC -down-> Driver : 6. ioctl (FASTRPC_IOCTL_INVOKE)
-Driver <-> QuRT : 7. Context Switch / Wake up
+' --- Phase 1: Initialization (红色箭头) ---
+AppCode -[#FF0000]down-> ORT : 1. CreateSession
+ORT .[#FF0000]right.> Model : 2. Parse
+ORT -[#FF0000]down-> QNN_EP : 3. Delegate
+QNN_EP -[#FF0000]down-> QnnHtp : 4. Init
+QnnHtp -[#FF0000]down-> QnnStub : 5. Load Stub
 
-QuRT .up.> Driver : 8. Request Skel
-Driver .up.> FastRPC : 9. Callback
-FastRPC .left.> SkelFile : 10. Read from ADSP_LIBRARY_PATH
-FastRPC .down.> Mem : 11. Map to ION
-Mem .down.> SkelRun : 12. Load into PD
+' RPC 建立
+QnnStub -[#FF0000]down-> FastRPC : 6. Open Session
+FastRPC -[#FF0000]down-> Driver : 7. ioctl
 
-QuRT -down-> SkelRun : 13. Execute Graph
-SkelRun -down-> HTP_HW : 14. Compute
+' DSP 唤醒
+Driver -[#FF0000]down-> QuRT : 8. WakeUp & Create PD
+
+' --- Side-load Loop (蓝色箭头 - 加载回环) ---
+QuRT .[#0000FF]up.> Driver : 9. Request Load
+Driver .[#0000FF]up.> FastRPC : 10. Upcall
+FastRPC .[#0000FF]left.> SkelFile : 11. READ FILE
+FastRPC .[#0000FF]down.> Mem : 12. Map to Shared Mem
+Mem .[#0000FF]down.> SkelRun : 13. Load into DSP Mem
+
+' --- Phase 2: Execution (绿色箭头 - 已修复方向) ---
+AppCode -[#008000]right-> ORT : Run(Input)
+
+' 修复点：添加了 down 方向
+ORT -[#008000]down-> QNN_EP
+QNN_EP -[#008000]down-> QnnStub
+
+' 写入共享内存 (使用 dotted 线表示数据流，solid 线表示控制流)
+QnnStub .[#008000]right.> Mem : 14. Write Input Tensor
+
+' RPC 执行链
+QnnStub -[#008000]down-> FastRPC : 15. Invoke Execute
+FastRPC -[#008000]down-> Driver
+Driver -[#008000]down-> SkelRun : 16. Signal
+SkelRun -[#008000]down-> HTP_HW : 17. Compute
+
+' note left of Mem
+'   数据不走 RPC 拷贝
+'   而是走共享内存
+' end note
+
 @enduml
