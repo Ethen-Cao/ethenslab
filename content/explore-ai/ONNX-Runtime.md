@@ -63,7 +63,7 @@ node "Qualcomm SoC" {
                 
                 package "QNN SDK" {
                     component "Backend Manager\n(libQnnHtp.so)" as QnnHtp
-                    component "\t\tStub(CPU Proxy)\t\t" as QnnStub
+                    component "\t\t\t\t\t\tStub(CPU Proxy)\t\t\t\t\t\t" as QnnStub
                 }
                 
                 file "libQnnHtpVxxSkel.so\n(Disk Artifact)" as SkelFile
@@ -185,8 +185,6 @@ SkelRun -[#008000]down-> HTP_HW : 17. Compute
 
 * **Stub 库 (`libQnnHtpVxxStub.so`)**:
 * **运行**: 在 **CPU** 端运行，负责参数编组 (Marshalling)，是 FastRPC 的客户端。
-
-
 
 ### 3.2 Android System & Kernel
 
