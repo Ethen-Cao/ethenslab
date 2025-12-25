@@ -180,100 +180,109 @@ rectangle &amp;#34;Linux Kernel&amp;#34;
 &lt;li&gt;解密后的视频帧被安全地渲染到屏幕上。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/li&gt;
-&lt;/ol&gt;</description></item><item><title>QNN HTP (ONNX Runtime) 架构与调用流程详解</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/onnx-runtime/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/onnx-runtime/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
-&lt;p&gt;本架构图展示了从 Android 应用层（CPU）到高通 Hexagon DSP（NPU）层的完整调用链路。核心机制是利用 &lt;strong&gt;FastRPC&lt;/strong&gt; 跨越处理器边界，将存储在 CPU 文件系统中的 NPU 驱动代码（Skel）动态加载到 DSP 中运行，从而实现模型的高性能推理。&lt;/p&gt;
+&lt;/ol&gt;</description></item><item><title>QNN HTP (ONNX Runtime) 架构原理与全链路调用详解</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/onnx-runtime/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/onnx-runtime/</guid><description>&lt;h2 id="1-架构全景图"&gt;1. 架构全景图&lt;/h2&gt;
+&lt;p&gt;本架构图展示了从 Android 应用层（CPU）到高通 Hexagon DSP（NPU）层的完整调用链路。&lt;/p&gt;
+&lt;p&gt;核心设计理念在于 &lt;strong&gt;控制与数据分离&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;控制流&lt;/strong&gt;：利用 &lt;strong&gt;FastRPC&lt;/strong&gt; 跨越处理器边界，将存储在 CPU 文件系统中的 NPU 驱动代码（Skel）动态“侧载” (Side-load) 到 DSP 中运行。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;数据流&lt;/strong&gt;：利用 &lt;strong&gt;ION/DMA-BUF&lt;/strong&gt; 共享内存实现零拷贝传输，确保证推理性能。&lt;/li&gt;
+&lt;/ul&gt;
 &lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
 skinparam backgroundColor white
 skinparam defaultFontName Arial
-skinparam defaultFontSize 14
+skinparam defaultFontSize 13
 skinparam defaultFontColor black
-skinparam arrowColor black
-skinparam nodesep 60
-skinparam ranksep 50
+skinparam arrowColor #333333
+skinparam nodesep 50
+skinparam ranksep 40
+skinparam linetype ortho
+&amp;#39; --- 样式定义 ---
 skinparam rectangle {
-BackgroundColor #ECEFF1
-BorderColor #607D8B
-RoundCorner 8
-}
-skinparam package {
-BackgroundColor #E3F2FD
-BorderColor #1E88E5
-FontStyle bold
+BackgroundColor #F5F5F5
+BorderColor #9E9E9E
+RoundCorner 6
 }
 skinparam component {
-BackgroundColor #E8F5E9
-BorderColor #2E7D32
+BackgroundColor #E3F2FD
+BorderColor #1E88E5
 }
-title QNN HTP (ONNX Runtime) Architecture Flow
-node &amp;#34;Qualcomm SoC (System on Chip)&amp;#34; {
-&amp;#39; --- CPU Subsystem (Android) ---
+skinparam file {
+BackgroundColor #FFF9C4
+BorderColor #FBC02D
+}
+title QNN HTP Architecture: Full Lifecycle
+&amp;#39; --- 图例 (Legend) ---
+legend right
+| 颜色 | 阶段 / 含义 |
+| &amp;lt;#FF0000&amp;gt; | &amp;lt;b&amp;gt;Phase 1: 初始化与建图&amp;lt;/b&amp;gt; (只运行一次) |
+| &amp;lt;#0000FF&amp;gt; | &amp;lt;b&amp;gt;Side-load 回环&amp;lt;/b&amp;gt; (驱动加载 Skel 文件) |
+| &amp;lt;#008000&amp;gt; | &amp;lt;b&amp;gt;Phase 2: 推理执行&amp;lt;/b&amp;gt; (每帧运行, 高频) |
+endlegend
+node &amp;#34;Qualcomm SoC&amp;#34; {
 rectangle &amp;#34;CPU Subsystem (Application Processor)&amp;#34; as CPU_DOMAIN {
-rectangle &amp;#34;1. Android User Space (APK Process)&amp;#34; as LAYER_APP {
-component &amp;#34;Business Logic\n(Kotlin/Java/C++)&amp;#34; as AppCode
-note right of AppCode
-&amp;lt;b&amp;gt;关键配置:&amp;lt;/b&amp;gt;
-setenv(&amp;#34;ADSP_LIBRARY_PATH&amp;#34;,
-nativeLibraryDir, 1);
-end note
-package &amp;#34;Native Libraries (jniLibs / lib/arm64)&amp;#34; {
-component &amp;#34;libonnxruntime.so&amp;#34; as ORT
-component &amp;#34;libonnxruntime_providers_qnn.so&amp;#34; as QNN_EP
-package &amp;#34;QNN SDK CPU Libs&amp;#34; {
-component &amp;#34;libQnnHtp.so\n(Backend Manager)&amp;#34; as QnnHtp
-component &amp;#34;libQnnHtpV[xx]Stub.so\n(CPU Proxy)&amp;#34; as QnnStub
+rectangle &amp;#34;1. App Process Space&amp;#34; as LAYER_APP {
+component &amp;#34;\tApp Code\t&amp;#34; as AppCode
+file &amp;#34;Assets/model.onnx&amp;#34; as Model
+rectangle &amp;#34;Native Libraries&amp;#34; {
+component &amp;#34;ONNX Runtime&amp;#34; as ORT
+component &amp;#34;\t\tQNN EP\t\t&amp;#34; as QNN_EP
+package &amp;#34;QNN SDK&amp;#34; {
+component &amp;#34;Backend Manager\n(libQnnHtp.so)&amp;#34; as QnnHtp
+component &amp;#34;\t\tStub(CPU Proxy)\t\t&amp;#34; as QnnStub
 }
-component &amp;#34;libQnnHtpV[xx]Skel.so\n(DSP Executable)&amp;#34; as SkelFile
-note bottom of SkelFile
-&amp;lt;b&amp;gt;Skel 文件&amp;lt;/b&amp;gt;
-虽然打包在 CPU 文件系统
-但必须由 FastRPC 读取并
-加载到 DSP 运行
-end note
-}
-component &amp;#34;Assets (model.onnx)&amp;#34; as Model
-note top of Model
-由 ORT 在 CPU 端
-直接读取并解析
-end note
-}
-rectangle &amp;#34;2. Android System / Vendor Libs&amp;#34; as LAYER_SYS {
-component &amp;#34;libadsprpc.so (FastRPC Framework)&amp;#34; as FastRPC
-}
-rectangle &amp;#34;3. Linux Kernel Space&amp;#34; as LAYER_KERNEL {
-component &amp;#34;adsprpc.ko (FastRPC Driver)&amp;#34; as Driver
-component &amp;#34;ION / SMMU\n(Shared Memory)&amp;#34; as Mem
+file &amp;#34;libQnnHtpVxxSkel.so\n(Disk Artifact)&amp;#34; as SkelFile
 }
 }
-&amp;#39; --- DSP Subsystem ---
-rectangle &amp;#34;DSP Subsystem (Hexagon cDSP/HTP)&amp;#34; as DSP_DOMAIN {
-component &amp;#34;QuRT OS (Real-time Kernel)&amp;#34; as QuRT
-package &amp;#34;Signed PD (Protection Domain)&amp;#34; {
-component &amp;#34;Skel Instance (Running Code)&amp;#34; as SkelRun
-component &amp;#34;HTP Hardware (Tensor Cores)&amp;#34; as HTP_HW
+rectangle &amp;#34;2. System / Kernel&amp;#34; as LAYER_SYS {
+component &amp;#34;\t\tFastRPC Lib\t\t&amp;#34; as FastRPC
+component &amp;#34;\t\t\tFastRPC Driver\t\t\t&amp;#34; as Driver
+database &amp;#34;Shared Memory\n(ION / DMA-BUF)&amp;#34; as Mem
+}
+}
+rectangle &amp;#34;DSP Subsystem&amp;#34; as DSP_DOMAIN {
+component &amp;#34;\t\tQuRT OS\t\t&amp;#34; as QuRT
+package &amp;#34;Signed PD&amp;#34; {
+component &amp;#34;Skel Instance\n(Running Code)&amp;#34; as SkelRun
+component &amp;#34;HTP Hardware\n(NPU)&amp;#34; as HTP_HW
 }
 }
 }
-&amp;#39; --- 详细调用关系 ---
-AppCode -down-&amp;gt; ORT : 1. Run()
-ORT .left.&amp;gt; Model: Read &amp;amp; Parse
-ORT -down-&amp;gt; QNN_EP : 2. Get EP
-QNN_EP -down-&amp;gt; QnnHtp : 3. Create Backend
-QnnHtp -down-&amp;gt; QnnStub : 4. Load specific Stub
-QnnStub -down-&amp;gt; FastRPC : 5. remote_handle_open()
-FastRPC -down-&amp;gt; Driver : 6. ioctl (FASTRPC_IOCTL_INVOKE)
-Driver &amp;lt;-&amp;gt; QuRT : 7. Context Switch / Wake up
-QuRT .up.&amp;gt; Driver : 8. Request Skel
-Driver .up.&amp;gt; FastRPC : 9. Callback
-FastRPC .left.&amp;gt; SkelFile : 10. Read from ADSP_LIBRARY_PATH
-FastRPC .down.&amp;gt; Mem : 11. Map to ION
-Mem .down.&amp;gt; SkelRun : 12. Load into PD
-QuRT -down-&amp;gt; SkelRun : 13. Execute Graph
-SkelRun -down-&amp;gt; HTP_HW : 14. Compute
+&amp;#39; =======================
+&amp;#39; 逻辑连线
+&amp;#39; =======================
+&amp;#39; --- Phase 1: Initialization (红色箭头) ---
+AppCode -[#FF0000]down-&amp;gt; ORT : 1. CreateSession
+ORT .[#FF0000]right.&amp;gt; Model : 2. Parse
+ORT -[#FF0000]down-&amp;gt; QNN_EP : 3. Delegate
+QNN_EP -[#FF0000]down-&amp;gt; QnnHtp : 4. Init
+QnnHtp -[#FF0000]down-&amp;gt; QnnStub : 5. Load Stub
+&amp;#39; RPC 建立
+QnnStub -[#FF0000]down-&amp;gt; FastRPC : 6. Open Session
+FastRPC -[#FF0000]down-&amp;gt; Driver : 7. ioctl
+&amp;#39; DSP 唤醒
+Driver -[#FF0000]down-&amp;gt; QuRT : 8. WakeUp &amp;amp; Create PD
+&amp;#39; --- Side-load Loop (蓝色箭头 - 加载回环) ---
+QuRT .[#0000FF]up.&amp;gt; Driver : 9. Request Load
+Driver .[#0000FF]up.&amp;gt; FastRPC : 10. Upcall
+FastRPC .[#0000FF]left.&amp;gt; SkelFile : 11. READ FILE
+FastRPC .[#0000FF]down.&amp;gt; Mem : 12. Map to Shared Mem
+Mem .[#0000FF]down.&amp;gt; SkelRun : 13. Load into DSP Mem
+&amp;#39; --- Phase 2: Execution (绿色箭头 - 高频路径) ---
+AppCode -[#008000]right-&amp;gt; ORT : Run(Input)
+ORT -[#008000]down-&amp;gt; QNN_EP
+QNN_EP -[#008000]down-&amp;gt; QnnStub
+&amp;#39; 写入共享内存
+QnnStub .[#008000]right.&amp;gt; Mem : 14. Write Input Tensor\n(Zero-Copy)
+&amp;#39; RPC 执行链
+QnnStub -[#008000]down-&amp;gt; FastRPC : 15. Invoke Execute
+FastRPC -[#008000]down-&amp;gt; Driver
+Driver -[#008000]down-&amp;gt; SkelRun : 16. Signal
+SkelRun -[#008000]down-&amp;gt; HTP_HW : 17. Compute
 @enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="2-核心组件分层"&gt;2. 核心组件分层&lt;/h2&gt;
-&lt;h3 id="21-android-user-space-应用层"&gt;2.1 Android User Space (应用层)&lt;/h3&gt;
-&lt;p&gt;这是应用程序运行的进程空间，包含了业务代码和所有的第三方依赖库。&lt;/p&gt;</description></item><item><title>UML中package和component对比</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/package-component-comparison/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/package-component-comparison/</guid><description>&lt;h2 id="一概念本质对比"&gt;一、概念本质对比&lt;/h2&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
+&lt;h2 id="2-核心全生命周期解说"&gt;2. 核心全生命周期解说&lt;/h2&gt;
+&lt;p&gt;整个运行过程分为三个严格的时序阶段，对应架构图中的三种颜色。&lt;/p&gt;</description></item><item><title>UML中package和component对比</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/package-component-comparison/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/package-component-comparison/</guid><description>&lt;h2 id="一概念本质对比"&gt;一、概念本质对比&lt;/h2&gt;
 &lt;table&gt;
 &lt;thead&gt;
 &lt;tr&gt;
