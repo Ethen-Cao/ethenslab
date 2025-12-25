@@ -129,6 +129,7 @@ title = 'Hexagon DSP简介'
 
 
 ## Hexagon SDK 和 Qualcomm AI Engine Direct SDK (QNN)的对比
+
 ### 1. 核心定位区别
 
 | 特性 | **Hexagon SDK** | **Qualcomm AI Engine Direct SDK (QNN)** |
@@ -267,3 +268,140 @@ FastRPC --> MyAlgo : Execute C Code
 
 * **Hexagon SDK** 是给 **DSP 程序员** 用的，它是通用的、底层的。
 * **QNN SDK** 是给 **AI 工程师** 用的，它是专用的、高层的。
+
+这是一篇为您起草的 Wiki 技术文档，详细对比了 AI 模型在端侧部署时的两种核心模式：**解释执行模式**与**模型库模式**。
+
+---
+
+# AI 模型部署模式：解释执行 vs. 模型库
+
+在移动端 AI 推理（如 Qualcomm QNN、TensorFlow Lite、ONNX Runtime）中，根据应用程序加载和执行模型的方式不同，主要分为两种部署形态：**解释执行模式 (Interpreted Mode)** 和 **模型库模式 (Model Library Mode)**。
+
+本文档将详细解释这两者的工作原理、架构区别及优缺点，以辅助架构决策。
+
+## 1. 解释执行模式 (Interpreted Mode)
+
+这是最通用、最常见的开发模式。在这种模式下，模型被视为**数据文件**。
+
+### 1.1 核心概念
+
+* **别名**：Standard Mode, File Mode, Dynamic Graph Construction。
+* **输入**：标准模型文件（如 `.onnx`, `.tflite`, `.qnn`）。
+* **原理**：推理引擎（Runtime）充当“解释器”的角色。App 启动时，Runtime 读取模型文件，解析其中的节点结构（拓扑关系、算子参数），然后在内存中动态构建计算图。
+
+### 1.2 工作流
+
+1. **加载 (Load)**：读取磁盘上的模型文件。
+2. **解析 (Parse)**：遍历文件节点（如 Conv2d, Relu），理解其含义。
+3. **构图 (Compose)**：调用后端 API（如 `QnnGraph_addNode`）在内存中重建图结构。
+4. **执行 (Execute)**：输入数据，运行推理。
+
+### 1.3 类比
+
+就像**照着菜谱做菜**。厨师（Runtime）每次做菜前，都要先打开菜谱（模型文件），从头阅读每一个步骤，理解含义后，再开始动手。
+
+---
+
+## 2. 模型库模式 (Model Library Mode)
+
+这是追求极致性能和安全性的原生集成模式。在这种模式下，模型被转化为**二进制代码**。
+
+### 2.1 核心概念
+
+* **别名**：Native Mode, Compiled Mode, Shared Library Mode (`.so` Mode)。
+* **输入**：编译后的动态链接库（如 `libMyModel.so`）。
+* **原理**：使用工具链（如 `qnn-model-lib-generator`）将模型的网络结构“硬编码”为 C++ 代码，并与权重一起编译成机器码。App 运行时直接加载该库，跳过解析过程。
+
+### 2.2 工作流
+
+1. **离线编译 (Offline Build)**：
+* `model.onnx` -> **Converter** -> `model.cpp` + `model.bin`
+* `model.cpp` -> **Compiler (NDK)** -> `libmodel.so`
+
+
+2. **加载 (Load)**：App 通过 `dlopen` 或 System API 加载 `.so`。
+3. **注册 (Register)**：库中的函数直接向后端注册计算图（图结构已固化在指令中）。
+4. **执行 (Execute)**：输入数据，运行推理。
+
+### 2.3 类比
+
+就像**背下菜谱直接做菜**。厨师已经将菜谱烂熟于心（编译进大脑/代码段），不需要翻书，拿起锅铲直接开始，省去了阅读和理解的时间。
+
+---
+
+## 3. 架构视图对比
+
+以下是两种模式在系统层面的架构差异（以 Qualcomm QNN 为例）：
+
+```plantuml
+@startuml
+!theme plain
+skinparam backgroundColor white
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 50
+
+title 架构对比：解释执行 vs. 模型库
+
+package "Mode A: 解释执行 (Interpreted)" {
+    file "model.onnx" as File
+    component "Runtime / Parser" as Parser #e1f5fe
+    component "Backend (QNN HTP)" as Backend1
+    
+    note right of Parser
+       <b>运行时开销:</b>
+       1. 解析文件格式
+       2. 循环调用 addNode
+       3. 动态内存分配
+    end note
+    
+    File --> Parser : 1. Read
+    Parser --> Backend1 : 2. Construct Graph (API Calls)
+}
+
+package "Mode B: 模型库 (Model Library)" {
+    component "libMyModel.so" as Lib #fff9c4
+    component "Backend (QNN HTP)" as Backend2
+    
+    note right of Lib
+       <b>零解析开销:</b>
+       图结构已编译为
+       二进制指令序列
+    end note
+    
+    Lib .right.> Backend2 : 1. Direct Link / Register
+}
+
+@enduml
+
+```
+
+---
+
+## 4. 核心维度对比表
+
+| 维度 | 解释执行模式 (Standard) | 模型库模式 (Library .so) |
+| --- | --- | --- |
+| **模型形态** | 文件 (`.onnx`, `.tflite`) | 动态库 (`.so`) |
+| **集成难度** | **低**。只需替换文件即可更新模型。 | **高**。模型更新需重新编译库，并重新打包 APK。 |
+| **启动速度** | **较慢**。需要解析文件、动态构图。 | **极快**。无解析过程，直接加载符号。 |
+| **包体积** | 较小（仅模型权重+结构）。但需打包庞大的解析引擎（如 `libonnxruntime.so`）。 | 较大（模型代码化）。但可省去解析引擎，只需核心后端库。 |
+| **灵活性** | **极高**。支持热更新（下发新模型文件）。 | **低**。模型与 APK 版本强绑定。 |
+| **安全性** | **低**。模型文件容易被解包和逆向查看结构。 | **高**。模型结构变成了汇编指令，难以还原。 |
+| **适用场景** | 快速迭代、需要热更新、非极致性能敏感的应用。 | 系统级应用、旗舰游戏、核心算法保密、冷启动要求极高的场景。 |
+
+## 5. 总结与建议
+
+### 选择“解释执行模式”如果：
+
+* 您的项目处于快速开发和迭代阶段。
+* 您需要支持**模型热更新**（不发版更新 APK 即可下发新模型）。
+* 您不想处理繁琐的 NDK/C++ 编译流程。
+* 使用的是通用推理框架（TFLite, ONNX Runtime）。
+
+### 选择“模型库模式”如果：
+
+* **性能是首要指标**：您需要毫秒级的极致冷启动速度（例如相机打开即识别）。
+* **模型保密**：您不希望竞争对手轻易拿到您的模型结构。
+* **包体积优化**：您确定只需要运行这一个模型，且不想引入庞大的 ONNX/TF 解析库。
+* 您的应用是**系统内置应用**，且模型更新频率较低。

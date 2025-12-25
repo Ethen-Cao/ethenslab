@@ -1,0 +1,24 @@
+@startuml
+skinparam package {
+  BackgroundColor #E3F2FD
+  BorderColor #1E88E5
+  FontStyle bold
+}
+
+skinparam rectangle {
+  BackgroundColor #ECEFF1
+  BorderColor #607D8B
+}
+
+package "Android Framework" {
+    [AMS]
+    [WMS]
+    [PMS]
+}
+
+frame "Linux Kernel" {
+    [Binder]
+    [Scheduler]
+    [DRM]
+}
+@enduml

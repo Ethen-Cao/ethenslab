@@ -7,6 +7,8 @@ title = 'QNN HTP (ONNX Runtime) 架构与调用流程详解'
 ## 1. 概述
 
 本架构图展示了从 Android 应用层（CPU）到高通 Hexagon DSP（NPU）层的完整调用链路。核心机制是利用 **FastRPC** 跨越处理器边界，将存储在 CPU 文件系统中的 NPU 驱动代码（Skel）动态加载到 DSP 中运行，从而实现模型的高性能推理。
+
+
 ```plantuml
 @startuml
 !theme plain
