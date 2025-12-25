@@ -1,4 +1,5 @@
 # Deep Dive into Qualcomm QNN HTP: Architecture, FastRPC, and the Side-load Mechanism
+
 ## libadsprpc.so
 
 

@@ -4,9 +4,7 @@ draft = false
 title = 'UML中package和component对比'
 +++
 
-# PlantUML 元素规范
-
-## —— 架构分层图（Layer View）与子系统设计图（Subsystem View）
+# PlantUML 元素规范: 架构分层图（Layer View）与子系统设计图（Subsystem View）
 
 **版本**：v1.0
 **适用范围**：智能座舱系统 / Android & Linux 系统架构 / 平台级设计文档
