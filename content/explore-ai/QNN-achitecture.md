@@ -1,12 +1,10 @@
+# Deep Dive into Qualcomm QNN HTP: Architecture, FastRPC, and the Side-load Mechanism
 ## libadsprpc.so
 
-基于反汇编代码和我们之前的深度讨论，以下是 `open_device_node` 函数的详细工作流程总结。
 
-这个函数是 FastRPC 库 (`libadsprpc.so`) 建立 CPU 与 DSP 通信链路的**第一步**，其核心设计理念是**“效率优先，兼容兜底”**。
+## open_device_node
 
----
-
-### 1. 函数概览
+### 函数概览
 
 * **输入**: `domain_id` (如 ADSP, CDSP, SDSP 的 ID)。
 * **输出**: `fd` (File Descriptor，文件描述符)。如果成功，返回 `>0` 的整数；失败返回负数错误码。
@@ -14,7 +12,7 @@
 
 ---
 
-### 2. 详细工作流程 (Step-by-Step)
+### 详细工作流程 (Step-by-Step)
 
 #### **阶段一：路径准备 (Path Preparation)**
 
@@ -85,18 +83,18 @@
 
 ---
 
-### 3. 流程图解 (Visual Summary)
+### 流程图解 (Visual Summary)
 
 ```mermaid
 graph TD
-    start([Start: open_device_node]) --> prep[准备路径: Secure, Specific, Default]
+    start([Start: open_device_node]) --> prep[准备路径: <br/>Secure, Specific, Default]
     
-    prep --> try1[尝试 1: 直接 open Secure 节点]
+    prep --> try1[尝试 1: <br/>直接 open Secure 节点]
     try1 -- 成功 --> success([返回 FD])
-    try1 -- 失败 --> try2[尝试 2: 直接 open Specific 节点]
+    try1 -- 失败 --> try2[尝试 2: <br/>直接 open Specific 节点]
     
     try2 -- 成功 --> success
-    try2 -- 失败 --> try3[尝试 3: 直接 open Default 节点]
+    try2 -- 失败 --> try3[尝试 3: <br/>直接 open Default 节点]
     
     try3 -- 成功 --> success
     try3 -- 失败 --> checkErr{检查 errno 错误码}
