@@ -189,31 +189,41 @@ skinparam defaultFontName Arial
 skinparam defaultFontSize 14
 skinparam defaultFontColor black
 skinparam arrowColor black
-skinparam nodeBorderColor #444444
-skinparam componentBorderColor black
-skinparam linetype ortho
 skinparam nodesep 60
 skinparam ranksep 50
+skinparam rectangle {
+BackgroundColor #ECEFF1
+BorderColor #607D8B
+RoundCorner 8
+}
+skinparam package {
+BackgroundColor #E3F2FD
+BorderColor #1E88E5
+FontStyle bold
+}
+skinparam component {
+BackgroundColor #E8F5E9
+BorderColor #2E7D32
+}
 title QNN HTP (ONNX Runtime) Architecture Flow
 node &amp;#34;Qualcomm SoC (System on Chip)&amp;#34; {
 &amp;#39; --- CPU Subsystem (Android) ---
-node &amp;#34;CPU Subsystem (Application Processor)&amp;#34; as CPU_DOMAIN {
-&amp;#39; Layer 1: Application
-package &amp;#34;1. Android User Space (APK Process)&amp;#34; as LAYER_APP {
+rectangle &amp;#34;CPU Subsystem (Application Processor)&amp;#34; as CPU_DOMAIN {
+rectangle &amp;#34;1. Android User Space (APK Process)&amp;#34; as LAYER_APP {
 component &amp;#34;Business Logic\n(Kotlin/Java/C++)&amp;#34; as AppCode
 note right of AppCode
 &amp;lt;b&amp;gt;关键配置:&amp;lt;/b&amp;gt;
 setenv(&amp;#34;ADSP_LIBRARY_PATH&amp;#34;,
 nativeLibraryDir, 1);
 end note
-frame &amp;#34;Native Libraries (jniLibs / lib/arm64)&amp;#34; {
+package &amp;#34;Native Libraries (jniLibs / lib/arm64)&amp;#34; {
 component &amp;#34;libonnxruntime.so&amp;#34; as ORT
-component &amp;#34;libonnxruntime_\nproviders_qnn.so&amp;#34; as QNN_EP
+component &amp;#34;libonnxruntime_providers_qnn.so&amp;#34; as QNN_EP
 package &amp;#34;QNN SDK CPU Libs&amp;#34; {
 component &amp;#34;libQnnHtp.so\n(Backend Manager)&amp;#34; as QnnHtp
 component &amp;#34;libQnnHtpV[xx]Stub.so\n(CPU Proxy)&amp;#34; as QnnStub
 }
-file &amp;#34;libQnnHtpV[xx]Skel.so\n(DSP Executable)&amp;#34; as SkelFile #yellow
+component &amp;#34;libQnnHtpV[xx]Skel.so\n(DSP Executable)&amp;#34; as SkelFile
 note bottom of SkelFile
 &amp;lt;b&amp;gt;Skel 文件&amp;lt;/b&amp;gt;
 虽然打包在 CPU 文件系统
@@ -221,49 +231,43 @@ note bottom of SkelFile
 加载到 DSP 运行
 end note
 }
-file &amp;#34;Assets\n(model.onnx)&amp;#34; as Model
+component &amp;#34;Assets (model.onnx)&amp;#34; as Model
+note top of Model
+由 ORT 在 CPU 端
+直接读取并解析
+end note
 }
-&amp;#39; Layer 2: System Libraries
-package &amp;#34;2. Android System / Vendor Libs&amp;#34; as LAYER_SYS {
-component &amp;#34;\t\t\t\t\t\t\tlibadsprpc.so(FastRPC Framework)\t\t\t\t\t\t\t&amp;#34; as FastRPC
+rectangle &amp;#34;2. Android System / Vendor Libs&amp;#34; as LAYER_SYS {
+component &amp;#34;libadsprpc.so (FastRPC Framework)&amp;#34; as FastRPC
 }
-&amp;#39; Layer 3: Kernel
-package &amp;#34;3. Linux Kernel Space&amp;#34; as LAYER_KERNEL {
-component &amp;#34;\t\t\t\t\t\t\tadsprpc.ko(FastRPC Driver)\t\t\t\t\t\t\t&amp;#34; as Driver
+rectangle &amp;#34;3. Linux Kernel Space&amp;#34; as LAYER_KERNEL {
+component &amp;#34;adsprpc.ko (FastRPC Driver)&amp;#34; as Driver
 component &amp;#34;ION / SMMU\n(Shared Memory)&amp;#34; as Mem
 }
 }
 &amp;#39; --- DSP Subsystem ---
-node &amp;#34;DSP Subsystem (Hexagon cDSP/HTP)&amp;#34; as DSP_DOMAIN {
-component &amp;#34;\t\t\t\t\t\t\tQuRT OS(Real-time Kernel)\t\t\t\t\t\t\t&amp;#34; as QuRT
+rectangle &amp;#34;DSP Subsystem (Hexagon cDSP/HTP)&amp;#34; as DSP_DOMAIN {
+component &amp;#34;QuRT OS (Real-time Kernel)&amp;#34; as QuRT
 package &amp;#34;Signed PD (Protection Domain)&amp;#34; {
-component &amp;#34;\t\t\t\t\t\t\tSkel Instance(Running Code)\t\t\t\t\t\t\t&amp;#34; as SkelRun
-component &amp;#34;\t\t\t\t\t\t\tHTP Hardware(Tensor Cores)\t\t\t\t\t\t\t&amp;#34; as HTP_HW
+component &amp;#34;Skel Instance (Running Code)&amp;#34; as SkelRun
+component &amp;#34;HTP Hardware (Tensor Cores)&amp;#34; as HTP_HW
 }
 }
 }
-&amp;#39; &amp;#39; --- 布局强制 ---
-&amp;#39; LAYER_APP -down-&amp;gt; LAYER_SYS
-&amp;#39; LAYER_SYS -down-&amp;gt; LAYER_KERNEL
-&amp;#39; LAYER_KERNEL -down-&amp;gt; DSP_DOMAIN
 &amp;#39; --- 详细调用关系 ---
-&amp;#39; 1. App 调用链
 AppCode -down-&amp;gt; ORT : 1. Run()
+ORT .left.&amp;gt; Model: Read &amp;amp; Parse
 ORT -down-&amp;gt; QNN_EP : 2. Get EP
 QNN_EP -down-&amp;gt; QnnHtp : 3. Create Backend
-QnnHtp -down-&amp;gt; QnnStub : 4. Load specific Stub\n(e.g. V81)
-&amp;#39; 2. RPC 桥接
+QnnHtp -down-&amp;gt; QnnStub : 4. Load specific Stub
 QnnStub -down-&amp;gt; FastRPC : 5. remote_handle_open()
 FastRPC -down-&amp;gt; Driver : 6. ioctl (FASTRPC_IOCTL_INVOKE)
-&amp;#39; 3. DSP 唤醒与交互
 Driver &amp;lt;-&amp;gt; QuRT : 7. Context Switch / Wake up
-&amp;#39; 4. Skel 加载回环 (The Side-load Loop)
-QuRT .up.&amp;gt; Driver : 8. Request &amp;#34;libQnnHtpV81Skel.so&amp;#34;
-Driver .up.&amp;gt; FastRPC : 9. Callback to User Space
-FastRPC .left.&amp;gt; SkelFile #red : &amp;lt;b&amp;gt;10. Read file from ADSP_LIBRARY_PATH&amp;lt;/b&amp;gt;
+QuRT .up.&amp;gt; Driver : 8. Request Skel
+Driver .up.&amp;gt; FastRPC : 9. Callback
+FastRPC .left.&amp;gt; SkelFile : 10. Read from ADSP_LIBRARY_PATH
 FastRPC .down.&amp;gt; Mem : 11. Map to ION
 Mem .down.&amp;gt; SkelRun : 12. Load into PD
-&amp;#39; 5. 执行
 QuRT -down-&amp;gt; SkelRun : 13. Execute Graph
 SkelRun -down-&amp;gt; HTP_HW : 14. Compute
 @enduml
