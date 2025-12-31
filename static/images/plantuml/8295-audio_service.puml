@@ -1,0 +1,97 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam defaultFontColor black
+skinparam arrowColor black
+skinparam linetype ortho
+' 强制从上到下布局
+top to bottom direction
+
+title QNX Audio Reach Architecture (Top-to-Bottom Flow)
+
+' ==========================================
+' Layer 1: Applications (顶层应用)
+' ==========================================
+package "Layer 1: Application Layer" as L1 {
+    component "Audio Apps\n(HMI / Nav / Media)" as App
+}
+
+' ==========================================
+' Layer 2: Audio Server (业务服务层)
+' ==========================================
+package "Layer 2: Audio Server (io-audio)" as L2 {
+    component "io-audio Process" as IOA {
+        component "Audio Driver DLL\n(deva-ctrl-audio_reach.so)" as Driver
+    }
+    note right of IOA
+        **职责**:
+        1. 提供 /dev/snd/pcm* 接口
+        2. 图形管理 (Graph Mgmt)
+        3. 写入 PCM 数据到共享内存
+    end note
+}
+
+' ==========================================
+' Layer 3: System Service (系统服务层)
+' ==========================================
+package "Layer 3: System Service (audio_service)" as L3 {
+    component "audio_service Process" as AS
+    note right of AS
+        **职责**:
+        1. 加载 ADSP 固件 (PIL)
+        2. GPIO/PinMux 配置
+        3. 监听 SSR 重启
+    end note
+}
+
+' ==========================================
+' Layer 4: IPC Transport (通信层)
+' ==========================================
+package "Layer 4: IPC & Transport" as L4 {
+    interface "FastRPC" as FRPC
+    interface "Shared Memory\n(Zero Copy)" as SMEM
+    interface "G-Link / Signal" as GLINK
+}
+
+' ==========================================
+' Layer 5: Hardware (硬件层)
+' ==========================================
+package "Layer 5: Hardware / Firmware" as L5 {
+    component "Audio DSP (ADSP)" as ADSP {
+        component "SPF Firmware" as SPF
+    }
+}
+
+' ==========================================
+' 交互关系与连线 (Relationships)
+' ==========================================
+
+' 1. App -> io-audio
+App --> IOA : PCM Write/Read (POSIX)
+
+' 2. io-audio -> audio_service (根据您的要求，体现层级依赖)
+Driver ..> AS : **Initialization Dependency**\n(Resource_BlockWait /dev/audio_service)
+
+' 3. audio_service -> IPC (控制硬件生命周期)
+AS --> FRPC : PIL Load / Init
+AS --> GLINK : SSR Monitor
+
+' 4. io-audio -> IPC (业务控制与数据传输)
+' 注意：这里虽然层级上 io-audio 在 audio_service 上面，但它可以直接跨层访问 IPC
+Driver --> FRPC : Send Graph Commands (GSL)
+Driver --> SMEM : Write PCM Data
+
+' 5. IPC -> Hardware
+FRPC ==> ADSP : Control Messages
+SMEM ==> ADSP : Audio Data Flow
+GLINK <==> ADSP : Status / Lifecycle Events
+
+' ==========================================
+' 布局辅助 (Hidden Arrows for Layout Enforcement)
+' ==========================================
+App -[hidden]-> IOA
+IOA -[hidden]-> AS
+AS -[hidden]-> FRPC
+FRPC -[hidden]-> ADSP
+
+@enduml
