@@ -1,0 +1,164 @@
+@startuml
+!theme plain
+autonumber
+
+box "Application Process" #WhiteSmoke
+    participant "Activity/Window" as App
+end box
+
+box "System Server: WindowManager" #MistyRose
+    participant "WindowSurfacePlacer" as Placer
+    participant "RootWindowContainer" as Root
+    participant "RootWindowContainer\nMyHandler" as RootHandler
+end box
+
+box "System Server: PowerManager" #Lavender
+    participant "PowerManagerService" as PMS
+    participant "PowerGroup" as PG
+end box
+
+box "System Server: DisplayManager" #LightCyan
+    participant "DisplayManagerInternal" as DMI
+    participant "DisplayManagerService" as DMS
+    participant "DisplayPowerController\n(DPC)" as DPC
+    participant "DisplayControllerHandler" as DPCHandler
+    participant "DisplayBrightness\nController" as DBC
+    participant "DisplayPowerState" as DPS
+end box
+
+box "System Server: Custom / Native" #MistyRose
+    participant "BrightnessUtils" as Utils
+end box
+
+box "System Server: PhotonicModulator Thread" #Lavender
+    participant "PhotonicModulator" as PM
+    participant "DisplayBlanker" as Blanker
+    participant "LocalDisplayDevice" as LDD
+    participant "BacklightAdapter" as Backlight
+end box
+
+box "SurfaceFlinger (Native)" #WhiteSmoke
+    participant "SurfaceControlProxy" as SC
+end box
+
+== 1. 应用层: 发起亮度覆盖 ==
+App -> App: setAttributes(lp)\n[screenBrightness = 0.8]
+App -> Placer: requestTraversal()
+note right: Binder调用触发布局
+
+== 2. WMS层: 布局与数据收集 ==
+Placer -> Root: performSurfacePlacement()
+activate Root
+    Root -> Root: performSurfacePlacementNoTrace()
+    
+    group 收集 Override 数据
+        Root -> Root: applySurfaceChangesTransaction()
+        note right
+            遍历所有 DisplayContent
+            调用 handleNotObscuredLocked
+            填充 mDisplayBrightnessOverrides
+        end note
+    end group
+
+    Root -> RootHandler: sendMessage(SET_SCREEN_BRIGHTNESS_OVERRIDE)
+    activate RootHandler
+        note right
+           
+            异步发送，避免死锁
+        end note
+        
+        RootHandler -> DMI: **setScreenBrightnessOverrideFromWindowManager(overrides)**
+    deactivate RootHandler
+deactivate Root
+
+== 3. DMS -> DPC: 异步分发 ==
+activate DMI
+    DMI -> DMS: setScreenBrightnessOverrideFromWindowManager()
+    activate DMS
+        DMS -> DPC: setBrightnessOverrideRequest(request)
+        activate DPC
+            DPC -> DPCHandler: sendMessage(MSG_SET_WINDOW_MANAGER_BRIGHTNESS_OVERRIDE)
+        deactivate DPC
+    deactivate DMS
+deactivate DMI
+
+== 4. DPC层: 策略更新与执行 ==
+activate DPCHandler
+    DPCHandler -> DBC: **updateWindowManagerBrightnessOverride(request)**
+    activate DBC
+        DBC --> DPCHandler: return true (Changed)
+    deactivate DBC
+
+    alt Value Changed (亮度变化)
+        DPCHandler -> DPC: **updatePowerState()**
+        activate DPC
+            DPC -> DPC: updatePowerStateInternal()
+            note right: 策略合并: Override(0.8) > PMS(NaN) => Target=0.8
+            
+            DPC -> DPC: animateScreenBrightness(target=0.8, ...)
+            
+            note right of DPC
+                <color:red><b>定制逻辑 (Voyah Porting):</b></color>
+                原生 RampAnimator 被移除
+                改为直接设置
+            end note
+
+            DPC -> DPC: **directSetScreenBrightness(0.8, ...)**
+            activate DPC
+                
+                group A. 底层硬件下发 (Real Hardware)
+                    DPC -> Utils: **setBrightnessToConfig(displayId, 0.8, reason)**
+                    activate Utils
+                        note right
+                            直接通过私有接口(如CarService)
+                            驱动屏幕背光
+                        end note
+                    return ret
+                end group
+
+                group B. 框架状态同步 (Framework State)
+                    DPC -> DPS: **setScreenBrightness(0.8)**
+                    activate DPS
+                        note right
+                           
+                            更新 PowerState 以触发 PhotonicModulator
+                        end note
+                        DPS -> PM: setState(state, 0.8, ...)
+                        note right: 异步唤醒 PM 线程
+                        PM --// DPS: notify
+                    deactivate DPS
+                end group
+                
+            deactivate DPC
+        deactivate DPC
+    end
+deactivate DPCHandler
+
+== 5. 异步: 标准显示链路更新 (Metadata) ==
+note over PM: PhotonicModulator Thread
+activate PM
+    PM -> PM: run()
+    PM -> Blanker: requestDisplayState(..., 0.8, ...)
+    activate Blanker
+        Blanker -> LDD: requestDisplayStateLocked(...)
+        activate LDD
+            note right: 构建 Runnable
+        return workRunnable
+        
+        Blanker -> Blanker: workRunnable.run()
+        activate Blanker
+            Blanker -> LDD: setDisplayBrightness(0.8)
+            activate LDD
+                LDD -> Backlight: setBacklight(..., 0.8)
+                activate Backlight
+                    Backlight -> SC: **setDisplayBrightness(0.8)**
+                    note right
+                        通知 SurfaceFlinger 亮度值
+                        (用于 HDR/截图/状态同步，非背光驱动)
+                    end note
+                deactivate Backlight
+            deactivate LDD
+        deactivate Blanker
+    deactivate Blanker
+deactivate PM
+@enduml

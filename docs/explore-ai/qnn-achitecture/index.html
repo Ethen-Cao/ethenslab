@@ -97,7 +97,7 @@ open_device_node
     style hal_start fill:#f9f,stroke:#333,stroke-width:2px
     style success fill:#9f9,stroke:#333,stroke-width:2px
     style hal_success fill:#9f9,stroke:#333,stroke-width:2px
-</code></pre><h3 id=4-核心总结>4. 核心总结<a hidden class=anchor aria-hidden=true href=#4-核心总结>#</a></h3><ol><li><strong>先斩后奏</strong>：总是优先尝试直接 <code>open</code>，因为系统调用（Syscall）比跨进程通信（Binder IPC）快得多。</li><li><strong>智能回退</strong>：只有在明确遇到“权限拒绝”时才动用 HAL，避免了无谓的性能损耗。</li><li><strong>多路兼容</strong>：通过尝试三个不同的设备路径，兼容了不同年代和不同配置的高通芯片平台。</li></ol><p>这就是为什么无论是在 Root 过的设备 shell 中运行，还是在受限的 APK 中运行，FastRPC 都能正常工作的底层原因。</p></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2025 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+</code></pre><h3 id=4-核心总结>4. 核心总结<a hidden class=anchor aria-hidden=true href=#4-核心总结>#</a></h3><ol><li><strong>先斩后奏</strong>：总是优先尝试直接 <code>open</code>，因为系统调用（Syscall）比跨进程通信（Binder IPC）快得多。</li><li><strong>智能回退</strong>：只有在明确遇到“权限拒绝”时才动用 HAL，避免了无谓的性能损耗。</li><li><strong>多路兼容</strong>：通过尝试三个不同的设备路径，兼容了不同年代和不同配置的高通芯片平台。</li></ol><p>这就是为什么无论是在 Root 过的设备 shell 中运行，还是在受限的 APK 中运行，FastRPC 都能正常工作的底层原因。</p></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
 <span>Powered by
 <a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
 <a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>

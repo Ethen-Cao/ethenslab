@@ -1,0 +1,387 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Ethen 的实验室</title><meta name=keywords content><meta name=description content='亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图
+@startuml
+!theme plain
+&#39; skinparam MaxMessageSize 300
+skinparam participantPadding 10
+skinparam boxPadding 10
+skinparam defaultFontName Monospaced
+autonumber "<b>[0]</b>"
+
+title 亮度设置失败导致合成策略中止的全链路时序图
+
+box "SurfaceFlinger 进程" #lightgreen
+    participant "CompositionEngine" as CE
+    participant "HWComposer" as SF_HWC
+    participant "AidlComposer\n(HAL Client)" as Client
+    participant "ComposerClientWriter" as Writer
+end box
+
+box "HWC Service 进程 (Guest OS)" #LightGray
+    participant "AidlComposerClient\n(CommandEngine)" as Server
+    participant "ConcurrencyMgr\n(SettingsIntf)" as CM
+    participant "DisplayBuiltIn\n(SDM Logic)" as DBI
+    participant "DPUMultiCore\n(Mux)" as Mux
+    participant "HWPeripheralDRM\n(DAL)" as HW
+end box
+
+box "Kernel / FileSystem" #MistyRose
+    participant "/sys/class/backlight" as Sysfs
+end box
+
+== 阶段 0: 指令积压 (Client Side Batching) ==
+note right of CE: SurfaceFlinger 在之前的逻辑中\n调用了 setDisplayBrightness
+CE -> SF_HWC: setDisplayBrightness(...)
+SF_HWC -> Client: setDisplayBrightness(...)
+Client -> Writer: 写入指令到 Command Queue
+note right of Writer: 此时 Command Index 0 缓存了:\n1. OP: SetBrightness\n(尚未发送)
+
+== 阶段 1: 触发策略选择 (Frame Start) ==
+CE -> CE: **chooseCompositionStrategy()**
+CE -> SF_HWC: getDeviceCompositionChanges()
+
+SF_HWC -> SF_HWC: check canSkipValidate (True)
+SF_HWC -> Client: presentOrValidateDisplay()
+
+note right of Writer: 将 Validate 指令追加到 Command Queue (Index 0)\n现在 Index 0 包含: [SetBrightness, PresentOrValidate]
+
+Client -> Server: **executeCommands()** (Binder IPC)
+activate Server
+
+== 阶段 2: 服务端执行 (The Root Cause) ==
+Server -> Server: 解析 Command Queue\n初始化 mCommandIndex = 0
+
+group #MistyRose HWC 服务端循环 [处理 Index 0]
+    &#39; --- 步骤 A: 亮度设置 ---
+    note right of Server: **步骤 A: 优先执行亮度设置**
+    Server -> CM: SetDisplayBrightness(level)
+    CM -> DBI: SetPanelBrightness(brightness)
+    note right of DBI: 转换 float 为 int level
+    DBI -> Mux: SetPanelBrightness(level)
+    Mux -> HW: SetPanelBrightness(level)
+    
+    activate HW
+    HW -> HW: 检查 enable_brightness_drm_prop
+    note right of HW: 属性未开启(false)，走 Sysfs 路径
+    
+    HW -> Sysfs: open(".../panel0-backlight/brightness")
+    Sysfs --> HW: <color:red>❌ 失败 (ENOENT / No such file)</color>
+    note right of HW
+        **故障点**: 虚拟化环境中 Guest OS
+        看不到物理背光节点
+    end note
+    
+    HW --> Mux: 返回 kErrorFileDescriptor
+    deactivate HW
+    
+    Mux --> DBI: 返回 Error
+    DBI --> CM: 返回 Error
+    CM --> Server: 返回 Error (kErrorBadConfig)
+    
+    Server -> Server: writeError(Index=0, BadConfig)
+    note right of Server: <font color=red><b>[Log 1] W SDM : executeSetDisplayBrightness...</b></font>\n记录错误，但**不中断**循环
+
+    &#39; --- 步骤 B: 验证 ---
+    note right of Server: **步骤 B: 执行合成验证**
+    Server -> CM: CommitOrPrepare(...)
+    activate CM
+    CM --> Server: <font color=green>✅ 成功 (kErrorNone)</font>
+    deactivate CM
+    
+    Server -> Server: setPresentOrValidateResult(Validated)
+end
+
+Server --> Client: 返回 Binder Status OK\n数据包包含:\n1. ErrorList: [{Index:0, Err:BadConfig}]\n2. ResultList: [{Index:0, Validated}]
+deactivate Server
+
+== 阶段 3: 客户端误判 (The Misjudgment) ==
+Client -> Client: 解析返回数据
+
+group 客户端判决逻辑 [AidlComposer::execute]
+    Client -> Client: 检查 Index 0
+    note right of Client
+        **<color:red>致命误判逻辑</color>**:
+        1. 发现 Index 0 有 Error (实际源自亮度)
+        2. 发现 Index 0 包含 Validate 指令
+        3. **判定: 整个 Validate 失败**
+    end note
+    Client --> SF_HWC: 返回 **Error::BAD_CONFIG**
+end
+
+== 阶段 4: 策略中止 (Abort) ==
+SF_HWC -> SF_HWC: RETURN_IF_HWC_ERROR_FOR(...)
+note right of SF_HWC: <font color=red><b>[Log 2] E HWComposer : getDeviceCompositionChanges... failed...</b></font>
+
+SF_HWC --> CE: 返回 **UNKNOWN_ERROR** (-2147483648)
+
+CE -> CE: if (result != NO_ERROR)
+note right of CE: <font color=red><b>[Log 3] E CompositionEngine : chooseCompositionStrategy failed...</b></font>
+
+CE -> CE: return false
+note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
+
+@enduml
+
+详细说明：为什么会失败
+1. 根本原因 (Root Cause)
+故障发生在 阶段 2 的底层 HWPeripheralDRM 中。'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Ethen 的实验室"><meta property="og:description" content='亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图 @startuml !theme plain &#39; skinparam MaxMessageSize 300 skinparam participantPadding 10 skinparam boxPadding 10 skinparam defaultFontName Monospaced autonumber "<b>[0]</b>" title 亮度设置失败导致合成策略中止的全链路时序图 box "SurfaceFlinger 进程" #lightgreen participant "CompositionEngine" as CE participant "HWComposer" as SF_HWC participant "AidlComposer\n(HAL Client)" as Client participant "ComposerClientWriter" as Writer end box box "HWC Service 进程 (Guest OS)" #LightGray participant "AidlComposerClient\n(CommandEngine)" as Server participant "ConcurrencyMgr\n(SettingsIntf)" as CM participant "DisplayBuiltIn\n(SDM Logic)" as DBI participant "DPUMultiCore\n(Mux)" as Mux participant "HWPeripheralDRM\n(DAL)" as HW end box box "Kernel / FileSystem" #MistyRose participant "/sys/class/backlight" as Sysfs end box == 阶段 0: 指令积压 (Client Side Batching) == note right of CE: SurfaceFlinger 在之前的逻辑中\n调用了 setDisplayBrightness CE -> SF_HWC: setDisplayBrightness(...) SF_HWC -> Client: setDisplayBrightness(...) Client -> Writer: 写入指令到 Command Queue note right of Writer: 此时 Command Index 0 缓存了:\n1. OP: SetBrightness\n(尚未发送) == 阶段 1: 触发策略选择 (Frame Start) == CE -> CE: **chooseCompositionStrategy()** CE -> SF_HWC: getDeviceCompositionChanges() SF_HWC -> SF_HWC: check canSkipValidate (True) SF_HWC -> Client: presentOrValidateDisplay() note right of Writer: 将 Validate 指令追加到 Command Queue (Index 0)\n现在 Index 0 包含: [SetBrightness, PresentOrValidate] Client -> Server: **executeCommands()** (Binder IPC) activate Server == 阶段 2: 服务端执行 (The Root Cause) == Server -> Server: 解析 Command Queue\n初始化 mCommandIndex = 0 group #MistyRose HWC 服务端循环 [处理 Index 0] &#39; --- 步骤 A: 亮度设置 --- note right of Server: **步骤 A: 优先执行亮度设置** Server -> CM: SetDisplayBrightness(level) CM -> DBI: SetPanelBrightness(brightness) note right of DBI: 转换 float 为 int level DBI -> Mux: SetPanelBrightness(level) Mux -> HW: SetPanelBrightness(level) activate HW HW -> HW: 检查 enable_brightness_drm_prop note right of HW: 属性未开启(false)，走 Sysfs 路径 HW -> Sysfs: open(".../panel0-backlight/brightness") Sysfs --> HW: <color:red>❌ 失败 (ENOENT / No such file)</color> note right of HW **故障点**: 虚拟化环境中 Guest OS 看不到物理背光节点 end note HW --> Mux: 返回 kErrorFileDescriptor deactivate HW Mux --> DBI: 返回 Error DBI --> CM: 返回 Error CM --> Server: 返回 Error (kErrorBadConfig) Server -> Server: writeError(Index=0, BadConfig) note right of Server: <font color=red><b>[Log 1] W SDM : executeSetDisplayBrightness...</b></font>\n记录错误，但**不中断**循环 &#39; --- 步骤 B: 验证 --- note right of Server: **步骤 B: 执行合成验证** Server -> CM: CommitOrPrepare(...) activate CM CM --> Server: <font color=green>✅ 成功 (kErrorNone)</font> deactivate CM Server -> Server: setPresentOrValidateResult(Validated) end Server --> Client: 返回 Binder Status OK\n数据包包含:\n1. ErrorList: [{Index:0, Err:BadConfig}]\n2. ResultList: [{Index:0, Validated}] deactivate Server == 阶段 3: 客户端误判 (The Misjudgment) == Client -> Client: 解析返回数据 group 客户端判决逻辑 [AidlComposer::execute] Client -> Client: 检查 Index 0 note right of Client **<color:red>致命误判逻辑</color>**: 1. 发现 Index 0 有 Error (实际源自亮度) 2. 发现 Index 0 包含 Validate 指令 3. **判定: 整个 Validate 失败** end note Client --> SF_HWC: 返回 **Error::BAD_CONFIG** end == 阶段 4: 策略中止 (Abort) == SF_HWC -> SF_HWC: RETURN_IF_HWC_ERROR_FOR(...) note right of SF_HWC: <font color=red><b>[Log 2] E HWComposer : getDeviceCompositionChanges... failed...</b></font> SF_HWC --> CE: 返回 **UNKNOWN_ERROR** (-2147483648) CE -> CE: if (result != NO_ERROR) note right of CE: <font color=red><b>[Log 3] E CompositionEngine : chooseCompositionStrategy failed...</b></font> CE -> CE: return false note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧) @enduml 详细说明：为什么会失败 1. 根本原因 (Root Cause) 故障发生在 阶段 2 的底层 HWPeripheralDRM 中。'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta name=twitter:card content="summary"><meta name=twitter:title content><meta name=twitter:description content='亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图
+@startuml
+!theme plain
+&#39; skinparam MaxMessageSize 300
+skinparam participantPadding 10
+skinparam boxPadding 10
+skinparam defaultFontName Monospaced
+autonumber "<b>[0]</b>"
+
+title 亮度设置失败导致合成策略中止的全链路时序图
+
+box "SurfaceFlinger 进程" #lightgreen
+    participant "CompositionEngine" as CE
+    participant "HWComposer" as SF_HWC
+    participant "AidlComposer\n(HAL Client)" as Client
+    participant "ComposerClientWriter" as Writer
+end box
+
+box "HWC Service 进程 (Guest OS)" #LightGray
+    participant "AidlComposerClient\n(CommandEngine)" as Server
+    participant "ConcurrencyMgr\n(SettingsIntf)" as CM
+    participant "DisplayBuiltIn\n(SDM Logic)" as DBI
+    participant "DPUMultiCore\n(Mux)" as Mux
+    participant "HWPeripheralDRM\n(DAL)" as HW
+end box
+
+box "Kernel / FileSystem" #MistyRose
+    participant "/sys/class/backlight" as Sysfs
+end box
+
+== 阶段 0: 指令积压 (Client Side Batching) ==
+note right of CE: SurfaceFlinger 在之前的逻辑中\n调用了 setDisplayBrightness
+CE -> SF_HWC: setDisplayBrightness(...)
+SF_HWC -> Client: setDisplayBrightness(...)
+Client -> Writer: 写入指令到 Command Queue
+note right of Writer: 此时 Command Index 0 缓存了:\n1. OP: SetBrightness\n(尚未发送)
+
+== 阶段 1: 触发策略选择 (Frame Start) ==
+CE -> CE: **chooseCompositionStrategy()**
+CE -> SF_HWC: getDeviceCompositionChanges()
+
+SF_HWC -> SF_HWC: check canSkipValidate (True)
+SF_HWC -> Client: presentOrValidateDisplay()
+
+note right of Writer: 将 Validate 指令追加到 Command Queue (Index 0)\n现在 Index 0 包含: [SetBrightness, PresentOrValidate]
+
+Client -> Server: **executeCommands()** (Binder IPC)
+activate Server
+
+== 阶段 2: 服务端执行 (The Root Cause) ==
+Server -> Server: 解析 Command Queue\n初始化 mCommandIndex = 0
+
+group #MistyRose HWC 服务端循环 [处理 Index 0]
+    &#39; --- 步骤 A: 亮度设置 ---
+    note right of Server: **步骤 A: 优先执行亮度设置**
+    Server -> CM: SetDisplayBrightness(level)
+    CM -> DBI: SetPanelBrightness(brightness)
+    note right of DBI: 转换 float 为 int level
+    DBI -> Mux: SetPanelBrightness(level)
+    Mux -> HW: SetPanelBrightness(level)
+    
+    activate HW
+    HW -> HW: 检查 enable_brightness_drm_prop
+    note right of HW: 属性未开启(false)，走 Sysfs 路径
+    
+    HW -> Sysfs: open(".../panel0-backlight/brightness")
+    Sysfs --> HW: <color:red>❌ 失败 (ENOENT / No such file)</color>
+    note right of HW
+        **故障点**: 虚拟化环境中 Guest OS
+        看不到物理背光节点
+    end note
+    
+    HW --> Mux: 返回 kErrorFileDescriptor
+    deactivate HW
+    
+    Mux --> DBI: 返回 Error
+    DBI --> CM: 返回 Error
+    CM --> Server: 返回 Error (kErrorBadConfig)
+    
+    Server -> Server: writeError(Index=0, BadConfig)
+    note right of Server: <font color=red><b>[Log 1] W SDM : executeSetDisplayBrightness...</b></font>\n记录错误，但**不中断**循环
+
+    &#39; --- 步骤 B: 验证 ---
+    note right of Server: **步骤 B: 执行合成验证**
+    Server -> CM: CommitOrPrepare(...)
+    activate CM
+    CM --> Server: <font color=green>✅ 成功 (kErrorNone)</font>
+    deactivate CM
+    
+    Server -> Server: setPresentOrValidateResult(Validated)
+end
+
+Server --> Client: 返回 Binder Status OK\n数据包包含:\n1. ErrorList: [{Index:0, Err:BadConfig}]\n2. ResultList: [{Index:0, Validated}]
+deactivate Server
+
+== 阶段 3: 客户端误判 (The Misjudgment) ==
+Client -> Client: 解析返回数据
+
+group 客户端判决逻辑 [AidlComposer::execute]
+    Client -> Client: 检查 Index 0
+    note right of Client
+        **<color:red>致命误判逻辑</color>**:
+        1. 发现 Index 0 有 Error (实际源自亮度)
+        2. 发现 Index 0 包含 Validate 指令
+        3. **判定: 整个 Validate 失败**
+    end note
+    Client --> SF_HWC: 返回 **Error::BAD_CONFIG**
+end
+
+== 阶段 4: 策略中止 (Abort) ==
+SF_HWC -> SF_HWC: RETURN_IF_HWC_ERROR_FOR(...)
+note right of SF_HWC: <font color=red><b>[Log 2] E HWComposer : getDeviceCompositionChanges... failed...</b></font>
+
+SF_HWC --> CE: 返回 **UNKNOWN_ERROR** (-2147483648)
+
+CE -> CE: if (result != NO_ERROR)
+note right of CE: <font color=red><b>[Log 3] E CompositionEngine : chooseCompositionStrategy failed...</b></font>
+
+CE -> CE: return false
+note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
+
+@enduml
+
+详细说明：为什么会失败
+1. 根本原因 (Root Cause)
+故障发生在 阶段 2 的底层 HWPeripheralDRM 中。'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Display Manager","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/"},{"@type":"ListItem","position":3,"name":"","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"","name":"","description":"亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图 @startuml !theme plain \u0026#39; skinparam MaxMessageSize 300 skinparam participantPadding 10 skinparam boxPadding 10 skinparam defaultFontName Monospaced autonumber \u0026#34;\u0026lt;b\u0026gt;[0]\u0026lt;/b\u0026gt;\u0026#34; title 亮度设置失败导致合成策略中止的全链路时序图 box \u0026#34;SurfaceFlinger 进程\u0026#34; #lightgreen participant \u0026#34;CompositionEngine\u0026#34; as CE participant \u0026#34;HWComposer\u0026#34; as SF_HWC participant \u0026#34;AidlComposer\\n(HAL Client)\u0026#34; as Client participant \u0026#34;ComposerClientWriter\u0026#34; as Writer end box box \u0026#34;HWC Service 进程 (Guest OS)\u0026#34; #LightGray participant \u0026#34;AidlComposerClient\\n(CommandEngine)\u0026#34; as Server participant \u0026#34;ConcurrencyMgr\\n(SettingsIntf)\u0026#34; as CM participant \u0026#34;DisplayBuiltIn\\n(SDM Logic)\u0026#34; as DBI participant \u0026#34;DPUMultiCore\\n(Mux)\u0026#34; as Mux participant \u0026#34;HWPeripheralDRM\\n(DAL)\u0026#34; as HW end box box \u0026#34;Kernel / FileSystem\u0026#34; #MistyRose participant \u0026#34;/sys/class/backlight\u0026#34; as Sysfs end box == 阶段 0: 指令积压 (Client Side Batching) == note right of CE: SurfaceFlinger 在之前的逻辑中\\n调用了 setDisplayBrightness CE -\u0026gt; SF_HWC: setDisplayBrightness(...) SF_HWC -\u0026gt; Client: setDisplayBrightness(...) Client -\u0026gt; Writer: 写入指令到 Command Queue note right of Writer: 此时 Command Index 0 缓存了:\\n1. OP: SetBrightness\\n(尚未发送) == 阶段 1: 触发策略选择 (Frame Start) == CE -\u0026gt; CE: **chooseCompositionStrategy()** CE -\u0026gt; SF_HWC: getDeviceCompositionChanges() SF_HWC -\u0026gt; SF_HWC: check canSkipValidate (True) SF_HWC -\u0026gt; Client: presentOrValidateDisplay() note right of Writer: 将 Validate 指令追加到 Command Queue (Index 0)\\n现在 Index 0 包含: [SetBrightness, PresentOrValidate] Client -\u0026gt; Server: **executeCommands()** (Binder IPC) activate Server == 阶段 2: 服务端执行 (The Root Cause) == Server -\u0026gt; Server: 解析 Command Queue\\n初始化 mCommandIndex = 0 group #MistyRose HWC 服务端循环 [处理 Index 0] \u0026#39; --- 步骤 A: 亮度设置 --- note right of Server: **步骤 A: 优先执行亮度设置** Server -\u0026gt; CM: SetDisplayBrightness(level) CM -\u0026gt; DBI: SetPanelBrightness(brightness) note right of DBI: 转换 float 为 int level DBI -\u0026gt; Mux: SetPanelBrightness(level) Mux -\u0026gt; HW: SetPanelBrightness(level) activate HW HW -\u0026gt; HW: 检查 enable_brightness_drm_prop note right of HW: 属性未开启(false)，走 Sysfs 路径 HW -\u0026gt; Sysfs: open(\u0026#34;.../panel0-backlight/brightness\u0026#34;) Sysfs --\u0026gt; HW: \u0026lt;color:red\u0026gt;❌ 失败 (ENOENT / No such file)\u0026lt;/color\u0026gt; note right of HW **故障点**: 虚拟化环境中 Guest OS 看不到物理背光节点 end note HW --\u0026gt; Mux: 返回 kErrorFileDescriptor deactivate HW Mux --\u0026gt; DBI: 返回 Error DBI --\u0026gt; CM: 返回 Error CM --\u0026gt; Server: 返回 Error (kErrorBadConfig) Server -\u0026gt; Server: writeError(Index=0, BadConfig) note right of Server: \u0026lt;font color=red\u0026gt;\u0026lt;b\u0026gt;[Log 1] W SDM : executeSetDisplayBrightness...\u0026lt;/b\u0026gt;\u0026lt;/font\u0026gt;\\n记录错误，但**不中断**循环 \u0026#39; --- 步骤 B: 验证 --- note right of Server: **步骤 B: 执行合成验证** Server -\u0026gt; CM: CommitOrPrepare(...) activate CM CM --\u0026gt; Server: \u0026lt;font color=green\u0026gt;✅ 成功 (kErrorNone)\u0026lt;/font\u0026gt; deactivate CM Server -\u0026gt; Server: setPresentOrValidateResult(Validated) end Server --\u0026gt; Client: 返回 Binder Status OK\\n数据包包含:\\n1. ErrorList: [{Index:0, Err:BadConfig}]\\n2. ResultList: [{Index:0, Validated}] deactivate Server == 阶段 3: 客户端误判 (The Misjudgment) == Client -\u0026gt; Client: 解析返回数据 group 客户端判决逻辑 [AidlComposer::execute] Client -\u0026gt; Client: 检查 Index 0 note right of Client **\u0026lt;color:red\u0026gt;致命误判逻辑\u0026lt;/color\u0026gt;**: 1. 发现 Index 0 有 Error (实际源自亮度) 2. 发现 Index 0 包含 Validate 指令 3. **判定: 整个 Validate 失败** end note Client --\u0026gt; SF_HWC: 返回 **Error::BAD_CONFIG** end == 阶段 4: 策略中止 (Abort) == SF_HWC -\u0026gt; SF_HWC: RETURN_IF_HWC_ERROR_FOR(...) note right of SF_HWC: \u0026lt;font color=red\u0026gt;\u0026lt;b\u0026gt;[Log 2] E HWComposer : getDeviceCompositionChanges... failed...\u0026lt;/b\u0026gt;\u0026lt;/font\u0026gt; SF_HWC --\u0026gt; CE: 返回 **UNKNOWN_ERROR** (-2147483648) CE -\u0026gt; CE: if (result != NO_ERROR) note right of CE: \u0026lt;font color=red\u0026gt;\u0026lt;b\u0026gt;[Log 3] E CompositionEngine : chooseCompositionStrategy failed...\u0026lt;/b\u0026gt;\u0026lt;/font\u0026gt; CE -\u0026gt; CE: return false note right of CE: **放弃当前帧合成**\\n(SurfaceFlinger 丢弃这一帧) @enduml 详细说明：为什么会失败 1. 根本原因 (Root Cause) 故障发生在 阶段 2 的底层 HWPeripheralDRM 中。\n","keywords":[],"articleBody":"亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图 @startuml !theme plain ' skinparam MaxMessageSize 300 skinparam participantPadding 10 skinparam boxPadding 10 skinparam defaultFontName Monospaced autonumber \"[0]\" title 亮度设置失败导致合成策略中止的全链路时序图 box \"SurfaceFlinger 进程\" #lightgreen participant \"CompositionEngine\" as CE participant \"HWComposer\" as SF_HWC participant \"AidlComposer\\n(HAL Client)\" as Client participant \"ComposerClientWriter\" as Writer end box box \"HWC Service 进程 (Guest OS)\" #LightGray participant \"AidlComposerClient\\n(CommandEngine)\" as Server participant \"ConcurrencyMgr\\n(SettingsIntf)\" as CM participant \"DisplayBuiltIn\\n(SDM Logic)\" as DBI participant \"DPUMultiCore\\n(Mux)\" as Mux participant \"HWPeripheralDRM\\n(DAL)\" as HW end box box \"Kernel / FileSystem\" #MistyRose participant \"/sys/class/backlight\" as Sysfs end box == 阶段 0: 指令积压 (Client Side Batching) == note right of CE: SurfaceFlinger 在之前的逻辑中\\n调用了 setDisplayBrightness CE -\u003e SF_HWC: setDisplayBrightness(...) SF_HWC -\u003e Client: setDisplayBrightness(...) Client -\u003e Writer: 写入指令到 Command Queue note right of Writer: 此时 Command Index 0 缓存了:\\n1. OP: SetBrightness\\n(尚未发送) == 阶段 1: 触发策略选择 (Frame Start) == CE -\u003e CE: **chooseCompositionStrategy()** CE -\u003e SF_HWC: getDeviceCompositionChanges() SF_HWC -\u003e SF_HWC: check canSkipValidate (True) SF_HWC -\u003e Client: presentOrValidateDisplay() note right of Writer: 将 Validate 指令追加到 Command Queue (Index 0)\\n现在 Index 0 包含: [SetBrightness, PresentOrValidate] Client -\u003e Server: **executeCommands()** (Binder IPC) activate Server == 阶段 2: 服务端执行 (The Root Cause) == Server -\u003e Server: 解析 Command Queue\\n初始化 mCommandIndex = 0 group #MistyRose HWC 服务端循环 [处理 Index 0] ' --- 步骤 A: 亮度设置 --- note right of Server: **步骤 A: 优先执行亮度设置** Server -\u003e CM: SetDisplayBrightness(level) CM -\u003e DBI: SetPanelBrightness(brightness) note right of DBI: 转换 float 为 int level DBI -\u003e Mux: SetPanelBrightness(level) Mux -\u003e HW: SetPanelBrightness(level) activate HW HW -\u003e HW: 检查 enable_brightness_drm_prop note right of HW: 属性未开启(false)，走 Sysfs 路径 HW -\u003e Sysfs: open(\".../panel0-backlight/brightness\") Sysfs --\u003e HW: ❌ 失败 (ENOENT / No such file) note right of HW **故障点**: 虚拟化环境中 Guest OS 看不到物理背光节点 end note HW --\u003e Mux: 返回 kErrorFileDescriptor deactivate HW Mux --\u003e DBI: 返回 Error DBI --\u003e CM: 返回 Error CM --\u003e Server: 返回 Error (kErrorBadConfig) Server -\u003e Server: writeError(Index=0, BadConfig) note right of Server: [Log 1] W SDM : executeSetDisplayBrightness...\\n记录错误，但**不中断**循环 ' --- 步骤 B: 验证 --- note right of Server: **步骤 B: 执行合成验证** Server -\u003e CM: CommitOrPrepare(...) activate CM CM --\u003e Server: ✅ 成功 (kErrorNone) deactivate CM Server -\u003e Server: setPresentOrValidateResult(Validated) end Server --\u003e Client: 返回 Binder Status OK\\n数据包包含:\\n1. ErrorList: [{Index:0, Err:BadConfig}]\\n2. ResultList: [{Index:0, Validated}] deactivate Server == 阶段 3: 客户端误判 (The Misjudgment) == Client -\u003e Client: 解析返回数据 group 客户端判决逻辑 [AidlComposer::execute] Client -\u003e Client: 检查 Index 0 note right of Client **致命误判逻辑**: 1. 发现 Index 0 有 Error (实际源自亮度) 2. 发现 Index 0 包含 Validate 指令 3. **判定: 整个 Validate 失败** end note Client --\u003e SF_HWC: 返回 **Error::BAD_CONFIG** end == 阶段 4: 策略中止 (Abort) == SF_HWC -\u003e SF_HWC: RETURN_IF_HWC_ERROR_FOR(...) note right of SF_HWC: [Log 2] E HWComposer : getDeviceCompositionChanges... failed... SF_HWC --\u003e CE: 返回 **UNKNOWN_ERROR** (-2147483648) CE -\u003e CE: if (result != NO_ERROR) note right of CE: [Log 3] E CompositionEngine : chooseCompositionStrategy failed... CE -\u003e CE: return false note right of CE: **放弃当前帧合成**\\n(SurfaceFlinger 丢弃这一帧) @enduml 详细说明：为什么会失败 1. 根本原因 (Root Cause) 故障发生在 阶段 2 的底层 HWPeripheralDRM 中。\n背景：Android 系统运行在 Hypervisor 之上（Guest OS）。 冲突：物理屏幕的背光控制权在 Host OS（Linux/QNX）手中，Guest OS 的内核中没有加载物理 Panel 驱动，因此 /sys/class/backlight/panel0-backlight 节点根本不存在。 代码缺陷：HWPeripheralDRM::SetPanelBrightness 代码逻辑是为 Native Android 设计的，它尝试打开这个不存在的文件，导致 open 失败，返回错误码。 2. 连锁反应 底层报错：HWPeripheralDRM 返回错误。 上层记录：AidlComposerClient (Server) 捕获到亮度设置错误，将其记录在 CommandResult 中。 客户端误判：AidlComposer (Client) 收到结果后，发现同一批次指令（Index 0）中有错误。由于 AIDL 协议将多个指令打包在一个 Index 中，Client 无法区分错误是来自“亮度”还是“验证”。出于安全考虑，它认为既然有错，那“验证”结果不可信，于是向 SurfaceFlinger 报告“验证失败”。 合成中止：SurfaceFlinger 收到验证失败，认为无法继续合成，放弃当前帧。 Log开关 adb root adb shell setprop vendor.display.enable_verbose_log 1 adb shell stop vendor.qti.hardware.display.composer-service adb shell start vendor.qti.hardware.display.composer-service 参考 ConcurrencyMgr::Init:\nSDMDebugHandler::Get()-\u003eGetProperty(ENABLE_VERBOSE_LOG, \u0026value); if (true) { SDMDebugHandler::DebugAll(value, value); } ","wordCount":"553","inLanguage":"en","datePublished":"0001-01-01T00:00:00Z","dateModified":"0001-01-01T00:00:00Z","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/display/>Display Manager</a></div><h1 class="post-title entry-hint-parent"></h1><div class=post-meta>3 min&nbsp;·&nbsp;553 words</div></header><div class=post-content><h3 id=亮度调节失败引发surfaceflinger合成策略选择失败的时序图>亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图<a hidden class=anchor aria-hidden=true href=#亮度调节失败引发surfaceflinger合成策略选择失败的时序图>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+&#39; skinparam MaxMessageSize 300
+skinparam participantPadding 10
+skinparam boxPadding 10
+skinparam defaultFontName Monospaced
+autonumber &#34;&lt;b&gt;[0]&lt;/b&gt;&#34;
+
+title 亮度设置失败导致合成策略中止的全链路时序图
+
+box &#34;SurfaceFlinger 进程&#34; #lightgreen
+    participant &#34;CompositionEngine&#34; as CE
+    participant &#34;HWComposer&#34; as SF_HWC
+    participant &#34;AidlComposer\n(HAL Client)&#34; as Client
+    participant &#34;ComposerClientWriter&#34; as Writer
+end box
+
+box &#34;HWC Service 进程 (Guest OS)&#34; #LightGray
+    participant &#34;AidlComposerClient\n(CommandEngine)&#34; as Server
+    participant &#34;ConcurrencyMgr\n(SettingsIntf)&#34; as CM
+    participant &#34;DisplayBuiltIn\n(SDM Logic)&#34; as DBI
+    participant &#34;DPUMultiCore\n(Mux)&#34; as Mux
+    participant &#34;HWPeripheralDRM\n(DAL)&#34; as HW
+end box
+
+box &#34;Kernel / FileSystem&#34; #MistyRose
+    participant &#34;/sys/class/backlight&#34; as Sysfs
+end box
+
+== 阶段 0: 指令积压 (Client Side Batching) ==
+note right of CE: SurfaceFlinger 在之前的逻辑中\n调用了 setDisplayBrightness
+CE -&gt; SF_HWC: setDisplayBrightness(...)
+SF_HWC -&gt; Client: setDisplayBrightness(...)
+Client -&gt; Writer: 写入指令到 Command Queue
+note right of Writer: 此时 Command Index 0 缓存了:\n1. OP: SetBrightness\n(尚未发送)
+
+== 阶段 1: 触发策略选择 (Frame Start) ==
+CE -&gt; CE: **chooseCompositionStrategy()**
+CE -&gt; SF_HWC: getDeviceCompositionChanges()
+
+SF_HWC -&gt; SF_HWC: check canSkipValidate (True)
+SF_HWC -&gt; Client: presentOrValidateDisplay()
+
+note right of Writer: 将 Validate 指令追加到 Command Queue (Index 0)\n现在 Index 0 包含: [SetBrightness, PresentOrValidate]
+
+Client -&gt; Server: **executeCommands()** (Binder IPC)
+activate Server
+
+== 阶段 2: 服务端执行 (The Root Cause) ==
+Server -&gt; Server: 解析 Command Queue\n初始化 mCommandIndex = 0
+
+group #MistyRose HWC 服务端循环 [处理 Index 0]
+    &#39; --- 步骤 A: 亮度设置 ---
+    note right of Server: **步骤 A: 优先执行亮度设置**
+    Server -&gt; CM: SetDisplayBrightness(level)
+    CM -&gt; DBI: SetPanelBrightness(brightness)
+    note right of DBI: 转换 float 为 int level
+    DBI -&gt; Mux: SetPanelBrightness(level)
+    Mux -&gt; HW: SetPanelBrightness(level)
+    
+    activate HW
+    HW -&gt; HW: 检查 enable_brightness_drm_prop
+    note right of HW: 属性未开启(false)，走 Sysfs 路径
+    
+    HW -&gt; Sysfs: open(&#34;.../panel0-backlight/brightness&#34;)
+    Sysfs --&gt; HW: &lt;color:red&gt;❌ 失败 (ENOENT / No such file)&lt;/color&gt;
+    note right of HW
+        **故障点**: 虚拟化环境中 Guest OS
+        看不到物理背光节点
+    end note
+    
+    HW --&gt; Mux: 返回 kErrorFileDescriptor
+    deactivate HW
+    
+    Mux --&gt; DBI: 返回 Error
+    DBI --&gt; CM: 返回 Error
+    CM --&gt; Server: 返回 Error (kErrorBadConfig)
+    
+    Server -&gt; Server: writeError(Index=0, BadConfig)
+    note right of Server: &lt;font color=red&gt;&lt;b&gt;[Log 1] W SDM : executeSetDisplayBrightness...&lt;/b&gt;&lt;/font&gt;\n记录错误，但**不中断**循环
+
+    &#39; --- 步骤 B: 验证 ---
+    note right of Server: **步骤 B: 执行合成验证**
+    Server -&gt; CM: CommitOrPrepare(...)
+    activate CM
+    CM --&gt; Server: &lt;font color=green&gt;✅ 成功 (kErrorNone)&lt;/font&gt;
+    deactivate CM
+    
+    Server -&gt; Server: setPresentOrValidateResult(Validated)
+end
+
+Server --&gt; Client: 返回 Binder Status OK\n数据包包含:\n1. ErrorList: [{Index:0, Err:BadConfig}]\n2. ResultList: [{Index:0, Validated}]
+deactivate Server
+
+== 阶段 3: 客户端误判 (The Misjudgment) ==
+Client -&gt; Client: 解析返回数据
+
+group 客户端判决逻辑 [AidlComposer::execute]
+    Client -&gt; Client: 检查 Index 0
+    note right of Client
+        **&lt;color:red&gt;致命误判逻辑&lt;/color&gt;**:
+        1. 发现 Index 0 有 Error (实际源自亮度)
+        2. 发现 Index 0 包含 Validate 指令
+        3. **判定: 整个 Validate 失败**
+    end note
+    Client --&gt; SF_HWC: 返回 **Error::BAD_CONFIG**
+end
+
+== 阶段 4: 策略中止 (Abort) ==
+SF_HWC -&gt; SF_HWC: RETURN_IF_HWC_ERROR_FOR(...)
+note right of SF_HWC: &lt;font color=red&gt;&lt;b&gt;[Log 2] E HWComposer : getDeviceCompositionChanges... failed...&lt;/b&gt;&lt;/font&gt;
+
+SF_HWC --&gt; CE: 返回 **UNKNOWN_ERROR** (-2147483648)
+
+CE -&gt; CE: if (result != NO_ERROR)
+note right of CE: &lt;font color=red&gt;&lt;b&gt;[Log 3] E CompositionEngine : chooseCompositionStrategy failed...&lt;/b&gt;&lt;/font&gt;
+
+CE -&gt; CE: return false
+note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
+
+@enduml
+</code></pre><hr><h3 id=详细说明为什么会失败>详细说明：为什么会失败<a hidden class=anchor aria-hidden=true href=#详细说明为什么会失败>#</a></h3><h4 id=1-根本原因-root-cause>1. 根本原因 (Root Cause)<a hidden class=anchor aria-hidden=true href=#1-根本原因-root-cause>#</a></h4><p>故障发生在 <strong>阶段 2</strong> 的底层 <code>HWPeripheralDRM</code> 中。</p><ul><li><strong>背景</strong>：Android 系统运行在 Hypervisor 之上（Guest OS）。</li><li><strong>冲突</strong>：物理屏幕的背光控制权在 Host OS（Linux/QNX）手中，Guest OS 的内核中没有加载物理 Panel 驱动，因此 <code>/sys/class/backlight/panel0-backlight</code> 节点根本不存在。</li><li><strong>代码缺陷</strong>：<code>HWPeripheralDRM::SetPanelBrightness</code> 代码逻辑是为 Native Android 设计的，它尝试打开这个不存在的文件，导致 <code>open</code> 失败，返回错误码。</li></ul><h4 id=2-连锁反应>2. 连锁反应<a hidden class=anchor aria-hidden=true href=#2-连锁反应>#</a></h4><ol><li><strong>底层报错</strong>：<code>HWPeripheralDRM</code> 返回错误。</li><li><strong>上层记录</strong>：<code>AidlComposerClient</code> (Server) 捕获到亮度设置错误，将其记录在 <code>CommandResult</code> 中。</li><li><strong>客户端误判</strong>：<code>AidlComposer</code> (Client) 收到结果后，发现同一批次指令（Index 0）中有错误。由于 AIDL 协议将多个指令打包在一个 Index 中，Client 无法区分错误是来自“亮度”还是“验证”。出于安全考虑，它认为既然有错，那“验证”结果不可信，于是向 SurfaceFlinger 报告“验证失败”。</li><li><strong>合成中止</strong>：SurfaceFlinger 收到验证失败，认为无法继续合成，放弃当前帧。</li></ol><h3 id=log开关>Log开关<a hidden class=anchor aria-hidden=true href=#log开关>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span>adb root
+</span></span><span style=display:flex><span>adb shell setprop vendor.display.enable_verbose_log <span style=color:#ae81ff>1</span>
+</span></span><span style=display:flex><span>adb shell stop vendor.qti.hardware.display.composer-service
+</span></span><span style=display:flex><span>adb shell start vendor.qti.hardware.display.composer-service
+</span></span></code></pre></div><p>参考 <code>ConcurrencyMgr::Init</code>:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-cpp data-lang=cpp><span style=display:flex><span>  SDMDebugHandler<span style=color:#f92672>::</span>Get()<span style=color:#f92672>-&gt;</span>GetProperty(ENABLE_VERBOSE_LOG, <span style=color:#f92672>&amp;</span>value);
+</span></span><span style=display:flex><span>  <span style=color:#66d9ef>if</span> (true) {
+</span></span><span style=display:flex><span>    SDMDebugHandler<span style=color:#f92672>::</span>DebugAll(value, value);
+</span></span><span style=display:flex><span>  }
+</span></span></code></pre></div></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/display/composor/><span class=title>« Prev</span><br><span></span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/><span class=title>Next »</span><br><span></span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

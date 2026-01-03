@@ -1942,7 +1942,233 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;A -&amp;gt; B
+&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/composor/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/composor/</guid><description>&lt;p&gt;HWC 服务启动到底层 Display 对象创建完成的完整时序,这个过程主要分为三个阶段：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;服务启动与依赖注入&lt;/strong&gt;：&lt;code&gt;service.cpp&lt;/code&gt; 启动进程，创建 AIDL 服务实体。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SDM 环境初始化&lt;/strong&gt;：&lt;code&gt;ConcurrencyMgr&lt;/code&gt; 初始化，加载 Core 层和硬件信息。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Display 对象构建&lt;/strong&gt;：&lt;code&gt;DisplayBuilder&lt;/code&gt; 根据硬件信息创建具体的 &lt;code&gt;DisplayBuiltIn&lt;/code&gt; 和 &lt;code&gt;HWPeripheralDRM&lt;/code&gt;。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="qualcomm-hwc-启动与-display-创建全流程"&gt;Qualcomm HWC 启动与 Display 创建全流程&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+skinparam MaxMessageSize 200
+skinparam participantPadding 10
+skinparam boxPadding 10
+skinparam defaultFontName Monospaced
+autonumber &amp;#34;&amp;lt;b&amp;gt;[Boot-0]&amp;lt;/b&amp;gt;&amp;#34;
+title HWC Service Startup &amp;amp; Display Creation Sequence (Final Fix)
+box &amp;#34;Service Process Entry&amp;#34; #White
+participant &amp;#34;Main (service.cpp)&amp;#34; as Main
+participant &amp;#34;AidlComposer\n(BnComposer)&amp;#34; as AC
+end box
+box &amp;#34;SDM Client Layer&amp;#34; #LightYellow
+participant &amp;#34;SDMInterfaceFactory&amp;#34; as Factory
+participant &amp;#34;ConcurrencyMgr&amp;#34; as CM
+participant &amp;#34;SDMDisplayBuilder&amp;#34; as Builder
+end box
+box &amp;#34;SDM Core Layer&amp;#34; #LightGreen
+participant &amp;#34;CoreInterface&amp;#34; as CoreStatic
+participant &amp;#34;CoreImpl&amp;#34; as Core
+participant &amp;#34;DisplayBuiltIn&amp;#34; as DBI
+participant &amp;#34;DPUMultiCore\n(Mux)&amp;#34; as Mux
+end box
+box &amp;#34;Device Abstraction Layer (DAL)&amp;#34; #LightGray
+participant &amp;#34;HWInfoInterface&amp;#34; as HWInfo
+participant &amp;#34;HWInterface\n(Factory)&amp;#34; as HWFactory
+participant &amp;#34;HWPeripheralDRM&amp;#34; as HW
+end box
+== 阶段 1: 服务启动与接口绑定 ==
+Main -&amp;gt; Main: setpriority / sched_setscheduler
+create AC
+Main -&amp;gt; AC: **new AidlComposer()**
+activate AC
+&amp;#39; 1.1 创建核心管理对象 ConcurrencyMgr
+AC -&amp;gt; Factory: CreateLifeCycleIntf() / CreateSettingsIntf() ...
+activate Factory
+Factory -&amp;gt; CM: **GetInstance()** (Singleton)
+activate CM
+CM --&amp;gt; Factory: instance
+deactivate CM
+Factory --&amp;gt; AC: shared_ptr&amp;lt;ConcurrencyMgr&amp;gt;
+deactivate Factory
+&amp;#39; 1.2 初始化 ConcurrencyMgr
+AC -&amp;gt; CM: **Init(buffer_allocator, ...)**
+activate CM
+== 阶段 2: SDM 核心环境初始化 ==
+CM -&amp;gt; CM: InitSubModules()
+&amp;#39; 2.1 创建 CoreImpl
+CM -&amp;gt; CoreStatic: **CreateCore(...)**
+activate CoreStatic
+create Core
+CoreStatic -&amp;gt; Core: new CoreImpl(...)
+Core -&amp;gt; Core: Init()
+&amp;#39; 2.2 加载硬件信息 (DRM Capability)
+Core -&amp;gt; HWInfo: Create(&amp;amp;hw_info_intf)
+activate HWInfo
+HWInfo -&amp;gt; HWInfo: Open DRM / Get Caps
+HWInfo --&amp;gt; Core: Success
+deactivate HWInfo
+Core --&amp;gt; CoreStatic: Success
+CoreStatic --&amp;gt; CM: core_intf_
+deactivate CoreStatic
+&amp;#39; 2.3 创建 Builder
+create Builder
+CM -&amp;gt; Builder: new SDMDisplayBuilder(core_intf_, ...)
+CM -&amp;gt; Builder: Init()
+== 阶段 3: 创建主显示设备 (Primary Display) ==
+CM -&amp;gt; CM: CreatePrimaryDisplay()
+CM -&amp;gt; Builder: **CreatePrimaryDisplay()**
+activate Builder
+&amp;#39; 3.1 查询连接状态
+Builder -&amp;gt; Core: GetDisplaysStatus()
+Core -&amp;gt; HWInfo: GetDisplaysStatus()
+HWInfo --&amp;gt; Core: HWDisplaysInfo (is_connected=true, type=BuiltIn)
+Core --&amp;gt; Builder: HWDisplaysInfo
+&amp;#39; 3.2 发现 Primary BuiltIn Display，开始构建
+create DBI
+Builder -&amp;gt; DBI: **Create(...)**
+activate DBI
+DBI -&amp;gt; DBI: Init()
+&amp;#39; 3.3 创建 DPU Mux (处理多核/Split)
+&amp;#39; [修复点] create Mux 必须紧邻发送给 Mux 的消息
+create Mux
+DBI -&amp;gt; Mux: **DPUCoreFactory::Create(...)**
+activate Mux
+Mux -&amp;gt; Mux: Init()
+&amp;#39; 3.4 创建底层 HW Interface
+loop For Each DPU Core
+Mux -&amp;gt; HWFactory: **HWInterface::Create(type=kBuiltIn)**
+activate HWFactory
+create HW
+HWFactory -&amp;gt; HW: **new HWPeripheralDRM(...)**
+activate HW
+HWFactory -&amp;gt; HW: Init()
+&amp;#39; 3.5 HW 初始化 (DRM Session)
+HW -&amp;gt; HW: HWDeviceDRM::Init() (Register Display)
+HW -&amp;gt; HW: PopulateHWPanelInfo() (Read Max Brightness)
+HW --&amp;gt; HWFactory: Success
+deactivate HW
+HWFactory --&amp;gt; Mux: HWInterface*
+deactivate HWFactory
+end
+Mux --&amp;gt; DBI: Success
+deactivate Mux
+DBI --&amp;gt; Builder: Display*
+deactivate DBI
+&amp;#39; 3.6 注册回 ConcurrencyMgr
+Builder -&amp;gt; CM: SetDisplayByClientId(Primary, DBI*)
+note right of CM: sdm_display_[0] = DBI
+Builder --&amp;gt; CM: Success
+deactivate Builder
+CM --&amp;gt; AC: Success
+deactivate CM
+AC --&amp;gt; Main: Created
+deactivate AC
+Main -&amp;gt; Main: AServiceManager_addService(AidlComposer)
+note right of Main: 服务就绪，等待 SurfaceFlinger 连接
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="关键步骤解析"&gt;关键步骤解析&lt;/h3&gt;
+&lt;h4 id="1-唯一入口servicecpp"&gt;1. 唯一入口：&lt;code&gt;service.cpp&lt;/code&gt;&lt;/h4&gt;
+&lt;p&gt;这是 HWC 进程的起点。它并没有直接去操作硬件，而是先创建了 &lt;code&gt;AidlComposer&lt;/code&gt;。这符合 Android VINTF 架构，将 AIDL 接口作为服务的门面。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;h3 id="亮度调节失败引发surfaceflinger合成策略选择失败的时序图"&gt;亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+&amp;#39; skinparam MaxMessageSize 300
+skinparam participantPadding 10
+skinparam boxPadding 10
+skinparam defaultFontName Monospaced
+autonumber &amp;#34;&amp;lt;b&amp;gt;[0]&amp;lt;/b&amp;gt;&amp;#34;
+title 亮度设置失败导致合成策略中止的全链路时序图
+box &amp;#34;SurfaceFlinger 进程&amp;#34; #lightgreen
+participant &amp;#34;CompositionEngine&amp;#34; as CE
+participant &amp;#34;HWComposer&amp;#34; as SF_HWC
+participant &amp;#34;AidlComposer\n(HAL Client)&amp;#34; as Client
+participant &amp;#34;ComposerClientWriter&amp;#34; as Writer
+end box
+box &amp;#34;HWC Service 进程 (Guest OS)&amp;#34; #LightGray
+participant &amp;#34;AidlComposerClient\n(CommandEngine)&amp;#34; as Server
+participant &amp;#34;ConcurrencyMgr\n(SettingsIntf)&amp;#34; as CM
+participant &amp;#34;DisplayBuiltIn\n(SDM Logic)&amp;#34; as DBI
+participant &amp;#34;DPUMultiCore\n(Mux)&amp;#34; as Mux
+participant &amp;#34;HWPeripheralDRM\n(DAL)&amp;#34; as HW
+end box
+box &amp;#34;Kernel / FileSystem&amp;#34; #MistyRose
+participant &amp;#34;/sys/class/backlight&amp;#34; as Sysfs
+end box
+== 阶段 0: 指令积压 (Client Side Batching) ==
+note right of CE: SurfaceFlinger 在之前的逻辑中\n调用了 setDisplayBrightness
+CE -&amp;gt; SF_HWC: setDisplayBrightness(...)
+SF_HWC -&amp;gt; Client: setDisplayBrightness(...)
+Client -&amp;gt; Writer: 写入指令到 Command Queue
+note right of Writer: 此时 Command Index 0 缓存了:\n1. OP: SetBrightness\n(尚未发送)
+== 阶段 1: 触发策略选择 (Frame Start) ==
+CE -&amp;gt; CE: **chooseCompositionStrategy()**
+CE -&amp;gt; SF_HWC: getDeviceCompositionChanges()
+SF_HWC -&amp;gt; SF_HWC: check canSkipValidate (True)
+SF_HWC -&amp;gt; Client: presentOrValidateDisplay()
+note right of Writer: 将 Validate 指令追加到 Command Queue (Index 0)\n现在 Index 0 包含: [SetBrightness, PresentOrValidate]
+Client -&amp;gt; Server: **executeCommands()** (Binder IPC)
+activate Server
+== 阶段 2: 服务端执行 (The Root Cause) ==
+Server -&amp;gt; Server: 解析 Command Queue\n初始化 mCommandIndex = 0
+group #MistyRose HWC 服务端循环 [处理 Index 0]
+&amp;#39; --- 步骤 A: 亮度设置 ---
+note right of Server: **步骤 A: 优先执行亮度设置**
+Server -&amp;gt; CM: SetDisplayBrightness(level)
+CM -&amp;gt; DBI: SetPanelBrightness(brightness)
+note right of DBI: 转换 float 为 int level
+DBI -&amp;gt; Mux: SetPanelBrightness(level)
+Mux -&amp;gt; HW: SetPanelBrightness(level)
+activate HW
+HW -&amp;gt; HW: 检查 enable_brightness_drm_prop
+note right of HW: 属性未开启(false)，走 Sysfs 路径
+HW -&amp;gt; Sysfs: open(&amp;#34;.../panel0-backlight/brightness&amp;#34;)
+Sysfs --&amp;gt; HW: &amp;lt;color:red&amp;gt;❌ 失败 (ENOENT / No such file)&amp;lt;/color&amp;gt;
+note right of HW
+**故障点**: 虚拟化环境中 Guest OS
+看不到物理背光节点
+end note
+HW --&amp;gt; Mux: 返回 kErrorFileDescriptor
+deactivate HW
+Mux --&amp;gt; DBI: 返回 Error
+DBI --&amp;gt; CM: 返回 Error
+CM --&amp;gt; Server: 返回 Error (kErrorBadConfig)
+Server -&amp;gt; Server: writeError(Index=0, BadConfig)
+note right of Server: &amp;lt;font color=red&amp;gt;&amp;lt;b&amp;gt;[Log 1] W SDM : executeSetDisplayBrightness...&amp;lt;/b&amp;gt;&amp;lt;/font&amp;gt;\n记录错误，但**不中断**循环
+&amp;#39; --- 步骤 B: 验证 ---
+note right of Server: **步骤 B: 执行合成验证**
+Server -&amp;gt; CM: CommitOrPrepare(...)
+activate CM
+CM --&amp;gt; Server: &amp;lt;font color=green&amp;gt;✅ 成功 (kErrorNone)&amp;lt;/font&amp;gt;
+deactivate CM
+Server -&amp;gt; Server: setPresentOrValidateResult(Validated)
+end
+Server --&amp;gt; Client: 返回 Binder Status OK\n数据包包含:\n1. ErrorList: [{Index:0, Err:BadConfig}]\n2. ResultList: [{Index:0, Validated}]
+deactivate Server
+== 阶段 3: 客户端误判 (The Misjudgment) ==
+Client -&amp;gt; Client: 解析返回数据
+group 客户端判决逻辑 [AidlComposer::execute]
+Client -&amp;gt; Client: 检查 Index 0
+note right of Client
+**&amp;lt;color:red&amp;gt;致命误判逻辑&amp;lt;/color&amp;gt;**:
+1. 发现 Index 0 有 Error (实际源自亮度)
+2. 发现 Index 0 包含 Validate 指令
+3. **判定: 整个 Validate 失败**
+end note
+Client --&amp;gt; SF_HWC: 返回 **Error::BAD_CONFIG**
+end
+== 阶段 4: 策略中止 (Abort) ==
+SF_HWC -&amp;gt; SF_HWC: RETURN_IF_HWC_ERROR_FOR(...)
+note right of SF_HWC: &amp;lt;font color=red&amp;gt;&amp;lt;b&amp;gt;[Log 2] E HWComposer : getDeviceCompositionChanges... failed...&amp;lt;/b&amp;gt;&amp;lt;/font&amp;gt;
+SF_HWC --&amp;gt; CE: 返回 **UNKNOWN_ERROR** (-2147483648)
+CE -&amp;gt; CE: if (result != NO_ERROR)
+note right of CE: &amp;lt;font color=red&amp;gt;&amp;lt;b&amp;gt;[Log 3] E CompositionEngine : chooseCompositionStrategy failed...&amp;lt;/b&amp;gt;&amp;lt;/font&amp;gt;
+CE -&amp;gt; CE: return false
+note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
+&lt;h3 id="详细说明为什么会失败"&gt;详细说明：为什么会失败&lt;/h3&gt;
+&lt;h4 id="1-根本原因-root-cause"&gt;1. 根本原因 (Root Cause)&lt;/h4&gt;
+&lt;p&gt;故障发生在 &lt;strong&gt;阶段 2&lt;/strong&gt; 的底层 &lt;code&gt;HWPeripheralDRM&lt;/code&gt; 中。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;A -&amp;gt; B
 &lt;/code&gt;&lt;/pre&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;
 &lt;p&gt;基于提供AOSP的代码，以“Hi Google”为例，语音唤醒（Hotword Detection）的完整流程是一个跨进程、跨层级的复杂协作过程。它主要涉及&lt;strong&gt;底层硬件触发&lt;/strong&gt;、&lt;strong&gt;系统服务路由&lt;/strong&gt;、&lt;strong&gt;沙盒服务校验&lt;/strong&gt;以及&lt;strong&gt;上层应用响应&lt;/strong&gt;四个关键阶段。&lt;/p&gt;
 &lt;p&gt;以下是基于代码分析的时序流程：&lt;/p&gt;

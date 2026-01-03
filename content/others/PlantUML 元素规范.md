@@ -120,7 +120,7 @@ frame "Smart Cockpit System" {
 
 子系统设计图用于表达：
 
-* 系统由哪些**子系统（Subsystem）**组成
+* 系统由哪些**子系统（Subsystem**组成
 * 子系统的职责边界
 * 子系统之间的关系
 

@@ -121,6 +121,13 @@ FILE_TYPE_GROUPS: Dict[str, Dict[str, List[str]]] = {
         "patterns": [],
         "shebangs": ["bash", "sh", "zsh"]
     },
+    # cpp
+    "c_cpp": {
+        "exts": [".cpp", ".c", ".h", ".hpp", ".cc", ".cxx"],
+        "names": [],
+        "patterns": [],
+        "shebangs": []
+    },
 }
 
 # ----------------- 工具函数 -----------------
