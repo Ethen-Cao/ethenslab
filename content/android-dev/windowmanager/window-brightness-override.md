@@ -67,13 +67,14 @@ graph TD
     CarSync -->|6. 二次仲裁 屏蔽手动调节| CarApi
     CarApi -->|7. 驱动指令| VHAL
 
+
 ```
 
 ## 1. 机制概述
 
 Window Brightness Override 允许当前前台窗口（Window）通过设置 `WindowManager.LayoutParams.screenBrightness` 来临时接管屏幕亮度控制权（例如视频播放器或二维码展示页面）。
 
-在该定制实现中，整个流程表现为**“WMS 决策、DPC 仲裁、双通道下发”**的特征。
+在该定制实现中，整个流程表现为**“WMS 异步收集、DPC 策略仲裁、双通道下发”**的特征。
 
 ---
 
@@ -89,11 +90,11 @@ Window Brightness Override 允许当前前台窗口（Window）通过设置 `Win
 在此过程中，系统遍历所有窗口，调用 `handleNotObscuredLocked` 方法。该方法会检查窗口是否可见、是否被遮挡，并提取 `w.mAttrs.screenBrightness`。如果该值在有效范围内（0.0-1.0），则将其存入 `mDisplayBrightnessOverrides` 稀疏数组中。
 3. **异步发送**：
 为了避免持有 WMS 全局锁时调用外部服务导致死锁，`RootWindowContainer` 并没有直接调用 DMS，而是通过内部的 `MyHandler` 发送消息：
+
 ```java
 mHandler.obtainMessage(SET_SCREEN_BRIGHTNESS_OVERRIDE, mDisplayBrightnessOverrides.clone()).sendToTarget();
 
 ```
-
 
 4. **跨服务调用**：
 `MyHandler` 处理该消息，最终调用 `mWmService.mDisplayManagerInternal.setScreenBrightnessOverrideFromWindowManager(brightnessOverrides)`。
@@ -130,10 +131,12 @@ private boolean directSetScreenBrightness(float targetBrightness, float sdrTarge
     if (shouldInterceptBrightnessSet(targetBrightness)) { return false; }
 
     // 2. 通道 A：直接下发硬件配置 (Real Hardware)
+    // 通过 BrightnessUtils 发送 JSON 格式指令到 DeviceConfig
     boolean ret = BrightnessUtils.setBrightnessToConfig(mDisplayId, targetBrightness, reason);
 
     // 3. 通道 B：同步框架状态 (Framework State)
     if (mPowerState != null) {
+        // 更新 DisplayPowerState，触发 PhotonicModulator
         mPowerState.setScreenBrightness(targetBrightness);
         mPowerState.setSdrScreenBrightness(sdrTarget);
     }
@@ -144,7 +147,7 @@ private boolean directSetScreenBrightness(float targetBrightness, float sdrTarge
 
 这一步实现了**“双通道下发”**：
 
-* **通道 A (Hardware - 实)**：调用 `BrightnessUtils.setBrightnessToConfig`。这通常通过 Binder 调用底层的 CarService 或专用 HAL 接口，**直接驱动屏幕背光变化**。这种方式绕过了传统的 `LightsService`。
+* **通道 A (Hardware - 实)**：调用 `BrightnessUtils.setBrightnessToConfig`。该方法将 `displayId`, `targetBrightness`, `reason` 等信息封装为 JSON，写入 `DeviceConfig`。`CarBrightnessSynchronizer` 监听到此变化后，经过仲裁（例如手动调节与窗口覆盖的优先级判断），调用 `CarApiController` 将指令下发给 `CarPropertyService`，最终通过 VHAL 驱动屏幕背光。
 * **通道 B (Framework - 虚)**：调用 `mPowerState.setScreenBrightness`。这非常重要，它会触发 `PhotonicModulator` 线程，最终调用 `SurfaceControl.setDisplayBrightness`。虽然此时它不再负责驱动背光，但它**通知了 SurfaceFlinger 当前的亮度值**。这对于 HDR 色调映射、屏幕截图亮度和系统状态同步至关重要。
 
 ---
@@ -352,5 +355,5 @@ deactivate PM
 该实现方案展示了典型的 Android 系统深度定制：
 
 1. **解耦与异步**：WMS 通过 `MyHandler` 异步通知亮度变化，避免了繁重的锁竞争。
-2. **绕过与直通**：DPC 劫持了标准的动画流程，通过 `BrightnessUtils` 实现了对硬件的直接、同步控制。
+2. **绕过与直通**：DPC 劫持了标准的动画流程，通过 `BrightnessUtils` 和 `CarService` 链路实现了对硬件的直接、同步控制，支持更复杂的车载多屏仲裁逻辑。
 3. **状态一致性**：尽管硬件控制被接管，代码依然保留了对 `DisplayPowerState` 的更新，确保了 Android 上层框架（SurfaceFlinger）的数据一致性。

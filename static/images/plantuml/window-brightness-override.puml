@@ -24,10 +24,16 @@ box "System Server: DisplayManager" #LightCyan
     participant "DisplayControllerHandler" as DPCHandler
     participant "DisplayBrightness\nController" as DBC
     participant "DisplayPowerState" as DPS
+    participant "BrightnessUtils" as Utils
+    participant "DeviceConfig" as Config
 end box
 
-box "System Server: Custom / Native" #MistyRose
-    participant "BrightnessUtils" as Utils
+box "CarService" #MistyRose
+
+    participant "CarBrightness\nSynchronizer" as CarSync
+    participant "CarApiController" as CarCtrl
+    participant "CarPropertyService" as CarProp
+    ' participant "ICarPropertyEventListener" as Listener
 end box
 
 box "System Server: PhotonicModulator Thread" #Lavender
@@ -63,7 +69,6 @@ activate Root
     Root -> RootHandler: sendMessage(SET_SCREEN_BRIGHTNESS_OVERRIDE)
     activate RootHandler
         note right
-           
             异步发送，避免死锁
         end note
         
@@ -86,6 +91,7 @@ deactivate DMI
 activate DPCHandler
     DPCHandler -> DBC: **updateWindowManagerBrightnessOverride(request)**
     activate DBC
+        note right:
         DBC --> DPCHandler: return true (Changed)
     deactivate DBC
 
@@ -100,7 +106,7 @@ activate DPCHandler
             note right of DPC
                 <color:red><b>定制逻辑 (Voyah Porting):</b></color>
                 原生 RampAnimator 被移除
-                改为直接设置
+                改为直接调用 directSetScreenBrightness
             end note
 
             DPC -> DPC: **directSetScreenBrightness(0.8, ...)**
@@ -109,18 +115,39 @@ activate DPCHandler
                 group A. 底层硬件下发 (Real Hardware)
                     DPC -> Utils: **setBrightnessToConfig(displayId, 0.8, reason)**
                     activate Utils
-                        note right
-                            直接通过私有接口(如CarService)
-                            驱动屏幕背光
+                        Utils -> Config: setProperty(NAMESPACE, KEY, json)
+                        note right: 写入 DeviceConfig
+                    deactivate Utils
+                    
+                    note over CarSync: 监听到 DeviceConfig 变化
+                    Config -> CarSync: **onDisplayBrightnessRequested(properties)**
+                    activate CarSync
+                        CarSync -> CarSync: 解析 JSON (id, value, reason)
+                        CarSync -> CarSync: **setBrightnessLocked**
+                        
+                        note right of CarSync
+                            <b>仲裁逻辑:</b>
+                            if (current == OVERRIDE && new == MANUAL)
+                                return; // 忽略手动调节
                         end note
-                    return ret
+                        
+                        CarSync -> CarCtrl: **setBrightness(type, val, reason)**
+                        activate CarCtrl
+                            CarCtrl -> CarCtrl: 构建 JSON {type, value, reason}
+                            CarCtrl -> CarCtrl: setProperty(ID_BACKLIGHT_SET, json)
+                            
+                            CarCtrl -> CarProp: **setProperty(propertyValue, listener)**
+                            activate CarProp
+                                note right: 最终调用 VHAL
+                            deactivate CarProp
+                        deactivate CarCtrl
+                    deactivate CarSync
                 end group
 
                 group B. 框架状态同步 (Framework State)
                     DPC -> DPS: **setScreenBrightness(0.8)**
                     activate DPS
                         note right
-                           
                             更新 PowerState 以触发 PhotonicModulator
                         end note
                         DPS -> PM: setState(state, 0.8, ...)
