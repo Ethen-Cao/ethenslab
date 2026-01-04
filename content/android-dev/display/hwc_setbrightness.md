@@ -149,7 +149,18 @@ note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
 
 ```bash
 adb root
+
 adb shell setprop vendor.display.enable_verbose_log 1
+
+# 2. 【关键】强制放行 Android 系统层面的 Log
+# 设置所有以 SDM, HWC, Display 开头的 Tag 为 VERBOSE 级别
+adb shell setprop log.tag.SDM VERBOSE
+adb shell setprop log.tag.HWC VERBOSE
+adb shell setprop log.tag.HWComposer VERBOSE
+adb shell setprop log.tag.DisplayBuiltIn VERBOSE
+adb shell setprop log.tag.HWPeripheralDRM VERBOSE
+
+# 3. 重启服务
 adb shell stop vendor.qti.hardware.display.composer-service
 adb shell start vendor.qti.hardware.display.composer-service
 ```

@@ -8,6 +8,67 @@ title = 'SplitScreenController flow'
 
 本文将深入剖析 Android 系统中 **Window Brightness Override**（窗口亮度覆盖）机制的实现原理。基于提供的系统源码文件（`RootWindowContainer.java`、`DisplayPowerController.java` 等），我们将详细还原从应用层发起请求到底层硬件执行的全链路流程，特别是针对包含 **Voyah Porting** 定制逻辑的实现进行重点分析。
 
+## 架构
+
+```mermaid
+graph TD
+    %% 定义样式
+    classDef app fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:black;
+    classDef framework fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:black;
+    classDef custom fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:black;
+    classDef hardware fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:black;
+
+    %% --- 应用层 ---
+    App[应用 / 窗口]:::app
+
+    %% --- 系统服务层 (System Server) ---
+    subgraph System_Server [System Server Framework]
+        direction TB
+        WMS[WindowManagerService]:::framework
+        DMS[DisplayManagerService]:::framework
+        DPC[DisplayPowerController]:::framework
+    end
+
+    %% --- Car Service ---
+    subgraph Custom_Logic [CarService]
+        direction TB
+        DeviceConfig[DeviceConfig / SystemProp]:::custom
+        CarSync[CarBrightnessSynchronizer]:::custom
+        CarApi[CarApiController]:::custom
+    end
+
+    %% --- 底层/Native ---
+    subgraph Native_Hardware [Native & Hardware]
+        SF[SurfaceFlinger]:::hardware
+        VHAL[Vehicle HAL / 屏幕硬件]:::hardware
+        composer
+    end
+
+    %% --- 交互连线 ---
+    
+    %% 1. 发起
+    App -->|1. 设置 Window 属性| WMS
+    
+    %% 2. 收集与传输
+    WMS -->|2. 布局遍历 & 收集 override 值| DMS
+    DMS -->|3. 异步分发请求| DPC
+    
+
+    
+    %% 通道 A (虚线表示数据流，实线表示控制流)
+    DPC == "通道 A (框架状态)" ==> SF
+    SF -.->|setBrightness| composer
+    
+    %% 通道 B
+    DPC == "通道 B (硬件控制)" ==> DeviceConfig
+    
+    %% 4. 执行
+    DeviceConfig -->|5. 监听属性变化JSON| CarSync
+    CarSync -->|6. 二次仲裁 屏蔽手动调节| CarApi
+    CarApi -->|7. 驱动指令| VHAL
+
+```
+
 ## 1. 机制概述
 
 Window Brightness Override 允许当前前台窗口（Window）通过设置 `WindowManager.LayoutParams.screenBrightness` 来临时接管屏幕亮度控制权（例如视频播放器或二维码展示页面）。
@@ -121,8 +182,13 @@ box "System Server: DisplayManager" #LightCyan
     participant "DisplayPowerState" as DPS
 end box
 
-box "System Server: Custom / Native" #MistyRose
+box "CarService" #MistyRose
     participant "BrightnessUtils" as Utils
+    participant "DeviceConfig" as Config
+    participant "CarBrightness\nSynchronizer" as CarSync
+    participant "CarApiController" as CarCtrl
+    participant "CarPropertyService" as CarProp
+    ' participant "ICarPropertyEventListener" as Listener
 end box
 
 box "System Server: PhotonicModulator Thread" #Lavender
@@ -158,7 +224,6 @@ activate Root
     Root -> RootHandler: sendMessage(SET_SCREEN_BRIGHTNESS_OVERRIDE)
     activate RootHandler
         note right
-           
             异步发送，避免死锁
         end note
         
@@ -197,7 +262,6 @@ activate DPCHandler
                 <color:red><b>定制逻辑 (Voyah Porting):</b></color>
                 原生 RampAnimator 被移除
                 改为直接调用 directSetScreenBrightness
-               
             end note
 
             DPC -> DPC: **directSetScreenBrightness(0.8, ...)**
@@ -206,19 +270,39 @@ activate DPCHandler
                 group A. 底层硬件下发 (Real Hardware)
                     DPC -> Utils: **setBrightnessToConfig(displayId, 0.8, reason)**
                     activate Utils
-                        note right
-                           
-                            直接通过私有接口
-                            驱动屏幕背光
+                        Utils -> Config: setProperty(NAMESPACE, KEY, json)
+                        note right: 写入 DeviceConfig
+                    deactivate Utils
+                    
+                    note over CarSync: 监听到 DeviceConfig 变化
+                    Config -> CarSync: **onDisplayBrightnessRequested(properties)**
+                    activate CarSync
+                        CarSync -> CarSync: 解析 JSON (id, value, reason)
+                        CarSync -> CarSync: **setBrightnessLocked**
+                        
+                        note right of CarSync
+                            <b>仲裁逻辑:</b>
+                            if (current == OVERRIDE && new == MANUAL)
+                                return; // 忽略手动调节
                         end note
-                    return ret
+                        
+                        CarSync -> CarCtrl: **setBrightness(type, val, reason)**
+                        activate CarCtrl
+                            CarCtrl -> CarCtrl: 构建 JSON {type, value, reason}
+                            CarCtrl -> CarCtrl: setProperty(ID_BACKLIGHT_SET, json)
+                            
+                            CarCtrl -> CarProp: **setProperty(propertyValue, listener)**
+                            activate CarProp
+                                note right: 最终调用 VHAL
+                            deactivate CarProp
+                        deactivate CarCtrl
+                    deactivate CarSync
                 end group
 
                 group B. 框架状态同步 (Framework State)
                     DPC -> DPS: **setScreenBrightness(0.8)**
                     activate DPS
                         note right
-                           
                             更新 PowerState 以触发 PhotonicModulator
                         end note
                         DPS -> PM: setState(state, 0.8, ...)
