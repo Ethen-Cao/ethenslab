@@ -1,0 +1,284 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Ethen 的实验室</title><meta name=keywords content><meta name=description content='graph TD
+    %% --- 定义样式 ---
+    classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef bufferLayer fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef sfLayer fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef halLayer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+    classDef hwLayer fill:#eeeeee,stroke:#616161,stroke-width:2px;
+    classDef decisionNode fill:#ffccbc,stroke:#bf360c,stroke-width:2px,stroke-dasharray: 5 5;
+
+    %% --- 1. 应用层 (Producers) ---
+    subgraph AppLayer ["应用层 (Producers)"]
+        direction LR
+        App["App / Game"]
+        SysUI["SystemUI / Launcher"]
+    end
+    class App,SysUI appLayer;
+
+    %% --- 2. Buffer 传输层 ---
+    subgraph BufferLayer ["Buffer 传输机制"]
+        BQ["BufferQueue<br/>(Producer/Consumer)"]
+        Gralloc["Gralloc<br/>(显存分配)"]
+    end
+    class BQ,Gralloc bufferLayer;
+
+    %% --- 3. SurfaceFlinger 核心层 ---
+    subgraph SF_Core ["SurfaceFlinger Native Process"]
+        direction TB
+        
+        Scheduler["Scheduler / VsyncModulator<br/>(心跳控制)"]
+        SF_Main["SurfaceFlinger Main Thread<br/>(事务处理 & 锁定图层)"]
+        
+        subgraph CE ["CompositionEngine (合成引擎)"]
+            Output["Output (Display)"]
+            Planner["Planner / LayerStack"]
+            Strategy["<b>chooseCompositionStrategy</b><br/>(决策中心)"]
+        end
+        
+        RE["RenderEngine<br/>(SkiaGL / SkiaVK / Graphite)"]
+    end
+    class Scheduler,SF_Main,Output,Planner,RE sfLayer;
+    class Strategy decisionNode;
+
+    %% --- 4. HAL 硬件抽象层 ---
+    subgraph HAL ["硬件抽象层 (HAL)"]
+        HWC["HWComposer HAL<br/>(DRM/KMS)"]
+        GPUDriver["GPU Driver<br/>(OpenGL/Vulkan)"]
+    end
+    class HWC,GPUDriver halLayer;
+
+    %% --- 5. 硬件层 ---
+    subgraph Hardware ["硬件层"]
+        GPU_HW["GPU 硬件"]
+        DPU_HW["DPU / Display Controller"]
+        Panel["屏幕面板"]
+    end
+    class GPU_HW,DPU_HW,Panel hwLayer;
+
+    %% --- 连接关系 ---
+    
+    %% 生产阶段
+    App -->|"1. QueueBuffer"| BQ
+    SysUI -->|"1. QueueBuffer"| BQ
+    BQ -.->|"指向"| Gralloc
+    
+    %% 触发阶段
+    Display_Vsync("硬件 Vsync") -.-> Scheduler
+    Scheduler -->|"2. OnFrameSignal"| SF_Main
+    
+    %% 逻辑处理
+    SF_Main -->|"3. AcquireBuffer"| BQ
+    SF_Main -->|"4. 调用"| CE
+    CE -->|"5. prepareFrame"| Output
+    Output --> Planner
+    Planner --> Strategy
+    
+    %% 核心决策交互 (谈判)
+    Strategy -->|"6. ValidateDisplay (能处理吗?)"| HWC
+    HWC -->|"7. 返回合成类型 (Client/Device)"| Strategy
+    
+    %% 执行路径 A: GPU 合成 (Client Composition)
+    Strategy --"8a. 需要 GPU 合成 (Client)"--> RE
+    RE -->|"9. DrawLayers (Skia)"| GPUDriver
+    GPUDriver --> GPU_HW
+    GPU_HW -->|"10. 输出合成后的 Buffer"| BQ_Target["Framebuffer Target"]
+    BQ_Target --> HWC
+    
+    %% 执行路径 B: 硬件合成 (Device Composition)
+    Strategy --"8b. 纯硬件合成 (Device Overlay)"--> HWC
+    
+    %% 最终提交
+    HWC -->|"11. PresentDisplay (Atomic Commit)"| DPU_HW
+    DPU_HW -->|"12. 扫描输出"| Panel
+'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Ethen 的实验室"><meta property="og:description" content='graph TD %% --- 定义样式 --- classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px; classDef bufferLayer fill:#fff9c4,stroke:#fbc02d,stroke-width:2px; classDef sfLayer fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px; classDef halLayer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px; classDef hwLayer fill:#eeeeee,stroke:#616161,stroke-width:2px; classDef decisionNode fill:#ffccbc,stroke:#bf360c,stroke-width:2px,stroke-dasharray: 5 5; %% --- 1. 应用层 (Producers) --- subgraph AppLayer ["应用层 (Producers)"] direction LR App["App / Game"] SysUI["SystemUI / Launcher"] end class App,SysUI appLayer; %% --- 2. Buffer 传输层 --- subgraph BufferLayer ["Buffer 传输机制"] BQ["BufferQueue<br/>(Producer/Consumer)"] Gralloc["Gralloc<br/>(显存分配)"] end class BQ,Gralloc bufferLayer; %% --- 3. SurfaceFlinger 核心层 --- subgraph SF_Core ["SurfaceFlinger Native Process"] direction TB Scheduler["Scheduler / VsyncModulator<br/>(心跳控制)"] SF_Main["SurfaceFlinger Main Thread<br/>(事务处理 & 锁定图层)"] subgraph CE ["CompositionEngine (合成引擎)"] Output["Output (Display)"] Planner["Planner / LayerStack"] Strategy["<b>chooseCompositionStrategy</b><br/>(决策中心)"] end RE["RenderEngine<br/>(SkiaGL / SkiaVK / Graphite)"] end class Scheduler,SF_Main,Output,Planner,RE sfLayer; class Strategy decisionNode; %% --- 4. HAL 硬件抽象层 --- subgraph HAL ["硬件抽象层 (HAL)"] HWC["HWComposer HAL<br/>(DRM/KMS)"] GPUDriver["GPU Driver<br/>(OpenGL/Vulkan)"] end class HWC,GPUDriver halLayer; %% --- 5. 硬件层 --- subgraph Hardware ["硬件层"] GPU_HW["GPU 硬件"] DPU_HW["DPU / Display Controller"] Panel["屏幕面板"] end class GPU_HW,DPU_HW,Panel hwLayer; %% --- 连接关系 --- %% 生产阶段 App -->|"1. QueueBuffer"| BQ SysUI -->|"1. QueueBuffer"| BQ BQ -.->|"指向"| Gralloc %% 触发阶段 Display_Vsync("硬件 Vsync") -.-> Scheduler Scheduler -->|"2. OnFrameSignal"| SF_Main %% 逻辑处理 SF_Main -->|"3. AcquireBuffer"| BQ SF_Main -->|"4. 调用"| CE CE -->|"5. prepareFrame"| Output Output --> Planner Planner --> Strategy %% 核心决策交互 (谈判) Strategy -->|"6. ValidateDisplay (能处理吗?)"| HWC HWC -->|"7. 返回合成类型 (Client/Device)"| Strategy %% 执行路径 A: GPU 合成 (Client Composition) Strategy --"8a. 需要 GPU 合成 (Client)"--> RE RE -->|"9. DrawLayers (Skia)"| GPUDriver GPUDriver --> GPU_HW GPU_HW -->|"10. 输出合成后的 Buffer"| BQ_Target["Framebuffer Target"] BQ_Target --> HWC %% 执行路径 B: 硬件合成 (Device Composition) Strategy --"8b. 纯硬件合成 (Device Overlay)"--> HWC %% 最终提交 HWC -->|"11. PresentDisplay (Atomic Commit)"| DPU_HW DPU_HW -->|"12. 扫描输出"| Panel '><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta name=twitter:card content="summary"><meta name=twitter:title content><meta name=twitter:description content='graph TD
+    %% --- 定义样式 ---
+    classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef bufferLayer fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef sfLayer fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef halLayer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+    classDef hwLayer fill:#eeeeee,stroke:#616161,stroke-width:2px;
+    classDef decisionNode fill:#ffccbc,stroke:#bf360c,stroke-width:2px,stroke-dasharray: 5 5;
+
+    %% --- 1. 应用层 (Producers) ---
+    subgraph AppLayer ["应用层 (Producers)"]
+        direction LR
+        App["App / Game"]
+        SysUI["SystemUI / Launcher"]
+    end
+    class App,SysUI appLayer;
+
+    %% --- 2. Buffer 传输层 ---
+    subgraph BufferLayer ["Buffer 传输机制"]
+        BQ["BufferQueue<br/>(Producer/Consumer)"]
+        Gralloc["Gralloc<br/>(显存分配)"]
+    end
+    class BQ,Gralloc bufferLayer;
+
+    %% --- 3. SurfaceFlinger 核心层 ---
+    subgraph SF_Core ["SurfaceFlinger Native Process"]
+        direction TB
+        
+        Scheduler["Scheduler / VsyncModulator<br/>(心跳控制)"]
+        SF_Main["SurfaceFlinger Main Thread<br/>(事务处理 & 锁定图层)"]
+        
+        subgraph CE ["CompositionEngine (合成引擎)"]
+            Output["Output (Display)"]
+            Planner["Planner / LayerStack"]
+            Strategy["<b>chooseCompositionStrategy</b><br/>(决策中心)"]
+        end
+        
+        RE["RenderEngine<br/>(SkiaGL / SkiaVK / Graphite)"]
+    end
+    class Scheduler,SF_Main,Output,Planner,RE sfLayer;
+    class Strategy decisionNode;
+
+    %% --- 4. HAL 硬件抽象层 ---
+    subgraph HAL ["硬件抽象层 (HAL)"]
+        HWC["HWComposer HAL<br/>(DRM/KMS)"]
+        GPUDriver["GPU Driver<br/>(OpenGL/Vulkan)"]
+    end
+    class HWC,GPUDriver halLayer;
+
+    %% --- 5. 硬件层 ---
+    subgraph Hardware ["硬件层"]
+        GPU_HW["GPU 硬件"]
+        DPU_HW["DPU / Display Controller"]
+        Panel["屏幕面板"]
+    end
+    class GPU_HW,DPU_HW,Panel hwLayer;
+
+    %% --- 连接关系 ---
+    
+    %% 生产阶段
+    App -->|"1. QueueBuffer"| BQ
+    SysUI -->|"1. QueueBuffer"| BQ
+    BQ -.->|"指向"| Gralloc
+    
+    %% 触发阶段
+    Display_Vsync("硬件 Vsync") -.-> Scheduler
+    Scheduler -->|"2. OnFrameSignal"| SF_Main
+    
+    %% 逻辑处理
+    SF_Main -->|"3. AcquireBuffer"| BQ
+    SF_Main -->|"4. 调用"| CE
+    CE -->|"5. prepareFrame"| Output
+    Output --> Planner
+    Planner --> Strategy
+    
+    %% 核心决策交互 (谈判)
+    Strategy -->|"6. ValidateDisplay (能处理吗?)"| HWC
+    HWC -->|"7. 返回合成类型 (Client/Device)"| Strategy
+    
+    %% 执行路径 A: GPU 合成 (Client Composition)
+    Strategy --"8a. 需要 GPU 合成 (Client)"--> RE
+    RE -->|"9. DrawLayers (Skia)"| GPUDriver
+    GPUDriver --> GPU_HW
+    GPU_HW -->|"10. 输出合成后的 Buffer"| BQ_Target["Framebuffer Target"]
+    BQ_Target --> HWC
+    
+    %% 执行路径 B: 硬件合成 (Device Composition)
+    Strategy --"8b. 纯硬件合成 (Device Overlay)"--> HWC
+    
+    %% 最终提交
+    HWC -->|"11. PresentDisplay (Atomic Commit)"| DPU_HW
+    DPU_HW -->|"12. 扫描输出"| Panel
+'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Display Manager","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/"},{"@type":"ListItem","position":3,"name":"","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"","name":"","description":"graph TD %% --- 定义样式 --- classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px; classDef bufferLayer fill:#fff9c4,stroke:#fbc02d,stroke-width:2px; classDef sfLayer fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px; classDef halLayer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px; classDef hwLayer fill:#eeeeee,stroke:#616161,stroke-width:2px; classDef decisionNode fill:#ffccbc,stroke:#bf360c,stroke-width:2px,stroke-dasharray: 5 5; %% --- 1. 应用层 (Producers) --- subgraph AppLayer [\u0026#34;应用层 (Producers)\u0026#34;] direction LR App[\u0026#34;App / Game\u0026#34;] SysUI[\u0026#34;SystemUI / Launcher\u0026#34;] end class App,SysUI appLayer; %% --- 2. Buffer 传输层 --- subgraph BufferLayer [\u0026#34;Buffer 传输机制\u0026#34;] BQ[\u0026#34;BufferQueue\u0026lt;br/\u0026gt;(Producer/Consumer)\u0026#34;] Gralloc[\u0026#34;Gralloc\u0026lt;br/\u0026gt;(显存分配)\u0026#34;] end class BQ,Gralloc bufferLayer; %% --- 3. SurfaceFlinger 核心层 --- subgraph SF_Core [\u0026#34;SurfaceFlinger Native Process\u0026#34;] direction TB Scheduler[\u0026#34;Scheduler / VsyncModulator\u0026lt;br/\u0026gt;(心跳控制)\u0026#34;] SF_Main[\u0026#34;SurfaceFlinger Main Thread\u0026lt;br/\u0026gt;(事务处理 \u0026amp; 锁定图层)\u0026#34;] subgraph CE [\u0026#34;CompositionEngine (合成引擎)\u0026#34;] Output[\u0026#34;Output (Display)\u0026#34;] Planner[\u0026#34;Planner / LayerStack\u0026#34;] Strategy[\u0026#34;\u0026lt;b\u0026gt;chooseCompositionStrategy\u0026lt;/b\u0026gt;\u0026lt;br/\u0026gt;(决策中心)\u0026#34;] end RE[\u0026#34;RenderEngine\u0026lt;br/\u0026gt;(SkiaGL / SkiaVK / Graphite)\u0026#34;] end class Scheduler,SF_Main,Output,Planner,RE sfLayer; class Strategy decisionNode; %% --- 4. HAL 硬件抽象层 --- subgraph HAL [\u0026#34;硬件抽象层 (HAL)\u0026#34;] HWC[\u0026#34;HWComposer HAL\u0026lt;br/\u0026gt;(DRM/KMS)\u0026#34;] GPUDriver[\u0026#34;GPU Driver\u0026lt;br/\u0026gt;(OpenGL/Vulkan)\u0026#34;] end class HWC,GPUDriver halLayer; %% --- 5. 硬件层 --- subgraph Hardware [\u0026#34;硬件层\u0026#34;] GPU_HW[\u0026#34;GPU 硬件\u0026#34;] DPU_HW[\u0026#34;DPU / Display Controller\u0026#34;] Panel[\u0026#34;屏幕面板\u0026#34;] end class GPU_HW,DPU_HW,Panel hwLayer; %% --- 连接关系 --- %% 生产阶段 App --\u0026gt;|\u0026#34;1. QueueBuffer\u0026#34;| BQ SysUI --\u0026gt;|\u0026#34;1. QueueBuffer\u0026#34;| BQ BQ -.-\u0026gt;|\u0026#34;指向\u0026#34;| Gralloc %% 触发阶段 Display_Vsync(\u0026#34;硬件 Vsync\u0026#34;) -.-\u0026gt; Scheduler Scheduler --\u0026gt;|\u0026#34;2. OnFrameSignal\u0026#34;| SF_Main %% 逻辑处理 SF_Main --\u0026gt;|\u0026#34;3. AcquireBuffer\u0026#34;| BQ SF_Main --\u0026gt;|\u0026#34;4. 调用\u0026#34;| CE CE --\u0026gt;|\u0026#34;5. prepareFrame\u0026#34;| Output Output --\u0026gt; Planner Planner --\u0026gt; Strategy %% 核心决策交互 (谈判) Strategy --\u0026gt;|\u0026#34;6. ValidateDisplay (能处理吗?)\u0026#34;| HWC HWC --\u0026gt;|\u0026#34;7. 返回合成类型 (Client/Device)\u0026#34;| Strategy %% 执行路径 A: GPU 合成 (Client Composition) Strategy --\u0026#34;8a. 需要 GPU 合成 (Client)\u0026#34;--\u0026gt; RE RE --\u0026gt;|\u0026#34;9. DrawLayers (Skia)\u0026#34;| GPUDriver GPUDriver --\u0026gt; GPU_HW GPU_HW --\u0026gt;|\u0026#34;10. 输出合成后的 Buffer\u0026#34;| BQ_Target[\u0026#34;Framebuffer Target\u0026#34;] BQ_Target --\u0026gt; HWC %% 执行路径 B: 硬件合成 (Device Composition) Strategy --\u0026#34;8b. 纯硬件合成 (Device Overlay)\u0026#34;--\u0026gt; HWC %% 最终提交 HWC --\u0026gt;|\u0026#34;11. PresentDisplay (Atomic Commit)\u0026#34;| DPU_HW DPU_HW --\u0026gt;|\u0026#34;12. 扫描输出\u0026#34;| Panel ","keywords":[],"articleBody":"graph TD %% --- 定义样式 --- classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px; classDef bufferLayer fill:#fff9c4,stroke:#fbc02d,stroke-width:2px; classDef sfLayer fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px; classDef halLayer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px; classDef hwLayer fill:#eeeeee,stroke:#616161,stroke-width:2px; classDef decisionNode fill:#ffccbc,stroke:#bf360c,stroke-width:2px,stroke-dasharray: 5 5; %% --- 1. 应用层 (Producers) --- subgraph AppLayer [\"应用层 (Producers)\"] direction LR App[\"App / Game\"] SysUI[\"SystemUI / Launcher\"] end class App,SysUI appLayer; %% --- 2. Buffer 传输层 --- subgraph BufferLayer [\"Buffer 传输机制\"] BQ[\"BufferQueue(Producer/Consumer)\"] Gralloc[\"Gralloc(显存分配)\"] end class BQ,Gralloc bufferLayer; %% --- 3. SurfaceFlinger 核心层 --- subgraph SF_Core [\"SurfaceFlinger Native Process\"] direction TB Scheduler[\"Scheduler / VsyncModulator(心跳控制)\"] SF_Main[\"SurfaceFlinger Main Thread(事务处理 \u0026 锁定图层)\"] subgraph CE [\"CompositionEngine (合成引擎)\"] Output[\"Output (Display)\"] Planner[\"Planner / LayerStack\"] Strategy[\"chooseCompositionStrategy(决策中心)\"] end RE[\"RenderEngine(SkiaGL / SkiaVK / Graphite)\"] end class Scheduler,SF_Main,Output,Planner,RE sfLayer; class Strategy decisionNode; %% --- 4. HAL 硬件抽象层 --- subgraph HAL [\"硬件抽象层 (HAL)\"] HWC[\"HWComposer HAL(DRM/KMS)\"] GPUDriver[\"GPU Driver(OpenGL/Vulkan)\"] end class HWC,GPUDriver halLayer; %% --- 5. 硬件层 --- subgraph Hardware [\"硬件层\"] GPU_HW[\"GPU 硬件\"] DPU_HW[\"DPU / Display Controller\"] Panel[\"屏幕面板\"] end class GPU_HW,DPU_HW,Panel hwLayer; %% --- 连接关系 --- %% 生产阶段 App --\u003e|\"1. QueueBuffer\"| BQ SysUI --\u003e|\"1. QueueBuffer\"| BQ BQ -.-\u003e|\"指向\"| Gralloc %% 触发阶段 Display_Vsync(\"硬件 Vsync\") -.-\u003e Scheduler Scheduler --\u003e|\"2. OnFrameSignal\"| SF_Main %% 逻辑处理 SF_Main --\u003e|\"3. AcquireBuffer\"| BQ SF_Main --\u003e|\"4. 调用\"| CE CE --\u003e|\"5. prepareFrame\"| Output Output --\u003e Planner Planner --\u003e Strategy %% 核心决策交互 (谈判) Strategy --\u003e|\"6. ValidateDisplay (能处理吗?)\"| HWC HWC --\u003e|\"7. 返回合成类型 (Client/Device)\"| Strategy %% 执行路径 A: GPU 合成 (Client Composition) Strategy --\"8a. 需要 GPU 合成 (Client)\"--\u003e RE RE --\u003e|\"9. DrawLayers (Skia)\"| GPUDriver GPUDriver --\u003e GPU_HW GPU_HW --\u003e|\"10. 输出合成后的 Buffer\"| BQ_Target[\"Framebuffer Target\"] BQ_Target --\u003e HWC %% 执行路径 B: 硬件合成 (Device Composition) Strategy --\"8b. 纯硬件合成 (Device Overlay)\"--\u003e HWC %% 最终提交 HWC --\u003e|\"11. PresentDisplay (Atomic Commit)\"| DPU_HW DPU_HW --\u003e|\"12. 扫描输出\"| Panel ","wordCount":"260","inLanguage":"en","datePublished":"0001-01-01T00:00:00Z","dateModified":"0001-01-01T00:00:00Z","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/display/>Display Manager</a></div><h1 class="post-title entry-hint-parent"></h1><div class=post-meta>2 min&nbsp;·&nbsp;260 words</div></header><div class=post-content><pre tabindex=0><code class=language-mermaid data-lang=mermaid>graph TD
+    %% --- 定义样式 ---
+    classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef bufferLayer fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef sfLayer fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef halLayer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+    classDef hwLayer fill:#eeeeee,stroke:#616161,stroke-width:2px;
+    classDef decisionNode fill:#ffccbc,stroke:#bf360c,stroke-width:2px,stroke-dasharray: 5 5;
+
+    %% --- 1. 应用层 (Producers) ---
+    subgraph AppLayer [&#34;应用层 (Producers)&#34;]
+        direction LR
+        App[&#34;App / Game&#34;]
+        SysUI[&#34;SystemUI / Launcher&#34;]
+    end
+    class App,SysUI appLayer;
+
+    %% --- 2. Buffer 传输层 ---
+    subgraph BufferLayer [&#34;Buffer 传输机制&#34;]
+        BQ[&#34;BufferQueue&lt;br/&gt;(Producer/Consumer)&#34;]
+        Gralloc[&#34;Gralloc&lt;br/&gt;(显存分配)&#34;]
+    end
+    class BQ,Gralloc bufferLayer;
+
+    %% --- 3. SurfaceFlinger 核心层 ---
+    subgraph SF_Core [&#34;SurfaceFlinger Native Process&#34;]
+        direction TB
+        
+        Scheduler[&#34;Scheduler / VsyncModulator&lt;br/&gt;(心跳控制)&#34;]
+        SF_Main[&#34;SurfaceFlinger Main Thread&lt;br/&gt;(事务处理 &amp; 锁定图层)&#34;]
+        
+        subgraph CE [&#34;CompositionEngine (合成引擎)&#34;]
+            Output[&#34;Output (Display)&#34;]
+            Planner[&#34;Planner / LayerStack&#34;]
+            Strategy[&#34;&lt;b&gt;chooseCompositionStrategy&lt;/b&gt;&lt;br/&gt;(决策中心)&#34;]
+        end
+        
+        RE[&#34;RenderEngine&lt;br/&gt;(SkiaGL / SkiaVK / Graphite)&#34;]
+    end
+    class Scheduler,SF_Main,Output,Planner,RE sfLayer;
+    class Strategy decisionNode;
+
+    %% --- 4. HAL 硬件抽象层 ---
+    subgraph HAL [&#34;硬件抽象层 (HAL)&#34;]
+        HWC[&#34;HWComposer HAL&lt;br/&gt;(DRM/KMS)&#34;]
+        GPUDriver[&#34;GPU Driver&lt;br/&gt;(OpenGL/Vulkan)&#34;]
+    end
+    class HWC,GPUDriver halLayer;
+
+    %% --- 5. 硬件层 ---
+    subgraph Hardware [&#34;硬件层&#34;]
+        GPU_HW[&#34;GPU 硬件&#34;]
+        DPU_HW[&#34;DPU / Display Controller&#34;]
+        Panel[&#34;屏幕面板&#34;]
+    end
+    class GPU_HW,DPU_HW,Panel hwLayer;
+
+    %% --- 连接关系 ---
+    
+    %% 生产阶段
+    App --&gt;|&#34;1. QueueBuffer&#34;| BQ
+    SysUI --&gt;|&#34;1. QueueBuffer&#34;| BQ
+    BQ -.-&gt;|&#34;指向&#34;| Gralloc
+    
+    %% 触发阶段
+    Display_Vsync(&#34;硬件 Vsync&#34;) -.-&gt; Scheduler
+    Scheduler --&gt;|&#34;2. OnFrameSignal&#34;| SF_Main
+    
+    %% 逻辑处理
+    SF_Main --&gt;|&#34;3. AcquireBuffer&#34;| BQ
+    SF_Main --&gt;|&#34;4. 调用&#34;| CE
+    CE --&gt;|&#34;5. prepareFrame&#34;| Output
+    Output --&gt; Planner
+    Planner --&gt; Strategy
+    
+    %% 核心决策交互 (谈判)
+    Strategy --&gt;|&#34;6. ValidateDisplay (能处理吗?)&#34;| HWC
+    HWC --&gt;|&#34;7. 返回合成类型 (Client/Device)&#34;| Strategy
+    
+    %% 执行路径 A: GPU 合成 (Client Composition)
+    Strategy --&#34;8a. 需要 GPU 合成 (Client)&#34;--&gt; RE
+    RE --&gt;|&#34;9. DrawLayers (Skia)&#34;| GPUDriver
+    GPUDriver --&gt; GPU_HW
+    GPU_HW --&gt;|&#34;10. 输出合成后的 Buffer&#34;| BQ_Target[&#34;Framebuffer Target&#34;]
+    BQ_Target --&gt; HWC
+    
+    %% 执行路径 B: 硬件合成 (Device Composition)
+    Strategy --&#34;8b. 纯硬件合成 (Device Overlay)&#34;--&gt; HWC
+    
+    %% 最终提交
+    HWC --&gt;|&#34;11. PresentDisplay (Atomic Commit)&#34;| DPU_HW
+    DPU_HW --&gt;|&#34;12. 扫描输出&#34;| Panel
+</code></pre></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/><span class=title>« Prev</span><br><span></span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/><span class=title>Next »</span><br><span></span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

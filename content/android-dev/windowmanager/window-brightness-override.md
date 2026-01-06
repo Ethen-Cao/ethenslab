@@ -482,3 +482,4 @@ note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
 
 @enduml
 ```
+

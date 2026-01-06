@@ -18,7 +18,88 @@
 &lt;li&gt;&lt;strong&gt;CPU&lt;/strong&gt;: 8 核或更多。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id="aosp-源码同步"&gt;&lt;strong&gt;AOSP 源码同步&lt;/strong&gt;&lt;/h3&gt;
-&lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png" alt="" /&gt;
+&lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description></item><item><title>Android App Java Crash 捕捉流程分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android-exception-handler/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/android-exception-handler/</guid><description>&lt;p&gt;在 Android 系统中，Java 层的崩溃（Crash）捕捉并不是一个简单的进程内行为，而是一套从 &lt;strong&gt;App 进程&lt;/strong&gt; 到 &lt;strong&gt;System Server 进程&lt;/strong&gt; 跨进程协作的复杂机制。理解这一流程对于定位稳定性问题至关重要，下面是详细的时序图：&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+skinparam theme plain
+skinparam shadowing false
+skinparam DefaultFontName &amp;#34;SansSerif&amp;#34;
+skinparam DefaultFontSize 12
+skinparam ActivityIconSize 42
+&amp;#39; 强制黑字以提高可见性
+skinparam sequence {
+ParticipantPadding 30
+MessageAlign center
+ArrowColor #263238
+ActorBorderColor #263238
+LifeLineBorderColor #263238
+ParticipantBorderColor #263238
+ParticipantBackgroundColor #ECEFF1
+ParticipantFontColor #000000
+GroupBorderColor #263238
+GroupFontColor #000000
+}
+participant &amp;#34;App Process\n(JVM)&amp;#34; as App
+participant &amp;#34;RuntimeInit&amp;#34; as RI
+participant &amp;#34;ActivityManagerService\n(AMS)&amp;#34; as AMS
+participant &amp;#34;AppErrors&amp;#34; as AE
+participant &amp;#34;DropBoxManagerService&amp;#34; as DBMS
+participant &amp;#34;Statsd\n(Native Daemon)&amp;#34; as Statsd
+== 阶段 1: 异常捕获与堆栈提取 (App 进程) ==
+App -&amp;gt; App : 抛出 Exception
+note right: JVM 自动填充 Throwable 对象的 backtrace (Native 栈帧)
+App -&amp;gt; RI : dispatchUncaughtException(e)
+activate RI
+RI -&amp;gt; RI : LoggingHandler.uncaughtException(e)
+RI -&amp;gt; RI : logUncaught(..., e)
+note right: **首次提取堆栈**：调用 e.printStackTrace() \n将内存堆栈转换为 String 输出至 Logcat
+RI -&amp;gt; RI : new ParcelableCrashInfo(e)
+note right: **堆栈封装**：将 Throwable 序列化为 \nCrashInfo 字符串，准备跨进程传输
+RI -&amp;gt; AMS : handleApplicationCrash(token, crashInfo)
+activate AMS
+== 阶段 2: 系统级状态记录与统计 (system_server) ==
+AMS -&amp;gt; AMS : handleApplicationCrashInner()
+group 增量统计 (Incremental Metrics)
+AMS -&amp;gt; AMS : 检查是否为 Incremental package
+end
+group 与 Statsd 交互 (FrameworkStatsLog)
+AMS -&amp;gt; Statsd : FrameworkStatsLog.write(APP_CRASH_OCCURRED, ...)
+note right: 包含 crashInfo 中的 Exception Name
+end
+group 持久化记录 (DropBox)
+AMS -&amp;gt; DBMS : addErrorToDropBox(..., crashInfo)
+activate DBMS
+DBMS -&amp;gt; DBMS : 异步启动 Worker Thread
+DBMS -&amp;gt; DBMS : **堆栈落盘**：将 crashInfo.stackTrace \n与其他 Header 信息拼接并写入 \n/data/system/dropbox/ 压缩文件
+DBMS --&amp;gt; AMS : 返回
+deactivate DBMS
+end
+== 阶段 3: 策略决策与 UI 处理 (AppErrors) ==
+AMS -&amp;gt; AE : crashApplication(r, crashInfo)
+activate AE
+AE -&amp;gt; AE : noteAppKill()
+note right: 将堆栈摘要存入 AppExitInfoManager
+AE -&amp;gt; AE : handleAppCrashLSPB()
+alt 达到崩溃上限 (Bad Process)
+AE -&amp;gt; AE : markBadProcess(..., stackTrace)
+note right: **持久化 Bad 状态**：将堆栈存入 mBadProcesses 内存映射
+AE -&amp;gt; AMS : removeProcessLocked()
+else 允许显示 UI
+AE -&amp;gt; AMS : 发送 SHOW_ERROR_UI_MSG
+AMS -&amp;gt; AE : AppErrorDialog.show(data)
+note right: 对话框中的“显示详情”即展示 crashInfo.stackTrace
+end
+AE --&amp;gt; AMS : 返回结果
+deactivate AE
+== 阶段 4: 最终清理与自杀 (App 进程) ==
+AMS --&amp;gt; RI : 处理完毕 (Binder 返回)
+deactivate AMS
+RI -&amp;gt; RI : Process.killProcess(myPid)
+RI -&amp;gt; RI : System.exit(10)
+deactivate RI
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
+&lt;h2 id="1-流程概览"&gt;1. 流程概览&lt;/h2&gt;
+&lt;p&gt;当 Java 异常未被捕获时，虚拟机将控制权交给 &lt;code&gt;Thread.UncaughtExceptionHandler&lt;/code&gt;。Android 默认通过 &lt;code&gt;RuntimeInit&lt;/code&gt; 类安装了自定义处理器，启动四个阶段的处理：&lt;/p&gt;</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/android_binderproxy_detection/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png" alt="" /&gt;
 本图描述了 Android 系统中 &lt;strong&gt;Binder Proxy 数量限制（BinderProxy Limit）&lt;/strong&gt; 的实现流程，涉及 &lt;code&gt;ActivityManagerService&lt;/code&gt;、&lt;code&gt;BinderInternal&lt;/code&gt;、JNI 层、&lt;code&gt;BpBinder&lt;/code&gt; 等关键组件。&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id="1-关键模块"&gt;1. 关键模块&lt;/h2&gt;
