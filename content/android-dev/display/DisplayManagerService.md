@@ -8,7 +8,7 @@ title = 'DisplayManagerService设计'
 
 这个时序图展示了从底层物理屏幕发现到上层窗口管理容器创建的完整链路。
 
-![](/ethenslab/images/android-13-LogicalDisplay-creating-sequence.png)
+![](../../../static/images/android-13-LogicalDisplay-creating-sequence.png)
 
 1.  **初始化阶段**:
 
