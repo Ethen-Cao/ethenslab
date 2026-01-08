@@ -4,6 +4,11 @@ draft = false
 title = 'SurfaceFlinger详解'
 +++
 
+## RenderEngine详解
+
+### RenderEngine 创建与初始化
+
+### RenderEngine的工作原理
 
 ## Display创建过程
 

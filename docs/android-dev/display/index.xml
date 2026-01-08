@@ -1,4 +1,85 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Display Manager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/</link><description>Recent content in Display Manager on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Sep 2025 10:22:54 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/display/index.xml" rel="self" type="application/rss+xml"/><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Display Manager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/</link><description>Recent content in Display Manager on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Sep 2025 10:22:54 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/display/index.xml" rel="self" type="application/rss+xml"/><item><title>Android SurfaceFlinger RenderEngine 深度详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/renderengine/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/renderengine/</guid><description>&lt;p&gt;RenderEngine 是 SurfaceFlinger 的渲染后端核心，负责将各个图层（Layer）的内容利用 GPU 合成到一帧缓冲区中。在现代 Android 版本中，它基于 &lt;strong&gt;Skia&lt;/strong&gt; 图形库构建，实现了高度的模块化、多后端支持（GLES/Vulkan）以及异步多线程渲染。&lt;/p&gt;
+&lt;h2 id="1-架构概览-architecture-overview"&gt;1. 架构概览 (Architecture Overview)&lt;/h2&gt;
+&lt;p&gt;RenderEngine 采用了 &lt;strong&gt;分层架构&lt;/strong&gt; 与 &lt;strong&gt;装饰器模式&lt;/strong&gt; 的设计。&lt;/p&gt;
+&lt;h3 id="11-核心组件架构图"&gt;1.1 核心组件架构图&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+hide empty members
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 60
+&amp;#39; ==========================================
+&amp;#39; 1. 接口与装饰器层
+&amp;#39; ==========================================
+package &amp;#34;Interface &amp;amp; Decorator&amp;#34; {
+abstract class RenderEngine {
++ {static} create() : unique_ptr&amp;lt;RenderEngine&amp;gt;
++ {abstract} drawLayers()
++ {abstract} mapExternalTextureBuffer()
+}
+class RenderEngineThreaded {
+- mRenderEngine : unique_ptr&amp;lt;RenderEngine&amp;gt;
+- mThread : std::thread
+- mFunctionCalls : queue&amp;lt;function&amp;gt;
++ drawLayers() : &amp;#34;非阻塞提交&amp;#34;
+}
+note right of RenderEngineThreaded
+&amp;lt;b&amp;gt;线程装饰器&amp;lt;/b&amp;gt;
+将渲染调用跨线程
+分发到后台工作线程
+end note
+}
+&amp;#39; ==========================================
+&amp;#39; 2. 核心逻辑层 (Skia Implementation)
+&amp;#39; ==========================================
+package &amp;#34;Core Implementation (Skia)&amp;#34; {
+abstract class SkiaRenderEngine {
+# mTextureCache : TextureCache
+# mCaptureCache : CaptureCache
++ drawLayers() : &amp;#34;通用 Skia 绘制逻辑&amp;#34;
+# drawLayersInternal()
+}
+note right of SkiaRenderEngine
+&amp;lt;b&amp;gt;业务逻辑核心&amp;lt;/b&amp;gt;
+负责将 LayerSettings
+翻译为 Skia Canvas 指令
+end note
+}
+&amp;#39; ==========================================
+&amp;#39; 3. 后端驱动层 (Backends)
+&amp;#39; ==========================================
+package &amp;#34;Backend Drivers&amp;#34; {
+class SkiaGLRenderEngine {
+- mEGLDisplay : EGLDisplay
+- mEGLContext : EGLContext
++ create()
+--
+(Ganesh GL Backend)
+}
+class GaneshVkRenderEngine {
+- mInstance : VkInstance
+- mDevice : VkDevice
++ create()
+--
+(Ganesh Vulkan Backend)
+}
+class GraphiteVkRenderEngine {
+--
+(Graphite Vulkan Backend)
+}
+}
+&amp;#39; 关系连线
+RenderEngine &amp;lt;|-- RenderEngineThreaded
+RenderEngine &amp;lt;|-- SkiaRenderEngine
+SkiaRenderEngine &amp;lt;|-- SkiaGLRenderEngine
+SkiaRenderEngine &amp;lt;|-- GaneshVkRenderEngine
+SkiaRenderEngine &amp;lt;|-- GraphiteVkRenderEngine
+RenderEngineThreaded o-- RenderEngine : 包装实际实现 (Impl)
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="12-关键组件工作机制"&gt;1.2 关键组件工作机制&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;RenderEngine&lt;/code&gt; (Interface)&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
 &lt;p&gt;这个时序图展示了从底层物理屏幕发现到上层窗口管理容器创建的完整链路。&lt;/p&gt;
 &lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-13-LogicalDisplay-creating-sequence.png" alt="" /&gt;&lt;/p&gt;
 &lt;ol&gt;
@@ -47,7 +128,10 @@
 &lt;li&gt;在 &lt;code&gt;WindowManagerService&lt;/code&gt; 中，通常通过 &lt;code&gt;DisplayManager&lt;/code&gt; 的回调 &lt;code&gt;onDisplayAdded&lt;/code&gt; 感知，然后调用 &lt;code&gt;mRoot.createDisplayContent&lt;/code&gt;。在提供的代码中，&lt;code&gt;DisplayManagerService&lt;/code&gt; 拥有 &lt;code&gt;mDisplayTransactionListeners&lt;/code&gt;。&lt;/li&gt;
 &lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 的 &lt;code&gt;handleLogicalDisplayAddedLocked&lt;/code&gt; 会调用 &lt;code&gt;sendDisplayEventLocked&lt;/code&gt;，进而触发回调。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;&lt;em&gt;补充：&lt;code&gt;WindowManagerService&lt;/code&gt; 如何创建 &lt;code&gt;DisplayContent&lt;/code&gt;&lt;/em&gt;&lt;/p&gt;</description></item><item><title>SurfaceFlinger详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</guid><description>&lt;h2 id="display创建过程"&gt;Display创建过程&lt;/h2&gt;
+&lt;p&gt;&lt;em&gt;补充：&lt;code&gt;WindowManagerService&lt;/code&gt; 如何创建 &lt;code&gt;DisplayContent&lt;/code&gt;&lt;/em&gt;&lt;/p&gt;</description></item><item><title>SurfaceFlinger详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</guid><description>&lt;h2 id="renderengine详解"&gt;RenderEngine详解&lt;/h2&gt;
+&lt;h3 id="renderengine-创建与初始化"&gt;RenderEngine 创建与初始化&lt;/h3&gt;
+&lt;h3 id="renderengine的工作原理"&gt;RenderEngine的工作原理&lt;/h3&gt;
+&lt;h2 id="display创建过程"&gt;Display创建过程&lt;/h2&gt;
 &lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;sequenceDiagram
 autonumber
 %% 定义参与者
