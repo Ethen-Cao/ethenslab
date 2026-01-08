@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Gunyah开发笔记 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/gunyah/</link><description>Recent content in Gunyah开发笔记 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 04 Aug 2025 09:49:58 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/gunyah/index.xml" rel="self" type="application/rss+xml"/><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>&lt;h4 id="1-概述"&gt;1. 概述&lt;/h4&gt;
 &lt;p&gt;本图展示了在 Android 虚拟化场景下，Guest OS（Android 虚拟机）如何通过 &lt;strong&gt;Virtio-blk&lt;/strong&gt; 协议高效地访问 Host 侧的物理存储设备。该架构采用 &lt;strong&gt;Userspace Backend&lt;/strong&gt; 模式，即虚拟磁盘的后端处理逻辑集成在 VMM（此处为 &lt;code&gt;qcrosvm&lt;/code&gt;）的用户态进程中。&lt;/p&gt;
-&lt;pre class="plantuml-container" hidden&gt;
-&lt;code class="language-plantuml"&gt;@startuml
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
 skinparam componentStyle rectangle
 skinparam shadowing false
@@ -34,7 +33,7 @@ component &amp;#34;Guest Data Buffers\n(Block I/O payload)&amp;#34; as BUF
 &amp;#39; =======================
 frame &amp;#34;Linux Host&amp;#34; as H #E8F5E9 {
 frame &amp;#34;User Space&amp;#34; as USER {
-component &amp;#34;qcrosvm\n(VMM &amp;#43; virtio-blk backend)&amp;#34; as BE
+component &amp;#34;qcrosvm\n(VMM + virtio-blk backend)&amp;#34; as BE
 }
 frame &amp;#34;Linux Kernel&amp;#34; as KERNEL {
 component &amp;#34;Host Block Layer / FS&amp;#34; as HBLK
@@ -69,8 +68,8 @@ HV -[#FF7F0E]-&amp;gt; FE : virtual interrupt
 &amp;#39; =======================
 BE --&amp;gt; HBLK : read / write
 HBLK --&amp;gt; DISK
-@enduml&lt;/code&gt;
-&lt;/pre&gt;&lt;h4 id="2-核心组件与角色"&gt;2. 核心组件与角色&lt;/h4&gt;
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h4 id="2-核心组件与角色"&gt;2. 核心组件与角色&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;Guest (Android VM):&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;

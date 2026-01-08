@@ -106,8 +106,7 @@
 &lt;/table&gt;
 &lt;hr&gt;
 &lt;h3 id="223-示例android-gvm-分层图"&gt;2.2.3 示例（Android GVM 分层图）&lt;/h3&gt;
-&lt;pre class="plantuml-container" hidden&gt;
-&lt;code class="language-plantuml"&gt;@startuml
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 frame &amp;#34;Smart Cockpit System&amp;#34; {
 rectangle &amp;#34;GVM (Android OS)&amp;#34; {
 rectangle &amp;#34;App Layer&amp;#34;
@@ -117,8 +116,8 @@ rectangle &amp;#34;Native &amp;amp; HAL&amp;#34;
 rectangle &amp;#34;Linux Kernel&amp;#34;
 }
 }
-@enduml&lt;/code&gt;
-&lt;/pre&gt;&lt;hr&gt;
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
 &lt;h3 id="224-禁止项架构分层图中"&gt;2.2.4 禁止项（架构分层图中）&lt;/h3&gt;
 &lt;p&gt;❌ 不得使用 &lt;code&gt;package&lt;/code&gt; 表示层
 ❌ 不得展开模块或类
@@ -175,8 +174,7 @@ rectangle &amp;#34;Linux Kernel&amp;#34;
 &lt;/ul&gt;
 &lt;h3 id="aosp-源码同步"&gt;&lt;strong&gt;AOSP 源码同步&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description></item><item><title>Android App Java Crash 捕捉流程分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android-exception-handler/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android-exception-handler/</guid><description>&lt;p&gt;在 Android 系统中，Java 层的崩溃（Crash）捕捉并不是一个简单的进程内行为，而是一套从 &lt;strong&gt;App 进程&lt;/strong&gt; 到 &lt;strong&gt;System Server 进程&lt;/strong&gt; 跨进程协作的复杂机制。理解这一流程对于定位稳定性问题至关重要，下面是详细的时序图：&lt;/p&gt;
-&lt;pre class="plantuml-container" hidden&gt;
-&lt;code class="language-plantuml"&gt;@startuml
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 skinparam theme plain
 skinparam shadowing false
 skinparam DefaultFontName &amp;#34;SansSerif&amp;#34;
@@ -253,8 +251,8 @@ deactivate AMS
 RI -&amp;gt; RI : Process.killProcess(myPid)
 RI -&amp;gt; RI : System.exit(10)
 deactivate RI
-@enduml&lt;/code&gt;
-&lt;/pre&gt;&lt;hr&gt;
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
 &lt;h2 id="1-流程概览"&gt;1. 流程概览&lt;/h2&gt;
 &lt;p&gt;当 Java 异常未被捕获时，虚拟机将控制权交给 &lt;code&gt;Thread.UncaughtExceptionHandler&lt;/code&gt;。Android 默认通过 &lt;code&gt;RuntimeInit&lt;/code&gt; 类安装了自定义处理器，启动四个阶段的处理：&lt;/p&gt;</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android_binderproxy_detection/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png" alt="" /&gt;
 本图描述了 Android 系统中 &lt;strong&gt;Binder Proxy 数量限制（BinderProxy Limit）&lt;/strong&gt; 的实现流程，涉及 &lt;code&gt;ActivityManagerService&lt;/code&gt;、&lt;code&gt;BinderInternal&lt;/code&gt;、JNI 层、&lt;code&gt;BpBinder&lt;/code&gt; 等关键组件。&lt;/p&gt;
@@ -355,8 +353,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;h2 id="1-架构概览-architecture-overview"&gt;1. 架构概览 (Architecture Overview)&lt;/h2&gt;
 &lt;p&gt;RenderEngine 采用了 &lt;strong&gt;分层架构&lt;/strong&gt; 与 &lt;strong&gt;装饰器模式&lt;/strong&gt; 的设计。&lt;/p&gt;
 &lt;h3 id="11-核心组件架构图"&gt;1.1 核心组件架构图&lt;/h3&gt;
-&lt;pre class="plantuml-container" hidden&gt;
-&lt;code class="language-plantuml"&gt;@startuml
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme cerulean
 hide empty members
 skinparam linetype ortho
@@ -367,15 +364,15 @@ skinparam ranksep 60
 &amp;#39; ==========================================
 package &amp;#34;Interface &amp;amp; Decorator&amp;#34; {
 abstract class RenderEngine {
-&amp;#43; {static} create() : unique_ptr&amp;lt;RenderEngine&amp;gt;
-&amp;#43; {abstract} drawLayers()
-&amp;#43; {abstract} mapExternalTextureBuffer()
++ {static} create() : unique_ptr&amp;lt;RenderEngine&amp;gt;
++ {abstract} drawLayers()
++ {abstract} mapExternalTextureBuffer()
 }
 class RenderEngineThreaded {
 - mRenderEngine : unique_ptr&amp;lt;RenderEngine&amp;gt;
 - mThread : std::thread
 - mFunctionCalls : queue&amp;lt;function&amp;gt;
-&amp;#43; drawLayers() : &amp;#34;非阻塞提交&amp;#34;
++ drawLayers() : &amp;#34;非阻塞提交&amp;#34;
 }
 note right of RenderEngineThreaded
 &amp;lt;b&amp;gt;线程装饰器&amp;lt;/b&amp;gt;
@@ -390,7 +387,7 @@ package &amp;#34;Core Implementation (Skia)&amp;#34; {
 abstract class SkiaRenderEngine {
 # mTextureCache : TextureCache
 # mCaptureCache : CaptureCache
-&amp;#43; drawLayers() : &amp;#34;通用 Skia 绘制逻辑&amp;#34;
++ drawLayers() : &amp;#34;通用 Skia 绘制逻辑&amp;#34;
 # drawLayersInternal()
 }
 note right of SkiaRenderEngine
@@ -406,14 +403,14 @@ package &amp;#34;Backend Drivers&amp;#34; {
 class SkiaGLRenderEngine {
 - mEGLDisplay : EGLDisplay
 - mEGLContext : EGLContext
-&amp;#43; create()
++ create()
 --
 (Ganesh GL Backend)
 }
 class GaneshVkRenderEngine {
 - mInstance : VkInstance
 - mDevice : VkDevice
-&amp;#43; create()
++ create()
 --
 (Ganesh Vulkan Backend)
 }
@@ -429,13 +426,13 @@ SkiaRenderEngine &amp;lt;|-- SkiaGLRenderEngine
 SkiaRenderEngine &amp;lt;|-- GaneshVkRenderEngine
 SkiaRenderEngine &amp;lt;|-- GraphiteVkRenderEngine
 RenderEngineThreaded o-- RenderEngine : 包装实际实现 (Impl)
-@enduml&lt;/code&gt;
-&lt;/pre&gt;&lt;h3 id="12-关键组件工作机制"&gt;1.2 关键组件工作机制&lt;/h3&gt;
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="12-关键组件工作机制"&gt;1.2 关键组件工作机制&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;&lt;code&gt;RenderEngine&lt;/code&gt; (Interface)&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title>Android SurfaceFlinger 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</guid><description>&lt;p&gt;SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。&lt;/p&gt;
 &lt;h2 id="display创建过程"&gt;Display创建过程&lt;/h2&gt;
-&lt;div class="mermaid"&gt;sequenceDiagram
+&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;sequenceDiagram
 autonumber
 %% 定义参与者
 participant HWC as HWC/Kernel
@@ -447,11 +444,11 @@ participant VDS as VirtualDisplaySurface
 participant FBS as FramebufferSurface
 participant DD as DisplayDevice
 participant Scheduler as Scheduler
-box "触发源 (Triggers)" #f9f9f9
+box &amp;#34;触发源 (Triggers)&amp;#34; #f9f9f9
 participant HWC
 participant DisplayManagerService
 end
-box "SurfaceFlinger" #e1f5fe
+box &amp;#34;SurfaceFlinger&amp;#34; #e1f5fe
 participant SF
 participant Scheduler
 participant DD
@@ -464,43 +461,43 @@ end
 rect rgb(255, 240, 240)
 note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟)
 alt 物理屏幕插入 (Hotplug)
-HWC -&gt;&gt; SF: onHotplugReceived(displayId, connected=true)
-SF -&gt;&gt; SF: update mCurrentState (add Display)
-SF -&gt;&gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
+HWC -&amp;gt;&amp;gt; SF: onHotplugReceived(displayId, connected=true)
+SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
+SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
 else 虚拟屏幕请求 (Virtual)
-DisplayManagerService -&gt;&gt; SF: createDisplay(name, secure)
-SF -&gt;&gt; SF: update mCurrentState (add Display)
-SF -&gt;&gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
+DisplayManagerService -&amp;gt;&amp;gt; SF: createDisplay(name, secure)
+SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
+SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
 end
 end
 %% === 第二阶段：主循环处理 ===
-SF -&gt;&gt; SF: onMessageInvalidate() -&gt; handleMessageTransaction()
-SF -&gt;&gt; SF: processDisplayChangesLocked()
-note right of SF: 发现 mCurrentState 有新 token&lt;br/&gt;而 mDrawingState 没有
+SF -&amp;gt;&amp;gt; SF: onMessageInvalidate() -&amp;gt; handleMessageTransaction()
+SF -&amp;gt;&amp;gt; SF: processDisplayChangesLocked()
+note right of SF: 发现 mCurrentState 有新 token&amp;lt;br/&amp;gt;而 mDrawingState 没有
 %% === 第三阶段：核心工厂方法 ===
 rect rgb(255, 250, 230)
 note right of SF: 阶段 2: 核心工厂 (processDisplayAdded)
-SF -&gt;&gt; SF: processDisplayAdded(token, state)
+SF -&amp;gt;&amp;gt; SF: processDisplayAdded(token, state)
 %% 1. 创建 CE Display
-SF -&gt;&gt; CE: createDisplay(args)
+SF -&amp;gt;&amp;gt; CE: createDisplay(args)
 activate CE
-CE --&gt;&gt; SF: return compositionDisplay
+CE --&amp;gt;&amp;gt; SF: return compositionDisplay
 deactivate CE
 %% 2. 创建 Buffer 管道
-SF -&gt;&gt; BQ: createBufferQueue()
-BQ --&gt;&gt; SF: return (producer, consumer)
+SF -&amp;gt;&amp;gt; BQ: createBufferQueue()
+BQ --&amp;gt;&amp;gt; SF: return (producer, consumer)
 %% 3. 创建 Surface (分叉逻辑)
 note right of SF: 阶段 3: 注册与激活
 alt 物理屏幕
-SF -&gt;&gt; Scheduler: registerDisplay(physicalId, refreshRateSelector)
+SF -&amp;gt;&amp;gt; Scheduler: registerDisplay(physicalId, refreshRateSelector)
 end
-SF -&gt;&gt; SF: mDisplays.add(token, displayDevice)
+SF -&amp;gt;&amp;gt; SF: mDisplays.add(token, displayDevice)
 opt 如果是物理屏幕
-SF -&gt;&gt; HWC: setPowerMode(ON)
-SF -&gt;&gt; SF: onActiveDisplayChangedLocked (如果是主屏)
+SF -&amp;gt;&amp;gt; HWC: setPowerMode(ON)
+SF -&amp;gt;&amp;gt; SF: onActiveDisplayChangedLocked (如果是主屏)
 end
 end
-&lt;/div&gt;&lt;h2 id="layer管理与渲染"&gt;Layer管理与渲染&lt;/h2&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="layer管理与渲染"&gt;Layer管理与渲染&lt;/h2&gt;
 &lt;h3 id="layer-核心架构类图"&gt;Layer 核心架构类图&lt;/h3&gt;
 &lt;p&gt;这张图展示了 &lt;strong&gt;SurfaceFlinger&lt;/strong&gt;（管理状态）、&lt;strong&gt;LayerFE&lt;/strong&gt;（数据快照/接口）和 &lt;strong&gt;CompositionEngine&lt;/strong&gt;（合成逻辑）之间的静态关系。&lt;/p&gt;</description></item><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
 &lt;p&gt;这个时序图展示了从底层物理屏幕发现到上层窗口管理容器创建的完整链路。&lt;/p&gt;
@@ -558,8 +555,7 @@ end
 &lt;li&gt;&lt;strong&gt;Display 对象构建&lt;/strong&gt;：&lt;code&gt;DisplayBuilder&lt;/code&gt; 根据硬件信息创建具体的 &lt;code&gt;DisplayBuiltIn&lt;/code&gt; 和 &lt;code&gt;HWPeripheralDRM&lt;/code&gt;。&lt;/li&gt;
 &lt;/ol&gt;
 &lt;h3 id="qualcomm-hwc-启动与-display-创建全流程"&gt;Qualcomm HWC 启动与 Display 创建全流程&lt;/h3&gt;
-&lt;pre class="plantuml-container" hidden&gt;
-&lt;code class="language-plantuml"&gt;@startuml
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
 skinparam MaxMessageSize 200
 skinparam participantPadding 10
@@ -676,8 +672,8 @@ AC --&amp;gt; Main: Created
 deactivate AC
 Main -&amp;gt; Main: AServiceManager_addService(AidlComposer)
 note right of Main: 服务就绪，等待 SurfaceFlinger 连接
-@enduml&lt;/code&gt;
-&lt;/pre&gt;&lt;h3 id="关键步骤解析"&gt;关键步骤解析&lt;/h3&gt;
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="关键步骤解析"&gt;关键步骤解析&lt;/h3&gt;
 &lt;h4 id="1-唯一入口servicecpp"&gt;1. 唯一入口：&lt;code&gt;service.cpp&lt;/code&gt;&lt;/h4&gt;
 &lt;p&gt;这是 HWC 进程的起点。它并没有直接去操作硬件，而是先创建了 &lt;code&gt;AidlComposer&lt;/code&gt;。这符合 Android VINTF 架构，将 AIDL 接口作为服务的门面。&lt;/p&gt;</description></item><item><title>Insets animation flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid><description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
 &lt;p&gt;以下是一些典型的应用场景，从最常见到更高级的交互：&lt;/p&gt;
@@ -1137,8 +1133,7 @@ note right of Main: 服务就绪，等待 SurfaceFlinger 连接
 &lt;li&gt;&lt;strong&gt;控制流&lt;/strong&gt;：利用 &lt;strong&gt;FastRPC&lt;/strong&gt; 跨越处理器边界，将存储在 CPU 文件系统中的 NPU 驱动代码（Skel）动态“侧载” (Side-load) 到 DSP 中运行。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;数据流&lt;/strong&gt;：利用 &lt;strong&gt;ION/DMA-BUF&lt;/strong&gt; 共享内存实现零拷贝传输，确保证推理性能。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;pre class="plantuml-container" hidden&gt;
-&lt;code class="language-plantuml"&gt;@startuml
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
 skinparam backgroundColor white
 skinparam defaultFontName Arial
@@ -1230,8 +1225,8 @@ QnnStub -[#008000]down-&amp;gt; FastRPC : 15. Invoke Execute
 FastRPC -[#008000]down-&amp;gt; Driver
 Driver -[#008000]down-&amp;gt; SkelRun : 16. Signal
 SkelRun -[#008000]down-&amp;gt; HTP_HW : 17. Compute
-@enduml&lt;/code&gt;
-&lt;/pre&gt;&lt;hr&gt;
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
 &lt;h2 id="2-核心全生命周期解说"&gt;2. 核心全生命周期解说&lt;/h2&gt;
 &lt;p&gt;整个运行过程分为三个严格的时序阶段，对应架构图中的三种颜色。&lt;/p&gt;</description></item><item><title>Qualcomm Hexagon DSP 开发指南：AI 推理与通用计算</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/qualcomm-hexagon-dsp-%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/qualcomm-hexagon-dsp-%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;在 Qualcomm Hexagon DSP 的开发生态中，资源的使用方式并非单一路径。根据应用场景、开发难度及工具链的不同，开发模式被明确划分为两条主要赛道：&lt;/p&gt;
@@ -1348,12 +1343,11 @@ SkelRun -[#008000]down-&amp;gt; HTP_HW : 17. Compute
 &lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;PlantUML 使用&lt;/strong&gt;：&lt;/p&gt;
-&lt;pre class="plantuml-container" hidden&gt;
-&lt;code class="language-plantuml"&gt;package &amp;#34;Android Framework&amp;#34; {
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;package &amp;#34;Android Framework&amp;#34; {
 component ActivityManager
 component WindowManager
-}&lt;/code&gt;
-&lt;/pre&gt;&lt;/li&gt;
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
 &lt;h3 id="2-component"&gt;2️⃣ component&lt;/h3&gt;
@@ -2152,8 +2146,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="布局实现-motionlayout"&gt;布局实现 (MotionLayout)&lt;/h3&gt;
 &lt;p&gt;我们使用MotionLayout作为根布局，并在其中定义两个核心功能区：车模面板和地图容器。&lt;/p&gt;</description></item><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>&lt;h4 id="1-概述"&gt;1. 概述&lt;/h4&gt;
 &lt;p&gt;本图展示了在 Android 虚拟化场景下，Guest OS（Android 虚拟机）如何通过 &lt;strong&gt;Virtio-blk&lt;/strong&gt; 协议高效地访问 Host 侧的物理存储设备。该架构采用 &lt;strong&gt;Userspace Backend&lt;/strong&gt; 模式，即虚拟磁盘的后端处理逻辑集成在 VMM（此处为 &lt;code&gt;qcrosvm&lt;/code&gt;）的用户态进程中。&lt;/p&gt;
-&lt;pre class="plantuml-container" hidden&gt;
-&lt;code class="language-plantuml"&gt;@startuml
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
 skinparam componentStyle rectangle
 skinparam shadowing false
@@ -2186,7 +2179,7 @@ component &amp;#34;Guest Data Buffers\n(Block I/O payload)&amp;#34; as BUF
 &amp;#39; =======================
 frame &amp;#34;Linux Host&amp;#34; as H #E8F5E9 {
 frame &amp;#34;User Space&amp;#34; as USER {
-component &amp;#34;qcrosvm\n(VMM &amp;#43; virtio-blk backend)&amp;#34; as BE
+component &amp;#34;qcrosvm\n(VMM + virtio-blk backend)&amp;#34; as BE
 }
 frame &amp;#34;Linux Kernel&amp;#34; as KERNEL {
 component &amp;#34;Host Block Layer / FS&amp;#34; as HBLK
@@ -2221,8 +2214,8 @@ HV -[#FF7F0E]-&amp;gt; FE : virtual interrupt
 &amp;#39; =======================
 BE --&amp;gt; HBLK : read / write
 HBLK --&amp;gt; DISK
-@enduml&lt;/code&gt;
-&lt;/pre&gt;&lt;h4 id="2-核心组件与角色"&gt;2. 核心组件与角色&lt;/h4&gt;
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h4 id="2-核心组件与角色"&gt;2. 核心组件与角色&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;Guest (Android VM):&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
@@ -2462,8 +2455,7 @@ HBLK --&amp;gt; DISK
 &lt;/ul&gt;
 &lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>crash_dump流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/native_crash_process/</guid><description>&lt;p&gt;下图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
 &lt;h3 id="native-process-crash-处理时序图"&gt;Native Process Crash 处理时序图&lt;/h3&gt;
-&lt;pre class="plantuml-container" hidden&gt;
-&lt;code class="language-plantuml"&gt;@startuml
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
 autonumber
 participant &amp;#34;Native Process\n(Crasher)&amp;#34; as P
@@ -2549,11 +2541,11 @@ deactivate P
 destroy P
 P -&amp;gt; INIT: SIGCHLD (进程死亡)
 INIT -&amp;gt; INIT: Process Reaping (回收僵尸进程)
-@enduml&lt;/code&gt;
-&lt;/pre&gt;&lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;信号拦截 (debuggerd_signal_handler)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;div class="mermaid"&gt;graph TD
+&lt;p&gt;&lt;strong&gt;信号拦截 (debuggerd_signal_handler)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;graph TD
 !theme plain
 %% --- 定义样式 ---
 classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
@@ -2571,28 +2563,28 @@ end
 class App,SysUI appLayer;
 %% --- 2. Buffer 传输层 ---
 subgraph BufferLayer [Buffer 传输机制]
-BQ[BufferQueue&lt;br/&gt;(Producer/Consumer)]
-Gralloc[Gralloc&lt;br/&gt;(显存分配)]
+BQ[BufferQueue&amp;lt;br/&amp;gt;(Producer/Consumer)]
+Gralloc[Gralloc&amp;lt;br/&amp;gt;(显存分配)]
 end
 class BQ,Gralloc bufferLayer;
 %% --- 3. SurfaceFlinger 核心层 ---
 subgraph SF_Core [SurfaceFlinger Native Process]
 direction TB
-Scheduler[Scheduler / VsyncModulator&lt;br/&gt;(心跳控制)]
-SF_Main[SurfaceFlinger Main Thread&lt;br/&gt;(事务处理 &amp; 锁定图层)]
+Scheduler[Scheduler / VsyncModulator&amp;lt;br/&amp;gt;(心跳控制)]
+SF_Main[SurfaceFlinger Main Thread&amp;lt;br/&amp;gt;(事务处理 &amp;amp; 锁定图层)]
 subgraph CE [CompositionEngine (合成引擎)]
 Output[Output (Display)]
 Planner[Planner / LayerStack]
-Strategy[&lt;b&gt;chooseCompositionStrategy&lt;/b&gt;&lt;br/&gt;(决策中心)]
+Strategy[&amp;lt;b&amp;gt;chooseCompositionStrategy&amp;lt;/b&amp;gt;&amp;lt;br/&amp;gt;(决策中心)]
 end
-RE[RenderEngine&lt;br/&gt;(SkiaGL / SkiaVK / Graphite)]
+RE[RenderEngine&amp;lt;br/&amp;gt;(SkiaGL / SkiaVK / Graphite)]
 end
 class Scheduler,SF_Main,Output,Planner,RE sfLayer;
 class Strategy decisionNode;
 %% --- 4. HAL 硬件抽象层 ---
 subgraph HAL [硬件抽象层 (HAL)]
-HWC[HWComposer HAL&lt;br/&gt;(DRM/KMS)]
-GPUDriver[GPU Driver&lt;br/&gt;(OpenGL/Vulkan)]
+HWC[HWComposer HAL&amp;lt;br/&amp;gt;(DRM/KMS)]
+GPUDriver[GPU Driver&amp;lt;br/&amp;gt;(OpenGL/Vulkan)]
 end
 class HWC,GPUDriver halLayer;
 %% --- 5. 硬件层 ---
@@ -2604,35 +2596,34 @@ end
 class GPU_HW,DPU_HW,Panel hwLayer;
 %% --- 连接关系 ---
 %% 生产阶段
-App --&gt;|1. QueueBuffer| BQ
-SysUI --&gt;|1. QueueBuffer| BQ
-BQ -.-&gt;|指向| Gralloc
+App --&amp;gt;|1. QueueBuffer| BQ
+SysUI --&amp;gt;|1. QueueBuffer| BQ
+BQ -.-&amp;gt;|指向| Gralloc
 %% 触发阶段
-Display_Vsync(硬件 Vsync) -.-&gt; Scheduler
-Scheduler --&gt;|2. OnFrameSignal| SF_Main
+Display_Vsync(硬件 Vsync) -.-&amp;gt; Scheduler
+Scheduler --&amp;gt;|2. OnFrameSignal| SF_Main
 %% 逻辑处理
-SF_Main --&gt;|3. AcquireBuffer| BQ
-SF_Main --&gt;|4. 调用| CE
-CE --&gt;|5. prepareFrame| Output
-Output --&gt; Planner
-Planner --&gt; Strategy
+SF_Main --&amp;gt;|3. AcquireBuffer| BQ
+SF_Main --&amp;gt;|4. 调用| CE
+CE --&amp;gt;|5. prepareFrame| Output
+Output --&amp;gt; Planner
+Planner --&amp;gt; Strategy
 %% 核心决策交互 (谈判)
-Strategy --&gt;|6. ValidateDisplay (能处理吗?)| HWC
-HWC --&gt;|7. 返回合成类型 (Client/Device)| Strategy
+Strategy --&amp;gt;|6. ValidateDisplay (能处理吗?)| HWC
+HWC --&amp;gt;|7. 返回合成类型 (Client/Device)| Strategy
 %% 执行路径 A: GPU 合成 (Client Composition)
-Strategy --"8a. 需要 GPU 合成 (Client)"--&gt; RE
-RE --&gt;|9. DrawLayers (Skia)| GPUDriver
-GPUDriver --&gt; GPU_HW
-GPU_HW --&gt;|10. 输出合成后的 Buffer| BQ_Target[Framebuffer Target]
-BQ_Target --&gt; HWC
+Strategy --&amp;#34;8a. 需要 GPU 合成 (Client)&amp;#34;--&amp;gt; RE
+RE --&amp;gt;|9. DrawLayers (Skia)| GPUDriver
+GPUDriver --&amp;gt; GPU_HW
+GPU_HW --&amp;gt;|10. 输出合成后的 Buffer| BQ_Target[Framebuffer Target]
+BQ_Target --&amp;gt; HWC
 %% 执行路径 B: 硬件合成 (Device Composition)
-Strategy --"8b. 纯硬件合成 (Device Overlay)"--&gt; HWC
+Strategy --&amp;#34;8b. 纯硬件合成 (Device Overlay)&amp;#34;--&amp;gt; HWC
 %% 最终提交
-HWC --&gt;|11. PresentDisplay (Atomic Commit)| DPU_HW
-DPU_HW --&gt;|12. 扫描输出| Panel
-&lt;/div&gt;&lt;h3 id="亮度调节失败引发surfaceflinger合成策略选择失败的时序图"&gt;亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图&lt;/h3&gt;
-&lt;pre class="plantuml-container" hidden&gt;
-&lt;code class="language-plantuml"&gt;@startuml
+HWC --&amp;gt;|11. PresentDisplay (Atomic Commit)| DPU_HW
+DPU_HW --&amp;gt;|12. 扫描输出| Panel
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="亮度调节失败引发surfaceflinger合成策略选择失败的时序图"&gt;亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
 &amp;#39; skinparam MaxMessageSize 300
 skinparam participantPadding 10
@@ -2726,8 +2717,8 @@ CE -&amp;gt; CE: if (result != NO_ERROR)
 note right of CE: &amp;lt;font color=red&amp;gt;&amp;lt;b&amp;gt;[Log 3] E CompositionEngine : chooseCompositionStrategy failed...&amp;lt;/b&amp;gt;&amp;lt;/font&amp;gt;
 CE -&amp;gt; CE: return false
 note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
-@enduml&lt;/code&gt;
-&lt;/pre&gt;&lt;hr&gt;
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
 &lt;h3 id="详细说明为什么会失败"&gt;详细说明：为什么会失败&lt;/h3&gt;
 &lt;h4 id="1-根本原因-root-cause"&gt;1. 根本原因 (Root Cause)&lt;/h4&gt;
 &lt;p&gt;故障发生在 &lt;strong&gt;阶段 2&lt;/strong&gt; 的底层 &lt;code&gt;HWPeripheralDRM&lt;/code&gt; 中。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;

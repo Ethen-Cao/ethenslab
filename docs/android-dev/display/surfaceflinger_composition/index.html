@@ -50,7 +50,7 @@ sequenceDiagram
     %% === 第二阶段：主循环处理 ===
     SF ->> SF: onMessageInvalidate() -> handleMessageTransaction()
     SF ->> SF: processDisplayChangesLocked()
-    note right of SF: 发现 mCurrentState 有新 token而 mDrawingState 没有
+    note right of SF: 发现 mCurrentState 有新 token<br/>而 mDrawingState 没有
 
     %% === 第三阶段：核心工厂方法 ===
     rect rgb(255, 250, 230)
@@ -84,7 +84,7 @@ sequenceDiagram
 Layer管理与渲染
 Layer 核心架构类图
 这张图展示了 SurfaceFlinger（管理状态）、LayerFE（数据快照/接口）和 CompositionEngine（合成逻辑）之间的静态关系。'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Android SurfaceFlinger 深度解析"><meta property="og:description" content='SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。
-Display创建过程 sequenceDiagram autonumber %% 定义参与者 participant HWC as HWC/Kernel participant DisplayManagerService as DisplayManagerService participant SF as SurfaceFlinger(MainThread) participant CE as CompositionEngine participant BQ as BufferQueue participant VDS as VirtualDisplaySurface participant FBS as FramebufferSurface participant DD as DisplayDevice participant Scheduler as Scheduler box "触发源 (Triggers)" #f9f9f9 participant HWC participant DisplayManagerService end box "SurfaceFlinger" #e1f5fe participant SF participant Scheduler participant DD participant CE participant BQ participant VDS participant FBS end %% === 第一阶段：触发 === rect rgb(255, 240, 240) note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟) alt 物理屏幕插入 (Hotplug) HWC ->> SF: onHotplugReceived(displayId, connected=true) SF ->> SF: update mCurrentState (add Display) SF ->> SF: setTransactionFlags(eDisplayTransactionNeeded) else 虚拟屏幕请求 (Virtual) DisplayManagerService ->> SF: createDisplay(name, secure) SF ->> SF: update mCurrentState (add Display) SF ->> SF: setTransactionFlags(eDisplayTransactionNeeded) end end %% === 第二阶段：主循环处理 === SF ->> SF: onMessageInvalidate() -> handleMessageTransaction() SF ->> SF: processDisplayChangesLocked() note right of SF: 发现 mCurrentState 有新 token而 mDrawingState 没有 %% === 第三阶段：核心工厂方法 === rect rgb(255, 250, 230) note right of SF: 阶段 2: 核心工厂 (processDisplayAdded) SF ->> SF: processDisplayAdded(token, state) %% 1. 创建 CE Display SF ->> CE: createDisplay(args) activate CE CE -->> SF: return compositionDisplay deactivate CE %% 2. 创建 Buffer 管道 SF ->> BQ: createBufferQueue() BQ -->> SF: return (producer, consumer) %% 3. 创建 Surface (分叉逻辑) note right of SF: 阶段 3: 注册与激活 alt 物理屏幕 SF ->> Scheduler: registerDisplay(physicalId, refreshRateSelector) end SF ->> SF: mDisplays.add(token, displayDevice) opt 如果是物理屏幕 SF ->> HWC: setPowerMode(ON) SF ->> SF: onActiveDisplayChangedLocked (如果是主屏) end end Layer管理与渲染 Layer 核心架构类图 这张图展示了 SurfaceFlinger（管理状态）、LayerFE（数据快照/接口）和 CompositionEngine（合成逻辑）之间的静态关系。'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-09-29T10:22:54+08:00"><meta property="article:modified_time" content="2025-09-29T10:22:54+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android SurfaceFlinger 深度解析"><meta name=twitter:description content='SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。
+Display创建过程 sequenceDiagram autonumber %% 定义参与者 participant HWC as HWC/Kernel participant DisplayManagerService as DisplayManagerService participant SF as SurfaceFlinger(MainThread) participant CE as CompositionEngine participant BQ as BufferQueue participant VDS as VirtualDisplaySurface participant FBS as FramebufferSurface participant DD as DisplayDevice participant Scheduler as Scheduler box "触发源 (Triggers)" #f9f9f9 participant HWC participant DisplayManagerService end box "SurfaceFlinger" #e1f5fe participant SF participant Scheduler participant DD participant CE participant BQ participant VDS participant FBS end %% === 第一阶段：触发 === rect rgb(255, 240, 240) note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟) alt 物理屏幕插入 (Hotplug) HWC ->> SF: onHotplugReceived(displayId, connected=true) SF ->> SF: update mCurrentState (add Display) SF ->> SF: setTransactionFlags(eDisplayTransactionNeeded) else 虚拟屏幕请求 (Virtual) DisplayManagerService ->> SF: createDisplay(name, secure) SF ->> SF: update mCurrentState (add Display) SF ->> SF: setTransactionFlags(eDisplayTransactionNeeded) end end %% === 第二阶段：主循环处理 === SF ->> SF: onMessageInvalidate() -> handleMessageTransaction() SF ->> SF: processDisplayChangesLocked() note right of SF: 发现 mCurrentState 有新 token<br/>而 mDrawingState 没有 %% === 第三阶段：核心工厂方法 === rect rgb(255, 250, 230) note right of SF: 阶段 2: 核心工厂 (processDisplayAdded) SF ->> SF: processDisplayAdded(token, state) %% 1. 创建 CE Display SF ->> CE: createDisplay(args) activate CE CE -->> SF: return compositionDisplay deactivate CE %% 2. 创建 Buffer 管道 SF ->> BQ: createBufferQueue() BQ -->> SF: return (producer, consumer) %% 3. 创建 Surface (分叉逻辑) note right of SF: 阶段 3: 注册与激活 alt 物理屏幕 SF ->> Scheduler: registerDisplay(physicalId, refreshRateSelector) end SF ->> SF: mDisplays.add(token, displayDevice) opt 如果是物理屏幕 SF ->> HWC: setPowerMode(ON) SF ->> SF: onActiveDisplayChangedLocked (如果是主屏) end end Layer管理与渲染 Layer 核心架构类图 这张图展示了 SurfaceFlinger（管理状态）、LayerFE（数据快照/接口）和 CompositionEngine（合成逻辑）之间的静态关系。'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-09-29T10:22:54+08:00"><meta property="article:modified_time" content="2025-09-29T10:22:54+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android SurfaceFlinger 深度解析"><meta name=twitter:description content='SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。
 Display创建过程
 sequenceDiagram
     autonumber
@@ -136,7 +136,7 @@ sequenceDiagram
     %% === 第二阶段：主循环处理 ===
     SF ->> SF: onMessageInvalidate() -> handleMessageTransaction()
     SF ->> SF: processDisplayChangesLocked()
-    note right of SF: 发现 mCurrentState 有新 token而 mDrawingState 没有
+    note right of SF: 发现 mCurrentState 有新 token<br/>而 mDrawingState 没有
 
     %% === 第三阶段：核心工厂方法 ===
     rect rgb(255, 250, 230)
@@ -169,74 +169,90 @@ sequenceDiagram
     end
 Layer管理与渲染
 Layer 核心架构类图
-这张图展示了 SurfaceFlinger（管理状态）、LayerFE（数据快照/接口）和 CompositionEngine（合成逻辑）之间的静态关系。'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Display Manager","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/"},{"@type":"ListItem","position":3,"name":"Android SurfaceFlinger 深度解析","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android SurfaceFlinger 深度解析","name":"Android SurfaceFlinger 深度解析","description":"SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。\nDisplay创建过程 sequenceDiagram autonumber %% 定义参与者 participant HWC as HWC/Kernel participant DisplayManagerService as DisplayManagerService participant SF as SurfaceFlinger(MainThread) participant CE as CompositionEngine participant BQ as BufferQueue participant VDS as VirtualDisplaySurface participant FBS as FramebufferSurface participant DD as DisplayDevice participant Scheduler as Scheduler box \"触发源 (Triggers)\" #f9f9f9 participant HWC participant DisplayManagerService end box \"SurfaceFlinger\" #e1f5fe participant SF participant Scheduler participant DD participant CE participant BQ participant VDS participant FBS end %% === 第一阶段：触发 === rect rgb(255, 240, 240) note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟) alt 物理屏幕插入 (Hotplug) HWC -\u003e\u003e SF: onHotplugReceived(displayId, connected=true) SF -\u003e\u003e SF: update mCurrentState (add Display) SF -\u003e\u003e SF: setTransactionFlags(eDisplayTransactionNeeded) else 虚拟屏幕请求 (Virtual) DisplayManagerService -\u003e\u003e SF: createDisplay(name, secure) SF -\u003e\u003e SF: update mCurrentState (add Display) SF -\u003e\u003e SF: setTransactionFlags(eDisplayTransactionNeeded) end end %% === 第二阶段：主循环处理 === SF -\u003e\u003e SF: onMessageInvalidate() -\u003e handleMessageTransaction() SF -\u003e\u003e SF: processDisplayChangesLocked() note right of SF: 发现 mCurrentState 有新 token而 mDrawingState 没有 %% === 第三阶段：核心工厂方法 === rect rgb(255, 250, 230) note right of SF: 阶段 2: 核心工厂 (processDisplayAdded) SF -\u003e\u003e SF: processDisplayAdded(token, state) %% 1. 创建 CE Display SF -\u003e\u003e CE: createDisplay(args) activate CE CE --\u003e\u003e SF: return compositionDisplay deactivate CE %% 2. 创建 Buffer 管道 SF -\u003e\u003e BQ: createBufferQueue() BQ --\u003e\u003e SF: return (producer, consumer) %% 3. 创建 Surface (分叉逻辑) note right of SF: 阶段 3: 注册与激活 alt 物理屏幕 SF -\u003e\u003e Scheduler: registerDisplay(physicalId, refreshRateSelector) end SF -\u003e\u003e SF: mDisplays.add(token, displayDevice) opt 如果是物理屏幕 SF -\u003e\u003e HWC: setPowerMode(ON) SF -\u003e\u003e SF: onActiveDisplayChangedLocked (如果是主屏) end end Layer管理与渲染 Layer 核心架构类图 这张图展示了 SurfaceFlinger（管理状态）、LayerFE（数据快照/接口）和 CompositionEngine（合成逻辑）之间的静态关系。\n","keywords":[],"articleBody":"SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。\nDisplay创建过程 sequenceDiagram autonumber %% 定义参与者 participant HWC as HWC/Kernel participant DisplayManagerService as DisplayManagerService participant SF as SurfaceFlinger(MainThread) participant CE as CompositionEngine participant BQ as BufferQueue participant VDS as VirtualDisplaySurface participant FBS as FramebufferSurface participant DD as DisplayDevice participant Scheduler as Scheduler box \"触发源 (Triggers)\" #f9f9f9 participant HWC participant DisplayManagerService end box \"SurfaceFlinger\" #e1f5fe participant SF participant Scheduler participant DD participant CE participant BQ participant VDS participant FBS end %% === 第一阶段：触发 === rect rgb(255, 240, 240) note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟) alt 物理屏幕插入 (Hotplug) HWC -\u003e\u003e SF: onHotplugReceived(displayId, connected=true) SF -\u003e\u003e SF: update mCurrentState (add Display) SF -\u003e\u003e SF: setTransactionFlags(eDisplayTransactionNeeded) else 虚拟屏幕请求 (Virtual) DisplayManagerService -\u003e\u003e SF: createDisplay(name, secure) SF -\u003e\u003e SF: update mCurrentState (add Display) SF -\u003e\u003e SF: setTransactionFlags(eDisplayTransactionNeeded) end end %% === 第二阶段：主循环处理 === SF -\u003e\u003e SF: onMessageInvalidate() -\u003e handleMessageTransaction() SF -\u003e\u003e SF: processDisplayChangesLocked() note right of SF: 发现 mCurrentState 有新 token而 mDrawingState 没有 %% === 第三阶段：核心工厂方法 === rect rgb(255, 250, 230) note right of SF: 阶段 2: 核心工厂 (processDisplayAdded) SF -\u003e\u003e SF: processDisplayAdded(token, state) %% 1. 创建 CE Display SF -\u003e\u003e CE: createDisplay(args) activate CE CE --\u003e\u003e SF: return compositionDisplay deactivate CE %% 2. 创建 Buffer 管道 SF -\u003e\u003e BQ: createBufferQueue() BQ --\u003e\u003e SF: return (producer, consumer) %% 3. 创建 Surface (分叉逻辑) note right of SF: 阶段 3: 注册与激活 alt 物理屏幕 SF -\u003e\u003e Scheduler: registerDisplay(physicalId, refreshRateSelector) end SF -\u003e\u003e SF: mDisplays.add(token, displayDevice) opt 如果是物理屏幕 SF -\u003e\u003e HWC: setPowerMode(ON) SF -\u003e\u003e SF: onActiveDisplayChangedLocked (如果是主屏) end end Layer管理与渲染 Layer 核心架构类图 这张图展示了 SurfaceFlinger（管理状态）、LayerFE（数据快照/接口）和 CompositionEngine（合成逻辑）之间的静态关系。\n核心设计点：\nLayer: 是 SurfaceFlinger 的核心实体，管理 Buffer队列、DrawingState 等。 LayerFE (Front End): 是 Layer 暴露给 CompositionEngine 的“代理”。它持有 Layer 的快照 (mSnapshot)，实现了数据隔离（SF 主线程修改 Layer，CE 线程读取 LayerFE）。 OutputLayer: 是 CompositionEngine 中 Layer 的容器。因为它属于某个具体的 Output (Display)，所以它负责计算该 Layer 在该屏幕上的具体属性（如投影、裁剪）。 @startuml !theme plain hide empty members skinparam linetype ortho skinparam nodesep 60 skinparam ranksep 60 ' ========================================== ' SurfaceFlinger 域 ' ========================================== package \"SurfaceFlinger Core\" { class SurfaceFlinger { - mLayers : List","wordCount":"3849","inLanguage":"en","datePublished":"2025-09-29T10:22:54+08:00","dateModified":"2025-09-29T10:22:54+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+这张图展示了 SurfaceFlinger（管理状态）、LayerFE（数据快照/接口）和 CompositionEngine（合成逻辑）之间的静态关系。'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Display Manager","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/"},{"@type":"ListItem","position":3,"name":"Android SurfaceFlinger 深度解析","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android SurfaceFlinger 深度解析","name":"Android SurfaceFlinger 深度解析","description":"SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。\nDisplay创建过程 sequenceDiagram autonumber %% 定义参与者 participant HWC as HWC/Kernel participant DisplayManagerService as DisplayManagerService participant SF as SurfaceFlinger(MainThread) participant CE as CompositionEngine participant BQ as BufferQueue participant VDS as VirtualDisplaySurface participant FBS as FramebufferSurface participant DD as DisplayDevice participant Scheduler as Scheduler box \u0026#34;触发源 (Triggers)\u0026#34; #f9f9f9 participant HWC participant DisplayManagerService end box \u0026#34;SurfaceFlinger\u0026#34; #e1f5fe participant SF participant Scheduler participant DD participant CE participant BQ participant VDS participant FBS end %% === 第一阶段：触发 === rect rgb(255, 240, 240) note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟) alt 物理屏幕插入 (Hotplug) HWC -\u0026gt;\u0026gt; SF: onHotplugReceived(displayId, connected=true) SF -\u0026gt;\u0026gt; SF: update mCurrentState (add Display) SF -\u0026gt;\u0026gt; SF: setTransactionFlags(eDisplayTransactionNeeded) else 虚拟屏幕请求 (Virtual) DisplayManagerService -\u0026gt;\u0026gt; SF: createDisplay(name, secure) SF -\u0026gt;\u0026gt; SF: update mCurrentState (add Display) SF -\u0026gt;\u0026gt; SF: setTransactionFlags(eDisplayTransactionNeeded) end end %% === 第二阶段：主循环处理 === SF -\u0026gt;\u0026gt; SF: onMessageInvalidate() -\u0026gt; handleMessageTransaction() SF -\u0026gt;\u0026gt; SF: processDisplayChangesLocked() note right of SF: 发现 mCurrentState 有新 token\u0026lt;br/\u0026gt;而 mDrawingState 没有 %% === 第三阶段：核心工厂方法 === rect rgb(255, 250, 230) note right of SF: 阶段 2: 核心工厂 (processDisplayAdded) SF -\u0026gt;\u0026gt; SF: processDisplayAdded(token, state) %% 1. 创建 CE Display SF -\u0026gt;\u0026gt; CE: createDisplay(args) activate CE CE --\u0026gt;\u0026gt; SF: return compositionDisplay deactivate CE %% 2. 创建 Buffer 管道 SF -\u0026gt;\u0026gt; BQ: createBufferQueue() BQ --\u0026gt;\u0026gt; SF: return (producer, consumer) %% 3. 创建 Surface (分叉逻辑) note right of SF: 阶段 3: 注册与激活 alt 物理屏幕 SF -\u0026gt;\u0026gt; Scheduler: registerDisplay(physicalId, refreshRateSelector) end SF -\u0026gt;\u0026gt; SF: mDisplays.add(token, displayDevice) opt 如果是物理屏幕 SF -\u0026gt;\u0026gt; HWC: setPowerMode(ON) SF -\u0026gt;\u0026gt; SF: onActiveDisplayChangedLocked (如果是主屏) end end Layer管理与渲染 Layer 核心架构类图 这张图展示了 SurfaceFlinger（管理状态）、LayerFE（数据快照/接口）和 CompositionEngine（合成逻辑）之间的静态关系。\n","keywords":[],"articleBody":"SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。\nDisplay创建过程 sequenceDiagram autonumber %% 定义参与者 participant HWC as HWC/Kernel participant DisplayManagerService as DisplayManagerService participant SF as SurfaceFlinger(MainThread) participant CE as CompositionEngine participant BQ as BufferQueue participant VDS as VirtualDisplaySurface participant FBS as FramebufferSurface participant DD as DisplayDevice participant Scheduler as Scheduler box \"触发源 (Triggers)\" #f9f9f9 participant HWC participant DisplayManagerService end box \"SurfaceFlinger\" #e1f5fe participant SF participant Scheduler participant DD participant CE participant BQ participant VDS participant FBS end %% === 第一阶段：触发 === rect rgb(255, 240, 240) note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟) alt 物理屏幕插入 (Hotplug) HWC -\u003e\u003e SF: onHotplugReceived(displayId, connected=true) SF -\u003e\u003e SF: update mCurrentState (add Display) SF -\u003e\u003e SF: setTransactionFlags(eDisplayTransactionNeeded) else 虚拟屏幕请求 (Virtual) DisplayManagerService -\u003e\u003e SF: createDisplay(name, secure) SF -\u003e\u003e SF: update mCurrentState (add Display) SF -\u003e\u003e SF: setTransactionFlags(eDisplayTransactionNeeded) end end %% === 第二阶段：主循环处理 === SF -\u003e\u003e SF: onMessageInvalidate() -\u003e handleMessageTransaction() SF -\u003e\u003e SF: processDisplayChangesLocked() note right of SF: 发现 mCurrentState 有新 token而 mDrawingState 没有 %% === 第三阶段：核心工厂方法 === rect rgb(255, 250, 230) note right of SF: 阶段 2: 核心工厂 (processDisplayAdded) SF -\u003e\u003e SF: processDisplayAdded(token, state) %% 1. 创建 CE Display SF -\u003e\u003e CE: createDisplay(args) activate CE CE --\u003e\u003e SF: return compositionDisplay deactivate CE %% 2. 创建 Buffer 管道 SF -\u003e\u003e BQ: createBufferQueue() BQ --\u003e\u003e SF: return (producer, consumer) %% 3. 创建 Surface (分叉逻辑) note right of SF: 阶段 3: 注册与激活 alt 物理屏幕 SF -\u003e\u003e Scheduler: registerDisplay(physicalId, refreshRateSelector) end SF -\u003e\u003e SF: mDisplays.add(token, displayDevice) opt 如果是物理屏幕 SF -\u003e\u003e HWC: setPowerMode(ON) SF -\u003e\u003e SF: onActiveDisplayChangedLocked (如果是主屏) end end Layer管理与渲染 Layer 核心架构类图 这张图展示了 SurfaceFlinger（管理状态）、LayerFE（数据快照/接口）和 CompositionEngine（合成逻辑）之间的静态关系。\n核心设计点：\nLayer: 是 SurfaceFlinger 的核心实体，管理 Buffer队列、DrawingState 等。 LayerFE (Front End): 是 Layer 暴露给 CompositionEngine 的“代理”。它持有 Layer 的快照 (mSnapshot)，实现了数据隔离（SF 主线程修改 Layer，CE 线程读取 LayerFE）。 OutputLayer: 是 CompositionEngine 中 Layer 的容器。因为它属于某个具体的 Output (Display)，所以它负责计算该 Layer 在该屏幕上的具体属性（如投影、裁剪）。 @startuml !theme plain hide empty members skinparam linetype ortho skinparam nodesep 60 skinparam ranksep 60 ' ========================================== ' SurfaceFlinger 域 ' ========================================== package \"SurfaceFlinger Core\" { class SurfaceFlinger { - mLayers : List","wordCount":"3852","inLanguage":"en","datePublished":"2025-09-29T10:22:54+08:00","dateModified":"2025-09-29T10:22:54+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
 <svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/display/>Display Manager</a></div><h1 class="post-title entry-hint-parent">Android SurfaceFlinger 深度解析</h1><div class=post-meta><span title='2025-09-29 10:22:54 +0800 CST'>September 29, 2025</span>&nbsp;·&nbsp;19 min&nbsp;·&nbsp;3849 words</div></header><div class=post-content><p>SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。</p><h2 id=display创建过程>Display创建过程<a hidden class=anchor aria-hidden=true href=#display创建过程>#</a></h2><div class=mermaid>sequenceDiagram
-autonumber
-%% 定义参与者
-participant HWC as HWC/Kernel
-participant DisplayManagerService as DisplayManagerService
-participant SF as SurfaceFlinger(MainThread)
-participant CE as CompositionEngine
-participant BQ as BufferQueue
-participant VDS as VirtualDisplaySurface
-participant FBS as FramebufferSurface
-participant DD as DisplayDevice
-participant Scheduler as Scheduler
-box "触发源 (Triggers)" #f9f9f9
-participant HWC
-participant DisplayManagerService
-end
-box "SurfaceFlinger" #e1f5fe
-participant SF
-participant Scheduler
-participant DD
-participant CE
-participant BQ
-participant VDS
-participant FBS
-end
-%% === 第一阶段：触发 ===
-rect rgb(255, 240, 240)
-note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟)
-alt 物理屏幕插入 (Hotplug)
-HWC ->> SF: onHotplugReceived(displayId, connected=true)
-SF ->> SF: update mCurrentState (add Display)
-SF ->> SF: setTransactionFlags(eDisplayTransactionNeeded)
-else 虚拟屏幕请求 (Virtual)
-DisplayManagerService ->> SF: createDisplay(name, secure)
-SF ->> SF: update mCurrentState (add Display)
-SF ->> SF: setTransactionFlags(eDisplayTransactionNeeded)
-end
-end
-%% === 第二阶段：主循环处理 ===
-SF ->> SF: onMessageInvalidate() -> handleMessageTransaction()
-SF ->> SF: processDisplayChangesLocked()
-note right of SF: 发现 mCurrentState 有新 token<br>而 mDrawingState 没有
-%% === 第三阶段：核心工厂方法 ===
-rect rgb(255, 250, 230)
-note right of SF: 阶段 2: 核心工厂 (processDisplayAdded)
-SF ->> SF: processDisplayAdded(token, state)
-%% 1. 创建 CE Display
-SF ->> CE: createDisplay(args)
-activate CE
-CE -->> SF: return compositionDisplay
-deactivate CE
-%% 2. 创建 Buffer 管道
-SF ->> BQ: createBufferQueue()
-BQ -->> SF: return (producer, consumer)
-%% 3. 创建 Surface (分叉逻辑)
-note right of SF: 阶段 3: 注册与激活
-alt 物理屏幕
-SF ->> Scheduler: registerDisplay(physicalId, refreshRateSelector)
-end
-SF ->> SF: mDisplays.add(token, displayDevice)
-opt 如果是物理屏幕
-SF ->> HWC: setPowerMode(ON)
-SF ->> SF: onActiveDisplayChangedLocked (如果是主屏)
-end
-end</div><h2 id=layer管理与渲染>Layer管理与渲染<a hidden class=anchor aria-hidden=true href=#layer管理与渲染>#</a></h2><h3 id=layer-核心架构类图>Layer 核心架构类图<a hidden class=anchor aria-hidden=true href=#layer-核心架构类图>#</a></h3><p>这张图展示了 <strong>SurfaceFlinger</strong>（管理状态）、<strong>LayerFE</strong>（数据快照/接口）和 <strong>CompositionEngine</strong>（合成逻辑）之间的静态关系。</p><p><strong>核心设计点：</strong></p><ul><li><strong>Layer</strong>: 是 SurfaceFlinger 的核心实体，管理 Buffer队列、DrawingState 等。</li><li><strong>LayerFE (Front End)</strong>: 是 Layer 暴露给 CompositionEngine 的“代理”。它持有 Layer 的快照 (<code>mSnapshot</code>)，实现了<strong>数据隔离</strong>（SF 主线程修改 Layer，CE 线程读取 LayerFE）。</li><li><strong>OutputLayer</strong>: 是 CompositionEngine 中 Layer 的容器。因为它属于某个具体的 <code>Output</code> (Display)，所以它负责计算该 Layer 在该屏幕上的具体属性（如投影、裁剪）。</li></ul><pre class=plantuml-container hidden>
-  <code class=language-plantuml>@startuml
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/display/>Display Manager</a></div><h1 class="post-title entry-hint-parent">Android SurfaceFlinger 深度解析</h1><div class=post-meta><span title='2025-09-29 10:22:54 +0800 CST'>September 29, 2025</span>&nbsp;·&nbsp;19 min&nbsp;·&nbsp;3852 words</div></header><div class=post-content><p>SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。</p><h2 id=display创建过程>Display创建过程<a hidden class=anchor aria-hidden=true href=#display创建过程>#</a></h2><pre tabindex=0><code class=language-mermaid data-lang=mermaid>sequenceDiagram
+    autonumber
+    
+    %% 定义参与者
+    participant HWC as HWC/Kernel
+    participant DisplayManagerService as DisplayManagerService
+    participant SF as SurfaceFlinger(MainThread)
+    participant CE as CompositionEngine
+    participant BQ as BufferQueue
+    participant VDS as VirtualDisplaySurface
+    participant FBS as FramebufferSurface
+    participant DD as DisplayDevice
+    participant Scheduler as Scheduler
+
+    box &#34;触发源 (Triggers)&#34; #f9f9f9
+        participant HWC
+        participant DisplayManagerService
+    end
+
+    box &#34;SurfaceFlinger&#34; #e1f5fe
+        participant SF
+        participant Scheduler
+        participant DD
+
+
+
+        participant CE
+        participant BQ
+        participant VDS
+        participant FBS
+    end
+
+    %% === 第一阶段：触发 ===
+    rect rgb(255, 240, 240)
+    note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟)
+    
+    alt 物理屏幕插入 (Hotplug)
+        HWC -&gt;&gt; SF: onHotplugReceived(displayId, connected=true)
+        SF -&gt;&gt; SF: update mCurrentState (add Display)
+        SF -&gt;&gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
+    else 虚拟屏幕请求 (Virtual)
+        DisplayManagerService -&gt;&gt; SF: createDisplay(name, secure)
+        SF -&gt;&gt; SF: update mCurrentState (add Display)
+        SF -&gt;&gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
+    end
+    end
+
+    %% === 第二阶段：主循环处理 ===
+    SF -&gt;&gt; SF: onMessageInvalidate() -&gt; handleMessageTransaction()
+    SF -&gt;&gt; SF: processDisplayChangesLocked()
+    note right of SF: 发现 mCurrentState 有新 token&lt;br/&gt;而 mDrawingState 没有
+
+    %% === 第三阶段：核心工厂方法 ===
+    rect rgb(255, 250, 230)
+    note right of SF: 阶段 2: 核心工厂 (processDisplayAdded)
+    SF -&gt;&gt; SF: processDisplayAdded(token, state)
+
+    %% 1. 创建 CE Display
+    SF -&gt;&gt; CE: createDisplay(args)
+    activate CE
+    CE --&gt;&gt; SF: return compositionDisplay
+    deactivate CE
+
+    %% 2. 创建 Buffer 管道
+    SF -&gt;&gt; BQ: createBufferQueue()
+    BQ --&gt;&gt; SF: return (producer, consumer)
+
+    %% 3. 创建 Surface (分叉逻辑)
+    note right of SF: 阶段 3: 注册与激活
+    
+    alt 物理屏幕
+        SF -&gt;&gt; Scheduler: registerDisplay(physicalId, refreshRateSelector)
+    end
+
+    SF -&gt;&gt; SF: mDisplays.add(token, displayDevice)
+    
+    opt 如果是物理屏幕
+        SF -&gt;&gt; HWC: setPowerMode(ON)
+        SF -&gt;&gt; SF: onActiveDisplayChangedLocked (如果是主屏)
+    end
+    end
+</code></pre><h2 id=layer管理与渲染>Layer管理与渲染<a hidden class=anchor aria-hidden=true href=#layer管理与渲染>#</a></h2><h3 id=layer-核心架构类图>Layer 核心架构类图<a hidden class=anchor aria-hidden=true href=#layer-核心架构类图>#</a></h3><p>这张图展示了 <strong>SurfaceFlinger</strong>（管理状态）、<strong>LayerFE</strong>（数据快照/接口）和 <strong>CompositionEngine</strong>（合成逻辑）之间的静态关系。</p><p><strong>核心设计点：</strong></p><ul><li><strong>Layer</strong>: 是 SurfaceFlinger 的核心实体，管理 Buffer队列、DrawingState 等。</li><li><strong>LayerFE (Front End)</strong>: 是 Layer 暴露给 CompositionEngine 的“代理”。它持有 Layer 的快照 (<code>mSnapshot</code>)，实现了<strong>数据隔离</strong>（SF 主线程修改 Layer，CE 线程读取 LayerFE）。</li><li><strong>OutputLayer</strong>: 是 CompositionEngine 中 Layer 的容器。因为它属于某个具体的 <code>Output</code> (Display)，所以它负责计算该 Layer 在该屏幕上的具体属性（如投影、裁剪）。</li></ul><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 hide empty members
 skinparam linetype ortho
@@ -249,22 +265,22 @@ skinparam ranksep 60
 package &#34;SurfaceFlinger Core&#34; {
     class SurfaceFlinger {
         - mLayers : List&lt;sp&lt;Layer&gt;&gt;
-        &#43; createBufferStateLayer()
+        + createBufferStateLayer()
     }
 
     class Layer {
         - mDrawingState : State
         - mBufferInfo : BufferInfo
         - mLayerFEs : vector&lt;pair&lt;TraversalPath, sp&lt;LayerFE&gt;&gt;&gt;
-        &#43; setBuffer()
-        &#43; latchBufferImpl()
-        &#43; getCompositionEngineLayerFE()
+        + setBuffer()
+        + latchBufferImpl()
+        + getCompositionEngineLayerFE()
     }
 
     class &#34;Layer::State&#34; as LayerState {
-        &#43; buffer : shared_ptr&lt;ExternalTexture&gt;
-        &#43; geometry : Rect/FloatRect
-        &#43; dataspace : Dataspace
+        + buffer : shared_ptr&lt;ExternalTexture&gt;
+        + geometry : Rect/FloatRect
+        + dataspace : Dataspace
     }
 }
 
@@ -275,46 +291,46 @@ package &#34;CompositionEngine&#34; {
     
     &#39; 接口定义
     interface LayerFE {
-        &#43; prepareClientComposition()
-        &#43; onPreComposition()
-        &#43; getCompositionState()
+        + prepareClientComposition()
+        + onPreComposition()
+        + getCompositionState()
     }
 
     &#39; 具体实现 (通常是 Layer 的内部类或者独立类，这里根据提供的 LayerFE.cpp 是独立类)
     class &#34;LayerFE (Impl)&#34; as LayerFEImpl {
         - mSnapshot : LayerFECompositionState
         - mExternalTexture : shared_ptr&lt;ExternalTexture&gt;
-        &#43; prepareBufferStateClientComposition()
-        &#43; prepareShadowClientComposition()
+        + prepareBufferStateClientComposition()
+        + prepareShadowClientComposition()
     }
 
     class Output {
         - mOutputLayers : List&lt;OutputLayer&gt;
-        &#43; collectVisibleLayers()
-        &#43; updateCompositionState()
+        + collectVisibleLayers()
+        + updateCompositionState()
     }
 
     class OutputLayer {
         - mLayerFE : sp&lt;LayerFE&gt;
         - mState : OutputLayerCompositionState
         - mHwc : optional&lt;HWC2::Layer&gt;
-        &#43; updateCompositionState()
-        &#43; writeStateToHWC()
-        &#43; getOutput()
+        + updateCompositionState()
+        + writeStateToHWC()
+        + getOutput()
     }
 
     struct LayerSettings {
-        &#43; source : PixelSource
-        &#43; geometry : Geometry
-        &#43; alpha : float
-        &#43; bufferId : uint64_t
+        + source : PixelSource
+        + geometry : Geometry
+        + alpha : float
+        + bufferId : uint64_t
     }
 }
 
 package &#34;RenderEngine Layer&#34; {
     struct &#34;LayerSettings&#34; as RELayerSettings
     class RenderEngine {
-        &#43; drawLayers(std::vector&lt;const LayerSettings*&gt;&amp; layers)
+        + drawLayers(std::vector&lt;const LayerSettings*&gt;&amp; layers)
     }
 
     RenderEngine --&gt; RELayerSettings:use
@@ -351,9 +367,8 @@ OutputLayer --&gt; HwcLayer : 包装硬件层
 LayerFEImpl ..&gt; LayerSettings : 生成 (prepareClientComposition)
 LayerSettings --|&gt; RELayerSettings : 继承/兼容
 
-@enduml</code>
-</pre><h2 id=display图像合成流程>Display图像合成流程<a hidden class=anchor aria-hidden=true href=#display图像合成流程>#</a></h2><pre class=plantuml-container hidden>
-  <code class=language-plantuml>@startuml
+@enduml
+</code></pre><h2 id=display图像合成流程>Display图像合成流程<a hidden class=anchor aria-hidden=true href=#display图像合成流程>#</a></h2><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme cerulean
 hide empty members
 skinparam linetype ortho
@@ -383,7 +398,7 @@ package &#34;SurfaceFlinger Core&#34; {
     class SurfaceFlinger {
         - mLayers : List&lt;sp&lt;Layer&gt;&gt;
         - mDisplays : Map
-        &#43; handleMessageInvalidate()
+        + handleMessageInvalidate()
     }
 
     class DisplayDevice {
@@ -394,9 +409,9 @@ package &#34;SurfaceFlinger Core&#34; {
     class Layer {
         - mDrawingState : State
         - mBufferInfo : BufferInfo
-        &#43; setBuffer() : &#34;接收 Buffer (BufferState 模式)&#34;
-        &#43; latchBufferImpl() : &#34;锁定最新 Buffer&#34;
-        &#43; getBuffer() : &#34;获取 GraphicBuffer&#34;
+        + setBuffer() : &#34;接收 Buffer (BufferState 模式)&#34;
+        + latchBufferImpl() : &#34;锁定最新 Buffer&#34;
+        + getBuffer() : &#34;获取 GraphicBuffer&#34;
     }    
 }
 
@@ -412,12 +427,12 @@ package &#34;CompositionEngine&#34; {
     abstract class Output {
         - mRenderSurface
         - mOutputLayers : List&lt;OutputLayer&gt;
-        &#43; composeSurfaces()
+        + composeSurfaces()
     }
 
     class &#34;\tOutputLayer\t\t\t\t\t&#34; as OutputLayer {
         - mLayerFE : LayerFE
-        &#43; writeStateToHWC()
+        + writeStateToHWC()
     }
 
     class Display {
@@ -427,15 +442,15 @@ package &#34;CompositionEngine&#34; {
     class RenderSurface {
         - mNativeWindow
         - mDisplaySurface
-        &#43; queueBuffer()
+        + queueBuffer()
     }
     
     class RenderEngine {
-        &#43; drawLayers()
+        + drawLayers()
     }
 
     interface DisplaySurface {
-        &#43; advanceFrame()
+        + advanceFrame()
     }
 }
 
@@ -463,13 +478,13 @@ RenderEngine .down.&gt; RenderSurface#purple : 绘制结果 (Target)
 &#39; ==========================================
 package &#34;Display Hardware&#34; {
     class &#34;\t\t\tFramebufferSurface\t\t&#34; as FramebufferSurface{
-        &#43; advanceFrame()
-        &#43; setClientTarget()
+        + advanceFrame()
+        + setClientTarget()
     }
     
     interface &#34;\t\tANativeWindow\t\t&#34; as SFNativeWindow {
-        &#43; queueBuffer()
-        &#43; queueBuffer()
+        + queueBuffer()
+        + queueBuffer()
     }
 
     &#39; ==========================================
@@ -485,8 +500,8 @@ package &#34;Display Hardware&#34; {
 
 package &#34;HWC Abstraction&#34; {
     class &#34;\t\t\t\tHWComposer\t\t\t\t\t\t&#34; as HWComposer{
-        &#43; setLayerBuffer()
-        &#43; setClientTarget()
+        + setLayerBuffer()
+        + setClientTarget()
     }
 }
 
@@ -507,8 +522,8 @@ SFIGBP --o SFBQ
 SFBQ o-- SFIGBC
 SFIGBC --&gt; FramebufferSurface
 
-@enduml</code>
-</pre><p>总结数据流向</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-txt data-lang=txt><span style=display:flex><span>[RenderEngine] 
+@enduml
+</code></pre><p>总结数据流向</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-txt data-lang=txt><span style=display:flex><span>[RenderEngine] 
 </span></span><span style=display:flex><span>      | (绘制 GPU 合成部分)
 </span></span><span style=display:flex><span>      v
 </span></span><span style=display:flex><span>[IGraphicBufferProducer] --&gt; [BufferQueue] --&gt; [IGraphicBufferConsumer]
@@ -518,8 +533,7 @@ SFIGBC --&gt; FramebufferSurface
 </span></span><span style=display:flex><span>                                                      | (setClientTarget)
 </span></span><span style=display:flex><span>                                                      v
 </span></span><span style=display:flex><span>                                                [HWComposer] --&gt; [物理屏幕]
-</span></span></code></pre></div><h3 id=数据流与合成架构解析>数据流与合成架构解析<a hidden class=anchor aria-hidden=true href=#数据流与合成架构解析>#</a></h3><p>这张架构图宏观地展示了 Android 图形系统从应用层生产到硬件层显示的完整流水线。核心逻辑可以概括为 <strong>“一个源头，两次决策，殊途同归”</strong>。</p><h4 id=1-生产端数据的源头-app-layer-system>1. 生产端：数据的源头 (App Layer System)<a hidden class=anchor aria-hidden=true href=#1-生产端数据的源头-app-layer-system>#</a></h4><p>一切始于左上角的 <strong>App Layer System</strong>。</p><ul><li><strong>生产 (Produce)</strong>：应用程序作为生产者，通过 <code>AppIGBP</code> 将绘制好的 GraphicBuffer 填充到 <strong>App BufferQueue</strong> 中。</li><li><strong>消费 (Consume)</strong>：SurfaceFlinger 端的 <code>Layer</code> 作为消费者 (<code>AppIGBC</code>)，通过 <code>latchBuffer()</code> 锁定应用最新提交的 Buffer。此时，SF 拥有了图层的原始数据。</li></ul><h4 id=2-决策层compositionengine-的分流>2. 决策层：CompositionEngine 的分流<a hidden class=anchor aria-hidden=true href=#2-决策层compositionengine-的分流>#</a></h4><p>中间的 <strong>CompositionEngine</strong> 是“大脑”，负责决定每一帧如何合成。<code>Output</code>（代表屏幕）管理着多个 <code>OutputLayer</code>。在这里，系统面临关键的<strong>路径选择</strong>：</p><ul><li><p><strong>路径 A：GPU 合成 (Client Composition)</strong> —— <em>图中紫色箭头</em></p><ul><li><strong>场景</strong>：当图层有复杂特效（如圆角、模糊）、不支持的格式或超出 HWC 处理能力时。</li><li><strong>流程</strong>：<code>Output</code> 指挥 <strong><code>RenderEngine</code></strong> 工作。<code>RenderEngine</code> 将 <code>Layer</code> 中的 Buffer 作为<strong>纹理 (Texture)</strong> 读取，利用 GPU 将其绘制到 <code>RenderSurface</code> 申请的目标 Buffer 上。</li><li><strong>流向</strong>：图层数据被“画”到了新的 Buffer 中，进入下方的 Display BufferQueue。</li></ul></li><li><p><strong>路径 B：HWC 合成 (Device Composition)</strong> —— <em>图中红色箭头</em></p><ul><li><strong>场景</strong>：标准图层，硬件直接支持，效率最高。</li><li><strong>流程</strong>：<code>OutputLayer</code> 直接将 <code>Layer</code> 中的原始 Buffer 句柄传递给 <strong><code>HWComposer</code></strong> (<code>setLayerBuffer</code>)。</li><li><strong>流向</strong>：数据<strong>透传</strong>。Buffer 不经过 GPU 读写，直接由 Display Controller 读取并显示。</li></ul></li></ul><h4 id=3-实现层与基础设施-display-hardware>3. 实现层与基础设施 (Display Hardware)<a hidden class=anchor aria-hidden=true href=#3-实现层与基础设施-display-hardware>#</a></h4><p>这一层负责管理合成后的结果（主要是 GPU 合成的结果）：</p><ul><li><p><strong>RenderSurface 的双重角色</strong>：它是连接逻辑与物理的枢纽。</p></li><li><p><strong>向上</strong>：对接 <code>RenderEngine</code>，作为绘图目标。</p></li><li><p><strong>向下</strong>：对接 <strong>Display BufferQueue</strong> (<code>SFNativeWindow</code>)，将 GPU 画好的帧推入队列。</p></li><li><p><strong>FramebufferSurface</strong>：它是 Display BufferQueue 的消费者。它从队列中取出 GPU 合成好的 Buffer，通过 <code>setClientTarget()</code> 提交给 HWC。</p></li></ul><h4 id=4-最终汇聚hwcomposer>4. 最终汇聚：HWComposer<a hidden class=anchor aria-hidden=true href=#4-最终汇聚hwcomposer>#</a></h4><p>在图的最底部，<strong><code>HWComposer</code></strong> 完成最后的汇聚：</p><ol><li>接收来自 <strong>路径 B</strong> 的独立图层 Buffer (<code>setLayerBuffer</code>)。</li><li>接收来自 <strong>路径 A</strong> 的 GPU 合成结果 Buffer (<code>setClientTarget</code>)。</li><li>硬件将这两部分内容叠加，最终输出到物理屏幕。</li></ol><hr><h3 id=完整的合成过程>完整的合成过程<a hidden class=anchor aria-hidden=true href=#完整的合成过程>#</a></h3><pre class=plantuml-container hidden>
-  <code class=language-plantuml>@startuml
+</span></span></code></pre></div><h3 id=数据流与合成架构解析>数据流与合成架构解析<a hidden class=anchor aria-hidden=true href=#数据流与合成架构解析>#</a></h3><p>这张架构图宏观地展示了 Android 图形系统从应用层生产到硬件层显示的完整流水线。核心逻辑可以概括为 <strong>“一个源头，两次决策，殊途同归”</strong>。</p><h4 id=1-生产端数据的源头-app-layer-system>1. 生产端：数据的源头 (App Layer System)<a hidden class=anchor aria-hidden=true href=#1-生产端数据的源头-app-layer-system>#</a></h4><p>一切始于左上角的 <strong>App Layer System</strong>。</p><ul><li><strong>生产 (Produce)</strong>：应用程序作为生产者，通过 <code>AppIGBP</code> 将绘制好的 GraphicBuffer 填充到 <strong>App BufferQueue</strong> 中。</li><li><strong>消费 (Consume)</strong>：SurfaceFlinger 端的 <code>Layer</code> 作为消费者 (<code>AppIGBC</code>)，通过 <code>latchBuffer()</code> 锁定应用最新提交的 Buffer。此时，SF 拥有了图层的原始数据。</li></ul><h4 id=2-决策层compositionengine-的分流>2. 决策层：CompositionEngine 的分流<a hidden class=anchor aria-hidden=true href=#2-决策层compositionengine-的分流>#</a></h4><p>中间的 <strong>CompositionEngine</strong> 是“大脑”，负责决定每一帧如何合成。<code>Output</code>（代表屏幕）管理着多个 <code>OutputLayer</code>。在这里，系统面临关键的<strong>路径选择</strong>：</p><ul><li><p><strong>路径 A：GPU 合成 (Client Composition)</strong> —— <em>图中紫色箭头</em></p><ul><li><strong>场景</strong>：当图层有复杂特效（如圆角、模糊）、不支持的格式或超出 HWC 处理能力时。</li><li><strong>流程</strong>：<code>Output</code> 指挥 <strong><code>RenderEngine</code></strong> 工作。<code>RenderEngine</code> 将 <code>Layer</code> 中的 Buffer 作为<strong>纹理 (Texture)</strong> 读取，利用 GPU 将其绘制到 <code>RenderSurface</code> 申请的目标 Buffer 上。</li><li><strong>流向</strong>：图层数据被“画”到了新的 Buffer 中，进入下方的 Display BufferQueue。</li></ul></li><li><p><strong>路径 B：HWC 合成 (Device Composition)</strong> —— <em>图中红色箭头</em></p><ul><li><strong>场景</strong>：标准图层，硬件直接支持，效率最高。</li><li><strong>流程</strong>：<code>OutputLayer</code> 直接将 <code>Layer</code> 中的原始 Buffer 句柄传递给 <strong><code>HWComposer</code></strong> (<code>setLayerBuffer</code>)。</li><li><strong>流向</strong>：数据<strong>透传</strong>。Buffer 不经过 GPU 读写，直接由 Display Controller 读取并显示。</li></ul></li></ul><h4 id=3-实现层与基础设施-display-hardware>3. 实现层与基础设施 (Display Hardware)<a hidden class=anchor aria-hidden=true href=#3-实现层与基础设施-display-hardware>#</a></h4><p>这一层负责管理合成后的结果（主要是 GPU 合成的结果）：</p><ul><li><p><strong>RenderSurface 的双重角色</strong>：它是连接逻辑与物理的枢纽。</p></li><li><p><strong>向上</strong>：对接 <code>RenderEngine</code>，作为绘图目标。</p></li><li><p><strong>向下</strong>：对接 <strong>Display BufferQueue</strong> (<code>SFNativeWindow</code>)，将 GPU 画好的帧推入队列。</p></li><li><p><strong>FramebufferSurface</strong>：它是 Display BufferQueue 的消费者。它从队列中取出 GPU 合成好的 Buffer，通过 <code>setClientTarget()</code> 提交给 HWC。</p></li></ul><h4 id=4-最终汇聚hwcomposer>4. 最终汇聚：HWComposer<a hidden class=anchor aria-hidden=true href=#4-最终汇聚hwcomposer>#</a></h4><p>在图的最底部，<strong><code>HWComposer</code></strong> 完成最后的汇聚：</p><ol><li>接收来自 <strong>路径 B</strong> 的独立图层 Buffer (<code>setLayerBuffer</code>)。</li><li>接收来自 <strong>路径 A</strong> 的 GPU 合成结果 Buffer (<code>setClientTarget</code>)。</li><li>硬件将这两部分内容叠加，最终输出到物理屏幕。</li></ol><hr><h3 id=完整的合成过程>完整的合成过程<a hidden class=anchor aria-hidden=true href=#完整的合成过程>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 hide footbox
 skinparam linetype ortho
@@ -681,7 +695,7 @@ activate HWC
 note right of HWC
     硬件刷新屏幕：
     读取 ClientTarget (GPU结果)
-    &#43; 读取 Overlay Layers (透传结果)
+    + 读取 Overlay Layers (透传结果)
 end note
 HWC --&gt;&gt; Output: PresentFence
 deactivate HWC
@@ -690,47 +704,58 @@ Output -&gt;&gt; Output: onFrameCommitted()
 deactivate Output
 deactivate SF
 
-@enduml</code>
-</pre><p>这是为您整理的 <strong>Android SurfaceFlinger 合成流水线技术说明书</strong>。这份文档基于之前的代码分析、架构图和时序图，旨在从系统架构角度详细阐述渲染合成的完整生命周期。</p><hr><p>SurfaceFlinger 的核心职责是充当系统的“合成器”。在每一次 VSYNC 信号的驱动下，它负责收集来自各个应用程序（App）生产的图形缓冲区（GraphicBuffer），决定合成策略（GPU 绘制或 HWC 叠加），并将最终结果提交给显示硬件。</p><p>整个流程是一个 <strong>&ldquo;调度 (Schedule) -> 锁定 (Latch) -> 决策 (Decide) -> 执行 (Execute) -> 上屏 (Present)&rdquo;</strong> 的闭环系统。</p><p>在深入流程之前，需明确以下关键组件的角色：</p><ul><li><strong>Layer (图层)</strong>: SurfaceFlinger 端对应 App Surface 的实体，管理 BufferQueue 的消费者接口，维护当前帧的绘制状态 (<code>mDrawingState</code>)。</li><li><strong>LayerFE (Front End)</strong>: Layer 的快照/代理接口。它将 Layer 的数据（如 Buffer 句柄、几何变换）固化，供合成线程安全读取，隔离主线程的修改。</li><li><strong>Output / Display</strong>: 代表一个物理或虚拟屏幕，负责管理该屏幕上的图层集合 (<code>OutputLayer</code>) 和合成策略。</li><li><strong>RenderEngine (RE)</strong>: 基于 GPU (OpenGL ES/Skia/Vulkan) 的绘图引擎，负责执行“客户端合成”。</li><li><strong>HWComposer (HWC)</strong>: 硬件合成器抽象层，直接对接显示硬件（Display Controller/DPU），负责执行“设备合成”。</li><li><strong>RenderSurface & FramebufferSurface</strong>: 连接 GPU 输出与 HWC 输入的管道。</li></ul><p>整个合成周期由硬件 VSYNC 信号触发，分为四个核心阶段。</p><p><strong>阶段一：调度与数据锁定 (Scheduling & Latching)</strong></p><p>此阶段的目标是<strong>冻结世界</strong>。SurfaceFlinger 必须确定这一帧要显示什么，并在合成期间保持数据不变。</p><ol><li><strong>VSYNC 触发</strong>: <code>MessageQueue</code> 收到 VSYNC 信号，调用 <code>onMessageInvalidate()</code> 唤醒 SurfaceFlinger 主线程。</li><li><strong>处理事务</strong>: 处理 WindowManager 发来的层级变更、属性修改等事务。</li><li><strong>锁定 Buffer (Latch Buffer)</strong>:</li></ol><ul><li>SF 遍历所有 Layer。如果 App 已经通过 BufferQueue 提交了新 Buffer，SF 调用 <code>Layer::latchBuffer()</code>。</li><li><strong>关键动作</strong>: Buffer 句柄从 <code>Layer</code> 的 <code>mDrawingState</code> 转移到 <code>mBufferInfo</code>。</li><li><strong>快照更新</strong>: 调用 <code>LayerFE::updateSnapshot()</code>，将最新的 Buffer 引用和几何状态复制到 <code>LayerFE</code> 中。后续的合成操作只读取 <code>LayerFE</code>，此时 App 即使提交新帧也不会影响正在进行的合成。</li></ul><p><strong>阶段二：策略协商与决策 (Strategy Negotiation)</strong></p><p>此阶段的目标是<strong>性能最优化</strong>。系统倾向于让 HWC 硬件处理尽可能多的图层（功耗低、效率高），只有 HWC 处理不了的才交给 GPU。</p><ol><li><strong>可见性计算</strong>: <code>Output</code> 遍历图层树，计算每个 <code>OutputLayer</code> 在当前屏幕上的可见区域、裁剪（Crop）和 Z-Order。不可见图层被剔除。</li><li><strong>验证请求 (Validate Display)</strong>:</li></ol><ul><li><code>Output</code> 先假设所有图层都走 <strong>Device Composition (HWC)</strong>。</li><li>调用 <code>HWC::validateDisplay()</code> 将图层列表提交给硬件驱动。</li></ul><ol start=3><li><strong>策略回退</strong>:</li></ol><ul><li>HWC 驱动检查每个图层的属性（格式、缩放比例、混合模式等）。</li><li>如果硬件不支持某个图层，HWC 会在返回结果中标记该图层为 <code>CLIENT</code> (需要客户端合成)。</li><li>SF 根据反馈，更新每个 <code>OutputLayer</code> 的合成类型：</li><li><strong><code>DEVICE</code></strong>: 硬件直接合成。</li><li><strong><code>CLIENT</code></strong>: 回退到 GPU 合成。</li></ul><p><strong>阶段三：执行与分流 (Execution & Dispatch)</strong></p><p>根据协商结果，Buffer 数据流向两条截然不同的路径。<strong>注意：此处传递的均为 Buffer 的句柄 (Handle)，而非像素拷贝。</strong></p><p>路径 A：设备合成 (Device Composition / Overlay)</p><ul><li><strong>适用对象</strong>: 标记为 <code>DEVICE</code> 的图层。</li><li><strong>数据流转</strong>: <code>LayerFE</code> -> <code>OutputLayer</code> -> <code>HWComposer</code>。</li><li><strong>动作</strong>: <code>OutputLayer</code> 调用 <code>setLayerBuffer(slot, bufferHandle, fence)</code>。</li><li><strong>本质</strong>: <strong>透传 (Pass-through)</strong>。SF 直接将 App 生产的 Buffer 句柄交给 HWC。显示控制器在扫描屏幕时，通过 DMA 直接读取这块内存。</li></ul><p>路径 B：客户端合成 (Client Composition / GPU)</p><ul><li><strong>适用对象</strong>: 标记为 <code>CLIENT</code> 的图层。</li><li><strong>数据流转</strong>: <code>LayerFE</code> -> <code>LayerSettings</code> -> <code>RenderEngine</code> -> <code>TargetBuffer</code>。</li><li><strong>动作</strong>:</li></ul><ol><li><code>Output</code> 收集所有 CLIENT 图层，调用 <code>LayerFE::prepareClientComposition()</code> 生成 <code>LayerSettings</code> 列表。</li><li><code>RenderSurface</code> 申请一块新的 Buffer 作为<strong>渲染目标 (Render Target)</strong>。</li><li>调用 <code>RenderEngine::drawLayers()</code>。</li></ol><ul><li><p><strong>GPU 逻辑</strong>:</p></li><li><p><strong>纹理化</strong>: App 的 Buffer 被绑定为 OpenGL/Vulkan <strong>纹理 (Texture)</strong>。</p></li><li><p><strong>着色器 (Shader)</strong>: GPU 运行 Shader，对纹理进行采样、色彩空间转换、Alpha 混合、圆角裁切等计算。</p></li><li><p><strong>光栅化</strong>: 计算结果写入到“渲染目标” Buffer 中。</p></li><li><p><strong>提交</strong>: 绘制完成后，<code>RenderSurface</code> 将渲染目标 Buffer 入队。<code>FramebufferSurface</code> 将其取出，作为特殊的 <strong>ClientTarget</strong> 图层提交给 HWC。</p></li></ul><p><strong>阶段四：最终上屏 (Final Presentation)</strong></p><ol><li><strong>汇聚</strong>: 此时 HWC 拥有了构建完整画面所需的所有原料：</li></ol><ul><li>若干个独立的 App Buffer (Device Layers)。</li><li>一个包含所有 GPU 合成结果的 Buffer (ClientTarget)。</li></ul><ol start=2><li><strong>上屏</strong>: SF 调用 <code>HWC::presentDisplay()</code>。</li><li><strong>显示</strong>: 硬件显示控制器从上述所有 Buffer 的物理内存地址中读取数据，按顺序叠加，输出到显示面板。</li><li><strong>同步</strong>: HWC 返回 <code>PresentFence</code>。SF 根据 Fence 信号通知 App 释放旧 Buffer（<code>onFrameCommitted</code>），并准备下一帧。</li></ol><p><strong>核心机制总结</strong></p><table><thead><tr><th>关注点</th><th>说明</th></tr></thead><tbody><tr><td><strong>数据本质</strong></td><td>数据始终静止在共享内存（Shared Memory/DMA Buf）中。跨进程和跨模块传递的仅仅是<strong>文件描述符 (fd/Handle)</strong>。</td></tr><tr><td><strong>GPU 角色</strong></td><td>GPU 仅作为“画师”。它把 App 的 Buffer 当作<strong>颜料（纹理）</strong>，把 FramebufferSurface 的 Buffer 当作<strong>画布</strong>。</td></tr><tr><td><strong>HWC 角色</strong></td><td>HWC 是最终的“装裱师”。它负责将 GPU 画好的画布和那些可以独立展示的 App 图层拼装在一起。</td></tr><tr><td><strong>性能关键</strong></td><td>这里的核心优化在于<strong>Zero-Copy</strong>。除了 GPU 必须的读写外，CPU 绝不触碰像素数据。</td></tr></tbody></table><p>此架构确保了 Android 图形系统在处理复杂 UI（如圆角、模糊）时能利用 GPU 的算力，而在处理视频、游戏等全屏应用时能利用 HWC 的高能效，实现性能与功耗的平衡。</p><h2 id=scheduler>Scheduler<a hidden class=anchor aria-hidden=true href=#scheduler>#</a></h2><p><strong>Scheduler</strong> 是 SurfaceFlinger 的核心组件，充当图形渲染系统的**“指挥家”<strong>和</strong>“节拍器”**。它的主要职责是管理系统的时间基准（Timing）和刷新率策略。</p><p>它负责解决两个核心问题：</p><ol><li><strong>When to draw (时机)</strong>：生成和分发 VSYNC 信号，驱动 App 渲染和 SF 合成。</li><li><strong>How fast to draw (频率)</strong>：根据内容、交互和热状态，动态调整显示屏的刷新率（60Hz, 90Hz, 120Hz 等），以平衡流畅度与功耗。</li></ol><h3 id=核心架构图-architecture>核心架构图 (Architecture)<a hidden class=anchor aria-hidden=true href=#核心架构图-architecture>#</a></h3><p>Scheduler 处于 HWC（硬件层）与 App/SF（逻辑层）的中间，负责协调上下游。</p><div class=mermaid>graph TD
-%% 外部输入
-subgraph Inputs [输入信号]
-HWC_Vsync[HWC VSYNC 信号]
-Touch[Input 触摸事件]
-Layers[Layer 更新频率]
-Power[电源/热状态]
-end
-%% Scheduler 核心
-subgraph Scheduler_Core [Scheduler]
-direction TB
-VsyncModulator[VsyncModulator<br>相位控制]
-LayerHistory[LayerHistory<br>FPS检测]
-Policy[RefreshRate Policy<br>策略决策]
-subgraph Timers [状态机定时器]
-IdleTimer[Idle Timer]
-TouchTimer[Touch Timer]
-end
-Pacesetter[Pacesetter Logic<br>多屏领跑机制]
-end
-%% 输出分发
-subgraph EventThreads [VSYNC 分发]
-AppET[EventThread App<br>Cycle::Render]
-SfET[EventThread SF<br>Cycle::LastComposite]
-end
-%% 最终输出
-subgraph Outputs [输出动作]
-Choreographer[App Choreographer]
-SF_Main[SF Main Thread]
-HWC_Config[HWC Config/Mode<br>切帧率]
-end
-%% 连线
-HWC_Vsync --> Scheduler_Core
-Touch --> TouchTimer
-Layers --> LayerHistory
-Scheduler_Core --> AppET
-Scheduler_Core --> SfET
-AppET --> Choreographer
-SfET --> SF_Main
-Policy --> HWC_Config</div><pre><code>IGraphicBufferProducer --o BufferQueue : &quot;写入&quot;
+@enduml
+</code></pre><p>这是为您整理的 <strong>Android SurfaceFlinger 合成流水线技术说明书</strong>。这份文档基于之前的代码分析、架构图和时序图，旨在从系统架构角度详细阐述渲染合成的完整生命周期。</p><hr><p>SurfaceFlinger 的核心职责是充当系统的“合成器”。在每一次 VSYNC 信号的驱动下，它负责收集来自各个应用程序（App）生产的图形缓冲区（GraphicBuffer），决定合成策略（GPU 绘制或 HWC 叠加），并将最终结果提交给显示硬件。</p><p>整个流程是一个 <strong>&ldquo;调度 (Schedule) -> 锁定 (Latch) -> 决策 (Decide) -> 执行 (Execute) -> 上屏 (Present)&rdquo;</strong> 的闭环系统。</p><p>在深入流程之前，需明确以下关键组件的角色：</p><ul><li><strong>Layer (图层)</strong>: SurfaceFlinger 端对应 App Surface 的实体，管理 BufferQueue 的消费者接口，维护当前帧的绘制状态 (<code>mDrawingState</code>)。</li><li><strong>LayerFE (Front End)</strong>: Layer 的快照/代理接口。它将 Layer 的数据（如 Buffer 句柄、几何变换）固化，供合成线程安全读取，隔离主线程的修改。</li><li><strong>Output / Display</strong>: 代表一个物理或虚拟屏幕，负责管理该屏幕上的图层集合 (<code>OutputLayer</code>) 和合成策略。</li><li><strong>RenderEngine (RE)</strong>: 基于 GPU (OpenGL ES/Skia/Vulkan) 的绘图引擎，负责执行“客户端合成”。</li><li><strong>HWComposer (HWC)</strong>: 硬件合成器抽象层，直接对接显示硬件（Display Controller/DPU），负责执行“设备合成”。</li><li><strong>RenderSurface & FramebufferSurface</strong>: 连接 GPU 输出与 HWC 输入的管道。</li></ul><p>整个合成周期由硬件 VSYNC 信号触发，分为四个核心阶段。</p><p><strong>阶段一：调度与数据锁定 (Scheduling & Latching)</strong></p><p>此阶段的目标是<strong>冻结世界</strong>。SurfaceFlinger 必须确定这一帧要显示什么，并在合成期间保持数据不变。</p><ol><li><strong>VSYNC 触发</strong>: <code>MessageQueue</code> 收到 VSYNC 信号，调用 <code>onMessageInvalidate()</code> 唤醒 SurfaceFlinger 主线程。</li><li><strong>处理事务</strong>: 处理 WindowManager 发来的层级变更、属性修改等事务。</li><li><strong>锁定 Buffer (Latch Buffer)</strong>:</li></ol><ul><li>SF 遍历所有 Layer。如果 App 已经通过 BufferQueue 提交了新 Buffer，SF 调用 <code>Layer::latchBuffer()</code>。</li><li><strong>关键动作</strong>: Buffer 句柄从 <code>Layer</code> 的 <code>mDrawingState</code> 转移到 <code>mBufferInfo</code>。</li><li><strong>快照更新</strong>: 调用 <code>LayerFE::updateSnapshot()</code>，将最新的 Buffer 引用和几何状态复制到 <code>LayerFE</code> 中。后续的合成操作只读取 <code>LayerFE</code>，此时 App 即使提交新帧也不会影响正在进行的合成。</li></ul><p><strong>阶段二：策略协商与决策 (Strategy Negotiation)</strong></p><p>此阶段的目标是<strong>性能最优化</strong>。系统倾向于让 HWC 硬件处理尽可能多的图层（功耗低、效率高），只有 HWC 处理不了的才交给 GPU。</p><ol><li><strong>可见性计算</strong>: <code>Output</code> 遍历图层树，计算每个 <code>OutputLayer</code> 在当前屏幕上的可见区域、裁剪（Crop）和 Z-Order。不可见图层被剔除。</li><li><strong>验证请求 (Validate Display)</strong>:</li></ol><ul><li><code>Output</code> 先假设所有图层都走 <strong>Device Composition (HWC)</strong>。</li><li>调用 <code>HWC::validateDisplay()</code> 将图层列表提交给硬件驱动。</li></ul><ol start=3><li><strong>策略回退</strong>:</li></ol><ul><li>HWC 驱动检查每个图层的属性（格式、缩放比例、混合模式等）。</li><li>如果硬件不支持某个图层，HWC 会在返回结果中标记该图层为 <code>CLIENT</code> (需要客户端合成)。</li><li>SF 根据反馈，更新每个 <code>OutputLayer</code> 的合成类型：</li><li><strong><code>DEVICE</code></strong>: 硬件直接合成。</li><li><strong><code>CLIENT</code></strong>: 回退到 GPU 合成。</li></ul><p><strong>阶段三：执行与分流 (Execution & Dispatch)</strong></p><p>根据协商结果，Buffer 数据流向两条截然不同的路径。<strong>注意：此处传递的均为 Buffer 的句柄 (Handle)，而非像素拷贝。</strong></p><p>路径 A：设备合成 (Device Composition / Overlay)</p><ul><li><strong>适用对象</strong>: 标记为 <code>DEVICE</code> 的图层。</li><li><strong>数据流转</strong>: <code>LayerFE</code> -> <code>OutputLayer</code> -> <code>HWComposer</code>。</li><li><strong>动作</strong>: <code>OutputLayer</code> 调用 <code>setLayerBuffer(slot, bufferHandle, fence)</code>。</li><li><strong>本质</strong>: <strong>透传 (Pass-through)</strong>。SF 直接将 App 生产的 Buffer 句柄交给 HWC。显示控制器在扫描屏幕时，通过 DMA 直接读取这块内存。</li></ul><p>路径 B：客户端合成 (Client Composition / GPU)</p><ul><li><strong>适用对象</strong>: 标记为 <code>CLIENT</code> 的图层。</li><li><strong>数据流转</strong>: <code>LayerFE</code> -> <code>LayerSettings</code> -> <code>RenderEngine</code> -> <code>TargetBuffer</code>。</li><li><strong>动作</strong>:</li></ul><ol><li><code>Output</code> 收集所有 CLIENT 图层，调用 <code>LayerFE::prepareClientComposition()</code> 生成 <code>LayerSettings</code> 列表。</li><li><code>RenderSurface</code> 申请一块新的 Buffer 作为<strong>渲染目标 (Render Target)</strong>。</li><li>调用 <code>RenderEngine::drawLayers()</code>。</li></ol><ul><li><p><strong>GPU 逻辑</strong>:</p></li><li><p><strong>纹理化</strong>: App 的 Buffer 被绑定为 OpenGL/Vulkan <strong>纹理 (Texture)</strong>。</p></li><li><p><strong>着色器 (Shader)</strong>: GPU 运行 Shader，对纹理进行采样、色彩空间转换、Alpha 混合、圆角裁切等计算。</p></li><li><p><strong>光栅化</strong>: 计算结果写入到“渲染目标” Buffer 中。</p></li><li><p><strong>提交</strong>: 绘制完成后，<code>RenderSurface</code> 将渲染目标 Buffer 入队。<code>FramebufferSurface</code> 将其取出，作为特殊的 <strong>ClientTarget</strong> 图层提交给 HWC。</p></li></ul><p><strong>阶段四：最终上屏 (Final Presentation)</strong></p><ol><li><strong>汇聚</strong>: 此时 HWC 拥有了构建完整画面所需的所有原料：</li></ol><ul><li>若干个独立的 App Buffer (Device Layers)。</li><li>一个包含所有 GPU 合成结果的 Buffer (ClientTarget)。</li></ul><ol start=2><li><strong>上屏</strong>: SF 调用 <code>HWC::presentDisplay()</code>。</li><li><strong>显示</strong>: 硬件显示控制器从上述所有 Buffer 的物理内存地址中读取数据，按顺序叠加，输出到显示面板。</li><li><strong>同步</strong>: HWC 返回 <code>PresentFence</code>。SF 根据 Fence 信号通知 App 释放旧 Buffer（<code>onFrameCommitted</code>），并准备下一帧。</li></ol><p><strong>核心机制总结</strong></p><table><thead><tr><th>关注点</th><th>说明</th></tr></thead><tbody><tr><td><strong>数据本质</strong></td><td>数据始终静止在共享内存（Shared Memory/DMA Buf）中。跨进程和跨模块传递的仅仅是<strong>文件描述符 (fd/Handle)</strong>。</td></tr><tr><td><strong>GPU 角色</strong></td><td>GPU 仅作为“画师”。它把 App 的 Buffer 当作<strong>颜料（纹理）</strong>，把 FramebufferSurface 的 Buffer 当作<strong>画布</strong>。</td></tr><tr><td><strong>HWC 角色</strong></td><td>HWC 是最终的“装裱师”。它负责将 GPU 画好的画布和那些可以独立展示的 App 图层拼装在一起。</td></tr><tr><td><strong>性能关键</strong></td><td>这里的核心优化在于<strong>Zero-Copy</strong>。除了 GPU 必须的读写外，CPU 绝不触碰像素数据。</td></tr></tbody></table><p>此架构确保了 Android 图形系统在处理复杂 UI（如圆角、模糊）时能利用 GPU 的算力，而在处理视频、游戏等全屏应用时能利用 HWC 的高能效，实现性能与功耗的平衡。</p><h2 id=scheduler>Scheduler<a hidden class=anchor aria-hidden=true href=#scheduler>#</a></h2><p><strong>Scheduler</strong> 是 SurfaceFlinger 的核心组件，充当图形渲染系统的**“指挥家”<strong>和</strong>“节拍器”**。它的主要职责是管理系统的时间基准（Timing）和刷新率策略。</p><p>它负责解决两个核心问题：</p><ol><li><strong>When to draw (时机)</strong>：生成和分发 VSYNC 信号，驱动 App 渲染和 SF 合成。</li><li><strong>How fast to draw (频率)</strong>：根据内容、交互和热状态，动态调整显示屏的刷新率（60Hz, 90Hz, 120Hz 等），以平衡流畅度与功耗。</li></ol><h3 id=核心架构图-architecture>核心架构图 (Architecture)<a hidden class=anchor aria-hidden=true href=#核心架构图-architecture>#</a></h3><p>Scheduler 处于 HWC（硬件层）与 App/SF（逻辑层）的中间，负责协调上下游。</p><pre tabindex=0><code class=language-mermaid data-lang=mermaid>graph TD
+    %% 外部输入
+    subgraph Inputs [输入信号]
+        HWC_Vsync[HWC VSYNC 信号]
+        Touch[Input 触摸事件]
+        Layers[Layer 更新频率]
+        Power[电源/热状态]
+    end
+
+    %% Scheduler 核心
+    subgraph Scheduler_Core [Scheduler]
+        direction TB
+        
+        VsyncModulator[VsyncModulator&lt;br/&gt;相位控制]
+        LayerHistory[LayerHistory&lt;br/&gt;FPS检测]
+        Policy[RefreshRate Policy&lt;br/&gt;策略决策]
+        
+        subgraph Timers [状态机定时器]
+            IdleTimer[Idle Timer]
+            TouchTimer[Touch Timer]
+        end
+        
+        Pacesetter[Pacesetter Logic&lt;br/&gt;多屏领跑机制]
+    end
+
+    %% 输出分发
+    subgraph EventThreads [VSYNC 分发]
+        AppET[EventThread App&lt;br/&gt;Cycle::Render]
+        SfET[EventThread SF&lt;br/&gt;Cycle::LastComposite]
+    end
+
+    %% 最终输出
+    subgraph Outputs [输出动作]
+        Choreographer[App Choreographer]
+        SF_Main[SF Main Thread]
+        HWC_Config[HWC Config/Mode&lt;br/&gt;切帧率]
+    end
+
+    %% 连线
+    HWC_Vsync --&gt; Scheduler_Core
+    Touch --&gt; TouchTimer
+    Layers --&gt; LayerHistory
+    
+    Scheduler_Core --&gt; AppET
+    Scheduler_Core --&gt; SfET
+    
+    AppET --&gt; Choreographer
+    SfET --&gt; SF_Main
+    
+    Policy --&gt; HWC_Config
+</code></pre><pre><code>IGraphicBufferProducer --o BufferQueue : &quot;写入&quot;
 BufferQueue o-- IGraphicBufferConsumer : &quot;读取&quot;
 
 
@@ -758,35 +783,44 @@ FramebufferSurface ..&gt; HWComposer : &quot;提交&quot;
 </span></span><span style=display:flex><span>    <span style=color:#75715e>// 5. 收尾
 </span></span></span><span style=display:flex><span><span style=color:#75715e></span>    targeter<span style=color:#f92672>-&gt;</span>endFrame(...);
 </span></span><span style=display:flex><span>}
-</span></span></code></pre></div><h3 id=关键类说明-glossary>关键类说明 (Glossary)<a hidden class=anchor aria-hidden=true href=#关键类说明-glossary>#</a></h3><ul><li><strong><code>Scheduler</code></strong>: 门面类，统筹全局。</li><li><strong><code>VsyncSchedule</code></strong>: 管理特定显示屏的 VSYNC 时间表和分发器 (<code>Dispatch</code>)。</li><li><strong><code>VsyncModulator</code></strong>: 动态调节 VSYNC 的相位偏移 (Phase Offsets)。例如在 App 频繁掉帧时，可能会调整偏移量给 App 更多的时间。</li><li><strong><code>LayerHistory</code></strong>: 历史记录器。它知道哪些 Layer 是“活跃”的，以及它们的平均帧率。</li><li><strong><code>EventThread</code></strong>: 一个独立的线程，通过 <code>BitTube</code> (Socket) 将 VSYNC 信号发送给跨进程的客户端 (App)。</li><li><strong><code>FrameTargeter</code></strong>: 负责计算每一帧的目标渲染时间点。</li></ul><h3 id=工作流时序-sequence-diagrams>工作流时序 (Sequence Diagrams)<a hidden class=anchor aria-hidden=true href=#工作流时序-sequence-diagrams>#</a></h3><h4 id=51-触摸升频流程-touch-boost>5.1 触摸升频流程 (Touch Boost)<a hidden class=anchor aria-hidden=true href=#51-触摸升频流程-touch-boost>#</a></h4><div class=mermaid>sequenceDiagram
-participant Touch as InputSystem
-participant Sched as Scheduler
-participant Timer as TouchTimer
-participant Policy as PolicyLogic
-participant HWC as HWC
-Touch->>Sched: onTouchHint()
-Sched->>Timer: reset()
-Timer-->>Policy: Callback(TimerState::Reset)
-rect rgb(230, 240, 255)
-Note right of Policy: 策略判定：进入 Touch 状态
-Policy->>Policy: Current Mode = 120Hz (Max)
-end
-Policy->>HWC: setActiveConfig(120Hz)
-HWC-->>Sched: VSYNC (120Hz)</div><h4 id=帧率检测与切换-content-detection>帧率检测与切换 (Content Detection)<a hidden class=anchor aria-hidden=true href=#帧率检测与切换-content-detection>#</a></h4><div class=mermaid>sequenceDiagram
-participant App as VideoApp
-participant LH as LayerHistory
-participant Sched as Scheduler
-participant HWC
-loop 播放视频 (30fps)
-App->>Sched: queueBuffer (T1)
-App->>Sched: queueBuffer (T2)
-Sched->>LH: record(LayerID, PresentTime)
-end
-LH->>LH: 分析: 平均间隔 33ms -> 30fps
-LH-->>Sched: Summary: Vote for 30Hz/60Hz
-Sched->>Sched: chooseDisplayModes()
-Note right of Sched: 最佳匹配: 60Hz (30的倍数)
-Sched->>HWC: setActiveConfig(60Hz)</div><hr><h3 id=常见调试命令>常见调试命令<a hidden class=anchor aria-hidden=true href=#常见调试命令>#</a></h3><p>在终端中可以使用 dumpsys 查看 Scheduler 的内部状态：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span><span style=color:#75715e># 查看 SurfaceFlinger 完整信息 (包含 Scheduler)</span>
+</span></span></code></pre></div><h3 id=关键类说明-glossary>关键类说明 (Glossary)<a hidden class=anchor aria-hidden=true href=#关键类说明-glossary>#</a></h3><ul><li><strong><code>Scheduler</code></strong>: 门面类，统筹全局。</li><li><strong><code>VsyncSchedule</code></strong>: 管理特定显示屏的 VSYNC 时间表和分发器 (<code>Dispatch</code>)。</li><li><strong><code>VsyncModulator</code></strong>: 动态调节 VSYNC 的相位偏移 (Phase Offsets)。例如在 App 频繁掉帧时，可能会调整偏移量给 App 更多的时间。</li><li><strong><code>LayerHistory</code></strong>: 历史记录器。它知道哪些 Layer 是“活跃”的，以及它们的平均帧率。</li><li><strong><code>EventThread</code></strong>: 一个独立的线程，通过 <code>BitTube</code> (Socket) 将 VSYNC 信号发送给跨进程的客户端 (App)。</li><li><strong><code>FrameTargeter</code></strong>: 负责计算每一帧的目标渲染时间点。</li></ul><h3 id=工作流时序-sequence-diagrams>工作流时序 (Sequence Diagrams)<a hidden class=anchor aria-hidden=true href=#工作流时序-sequence-diagrams>#</a></h3><h4 id=51-触摸升频流程-touch-boost>5.1 触摸升频流程 (Touch Boost)<a hidden class=anchor aria-hidden=true href=#51-触摸升频流程-touch-boost>#</a></h4><pre tabindex=0><code class=language-mermaid data-lang=mermaid>sequenceDiagram
+    participant Touch as InputSystem
+    participant Sched as Scheduler
+    participant Timer as TouchTimer
+    participant Policy as PolicyLogic
+    participant HWC as HWC
+
+    Touch-&gt;&gt;Sched: onTouchHint()
+    Sched-&gt;&gt;Timer: reset()
+    Timer--&gt;&gt;Policy: Callback(TimerState::Reset)
+    
+    rect rgb(230, 240, 255)
+    Note right of Policy: 策略判定：进入 Touch 状态
+    Policy-&gt;&gt;Policy: Current Mode = 120Hz (Max)
+    end
+    
+    Policy-&gt;&gt;HWC: setActiveConfig(120Hz)
+    HWC--&gt;&gt;Sched: VSYNC (120Hz)
+</code></pre><h4 id=帧率检测与切换-content-detection>帧率检测与切换 (Content Detection)<a hidden class=anchor aria-hidden=true href=#帧率检测与切换-content-detection>#</a></h4><pre tabindex=0><code class=language-mermaid data-lang=mermaid>sequenceDiagram
+    participant App as VideoApp
+    participant LH as LayerHistory
+    participant Sched as Scheduler
+    participant HWC
+
+    loop 播放视频 (30fps)
+        App-&gt;&gt;Sched: queueBuffer (T1)
+        App-&gt;&gt;Sched: queueBuffer (T2)
+        Sched-&gt;&gt;LH: record(LayerID, PresentTime)
+    end
+
+    LH-&gt;&gt;LH: 分析: 平均间隔 33ms -&gt; 30fps
+    LH--&gt;&gt;Sched: Summary: Vote for 30Hz/60Hz
+
+    Sched-&gt;&gt;Sched: chooseDisplayModes()
+    Note right of Sched: 最佳匹配: 60Hz (30的倍数)
+    
+    Sched-&gt;&gt;HWC: setActiveConfig(60Hz)
+</code></pre><hr><h3 id=常见调试命令>常见调试命令<a hidden class=anchor aria-hidden=true href=#常见调试命令>#</a></h3><p>在终端中可以使用 dumpsys 查看 Scheduler 的内部状态：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span><span style=color:#75715e># 查看 SurfaceFlinger 完整信息 (包含 Scheduler)</span>
 </span></span><span style=display:flex><span>adb shell dumpsys SurfaceFlinger
 </span></span><span style=display:flex><span>
 </span></span><span style=display:flex><span><span style=color:#75715e># 仅查看 Scheduler 部分 (依赖实现)</span>
@@ -796,223 +830,271 @@ Sched->>HWC: setActiveConfig(60Hz)</div><hr><h3 id=常见调试命令>常见调�
 </span></span><span style=display:flex><span><span style=color:#75715e># Pacesetter Display: 当前领跑的屏幕 ID</span>
 </span></span><span style=display:flex><span><span style=color:#75715e># LayerHistory: 各个 Layer 的检测帧率</span>
 </span></span><span style=display:flex><span><span style=color:#75715e># VsyncSchedule: 当前 Vsync 的周期和偏移量</span>
-</span></span></code></pre></div><h2 id=hwcomposer>HWComposer<a hidden class=anchor aria-hidden=true href=#hwcomposer>#</a></h2><div class=mermaid>classDiagram
-direction TD
-%% ==========================================
-%% 1. Top Level: HWComposer
-%% ==========================================
-class HWComposer {
-- mDisplayData : map~HalDisplayId, DisplayData~
-+ getDeviceCompositionChanges() : void
-}
-class DisplayData {
-- port : int
-- hwcDisplay : unique_ptr~HWC2::Display~
-}
-%% ==========================================
-%% 2. Abstraction Layer (HWC2)
-%% ==========================================
-%% 使用 ID["Label"] 语法处理特殊字符
-class HWC2_Display["HWC2::Display"] {
-<<interface>>
-}
-class HWC2_impl_Display["HWC2::impl::Display"] {
-- mComposer : Hwc2::Composer&
-+ presentOrValidate() : void
-}
-class Hwc2_Composer["Hwc2::Composer"] {
-<<interface>>
-}
-%% ==========================================
-%% 3. Implementation Layer (AIDL)
-%% ==========================================
-class AidlComposer["Hwc2::AidlComposer"] {
-- mAidlComposer
-- mAidlComposerClient
-- mAidlComposerCallback
-+ executeCommands() : void
-+ presentOrValidateDisplay() : void
-}
-%% ==========================================
-%% 4. Command Processing (Writer/Reader)
-%% ==========================================
-class ComposerClientWriter {
-- mDisplayCommand : optional~DisplayCommand~
-- mLayerCommand : optional~LayerCommand~
-- mCommands : vector~DisplayCommand~
-- mDisplay : int
-+ presentOrValidateDisplay() : void
-+ setDisplayBrightness() : void
-}
-class ComposerClientReader {
-- mErrors : vector~CommandError~
-- mReturnData : map~int64_t, ReturnData~
-+ parse(results) : void
-}
-%% ==========================================
-%% 5. AIDL Interfaces (Bottom Leaves)
-%% ==========================================
-class AidlComposerInterface {
-<<aidlinterface>>
-}
-class AidlComposerClient {
-<<aidlinterface>>
-+ executeCommands() : void
-}
-class AidlComposerCallbackWrapper {
-<<callback>>
-}
-%% ==========================================
-%% Relationships
-%% ==========================================
-%% 1. HWComposer holds DisplayData
-HWComposer *-- DisplayData
-%% 2. DisplayData holds HWC2::Display
-DisplayData *-- HWC2_Display
-%% 3. HWC2::impl::Display implements HWC2::Display
-HWC2_Display <|-- HWC2_impl_Display
-%% 4. impl::Display uses Composer
-HWC2_impl_Display --> Hwc2_Composer
-%% 5. AidlComposer implements Composer
-Hwc2_Composer <|-- AidlComposer
-%% 6. AidlComposer Aggregates Writer & Reader (Key to command buffer)
-AidlComposer o-- ComposerClientWriter : Map<displayid>
-AidlComposer o-- ComposerClientReader : Map<displayid>
-%% 7. AidlComposer holds AIDL Proxies
-AidlComposer --> AidlComposerInterface : - mAidlComposer
-AidlComposer --> AidlComposerClient : - mAidlComposerClient
-AidlComposer --> AidlComposerCallbackWrapper : - mAidlComposerCallback</div><h3 id=架构解析>架构解析<a hidden class=anchor aria-hidden=true href=#架构解析>#</a></h3><ol><li><strong>HWComposer (顶层)</strong>:</li></ol><ul><li>这是 SurfaceFlinger 进程中的单例（或主入口）。</li><li>它通过 <code>mDisplayData</code> 维护所有物理屏幕的状态。</li></ul><ol start=2><li><strong>DisplayData & HWC2::Display</strong>:</li></ol><ul><li><code>DisplayData</code> 是一个封装结构，持有一个 <code>HWC2::Display</code> 的指针。</li><li><code>HWC2::Display</code> 是一个抽象基类，定义了屏幕操作的标准接口。</li><li><code>HWC2::impl::Display</code> 是具体实现，它负责将屏幕操作转发给更底层的 <code>Composer</code>。</li></ul><ol start=3><li><strong>Hwc2::AidlComposer (AIDL 实现层)</strong>:</li></ol><ul><li>这是 Android 13/14 引入的基于 AIDL 的 Composer 实现（替代了旧的 HIDL）。</li><li>它持有一个 <code>AidlComposerClient</code>，通过 Binder 通信直接与硬件服务的 <code>IComposerClient</code> 对话。</li></ul><ol start=4><li><strong>命令批处理 (Writer/Reader)</strong>:</li></ol><ul><li>这是图中最关键的性能优化部分。</li><li><strong><code>ComposerClientWriter</code></strong>: SF 不会每做一个操作（比如设置 Layer 位置）就发一次 Binder 请求。相反，它把这些操作写入 <code>mCommands</code> 缓冲区（Command Buffer）。</li><li><strong><code>ComposerClientReader</code></strong>: 用于解析硬件返回的结果。</li><li>当调用 <code>executeCommands()</code> 或 <code>presentOrValidateDisplay()</code> 时，<code>AidlComposer</code> 会把 Writer 中积攒的一大包命令一次性发给硬件。</li></ul><h3 id=aidlcomposer-读写机制架构图>AidlComposer 读写机制架构图<a hidden class=anchor aria-hidden=true href=#aidlcomposer-读写机制架构图>#</a></h3><p>这张图重点展示了 <code>AidlComposer</code> 如何管理多显示器的 Writer 和 Reader，以及数据结构（Command vs Result）是如何在这些组件之间流转的。</p><p><strong>核心机制说明：</strong></p><ol><li><strong>Buffered Writing (缓冲写入)</strong>：<code>ComposerClientWriter</code> 不直接发 Binder 请求，而是将操作（如 <code>setLayerBuffer</code>）序列化为 AIDL 定义的结构体 (<code>DisplayCommand</code>, <code>LayerCommand</code>) 并缓存在内存 (<code>mCommands</code>) 中。</li><li><strong>Batch Execution (批量执行)</strong>：<code>AidlComposer</code> 负责从 Writer 取出积攒的所有命令，通过 Binder 接口 <code>executeCommands</code> 一次性发送给HWC HAL。</li><li><strong>Result Parsing (结果解析)</strong>：硬件服务返回 <code>CommandResultPayload</code> 列表。<code>AidlComposer</code> 将其交给 <code>ComposerClientReader</code> 进行解析，Reader 将原始数据分类存储到哈希表 (<code>mReturnData</code>) 中，供上层按需读取（如获取 Fence）。</li></ol><div class=mermaid>classDiagram
-direction TB
-%% ==========================================
-%% 核心控制器
-%% ==========================================
-class AidlComposer {
-- mAidlComposerClient : IComposerClient
-- mWriters : Map~DisplayId, ComposerClientWriter~
-- mReaders : Map~DisplayId, ComposerClientReader~
-+ setLayerBuffer()
-+ execute()
-+ presentDisplay()
-}
-%% ==========================================
-%% 写入侧 (Client -> Service)
-%% ==========================================
-class ComposerClientWriter {
-- mDisplay : int64_t
-- mCommands : vector~DisplayCommand~
-- mDisplayCommand : optional~DisplayCommand~
-- mLayerCommand : optional~LayerCommand~
-+ setLayerBuffer()
-+ setLayerColor()
-+ takePendingCommands() : vector~DisplayCommand~
-}
-note for ComposerClientWriter "<b>职责：命令缓冲</b><br>将函数调用转换为AIDL结构体<br>并缓存在 mCommands 中，不发生IPC"
-%% ==========================================
-%% 读取侧 (Service -> Client)
-%% ==========================================
-class ComposerClientReader {
-- mReturnData : Map~DisplayId, ReturnData~
-+ parse(vector~CommandResultPayload~)
-+ takePresentFence()
-+ takeReleaseFences()
-}
-note for ComposerClientReader "<b>职责：结果解析</b><br>解析 IPC 返回的 Payload<br>按类型存入 mReturnData 供查询"
-class CommandResultPayload {
-<<aidl union>>
-+ presentFence
-+ releaseFences
-+ error
-}
-class ReturnData {
-+ presentFence : ScopedFileDescriptor
-+ releasedLayers : vector
-}
-class DisplayCommand {
-<<aidl struct>>
-+ layers : vector~LayerCommand~
-+ clientTarget : ClientTarget
-}
-%% ==========================================
-%% IPC 接口
-%% ==========================================
-class IComposerClient {
-<<aidl interface>>
-+ executeCommands(commands, out results)
-}
-%% ==========================================
-%% 关系连线
-%% ==========================================
-%% 组合关系
-AidlComposer "1" *-- "*" ComposerClientWriter : 拥有 (按Display管理)
-AidlComposer "1" *-- "*" ComposerClientReader : 拥有 (按Display管理)
-AidlComposer ..> IComposerClient : 代理调用 (Binder IPC)
-%% 数据流向：写
-ComposerClientWriter ..> DisplayCommand : 生成并缓存
-DisplayCommand ..> IComposerClient : 作为参数发送
-%% 数据流向：读
-IComposerClient ..> CommandResultPayload : 返回结果
-CommandResultPayload ..> ComposerClientReader : 输入解析
-ComposerClientReader *-- ReturnData : 内部存储解析结果</div><hr><h3 id=图二aidlcomposer-命令执行时序图>图二：AidlComposer 命令执行时序图<a hidden class=anchor aria-hidden=true href=#图二aidlcomposer-命令执行时序图>#</a></h3><p>这张图展示了从 <code>HWComposer</code> 调用 <code>setLayerBuffer</code> 设置图层属性，到最终调用 <code>execute</code> 提交命令并获取返回值的完整流程。</p><p><strong>流程关键点：</strong></p><ul><li><strong>Phase 1 (Buffering)</strong>: 调用 <code>writer->setLayerBuffer</code> 仅仅是在内存中操作，非常快，无 IPC。</li><li><strong>Phase 2 (Extraction)</strong>: <code>takePendingCommands()</code> 将 Writer 中的命令所有权转移出来，清空 Writer。</li><li><strong>Phase 3 (IPC)</strong>: <code>mAidlComposerClient->executeCommands</code> 是真正的跨进程调用。</li><li><strong>Phase 4 (Parsing)</strong>: <code>reader->parse</code> 将扁平的返回列表转换为结构化数据。</li><li><strong>Phase 5 (Retrieval)</strong>: <code>AidlComposer</code> 从 Reader 中取出特定的结果（如 PresentFence）。</li></ul><div class=mermaid>sequenceDiagram
-autonumber
-participant Caller as HWComposer
-participant Aidl as AidlComposer
-participant Writer as ComposerClientWriter
-participant Binder as IComposerClient (Binder)
-participant Reader as ComposerClientReader
-Note over Caller, Writer: 阶段 1: 命令积攒 (Buffering)<br>此处不发生 IPC，仅内存操作
-%% 模拟积攒多个命令
-Caller->>Aidl: setLayerBuffer(display, layer, buffer...)
-activate Aidl
-Aidl->>Aidl: getWriter(display)
-Aidl->>Writer: setLayerBuffer(..., buffer)
-activate Writer
-Writer->>Writer: getLayerCommand()
-Writer->>Writer: 填充 Buffer 数据到 mLayerCommand
-deactivate Writer
-deactivate Aidl
-Caller->>Aidl: setLayerColor(display, layer, color...)
-activate Aidl
-Aidl->>Writer: setLayerColor(..., color)
-deactivate Aidl
-%% 阶段 2: 提交执行
-Note over Caller, Reader: 阶段 2: 批量提交与解析 (Execution & Parsing)
-Caller->>Aidl: execute(display) / presentDisplay
-activate Aidl
-%% 2.1 取出命令
-Aidl->>Writer: takePendingCommands()
-activate Writer
-Writer->>Writer: flushLayerCommand()
-Writer->>Writer: flushDisplayCommand()
-Writer-->>Aidl: vector<displaycommand> cmds
-deactivate Writer
-Note right of Writer: mCommands 被清空<br>cmds 被移动到 AidlComposer
-%% 2.2 IPC 调用
-Aidl->>Binder: executeCommands(cmds)
-activate Binder
-Note right of Binder: 跨进程传输<br>Hardware Composer 处理命令
-Binder-->>Aidl: vector<commandresultpayload> results
-deactivate Binder
-%% 2.3 解析结果
-Aidl->>Reader: parse(results)
-activate Reader
-loop 遍历 results
-Reader->>Reader: 根据 Tag (Fence/Error/etc)<br>分类存入 mReturnData
-end
-deactivate Reader
-%% 2.4 检查错误与获取结果
-Aidl->>Reader: takeErrors()
-activate Reader
-Reader-->>Aidl: errors
-deactivate Reader
-opt 如果 Caller 需要 PresentFence
-Aidl->>Reader: takePresentFence(display)
-activate Reader
-Reader-->>Aidl: ScopedFileDescriptor
-deactivate Reader
-end
-Aidl-->>Caller: Error::NONE
-deactivate Aidl</div><hr><h2 id=从-app-绘制到-renderengine-合成>从 App 绘制到 RenderEngine 合成<a hidden class=anchor aria-hidden=true href=#从-app-绘制到-renderengine-合成>#</a></h2><h3 id=核心误区数据真的在移动吗>核心误区：数据真的在“移动”吗？<a hidden class=anchor aria-hidden=true href=#核心误区数据真的在移动吗>#</a></h3><p>很多刚接触 Android 图形系统的开发者容易产生一个误区：认为 App 画好一帧图后，系统通过 Binder 把这张巨大的图片（比如 4K 分辨率的位图）“拷贝”给了 SurfaceFlinger。</p><p><strong>这是完全错误的。</strong> 如果每一帧都拷贝几 MB 的数据，手机发热和耗电将无法想象。</p><h4 id=物理本质不动如山的共享内存>物理本质：不动如山的共享内存<a hidden class=anchor aria-hidden=true href=#物理本质不动如山的共享内存>#</a></h4><p>Android 图形流转的核心真相是：<strong>数据不动，句柄（Handle）乱飞</strong>。</p><p>请看下图，这是数据在物理内存和进程间的真实视图：</p><pre class=plantuml-container hidden>
-  <code class=language-plantuml>@startuml
+</span></span></code></pre></div><h2 id=hwcomposer>HWComposer<a hidden class=anchor aria-hidden=true href=#hwcomposer>#</a></h2><pre tabindex=0><code class=language-mermaid data-lang=mermaid>classDiagram
+    direction TD
+
+    %% ==========================================
+    %% 1. Top Level: HWComposer
+    %% ==========================================
+    class HWComposer {
+        - mDisplayData : map~HalDisplayId, DisplayData~
+        + getDeviceCompositionChanges() : void
+    }
+
+    class DisplayData {
+        - port : int
+        - hwcDisplay : unique_ptr~HWC2::Display~
+    }
+
+    %% ==========================================
+    %% 2. Abstraction Layer (HWC2)
+    %% ==========================================
+    %% 使用 ID[&#34;Label&#34;] 语法处理特殊字符
+    class HWC2_Display[&#34;HWC2::Display&#34;] {
+        &lt;&lt;Interface&gt;&gt;
+    }
+
+    class HWC2_impl_Display[&#34;HWC2::impl::Display&#34;] {
+        - mComposer : Hwc2::Composer&amp;
+        + presentOrValidate() : void
+    }
+
+    class Hwc2_Composer[&#34;Hwc2::Composer&#34;] {
+        &lt;&lt;Interface&gt;&gt;
+    }
+
+    %% ==========================================
+    %% 3. Implementation Layer (AIDL)
+    %% ==========================================
+    class AidlComposer[&#34;Hwc2::AidlComposer&#34;] {
+        - mAidlComposer
+        - mAidlComposerClient
+        - mAidlComposerCallback
+        + executeCommands() : void
+        + presentOrValidateDisplay() : void
+    }
+
+    %% ==========================================
+    %% 4. Command Processing (Writer/Reader)
+    %% ==========================================
+    class ComposerClientWriter {
+        - mDisplayCommand : optional~DisplayCommand~
+        - mLayerCommand : optional~LayerCommand~
+        - mCommands : vector~DisplayCommand~
+        - mDisplay : int
+        + presentOrValidateDisplay() : void
+        + setDisplayBrightness() : void
+    }
+
+    class ComposerClientReader {
+        - mErrors : vector~CommandError~
+        - mReturnData : map~int64_t, ReturnData~
+        + parse(results) : void
+    }
+
+    %% ==========================================
+    %% 5. AIDL Interfaces (Bottom Leaves)
+    %% ==========================================
+    class AidlComposerInterface {
+        &lt;&lt;AidlInterface&gt;&gt;
+    }
+    
+    class AidlComposerClient {
+        &lt;&lt;AidlInterface&gt;&gt;
+        + executeCommands() : void
+    }
+
+    class AidlComposerCallbackWrapper {
+        &lt;&lt;Callback&gt;&gt;
+    }
+
+    %% ==========================================
+    %% Relationships
+    %% ==========================================
+
+    %% 1. HWComposer holds DisplayData
+    HWComposer *-- DisplayData
+
+    %% 2. DisplayData holds HWC2::Display
+    DisplayData *-- HWC2_Display
+
+    %% 3. HWC2::impl::Display implements HWC2::Display
+    HWC2_Display &lt;|-- HWC2_impl_Display
+
+    %% 4. impl::Display uses Composer
+    HWC2_impl_Display --&gt; Hwc2_Composer
+
+    %% 5. AidlComposer implements Composer
+    Hwc2_Composer &lt;|-- AidlComposer
+
+    %% 6. AidlComposer Aggregates Writer &amp; Reader (Key to command buffer)
+    AidlComposer o-- ComposerClientWriter : Map&lt;DisplayId&gt;
+    AidlComposer o-- ComposerClientReader : Map&lt;DisplayId&gt;
+
+    %% 7. AidlComposer holds AIDL Proxies
+    AidlComposer --&gt; AidlComposerInterface : - mAidlComposer
+    AidlComposer --&gt; AidlComposerClient : - mAidlComposerClient
+    AidlComposer --&gt; AidlComposerCallbackWrapper : - mAidlComposerCallback
+</code></pre><h3 id=架构解析>架构解析<a hidden class=anchor aria-hidden=true href=#架构解析>#</a></h3><ol><li><strong>HWComposer (顶层)</strong>:</li></ol><ul><li>这是 SurfaceFlinger 进程中的单例（或主入口）。</li><li>它通过 <code>mDisplayData</code> 维护所有物理屏幕的状态。</li></ul><ol start=2><li><strong>DisplayData & HWC2::Display</strong>:</li></ol><ul><li><code>DisplayData</code> 是一个封装结构，持有一个 <code>HWC2::Display</code> 的指针。</li><li><code>HWC2::Display</code> 是一个抽象基类，定义了屏幕操作的标准接口。</li><li><code>HWC2::impl::Display</code> 是具体实现，它负责将屏幕操作转发给更底层的 <code>Composer</code>。</li></ul><ol start=3><li><strong>Hwc2::AidlComposer (AIDL 实现层)</strong>:</li></ol><ul><li>这是 Android 13/14 引入的基于 AIDL 的 Composer 实现（替代了旧的 HIDL）。</li><li>它持有一个 <code>AidlComposerClient</code>，通过 Binder 通信直接与硬件服务的 <code>IComposerClient</code> 对话。</li></ul><ol start=4><li><strong>命令批处理 (Writer/Reader)</strong>:</li></ol><ul><li>这是图中最关键的性能优化部分。</li><li><strong><code>ComposerClientWriter</code></strong>: SF 不会每做一个操作（比如设置 Layer 位置）就发一次 Binder 请求。相反，它把这些操作写入 <code>mCommands</code> 缓冲区（Command Buffer）。</li><li><strong><code>ComposerClientReader</code></strong>: 用于解析硬件返回的结果。</li><li>当调用 <code>executeCommands()</code> 或 <code>presentOrValidateDisplay()</code> 时，<code>AidlComposer</code> 会把 Writer 中积攒的一大包命令一次性发给硬件。</li></ul><h3 id=aidlcomposer-读写机制架构图>AidlComposer 读写机制架构图<a hidden class=anchor aria-hidden=true href=#aidlcomposer-读写机制架构图>#</a></h3><p>这张图重点展示了 <code>AidlComposer</code> 如何管理多显示器的 Writer 和 Reader，以及数据结构（Command vs Result）是如何在这些组件之间流转的。</p><p><strong>核心机制说明：</strong></p><ol><li><strong>Buffered Writing (缓冲写入)</strong>：<code>ComposerClientWriter</code> 不直接发 Binder 请求，而是将操作（如 <code>setLayerBuffer</code>）序列化为 AIDL 定义的结构体 (<code>DisplayCommand</code>, <code>LayerCommand</code>) 并缓存在内存 (<code>mCommands</code>) 中。</li><li><strong>Batch Execution (批量执行)</strong>：<code>AidlComposer</code> 负责从 Writer 取出积攒的所有命令，通过 Binder 接口 <code>executeCommands</code> 一次性发送给HWC HAL。</li><li><strong>Result Parsing (结果解析)</strong>：硬件服务返回 <code>CommandResultPayload</code> 列表。<code>AidlComposer</code> 将其交给 <code>ComposerClientReader</code> 进行解析，Reader 将原始数据分类存储到哈希表 (<code>mReturnData</code>) 中，供上层按需读取（如获取 Fence）。</li></ol><pre tabindex=0><code class=language-mermaid data-lang=mermaid>classDiagram
+    direction TB
+
+    %% ==========================================
+    %% 核心控制器
+    %% ==========================================
+    class AidlComposer {
+        - mAidlComposerClient : IComposerClient
+        - mWriters : Map~DisplayId, ComposerClientWriter~
+        - mReaders : Map~DisplayId, ComposerClientReader~
+        + setLayerBuffer()
+        + execute()
+        + presentDisplay()
+    }
+
+
+    %% ==========================================
+    %% 写入侧 (Client -&gt; Service)
+    %% ==========================================
+    class ComposerClientWriter {
+        - mDisplay : int64_t
+        - mCommands : vector~DisplayCommand~
+        - mDisplayCommand : optional~DisplayCommand~
+        - mLayerCommand : optional~LayerCommand~
+        + setLayerBuffer()
+        + setLayerColor()
+        + takePendingCommands() : vector~DisplayCommand~
+    }
+    note for ComposerClientWriter &#34;&lt;b&gt;职责：命令缓冲&lt;/b&gt;&lt;br/&gt;将函数调用转换为AIDL结构体&lt;br/&gt;并缓存在 mCommands 中，不发生IPC&#34;
+
+    %% ==========================================
+    %% 读取侧 (Service -&gt; Client)
+    %% ==========================================
+    class ComposerClientReader {
+        - mReturnData : Map~DisplayId, ReturnData~
+        + parse(vector~CommandResultPayload~)
+        + takePresentFence()
+        + takeReleaseFences()
+    }
+    note for ComposerClientReader &#34;&lt;b&gt;职责：结果解析&lt;/b&gt;&lt;br/&gt;解析 IPC 返回的 Payload&lt;br/&gt;按类型存入 mReturnData 供查询&#34;
+
+
+    class CommandResultPayload {
+        &lt;&lt;AIDL Union&gt;&gt;
+        + presentFence
+        + releaseFences
+        + error
+    }
+
+    class ReturnData {
+        + presentFence : ScopedFileDescriptor
+        + releasedLayers : vector
+    }
+
+    class DisplayCommand {
+    &lt;&lt;AIDL Struct&gt;&gt;
+    + layers : vector~LayerCommand~
+    + clientTarget : ClientTarget
+    }
+
+
+    %% ==========================================
+    %% IPC 接口
+    %% ==========================================
+    class IComposerClient {
+        &lt;&lt;AIDL Interface&gt;&gt;
+        + executeCommands(commands, out results)
+    }
+
+
+
+    %% ==========================================
+    %% 关系连线
+    %% ==========================================
+    
+    %% 组合关系
+    AidlComposer &#34;1&#34; *-- &#34;*&#34; ComposerClientWriter : 拥有 (按Display管理)
+    AidlComposer &#34;1&#34; *-- &#34;*&#34; ComposerClientReader : 拥有 (按Display管理)
+    AidlComposer ..&gt; IComposerClient : 代理调用 (Binder IPC)
+
+    %% 数据流向：写
+    ComposerClientWriter ..&gt; DisplayCommand : 生成并缓存
+    DisplayCommand ..&gt; IComposerClient : 作为参数发送
+
+    %% 数据流向：读
+    IComposerClient ..&gt; CommandResultPayload : 返回结果
+    CommandResultPayload ..&gt; ComposerClientReader : 输入解析
+    ComposerClientReader *-- ReturnData : 内部存储解析结果
+</code></pre><hr><h3 id=图二aidlcomposer-命令执行时序图>图二：AidlComposer 命令执行时序图<a hidden class=anchor aria-hidden=true href=#图二aidlcomposer-命令执行时序图>#</a></h3><p>这张图展示了从 <code>HWComposer</code> 调用 <code>setLayerBuffer</code> 设置图层属性，到最终调用 <code>execute</code> 提交命令并获取返回值的完整流程。</p><p><strong>流程关键点：</strong></p><ul><li><strong>Phase 1 (Buffering)</strong>: 调用 <code>writer->setLayerBuffer</code> 仅仅是在内存中操作，非常快，无 IPC。</li><li><strong>Phase 2 (Extraction)</strong>: <code>takePendingCommands()</code> 将 Writer 中的命令所有权转移出来，清空 Writer。</li><li><strong>Phase 3 (IPC)</strong>: <code>mAidlComposerClient->executeCommands</code> 是真正的跨进程调用。</li><li><strong>Phase 4 (Parsing)</strong>: <code>reader->parse</code> 将扁平的返回列表转换为结构化数据。</li><li><strong>Phase 5 (Retrieval)</strong>: <code>AidlComposer</code> 从 Reader 中取出特定的结果（如 PresentFence）。</li></ul><pre tabindex=0><code class=language-mermaid data-lang=mermaid>sequenceDiagram
+    autonumber
+    participant Caller as HWComposer
+    participant Aidl as AidlComposer
+    participant Writer as ComposerClientWriter
+    participant Binder as IComposerClient (Binder)
+    participant Reader as ComposerClientReader
+
+    Note over Caller, Writer: 阶段 1: 命令积攒 (Buffering)&lt;br/&gt;此处不发生 IPC，仅内存操作
+
+    %% 模拟积攒多个命令
+    Caller-&gt;&gt;Aidl: setLayerBuffer(display, layer, buffer...)
+    activate Aidl
+    Aidl-&gt;&gt;Aidl: getWriter(display)
+    Aidl-&gt;&gt;Writer: setLayerBuffer(..., buffer)
+    activate Writer
+    Writer-&gt;&gt;Writer: getLayerCommand()
+    Writer-&gt;&gt;Writer: 填充 Buffer 数据到 mLayerCommand
+    deactivate Writer
+    deactivate Aidl
+
+    Caller-&gt;&gt;Aidl: setLayerColor(display, layer, color...)
+    activate Aidl
+    Aidl-&gt;&gt;Writer: setLayerColor(..., color)
+    deactivate Aidl
+
+    %% 阶段 2: 提交执行
+    Note over Caller, Reader: 阶段 2: 批量提交与解析 (Execution &amp; Parsing)
+
+    Caller-&gt;&gt;Aidl: execute(display) / presentDisplay
+    activate Aidl
+    
+    %% 2.1 取出命令
+    Aidl-&gt;&gt;Writer: takePendingCommands()
+    activate Writer
+    Writer-&gt;&gt;Writer: flushLayerCommand()
+    Writer-&gt;&gt;Writer: flushDisplayCommand()
+    Writer--&gt;&gt;Aidl: vector&lt;DisplayCommand&gt; cmds
+    deactivate Writer
+    Note right of Writer: mCommands 被清空&lt;br/&gt;cmds 被移动到 AidlComposer
+
+    %% 2.2 IPC 调用
+    Aidl-&gt;&gt;Binder: executeCommands(cmds)
+    activate Binder
+    Note right of Binder: 跨进程传输&lt;br/&gt;Hardware Composer 处理命令
+    Binder--&gt;&gt;Aidl: vector&lt;CommandResultPayload&gt; results
+    deactivate Binder
+
+    %% 2.3 解析结果
+    Aidl-&gt;&gt;Reader: parse(results)
+    activate Reader
+    loop 遍历 results
+        Reader-&gt;&gt;Reader: 根据 Tag (Fence/Error/etc)&lt;br/&gt;分类存入 mReturnData
+    end
+    deactivate Reader
+
+    %% 2.4 检查错误与获取结果
+    Aidl-&gt;&gt;Reader: takeErrors()
+    activate Reader
+    Reader--&gt;&gt;Aidl: errors
+    deactivate Reader
+
+    opt 如果 Caller 需要 PresentFence
+        Aidl-&gt;&gt;Reader: takePresentFence(display)
+        activate Reader
+        Reader--&gt;&gt;Aidl: ScopedFileDescriptor
+        deactivate Reader
+    end
+
+    Aidl--&gt;&gt;Caller: Error::NONE
+    deactivate Aidl
+</code></pre><hr><h2 id=从-app-绘制到-renderengine-合成>从 App 绘制到 RenderEngine 合成<a hidden class=anchor aria-hidden=true href=#从-app-绘制到-renderengine-合成>#</a></h2><h3 id=核心误区数据真的在移动吗>核心误区：数据真的在“移动”吗？<a hidden class=anchor aria-hidden=true href=#核心误区数据真的在移动吗>#</a></h3><p>很多刚接触 Android 图形系统的开发者容易产生一个误区：认为 App 画好一帧图后，系统通过 Binder 把这张巨大的图片（比如 4K 分辨率的位图）“拷贝”给了 SurfaceFlinger。</p><p><strong>这是完全错误的。</strong> 如果每一帧都拷贝几 MB 的数据，手机发热和耗电将无法想象。</p><h4 id=物理本质不动如山的共享内存>物理本质：不动如山的共享内存<a hidden class=anchor aria-hidden=true href=#物理本质不动如山的共享内存>#</a></h4><p>Android 图形流转的核心真相是：<strong>数据不动，句柄（Handle）乱飞</strong>。</p><p>请看下图，这是数据在物理内存和进程间的真实视图：</p><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 hide empty members
 skinparam linetype ortho
@@ -1061,9 +1143,8 @@ note left of SharedMemApp
     这块 RAM 的文件描述符 (fd)。
 end note
 
-@enduml</code>
-</pre><h4 id=流程解析>流程解析<a hidden class=anchor aria-hidden=true href=#流程解析>#</a></h4><ol><li><strong>App 生产</strong>：App 请求一块 Buffer。系统在内核空间（或特定硬件内存区）分配一块<strong>共享内存</strong>（Shared Memory）。App 通过 OpenGL/Vulkan 将红色像素写入这块内存。</li><li><strong>句柄传递</strong>：App 绘制完成后，并不把数据发给 SF，而是把这块内存的<strong>文件描述符（fd）/句柄</strong>通过 Binder 扔给 SurfaceFlinger。这就像银行保险柜，App 只是把<strong>钥匙</strong>给了 SF，钱（像素）还在保险柜里。</li><li><strong>SF 接收</strong>：SurfaceFlinger 收到钥匙，在自己的进程空间里映射这块内存。</li><li><strong>SF 合成</strong>：SurfaceFlinger 的绘图引擎（RenderEngine）读取这块内存，把它画到另一块<strong>新的共享内存</strong>（SF Output Memory）上。</li><li><strong>上屏</strong>：最后，SF 把新内存的钥匙交给硬件控制器（HWC），屏幕亮起。</li></ol><hr><h3 id=逻辑视图renderengine-的合成魔法>逻辑视图：RenderEngine 的合成魔法<a hidden class=anchor aria-hidden=true href=#逻辑视图renderengine-的合成魔法>#</a></h3><p>对于熟悉 OpenGL ES 的说，SurfaceFlinger 的合成过程其实非常容易理解：<strong>它就是一个标准的纹理绘制过程（Draw Call）。</strong></p><p>在 <code>RenderEngine</code> 的视角里，没有“图层（Layer）”的概念，只有 <strong>纹理（Texture）</strong> 和 <strong>帧缓冲区（Framebuffer）</strong>。</p><h4 id=术语对齐>术语对齐<a hidden class=anchor aria-hidden=true href=#术语对齐>#</a></h4><table><thead><tr><th>SurfaceFlinger 概念</th><th>OpenGL ES 对应概念</th><th>说明</th></tr></thead><tbody><tr><td><strong>Layer Buffer</strong></td><td><code>GL_TEXTURE_2D</code> / <code>GL_TEXTURE_EXTERNAL_OES</code></td><td>App 生产的画面，对于 SF 来说就是一张张贴图素材。</td></tr><tr><td><strong>FramebufferSurface</strong></td><td><code>GL_FRAMEBUFFER</code> (FBO) / Render Target</td><td>SF 的画板。GPU 最终把画好的像素写到这里。</td></tr><tr><td><strong>drawLayers()</strong></td><td><code>glDrawArrays()</code> / <code>glDrawElements()</code></td><td>执行 Shader 程序，把纹理画到 FBO 上。</td></tr></tbody></table><h4 id=合成流水线图解>合成流水线图解<a hidden class=anchor aria-hidden=true href=#合成流水线图解>#</a></h4><p>请看下图，这是 GPU 内部发生的事情：</p><pre class=plantuml-container hidden>
-  <code class=language-plantuml>@startuml
+@enduml
+</code></pre><h4 id=流程解析>流程解析<a hidden class=anchor aria-hidden=true href=#流程解析>#</a></h4><ol><li><strong>App 生产</strong>：App 请求一块 Buffer。系统在内核空间（或特定硬件内存区）分配一块<strong>共享内存</strong>（Shared Memory）。App 通过 OpenGL/Vulkan 将红色像素写入这块内存。</li><li><strong>句柄传递</strong>：App 绘制完成后，并不把数据发给 SF，而是把这块内存的<strong>文件描述符（fd）/句柄</strong>通过 Binder 扔给 SurfaceFlinger。这就像银行保险柜，App 只是把<strong>钥匙</strong>给了 SF，钱（像素）还在保险柜里。</li><li><strong>SF 接收</strong>：SurfaceFlinger 收到钥匙，在自己的进程空间里映射这块内存。</li><li><strong>SF 合成</strong>：SurfaceFlinger 的绘图引擎（RenderEngine）读取这块内存，把它画到另一块<strong>新的共享内存</strong>（SF Output Memory）上。</li><li><strong>上屏</strong>：最后，SF 把新内存的钥匙交给硬件控制器（HWC），屏幕亮起。</li></ol><hr><h3 id=逻辑视图renderengine-的合成魔法>逻辑视图：RenderEngine 的合成魔法<a hidden class=anchor aria-hidden=true href=#逻辑视图renderengine-的合成魔法>#</a></h3><p>对于熟悉 OpenGL ES 的说，SurfaceFlinger 的合成过程其实非常容易理解：<strong>它就是一个标准的纹理绘制过程（Draw Call）。</strong></p><p>在 <code>RenderEngine</code> 的视角里，没有“图层（Layer）”的概念，只有 <strong>纹理（Texture）</strong> 和 <strong>帧缓冲区（Framebuffer）</strong>。</p><h4 id=术语对齐>术语对齐<a hidden class=anchor aria-hidden=true href=#术语对齐>#</a></h4><table><thead><tr><th>SurfaceFlinger 概念</th><th>OpenGL ES 对应概念</th><th>说明</th></tr></thead><tbody><tr><td><strong>Layer Buffer</strong></td><td><code>GL_TEXTURE_2D</code> / <code>GL_TEXTURE_EXTERNAL_OES</code></td><td>App 生产的画面，对于 SF 来说就是一张张贴图素材。</td></tr><tr><td><strong>FramebufferSurface</strong></td><td><code>GL_FRAMEBUFFER</code> (FBO) / Render Target</td><td>SF 的画板。GPU 最终把画好的像素写到这里。</td></tr><tr><td><strong>drawLayers()</strong></td><td><code>glDrawArrays()</code> / <code>glDrawElements()</code></td><td>执行 Shader 程序，把纹理画到 FBO 上。</td></tr></tbody></table><h4 id=合成流水线图解>合成流水线图解<a hidden class=anchor aria-hidden=true href=#合成流水线图解>#</a></h4><p>请看下图，这是 GPU 内部发生的事情：</p><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 hide empty members
 skinparam linetype ortho
@@ -1082,7 +1163,7 @@ package &#34;RenderEngine (The GPU Worker)&#34; {
         读取纹理坐标 (u,v) 处的颜色
         ====
         &lt;b&gt;Step 2: Math (运算)&lt;/b&gt;
-        Color = A*alpha &#43; B*(1-alpha)
+        Color = A*alpha + B*(1-alpha)
         处理圆角、阴影、模糊
     }
 }
@@ -1108,8 +1189,8 @@ note bottom of Shader
     3. DrawCall (运行 Shader 合成像素)
 end note
 
-@enduml</code>
-</pre><h4 id=关键步骤详解>关键步骤详解<a hidden class=anchor aria-hidden=true href=#关键步骤详解>#</a></h4><ol><li><strong>绑定输入 (Bind Textures)</strong>：
+@enduml
+</code></pre><h4 id=关键步骤详解>关键步骤详解<a hidden class=anchor aria-hidden=true href=#关键步骤详解>#</a></h4><ol><li><strong>绑定输入 (Bind Textures)</strong>：
 RenderEngine 拿到 Layer A, B, C 的 Buffer 句柄，调用 EGL API 将其绑定为 OpenGL 纹理。</li></ol><blockquote><p><em>注意：这里不需要 CPU 读取像素，GPU 直接通过 DMA 从共享内存中采样。</em></p></blockquote><ol start=2><li><strong>运行 Shader (The Math)</strong>：
 SF 并不只是简单的“叠加”。RenderEngine 会生成一个 Shader 程序，处理复杂的数学运算：</li></ol><ul><li><strong>Alpha 混合</strong>：根据 Layer 的透明度，计算 <code>SrcColor * Alpha + DstColor * (1 - Alpha)</code>。</li><li><strong>几何变换</strong>：如果 Layer 被缩放或旋转了，Vertex Shader 会修改坐标矩阵。</li><li><strong>特效处理</strong>：圆角（Rounded Corner）、背景模糊（Blur）、阴影（Shadow）本质上都是 Shader 里的数学计算。</li></ul><ol start=3><li><strong>输出结果 (Render Target)</strong>：
 Fragment Shader 计算出的最终颜色值，被写入到 <strong>FramebufferSurface</strong> 提供的 Buffer 中。</li></ol><ul><li>这个 Buffer 本质上也是一块 GraphicBuffer（共享内存）。</li><li>它是 SurfaceFlinger 这一帧工作的<strong>最终产物</strong>。</li></ul><h3 id=总结>总结<a hidden class=anchor aria-hidden=true href=#总结>#</a></h3><p>作为 OpenGL ES 的开发者，只需要记住这一句话：</p><blockquote><p><strong>SurfaceFlinger 的 GPU 合成（Client Composition），本质上就是把 App 生产的 GraphicBuffer 当作纹理（Texture），在一个巨大的 FBO 上画了一次 Quad（四边形），最终生成的 Texture 交给了屏幕控制器。</strong></p></blockquote><ul><li><strong>数据</strong>：从未离开过共享内存。</li><li><strong>传递</strong>：传的是文件句柄。</li><li><strong>合成</strong>：就是跑了一遍 Shader。</li></ul></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/display/renderengine/><span class=title>« Prev</span><br><span>Android SurfaceFlinger RenderEngine 深度详解</span>
@@ -1117,4 +1198,4 @@ Fragment Shader 计算出的最终颜色值，被写入到 <strong>FramebufferSu
 <span>Powered by
 <a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
 <a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
-</a><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
