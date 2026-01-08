@@ -430,8 +430,11 @@ RenderEngineThreaded o-- RenderEngine : 包装实际实现 (Impl)
 &lt;/code&gt;&lt;/pre&gt;&lt;h3 id="12-关键组件工作机制"&gt;1.2 关键组件工作机制&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;&lt;code&gt;RenderEngine&lt;/code&gt; (Interface)&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title>Android SurfaceFlinger 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</guid><description>&lt;p&gt;SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。&lt;/p&gt;
-&lt;h2 id="display创建过程"&gt;Display创建过程&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;RenderEngine&lt;/code&gt; (Interface)&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title>Android SurfaceFlinger 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</guid><description>&lt;p&gt;SurfaceFlinger 是 Android 图形栈的核心系统服务，负责全系统的图形合成与显示管理。本文基于 Android 源码，深入剖析其从 Display 创建、Layer 状态管理、合成策略决策到 RenderEngine 渲染执行及 HWC 提交的完整技术链路。&lt;/p&gt;
+&lt;h2 id="1-display-创建过程"&gt;1. Display 创建过程&lt;/h2&gt;
+&lt;p&gt;在 SurfaceFlinger 中，&lt;code&gt;Display&lt;/code&gt; 是物理屏幕（由 HWC 管理）或虚拟屏幕（由系统服务请求创建）的抽象实体。Display 的创建是一个异步且多阶段的过程，涉及内核事件响应、状态机更新及渲染资源的初始化。&lt;/p&gt;
+&lt;h3 id="11-核心流程时序解析"&gt;1.1 核心流程时序解析&lt;/h3&gt;
+&lt;p&gt;下图展示了从触发源（硬件热插拔或服务请求）到 SurfaceFlinger 内部对象初始化的完整调用时序。&lt;/p&gt;
 &lt;div class="mermaid"&gt;sequenceDiagram
 autonumber
 %% 定义参与者
@@ -497,9 +500,7 @@ SF -&gt;&gt; HWC: setPowerMode(ON)
 SF -&gt;&gt; SF: onActiveDisplayChangedLocked (如果是主屏)
 end
 end
-&lt;/div&gt;&lt;h2 id="layer管理与渲染"&gt;Layer管理与渲染&lt;/h2&gt;
-&lt;h3 id="layer-核心架构类图"&gt;Layer 核心架构类图&lt;/h3&gt;
-&lt;p&gt;这张图展示了 &lt;strong&gt;SurfaceFlinger&lt;/strong&gt;（管理状态）、&lt;strong&gt;LayerFE&lt;/strong&gt;（数据快照/接口）和 &lt;strong&gt;CompositionEngine&lt;/strong&gt;（合成逻辑）之间的静态关系。&lt;/p&gt;</description></item><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
+&lt;/div&gt;&lt;p&gt;&lt;strong&gt;技术实现细节：&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
 &lt;p&gt;这个时序图展示了从底层物理屏幕发现到上层窗口管理容器创建的完整链路。&lt;/p&gt;
 &lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-13-LogicalDisplay-creating-sequence.png" alt="" /&gt;&lt;/p&gt;
 &lt;ol&gt;
