@@ -14,7 +14,7 @@ RenderEngine 采用了 **分层架构** 与 **装饰器模式** 的设计。
 
 ```plantuml
 @startuml
-!theme plain
+!theme cerulean
 hide empty members
 skinparam linetype ortho
 skinparam nodesep 60
