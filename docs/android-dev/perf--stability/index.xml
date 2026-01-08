@@ -1,2 +1,204 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android 性能与稳定专项 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/</link><description>Recent content in Android 性能与稳定专项 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 01 Jan 0001 00:00:00 +0000</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/index.xml" rel="self" type="application/rss+xml"/><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;A -&amp;gt; B
-&lt;/code&gt;&lt;/pre&gt;</description></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android 性能与稳定专项 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/</link><description>Recent content in Android 性能与稳定专项 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Sep 2025 11:36:11 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/index.xml" rel="self" type="application/rss+xml"/><item><title>Android App Java Crash 捕捉流程分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android-exception-handler/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android-exception-handler/</guid><description>&lt;p&gt;在 Android 系统中，Java 层的崩溃（Crash）捕捉并不是一个简单的进程内行为，而是一套从 &lt;strong&gt;App 进程&lt;/strong&gt; 到 &lt;strong&gt;System Server 进程&lt;/strong&gt; 跨进程协作的复杂机制。理解这一流程对于定位稳定性问题至关重要，下面是详细的时序图：&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+skinparam theme plain
+skinparam shadowing false
+skinparam DefaultFontName &amp;#34;SansSerif&amp;#34;
+skinparam DefaultFontSize 12
+skinparam ActivityIconSize 42
+&amp;#39; 强制黑字以提高可见性
+skinparam sequence {
+ParticipantPadding 30
+MessageAlign center
+ArrowColor #263238
+ActorBorderColor #263238
+LifeLineBorderColor #263238
+ParticipantBorderColor #263238
+ParticipantBackgroundColor #ECEFF1
+ParticipantFontColor #000000
+GroupBorderColor #263238
+GroupFontColor #000000
+}
+participant &amp;#34;App Process\n(JVM)&amp;#34; as App
+participant &amp;#34;RuntimeInit&amp;#34; as RI
+participant &amp;#34;ActivityManagerService\n(AMS)&amp;#34; as AMS
+participant &amp;#34;AppErrors&amp;#34; as AE
+participant &amp;#34;DropBoxManagerService&amp;#34; as DBMS
+participant &amp;#34;Statsd\n(Native Daemon)&amp;#34; as Statsd
+== 阶段 1: 异常捕获与堆栈提取 (App 进程) ==
+App -&amp;gt; App : 抛出 Exception
+note right: JVM 自动填充 Throwable 对象的 backtrace (Native 栈帧)
+App -&amp;gt; RI : dispatchUncaughtException(e)
+activate RI
+RI -&amp;gt; RI : LoggingHandler.uncaughtException(e)
+RI -&amp;gt; RI : logUncaught(..., e)
+note right: **首次提取堆栈**：调用 e.printStackTrace() \n将内存堆栈转换为 String 输出至 Logcat
+RI -&amp;gt; RI : new ParcelableCrashInfo(e)
+note right: **堆栈封装**：将 Throwable 序列化为 \nCrashInfo 字符串，准备跨进程传输
+RI -&amp;gt; AMS : handleApplicationCrash(token, crashInfo)
+activate AMS
+== 阶段 2: 系统级状态记录与统计 (system_server) ==
+AMS -&amp;gt; AMS : handleApplicationCrashInner()
+group 增量统计 (Incremental Metrics)
+AMS -&amp;gt; AMS : 检查是否为 Incremental package
+end
+group 与 Statsd 交互 (FrameworkStatsLog)
+AMS -&amp;gt; Statsd : FrameworkStatsLog.write(APP_CRASH_OCCURRED, ...)
+note right: 包含 crashInfo 中的 Exception Name
+end
+group 持久化记录 (DropBox)
+AMS -&amp;gt; DBMS : addErrorToDropBox(..., crashInfo)
+activate DBMS
+DBMS -&amp;gt; DBMS : 异步启动 Worker Thread
+DBMS -&amp;gt; DBMS : **堆栈落盘**：将 crashInfo.stackTrace \n与其他 Header 信息拼接并写入 \n/data/system/dropbox/ 压缩文件
+DBMS --&amp;gt; AMS : 返回
+deactivate DBMS
+end
+== 阶段 3: 策略决策与 UI 处理 (AppErrors) ==
+AMS -&amp;gt; AE : crashApplication(r, crashInfo)
+activate AE
+AE -&amp;gt; AE : noteAppKill()
+note right: 将堆栈摘要存入 AppExitInfoManager
+AE -&amp;gt; AE : handleAppCrashLSPB()
+alt 达到崩溃上限 (Bad Process)
+AE -&amp;gt; AE : markBadProcess(..., stackTrace)
+note right: **持久化 Bad 状态**：将堆栈存入 mBadProcesses 内存映射
+AE -&amp;gt; AMS : removeProcessLocked()
+else 允许显示 UI
+AE -&amp;gt; AMS : 发送 SHOW_ERROR_UI_MSG
+AMS -&amp;gt; AE : AppErrorDialog.show(data)
+note right: 对话框中的“显示详情”即展示 crashInfo.stackTrace
+end
+AE --&amp;gt; AMS : 返回结果
+deactivate AE
+== 阶段 4: 最终清理与自杀 (App 进程) ==
+AMS --&amp;gt; RI : 处理完毕 (Binder 返回)
+deactivate AMS
+RI -&amp;gt; RI : Process.killProcess(myPid)
+RI -&amp;gt; RI : System.exit(10)
+deactivate RI
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
+&lt;h2 id="1-流程概览"&gt;1. 流程概览&lt;/h2&gt;
+&lt;p&gt;当 Java 异常未被捕获时，虚拟机将控制权交给 &lt;code&gt;Thread.UncaughtExceptionHandler&lt;/code&gt;。Android 默认通过 &lt;code&gt;RuntimeInit&lt;/code&gt; 类安装了自定义处理器，启动四个阶段的处理：&lt;/p&gt;</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android_binderproxy_detection/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png" alt="" /&gt;
+本图描述了 Android 系统中 &lt;strong&gt;Binder Proxy 数量限制（BinderProxy Limit）&lt;/strong&gt; 的实现流程，涉及 &lt;code&gt;ActivityManagerService&lt;/code&gt;、&lt;code&gt;BinderInternal&lt;/code&gt;、JNI 层、&lt;code&gt;BpBinder&lt;/code&gt; 等关键组件。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="1-关键模块"&gt;1. 关键模块&lt;/h2&gt;
+&lt;h3 id="11-java-层"&gt;1.1 Java 层&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;ActivityManagerService (AMS)&lt;/strong&gt;
+系统服务的核心，负责启用 Binder Proxy 限制，并设置回调。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;BinderInternal&lt;/strong&gt;
+桥接 AMS 与 Native 层的接口类，提供&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;nSetBinderProxyCountEnabled&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;setBinderProxyCountCallback&lt;/code&gt;
+等方法。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;BinderProxyLimitListener / Delegate&lt;/strong&gt;
+当达到 Binder Proxy 数量上限时被触发，执行对应的回调逻辑。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h3 id="12-native-层-jni"&gt;1.2 Native 层 (JNI)&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;libandroid_runtime&lt;/strong&gt;
+JNI 桥接库，实现了 &lt;code&gt;android_os_BinderInternal_setBinderProxyCountEnabled&lt;/code&gt; 与回调代理 &lt;code&gt;android_os_BinderInternal_proxyLimitcallback&lt;/code&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;libbinder&lt;/strong&gt;
+Binder 内核通信库，负责 Binder 代理对象的创建与管理。
+其中 &lt;code&gt;BpBinder::create&lt;/code&gt; 在生成 Binder 代理对象时进行计数与节流。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id="2-调用流程"&gt;2. 调用流程&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;AMS 启动限制&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;ActivityManagerService&lt;/code&gt; 调用
+&lt;code&gt;BinderInternal.nSetBinderProxyCountEnabled(true)&lt;/code&gt;
+以启用 Binder Proxy 限制。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>BinderCallsStatsService 技术详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/bindercallsstatsservice/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/bindercallsstatsservice/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;BinderCallsStatsService&lt;/code&gt; 是 Android System Server 进程中的一个系统服务，用于收集和统计发往 &lt;code&gt;system_server&lt;/code&gt; 的 Binder 调用信息。它是分析系统级卡顿、高 CPU 占用以及排查 ANR（Application Not Responding）问题的核心工具。&lt;/p&gt;
+&lt;p&gt;它能够回答以下关键问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;哪个 App 在疯狂调用系统服务？&lt;/li&gt;
+&lt;li&gt;哪个系统 API（如 &lt;code&gt;startActivity&lt;/code&gt;）是当前的性能瓶颈？&lt;/li&gt;
+&lt;li&gt;系统服务的卡顿是因为 CPU 耗时过长，还是因为锁竞争导致的排队？&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id="2-实现原理"&gt;2. 实现原理&lt;/h2&gt;
+&lt;h3 id="21-核心机制"&gt;2.1 核心机制&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;BinderCallsStatsService&lt;/code&gt; 的实现基于 Android Binder 框架提供的 &lt;strong&gt;Observer（观察者）模式&lt;/strong&gt;。它并不依赖底层的 Linux Kernel Trace，而是通过 Hook Java 层的 Binder 分发入口实现的。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;注入 (Injection)&lt;/strong&gt;: 服务启动时，通过 &lt;code&gt;Binder.setObserver()&lt;/code&gt; 将自身注册为全局 Binder 监听器。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;拦截 (Interception)&lt;/strong&gt;: 所有发往当前进程（system_server）的 Binder 请求，在执行具体的 Service 方法（如 &lt;code&gt;AMS.startActivity&lt;/code&gt;）之前，都会先经过 &lt;code&gt;Binder.execTransact&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;统计 (Measurement)&lt;/strong&gt;:
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Call Started&lt;/strong&gt;: 记录开始时的 CPU 时间（Thread Time）和墙上时间（Realtime）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Call Ended&lt;/strong&gt;: 记录结束时间，计算差值，并统计数据包大小。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;聚合 (Aggregation)&lt;/strong&gt;: 数据存储在内存中的哈希表中，按 UID 和方法名聚合，避免无限增长。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="22-架构时序图-plantuml"&gt;2.2 架构时序图 (PlantUML)&lt;/h3&gt;
+&lt;p&gt;以下图表展示了 Binder 调用是如何被拦截和统计的：&lt;/p&gt;</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/spamming-oneway/</guid><description>&lt;h2 id="binder-spam-detection原理"&gt;Binder spam detection原理&lt;/h2&gt;
+&lt;p&gt;当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;IPCThreadState: Process seems to be sending too many oneway calls.
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="核心原因"&gt;核心原因&lt;/h3&gt;
+&lt;p&gt;这个日志的根本原因在于 &lt;strong&gt;Kernel 层的 Binder 驱动程序&lt;/strong&gt; 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 &lt;strong&gt;异步缓冲区空间 (async space) 严重不足&lt;/strong&gt;。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。&lt;/p&gt;
+&lt;p&gt;整个检测和通知流程可以概括为：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;客户端发起 Oneway 调用&lt;/strong&gt;：进程通过 &lt;code&gt;transact()&lt;/code&gt; 发起一个带有 &lt;code&gt;TF_ONE_WAY&lt;/code&gt; 标志的 Binder 调用。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内核分配缓冲区&lt;/strong&gt;：Binder 驱动在内核空间为这个 oneway 事务分配内存。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内核进行垃圾邮件检测 (Spam Detection)&lt;/strong&gt;：在分配内存时，内核会检查剩余的&lt;strong&gt;异步缓冲区空间&lt;/strong&gt;。如果空间低于某个阈值（总空间的 10%），驱动就会开始怀疑有进程在“滥发” oneway 调用。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;标记可疑事务&lt;/strong&gt;：如果异步空间过低，驱动会进一步检查当前发起调用的这个进程，是否占用了过多的 oneway 缓冲区（例如，超过 50 个缓冲区或总大小超过总空间的 25%）。如果满足条件，内核就会给这个事务的缓冲区打上 &lt;code&gt;oneway_spam_suspect&lt;/code&gt; 的标记。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内核返回特殊指令&lt;/strong&gt;：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 &lt;code&gt;oneway_spam_suspect&lt;/code&gt; 标记，内核就不会返回常规的 &lt;code&gt;BR_TRANSACTION_COMPLETE&lt;/code&gt;，而是返回一个特殊的 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt; 指令。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;用户空间打印日志&lt;/strong&gt;：客户端的 &lt;code&gt;IPCThreadState&lt;/code&gt; 在 &lt;code&gt;waitForResponse()&lt;/code&gt; 中接收并解析来自内核的指令。当它收到 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt; 时，就会打印出这条我们看到的错误日志。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="代码分析"&gt;代码分析&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;用户空间日志打印点 (IPCThreadState.cpp)&lt;/strong&gt;
+在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;</description></item><item><title>crash_dump流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/native_crash_process/</guid><description>&lt;p&gt;下图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
+&lt;h3 id="native-process-crash-处理时序图"&gt;Native Process Crash 处理时序图&lt;/h3&gt;
+&lt;!-- ![](/ethenslab/images/android-Native-Process-Crash.png) --&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-Native-Process-Crash.png" alt="Native Crash" /&gt;&lt;/p&gt;
+&lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;信号拦截 (debuggerd_signal_handler)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;当 Native 进程 Crash 时，内核回调 &lt;code&gt;debuggerd_signal_handler&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;代码中显式使用了 &lt;code&gt;pthread_mutex_lock&lt;/code&gt; 确保同一时间只有一个线程处理 Crash。&lt;/li&gt;
+&lt;li&gt;为了在不耗尽原进程文件描述符（FD）的情况下执行操作，代码调用 &lt;code&gt;clone&lt;/code&gt; 创建了一个 &lt;strong&gt;Pseudothread&lt;/strong&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;启动 crash_dump (Exec)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Pseudothread 调用 &lt;code&gt;execle&lt;/code&gt; 启动 &lt;code&gt;/apex/com.android.runtime/bin/crash_dump64&lt;/code&gt; 。&lt;/li&gt;
+&lt;li&gt;这里通过管道（Pipe）传递了 &lt;code&gt;Crashing TID&lt;/code&gt; 和 &lt;code&gt;Pseudothread TID&lt;/code&gt; 给 &lt;code&gt;crash_dump&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;握手与 Ptrace&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;crash_dump&lt;/code&gt; 启动后，首先 &lt;code&gt;ptrace&lt;/code&gt; 附着（Seize）目标进程的所有线程 。&lt;/li&gt;
+&lt;li&gt;为了安全地读取内存，&lt;code&gt;crash_dump&lt;/code&gt; 通过管道写 &lt;code&gt;\1&lt;/code&gt; 通知 Pseudothread 。&lt;/li&gt;
+&lt;li&gt;Pseudothread 收到通知后，调用 &lt;code&gt;create_vm_process()&lt;/code&gt; ，本质上是 &lt;code&gt;fork&lt;/code&gt; 出一个子进程（镜像），供 &lt;code&gt;crash_dump&lt;/code&gt; 读取内存，防止在读取过程中因目标进程内存损坏而卡死。&lt;/li&gt;
+&lt;li&gt;Pseudothread 将 &lt;code&gt;CrashInfo&lt;/code&gt;（包含寄存器信息 &lt;code&gt;ucontext&lt;/code&gt;）写入管道发送给 &lt;code&gt;crash_dump&lt;/code&gt; 。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item></channel></rss>
