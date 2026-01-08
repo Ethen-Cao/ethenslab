@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Gunyah开发笔记 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/gunyah/</link><description>Recent content in Gunyah开发笔记 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 04 Aug 2025 09:49:58 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/gunyah/index.xml" rel="self" type="application/rss+xml"/><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>&lt;h4 id="1-概述"&gt;1. 概述&lt;/h4&gt;
 &lt;p&gt;本图展示了在 Android 虚拟化场景下，Guest OS（Android 虚拟机）如何通过 &lt;strong&gt;Virtio-blk&lt;/strong&gt; 协议高效地访问 Host 侧的物理存储设备。该架构采用 &lt;strong&gt;Userspace Backend&lt;/strong&gt; 模式，即虚拟磁盘的后端处理逻辑集成在 VMM（此处为 &lt;code&gt;qcrosvm&lt;/code&gt;）的用户态进程中。&lt;/p&gt;
-&lt;pre class="plantuml-container" hidden&gt;
+&lt;pre class="plantuml-container" style="display:none;"&gt;
 &lt;code class="language-plantuml"&gt;@startuml
 !theme plain
 skinparam componentStyle rectangle

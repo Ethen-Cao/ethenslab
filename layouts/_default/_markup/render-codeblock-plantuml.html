@@ -1,5 +1,5 @@
-<pre class="plantuml-container" hidden>
+{{- /* 使用 style display:none 而不是 hidden 属性，兼容性更好 */ -}}
+<pre class="plantuml-container" style="display:none;">
   <code class="language-plantuml">{{ .Inner }}</code>
 </pre>
-{{- /* 标记当前页面包含 PlantUML */ -}}
 {{- .Page.Store.Set "hasPlantUML" true }}

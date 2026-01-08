@@ -106,7 +106,7 @@
 &lt;/table&gt;
 &lt;hr&gt;
 &lt;h3 id="223-示例android-gvm-分层图"&gt;2.2.3 示例（Android GVM 分层图）&lt;/h3&gt;
-&lt;pre class="plantuml-container" hidden&gt;
+&lt;pre class="plantuml-container" style="display:none;"&gt;
 &lt;code class="language-plantuml"&gt;@startuml
 frame &amp;#34;Smart Cockpit System&amp;#34; {
 rectangle &amp;#34;GVM (Android OS)&amp;#34; {
@@ -175,7 +175,7 @@ rectangle &amp;#34;Linux Kernel&amp;#34;
 &lt;/ul&gt;
 &lt;h3 id="aosp-源码同步"&gt;&lt;strong&gt;AOSP 源码同步&lt;/strong&gt;&lt;/h3&gt;
 &lt;p&gt;确保您已成功将 AOSP 源码同步到本地。本文档中的所有路径都将以 AOSP 的根目录作为基准。&lt;/p&gt;</description></item><item><title>Android App Java Crash 捕捉流程分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android-exception-handler/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android-exception-handler/</guid><description>&lt;p&gt;在 Android 系统中，Java 层的崩溃（Crash）捕捉并不是一个简单的进程内行为，而是一套从 &lt;strong&gt;App 进程&lt;/strong&gt; 到 &lt;strong&gt;System Server 进程&lt;/strong&gt; 跨进程协作的复杂机制。理解这一流程对于定位稳定性问题至关重要，下面是详细的时序图：&lt;/p&gt;
-&lt;pre class="plantuml-container" hidden&gt;
+&lt;pre class="plantuml-container" style="display:none;"&gt;
 &lt;code class="language-plantuml"&gt;@startuml
 skinparam theme plain
 skinparam shadowing false
@@ -355,7 +355,7 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;h2 id="1-架构概览-architecture-overview"&gt;1. 架构概览 (Architecture Overview)&lt;/h2&gt;
 &lt;p&gt;RenderEngine 采用了 &lt;strong&gt;分层架构&lt;/strong&gt; 与 &lt;strong&gt;装饰器模式&lt;/strong&gt; 的设计。&lt;/p&gt;
 &lt;h3 id="11-核心组件架构图"&gt;1.1 核心组件架构图&lt;/h3&gt;
-&lt;pre class="plantuml-container" hidden&gt;
+&lt;pre class="plantuml-container" style="display:none;"&gt;
 &lt;code class="language-plantuml"&gt;@startuml
 !theme cerulean
 hide empty members
@@ -558,7 +558,7 @@ end
 &lt;li&gt;&lt;strong&gt;Display 对象构建&lt;/strong&gt;：&lt;code&gt;DisplayBuilder&lt;/code&gt; 根据硬件信息创建具体的 &lt;code&gt;DisplayBuiltIn&lt;/code&gt; 和 &lt;code&gt;HWPeripheralDRM&lt;/code&gt;。&lt;/li&gt;
 &lt;/ol&gt;
 &lt;h3 id="qualcomm-hwc-启动与-display-创建全流程"&gt;Qualcomm HWC 启动与 Display 创建全流程&lt;/h3&gt;
-&lt;pre class="plantuml-container" hidden&gt;
+&lt;pre class="plantuml-container" style="display:none;"&gt;
 &lt;code class="language-plantuml"&gt;@startuml
 !theme plain
 skinparam MaxMessageSize 200
@@ -1137,7 +1137,7 @@ note right of Main: 服务就绪，等待 SurfaceFlinger 连接
 &lt;li&gt;&lt;strong&gt;控制流&lt;/strong&gt;：利用 &lt;strong&gt;FastRPC&lt;/strong&gt; 跨越处理器边界，将存储在 CPU 文件系统中的 NPU 驱动代码（Skel）动态“侧载” (Side-load) 到 DSP 中运行。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;数据流&lt;/strong&gt;：利用 &lt;strong&gt;ION/DMA-BUF&lt;/strong&gt; 共享内存实现零拷贝传输，确保证推理性能。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;pre class="plantuml-container" hidden&gt;
+&lt;pre class="plantuml-container" style="display:none;"&gt;
 &lt;code class="language-plantuml"&gt;@startuml
 !theme plain
 skinparam backgroundColor white
@@ -1348,7 +1348,7 @@ SkelRun -[#008000]down-&amp;gt; HTP_HW : 17. Compute
 &lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;PlantUML 使用&lt;/strong&gt;：&lt;/p&gt;
-&lt;pre class="plantuml-container" hidden&gt;
+&lt;pre class="plantuml-container" style="display:none;"&gt;
 &lt;code class="language-plantuml"&gt;package &amp;#34;Android Framework&amp;#34; {
 component ActivityManager
 component WindowManager
@@ -2152,7 +2152,7 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="布局实现-motionlayout"&gt;布局实现 (MotionLayout)&lt;/h3&gt;
 &lt;p&gt;我们使用MotionLayout作为根布局，并在其中定义两个核心功能区：车模面板和地图容器。&lt;/p&gt;</description></item><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>&lt;h4 id="1-概述"&gt;1. 概述&lt;/h4&gt;
 &lt;p&gt;本图展示了在 Android 虚拟化场景下，Guest OS（Android 虚拟机）如何通过 &lt;strong&gt;Virtio-blk&lt;/strong&gt; 协议高效地访问 Host 侧的物理存储设备。该架构采用 &lt;strong&gt;Userspace Backend&lt;/strong&gt; 模式，即虚拟磁盘的后端处理逻辑集成在 VMM（此处为 &lt;code&gt;qcrosvm&lt;/code&gt;）的用户态进程中。&lt;/p&gt;
-&lt;pre class="plantuml-container" hidden&gt;
+&lt;pre class="plantuml-container" style="display:none;"&gt;
 &lt;code class="language-plantuml"&gt;@startuml
 !theme plain
 skinparam componentStyle rectangle
@@ -2462,7 +2462,7 @@ HBLK --&amp;gt; DISK
 &lt;/ul&gt;
 &lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>crash_dump流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/native_crash_process/</guid><description>&lt;p&gt;下图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
 &lt;h3 id="native-process-crash-处理时序图"&gt;Native Process Crash 处理时序图&lt;/h3&gt;
-&lt;pre class="plantuml-container" hidden&gt;
+&lt;pre class="plantuml-container" style="display:none;"&gt;
 &lt;code class="language-plantuml"&gt;@startuml
 !theme plain
 autonumber
@@ -2631,7 +2631,7 @@ Strategy --"8b. 纯硬件合成 (Device Overlay)"--&gt; HWC
 HWC --&gt;|11. PresentDisplay (Atomic Commit)| DPU_HW
 DPU_HW --&gt;|12. 扫描输出| Panel
 &lt;/div&gt;&lt;h3 id="亮度调节失败引发surfaceflinger合成策略选择失败的时序图"&gt;亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图&lt;/h3&gt;
-&lt;pre class="plantuml-container" hidden&gt;
+&lt;pre class="plantuml-container" style="display:none;"&gt;
 &lt;code class="language-plantuml"&gt;@startuml
 !theme plain
 &amp;#39; skinparam MaxMessageSize 300
