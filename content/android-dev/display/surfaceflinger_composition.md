@@ -1200,12 +1200,11 @@ sequenceDiagram
     participant Caller as HWComposer
     participant Aidl as AidlComposer
     participant Writer as ComposerClientWriter
-    participant Binder as IComposerClient (Binder)
+    participant Binder as "IComposerClient (Binder)"
     participant Reader as ComposerClientReader
 
     Note over Caller, Writer: 阶段 1: 命令积攒 (Buffering)<br/>此处不发生 IPC，仅内存操作
 
-    %% 模拟积攒多个命令
     Caller->>Aidl: setLayerBuffer(display, layer, buffer...)
     activate Aidl
     Aidl->>Aidl: getWriter(display)
@@ -1221,29 +1220,26 @@ sequenceDiagram
     Aidl->>Writer: setLayerColor(..., color)
     deactivate Aidl
 
-    %% 阶段 2: 提交执行
     Note over Caller, Reader: 阶段 2: 批量提交与解析 (Execution & Parsing)
 
     Caller->>Aidl: execute(display) / presentDisplay
     activate Aidl
-    
-    %% 2.1 取出命令
+
     Aidl->>Writer: takePendingCommands()
     activate Writer
     Writer->>Writer: flushLayerCommand()
     Writer->>Writer: flushDisplayCommand()
-    Writer-->>Aidl: vector<DisplayCommand> cmds
+    Writer-->>Aidl: `vector<DisplayCommand>` cmds
     deactivate Writer
+
     Note right of Writer: mCommands 被清空<br/>cmds 被移动到 AidlComposer
 
-    %% 2.2 IPC 调用
     Aidl->>Binder: executeCommands(cmds)
     activate Binder
     Note right of Binder: 跨进程传输<br/>Hardware Composer 处理命令
-    Binder-->>Aidl: vector<CommandResultPayload> results
+    Binder-->>Aidl: `vector<CommandResultPayload>` results
     deactivate Binder
 
-    %% 2.3 解析结果
     Aidl->>Reader: parse(results)
     activate Reader
     loop 遍历 results
@@ -1251,7 +1247,6 @@ sequenceDiagram
     end
     deactivate Reader
 
-    %% 2.4 检查错误与获取结果
     Aidl->>Reader: takeErrors()
     activate Reader
     Reader-->>Aidl: errors
@@ -1267,7 +1262,10 @@ sequenceDiagram
     Aidl-->>Caller: Error::NONE
     deactivate Aidl
 
+
 ```
+
+
 ---
 
 ## 从 App 绘制到 RenderEngine 合成
