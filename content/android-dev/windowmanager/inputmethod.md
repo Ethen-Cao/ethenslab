@@ -6,7 +6,6 @@ title = ' Android 窗口焦点抢占与输入法连接断开技术时序分析'
 
 ### 1. 概述
 
-
 ```plantuml
 @startuml
 !theme plain
