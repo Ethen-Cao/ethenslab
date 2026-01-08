@@ -798,18 +798,6 @@ graph TD
 
 ```
 
-
-
-    IGraphicBufferProducer --o BufferQueue : "写入"
-    BufferQueue o-- IGraphicBufferConsumer : "读取"
-    
-
-    FramebufferSurface <-- IGraphicBufferConsumer : "消费"
-    
-    class HWComposer {
-        + setClientTarget()
-    }
-    FramebufferSurface ..> HWComposer : "提交"
 ### 核心机制详解
 
 #### VSYNC 信号分发
