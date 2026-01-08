@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android 性能与稳定专项 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/</link><description>Recent content in Android 性能与稳定专项 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Sep 2025 11:36:11 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/index.xml" rel="self" type="application/rss+xml"/><item><title>Android App Java Crash 捕捉流程分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android-exception-handler/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android-exception-handler/</guid><description>&lt;p&gt;在 Android 系统中，Java 层的崩溃（Crash）捕捉并不是一个简单的进程内行为，而是一套从 &lt;strong&gt;App 进程&lt;/strong&gt; 到 &lt;strong&gt;System Server 进程&lt;/strong&gt; 跨进程协作的复杂机制。理解这一流程对于定位稳定性问题至关重要，下面是详细的时序图：&lt;/p&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+&lt;pre class="plantuml-container" hidden&gt;
+&lt;code class="language-plantuml"&gt;@startuml
 skinparam theme plain
 skinparam shadowing false
 skinparam DefaultFontName &amp;#34;SansSerif&amp;#34;
@@ -76,8 +77,8 @@ deactivate AMS
 RI -&amp;gt; RI : Process.killProcess(myPid)
 RI -&amp;gt; RI : System.exit(10)
 deactivate RI
-@enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
+@enduml&lt;/code&gt;
+&lt;/pre&gt;&lt;hr&gt;
 &lt;h2 id="1-流程概览"&gt;1. 流程概览&lt;/h2&gt;
 &lt;p&gt;当 Java 异常未被捕获时，虚拟机将控制权交给 &lt;code&gt;Thread.UncaughtExceptionHandler&lt;/code&gt;。Android 默认通过 &lt;code&gt;RuntimeInit&lt;/code&gt; 类安装了自定义处理器，启动四个阶段的处理：&lt;/p&gt;</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/android_binderproxy_detection/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png" alt="" /&gt;
 本图描述了 Android 系统中 &lt;strong&gt;Binder Proxy 数量限制（BinderProxy Limit）&lt;/strong&gt; 的实现流程，涉及 &lt;code&gt;ActivityManagerService&lt;/code&gt;、&lt;code&gt;BinderInternal&lt;/code&gt;、JNI 层、&lt;code&gt;BpBinder&lt;/code&gt; 等关键组件。&lt;/p&gt;
@@ -172,7 +173,8 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;p&gt;&lt;strong&gt;用户空间日志打印点 (IPCThreadState.cpp)&lt;/strong&gt;
 在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;</description></item><item><title>crash_dump流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/native_crash_process/</guid><description>&lt;p&gt;下图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
 &lt;h3 id="native-process-crash-处理时序图"&gt;Native Process Crash 处理时序图&lt;/h3&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+&lt;pre class="plantuml-container" hidden&gt;
+&lt;code class="language-plantuml"&gt;@startuml
 !theme plain
 autonumber
 participant &amp;#34;Native Process\n(Crasher)&amp;#34; as P
@@ -258,8 +260,8 @@ deactivate P
 destroy P
 P -&amp;gt; INIT: SIGCHLD (进程死亡)
 INIT -&amp;gt; INIT: Process Reaping (回收僵尸进程)
-@enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
+@enduml&lt;/code&gt;
+&lt;/pre&gt;&lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;信号拦截 (debuggerd_signal_handler)&lt;/strong&gt;&lt;/p&gt;</description></item></channel></rss>

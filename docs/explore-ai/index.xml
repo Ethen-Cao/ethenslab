@@ -38,7 +38,8 @@
 &lt;li&gt;&lt;strong&gt;控制流&lt;/strong&gt;：利用 &lt;strong&gt;FastRPC&lt;/strong&gt; 跨越处理器边界，将存储在 CPU 文件系统中的 NPU 驱动代码（Skel）动态“侧载” (Side-load) 到 DSP 中运行。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;数据流&lt;/strong&gt;：利用 &lt;strong&gt;ION/DMA-BUF&lt;/strong&gt; 共享内存实现零拷贝传输，确保证推理性能。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+&lt;pre class="plantuml-container" hidden&gt;
+&lt;code class="language-plantuml"&gt;@startuml
 !theme plain
 skinparam backgroundColor white
 skinparam defaultFontName Arial
@@ -130,8 +131,8 @@ QnnStub -[#008000]down-&amp;gt; FastRPC : 15. Invoke Execute
 FastRPC -[#008000]down-&amp;gt; Driver
 Driver -[#008000]down-&amp;gt; SkelRun : 16. Signal
 SkelRun -[#008000]down-&amp;gt; HTP_HW : 17. Compute
-@enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
+@enduml&lt;/code&gt;
+&lt;/pre&gt;&lt;hr&gt;
 &lt;h2 id="2-核心全生命周期解说"&gt;2. 核心全生命周期解说&lt;/h2&gt;
 &lt;p&gt;整个运行过程分为三个严格的时序阶段，对应架构图中的三种颜色。&lt;/p&gt;</description></item><item><title>Qualcomm Hexagon DSP 开发指南：AI 推理与通用计算</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/qualcomm-hexagon-dsp-%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/qualcomm-hexagon-dsp-%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;在 Qualcomm Hexagon DSP 的开发生态中，资源的使用方式并非单一路径。根据应用场景、开发难度及工具链的不同，开发模式被明确划分为两条主要赛道：&lt;/p&gt;

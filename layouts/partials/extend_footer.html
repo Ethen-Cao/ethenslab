@@ -1,32 +1,62 @@
-<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>
-    // 初始化 Mermaid
-    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+{{- /* ==========================================
+   1. 处理 Mermaid (修复了语法错误和重复加载)
+   ========================================== */ -}}
+{{- if .Page.Store.Get "hasMermaid" }}
+<script type="module">
+    // 注意：这里去掉了多余的 markdown 格式，只保留纯 URL
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ 
+        startOnLoad: true, 
+        theme: 'default' 
+    });
 </script>
+{{- end }}
 
+{{- /* ==========================================
+   2. 处理 PlantUML (增加按需加载逻辑)
+   ========================================== */ -}}
+{{- if .Page.Store.Get "hasPlantUML" }}
 <script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
 <script>
     (function(){
-        // 查找所有 plantuml 代码块 (兼容 ```plantuml 和 ```planuml)
-        // Hugo 生成的代码块结构通常是 <pre><code class="language-plantuml">...</code></pre>
-        const plantumlBlocks = document.querySelectorAll('pre > code.language-plantuml, pre > code.language-planuml');
-        
-        plantumlBlocks.forEach(codeBlock => {
-            const plantumlCode = codeBlock.innerText;
-            // 使用 plantuml-encoder 编码代码
-            const encoded = plantumlEncoder.encode(plantumlCode);
-            // 构造图片 URL (这里使用官方 server，也可以换成 https://kroki.io/plantuml/svg/)
-            const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
+        // 等待页面加载完成
+        window.addEventListener('DOMContentLoaded', () => {
+            // 查找 Hugo 生成的 PlantUML 代码块
+            // 兼容 render hook 生成的结构或默认结构
+            const codes = document.querySelectorAll('code.language-plantuml, code.language-planuml');
             
-            // 创建 img 标签
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.alt = "PlantUML Diagram";
-            img.style.maxWidth = "100%"; // 响应式宽度
-            
-            // 替换原始代码块
-            const preBlock = codeBlock.parentNode;
-            preBlock.parentNode.replaceChild(img, preBlock);
+            codes.forEach(codeBlock => {
+                // 如果已经被替换过，忽略
+                if (codeBlock.getAttribute('data-processed')) return;
+                
+                try {
+                    const plantumlCode = codeBlock.innerText.trim();
+                    if (!plantumlCode) return;
+
+                    // 编码
+                    const encoded = plantumlEncoder.encode(plantumlCode);
+                    const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
+                    
+                    // 创建图片元素
+                    const img = document.createElement('img');
+                    img.src = imageUrl;
+                    img.alt = "PlantUML Diagram";
+                    img.style.maxWidth = "100%";
+                    img.className = "plantuml-img";
+
+                    // 找到最外层的 <pre> 标签进行替换
+                    const preBlock = codeBlock.closest('pre');
+                    if (preBlock) {
+                        preBlock.parentNode.replaceChild(img, preBlock);
+                    } else {
+                        // 如果没有 pre 包装，直接替换 code
+                        codeBlock.parentNode.replaceChild(img, codeBlock);
+                    }
+                } catch (e) {
+                    console.error('PlantUML rendering error:', e);
+                }
+            });
         });
     })();
 </script>
+{{- end }}

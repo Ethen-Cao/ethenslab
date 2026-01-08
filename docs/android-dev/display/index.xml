@@ -2,7 +2,8 @@
 &lt;h2 id="1-架构概览-architecture-overview"&gt;1. 架构概览 (Architecture Overview)&lt;/h2&gt;
 &lt;p&gt;RenderEngine 采用了 &lt;strong&gt;分层架构&lt;/strong&gt; 与 &lt;strong&gt;装饰器模式&lt;/strong&gt; 的设计。&lt;/p&gt;
 &lt;h3 id="11-核心组件架构图"&gt;1.1 核心组件架构图&lt;/h3&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+&lt;pre class="plantuml-container" hidden&gt;
+&lt;code class="language-plantuml"&gt;@startuml
 !theme cerulean
 hide empty members
 skinparam linetype ortho
@@ -13,15 +14,15 @@ skinparam ranksep 60
 &amp;#39; ==========================================
 package &amp;#34;Interface &amp;amp; Decorator&amp;#34; {
 abstract class RenderEngine {
-+ {static} create() : unique_ptr&amp;lt;RenderEngine&amp;gt;
-+ {abstract} drawLayers()
-+ {abstract} mapExternalTextureBuffer()
+&amp;#43; {static} create() : unique_ptr&amp;lt;RenderEngine&amp;gt;
+&amp;#43; {abstract} drawLayers()
+&amp;#43; {abstract} mapExternalTextureBuffer()
 }
 class RenderEngineThreaded {
 - mRenderEngine : unique_ptr&amp;lt;RenderEngine&amp;gt;
 - mThread : std::thread
 - mFunctionCalls : queue&amp;lt;function&amp;gt;
-+ drawLayers() : &amp;#34;非阻塞提交&amp;#34;
+&amp;#43; drawLayers() : &amp;#34;非阻塞提交&amp;#34;
 }
 note right of RenderEngineThreaded
 &amp;lt;b&amp;gt;线程装饰器&amp;lt;/b&amp;gt;
@@ -36,7 +37,7 @@ package &amp;#34;Core Implementation (Skia)&amp;#34; {
 abstract class SkiaRenderEngine {
 # mTextureCache : TextureCache
 # mCaptureCache : CaptureCache
-+ drawLayers() : &amp;#34;通用 Skia 绘制逻辑&amp;#34;
+&amp;#43; drawLayers() : &amp;#34;通用 Skia 绘制逻辑&amp;#34;
 # drawLayersInternal()
 }
 note right of SkiaRenderEngine
@@ -52,14 +53,14 @@ package &amp;#34;Backend Drivers&amp;#34; {
 class SkiaGLRenderEngine {
 - mEGLDisplay : EGLDisplay
 - mEGLContext : EGLContext
-+ create()
+&amp;#43; create()
 --
 (Ganesh GL Backend)
 }
 class GaneshVkRenderEngine {
 - mInstance : VkInstance
 - mDevice : VkDevice
-+ create()
+&amp;#43; create()
 --
 (Ganesh Vulkan Backend)
 }
@@ -75,13 +76,13 @@ SkiaRenderEngine &amp;lt;|-- SkiaGLRenderEngine
 SkiaRenderEngine &amp;lt;|-- GaneshVkRenderEngine
 SkiaRenderEngine &amp;lt;|-- GraphiteVkRenderEngine
 RenderEngineThreaded o-- RenderEngine : 包装实际实现 (Impl)
-@enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="12-关键组件工作机制"&gt;1.2 关键组件工作机制&lt;/h3&gt;
+@enduml&lt;/code&gt;
+&lt;/pre&gt;&lt;h3 id="12-关键组件工作机制"&gt;1.2 关键组件工作机制&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;&lt;code&gt;RenderEngine&lt;/code&gt; (Interface)&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title>Android SurfaceFlinger 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</guid><description>&lt;p&gt;SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。&lt;/p&gt;
 &lt;h2 id="display创建过程"&gt;Display创建过程&lt;/h2&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;sequenceDiagram
+&lt;div class="mermaid"&gt;sequenceDiagram
 autonumber
 %% 定义参与者
 participant HWC as HWC/Kernel
@@ -93,11 +94,11 @@ participant VDS as VirtualDisplaySurface
 participant FBS as FramebufferSurface
 participant DD as DisplayDevice
 participant Scheduler as Scheduler
-box &amp;#34;触发源 (Triggers)&amp;#34; #f9f9f9
+box "触发源 (Triggers)" #f9f9f9
 participant HWC
 participant DisplayManagerService
 end
-box &amp;#34;SurfaceFlinger&amp;#34; #e1f5fe
+box "SurfaceFlinger" #e1f5fe
 participant SF
 participant Scheduler
 participant DD
@@ -110,43 +111,43 @@ end
 rect rgb(255, 240, 240)
 note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟)
 alt 物理屏幕插入 (Hotplug)
-HWC -&amp;gt;&amp;gt; SF: onHotplugReceived(displayId, connected=true)
-SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
-SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
+HWC -&gt;&gt; SF: onHotplugReceived(displayId, connected=true)
+SF -&gt;&gt; SF: update mCurrentState (add Display)
+SF -&gt;&gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
 else 虚拟屏幕请求 (Virtual)
-DisplayManagerService -&amp;gt;&amp;gt; SF: createDisplay(name, secure)
-SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
-SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
+DisplayManagerService -&gt;&gt; SF: createDisplay(name, secure)
+SF -&gt;&gt; SF: update mCurrentState (add Display)
+SF -&gt;&gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
 end
 end
 %% === 第二阶段：主循环处理 ===
-SF -&amp;gt;&amp;gt; SF: onMessageInvalidate() -&amp;gt; handleMessageTransaction()
-SF -&amp;gt;&amp;gt; SF: processDisplayChangesLocked()
-note right of SF: 发现 mCurrentState 有新 token&amp;lt;br/&amp;gt;而 mDrawingState 没有
+SF -&gt;&gt; SF: onMessageInvalidate() -&gt; handleMessageTransaction()
+SF -&gt;&gt; SF: processDisplayChangesLocked()
+note right of SF: 发现 mCurrentState 有新 token&lt;br/&gt;而 mDrawingState 没有
 %% === 第三阶段：核心工厂方法 ===
 rect rgb(255, 250, 230)
 note right of SF: 阶段 2: 核心工厂 (processDisplayAdded)
-SF -&amp;gt;&amp;gt; SF: processDisplayAdded(token, state)
+SF -&gt;&gt; SF: processDisplayAdded(token, state)
 %% 1. 创建 CE Display
-SF -&amp;gt;&amp;gt; CE: createDisplay(args)
+SF -&gt;&gt; CE: createDisplay(args)
 activate CE
-CE --&amp;gt;&amp;gt; SF: return compositionDisplay
+CE --&gt;&gt; SF: return compositionDisplay
 deactivate CE
 %% 2. 创建 Buffer 管道
-SF -&amp;gt;&amp;gt; BQ: createBufferQueue()
-BQ --&amp;gt;&amp;gt; SF: return (producer, consumer)
+SF -&gt;&gt; BQ: createBufferQueue()
+BQ --&gt;&gt; SF: return (producer, consumer)
 %% 3. 创建 Surface (分叉逻辑)
 note right of SF: 阶段 3: 注册与激活
 alt 物理屏幕
-SF -&amp;gt;&amp;gt; Scheduler: registerDisplay(physicalId, refreshRateSelector)
+SF -&gt;&gt; Scheduler: registerDisplay(physicalId, refreshRateSelector)
 end
-SF -&amp;gt;&amp;gt; SF: mDisplays.add(token, displayDevice)
+SF -&gt;&gt; SF: mDisplays.add(token, displayDevice)
 opt 如果是物理屏幕
-SF -&amp;gt;&amp;gt; HWC: setPowerMode(ON)
-SF -&amp;gt;&amp;gt; SF: onActiveDisplayChangedLocked (如果是主屏)
+SF -&gt;&gt; HWC: setPowerMode(ON)
+SF -&gt;&gt; SF: onActiveDisplayChangedLocked (如果是主屏)
 end
 end
-&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="layer管理与渲染"&gt;Layer管理与渲染&lt;/h2&gt;
+&lt;/div&gt;&lt;h2 id="layer管理与渲染"&gt;Layer管理与渲染&lt;/h2&gt;
 &lt;h3 id="layer-核心架构类图"&gt;Layer 核心架构类图&lt;/h3&gt;
 &lt;p&gt;这张图展示了 &lt;strong&gt;SurfaceFlinger&lt;/strong&gt;（管理状态）、&lt;strong&gt;LayerFE&lt;/strong&gt;（数据快照/接口）和 &lt;strong&gt;CompositionEngine&lt;/strong&gt;（合成逻辑）之间的静态关系。&lt;/p&gt;</description></item><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
 &lt;p&gt;这个时序图展示了从底层物理屏幕发现到上层窗口管理容器创建的完整链路。&lt;/p&gt;
@@ -204,7 +205,8 @@ end
 &lt;li&gt;&lt;strong&gt;Display 对象构建&lt;/strong&gt;：&lt;code&gt;DisplayBuilder&lt;/code&gt; 根据硬件信息创建具体的 &lt;code&gt;DisplayBuiltIn&lt;/code&gt; 和 &lt;code&gt;HWPeripheralDRM&lt;/code&gt;。&lt;/li&gt;
 &lt;/ol&gt;
 &lt;h3 id="qualcomm-hwc-启动与-display-创建全流程"&gt;Qualcomm HWC 启动与 Display 创建全流程&lt;/h3&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+&lt;pre class="plantuml-container" hidden&gt;
+&lt;code class="language-plantuml"&gt;@startuml
 !theme plain
 skinparam MaxMessageSize 200
 skinparam participantPadding 10
@@ -321,10 +323,10 @@ AC --&amp;gt; Main: Created
 deactivate AC
 Main -&amp;gt; Main: AServiceManager_addService(AidlComposer)
 note right of Main: 服务就绪，等待 SurfaceFlinger 连接
-@enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="关键步骤解析"&gt;关键步骤解析&lt;/h3&gt;
+@enduml&lt;/code&gt;
+&lt;/pre&gt;&lt;h3 id="关键步骤解析"&gt;关键步骤解析&lt;/h3&gt;
 &lt;h4 id="1-唯一入口servicecpp"&gt;1. 唯一入口：&lt;code&gt;service.cpp&lt;/code&gt;&lt;/h4&gt;
-&lt;p&gt;这是 HWC 进程的起点。它并没有直接去操作硬件，而是先创建了 &lt;code&gt;AidlComposer&lt;/code&gt;。这符合 Android VINTF 架构，将 AIDL 接口作为服务的门面。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;graph TD
+&lt;p&gt;这是 HWC 进程的起点。它并没有直接去操作硬件，而是先创建了 &lt;code&gt;AidlComposer&lt;/code&gt;。这符合 Android VINTF 架构，将 AIDL 接口作为服务的门面。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;div class="mermaid"&gt;graph TD
 !theme plain
 %% --- 定义样式 ---
 classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
@@ -342,28 +344,28 @@ end
 class App,SysUI appLayer;
 %% --- 2. Buffer 传输层 ---
 subgraph BufferLayer [Buffer 传输机制]
-BQ[BufferQueue&amp;lt;br/&amp;gt;(Producer/Consumer)]
-Gralloc[Gralloc&amp;lt;br/&amp;gt;(显存分配)]
+BQ[BufferQueue&lt;br/&gt;(Producer/Consumer)]
+Gralloc[Gralloc&lt;br/&gt;(显存分配)]
 end
 class BQ,Gralloc bufferLayer;
 %% --- 3. SurfaceFlinger 核心层 ---
 subgraph SF_Core [SurfaceFlinger Native Process]
 direction TB
-Scheduler[Scheduler / VsyncModulator&amp;lt;br/&amp;gt;(心跳控制)]
-SF_Main[SurfaceFlinger Main Thread&amp;lt;br/&amp;gt;(事务处理 &amp;amp; 锁定图层)]
+Scheduler[Scheduler / VsyncModulator&lt;br/&gt;(心跳控制)]
+SF_Main[SurfaceFlinger Main Thread&lt;br/&gt;(事务处理 &amp; 锁定图层)]
 subgraph CE [CompositionEngine (合成引擎)]
 Output[Output (Display)]
 Planner[Planner / LayerStack]
-Strategy[&amp;lt;b&amp;gt;chooseCompositionStrategy&amp;lt;/b&amp;gt;&amp;lt;br/&amp;gt;(决策中心)]
+Strategy[&lt;b&gt;chooseCompositionStrategy&lt;/b&gt;&lt;br/&gt;(决策中心)]
 end
-RE[RenderEngine&amp;lt;br/&amp;gt;(SkiaGL / SkiaVK / Graphite)]
+RE[RenderEngine&lt;br/&gt;(SkiaGL / SkiaVK / Graphite)]
 end
 class Scheduler,SF_Main,Output,Planner,RE sfLayer;
 class Strategy decisionNode;
 %% --- 4. HAL 硬件抽象层 ---
 subgraph HAL [硬件抽象层 (HAL)]
-HWC[HWComposer HAL&amp;lt;br/&amp;gt;(DRM/KMS)]
-GPUDriver[GPU Driver&amp;lt;br/&amp;gt;(OpenGL/Vulkan)]
+HWC[HWComposer HAL&lt;br/&gt;(DRM/KMS)]
+GPUDriver[GPU Driver&lt;br/&gt;(OpenGL/Vulkan)]
 end
 class HWC,GPUDriver halLayer;
 %% --- 5. 硬件层 ---
@@ -375,34 +377,35 @@ end
 class GPU_HW,DPU_HW,Panel hwLayer;
 %% --- 连接关系 ---
 %% 生产阶段
-App --&amp;gt;|1. QueueBuffer| BQ
-SysUI --&amp;gt;|1. QueueBuffer| BQ
-BQ -.-&amp;gt;|指向| Gralloc
+App --&gt;|1. QueueBuffer| BQ
+SysUI --&gt;|1. QueueBuffer| BQ
+BQ -.-&gt;|指向| Gralloc
 %% 触发阶段
-Display_Vsync(硬件 Vsync) -.-&amp;gt; Scheduler
-Scheduler --&amp;gt;|2. OnFrameSignal| SF_Main
+Display_Vsync(硬件 Vsync) -.-&gt; Scheduler
+Scheduler --&gt;|2. OnFrameSignal| SF_Main
 %% 逻辑处理
-SF_Main --&amp;gt;|3. AcquireBuffer| BQ
-SF_Main --&amp;gt;|4. 调用| CE
-CE --&amp;gt;|5. prepareFrame| Output
-Output --&amp;gt; Planner
-Planner --&amp;gt; Strategy
+SF_Main --&gt;|3. AcquireBuffer| BQ
+SF_Main --&gt;|4. 调用| CE
+CE --&gt;|5. prepareFrame| Output
+Output --&gt; Planner
+Planner --&gt; Strategy
 %% 核心决策交互 (谈判)
-Strategy --&amp;gt;|6. ValidateDisplay (能处理吗?)| HWC
-HWC --&amp;gt;|7. 返回合成类型 (Client/Device)| Strategy
+Strategy --&gt;|6. ValidateDisplay (能处理吗?)| HWC
+HWC --&gt;|7. 返回合成类型 (Client/Device)| Strategy
 %% 执行路径 A: GPU 合成 (Client Composition)
-Strategy --&amp;#34;8a. 需要 GPU 合成 (Client)&amp;#34;--&amp;gt; RE
-RE --&amp;gt;|9. DrawLayers (Skia)| GPUDriver
-GPUDriver --&amp;gt; GPU_HW
-GPU_HW --&amp;gt;|10. 输出合成后的 Buffer| BQ_Target[Framebuffer Target]
-BQ_Target --&amp;gt; HWC
+Strategy --"8a. 需要 GPU 合成 (Client)"--&gt; RE
+RE --&gt;|9. DrawLayers (Skia)| GPUDriver
+GPUDriver --&gt; GPU_HW
+GPU_HW --&gt;|10. 输出合成后的 Buffer| BQ_Target[Framebuffer Target]
+BQ_Target --&gt; HWC
 %% 执行路径 B: 硬件合成 (Device Composition)
-Strategy --&amp;#34;8b. 纯硬件合成 (Device Overlay)&amp;#34;--&amp;gt; HWC
+Strategy --"8b. 纯硬件合成 (Device Overlay)"--&gt; HWC
 %% 最终提交
-HWC --&amp;gt;|11. PresentDisplay (Atomic Commit)| DPU_HW
-DPU_HW --&amp;gt;|12. 扫描输出| Panel
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="亮度调节失败引发surfaceflinger合成策略选择失败的时序图"&gt;亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图&lt;/h3&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+HWC --&gt;|11. PresentDisplay (Atomic Commit)| DPU_HW
+DPU_HW --&gt;|12. 扫描输出| Panel
+&lt;/div&gt;&lt;h3 id="亮度调节失败引发surfaceflinger合成策略选择失败的时序图"&gt;亮度调节失败引发SurfaceFlinger合成策略选择失败的时序图&lt;/h3&gt;
+&lt;pre class="plantuml-container" hidden&gt;
+&lt;code class="language-plantuml"&gt;@startuml
 !theme plain
 &amp;#39; skinparam MaxMessageSize 300
 skinparam participantPadding 10
@@ -496,8 +499,8 @@ CE -&amp;gt; CE: if (result != NO_ERROR)
 note right of CE: &amp;lt;font color=red&amp;gt;&amp;lt;b&amp;gt;[Log 3] E CompositionEngine : chooseCompositionStrategy failed...&amp;lt;/b&amp;gt;&amp;lt;/font&amp;gt;
 CE -&amp;gt; CE: return false
 note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
-@enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
+@enduml&lt;/code&gt;
+&lt;/pre&gt;&lt;hr&gt;
 &lt;h3 id="详细说明为什么会失败"&gt;详细说明：为什么会失败&lt;/h3&gt;
 &lt;h4 id="1-根本原因-root-cause"&gt;1. 根本原因 (Root Cause)&lt;/h4&gt;
 &lt;p&gt;故障发生在 &lt;strong&gt;阶段 2&lt;/strong&gt; 的底层 &lt;code&gt;HWPeripheralDRM&lt;/code&gt; 中。&lt;/p&gt;</description></item></channel></rss>
