@@ -1,14 +1,11 @@
 +++
 date = '2025-09-29T10:22:54+08:00'
 draft = false
-title = 'SurfaceFlinger详解'
+title = 'Android SurfaceFlinger 深度解析'
 +++
 
-## RenderEngine详解
+SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。
 
-### RenderEngine 创建与初始化
-
-### RenderEngine的工作原理
 
 ## Display创建过程
 

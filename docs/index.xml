@@ -430,7 +430,76 @@ RenderEngineThreaded o-- RenderEngine : 包装实际实现 (Impl)
 &lt;/code&gt;&lt;/pre&gt;&lt;h3 id="12-关键组件工作机制"&gt;1.2 关键组件工作机制&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;&lt;code&gt;RenderEngine&lt;/code&gt; (Interface)&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;&lt;code&gt;RenderEngine&lt;/code&gt; (Interface)&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title>Android SurfaceFlinger 深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</guid><description>&lt;p&gt;SurfaceFlinger 是 Android 图形栈的核心，它就像一个幕后指挥家，协调着应用程序的绘制、系统的合成以及最终的屏幕显示。本文将深入源码，剖析从 Display 创建、Layer 管理、合成策略到最终 RenderEngine 渲染的完整技术链路。&lt;/p&gt;
+&lt;h2 id="display创建过程"&gt;Display创建过程&lt;/h2&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;sequenceDiagram
+autonumber
+%% 定义参与者
+participant HWC as HWC/Kernel
+participant DisplayManagerService as DisplayManagerService
+participant SF as SurfaceFlinger(MainThread)
+participant CE as CompositionEngine
+participant BQ as BufferQueue
+participant VDS as VirtualDisplaySurface
+participant FBS as FramebufferSurface
+participant DD as DisplayDevice
+participant Scheduler as Scheduler
+box &amp;#34;触发源 (Triggers)&amp;#34; #f9f9f9
+participant HWC
+participant DisplayManagerService
+end
+box &amp;#34;SurfaceFlinger&amp;#34; #e1f5fe
+participant SF
+participant Scheduler
+participant DD
+participant CE
+participant BQ
+participant VDS
+participant FBS
+end
+%% === 第一阶段：触发 ===
+rect rgb(255, 240, 240)
+note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟)
+alt 物理屏幕插入 (Hotplug)
+HWC -&amp;gt;&amp;gt; SF: onHotplugReceived(displayId, connected=true)
+SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
+SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
+else 虚拟屏幕请求 (Virtual)
+DisplayManagerService -&amp;gt;&amp;gt; SF: createDisplay(name, secure)
+SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
+SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
+end
+end
+%% === 第二阶段：主循环处理 ===
+SF -&amp;gt;&amp;gt; SF: onMessageInvalidate() -&amp;gt; handleMessageTransaction()
+SF -&amp;gt;&amp;gt; SF: processDisplayChangesLocked()
+note right of SF: 发现 mCurrentState 有新 token&amp;lt;br/&amp;gt;而 mDrawingState 没有
+%% === 第三阶段：核心工厂方法 ===
+rect rgb(255, 250, 230)
+note right of SF: 阶段 2: 核心工厂 (processDisplayAdded)
+SF -&amp;gt;&amp;gt; SF: processDisplayAdded(token, state)
+%% 1. 创建 CE Display
+SF -&amp;gt;&amp;gt; CE: createDisplay(args)
+activate CE
+CE --&amp;gt;&amp;gt; SF: return compositionDisplay
+deactivate CE
+%% 2. 创建 Buffer 管道
+SF -&amp;gt;&amp;gt; BQ: createBufferQueue()
+BQ --&amp;gt;&amp;gt; SF: return (producer, consumer)
+%% 3. 创建 Surface (分叉逻辑)
+note right of SF: 阶段 3: 注册与激活
+alt 物理屏幕
+SF -&amp;gt;&amp;gt; Scheduler: registerDisplay(physicalId, refreshRateSelector)
+end
+SF -&amp;gt;&amp;gt; SF: mDisplays.add(token, displayDevice)
+opt 如果是物理屏幕
+SF -&amp;gt;&amp;gt; HWC: setPowerMode(ON)
+SF -&amp;gt;&amp;gt; SF: onActiveDisplayChangedLocked (如果是主屏)
+end
+end
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="layer管理与渲染"&gt;Layer管理与渲染&lt;/h2&gt;
+&lt;h3 id="layer-核心架构类图"&gt;Layer 核心架构类图&lt;/h3&gt;
+&lt;p&gt;这张图展示了 &lt;strong&gt;SurfaceFlinger&lt;/strong&gt;（管理状态）、&lt;strong&gt;LayerFE&lt;/strong&gt;（数据快照/接口）和 &lt;strong&gt;CompositionEngine&lt;/strong&gt;（合成逻辑）之间的静态关系。&lt;/p&gt;</description></item><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
 &lt;p&gt;这个时序图展示了从底层物理屏幕发现到上层窗口管理容器创建的完整链路。&lt;/p&gt;
 &lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-13-LogicalDisplay-creating-sequence.png" alt="" /&gt;&lt;/p&gt;
 &lt;ol&gt;
@@ -479,7 +548,134 @@ RenderEngineThreaded o-- RenderEngine : 包装实际实现 (Impl)
 &lt;li&gt;在 &lt;code&gt;WindowManagerService&lt;/code&gt; 中，通常通过 &lt;code&gt;DisplayManager&lt;/code&gt; 的回调 &lt;code&gt;onDisplayAdded&lt;/code&gt; 感知，然后调用 &lt;code&gt;mRoot.createDisplayContent&lt;/code&gt;。在提供的代码中，&lt;code&gt;DisplayManagerService&lt;/code&gt; 拥有 &lt;code&gt;mDisplayTransactionListeners&lt;/code&gt;。&lt;/li&gt;
 &lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 的 &lt;code&gt;handleLogicalDisplayAddedLocked&lt;/code&gt; 会调用 &lt;code&gt;sendDisplayEventLocked&lt;/code&gt;，进而触发回调。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;&lt;em&gt;补充：&lt;code&gt;WindowManagerService&lt;/code&gt; 如何创建 &lt;code&gt;DisplayContent&lt;/code&gt;&lt;/em&gt;&lt;/p&gt;</description></item><item><title>Insets animation flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid><description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;补充：&lt;code&gt;WindowManagerService&lt;/code&gt; 如何创建 &lt;code&gt;DisplayContent&lt;/code&gt;&lt;/em&gt;&lt;/p&gt;</description></item><item><title>HWC简介</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/composor/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/composor/</guid><description>&lt;p&gt;HWC 服务启动到底层 Display 对象创建完成的完整时序,这个过程主要分为三个阶段：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;服务启动与依赖注入&lt;/strong&gt;：&lt;code&gt;service.cpp&lt;/code&gt; 启动进程，创建 AIDL 服务实体。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SDM 环境初始化&lt;/strong&gt;：&lt;code&gt;ConcurrencyMgr&lt;/code&gt; 初始化，加载 Core 层和硬件信息。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Display 对象构建&lt;/strong&gt;：&lt;code&gt;DisplayBuilder&lt;/code&gt; 根据硬件信息创建具体的 &lt;code&gt;DisplayBuiltIn&lt;/code&gt; 和 &lt;code&gt;HWPeripheralDRM&lt;/code&gt;。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="qualcomm-hwc-启动与-display-创建全流程"&gt;Qualcomm HWC 启动与 Display 创建全流程&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+skinparam MaxMessageSize 200
+skinparam participantPadding 10
+skinparam boxPadding 10
+skinparam defaultFontName Monospaced
+autonumber &amp;#34;&amp;lt;b&amp;gt;[Boot-0]&amp;lt;/b&amp;gt;&amp;#34;
+title HWC Service Startup &amp;amp; Display Creation Sequence (Final Fix)
+box &amp;#34;Service Process Entry&amp;#34; #White
+participant &amp;#34;Main (service.cpp)&amp;#34; as Main
+participant &amp;#34;AidlComposer\n(BnComposer)&amp;#34; as AC
+end box
+box &amp;#34;SDM Client Layer&amp;#34; #LightYellow
+participant &amp;#34;SDMInterfaceFactory&amp;#34; as Factory
+participant &amp;#34;ConcurrencyMgr&amp;#34; as CM
+participant &amp;#34;SDMDisplayBuilder&amp;#34; as Builder
+end box
+box &amp;#34;SDM Core Layer&amp;#34; #LightGreen
+participant &amp;#34;CoreInterface&amp;#34; as CoreStatic
+participant &amp;#34;CoreImpl&amp;#34; as Core
+participant &amp;#34;DisplayBuiltIn&amp;#34; as DBI
+participant &amp;#34;DPUMultiCore\n(Mux)&amp;#34; as Mux
+end box
+box &amp;#34;Device Abstraction Layer (DAL)&amp;#34; #LightGray
+participant &amp;#34;HWInfoInterface&amp;#34; as HWInfo
+participant &amp;#34;HWInterface\n(Factory)&amp;#34; as HWFactory
+participant &amp;#34;HWPeripheralDRM&amp;#34; as HW
+end box
+== 阶段 1: 服务启动与接口绑定 ==
+Main -&amp;gt; Main: setpriority / sched_setscheduler
+create AC
+Main -&amp;gt; AC: **new AidlComposer()**
+activate AC
+&amp;#39; 1.1 创建核心管理对象 ConcurrencyMgr
+AC -&amp;gt; Factory: CreateLifeCycleIntf() / CreateSettingsIntf() ...
+activate Factory
+Factory -&amp;gt; CM: **GetInstance()** (Singleton)
+activate CM
+CM --&amp;gt; Factory: instance
+deactivate CM
+Factory --&amp;gt; AC: shared_ptr&amp;lt;ConcurrencyMgr&amp;gt;
+deactivate Factory
+&amp;#39; 1.2 初始化 ConcurrencyMgr
+AC -&amp;gt; CM: **Init(buffer_allocator, ...)**
+activate CM
+== 阶段 2: SDM 核心环境初始化 ==
+CM -&amp;gt; CM: InitSubModules()
+&amp;#39; 2.1 创建 CoreImpl
+CM -&amp;gt; CoreStatic: **CreateCore(...)**
+activate CoreStatic
+create Core
+CoreStatic -&amp;gt; Core: new CoreImpl(...)
+Core -&amp;gt; Core: Init()
+&amp;#39; 2.2 加载硬件信息 (DRM Capability)
+Core -&amp;gt; HWInfo: Create(&amp;amp;hw_info_intf)
+activate HWInfo
+HWInfo -&amp;gt; HWInfo: Open DRM / Get Caps
+HWInfo --&amp;gt; Core: Success
+deactivate HWInfo
+Core --&amp;gt; CoreStatic: Success
+CoreStatic --&amp;gt; CM: core_intf_
+deactivate CoreStatic
+&amp;#39; 2.3 创建 Builder
+create Builder
+CM -&amp;gt; Builder: new SDMDisplayBuilder(core_intf_, ...)
+CM -&amp;gt; Builder: Init()
+== 阶段 3: 创建主显示设备 (Primary Display) ==
+CM -&amp;gt; CM: CreatePrimaryDisplay()
+CM -&amp;gt; Builder: **CreatePrimaryDisplay()**
+activate Builder
+&amp;#39; 3.1 查询连接状态
+Builder -&amp;gt; Core: GetDisplaysStatus()
+Core -&amp;gt; HWInfo: GetDisplaysStatus()
+HWInfo --&amp;gt; Core: HWDisplaysInfo (is_connected=true, type=BuiltIn)
+Core --&amp;gt; Builder: HWDisplaysInfo
+&amp;#39; 3.2 发现 Primary BuiltIn Display，开始构建
+create DBI
+Builder -&amp;gt; DBI: **Create(...)**
+activate DBI
+DBI -&amp;gt; DBI: Init()
+&amp;#39; 3.3 创建 DPU Mux (处理多核/Split)
+&amp;#39; [修复点] create Mux 必须紧邻发送给 Mux 的消息
+create Mux
+DBI -&amp;gt; Mux: **DPUCoreFactory::Create(...)**
+activate Mux
+Mux -&amp;gt; Mux: Init()
+&amp;#39; 3.4 创建底层 HW Interface
+loop For Each DPU Core
+Mux -&amp;gt; HWFactory: **HWInterface::Create(type=kBuiltIn)**
+activate HWFactory
+create HW
+HWFactory -&amp;gt; HW: **new HWPeripheralDRM(...)**
+activate HW
+HWFactory -&amp;gt; HW: Init()
+&amp;#39; 3.5 HW 初始化 (DRM Session)
+HW -&amp;gt; HW: HWDeviceDRM::Init() (Register Display)
+HW -&amp;gt; HW: PopulateHWPanelInfo() (Read Max Brightness)
+HW --&amp;gt; HWFactory: Success
+deactivate HW
+HWFactory --&amp;gt; Mux: HWInterface*
+deactivate HWFactory
+end
+Mux --&amp;gt; DBI: Success
+deactivate Mux
+DBI --&amp;gt; Builder: Display*
+deactivate DBI
+&amp;#39; 3.6 注册回 ConcurrencyMgr
+Builder -&amp;gt; CM: SetDisplayByClientId(Primary, DBI*)
+note right of CM: sdm_display_[0] = DBI
+Builder --&amp;gt; CM: Success
+deactivate Builder
+CM --&amp;gt; AC: Success
+deactivate CM
+AC --&amp;gt; Main: Created
+deactivate AC
+Main -&amp;gt; Main: AServiceManager_addService(AidlComposer)
+note right of Main: 服务就绪，等待 SurfaceFlinger 连接
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="关键步骤解析"&gt;关键步骤解析&lt;/h3&gt;
+&lt;h4 id="1-唯一入口servicecpp"&gt;1. 唯一入口：&lt;code&gt;service.cpp&lt;/code&gt;&lt;/h4&gt;
+&lt;p&gt;这是 HWC 进程的起点。它并没有直接去操作硬件，而是先创建了 &lt;code&gt;AidlComposer&lt;/code&gt;。这符合 Android VINTF 架构，将 AIDL 接口作为服务的门面。&lt;/p&gt;</description></item><item><title>Insets animation flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid><description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
 &lt;p&gt;以下是一些典型的应用场景，从最常见到更高级的交互：&lt;/p&gt;
 &lt;h3 id="1-核心场景键盘的显示与隐藏-messaging--input"&gt;1. 核心场景：键盘的显示与隐藏 (Messaging &amp;amp; Input)&lt;/h3&gt;
 &lt;p&gt;这是最经典、最能体现其价值的场景。&lt;/p&gt;
@@ -584,78 +780,7 @@ RenderEngineThreaded o-- RenderEngine : 包装实际实现 (Impl)
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog start
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
-&lt;/ol&gt;</description></item><item><title>SurfaceFlinger详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</guid><description>&lt;h2 id="renderengine详解"&gt;RenderEngine详解&lt;/h2&gt;
-&lt;h3 id="renderengine-创建与初始化"&gt;RenderEngine 创建与初始化&lt;/h3&gt;
-&lt;h3 id="renderengine的工作原理"&gt;RenderEngine的工作原理&lt;/h3&gt;
-&lt;h2 id="display创建过程"&gt;Display创建过程&lt;/h2&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;sequenceDiagram
-autonumber
-%% 定义参与者
-participant HWC as HWC/Kernel
-participant DisplayManagerService as DisplayManagerService
-participant SF as SurfaceFlinger(MainThread)
-participant CE as CompositionEngine
-participant BQ as BufferQueue
-participant VDS as VirtualDisplaySurface
-participant FBS as FramebufferSurface
-participant DD as DisplayDevice
-participant Scheduler as Scheduler
-box &amp;#34;触发源 (Triggers)&amp;#34; #f9f9f9
-participant HWC
-participant DisplayManagerService
-end
-box &amp;#34;SurfaceFlinger&amp;#34; #e1f5fe
-participant SF
-participant Scheduler
-participant DD
-participant CE
-participant BQ
-participant VDS
-participant FBS
-end
-%% === 第一阶段：触发 ===
-rect rgb(255, 240, 240)
-note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟)
-alt 物理屏幕插入 (Hotplug)
-HWC -&amp;gt;&amp;gt; SF: onHotplugReceived(displayId, connected=true)
-SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
-SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
-else 虚拟屏幕请求 (Virtual)
-DisplayManagerService -&amp;gt;&amp;gt; SF: createDisplay(name, secure)
-SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
-SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
-end
-end
-%% === 第二阶段：主循环处理 ===
-SF -&amp;gt;&amp;gt; SF: onMessageInvalidate() -&amp;gt; handleMessageTransaction()
-SF -&amp;gt;&amp;gt; SF: processDisplayChangesLocked()
-note right of SF: 发现 mCurrentState 有新 token&amp;lt;br/&amp;gt;而 mDrawingState 没有
-%% === 第三阶段：核心工厂方法 ===
-rect rgb(255, 250, 230)
-note right of SF: 阶段 2: 核心工厂 (processDisplayAdded)
-SF -&amp;gt;&amp;gt; SF: processDisplayAdded(token, state)
-%% 1. 创建 CE Display
-SF -&amp;gt;&amp;gt; CE: createDisplay(args)
-activate CE
-CE --&amp;gt;&amp;gt; SF: return compositionDisplay
-deactivate CE
-%% 2. 创建 Buffer 管道
-SF -&amp;gt;&amp;gt; BQ: createBufferQueue()
-BQ --&amp;gt;&amp;gt; SF: return (producer, consumer)
-%% 3. 创建 Surface (分叉逻辑)
-note right of SF: 阶段 3: 注册与激活
-alt 物理屏幕
-SF -&amp;gt;&amp;gt; Scheduler: registerDisplay(physicalId, refreshRateSelector)
-end
-SF -&amp;gt;&amp;gt; SF: mDisplays.add(token, displayDevice)
-opt 如果是物理屏幕
-SF -&amp;gt;&amp;gt; HWC: setPowerMode(ON)
-SF -&amp;gt;&amp;gt; SF: onActiveDisplayChangedLocked (如果是主屏)
-end
-end
-&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="layer管理与渲染"&gt;Layer管理与渲染&lt;/h2&gt;
-&lt;h3 id="layer-核心架构类图"&gt;Layer 核心架构类图&lt;/h3&gt;
-&lt;p&gt;这张图展示了 &lt;strong&gt;SurfaceFlinger&lt;/strong&gt;（管理状态）、&lt;strong&gt;LayerFE&lt;/strong&gt;（数据快照/接口）和 &lt;strong&gt;CompositionEngine&lt;/strong&gt;（合成逻辑）之间的静态关系。&lt;/p&gt;</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</guid><description>&lt;h2 id="binder-spam-detection原理"&gt;Binder spam detection原理&lt;/h2&gt;
+&lt;/ol&gt;</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</guid><description>&lt;h2 id="binder-spam-detection原理"&gt;Binder spam detection原理&lt;/h2&gt;
 &lt;p&gt;当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:&lt;/p&gt;
 &lt;pre tabindex="0"&gt;&lt;code&gt;IPCThreadState: Process seems to be sending too many oneway calls.
 &lt;/code&gt;&lt;/pre&gt;&lt;h3 id="核心原因"&gt;核心原因&lt;/h3&gt;
@@ -2359,134 +2484,7 @@ HBLK --&amp;gt; DISK
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/composor/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/composor/</guid><description>&lt;p&gt;HWC 服务启动到底层 Display 对象创建完成的完整时序,这个过程主要分为三个阶段：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;&lt;strong&gt;服务启动与依赖注入&lt;/strong&gt;：&lt;code&gt;service.cpp&lt;/code&gt; 启动进程，创建 AIDL 服务实体。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;SDM 环境初始化&lt;/strong&gt;：&lt;code&gt;ConcurrencyMgr&lt;/code&gt; 初始化，加载 Core 层和硬件信息。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Display 对象构建&lt;/strong&gt;：&lt;code&gt;DisplayBuilder&lt;/code&gt; 根据硬件信息创建具体的 &lt;code&gt;DisplayBuiltIn&lt;/code&gt; 和 &lt;code&gt;HWPeripheralDRM&lt;/code&gt;。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h3 id="qualcomm-hwc-启动与-display-创建全流程"&gt;Qualcomm HWC 启动与 Display 创建全流程&lt;/h3&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
-!theme plain
-skinparam MaxMessageSize 200
-skinparam participantPadding 10
-skinparam boxPadding 10
-skinparam defaultFontName Monospaced
-autonumber &amp;#34;&amp;lt;b&amp;gt;[Boot-0]&amp;lt;/b&amp;gt;&amp;#34;
-title HWC Service Startup &amp;amp; Display Creation Sequence (Final Fix)
-box &amp;#34;Service Process Entry&amp;#34; #White
-participant &amp;#34;Main (service.cpp)&amp;#34; as Main
-participant &amp;#34;AidlComposer\n(BnComposer)&amp;#34; as AC
-end box
-box &amp;#34;SDM Client Layer&amp;#34; #LightYellow
-participant &amp;#34;SDMInterfaceFactory&amp;#34; as Factory
-participant &amp;#34;ConcurrencyMgr&amp;#34; as CM
-participant &amp;#34;SDMDisplayBuilder&amp;#34; as Builder
-end box
-box &amp;#34;SDM Core Layer&amp;#34; #LightGreen
-participant &amp;#34;CoreInterface&amp;#34; as CoreStatic
-participant &amp;#34;CoreImpl&amp;#34; as Core
-participant &amp;#34;DisplayBuiltIn&amp;#34; as DBI
-participant &amp;#34;DPUMultiCore\n(Mux)&amp;#34; as Mux
-end box
-box &amp;#34;Device Abstraction Layer (DAL)&amp;#34; #LightGray
-participant &amp;#34;HWInfoInterface&amp;#34; as HWInfo
-participant &amp;#34;HWInterface\n(Factory)&amp;#34; as HWFactory
-participant &amp;#34;HWPeripheralDRM&amp;#34; as HW
-end box
-== 阶段 1: 服务启动与接口绑定 ==
-Main -&amp;gt; Main: setpriority / sched_setscheduler
-create AC
-Main -&amp;gt; AC: **new AidlComposer()**
-activate AC
-&amp;#39; 1.1 创建核心管理对象 ConcurrencyMgr
-AC -&amp;gt; Factory: CreateLifeCycleIntf() / CreateSettingsIntf() ...
-activate Factory
-Factory -&amp;gt; CM: **GetInstance()** (Singleton)
-activate CM
-CM --&amp;gt; Factory: instance
-deactivate CM
-Factory --&amp;gt; AC: shared_ptr&amp;lt;ConcurrencyMgr&amp;gt;
-deactivate Factory
-&amp;#39; 1.2 初始化 ConcurrencyMgr
-AC -&amp;gt; CM: **Init(buffer_allocator, ...)**
-activate CM
-== 阶段 2: SDM 核心环境初始化 ==
-CM -&amp;gt; CM: InitSubModules()
-&amp;#39; 2.1 创建 CoreImpl
-CM -&amp;gt; CoreStatic: **CreateCore(...)**
-activate CoreStatic
-create Core
-CoreStatic -&amp;gt; Core: new CoreImpl(...)
-Core -&amp;gt; Core: Init()
-&amp;#39; 2.2 加载硬件信息 (DRM Capability)
-Core -&amp;gt; HWInfo: Create(&amp;amp;hw_info_intf)
-activate HWInfo
-HWInfo -&amp;gt; HWInfo: Open DRM / Get Caps
-HWInfo --&amp;gt; Core: Success
-deactivate HWInfo
-Core --&amp;gt; CoreStatic: Success
-CoreStatic --&amp;gt; CM: core_intf_
-deactivate CoreStatic
-&amp;#39; 2.3 创建 Builder
-create Builder
-CM -&amp;gt; Builder: new SDMDisplayBuilder(core_intf_, ...)
-CM -&amp;gt; Builder: Init()
-== 阶段 3: 创建主显示设备 (Primary Display) ==
-CM -&amp;gt; CM: CreatePrimaryDisplay()
-CM -&amp;gt; Builder: **CreatePrimaryDisplay()**
-activate Builder
-&amp;#39; 3.1 查询连接状态
-Builder -&amp;gt; Core: GetDisplaysStatus()
-Core -&amp;gt; HWInfo: GetDisplaysStatus()
-HWInfo --&amp;gt; Core: HWDisplaysInfo (is_connected=true, type=BuiltIn)
-Core --&amp;gt; Builder: HWDisplaysInfo
-&amp;#39; 3.2 发现 Primary BuiltIn Display，开始构建
-create DBI
-Builder -&amp;gt; DBI: **Create(...)**
-activate DBI
-DBI -&amp;gt; DBI: Init()
-&amp;#39; 3.3 创建 DPU Mux (处理多核/Split)
-&amp;#39; [修复点] create Mux 必须紧邻发送给 Mux 的消息
-create Mux
-DBI -&amp;gt; Mux: **DPUCoreFactory::Create(...)**
-activate Mux
-Mux -&amp;gt; Mux: Init()
-&amp;#39; 3.4 创建底层 HW Interface
-loop For Each DPU Core
-Mux -&amp;gt; HWFactory: **HWInterface::Create(type=kBuiltIn)**
-activate HWFactory
-create HW
-HWFactory -&amp;gt; HW: **new HWPeripheralDRM(...)**
-activate HW
-HWFactory -&amp;gt; HW: Init()
-&amp;#39; 3.5 HW 初始化 (DRM Session)
-HW -&amp;gt; HW: HWDeviceDRM::Init() (Register Display)
-HW -&amp;gt; HW: PopulateHWPanelInfo() (Read Max Brightness)
-HW --&amp;gt; HWFactory: Success
-deactivate HW
-HWFactory --&amp;gt; Mux: HWInterface*
-deactivate HWFactory
-end
-Mux --&amp;gt; DBI: Success
-deactivate Mux
-DBI --&amp;gt; Builder: Display*
-deactivate DBI
-&amp;#39; 3.6 注册回 ConcurrencyMgr
-Builder -&amp;gt; CM: SetDisplayByClientId(Primary, DBI*)
-note right of CM: sdm_display_[0] = DBI
-Builder --&amp;gt; CM: Success
-deactivate Builder
-CM --&amp;gt; AC: Success
-deactivate CM
-AC --&amp;gt; Main: Created
-deactivate AC
-Main -&amp;gt; Main: AServiceManager_addService(AidlComposer)
-note right of Main: 服务就绪，等待 SurfaceFlinger 连接
-@enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="关键步骤解析"&gt;关键步骤解析&lt;/h3&gt;
-&lt;h4 id="1-唯一入口servicecpp"&gt;1. 唯一入口：&lt;code&gt;service.cpp&lt;/code&gt;&lt;/h4&gt;
-&lt;p&gt;这是 HWC 进程的起点。它并没有直接去操作硬件，而是先创建了 &lt;code&gt;AidlComposer&lt;/code&gt;。这符合 Android VINTF 架构，将 AIDL 接口作为服务的门面。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;graph TD
+&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;graph TD
 !theme plain
 %% --- 定义样式 ---
 classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
