@@ -503,7 +503,75 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog start
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
-&lt;/ol&gt;</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</guid><description>&lt;h2 id="binder-spam-detection原理"&gt;Binder spam detection原理&lt;/h2&gt;
+&lt;/ol&gt;</description></item><item><title>SurfaceFlinger详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</guid><description>&lt;h2 id="display创建过程"&gt;Display创建过程&lt;/h2&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;sequenceDiagram
+autonumber
+%% 定义参与者
+participant HWC as HWC/Kernel
+participant DisplayManagerService as DisplayManagerService
+participant SF as SurfaceFlinger(MainThread)
+participant CE as CompositionEngine
+participant BQ as BufferQueue
+participant VDS as VirtualDisplaySurface
+participant FBS as FramebufferSurface
+participant DD as DisplayDevice
+participant Scheduler as Scheduler
+box &amp;#34;触发源 (Triggers)&amp;#34; #f9f9f9
+participant HWC
+participant DisplayManagerService
+end
+box &amp;#34;SurfaceFlinger&amp;#34; #e1f5fe
+participant SF
+participant Scheduler
+participant DD
+participant CE
+participant BQ
+participant VDS
+participant FBS
+end
+%% === 第一阶段：触发 ===
+rect rgb(255, 240, 240)
+note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟)
+alt 物理屏幕插入 (Hotplug)
+HWC -&amp;gt;&amp;gt; SF: onHotplugReceived(displayId, connected=true)
+SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
+SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
+else 虚拟屏幕请求 (Virtual)
+DisplayManagerService -&amp;gt;&amp;gt; SF: createDisplay(name, secure)
+SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
+SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
+end
+end
+%% === 第二阶段：主循环处理 ===
+SF -&amp;gt;&amp;gt; SF: onMessageInvalidate() -&amp;gt; handleMessageTransaction()
+SF -&amp;gt;&amp;gt; SF: processDisplayChangesLocked()
+note right of SF: 发现 mCurrentState 有新 token&amp;lt;br/&amp;gt;而 mDrawingState 没有
+%% === 第三阶段：核心工厂方法 ===
+rect rgb(255, 250, 230)
+note right of SF: 阶段 2: 核心工厂 (processDisplayAdded)
+SF -&amp;gt;&amp;gt; SF: processDisplayAdded(token, state)
+%% 1. 创建 CE Display
+SF -&amp;gt;&amp;gt; CE: createDisplay(args)
+activate CE
+CE --&amp;gt;&amp;gt; SF: return compositionDisplay
+deactivate CE
+%% 2. 创建 Buffer 管道
+SF -&amp;gt;&amp;gt; BQ: createBufferQueue()
+BQ --&amp;gt;&amp;gt; SF: return (producer, consumer)
+%% 3. 创建 Surface (分叉逻辑)
+note right of SF: 阶段 3: 注册与激活
+alt 物理屏幕
+SF -&amp;gt;&amp;gt; Scheduler: registerDisplay(physicalId, refreshRateSelector)
+end
+SF -&amp;gt;&amp;gt; SF: mDisplays.add(token, displayDevice)
+opt 如果是物理屏幕
+SF -&amp;gt;&amp;gt; HWC: setPowerMode(ON)
+SF -&amp;gt;&amp;gt; SF: onActiveDisplayChangedLocked (如果是主屏)
+end
+end
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="layer管理与渲染"&gt;Layer管理与渲染&lt;/h2&gt;
+&lt;h3 id="layer-核心架构类图"&gt;Layer 核心架构类图&lt;/h3&gt;
+&lt;p&gt;这张图展示了 &lt;strong&gt;SurfaceFlinger&lt;/strong&gt;（管理状态）、&lt;strong&gt;LayerFE&lt;/strong&gt;（数据快照/接口）和 &lt;strong&gt;CompositionEngine&lt;/strong&gt;（合成逻辑）之间的静态关系。&lt;/p&gt;</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/spamming-oneway/</guid><description>&lt;h2 id="binder-spam-detection原理"&gt;Binder spam detection原理&lt;/h2&gt;
 &lt;p&gt;当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:&lt;/p&gt;
 &lt;pre tabindex="0"&gt;&lt;code&gt;IPCThreadState: Process seems to be sending too many oneway calls.
 &lt;/code&gt;&lt;/pre&gt;&lt;h3 id="核心原因"&gt;核心原因&lt;/h3&gt;
@@ -2510,182 +2578,7 @@ note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
 &lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
 &lt;h3 id="详细说明为什么会失败"&gt;详细说明：为什么会失败&lt;/h3&gt;
 &lt;h4 id="1-根本原因-root-cause"&gt;1. 根本原因 (Root Cause)&lt;/h4&gt;
-&lt;p&gt;故障发生在 &lt;strong&gt;阶段 2&lt;/strong&gt; 的底层 &lt;code&gt;HWPeripheralDRM&lt;/code&gt; 中。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/surfaceflinger_composition/</guid><description>&lt;h2 id="display创建过程"&gt;Display创建过程&lt;/h2&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;sequenceDiagram
-autonumber
-%% 定义参与者
-participant HWC as HWC/Kernel
-participant DisplayManagerService as DisplayManagerService
-participant SF as SurfaceFlinger(MainThread)
-participant CE as CompositionEngine
-participant BQ as BufferQueue
-participant VDS as VirtualDisplaySurface
-participant FBS as FramebufferSurface
-participant DD as DisplayDevice
-participant Scheduler as Scheduler
-box &amp;#34;触发源 (Triggers)&amp;#34; #f9f9f9
-participant HWC
-participant DisplayManagerService
-end
-box &amp;#34;SurfaceFlinger&amp;#34; #e1f5fe
-participant SF
-participant Scheduler
-participant DD
-participant CE
-participant BQ
-participant VDS
-participant FBS
-end
-%% === 第一阶段：触发 ===
-rect rgb(255, 240, 240)
-note right of SF: 阶段 1: 触发创建 (物理 vs 虚拟)
-alt 物理屏幕插入 (Hotplug)
-HWC -&amp;gt;&amp;gt; SF: onHotplugReceived(displayId, connected=true)
-SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
-SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
-else 虚拟屏幕请求 (Virtual)
-DisplayManagerService -&amp;gt;&amp;gt; SF: createDisplay(name, secure)
-SF -&amp;gt;&amp;gt; SF: update mCurrentState (add Display)
-SF -&amp;gt;&amp;gt; SF: setTransactionFlags(eDisplayTransactionNeeded)
-end
-end
-%% === 第二阶段：主循环处理 ===
-SF -&amp;gt;&amp;gt; SF: onMessageInvalidate() -&amp;gt; handleMessageTransaction()
-SF -&amp;gt;&amp;gt; SF: processDisplayChangesLocked()
-note right of SF: 发现 mCurrentState 有新 token&amp;lt;br/&amp;gt;而 mDrawingState 没有
-%% === 第三阶段：核心工厂方法 ===
-rect rgb(255, 250, 230)
-note right of SF: 阶段 2: 核心工厂 (processDisplayAdded)
-SF -&amp;gt;&amp;gt; SF: processDisplayAdded(token, state)
-%% 1. 创建 CE Display
-SF -&amp;gt;&amp;gt; CE: createDisplay(args)
-activate CE
-CE --&amp;gt;&amp;gt; SF: return compositionDisplay
-deactivate CE
-%% 2. 创建 Buffer 管道
-SF -&amp;gt;&amp;gt; BQ: createBufferQueue()
-BQ --&amp;gt;&amp;gt; SF: return (producer, consumer)
-%% 3. 创建 Surface (分叉逻辑)
-alt 是虚拟屏幕 (Virtual)
-SF -&amp;gt;&amp;gt; VDS: new VirtualDisplaySurface(bqProducer, ...)
-VDS --&amp;gt;&amp;gt; SF: return displaySurface
-else 是物理屏幕 (Physical)
-SF -&amp;gt;&amp;gt; FBS: new FramebufferSurface(hwc, displayId, consumer, ...)
-FBS --&amp;gt;&amp;gt; SF: return displaySurface
-end
-%% 4. 创建 DisplayDevice 对象
-SF -&amp;gt;&amp;gt; SF: setupNewDisplayDeviceInternal(...)
-SF -&amp;gt;&amp;gt; DD: new DisplayDevice(compositionDisplay, displaySurface, ...)
-activate DD
-DD --&amp;gt;&amp;gt; SF: return displayDevice
-deactivate DD
-end
-%% === 第四阶段：注册与激活 ===
-rect rgb(240, 255, 240)
-note right of SF: 阶段 3: 注册与激活
-alt 物理屏幕
-SF -&amp;gt;&amp;gt; Scheduler: registerDisplay(physicalId, refreshRateSelector)
-end
-SF -&amp;gt;&amp;gt; SF: mDisplays.add(token, displayDevice)
-opt 如果是物理屏幕
-SF -&amp;gt;&amp;gt; HWC: setPowerMode(ON)
-SF -&amp;gt;&amp;gt; SF: onActiveDisplayChangedLocked (如果是主屏)
-end
-end
-&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="display的管理"&gt;Display的管理&lt;/h2&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
-!theme plain
-hide empty members
-&amp;#39; 强制使用直角线，避免曲线
-skinparam linetype ortho
-&amp;#39; 增加节点间距，防止挤在一起
-skinparam nodesep 80
-skinparam ranksep 60
-&amp;#39; ==========================================
-&amp;#39; 核心类定义
-&amp;#39; ==========================================
-class SurfaceFlinger {
-- mDisplays
-+ processDisplayAdded()
-}
-class DisplayDevice {
-- mCompositionDisplay
-- mDisplaySurface
-}
-class Display {
-&amp;#39; 逻辑对象
-}
-abstract class Output {
-- mRenderSurface
-+ composeSurfaces()
-}
-class RenderSurface {
-- mNativeWindow
-- mDisplaySurface
-+ queueBuffer()
-}
-note left of RenderSurface
-&amp;lt;b&amp;gt;[双面胶]&amp;lt;/b&amp;gt;
-左手: 数据流 (NativeWindow)
-右手: 控制流 (DisplaySurface)
-end note
-class RenderEngine {
-+ drawLayers()
-}
-interface DisplaySurface {
-+ advanceFrame()
-}
-class FramebufferSurface {
-+ advanceFrame()
-+ setClientTarget()
-}
-interface &amp;#34;\t\tANativeWindow\t\t&amp;#34; as ANativeWindow{
-+ queueBuffer()
-}
-class HWComposer {
-+ setClientTarget()
-}
-&amp;#39; ==========================================
-&amp;#39; 底层 BufferQueue 定义 (使用 together 强制在一起)
-&amp;#39; ==========================================
-package &amp;#34;BufferQueue System&amp;#34; &amp;lt;&amp;lt;Rectangle&amp;gt;&amp;gt; {
-interface IGraphicBufferProducer
-class BufferQueue
-interface IGraphicBufferConsumer
-}
-&amp;#39; ==========================================
-&amp;#39; 关系连线 (精心设计的布局方向)
-&amp;#39; ==========================================
-&amp;#39; 1. 顶层管理
-SurfaceFlinger -down-&amp;gt; DisplayDevice : 管理
-&amp;#39; 2. DisplayDevice 分流 (关键布局点)
-&amp;#39; 向下连接逻辑，向右连接管道，把图撑开
-DisplayDevice -down-&amp;gt; Display : 持有逻辑\n(CompositionEngine)
-DisplayDevice -right-&amp;gt; DisplaySurface : 持有
-&amp;#39; 3. 左侧：逻辑合成链路 (Vertical)
-Display -down-|&amp;gt; Output
-Output -down-&amp;gt; RenderSurface : 拥有
-Output .left.&amp;gt; RenderEngine : 指挥绘图
-RenderEngine .right.&amp;gt; RenderSurface : 绘制目标
-&amp;#39; 4. RenderSurface 的分发 (关键枢纽)
-&amp;#39; 向右连接控制流
-RenderSurface -right-&amp;gt; DisplaySurface : 1.控制流\n(advanceFrame)
-&amp;#39; 向下连接数据流
-RenderSurface -down-&amp;gt; ANativeWindow : 2.数据流\n(queueBuffer)
-&amp;#39; 5. 右侧：实现层 (Vertical)
-FramebufferSurface .up.|&amp;gt; DisplaySurface : 实现
-FramebufferSurface .up.|&amp;gt; ANativeWindow : 提供后端
-FramebufferSurface -right-&amp;gt; HWComposer : 提交\n(setClientTarget)
-&amp;#39; 6. 底部：BufferQueue 闭环
-ANativeWindow -down-&amp;gt; IGraphicBufferProducer : 封装
-IGraphicBufferProducer -right-o BufferQueue : 写入
-BufferQueue o-right- IGraphicBufferConsumer : 读取
-IGraphicBufferConsumer -up-&amp;gt; FramebufferSurface : 消费
-&amp;#39; 7. 布局辅助 (水平对齐)
-&amp;#39; 强制 RenderSurface 和 DisplaySurface 在同一水平线上
-RenderSurface -[hidden]right- DisplaySurface
-@enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;总结数据流向&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;A -&amp;gt; B
+&lt;p&gt;故障发生在 &lt;strong&gt;阶段 2&lt;/strong&gt; 的底层 &lt;code&gt;HWPeripheralDRM&lt;/code&gt; 中。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perf_stability_solution/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;A -&amp;gt; B
 &lt;/code&gt;&lt;/pre&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;
 &lt;p&gt;基于提供AOSP的代码，以“Hi Google”为例，语音唤醒（Hotword Detection）的完整流程是一个跨进程、跨层级的复杂协作过程。它主要涉及&lt;strong&gt;底层硬件触发&lt;/strong&gt;、&lt;strong&gt;系统服务路由&lt;/strong&gt;、&lt;strong&gt;沙盒服务校验&lt;/strong&gt;以及&lt;strong&gt;上层应用响应&lt;/strong&gt;四个关键阶段。&lt;/p&gt;
 &lt;p&gt;以下是基于代码分析的时序流程：&lt;/p&gt;
