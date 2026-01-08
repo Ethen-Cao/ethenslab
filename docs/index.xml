@@ -2455,36 +2455,97 @@ HBLK --&amp;gt; DISK
 &lt;/ul&gt;
 &lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>crash_dump流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/native_crash_process/</guid><description>&lt;p&gt;下图展示了从信号捕获、&lt;code&gt;crash_dump&lt;/code&gt; 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。&lt;/p&gt;
 &lt;h3 id="native-process-crash-处理时序图"&gt;Native Process Crash 处理时序图&lt;/h3&gt;
-&lt;!-- ![](/ethenslab/images/android-Native-Process-Crash.png) --&gt;
-&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-Native-Process-Crash.png" alt="Native Crash" /&gt;&lt;/p&gt;
-&lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+autonumber
+participant &amp;#34;Native Process\n(Crasher)&amp;#34; as P
+participant &amp;#34;Signal Handler\n(debuggerd_handler)&amp;#34; as SH
+participant &amp;#34;Pseudothread\n(In Crasher)&amp;#34; as PT
+participant &amp;#34;crash_dump\n(Debuggerd)&amp;#34; as CD
+participant &amp;#34;tombstoned\n(Daemon)&amp;#34; as T
+participant &amp;#34;AMS\n(ActivityManager)&amp;#34; as AMS
+participant &amp;#34;Logcat\n(liblog)&amp;#34; as LOG
+participant &amp;#34;Init\n(PID 1)&amp;#34; as INIT
+== 1. 崩溃触发与拦截 ==
+P -&amp;gt; P: 发生异常 (e.g., SIGSEGV)
+activate P
+P -&amp;gt; SH: 触发 debuggerd_signal_handler
+activate SH
+SH -&amp;gt; SH: pthread_mutex_lock \n防止多线程同时dump
+SH -&amp;gt; LOG: log_signal_summary (Fatal signal...)
+note right of SH
+为了不污染原进程文件描述符，
+debuggerd 使用 clone 创建
+一个 Pseudothread 来处理
+end note
+SH -&amp;gt; PT: clone() 创建伪线程
+activate PT
+== 2. 启动 crash_dump 与握手 ==
+PT -&amp;gt; CD: execle(&amp;#34;/apex/.../crash_dump64&amp;#34;)
+activate CD
+CD -&amp;gt; CD: 解析参数 (PID, TID)
+CD -&amp;gt; P: ptrace(PTRACE_SEIZE) 附着目标线程
+note right of CD
+crash_dump 通过管道与
+目标进程握手
+end note
+CD -&amp;gt; PT: Write pipe (Handshake &amp;#39;\1&amp;#39;)
+PT -&amp;gt; PT: read pipe
+PT -&amp;gt; PT: create_vm_process() \n(Fork 进程镜像供读取内存)
+PT -&amp;gt; CD: Write pipe (CrashInfo: siginfo, regs)
+== 3. 连接 Tombstoned 获取文件句柄 ==
+CD -&amp;gt; CD: ReadCrashInfo()
+CD -&amp;gt; T: connect_tombstone_server()
+activate T
+T -&amp;gt; T: CrashQueue::get_output()
+T -&amp;gt; T: openat() 创建临时文件
+T --&amp;gt; CD: 返回 Text FD 和 Proto FD
+deactivate T
+== 4. 生成 Tombstone 与 Logcat ==
+CD -&amp;gt; CD: unwinder.Initialize()
+CD -&amp;gt; CD: engrave_tombstone()
+group 生成 Tombstone 内容
+CD -&amp;gt; CD: 读取寄存器、Memory、Maps
+CD -&amp;gt; CD: Unwind Stack (回溯堆栈)
+CD -&amp;gt; T: Write to FD (写入磁盘文件)
+end
+group 输出 Logcat
+CD -&amp;gt; LOG: _LOG(..., &amp;#34;backtrace: ...&amp;#34;)
+note right of LOG
+libdebuggerd/utility.cpp 中的 _LOG
+将 tombstone 内容摘要写入 logcat
+end note
+end
+== 5. 通知 AMS (DropBox) ==
+CD -&amp;gt; AMS: activity_manager_notify()
+activate AMS
+note right of AMS
+连接 /data/system/ndebugsocket
+发送 PID, Signal, abort_msg
+AMS 将生成 DropBox 条目
+end note
+CD -&amp;gt; AMS: write(socket, crash_info)
+deactivate AMS
+== 6. 完成与清理 ==
+CD -&amp;gt; T: notify_completion()
+activate T
+T -&amp;gt; T: rename_tombstone_fd() \n(重命名为 tombstone_xx)
+deactivate T
+CD -&amp;gt; P: ptrace(DETACH)
+deactivate CD
+destroy CD
+PT -&amp;gt; P: resend_signal() (重发信号自杀)
+deactivate PT
+deactivate SH
+deactivate P
+destroy P
+P -&amp;gt; INIT: SIGCHLD (进程死亡)
+INIT -&amp;gt; INIT: Process Reaping (回收僵尸进程)
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="关键流程代码依据解析"&gt;关键流程代码依据解析&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;信号拦截 (debuggerd_signal_handler)&lt;/strong&gt;&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;当 Native 进程 Crash 时，内核回调 &lt;code&gt;debuggerd_signal_handler&lt;/code&gt; 。&lt;/li&gt;
-&lt;li&gt;代码中显式使用了 &lt;code&gt;pthread_mutex_lock&lt;/code&gt; 确保同一时间只有一个线程处理 Crash。&lt;/li&gt;
-&lt;li&gt;为了在不耗尽原进程文件描述符（FD）的情况下执行操作，代码调用 &lt;code&gt;clone&lt;/code&gt; 创建了一个 &lt;strong&gt;Pseudothread&lt;/strong&gt; 。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;启动 crash_dump (Exec)&lt;/strong&gt;&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Pseudothread 调用 &lt;code&gt;execle&lt;/code&gt; 启动 &lt;code&gt;/apex/com.android.runtime/bin/crash_dump64&lt;/code&gt; 。&lt;/li&gt;
-&lt;li&gt;这里通过管道（Pipe）传递了 &lt;code&gt;Crashing TID&lt;/code&gt; 和 &lt;code&gt;Pseudothread TID&lt;/code&gt; 给 &lt;code&gt;crash_dump&lt;/code&gt;。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;握手与 Ptrace&lt;/strong&gt;&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;crash_dump&lt;/code&gt; 启动后，首先 &lt;code&gt;ptrace&lt;/code&gt; 附着（Seize）目标进程的所有线程 。&lt;/li&gt;
-&lt;li&gt;为了安全地读取内存，&lt;code&gt;crash_dump&lt;/code&gt; 通过管道写 &lt;code&gt;\1&lt;/code&gt; 通知 Pseudothread 。&lt;/li&gt;
-&lt;li&gt;Pseudothread 收到通知后，调用 &lt;code&gt;create_vm_process()&lt;/code&gt; ，本质上是 &lt;code&gt;fork&lt;/code&gt; 出一个子进程（镜像），供 &lt;code&gt;crash_dump&lt;/code&gt; 读取内存，防止在读取过程中因目标进程内存损坏而卡死。&lt;/li&gt;
-&lt;li&gt;Pseudothread 将 &lt;code&gt;CrashInfo&lt;/code&gt;（包含寄存器信息 &lt;code&gt;ucontext&lt;/code&gt;）写入管道发送给 &lt;code&gt;crash_dump&lt;/code&gt; 。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;连接 Tombstoned&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;graph TD
+&lt;p&gt;&lt;strong&gt;信号拦截 (debuggerd_signal_handler)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-mermaid" data-lang="mermaid"&gt;graph TD
 !theme plain
 %% --- 定义样式 ---
 classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px;

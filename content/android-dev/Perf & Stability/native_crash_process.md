@@ -8,9 +8,117 @@ draft: false
 
 ### Native Process Crash 处理时序图
 
-<!-- ![](/ethenslab/images/android-Native-Process-Crash.png) -->
 
-![Native Crash](../../../static/images/android-Native-Process-Crash.png)
+```plantuml
+@startuml
+!theme plain
+autonumber
+
+participant "Native Process\n(Crasher)" as P
+participant "Signal Handler\n(debuggerd_handler)" as SH
+participant "Pseudothread\n(In Crasher)" as PT
+participant "crash_dump\n(Debuggerd)" as CD
+participant "tombstoned\n(Daemon)" as T
+participant "AMS\n(ActivityManager)" as AMS
+participant "Logcat\n(liblog)" as LOG
+participant "Init\n(PID 1)" as INIT
+
+== 1. 崩溃触发与拦截 ==
+P -> P: 发生异常 (e.g., SIGSEGV)
+activate P
+P -> SH: 触发 debuggerd_signal_handler 
+activate SH
+
+SH -> SH: pthread_mutex_lock \n防止多线程同时dump 
+SH -> LOG: log_signal_summary (Fatal signal...) 
+
+note right of SH
+  为了不污染原进程文件描述符，
+  debuggerd 使用 clone 创建
+  一个 Pseudothread 来处理
+end note
+
+SH -> PT: clone() 创建伪线程 
+activate PT
+
+== 2. 启动 crash_dump 与握手 ==
+PT -> CD: execle("/apex/.../crash_dump64") 
+activate CD
+
+CD -> CD: 解析参数 (PID, TID) 
+CD -> P: ptrace(PTRACE_SEIZE) 附着目标线程 
+
+note right of CD
+  crash_dump 通过管道与
+  目标进程握手
+end note
+
+CD -> PT: Write pipe (Handshake '\1') 
+PT -> PT: read pipe 
+
+PT -> PT: create_vm_process() \n(Fork 进程镜像供读取内存) 
+PT -> CD: Write pipe (CrashInfo: siginfo, regs) 
+
+== 3. 连接 Tombstoned 获取文件句柄 ==
+CD -> CD: ReadCrashInfo() 
+CD -> T: connect_tombstone_server() 
+activate T
+
+T -> T: CrashQueue::get_output() 
+T -> T: openat() 创建临时文件 
+T --> CD: 返回 Text FD 和 Proto FD 
+deactivate T
+
+== 4. 生成 Tombstone 与 Logcat ==
+CD -> CD: unwinder.Initialize() 
+CD -> CD: engrave_tombstone() 
+
+group 生成 Tombstone 内容
+    CD -> CD: 读取寄存器、Memory、Maps
+    CD -> CD: Unwind Stack (回溯堆栈)
+    CD -> T: Write to FD (写入磁盘文件) 
+end
+
+group 输出 Logcat
+    CD -> LOG: _LOG(..., "backtrace: ...") 
+    note right of LOG
+        libdebuggerd/utility.cpp 中的 _LOG 
+        将 tombstone 内容摘要写入 logcat
+    end note
+end
+
+== 5. 通知 AMS (DropBox) ==
+CD -> AMS: activity_manager_notify() 
+activate AMS
+note right of AMS
+  连接 /data/system/ndebugsocket
+  发送 PID, Signal, abort_msg
+  AMS 将生成 DropBox 条目
+end note
+CD -> AMS: write(socket, crash_info) 
+deactivate AMS
+
+== 6. 完成与清理 ==
+CD -> T: notify_completion() 
+activate T
+T -> T: rename_tombstone_fd() \n(重命名为 tombstone_xx) 
+deactivate T
+
+CD -> P: ptrace(DETACH) 
+deactivate CD
+destroy CD
+
+PT -> P: resend_signal() (重发信号自杀) 
+deactivate PT
+deactivate SH
+deactivate P
+destroy P
+
+P -> INIT: SIGCHLD (进程死亡)
+INIT -> INIT: Process Reaping (回收僵尸进程)
+
+@enduml
+```
 
 ### 关键流程代码依据解析
 
