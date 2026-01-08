@@ -1,0 +1,568 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android 窗口焦点抢占与输入法连接断开技术时序分析 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='1. 概述
+@startuml
+!theme plain
+autonumber
+
+skinparam backgroundColor white
+skinparam participantBackgroundColor white
+skinparam boxPadding 10
+skinparam noteBackgroundColor #FFFFA0
+skinparam noteBorderColor #808080
+
+actor "User" as User
+
+box "应用进程 A (Overlay - 当前焦点持有者)" #MistyRose
+    participant "ViewRootImpl" as Overlay_VRI
+    participant "ImeFocusController" as Overlay_Ctrl
+    participant "InputMethodManager\n(IMM)" as Overlay_IMM
+end box
+
+box "系统服务 (System Server)" #LightBlue
+    participant "InputDispatcher" as InputDispatcher
+    participant "WindowManagerService\n(WMS)" as WMS
+    participant "DisplayContent\n(DC)" as DC
+    participant "InputMethodManagerService\n(IMMS)" as IMMS
+end box
+
+box "应用进程 B (Browser - 触摸事件接收者)" #Honeydew
+    participant "ViewRootImpl" as Browser_VRI
+    participant "Browser\nActivity" as Browser
+    participant "InputMethodManager\n(IMM)" as Browser_IMM
+end box
+
+== 第一阶段：Overlay 窗口添加与焦点计算 ==
+
+Overlay_VRI -> WMS: <color:red>**addWindow**(TYPE_APPLICATION_OVERLAY)Flags 中**未包含** FLAG_NOT_FOCUSABLE
+activate WMS
+
+    WMS -> WMS: **addWindowInner**() -> **updateFocusedWindowLocked**()
+
+    group WMS 焦点更新逻辑
+        WMS -> DC: **findFocusedWindowIfNeeded**()
+        activate DC
+            DC -> DC: 遍历窗口列表 (Z-Order Top-Down)
+            DC -> DC: 检查 Overlay WindowState
+            DC -> DC: **mayUseInputMethod**(flags)
+            note right of DC
+                **判定逻辑：**
+                return (flags & FLAG_NOT_FOCUSABLE) == 0;
+                **结果：TRUE**
+                (系统判定该窗口具备处理 IME 输入的能力)
+            end note
+        DC --> WMS: 返回 **newFocus = Overlay**
+        deactivate DC
+    end
+
+    WMS -> WMS: **mCurrentFocus = Overlay**
+    
+    par 并发通知焦点变更
+        WMS -> Overlay_VRI: **windowFocusChanged**(hasWindowFocus=true)
+        WMS -> Browser_VRI: **windowFocusChanged**(hasWindowFocus=false)
+    end
+    
+deactivate WMS
+
+== 第二阶段：Overlay 建立输入法连接 ==
+
+activate Overlay_VRI
+    note right of Overlay_VRI
+        触发条件：
+        1. 收到 windowFocusChanged 回调
+        2. 或执行 performTraversals 布局遍历
+    end note
+
+    Overlay_VRI -> Overlay_Ctrl: **onPostWindowFocus**() / **onTraversal**()
+    activate Overlay_Ctrl
+    
+        Overlay_Ctrl -> Overlay_Ctrl: check **mayUseInputMethod**() == true
+        
+        Overlay_Ctrl -> Overlay_IMM: **onPostWindowGainedFocus**()
+        activate Overlay_IMM
+            
+            note right of Overlay_IMM
+                **IPC 请求：**
+                请求建立输入连接
+            end note
+            
+            Overlay_IMM -> IMMS: **startInputOrWindowGainedFocus**(\n  reason=WINDOW_FOCUS_GAIN,\n  client=Overlay,\n  windowToken=OverlayToken)
+            activate IMMS
+
+== 第三阶段：IMMS 执行客户端切换与解绑 ==
+
+                group IMMS 服务端处理
+                    IMMS -> IMMS: **startInputOrWindowGainedFocusInternalLocked**()
+                    
+                    IMMS -> IMMS: check **mCurClient (Browser) != newClient (Overlay)**
+                    
+                    IMMS -> IMMS: **prepareClientSwitchLocked**()
+                    IMMS -> IMMS: **unbindCurrentClientLocked**(SWITCH_CLIENT)
+                    
+                    activate IMMS #FFBBBB
+                        note right of IMMS
+                            **状态清理：**
+                            1. userData.mCurClient.mClient.setActive(false)
+                               -> 通知 Browser 停止输入活动
+                            2. finishSessionLocked(session)
+                               -> 销毁 Browser 的 InputChannel
+                            3. **mCurClient = null**
+                        end note
+                    deactivate IMMS
+                    
+                    IMMS -> IMMS: **mCurClient = Overlay**
+                    note right of IMMS
+                        **当前状态：**
+                        IMMS 服务端记录的 Client 已变更为 Overlay
+                    end note
+                end
+                
+            IMMS --> Overlay_IMM: return InputBindResult (SUCCESS)
+            deactivate IMMS
+            
+        deactivate Overlay_IMM
+    deactivate Overlay_Ctrl
+deactivate Overlay_VRI
+
+== 第四阶段：触摸事件派发 (Touch Dispatch) ==
+
+User -> InputDispatcher: 点击屏幕 (Touch Down)
+activate InputDispatcher
+
+    note right of InputDispatcher
+        **事件派发逻辑：**
+        虽然 Overlay Z-Order 最高，但设置了 
+        FLAG_NOT_TOUCH_MODAL (或点击区域在 Overlay 范围外)
+        事件向下穿透
+    end note
+
+    InputDispatcher -> Browser_VRI: **InputEvent (ACTION_DOWN)**
+deactivate InputDispatcher
+
+activate Browser_VRI
+    Browser_VRI -> Browser: **dispatchTouchEvent**()
+    Browser -> Browser: View.onTouchEvent() -> performClick()
+    
+    note right of Browser
+        Browser 能够接收点击事件
+        但此时 Window 焦点已丢失 (HasFocus=false)
+    end note
+
+== 第五阶段：请求输入法失败 ==
+
+    Browser -> Browser_IMM: **showSoftInput**(view)
+    activate Browser_IMM
+    
+        group IMM 客户端自检
+            Browser_IMM -> Browser_IMM: **checkFocus**()
+            Browser_IMM -> Browser_IMM: **hasServedByInputMethodLocked**()
+            note left
+                **失败点 A (客户端拦截)：**
+                由于之前收到 windowFocusChanged(false)
+                ViewRootImpl 判定当前窗口无焦点
+                mServedView 可能为 null 或不匹配
+                **Result: return false** (Log: "Ignoring... is not served")
+            end note
+        end
+
+        alt 假设绕过客户端检查 (强制请求服务端)
+            Browser_IMM -> IMMS: **showSoftInput**(client=Browser)
+            activate IMMS
+            
+            IMMS -> IMMS: check **mCurClient (Overlay) == client (Browser)**
+            
+            note left of IMMS #FFAAAA
+                **失败点 B (服务端拒绝)：**
+                Validation Failed.
+                请求者 Browser 与当前记录的 mCurClient (Overlay) 不一致。
+            end note
+            
+            IMMS -->> Browser_IMM: return false
+            deactivate IMMS
+        end
+
+    Browser_IMM -->> Browser: return false
+    deactivate Browser_IMM
+
+deactivate Browser_VRI
+
+@enduml
+本时序图展示了一个配置为 TYPE_APPLICATION_OVERLAY 但缺失 FLAG_NOT_FOCUSABLE 属性的悬浮窗口（Overlay），如何在系统层（WMS）和输入法服务层（IMMS）通过标准生命周期回调，强制剥夺底层应用（Browser）的输入法连接权（Input Connection），导致底层应用虽然能响应点击但无法弹出软键盘的异常流程。'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content=" Android 窗口焦点抢占与输入法连接断开技术时序分析"><meta property="og:description" content='1. 概述 @startuml !theme plain autonumber skinparam backgroundColor white skinparam participantBackgroundColor white skinparam boxPadding 10 skinparam noteBackgroundColor #FFFFA0 skinparam noteBorderColor #808080 actor "User" as User box "应用进程 A (Overlay - 当前焦点持有者)" #MistyRose participant "ViewRootImpl" as Overlay_VRI participant "ImeFocusController" as Overlay_Ctrl participant "InputMethodManager\n(IMM)" as Overlay_IMM end box box "系统服务 (System Server)" #LightBlue participant "InputDispatcher" as InputDispatcher participant "WindowManagerService\n(WMS)" as WMS participant "DisplayContent\n(DC)" as DC participant "InputMethodManagerService\n(IMMS)" as IMMS end box box "应用进程 B (Browser - 触摸事件接收者)" #Honeydew participant "ViewRootImpl" as Browser_VRI participant "Browser\nActivity" as Browser participant "InputMethodManager\n(IMM)" as Browser_IMM end box == 第一阶段：Overlay 窗口添加与焦点计算 == Overlay_VRI -> WMS: <color:red>**addWindow**(TYPE_APPLICATION_OVERLAY)Flags 中**未包含** FLAG_NOT_FOCUSABLE activate WMS WMS -> WMS: **addWindowInner**() -> **updateFocusedWindowLocked**() group WMS 焦点更新逻辑 WMS -> DC: **findFocusedWindowIfNeeded**() activate DC DC -> DC: 遍历窗口列表 (Z-Order Top-Down) DC -> DC: 检查 Overlay WindowState DC -> DC: **mayUseInputMethod**(flags) note right of DC **判定逻辑：** return (flags & FLAG_NOT_FOCUSABLE) == 0; **结果：TRUE** (系统判定该窗口具备处理 IME 输入的能力) end note DC --> WMS: 返回 **newFocus = Overlay** deactivate DC end WMS -> WMS: **mCurrentFocus = Overlay** par 并发通知焦点变更 WMS -> Overlay_VRI: **windowFocusChanged**(hasWindowFocus=true) WMS -> Browser_VRI: **windowFocusChanged**(hasWindowFocus=false) end deactivate WMS == 第二阶段：Overlay 建立输入法连接 == activate Overlay_VRI note right of Overlay_VRI 触发条件： 1. 收到 windowFocusChanged 回调 2. 或执行 performTraversals 布局遍历 end note Overlay_VRI -> Overlay_Ctrl: **onPostWindowFocus**() / **onTraversal**() activate Overlay_Ctrl Overlay_Ctrl -> Overlay_Ctrl: check **mayUseInputMethod**() == true Overlay_Ctrl -> Overlay_IMM: **onPostWindowGainedFocus**() activate Overlay_IMM note right of Overlay_IMM **IPC 请求：** 请求建立输入连接 end note Overlay_IMM -> IMMS: **startInputOrWindowGainedFocus**(\n reason=WINDOW_FOCUS_GAIN,\n client=Overlay,\n windowToken=OverlayToken) activate IMMS == 第三阶段：IMMS 执行客户端切换与解绑 == group IMMS 服务端处理 IMMS -> IMMS: **startInputOrWindowGainedFocusInternalLocked**() IMMS -> IMMS: check **mCurClient (Browser) != newClient (Overlay)** IMMS -> IMMS: **prepareClientSwitchLocked**() IMMS -> IMMS: **unbindCurrentClientLocked**(SWITCH_CLIENT) activate IMMS #FFBBBB note right of IMMS **状态清理：** 1. userData.mCurClient.mClient.setActive(false) -> 通知 Browser 停止输入活动 2. finishSessionLocked(session) -> 销毁 Browser 的 InputChannel 3. **mCurClient = null** end note deactivate IMMS IMMS -> IMMS: **mCurClient = Overlay** note right of IMMS **当前状态：** IMMS 服务端记录的 Client 已变更为 Overlay end note end IMMS --> Overlay_IMM: return InputBindResult (SUCCESS) deactivate IMMS deactivate Overlay_IMM deactivate Overlay_Ctrl deactivate Overlay_VRI == 第四阶段：触摸事件派发 (Touch Dispatch) == User -> InputDispatcher: 点击屏幕 (Touch Down) activate InputDispatcher note right of InputDispatcher **事件派发逻辑：** 虽然 Overlay Z-Order 最高，但设置了 FLAG_NOT_TOUCH_MODAL (或点击区域在 Overlay 范围外) 事件向下穿透 end note InputDispatcher -> Browser_VRI: **InputEvent (ACTION_DOWN)** deactivate InputDispatcher activate Browser_VRI Browser_VRI -> Browser: **dispatchTouchEvent**() Browser -> Browser: View.onTouchEvent() -> performClick() note right of Browser Browser 能够接收点击事件 但此时 Window 焦点已丢失 (HasFocus=false) end note == 第五阶段：请求输入法失败 == Browser -> Browser_IMM: **showSoftInput**(view) activate Browser_IMM group IMM 客户端自检 Browser_IMM -> Browser_IMM: **checkFocus**() Browser_IMM -> Browser_IMM: **hasServedByInputMethodLocked**() note left **失败点 A (客户端拦截)：** 由于之前收到 windowFocusChanged(false) ViewRootImpl 判定当前窗口无焦点 mServedView 可能为 null 或不匹配 **Result: return false** (Log: "Ignoring... is not served") end note end alt 假设绕过客户端检查 (强制请求服务端) Browser_IMM -> IMMS: **showSoftInput**(client=Browser) activate IMMS IMMS -> IMMS: check **mCurClient (Overlay) == client (Browser)** note left of IMMS #FFAAAA **失败点 B (服务端拒绝)：** Validation Failed. 请求者 Browser 与当前记录的 mCurClient (Overlay) 不一致。 end note IMMS -->> Browser_IMM: return false deactivate IMMS end Browser_IMM -->> Browser: return false deactivate Browser_IMM deactivate Browser_VRI @enduml 本时序图展示了一个配置为 TYPE_APPLICATION_OVERLAY 但缺失 FLAG_NOT_FOCUSABLE 属性的悬浮窗口（Overlay），如何在系统层（WMS）和输入法服务层（IMMS）通过标准生命周期回调，强制剥夺底层应用（Browser）的输入法连接权（Input Connection），导致底层应用虽然能响应点击但无法弹出软键盘的异常流程。'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-09-29T10:22:54+08:00"><meta property="article:modified_time" content="2025-09-29T10:22:54+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content=" Android 窗口焦点抢占与输入法连接断开技术时序分析"><meta name=twitter:description content='1. 概述
+@startuml
+!theme plain
+autonumber
+
+skinparam backgroundColor white
+skinparam participantBackgroundColor white
+skinparam boxPadding 10
+skinparam noteBackgroundColor #FFFFA0
+skinparam noteBorderColor #808080
+
+actor "User" as User
+
+box "应用进程 A (Overlay - 当前焦点持有者)" #MistyRose
+    participant "ViewRootImpl" as Overlay_VRI
+    participant "ImeFocusController" as Overlay_Ctrl
+    participant "InputMethodManager\n(IMM)" as Overlay_IMM
+end box
+
+box "系统服务 (System Server)" #LightBlue
+    participant "InputDispatcher" as InputDispatcher
+    participant "WindowManagerService\n(WMS)" as WMS
+    participant "DisplayContent\n(DC)" as DC
+    participant "InputMethodManagerService\n(IMMS)" as IMMS
+end box
+
+box "应用进程 B (Browser - 触摸事件接收者)" #Honeydew
+    participant "ViewRootImpl" as Browser_VRI
+    participant "Browser\nActivity" as Browser
+    participant "InputMethodManager\n(IMM)" as Browser_IMM
+end box
+
+== 第一阶段：Overlay 窗口添加与焦点计算 ==
+
+Overlay_VRI -> WMS: <color:red>**addWindow**(TYPE_APPLICATION_OVERLAY)Flags 中**未包含** FLAG_NOT_FOCUSABLE
+activate WMS
+
+    WMS -> WMS: **addWindowInner**() -> **updateFocusedWindowLocked**()
+
+    group WMS 焦点更新逻辑
+        WMS -> DC: **findFocusedWindowIfNeeded**()
+        activate DC
+            DC -> DC: 遍历窗口列表 (Z-Order Top-Down)
+            DC -> DC: 检查 Overlay WindowState
+            DC -> DC: **mayUseInputMethod**(flags)
+            note right of DC
+                **判定逻辑：**
+                return (flags & FLAG_NOT_FOCUSABLE) == 0;
+                **结果：TRUE**
+                (系统判定该窗口具备处理 IME 输入的能力)
+            end note
+        DC --> WMS: 返回 **newFocus = Overlay**
+        deactivate DC
+    end
+
+    WMS -> WMS: **mCurrentFocus = Overlay**
+    
+    par 并发通知焦点变更
+        WMS -> Overlay_VRI: **windowFocusChanged**(hasWindowFocus=true)
+        WMS -> Browser_VRI: **windowFocusChanged**(hasWindowFocus=false)
+    end
+    
+deactivate WMS
+
+== 第二阶段：Overlay 建立输入法连接 ==
+
+activate Overlay_VRI
+    note right of Overlay_VRI
+        触发条件：
+        1. 收到 windowFocusChanged 回调
+        2. 或执行 performTraversals 布局遍历
+    end note
+
+    Overlay_VRI -> Overlay_Ctrl: **onPostWindowFocus**() / **onTraversal**()
+    activate Overlay_Ctrl
+    
+        Overlay_Ctrl -> Overlay_Ctrl: check **mayUseInputMethod**() == true
+        
+        Overlay_Ctrl -> Overlay_IMM: **onPostWindowGainedFocus**()
+        activate Overlay_IMM
+            
+            note right of Overlay_IMM
+                **IPC 请求：**
+                请求建立输入连接
+            end note
+            
+            Overlay_IMM -> IMMS: **startInputOrWindowGainedFocus**(\n  reason=WINDOW_FOCUS_GAIN,\n  client=Overlay,\n  windowToken=OverlayToken)
+            activate IMMS
+
+== 第三阶段：IMMS 执行客户端切换与解绑 ==
+
+                group IMMS 服务端处理
+                    IMMS -> IMMS: **startInputOrWindowGainedFocusInternalLocked**()
+                    
+                    IMMS -> IMMS: check **mCurClient (Browser) != newClient (Overlay)**
+                    
+                    IMMS -> IMMS: **prepareClientSwitchLocked**()
+                    IMMS -> IMMS: **unbindCurrentClientLocked**(SWITCH_CLIENT)
+                    
+                    activate IMMS #FFBBBB
+                        note right of IMMS
+                            **状态清理：**
+                            1. userData.mCurClient.mClient.setActive(false)
+                               -> 通知 Browser 停止输入活动
+                            2. finishSessionLocked(session)
+                               -> 销毁 Browser 的 InputChannel
+                            3. **mCurClient = null**
+                        end note
+                    deactivate IMMS
+                    
+                    IMMS -> IMMS: **mCurClient = Overlay**
+                    note right of IMMS
+                        **当前状态：**
+                        IMMS 服务端记录的 Client 已变更为 Overlay
+                    end note
+                end
+                
+            IMMS --> Overlay_IMM: return InputBindResult (SUCCESS)
+            deactivate IMMS
+            
+        deactivate Overlay_IMM
+    deactivate Overlay_Ctrl
+deactivate Overlay_VRI
+
+== 第四阶段：触摸事件派发 (Touch Dispatch) ==
+
+User -> InputDispatcher: 点击屏幕 (Touch Down)
+activate InputDispatcher
+
+    note right of InputDispatcher
+        **事件派发逻辑：**
+        虽然 Overlay Z-Order 最高，但设置了 
+        FLAG_NOT_TOUCH_MODAL (或点击区域在 Overlay 范围外)
+        事件向下穿透
+    end note
+
+    InputDispatcher -> Browser_VRI: **InputEvent (ACTION_DOWN)**
+deactivate InputDispatcher
+
+activate Browser_VRI
+    Browser_VRI -> Browser: **dispatchTouchEvent**()
+    Browser -> Browser: View.onTouchEvent() -> performClick()
+    
+    note right of Browser
+        Browser 能够接收点击事件
+        但此时 Window 焦点已丢失 (HasFocus=false)
+    end note
+
+== 第五阶段：请求输入法失败 ==
+
+    Browser -> Browser_IMM: **showSoftInput**(view)
+    activate Browser_IMM
+    
+        group IMM 客户端自检
+            Browser_IMM -> Browser_IMM: **checkFocus**()
+            Browser_IMM -> Browser_IMM: **hasServedByInputMethodLocked**()
+            note left
+                **失败点 A (客户端拦截)：**
+                由于之前收到 windowFocusChanged(false)
+                ViewRootImpl 判定当前窗口无焦点
+                mServedView 可能为 null 或不匹配
+                **Result: return false** (Log: "Ignoring... is not served")
+            end note
+        end
+
+        alt 假设绕过客户端检查 (强制请求服务端)
+            Browser_IMM -> IMMS: **showSoftInput**(client=Browser)
+            activate IMMS
+            
+            IMMS -> IMMS: check **mCurClient (Overlay) == client (Browser)**
+            
+            note left of IMMS #FFAAAA
+                **失败点 B (服务端拒绝)：**
+                Validation Failed.
+                请求者 Browser 与当前记录的 mCurClient (Overlay) 不一致。
+            end note
+            
+            IMMS -->> Browser_IMM: return false
+            deactivate IMMS
+        end
+
+    Browser_IMM -->> Browser: return false
+    deactivate Browser_IMM
+
+deactivate Browser_VRI
+
+@enduml
+本时序图展示了一个配置为 TYPE_APPLICATION_OVERLAY 但缺失 FLAG_NOT_FOCUSABLE 属性的悬浮窗口（Overlay），如何在系统层（WMS）和输入法服务层（IMMS）通过标准生命周期回调，强制剥夺底层应用（Browser）的输入法连接权（Input Connection），导致底层应用虽然能响应点击但无法弹出软键盘的异常流程。'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"WindowManager","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/"},{"@type":"ListItem","position":3,"name":" Android 窗口焦点抢占与输入法连接断开技术时序分析","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":" Android 窗口焦点抢占与输入法连接断开技术时序分析","name":" Android 窗口焦点抢占与输入法连接断开技术时序分析","description":"1. 概述 @startuml !theme plain autonumber skinparam backgroundColor white skinparam participantBackgroundColor white skinparam boxPadding 10 skinparam noteBackgroundColor #FFFFA0 skinparam noteBorderColor #808080 actor \u0026#34;User\u0026#34; as User box \u0026#34;应用进程 A (Overlay - 当前焦点持有者)\u0026#34; #MistyRose participant \u0026#34;ViewRootImpl\u0026#34; as Overlay_VRI participant \u0026#34;ImeFocusController\u0026#34; as Overlay_Ctrl participant \u0026#34;InputMethodManager\\n(IMM)\u0026#34; as Overlay_IMM end box box \u0026#34;系统服务 (System Server)\u0026#34; #LightBlue participant \u0026#34;InputDispatcher\u0026#34; as InputDispatcher participant \u0026#34;WindowManagerService\\n(WMS)\u0026#34; as WMS participant \u0026#34;DisplayContent\\n(DC)\u0026#34; as DC participant \u0026#34;InputMethodManagerService\\n(IMMS)\u0026#34; as IMMS end box box \u0026#34;应用进程 B (Browser - 触摸事件接收者)\u0026#34; #Honeydew participant \u0026#34;ViewRootImpl\u0026#34; as Browser_VRI participant \u0026#34;Browser\\nActivity\u0026#34; as Browser participant \u0026#34;InputMethodManager\\n(IMM)\u0026#34; as Browser_IMM end box == 第一阶段：Overlay 窗口添加与焦点计算 == Overlay_VRI -\u0026gt; WMS: \u0026lt;color:red\u0026gt;**addWindow**(TYPE_APPLICATION_OVERLAY)Flags 中**未包含** FLAG_NOT_FOCUSABLE activate WMS WMS -\u0026gt; WMS: **addWindowInner**() -\u0026gt; **updateFocusedWindowLocked**() group WMS 焦点更新逻辑 WMS -\u0026gt; DC: **findFocusedWindowIfNeeded**() activate DC DC -\u0026gt; DC: 遍历窗口列表 (Z-Order Top-Down) DC -\u0026gt; DC: 检查 Overlay WindowState DC -\u0026gt; DC: **mayUseInputMethod**(flags) note right of DC **判定逻辑：** return (flags \u0026amp; FLAG_NOT_FOCUSABLE) == 0; **结果：TRUE** (系统判定该窗口具备处理 IME 输入的能力) end note DC --\u0026gt; WMS: 返回 **newFocus = Overlay** deactivate DC end WMS -\u0026gt; WMS: **mCurrentFocus = Overlay** par 并发通知焦点变更 WMS -\u0026gt; Overlay_VRI: **windowFocusChanged**(hasWindowFocus=true) WMS -\u0026gt; Browser_VRI: **windowFocusChanged**(hasWindowFocus=false) end deactivate WMS == 第二阶段：Overlay 建立输入法连接 == activate Overlay_VRI note right of Overlay_VRI 触发条件： 1. 收到 windowFocusChanged 回调 2. 或执行 performTraversals 布局遍历 end note Overlay_VRI -\u0026gt; Overlay_Ctrl: **onPostWindowFocus**() / **onTraversal**() activate Overlay_Ctrl Overlay_Ctrl -\u0026gt; Overlay_Ctrl: check **mayUseInputMethod**() == true Overlay_Ctrl -\u0026gt; Overlay_IMM: **onPostWindowGainedFocus**() activate Overlay_IMM note right of Overlay_IMM **IPC 请求：** 请求建立输入连接 end note Overlay_IMM -\u0026gt; IMMS: **startInputOrWindowGainedFocus**(\\n reason=WINDOW_FOCUS_GAIN,\\n client=Overlay,\\n windowToken=OverlayToken) activate IMMS == 第三阶段：IMMS 执行客户端切换与解绑 == group IMMS 服务端处理 IMMS -\u0026gt; IMMS: **startInputOrWindowGainedFocusInternalLocked**() IMMS -\u0026gt; IMMS: check **mCurClient (Browser) != newClient (Overlay)** IMMS -\u0026gt; IMMS: **prepareClientSwitchLocked**() IMMS -\u0026gt; IMMS: **unbindCurrentClientLocked**(SWITCH_CLIENT) activate IMMS #FFBBBB note right of IMMS **状态清理：** 1. userData.mCurClient.mClient.setActive(false) -\u0026gt; 通知 Browser 停止输入活动 2. finishSessionLocked(session) -\u0026gt; 销毁 Browser 的 InputChannel 3. **mCurClient = null** end note deactivate IMMS IMMS -\u0026gt; IMMS: **mCurClient = Overlay** note right of IMMS **当前状态：** IMMS 服务端记录的 Client 已变更为 Overlay end note end IMMS --\u0026gt; Overlay_IMM: return InputBindResult (SUCCESS) deactivate IMMS deactivate Overlay_IMM deactivate Overlay_Ctrl deactivate Overlay_VRI == 第四阶段：触摸事件派发 (Touch Dispatch) == User -\u0026gt; InputDispatcher: 点击屏幕 (Touch Down) activate InputDispatcher note right of InputDispatcher **事件派发逻辑：** 虽然 Overlay Z-Order 最高，但设置了 FLAG_NOT_TOUCH_MODAL (或点击区域在 Overlay 范围外) 事件向下穿透 end note InputDispatcher -\u0026gt; Browser_VRI: **InputEvent (ACTION_DOWN)** deactivate InputDispatcher activate Browser_VRI Browser_VRI -\u0026gt; Browser: **dispatchTouchEvent**() Browser -\u0026gt; Browser: View.onTouchEvent() -\u0026gt; performClick() note right of Browser Browser 能够接收点击事件 但此时 Window 焦点已丢失 (HasFocus=false) end note == 第五阶段：请求输入法失败 == Browser -\u0026gt; Browser_IMM: **showSoftInput**(view) activate Browser_IMM group IMM 客户端自检 Browser_IMM -\u0026gt; Browser_IMM: **checkFocus**() Browser_IMM -\u0026gt; Browser_IMM: **hasServedByInputMethodLocked**() note left **失败点 A (客户端拦截)：** 由于之前收到 windowFocusChanged(false) ViewRootImpl 判定当前窗口无焦点 mServedView 可能为 null 或不匹配 **Result: return false** (Log: \u0026#34;Ignoring... is not served\u0026#34;) end note end alt 假设绕过客户端检查 (强制请求服务端) Browser_IMM -\u0026gt; IMMS: **showSoftInput**(client=Browser) activate IMMS IMMS -\u0026gt; IMMS: check **mCurClient (Overlay) == client (Browser)** note left of IMMS #FFAAAA **失败点 B (服务端拒绝)：** Validation Failed. 请求者 Browser 与当前记录的 mCurClient (Overlay) 不一致。 end note IMMS --\u0026gt;\u0026gt; Browser_IMM: return false deactivate IMMS end Browser_IMM --\u0026gt;\u0026gt; Browser: return false deactivate Browser_IMM deactivate Browser_VRI @enduml 本时序图展示了一个配置为 TYPE_APPLICATION_OVERLAY 但缺失 FLAG_NOT_FOCUSABLE 属性的悬浮窗口（Overlay），如何在系统层（WMS）和输入法服务层（IMMS）通过标准生命周期回调，强制剥夺底层应用（Browser）的输入法连接权（Input Connection），导致底层应用虽然能响应点击但无法弹出软键盘的异常流程。\n","keywords":[],"articleBody":"1. 概述 @startuml !theme plain autonumber skinparam backgroundColor white skinparam participantBackgroundColor white skinparam boxPadding 10 skinparam noteBackgroundColor #FFFFA0 skinparam noteBorderColor #808080 actor \"User\" as User box \"应用进程 A (Overlay - 当前焦点持有者)\" #MistyRose participant \"ViewRootImpl\" as Overlay_VRI participant \"ImeFocusController\" as Overlay_Ctrl participant \"InputMethodManager\\n(IMM)\" as Overlay_IMM end box box \"系统服务 (System Server)\" #LightBlue participant \"InputDispatcher\" as InputDispatcher participant \"WindowManagerService\\n(WMS)\" as WMS participant \"DisplayContent\\n(DC)\" as DC participant \"InputMethodManagerService\\n(IMMS)\" as IMMS end box box \"应用进程 B (Browser - 触摸事件接收者)\" #Honeydew participant \"ViewRootImpl\" as Browser_VRI participant \"Browser\\nActivity\" as Browser participant \"InputMethodManager\\n(IMM)\" as Browser_IMM end box == 第一阶段：Overlay 窗口添加与焦点计算 == Overlay_VRI -\u003e WMS: **addWindow**(TYPE_APPLICATION_OVERLAY)Flags 中**未包含** FLAG_NOT_FOCUSABLE activate WMS WMS -\u003e WMS: **addWindowInner**() -\u003e **updateFocusedWindowLocked**() group WMS 焦点更新逻辑 WMS -\u003e DC: **findFocusedWindowIfNeeded**() activate DC DC -\u003e DC: 遍历窗口列表 (Z-Order Top-Down) DC -\u003e DC: 检查 Overlay WindowState DC -\u003e DC: **mayUseInputMethod**(flags) note right of DC **判定逻辑：** return (flags \u0026 FLAG_NOT_FOCUSABLE) == 0; **结果：TRUE** (系统判定该窗口具备处理 IME 输入的能力) end note DC --\u003e WMS: 返回 **newFocus = Overlay** deactivate DC end WMS -\u003e WMS: **mCurrentFocus = Overlay** par 并发通知焦点变更 WMS -\u003e Overlay_VRI: **windowFocusChanged**(hasWindowFocus=true) WMS -\u003e Browser_VRI: **windowFocusChanged**(hasWindowFocus=false) end deactivate WMS == 第二阶段：Overlay 建立输入法连接 == activate Overlay_VRI note right of Overlay_VRI 触发条件： 1. 收到 windowFocusChanged 回调 2. 或执行 performTraversals 布局遍历 end note Overlay_VRI -\u003e Overlay_Ctrl: **onPostWindowFocus**() / **onTraversal**() activate Overlay_Ctrl Overlay_Ctrl -\u003e Overlay_Ctrl: check **mayUseInputMethod**() == true Overlay_Ctrl -\u003e Overlay_IMM: **onPostWindowGainedFocus**() activate Overlay_IMM note right of Overlay_IMM **IPC 请求：** 请求建立输入连接 end note Overlay_IMM -\u003e IMMS: **startInputOrWindowGainedFocus**(\\n reason=WINDOW_FOCUS_GAIN,\\n client=Overlay,\\n windowToken=OverlayToken) activate IMMS == 第三阶段：IMMS 执行客户端切换与解绑 == group IMMS 服务端处理 IMMS -\u003e IMMS: **startInputOrWindowGainedFocusInternalLocked**() IMMS -\u003e IMMS: check **mCurClient (Browser) != newClient (Overlay)** IMMS -\u003e IMMS: **prepareClientSwitchLocked**() IMMS -\u003e IMMS: **unbindCurrentClientLocked**(SWITCH_CLIENT) activate IMMS #FFBBBB note right of IMMS **状态清理：** 1. userData.mCurClient.mClient.setActive(false) -\u003e 通知 Browser 停止输入活动 2. finishSessionLocked(session) -\u003e 销毁 Browser 的 InputChannel 3. **mCurClient = null** end note deactivate IMMS IMMS -\u003e IMMS: **mCurClient = Overlay** note right of IMMS **当前状态：** IMMS 服务端记录的 Client 已变更为 Overlay end note end IMMS --\u003e Overlay_IMM: return InputBindResult (SUCCESS) deactivate IMMS deactivate Overlay_IMM deactivate Overlay_Ctrl deactivate Overlay_VRI == 第四阶段：触摸事件派发 (Touch Dispatch) == User -\u003e InputDispatcher: 点击屏幕 (Touch Down) activate InputDispatcher note right of InputDispatcher **事件派发逻辑：** 虽然 Overlay Z-Order 最高，但设置了 FLAG_NOT_TOUCH_MODAL (或点击区域在 Overlay 范围外) 事件向下穿透 end note InputDispatcher -\u003e Browser_VRI: **InputEvent (ACTION_DOWN)** deactivate InputDispatcher activate Browser_VRI Browser_VRI -\u003e Browser: **dispatchTouchEvent**() Browser -\u003e Browser: View.onTouchEvent() -\u003e performClick() note right of Browser Browser 能够接收点击事件 但此时 Window 焦点已丢失 (HasFocus=false) end note == 第五阶段：请求输入法失败 == Browser -\u003e Browser_IMM: **showSoftInput**(view) activate Browser_IMM group IMM 客户端自检 Browser_IMM -\u003e Browser_IMM: **checkFocus**() Browser_IMM -\u003e Browser_IMM: **hasServedByInputMethodLocked**() note left **失败点 A (客户端拦截)：** 由于之前收到 windowFocusChanged(false) ViewRootImpl 判定当前窗口无焦点 mServedView 可能为 null 或不匹配 **Result: return false** (Log: \"Ignoring... is not served\") end note end alt 假设绕过客户端检查 (强制请求服务端) Browser_IMM -\u003e IMMS: **showSoftInput**(client=Browser) activate IMMS IMMS -\u003e IMMS: check **mCurClient (Overlay) == client (Browser)** note left of IMMS #FFAAAA **失败点 B (服务端拒绝)：** Validation Failed. 请求者 Browser 与当前记录的 mCurClient (Overlay) 不一致。 end note IMMS --\u003e\u003e Browser_IMM: return false deactivate IMMS end Browser_IMM --\u003e\u003e Browser: return false deactivate Browser_IMM deactivate Browser_VRI @enduml 本时序图展示了一个配置为 TYPE_APPLICATION_OVERLAY 但缺失 FLAG_NOT_FOCUSABLE 属性的悬浮窗口（Overlay），如何在系统层（WMS）和输入法服务层（IMMS）通过标准生命周期回调，强制剥夺底层应用（Browser）的输入法连接权（Input Connection），导致底层应用虽然能响应点击但无法弹出软键盘的异常流程。\n2. 详细流程阶段解析 第一阶段：WMS 焦点仲裁（Focus Arbitration） 此阶段发生在 Overlay 窗口被添加到系统窗口管理器（WMS）的时刻。\n触发动作：Overlay 应用调用 WindowManager.addView，参数中未包含 FLAG_NOT_FOCUSABLE。 WMS 内部逻辑： addWindowInner 触发层级更新，Overlay 被置于 Z-Order 顶层。 随后调用 updateFocusedWindowLocked -\u003e findFocusedWindowIfNeeded 重新计算全局焦点。 关键判定：DisplayContent 从顶层向下遍历窗口。对于 Overlay 窗口，系统调用 mayUseInputMethod(flags) 进行判定。由于 Missing Flag，该方法返回 true。 结果：WMS 将全局焦点变量 mCurrentFocus 锁定为 Overlay，并向各应用进程分发 windowFocusChanged 回调（Overlay 为 true，Browser 为 false）。 第二阶段：Overlay 建立连接（Active Connection Establishment） 此阶段发生在 Overlay 应用的主线程（UI Thread）中。\n触发动作：Overlay 的 ViewRootImpl 收到获焦通知或执行布局遍历（performTraversals）。\n客户端自检：\nImeFocusController 执行 onTraversal 或 onPostWindowFocus。 再次执行本地检查 WindowManager.LayoutParams.mayUseInputMethod，结果为 true。 发起请求：Overlay 进程通过 InputMethodManager 向系统服务发起 IPC 调用 startInputOrWindowGainedFocus，理由为 WINDOW_FOCUS_GAIN。这标志着 Overlay 主动向系统宣誓了输入法的主权。\n第三阶段：IMMS 服务端会话切换（Session Switch） 此阶段发生在系统服务进程（System_Server）的 InputMethodManagerService 中。\n状态校验：IMMS 接收到 Overlay 的请求，对比当前绑定的客户端 mCurClient（此时仍指向 Browser）与请求者（Overlay）。 强制解绑（Critical Step）： 发现客户端不一致，IMMS 调用 prepareClientSwitchLocked。 执行 unbindCurrentClientLocked(SWITCH_CLIENT)。 后果：系统销毁了 Browser 的 InputMethodSession，并将 Browser 对应的 ClientState 标记为非激活。 新绑定：mCurClient 更新为 Overlay。至此，输入法的数据通道已物理切换至 Overlay，Browser 与输入法的连接被彻底切断。 第四阶段：触摸事件与输入焦点的逻辑分离（Touch vs Focus Discrepancy） 此阶段揭示了问题的隐蔽性：用户感知与系统状态的割裂。\n触摸派发（Touch Dispatch）：用户点击屏幕。InputDispatcher 进行命中测试。由于 Overlay 设置了 FLAG_NOT_TOUCH_MODAL（或点击区域位于 Overlay 之外），点击事件（ACTION_DOWN/UP）穿透 Overlay，正常派发给了底层的 Browser。 逻辑冲突：Browser 能够响应 onClick，产生一种“我还在前台”的错觉。但根据 WMS 的状态（第一阶段），它实际上处于“可见但无焦点”的状态。 第五阶段：请求被拒（Request Rejection） 此阶段是用户看到的最终故障现象。\nBrowser 发起请求：Browser 的 EditText 响应点击，调用 showSoftInput。 拦截点 A（客户端本地拦截）：InputMethodManager 检查本地状态 checkFocus()。由于之前收到了 windowFocusChanged(false)，hasServedByInputMethodLocked() 返回 false，请求可能直接在应用进程内被丢弃。 拦截点 B（服务端拦截）：即使请求通过某种方式发出，到达 IMMS 后，服务端的鉴权逻辑会发现 mCurClient (Overlay) 与请求者 (Browser) 不匹配，直接返回 false。 3. 根本原因总结 问题的根源在于 Android 窗口系统中 Z-Order（显示层级） 与 Input Focus（输入焦点） 的默认关联机制。\n机制：默认情况下，可获焦（Focusable）的最高层级窗口自动获得输入焦点。 缺陷：Overlay 窗口作为高层级窗口，若不显式声明放弃焦点（FLAG_NOT_FOCUSABLE），系统会依据标准流程将其认定为输入法目标，从而切断其他应用的输入连接。 4. 解决方案技术原理 在 Overlay 窗口的 LayoutParams 中添加 FLAG_NOT_FOCUSABLE：\n阻断第一阶段：WMS 的 mayUseInputMethod 返回 false，焦点计算跳过 Overlay，保留在 Browser。 阻断第二阶段：Overlay 应用内的 ImeFocusController 判定不需要输入法，不再发送 startInputOrWindowGainedFocus IPC 请求。 保护第三阶段：IMMS 不会收到切换请求，Browser 的 Session 保持活跃。 ","wordCount":"686","inLanguage":"en","datePublished":"2025-09-29T10:22:54+08:00","dateModified":"2025-09-29T10:22:54+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/>WindowManager</a></div><h1 class="post-title entry-hint-parent">Android 窗口焦点抢占与输入法连接断开技术时序分析</h1><div class=post-meta><span title='2025-09-29 10:22:54 +0800 CST'>September 29, 2025</span>&nbsp;·&nbsp;4 min&nbsp;·&nbsp;686 words</div></header><div class=post-content><h3 id=1-概述>1. 概述<a hidden class=anchor aria-hidden=true href=#1-概述>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+autonumber
+
+skinparam backgroundColor white
+skinparam participantBackgroundColor white
+skinparam boxPadding 10
+skinparam noteBackgroundColor #FFFFA0
+skinparam noteBorderColor #808080
+
+actor &#34;User&#34; as User
+
+box &#34;应用进程 A (Overlay - 当前焦点持有者)&#34; #MistyRose
+    participant &#34;ViewRootImpl&#34; as Overlay_VRI
+    participant &#34;ImeFocusController&#34; as Overlay_Ctrl
+    participant &#34;InputMethodManager\n(IMM)&#34; as Overlay_IMM
+end box
+
+box &#34;系统服务 (System Server)&#34; #LightBlue
+    participant &#34;InputDispatcher&#34; as InputDispatcher
+    participant &#34;WindowManagerService\n(WMS)&#34; as WMS
+    participant &#34;DisplayContent\n(DC)&#34; as DC
+    participant &#34;InputMethodManagerService\n(IMMS)&#34; as IMMS
+end box
+
+box &#34;应用进程 B (Browser - 触摸事件接收者)&#34; #Honeydew
+    participant &#34;ViewRootImpl&#34; as Browser_VRI
+    participant &#34;Browser\nActivity&#34; as Browser
+    participant &#34;InputMethodManager\n(IMM)&#34; as Browser_IMM
+end box
+
+== 第一阶段：Overlay 窗口添加与焦点计算 ==
+
+Overlay_VRI -&gt; WMS: &lt;color:red&gt;**addWindow**(TYPE_APPLICATION_OVERLAY)Flags 中**未包含** FLAG_NOT_FOCUSABLE
+activate WMS
+
+    WMS -&gt; WMS: **addWindowInner**() -&gt; **updateFocusedWindowLocked**()
+
+    group WMS 焦点更新逻辑
+        WMS -&gt; DC: **findFocusedWindowIfNeeded**()
+        activate DC
+            DC -&gt; DC: 遍历窗口列表 (Z-Order Top-Down)
+            DC -&gt; DC: 检查 Overlay WindowState
+            DC -&gt; DC: **mayUseInputMethod**(flags)
+            note right of DC
+                **判定逻辑：**
+                return (flags &amp; FLAG_NOT_FOCUSABLE) == 0;
+                **结果：TRUE**
+                (系统判定该窗口具备处理 IME 输入的能力)
+            end note
+        DC --&gt; WMS: 返回 **newFocus = Overlay**
+        deactivate DC
+    end
+
+    WMS -&gt; WMS: **mCurrentFocus = Overlay**
+    
+    par 并发通知焦点变更
+        WMS -&gt; Overlay_VRI: **windowFocusChanged**(hasWindowFocus=true)
+        WMS -&gt; Browser_VRI: **windowFocusChanged**(hasWindowFocus=false)
+    end
+    
+deactivate WMS
+
+== 第二阶段：Overlay 建立输入法连接 ==
+
+activate Overlay_VRI
+    note right of Overlay_VRI
+        触发条件：
+        1. 收到 windowFocusChanged 回调
+        2. 或执行 performTraversals 布局遍历
+    end note
+
+    Overlay_VRI -&gt; Overlay_Ctrl: **onPostWindowFocus**() / **onTraversal**()
+    activate Overlay_Ctrl
+    
+        Overlay_Ctrl -&gt; Overlay_Ctrl: check **mayUseInputMethod**() == true
+        
+        Overlay_Ctrl -&gt; Overlay_IMM: **onPostWindowGainedFocus**()
+        activate Overlay_IMM
+            
+            note right of Overlay_IMM
+                **IPC 请求：**
+                请求建立输入连接
+            end note
+            
+            Overlay_IMM -&gt; IMMS: **startInputOrWindowGainedFocus**(\n  reason=WINDOW_FOCUS_GAIN,\n  client=Overlay,\n  windowToken=OverlayToken)
+            activate IMMS
+
+== 第三阶段：IMMS 执行客户端切换与解绑 ==
+
+                group IMMS 服务端处理
+                    IMMS -&gt; IMMS: **startInputOrWindowGainedFocusInternalLocked**()
+                    
+                    IMMS -&gt; IMMS: check **mCurClient (Browser) != newClient (Overlay)**
+                    
+                    IMMS -&gt; IMMS: **prepareClientSwitchLocked**()
+                    IMMS -&gt; IMMS: **unbindCurrentClientLocked**(SWITCH_CLIENT)
+                    
+                    activate IMMS #FFBBBB
+                        note right of IMMS
+                            **状态清理：**
+                            1. userData.mCurClient.mClient.setActive(false)
+                               -&gt; 通知 Browser 停止输入活动
+                            2. finishSessionLocked(session)
+                               -&gt; 销毁 Browser 的 InputChannel
+                            3. **mCurClient = null**
+                        end note
+                    deactivate IMMS
+                    
+                    IMMS -&gt; IMMS: **mCurClient = Overlay**
+                    note right of IMMS
+                        **当前状态：**
+                        IMMS 服务端记录的 Client 已变更为 Overlay
+                    end note
+                end
+                
+            IMMS --&gt; Overlay_IMM: return InputBindResult (SUCCESS)
+            deactivate IMMS
+            
+        deactivate Overlay_IMM
+    deactivate Overlay_Ctrl
+deactivate Overlay_VRI
+
+== 第四阶段：触摸事件派发 (Touch Dispatch) ==
+
+User -&gt; InputDispatcher: 点击屏幕 (Touch Down)
+activate InputDispatcher
+
+    note right of InputDispatcher
+        **事件派发逻辑：**
+        虽然 Overlay Z-Order 最高，但设置了 
+        FLAG_NOT_TOUCH_MODAL (或点击区域在 Overlay 范围外)
+        事件向下穿透
+    end note
+
+    InputDispatcher -&gt; Browser_VRI: **InputEvent (ACTION_DOWN)**
+deactivate InputDispatcher
+
+activate Browser_VRI
+    Browser_VRI -&gt; Browser: **dispatchTouchEvent**()
+    Browser -&gt; Browser: View.onTouchEvent() -&gt; performClick()
+    
+    note right of Browser
+        Browser 能够接收点击事件
+        但此时 Window 焦点已丢失 (HasFocus=false)
+    end note
+
+== 第五阶段：请求输入法失败 ==
+
+    Browser -&gt; Browser_IMM: **showSoftInput**(view)
+    activate Browser_IMM
+    
+        group IMM 客户端自检
+            Browser_IMM -&gt; Browser_IMM: **checkFocus**()
+            Browser_IMM -&gt; Browser_IMM: **hasServedByInputMethodLocked**()
+            note left
+                **失败点 A (客户端拦截)：**
+                由于之前收到 windowFocusChanged(false)
+                ViewRootImpl 判定当前窗口无焦点
+                mServedView 可能为 null 或不匹配
+                **Result: return false** (Log: &#34;Ignoring... is not served&#34;)
+            end note
+        end
+
+        alt 假设绕过客户端检查 (强制请求服务端)
+            Browser_IMM -&gt; IMMS: **showSoftInput**(client=Browser)
+            activate IMMS
+            
+            IMMS -&gt; IMMS: check **mCurClient (Overlay) == client (Browser)**
+            
+            note left of IMMS #FFAAAA
+                **失败点 B (服务端拒绝)：**
+                Validation Failed.
+                请求者 Browser 与当前记录的 mCurClient (Overlay) 不一致。
+            end note
+            
+            IMMS --&gt;&gt; Browser_IMM: return false
+            deactivate IMMS
+        end
+
+    Browser_IMM --&gt;&gt; Browser: return false
+    deactivate Browser_IMM
+
+deactivate Browser_VRI
+
+@enduml
+</code></pre><p>本时序图展示了一个配置为 <code>TYPE_APPLICATION_OVERLAY</code> 但缺失 <code>FLAG_NOT_FOCUSABLE</code> 属性的悬浮窗口（Overlay），如何在系统层（WMS）和输入法服务层（IMMS）通过标准生命周期回调，强制剥夺底层应用（Browser）的输入法连接权（Input Connection），导致底层应用虽然能响应点击但无法弹出软键盘的异常流程。</p><h3 id=2-详细流程阶段解析>2. 详细流程阶段解析<a hidden class=anchor aria-hidden=true href=#2-详细流程阶段解析>#</a></h3><h4 id=第一阶段wms-焦点仲裁focus-arbitration>第一阶段：WMS 焦点仲裁（Focus Arbitration）<a hidden class=anchor aria-hidden=true href=#第一阶段wms-焦点仲裁focus-arbitration>#</a></h4><p>此阶段发生在 Overlay 窗口被添加到系统窗口管理器（WMS）的时刻。</p><ul><li><strong>触发动作</strong>：Overlay 应用调用 <code>WindowManager.addView</code>，参数中未包含 <code>FLAG_NOT_FOCUSABLE</code>。</li><li><strong>WMS 内部逻辑</strong>：<ul><li><code>addWindowInner</code> 触发层级更新，Overlay 被置于 Z-Order 顶层。</li><li>随后调用 <code>updateFocusedWindowLocked</code> -> <code>findFocusedWindowIfNeeded</code> 重新计算全局焦点。</li><li><strong>关键判定</strong>：<code>DisplayContent</code> 从顶层向下遍历窗口。对于 Overlay 窗口，系统调用 <code>mayUseInputMethod(flags)</code> 进行判定。由于 <strong>Missing Flag</strong>，该方法返回 <code>true</code>。</li></ul></li><li><strong>结果</strong>：WMS 将全局焦点变量 <code>mCurrentFocus</code> 锁定为 Overlay，并向各应用进程分发 <code>windowFocusChanged</code> 回调（Overlay 为 true，Browser 为 false）。</li></ul><h4 id=第二阶段overlay-建立连接active-connection-establishment>第二阶段：Overlay 建立连接（Active Connection Establishment）<a hidden class=anchor aria-hidden=true href=#第二阶段overlay-建立连接active-connection-establishment>#</a></h4><p>此阶段发生在 Overlay 应用的主线程（UI Thread）中。</p><ul><li><p><strong>触发动作</strong>：Overlay 的 <code>ViewRootImpl</code> 收到获焦通知或执行布局遍历（<code>performTraversals</code>）。</p></li><li><p><strong>客户端自检</strong>：</p><ul><li><code>ImeFocusController</code> 执行 <code>onTraversal</code> 或 <code>onPostWindowFocus</code>。</li><li>再次执行本地检查 <code>WindowManager.LayoutParams.mayUseInputMethod</code>，结果为 <code>true</code>。</li></ul></li><li><p><strong>发起请求</strong>：Overlay 进程通过 <code>InputMethodManager</code> 向系统服务发起 IPC 调用 <code>startInputOrWindowGainedFocus</code>，理由为 <code>WINDOW_FOCUS_GAIN</code>。<strong>这标志着 Overlay 主动向系统宣誓了输入法的主权。</strong></p></li></ul><h4 id=第三阶段imms-服务端会话切换session-switch>第三阶段：IMMS 服务端会话切换（Session Switch）<a hidden class=anchor aria-hidden=true href=#第三阶段imms-服务端会话切换session-switch>#</a></h4><p>此阶段发生在系统服务进程（System_Server）的 <code>InputMethodManagerService</code> 中。</p><ul><li><strong>状态校验</strong>：IMMS 接收到 Overlay 的请求，对比当前绑定的客户端 <code>mCurClient</code>（此时仍指向 Browser）与请求者（Overlay）。</li><li><strong>强制解绑（Critical Step）</strong>：<ul><li>发现客户端不一致，IMMS 调用 <code>prepareClientSwitchLocked</code>。</li><li>执行 <code>unbindCurrentClientLocked(SWITCH_CLIENT)</code>。</li></ul></li><li><strong>后果</strong>：系统销毁了 Browser 的 <code>InputMethodSession</code>，并将 Browser 对应的 <code>ClientState</code> 标记为非激活。</li><li><strong>新绑定</strong>：<code>mCurClient</code> 更新为 Overlay。至此，输入法的数据通道已物理切换至 Overlay，Browser 与输入法的连接被彻底切断。</li></ul><h4 id=第四阶段触摸事件与输入焦点的逻辑分离touch-vs-focus-discrepancy>第四阶段：触摸事件与输入焦点的逻辑分离（Touch vs Focus Discrepancy）<a hidden class=anchor aria-hidden=true href=#第四阶段触摸事件与输入焦点的逻辑分离touch-vs-focus-discrepancy>#</a></h4><p>此阶段揭示了问题的隐蔽性：用户感知与系统状态的割裂。</p><ul><li><strong>触摸派发（Touch Dispatch）</strong>：用户点击屏幕。<code>InputDispatcher</code> 进行命中测试。由于 Overlay 设置了 <code>FLAG_NOT_TOUCH_MODAL</code>（或点击区域位于 Overlay 之外），点击事件（ACTION_DOWN/UP）穿透 Overlay，正常派发给了底层的 Browser。</li><li><strong>逻辑冲突</strong>：Browser 能够响应 <code>onClick</code>，产生一种“我还在前台”的错觉。但根据 WMS 的状态（第一阶段），它实际上处于“可见但无焦点”的状态。</li></ul><h4 id=第五阶段请求被拒request-rejection>第五阶段：请求被拒（Request Rejection）<a hidden class=anchor aria-hidden=true href=#第五阶段请求被拒request-rejection>#</a></h4><p>此阶段是用户看到的最终故障现象。</p><ul><li><strong>Browser 发起请求</strong>：Browser 的 EditText 响应点击，调用 <code>showSoftInput</code>。</li><li><strong>拦截点 A（客户端本地拦截）</strong>：<code>InputMethodManager</code> 检查本地状态 <code>checkFocus()</code>。由于之前收到了 <code>windowFocusChanged(false)</code>，<code>hasServedByInputMethodLocked()</code> 返回 <code>false</code>，请求可能直接在应用进程内被丢弃。</li><li><strong>拦截点 B（服务端拦截）</strong>：即使请求通过某种方式发出，到达 IMMS 后，服务端的鉴权逻辑会发现 <code>mCurClient</code> (Overlay) 与请求者 (Browser) 不匹配，直接返回 <code>false</code>。</li></ul><h3 id=3-根本原因总结>3. 根本原因总结<a hidden class=anchor aria-hidden=true href=#3-根本原因总结>#</a></h3><p>问题的根源在于 Android 窗口系统中 <strong>Z-Order（显示层级）</strong> 与 <strong>Input Focus（输入焦点）</strong> 的默认关联机制。</p><ul><li><strong>机制</strong>：默认情况下，可获焦（Focusable）的最高层级窗口自动获得输入焦点。</li><li><strong>缺陷</strong>：Overlay 窗口作为高层级窗口，若不显式声明放弃焦点（<code>FLAG_NOT_FOCUSABLE</code>），系统会依据标准流程将其认定为输入法目标，从而切断其他应用的输入连接。</li></ul><h3 id=4-解决方案技术原理>4. 解决方案技术原理<a hidden class=anchor aria-hidden=true href=#4-解决方案技术原理>#</a></h3><p>在 Overlay 窗口的 LayoutParams 中添加 <code>FLAG_NOT_FOCUSABLE</code>：</p><ol><li><strong>阻断第一阶段</strong>：WMS 的 <code>mayUseInputMethod</code> 返回 <code>false</code>，焦点计算跳过 Overlay，保留在 Browser。</li><li><strong>阻断第二阶段</strong>：Overlay 应用内的 <code>ImeFocusController</code> 判定不需要输入法，不再发送 <code>startInputOrWindowGainedFocus</code> IPC 请求。</li><li><strong>保护第三阶段</strong>：IMMS 不会收到切换请求，Browser 的 Session 保持活跃。</li></ol></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/bindercallsstatsservice/><span class=title>« Prev</span><br><span>BinderCallsStatsService 技术详解</span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/><span class=title>Next »</span><br><span>Activity 跨屏幕迁移</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
