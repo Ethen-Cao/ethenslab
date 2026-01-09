@@ -1,4 +1,3 @@
-
 +++
 date = '2025-09-29T10:22:54+08:00'
 draft = false
@@ -309,8 +308,8 @@ deactivate IME
 !theme plain
 skinparam defaultFontName Arial
 skinparam linetype ortho
-skinparam nodesep 200
-skinparam ranksep 100
+skinparam nodesep 80
+skinparam ranksep 40
 skinparam defaultFontSize 12
 skinparam shadowing false
 skinparam Padding 10
@@ -323,16 +322,17 @@ frame "App Process (Client)" #Honeydew {
     
     rectangle "\t\tView / EditText\t\t\t\t" as View
     
-    package "InputMethodManager (IMM)" {
-        rectangle "IInputMethodClient.Stub\n(Callback)" as ClientStub #White
+    frame "InputMethodManager (IMM)" {
+        rectangle "IInputMethodClient.Stub(Callback)" as ClientStub #White
         rectangle "ImeInputEventSender\n(Sender)" as Sender #Yellow
         rectangle "InputMethodManager\n(API)" as IMM_API
+        
     }
     
     rectangle "InputConnection(Binder Stub)\t" as IC_Stub #Cyan
 
-    FocusCtrl -[hidden]left-- IC_Stub
-
+    ' FocusCtrl -[hidden]left-- IC_Stub
+  
 }
 
 ' --- Layer 2: System Server ---
