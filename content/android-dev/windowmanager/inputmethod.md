@@ -262,3 +262,170 @@ deactivate Browser_VRI
 2. **阻断第二阶段**：Overlay 应用内的 `ImeFocusController` 判定不需要输入法，不再发送 `startInputOrWindowGainedFocus` IPC 请求。
 3. **保护第三阶段**：IMMS 不会收到切换请求，Browser 的 Session 保持活跃。
 
+---
+
+## 3. 架构分析
+```plantuml
+@startuml
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam Nodesep 20
+skinparam Padding 10
+skinparam Ranksep 50
+
+skinparam rectangle {
+    BackgroundColor White
+    BorderColor Black
+    RoundCorner 0
+}
+skinparam frame {
+    BackgroundColor WhiteSmoke
+    BorderColor Black
+}
+skinparam arrow {
+    Color Black
+}
+
+' --- Layer 1: App Layer ---
+frame "App Layer (Application Process)" {
+    rectangle "ActivityThread"  as AT 
+    rectangle "Activity" as Activity #Yellow
+    rectangle "Dialog" as Dialog #Yellow
+}
+
+' --- Layer 2: App Framework API Layer ---
+frame "App Framework API Layer (Application Process)" {
+    rectangle "WindowManagerImpl" as WMImpl
+    rectangle "WindowManagerGlobal" as WMGlobal
+    rectangle "ViewRootImpl" as VRI
+    
+    rectangle "InputMethodManager\n" as IMM
+
+    rectangle "IInputMethodClient\n(Stub / mClient)" as IIMC #FFE6E6
+
+    rectangle "IInputMethodManagerGlobalInvoker" as Invoker
+
+}
+
+' --- Layer 3: System Server Layer ---
+frame "System_Server Layer" {
+    rectangle "InputMethodManagerService(IMMS)" as IMMS
+}
+
+' --- Relations and Logic Flow ---
+
+' 1. Activity Startup Flow
+AT --> Activity : 1. handleResumeActivity\n/ handleStartActivity
+Activity -down-> WMImpl : 2. makeVisible() -> addView()
+
+' 2. Dialog Startup Flow
+Dialog -down-> WMImpl : 2. show() -> addView()
+
+' 3. Window Management Flow
+WMImpl -down-> WMGlobal : 3. addView()
+WMGlobal -down-> VRI : 4. new ViewRootImpl()
+
+' 4. The Loop Back for Session & IMM Init
+VRI -left-> WMGlobal : 5. getWindowSession()\n(in Constructor)
+
+' 5. IMM Initialization Flow
+WMGlobal -down-> IMM : 6. ensureDefaultInstanceForDefaultDisplayIfNecessary()
+IMM -down-> IMM : 7. createRealInstance()\n(Initialize mClient)
+IMM -down-> IIMC : (Hold reference to)
+
+' 6. IPC Call Preparation (Forward)
+IMM -down-> Invoker : 8. addClient(mClient, ...)
+
+' 7. IPC to System Server (Forward)
+Invoker -down-> IMMS : 9. IPC: addClient\n(传递 mClient 代理)
+
+' === 反向通信链路 (Reverse Communication Path) ===
+' 系统服务通过 Binder 回调应用进程的 Stub
+IMMS .up.> IIMC #Red: **[反向链路] IPC Callback**\n(onBindMethod, setActive 等)
+
+' Stub 通过 Handler 切回主线程
+IIMC --> IMM #Red: sendMessage(MSG_BIND, ...)\n(切换到主线程处理)
+
+
+@enduml
+```
+
+### 3.1. 概述
+
+本架构图展示了从应用主线程启动 Activity 或显示 Dialog 开始，到系统底层完成窗口添加，并最终建立应用进程（Client）与系统服务进程（System Server）之间输入法控制通道的完整控制流。
+
+核心逻辑分为两个方向：
+
+1. **前向初始化链路（黑色实线 1-9）**：应用主动向系统注册，申请窗口令牌与输入法客户端身份。
+2. **反向控制链路（红色虚线）**：系统服务（IMMS）通过 Binder 回调应用，实现对输入连接生命周期的管理。
+
+### 3.2. 详细工作流程解析
+
+#### 第一阶段：UI 呈现的触发 (UI Presentation Trigger)
+
+此阶段发生在应用的主线程中，由生命周期事件驱动。
+
+* **步骤 1 (Activity 启动)**：`ActivityThread` 作为应用进程的入口，在处理 `handleResumeActivity` 或 `handleStartActivity` 时，驱动 Activity 生命周期流转。
+* **步骤 2 (视图添加)**：
+* 对于 **Activity**：调用 `makeVisible()`，进而调用 `WindowManager.addView()`。
+* 对于 **Dialog**：调用 `show()`，内部同样调用 `WindowManager.addView()`。
+* **本质**：无论是 Activity 还是 Dialog，最终都汇聚于 `WindowManagerImpl` 这一接口实现层。
+
+
+
+#### 第二阶段：窗口管理与核心组件实例化 (Window & Component Instantiation)
+
+此阶段完成应用侧核心管理对象的创建。
+
+* **步骤 3 (全局代理)**：`WindowManagerImpl` 将请求转发给单例对象 `WindowManagerGlobal`。这是应用进程内所有窗口的统一管理者。
+* **步骤 4 (ViewRootImpl 创建)**：`WindowManagerGlobal` 实例化 `ViewRootImpl`。`ViewRootImpl` 是连接 `WindowManagerService` (WMS) 和应用 View 层次结构的桥梁。
+* **步骤 5 (会话建立与副作用)**：在 `ViewRootImpl` 构造过程中（或获取 `WindowSession` 时），为了兼容性与初始化需求，会触发 `getWindowSession()`。
+* **步骤 6 (IMM 懒加载)**：`getWindowSession()` 方法内部包含防御性逻辑，调用 `InputMethodManager.ensureDefaultInstanceForDefaultDisplayIfNecessary()`，确保输入法管理器（IMM）在窗口会话建立前已准备就绪。
+
+#### 第三阶段：输入法客户端构建与注册 (IMM Client Construction & Registration)
+
+此阶段是建立跨进程通信的关键。
+
+* **步骤 7 (实例创建)**：`InputMethodManager` 执行 `createRealInstance()`。
+* **关键动作**：在此过程中，实例化了 **`IInputMethodClient.Stub`**（即图中的 `mClient`）。这是一个 Binder 服务端对象，它将在后续作为应用进程的“代理人”被传递给系统。
+
+
+* **步骤 8 (IPC 准备)**：IMM 通过 `IInputMethodManagerGlobalInvoker` 封装调用请求。
+* **步骤 9 (IPC 调用)**：通过 `addClient(mClient, ...)` 方法，应用进程发起 Binder 跨进程调用，将自身的 `mClient` 存根（Stub）传递给运行在 System Server 中的 `InputMethodManagerService` (IMMS)。
+
+**至此，IMMS 持有了应用的 IInputMethodClient 代理，建立了逻辑上的“握手”。**
+
+---
+
+### 3.3. IInputMethodClient 的核心作用与反向链路
+
+在架构图中，**`IInputMethodClient (Stub / mClient)`**（粉色区域）扮演着至关重要的角色。它是 Android 输入架构中实现 **控制反转（Inversion of Control）** 的关键组件。
+
+#### A. 角色定义
+
+它是定义在应用进程（App Process）中的 Binder 服务端（Stub）。尽管它由 Framework 代码实现，但它运行在应用的 Binder 线程池中。它充当了系统服务（IMMS）对应用进行远程控制的**回调接口（Callback Interface）**。
+
+#### B. 工作机制（反向通信链路 - 红色虚线）
+
+当系统侧的状态发生变化（例如：WMS 判定窗口焦点变更、屏幕息屏、用户切换输入法），IMMS 需要通知应用进行相应的状态同步或资源释放。
+
+1. **系统发起调用**：IMMS 通过持有的 `IInputMethodClient` 代理发起调用（如 `onBindMethod`、`onUnbindMethod`、`setActive`）。
+2. **跨进程传输**：Binder 驱动将请求传输至应用进程。
+3. **Binder 线程响应**：应用进程的 Binder 线程池接收请求，执行 `IInputMethodClient.Stub` 中的方法。
+4. **线程切换**：
+* 由于 Android UI 工具包不是线程安全的，Binder 线程不能直接操作 View 或 IMM 的内部状态。
+* 因此，Stub 方法（如图示红线）通常通过 `sendMessage(MSG_BIND, ...)` 将操作封装为消息，发送给主线程的 `Handler`。
+
+
+5. **主线程执行**：主线程处理消息，完成最终的逻辑（如建立 `InputConnection`、销毁资源、重置状态）。
+
+#### C. 核心价值
+
+`IInputMethodClient` 的存在使得系统服务能够：
+
+* **异步管理生命周期**：在不阻塞系统服务的前提下，通知应用建立或断开输入连接。
+* **强制状态同步**：当系统判定应用失去焦点时（如 Overlay 案例），可以通过此接口强制应用断开连接，确保系统状态的一致性。
+
+总结而言，`IInputMethodClient` 是应用主动暴露给系统的“控制句柄”，它是输入法服务能够通过标准 IPC 机制调度应用行为的基础。

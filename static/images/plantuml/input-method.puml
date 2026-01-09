@@ -1,0 +1,84 @@
+@startuml
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam Nodesep 20
+skinparam Padding 10
+skinparam Ranksep 50
+
+skinparam rectangle {
+    BackgroundColor White
+    BorderColor Black
+    RoundCorner 0
+}
+skinparam frame {
+    BackgroundColor WhiteSmoke
+    BorderColor Black
+}
+skinparam arrow {
+    Color Black
+}
+
+' --- Layer 1: App Layer ---
+frame "App Layer (Application Process)" {
+    rectangle "ActivityThread"  as AT 
+    rectangle "Activity" as Activity #Yellow
+    rectangle "Dialog" as Dialog #Yellow
+}
+
+' --- Layer 2: App Framework API Layer ---
+frame "App Framework API Layer (Application Process)" {
+    rectangle "WindowManagerImpl" as WMImpl
+    rectangle "WindowManagerGlobal" as WMGlobal
+    rectangle "ViewRootImpl" as VRI
+    
+    rectangle "InputMethodManager\n" as IMM
+
+    rectangle "IInputMethodClient\n(Stub / mClient)" as IIMC #FFE6E6
+
+    rectangle "IInputMethodManagerGlobalInvoker" as Invoker
+
+}
+
+' --- Layer 3: System Server Layer ---
+frame "System_Server Layer" {
+    rectangle "InputMethodManagerService(IMMS)" as IMMS
+}
+
+' --- Relations and Logic Flow ---
+
+' 1. Activity Startup Flow
+AT --> Activity : 1. handleResumeActivity\n/ handleStartActivity
+Activity -down-> WMImpl : 2. makeVisible() -> addView()
+
+' 2. Dialog Startup Flow
+Dialog -down-> WMImpl : 2. show() -> addView()
+
+' 3. Window Management Flow
+WMImpl -down-> WMGlobal : 3. addView()
+WMGlobal -down-> VRI : 4. new ViewRootImpl()
+
+' 4. The Loop Back for Session & IMM Init
+VRI -left-> WMGlobal : 5. getWindowSession()\n(in Constructor)
+
+' 5. IMM Initialization Flow
+WMGlobal -down-> IMM : 6. ensureDefaultInstanceForDefaultDisplayIfNecessary()
+IMM -down-> IMM : 7. createRealInstance()\n(Initialize mClient)
+IMM -down-> IIMC : (Hold reference to)
+
+' 6. IPC Call Preparation (Forward)
+IMM -down-> Invoker : 8. addClient(mClient, ...)
+
+' 7. IPC to System Server (Forward)
+Invoker -down-> IMMS : 9. IPC: addClient\n(传递 mClient 代理)
+
+' === 反向通信链路 (Reverse Communication Path) ===
+' 系统服务通过 Binder 回调应用进程的 Stub
+IMMS .up.> IIMC #Red: **[反向链路] IPC Callback**\n(onBindMethod, setActive 等)
+
+' Stub 通过 Handler 切回主线程
+IIMC --> IMM #Red: sendMessage(MSG_BIND, ...)\n(切换到主线程处理)
+
+
+@enduml

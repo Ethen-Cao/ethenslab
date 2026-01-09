@@ -1,0 +1,582 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android InputMethod 交互流程技术说明文档 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='1. 流程详细解析
+@startuml
+!theme plain
+autonumber
+skinparam backgroundColor white
+skinparam boxPadding 10
+skinparam noteBackgroundColor #FFFFA0
+skinparam noteBorderColor #808080
+skinparam participantBackgroundColor white
+
+actor "User" as User
+
+box "新应用进程 (New App - 抢焦者)" #Honeydew
+    participant "ViewRootImpl" as VRI
+    participant "ImeFocusController" as Controller
+    participant "InputMethodManager\n(IMM)" as IMM
+    participant "IInputMethodClient\n(Stub)" as ClientStub
+    participant "View (EditText)" as EditText
+    participant "InputConnection\n(Binder Stub)" as IC_Stub
+end box
+
+box "系统服务 (System Server)" #LightBlue
+    participant "WindowManagerService\n(WMS)" as WMS
+    participant "InputMethodManagerService\n(IMMS)" as IMMS
+end box
+
+box "输入法进程 (IME Process)" #MistyRose
+    participant "InputMethodService\n(IME)" as IME
+    participant "IInputContext\n(Binder Proxy)" as IC_Proxy
+end box
+
+box "旧应用进程 (Old App - 受害者)" #LightGrey
+    participant "IInputMethodClient\n(Stub)" as Old_Stub
+    participant "InputMethodManager\n(IMM)" as Old_IMM
+end box
+
+== 第一阶段：连接建立与切换 (Switch Client) ==
+
+note right of WMS: App 启动，窗口添加完成
+
+WMS -> VRI: **windowFocusChanged**(true)
+activate VRI
+    VRI -> VRI: handleWindowFocusChanged()
+    VRI -> Controller: **onPostWindowFocus**()
+    activate Controller
+        Controller -> Controller: check **mayUseInputMethod**
+        
+        Controller -> IMM: **onPostWindowGainedFocus**()
+        activate IMM
+            IMM -> IMM: **startInputInner**()
+            
+            group 关键：创建通信对象
+                IMM -> EditText: **onCreateInputConnection**()
+                activate EditText
+                    EditText --> IMM: return **InputConnection**
+                deactivate EditText
+            end
+            
+            IMM -> IMMS: **startInputOrWindowGainedFocus**(client=Stub, inputContext=IC_Stub)
+            activate IMMS
+                note right of IMMS
+                    **服务端逻辑 (Switch Client)：**
+                    1. 发现请求者(New) != 当前记录(Old)
+                    2. **必须先清理旧状态**
+                    3. 再绑定新应用
+                end note
+
+                group [新增] 通知旧应用断开连接 (Unbind Sequence)
+                    IMMS -> Old_Stub: **onUnbindMethod**(sequence, UNBIND_REASON_SWITCH_CLIENT)
+                    activate Old_Stub
+                        note right of Old_Stub
+                            **反向控制生效：**
+                            系统通知旧应用下线
+                        end note
+                        Old_Stub -> Old_IMM: sendMessage(MSG_UNBIND)
+                        activate Old_IMM
+                            Old_IMM -> Old_IMM: **closeCurrentInput()**
+                            note right of Old_IMM
+                                1. 销毁 InputChannel
+                                2. 断开 InputConnection
+                                3. 停止光标闪烁
+                            end note
+                        deactivate Old_IMM
+                    deactivate Old_Stub
+                end
+                
+                IMMS -> IME: **startInput**(inputContext=IC_Proxy)
+                activate IME
+                    IME -> IME: 保存 IC_Proxy (持有 New App 的操作句柄)
+                deactivate IME
+                
+                IMMS -> ClientStub: **onBindMethod**(res)
+                activate ClientStub
+                    note right of ClientStub
+                        **反向链路生效：**
+                        系统回传 InputChannel (Socket)
+                    end note
+                    ClientStub -> IMM: sendMessage(MSG_BIND)
+                deactivate ClientStub
+                
+            IMMS --> IMM: Success
+            deactivate IMMS
+            
+            IMM -> IMM: **handleMessage(MSG_BIND)**
+            note left of IMM
+                连接建立完成
+                New App 持有 IME Channel
+                IME 持有 New App InputConnection
+            end note
+            
+        deactivate IMM
+    deactivate Controller
+deactivate VRI
+
+== 第二阶段：显示控制 (Touch -> Show) ==
+
+User -> EditText: 点击输入框
+activate EditText
+    EditText -> IMM: **showSoftInput**(view)
+    activate IMM
+        IMM -> IMMS: **showSoftInput**(client)
+        activate IMMS
+            IMMS -> IME: **showSoftInput**()
+            activate IME
+                IME -> IME: **showWindow**(true)
+                note right of IME
+                    软键盘 UI 此时对用户可见
+                end note
+            deactivate IME
+        deactivate IMMS
+    deactivate IMM
+deactivate EditText
+
+== 第三阶段：文本分发 (Typing -> Commit) ==
+
+User -> IME: 点击虚拟键盘 "A"
+activate IME
+    IME -> IME: onCodeInput("A")
+    
+    note right of IME
+        **核心交互：**
+        IME 使用之前保存的 Proxy
+        直接操作 App 内部状态
+    end note
+    
+    IME -> IC_Proxy: **commitText**("A", 1)
+    activate IC_Proxy
+        IC_Proxy -> IC_Stub: **IPC: Transmit Text**
+    deactivate IC_Proxy
+
+    activate IC_Stub
+        note left of IC_Stub
+            **App 进程响应：**
+            Binder 线程收到数据
+            修改 Editable Buffer
+        end note
+        IC_Stub -> EditText: **Editable.replace**(...)
+        EditText -> VRI: invalidate() -> onDraw()
+    deactivate IC_Stub
+    
+    VRI -> User: 屏幕显示字符 "A"
+deactivate IME
+
+@enduml
+本节对应时序图中的三个核心阶段，描述代码层面的执行逻辑。'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethodservice/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethodservice/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethodservice/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content=" Android InputMethod 交互流程技术说明文档"><meta property="og:description" content='1. 流程详细解析 @startuml !theme plain autonumber skinparam backgroundColor white skinparam boxPadding 10 skinparam noteBackgroundColor #FFFFA0 skinparam noteBorderColor #808080 skinparam participantBackgroundColor white actor "User" as User box "新应用进程 (New App - 抢焦者)" #Honeydew participant "ViewRootImpl" as VRI participant "ImeFocusController" as Controller participant "InputMethodManager\n(IMM)" as IMM participant "IInputMethodClient\n(Stub)" as ClientStub participant "View (EditText)" as EditText participant "InputConnection\n(Binder Stub)" as IC_Stub end box box "系统服务 (System Server)" #LightBlue participant "WindowManagerService\n(WMS)" as WMS participant "InputMethodManagerService\n(IMMS)" as IMMS end box box "输入法进程 (IME Process)" #MistyRose participant "InputMethodService\n(IME)" as IME participant "IInputContext\n(Binder Proxy)" as IC_Proxy end box box "旧应用进程 (Old App - 受害者)" #LightGrey participant "IInputMethodClient\n(Stub)" as Old_Stub participant "InputMethodManager\n(IMM)" as Old_IMM end box == 第一阶段：连接建立与切换 (Switch Client) == note right of WMS: App 启动，窗口添加完成 WMS -> VRI: **windowFocusChanged**(true) activate VRI VRI -> VRI: handleWindowFocusChanged() VRI -> Controller: **onPostWindowFocus**() activate Controller Controller -> Controller: check **mayUseInputMethod** Controller -> IMM: **onPostWindowGainedFocus**() activate IMM IMM -> IMM: **startInputInner**() group 关键：创建通信对象 IMM -> EditText: **onCreateInputConnection**() activate EditText EditText --> IMM: return **InputConnection** deactivate EditText end IMM -> IMMS: **startInputOrWindowGainedFocus**(client=Stub, inputContext=IC_Stub) activate IMMS note right of IMMS **服务端逻辑 (Switch Client)：** 1. 发现请求者(New) != 当前记录(Old) 2. **必须先清理旧状态** 3. 再绑定新应用 end note group [新增] 通知旧应用断开连接 (Unbind Sequence) IMMS -> Old_Stub: **onUnbindMethod**(sequence, UNBIND_REASON_SWITCH_CLIENT) activate Old_Stub note right of Old_Stub **反向控制生效：** 系统通知旧应用下线 end note Old_Stub -> Old_IMM: sendMessage(MSG_UNBIND) activate Old_IMM Old_IMM -> Old_IMM: **closeCurrentInput()** note right of Old_IMM 1. 销毁 InputChannel 2. 断开 InputConnection 3. 停止光标闪烁 end note deactivate Old_IMM deactivate Old_Stub end IMMS -> IME: **startInput**(inputContext=IC_Proxy) activate IME IME -> IME: 保存 IC_Proxy (持有 New App 的操作句柄) deactivate IME IMMS -> ClientStub: **onBindMethod**(res) activate ClientStub note right of ClientStub **反向链路生效：** 系统回传 InputChannel (Socket) end note ClientStub -> IMM: sendMessage(MSG_BIND) deactivate ClientStub IMMS --> IMM: Success deactivate IMMS IMM -> IMM: **handleMessage(MSG_BIND)** note left of IMM 连接建立完成 New App 持有 IME Channel IME 持有 New App InputConnection end note deactivate IMM deactivate Controller deactivate VRI == 第二阶段：显示控制 (Touch -> Show) == User -> EditText: 点击输入框 activate EditText EditText -> IMM: **showSoftInput**(view) activate IMM IMM -> IMMS: **showSoftInput**(client) activate IMMS IMMS -> IME: **showSoftInput**() activate IME IME -> IME: **showWindow**(true) note right of IME 软键盘 UI 此时对用户可见 end note deactivate IME deactivate IMMS deactivate IMM deactivate EditText == 第三阶段：文本分发 (Typing -> Commit) == User -> IME: 点击虚拟键盘 "A" activate IME IME -> IME: onCodeInput("A") note right of IME **核心交互：** IME 使用之前保存的 Proxy 直接操作 App 内部状态 end note IME -> IC_Proxy: **commitText**("A", 1) activate IC_Proxy IC_Proxy -> IC_Stub: **IPC: Transmit Text** deactivate IC_Proxy activate IC_Stub note left of IC_Stub **App 进程响应：** Binder 线程收到数据 修改 Editable Buffer end note IC_Stub -> EditText: **Editable.replace**(...) EditText -> VRI: invalidate() -> onDraw() deactivate IC_Stub VRI -> User: 屏幕显示字符 "A" deactivate IME @enduml 本节对应时序图中的三个核心阶段，描述代码层面的执行逻辑。'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-09-29T10:22:54+08:00"><meta property="article:modified_time" content="2025-09-29T10:22:54+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content=" Android InputMethod 交互流程技术说明文档"><meta name=twitter:description content='1. 流程详细解析
+@startuml
+!theme plain
+autonumber
+skinparam backgroundColor white
+skinparam boxPadding 10
+skinparam noteBackgroundColor #FFFFA0
+skinparam noteBorderColor #808080
+skinparam participantBackgroundColor white
+
+actor "User" as User
+
+box "新应用进程 (New App - 抢焦者)" #Honeydew
+    participant "ViewRootImpl" as VRI
+    participant "ImeFocusController" as Controller
+    participant "InputMethodManager\n(IMM)" as IMM
+    participant "IInputMethodClient\n(Stub)" as ClientStub
+    participant "View (EditText)" as EditText
+    participant "InputConnection\n(Binder Stub)" as IC_Stub
+end box
+
+box "系统服务 (System Server)" #LightBlue
+    participant "WindowManagerService\n(WMS)" as WMS
+    participant "InputMethodManagerService\n(IMMS)" as IMMS
+end box
+
+box "输入法进程 (IME Process)" #MistyRose
+    participant "InputMethodService\n(IME)" as IME
+    participant "IInputContext\n(Binder Proxy)" as IC_Proxy
+end box
+
+box "旧应用进程 (Old App - 受害者)" #LightGrey
+    participant "IInputMethodClient\n(Stub)" as Old_Stub
+    participant "InputMethodManager\n(IMM)" as Old_IMM
+end box
+
+== 第一阶段：连接建立与切换 (Switch Client) ==
+
+note right of WMS: App 启动，窗口添加完成
+
+WMS -> VRI: **windowFocusChanged**(true)
+activate VRI
+    VRI -> VRI: handleWindowFocusChanged()
+    VRI -> Controller: **onPostWindowFocus**()
+    activate Controller
+        Controller -> Controller: check **mayUseInputMethod**
+        
+        Controller -> IMM: **onPostWindowGainedFocus**()
+        activate IMM
+            IMM -> IMM: **startInputInner**()
+            
+            group 关键：创建通信对象
+                IMM -> EditText: **onCreateInputConnection**()
+                activate EditText
+                    EditText --> IMM: return **InputConnection**
+                deactivate EditText
+            end
+            
+            IMM -> IMMS: **startInputOrWindowGainedFocus**(client=Stub, inputContext=IC_Stub)
+            activate IMMS
+                note right of IMMS
+                    **服务端逻辑 (Switch Client)：**
+                    1. 发现请求者(New) != 当前记录(Old)
+                    2. **必须先清理旧状态**
+                    3. 再绑定新应用
+                end note
+
+                group [新增] 通知旧应用断开连接 (Unbind Sequence)
+                    IMMS -> Old_Stub: **onUnbindMethod**(sequence, UNBIND_REASON_SWITCH_CLIENT)
+                    activate Old_Stub
+                        note right of Old_Stub
+                            **反向控制生效：**
+                            系统通知旧应用下线
+                        end note
+                        Old_Stub -> Old_IMM: sendMessage(MSG_UNBIND)
+                        activate Old_IMM
+                            Old_IMM -> Old_IMM: **closeCurrentInput()**
+                            note right of Old_IMM
+                                1. 销毁 InputChannel
+                                2. 断开 InputConnection
+                                3. 停止光标闪烁
+                            end note
+                        deactivate Old_IMM
+                    deactivate Old_Stub
+                end
+                
+                IMMS -> IME: **startInput**(inputContext=IC_Proxy)
+                activate IME
+                    IME -> IME: 保存 IC_Proxy (持有 New App 的操作句柄)
+                deactivate IME
+                
+                IMMS -> ClientStub: **onBindMethod**(res)
+                activate ClientStub
+                    note right of ClientStub
+                        **反向链路生效：**
+                        系统回传 InputChannel (Socket)
+                    end note
+                    ClientStub -> IMM: sendMessage(MSG_BIND)
+                deactivate ClientStub
+                
+            IMMS --> IMM: Success
+            deactivate IMMS
+            
+            IMM -> IMM: **handleMessage(MSG_BIND)**
+            note left of IMM
+                连接建立完成
+                New App 持有 IME Channel
+                IME 持有 New App InputConnection
+            end note
+            
+        deactivate IMM
+    deactivate Controller
+deactivate VRI
+
+== 第二阶段：显示控制 (Touch -> Show) ==
+
+User -> EditText: 点击输入框
+activate EditText
+    EditText -> IMM: **showSoftInput**(view)
+    activate IMM
+        IMM -> IMMS: **showSoftInput**(client)
+        activate IMMS
+            IMMS -> IME: **showSoftInput**()
+            activate IME
+                IME -> IME: **showWindow**(true)
+                note right of IME
+                    软键盘 UI 此时对用户可见
+                end note
+            deactivate IME
+        deactivate IMMS
+    deactivate IMM
+deactivate EditText
+
+== 第三阶段：文本分发 (Typing -> Commit) ==
+
+User -> IME: 点击虚拟键盘 "A"
+activate IME
+    IME -> IME: onCodeInput("A")
+    
+    note right of IME
+        **核心交互：**
+        IME 使用之前保存的 Proxy
+        直接操作 App 内部状态
+    end note
+    
+    IME -> IC_Proxy: **commitText**("A", 1)
+    activate IC_Proxy
+        IC_Proxy -> IC_Stub: **IPC: Transmit Text**
+    deactivate IC_Proxy
+
+    activate IC_Stub
+        note left of IC_Stub
+            **App 进程响应：**
+            Binder 线程收到数据
+            修改 Editable Buffer
+        end note
+        IC_Stub -> EditText: **Editable.replace**(...)
+        EditText -> VRI: invalidate() -> onDraw()
+    deactivate IC_Stub
+    
+    VRI -> User: 屏幕显示字符 "A"
+deactivate IME
+
+@enduml
+本节对应时序图中的三个核心阶段，描述代码层面的执行逻辑。'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"WindowManager","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/"},{"@type":"ListItem","position":3,"name":" Android InputMethod 交互流程技术说明文档","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethodservice/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":" Android InputMethod 交互流程技术说明文档","name":" Android InputMethod 交互流程技术说明文档","description":"1. 流程详细解析 @startuml !theme plain autonumber skinparam backgroundColor white skinparam boxPadding 10 skinparam noteBackgroundColor #FFFFA0 skinparam noteBorderColor #808080 skinparam participantBackgroundColor white actor \u0026#34;User\u0026#34; as User box \u0026#34;新应用进程 (New App - 抢焦者)\u0026#34; #Honeydew participant \u0026#34;ViewRootImpl\u0026#34; as VRI participant \u0026#34;ImeFocusController\u0026#34; as Controller participant \u0026#34;InputMethodManager\\n(IMM)\u0026#34; as IMM participant \u0026#34;IInputMethodClient\\n(Stub)\u0026#34; as ClientStub participant \u0026#34;View (EditText)\u0026#34; as EditText participant \u0026#34;InputConnection\\n(Binder Stub)\u0026#34; as IC_Stub end box box \u0026#34;系统服务 (System Server)\u0026#34; #LightBlue participant \u0026#34;WindowManagerService\\n(WMS)\u0026#34; as WMS participant \u0026#34;InputMethodManagerService\\n(IMMS)\u0026#34; as IMMS end box box \u0026#34;输入法进程 (IME Process)\u0026#34; #MistyRose participant \u0026#34;InputMethodService\\n(IME)\u0026#34; as IME participant \u0026#34;IInputContext\\n(Binder Proxy)\u0026#34; as IC_Proxy end box box \u0026#34;旧应用进程 (Old App - 受害者)\u0026#34; #LightGrey participant \u0026#34;IInputMethodClient\\n(Stub)\u0026#34; as Old_Stub participant \u0026#34;InputMethodManager\\n(IMM)\u0026#34; as Old_IMM end box == 第一阶段：连接建立与切换 (Switch Client) == note right of WMS: App 启动，窗口添加完成 WMS -\u0026gt; VRI: **windowFocusChanged**(true) activate VRI VRI -\u0026gt; VRI: handleWindowFocusChanged() VRI -\u0026gt; Controller: **onPostWindowFocus**() activate Controller Controller -\u0026gt; Controller: check **mayUseInputMethod** Controller -\u0026gt; IMM: **onPostWindowGainedFocus**() activate IMM IMM -\u0026gt; IMM: **startInputInner**() group 关键：创建通信对象 IMM -\u0026gt; EditText: **onCreateInputConnection**() activate EditText EditText --\u0026gt; IMM: return **InputConnection** deactivate EditText end IMM -\u0026gt; IMMS: **startInputOrWindowGainedFocus**(client=Stub, inputContext=IC_Stub) activate IMMS note right of IMMS **服务端逻辑 (Switch Client)：** 1. 发现请求者(New) != 当前记录(Old) 2. **必须先清理旧状态** 3. 再绑定新应用 end note group [新增] 通知旧应用断开连接 (Unbind Sequence) IMMS -\u0026gt; Old_Stub: **onUnbindMethod**(sequence, UNBIND_REASON_SWITCH_CLIENT) activate Old_Stub note right of Old_Stub **反向控制生效：** 系统通知旧应用下线 end note Old_Stub -\u0026gt; Old_IMM: sendMessage(MSG_UNBIND) activate Old_IMM Old_IMM -\u0026gt; Old_IMM: **closeCurrentInput()** note right of Old_IMM 1. 销毁 InputChannel 2. 断开 InputConnection 3. 停止光标闪烁 end note deactivate Old_IMM deactivate Old_Stub end IMMS -\u0026gt; IME: **startInput**(inputContext=IC_Proxy) activate IME IME -\u0026gt; IME: 保存 IC_Proxy (持有 New App 的操作句柄) deactivate IME IMMS -\u0026gt; ClientStub: **onBindMethod**(res) activate ClientStub note right of ClientStub **反向链路生效：** 系统回传 InputChannel (Socket) end note ClientStub -\u0026gt; IMM: sendMessage(MSG_BIND) deactivate ClientStub IMMS --\u0026gt; IMM: Success deactivate IMMS IMM -\u0026gt; IMM: **handleMessage(MSG_BIND)** note left of IMM 连接建立完成 New App 持有 IME Channel IME 持有 New App InputConnection end note deactivate IMM deactivate Controller deactivate VRI == 第二阶段：显示控制 (Touch -\u0026gt; Show) == User -\u0026gt; EditText: 点击输入框 activate EditText EditText -\u0026gt; IMM: **showSoftInput**(view) activate IMM IMM -\u0026gt; IMMS: **showSoftInput**(client) activate IMMS IMMS -\u0026gt; IME: **showSoftInput**() activate IME IME -\u0026gt; IME: **showWindow**(true) note right of IME 软键盘 UI 此时对用户可见 end note deactivate IME deactivate IMMS deactivate IMM deactivate EditText == 第三阶段：文本分发 (Typing -\u0026gt; Commit) == User -\u0026gt; IME: 点击虚拟键盘 \u0026#34;A\u0026#34; activate IME IME -\u0026gt; IME: onCodeInput(\u0026#34;A\u0026#34;) note right of IME **核心交互：** IME 使用之前保存的 Proxy 直接操作 App 内部状态 end note IME -\u0026gt; IC_Proxy: **commitText**(\u0026#34;A\u0026#34;, 1) activate IC_Proxy IC_Proxy -\u0026gt; IC_Stub: **IPC: Transmit Text** deactivate IC_Proxy activate IC_Stub note left of IC_Stub **App 进程响应：** Binder 线程收到数据 修改 Editable Buffer end note IC_Stub -\u0026gt; EditText: **Editable.replace**(...) EditText -\u0026gt; VRI: invalidate() -\u0026gt; onDraw() deactivate IC_Stub VRI -\u0026gt; User: 屏幕显示字符 \u0026#34;A\u0026#34; deactivate IME @enduml 本节对应时序图中的三个核心阶段，描述代码层面的执行逻辑。\n","keywords":[],"articleBody":"1. 流程详细解析 @startuml !theme plain autonumber skinparam backgroundColor white skinparam boxPadding 10 skinparam noteBackgroundColor #FFFFA0 skinparam noteBorderColor #808080 skinparam participantBackgroundColor white actor \"User\" as User box \"新应用进程 (New App - 抢焦者)\" #Honeydew participant \"ViewRootImpl\" as VRI participant \"ImeFocusController\" as Controller participant \"InputMethodManager\\n(IMM)\" as IMM participant \"IInputMethodClient\\n(Stub)\" as ClientStub participant \"View (EditText)\" as EditText participant \"InputConnection\\n(Binder Stub)\" as IC_Stub end box box \"系统服务 (System Server)\" #LightBlue participant \"WindowManagerService\\n(WMS)\" as WMS participant \"InputMethodManagerService\\n(IMMS)\" as IMMS end box box \"输入法进程 (IME Process)\" #MistyRose participant \"InputMethodService\\n(IME)\" as IME participant \"IInputContext\\n(Binder Proxy)\" as IC_Proxy end box box \"旧应用进程 (Old App - 受害者)\" #LightGrey participant \"IInputMethodClient\\n(Stub)\" as Old_Stub participant \"InputMethodManager\\n(IMM)\" as Old_IMM end box == 第一阶段：连接建立与切换 (Switch Client) == note right of WMS: App 启动，窗口添加完成 WMS -\u003e VRI: **windowFocusChanged**(true) activate VRI VRI -\u003e VRI: handleWindowFocusChanged() VRI -\u003e Controller: **onPostWindowFocus**() activate Controller Controller -\u003e Controller: check **mayUseInputMethod** Controller -\u003e IMM: **onPostWindowGainedFocus**() activate IMM IMM -\u003e IMM: **startInputInner**() group 关键：创建通信对象 IMM -\u003e EditText: **onCreateInputConnection**() activate EditText EditText --\u003e IMM: return **InputConnection** deactivate EditText end IMM -\u003e IMMS: **startInputOrWindowGainedFocus**(client=Stub, inputContext=IC_Stub) activate IMMS note right of IMMS **服务端逻辑 (Switch Client)：** 1. 发现请求者(New) != 当前记录(Old) 2. **必须先清理旧状态** 3. 再绑定新应用 end note group [新增] 通知旧应用断开连接 (Unbind Sequence) IMMS -\u003e Old_Stub: **onUnbindMethod**(sequence, UNBIND_REASON_SWITCH_CLIENT) activate Old_Stub note right of Old_Stub **反向控制生效：** 系统通知旧应用下线 end note Old_Stub -\u003e Old_IMM: sendMessage(MSG_UNBIND) activate Old_IMM Old_IMM -\u003e Old_IMM: **closeCurrentInput()** note right of Old_IMM 1. 销毁 InputChannel 2. 断开 InputConnection 3. 停止光标闪烁 end note deactivate Old_IMM deactivate Old_Stub end IMMS -\u003e IME: **startInput**(inputContext=IC_Proxy) activate IME IME -\u003e IME: 保存 IC_Proxy (持有 New App 的操作句柄) deactivate IME IMMS -\u003e ClientStub: **onBindMethod**(res) activate ClientStub note right of ClientStub **反向链路生效：** 系统回传 InputChannel (Socket) end note ClientStub -\u003e IMM: sendMessage(MSG_BIND) deactivate ClientStub IMMS --\u003e IMM: Success deactivate IMMS IMM -\u003e IMM: **handleMessage(MSG_BIND)** note left of IMM 连接建立完成 New App 持有 IME Channel IME 持有 New App InputConnection end note deactivate IMM deactivate Controller deactivate VRI == 第二阶段：显示控制 (Touch -\u003e Show) == User -\u003e EditText: 点击输入框 activate EditText EditText -\u003e IMM: **showSoftInput**(view) activate IMM IMM -\u003e IMMS: **showSoftInput**(client) activate IMMS IMMS -\u003e IME: **showSoftInput**() activate IME IME -\u003e IME: **showWindow**(true) note right of IME 软键盘 UI 此时对用户可见 end note deactivate IME deactivate IMMS deactivate IMM deactivate EditText == 第三阶段：文本分发 (Typing -\u003e Commit) == User -\u003e IME: 点击虚拟键盘 \"A\" activate IME IME -\u003e IME: onCodeInput(\"A\") note right of IME **核心交互：** IME 使用之前保存的 Proxy 直接操作 App 内部状态 end note IME -\u003e IC_Proxy: **commitText**(\"A\", 1) activate IC_Proxy IC_Proxy -\u003e IC_Stub: **IPC: Transmit Text** deactivate IC_Proxy activate IC_Stub note left of IC_Stub **App 进程响应：** Binder 线程收到数据 修改 Editable Buffer end note IC_Stub -\u003e EditText: **Editable.replace**(...) EditText -\u003e VRI: invalidate() -\u003e onDraw() deactivate IC_Stub VRI -\u003e User: 屏幕显示字符 \"A\" deactivate IME @enduml 本节对应时序图中的三个核心阶段，描述代码层面的执行逻辑。\n第一阶段：连接建立与切换 (Connection Establishment \u0026 Switching) 此阶段描述应用获焦后，如何通过系统服务（IMMS）建立与输入法（IME）的通信链路，以及旧应用如何被断开。\n窗口获焦通知 (Steps 1-3) 触发：WMS 通过 Binder 调用应用进程的 IWindow.windowFocusChanged。 应用侧响应：ViewRootImpl.W 接收调用，通过 ViewRootHandler 发送消息，最终执行 ViewRootImpl.handleWindowFocusChanged()。 控制权转移：ViewRootImpl 调用 mImeFocusController.onPostWindowFocus()。 连接发起 (Steps 4-6) 逻辑判定：ImeFocusController 检查 windowAttribute.flags (是否包含 FLAG_NOT_FOCUSABLE) 以确定 mHasImeFocus。 委托调用：若满足条件，调用 InputMethodManager.DelegateImpl.onPostWindowGainedFocus()。 内部启动：InputMethodManager (IMM) 执行 startInputInner (Line 2073)，这是建立连接的核心入口。 创建通信对象 (Steps 7-9) IMM 调用 View.onCreateInputConnection (Line 3072)。 EditText 返回一个 InputConnection 实例（通常是 EditableInputConnection），它封装了对 Editable 缓冲区的修改操作。 IPC 请求与服务端仲裁 (Step 10) IMM 调用 startInputOrWindowGainedFocus (Line 2235) 向 InputMethodManagerService (IMMS) 发起 Binder IPC 请求。 请求参数包含：mClient (应用进程的 IInputMethodClient.Stub) 和 inputContext (InputConnection 的 Binder 存根)。 旧应用断开连接 (Steps 11-16, Unbind Sequence) 服务端逻辑：IMMS 检测到 Client 变更，向旧应用发起 onUnbindMethod 调用。 旧应用响应： 旧应用的 IInputMethodClient.Stub (Line 1326) 接收调用，发送 MSG_UNBIND 到主线程。 资源销毁：主线程处理 MSG_UNBIND (Line 1129)，调用 clearBindingLocked() (Line 1557)。 物理断开：clearBindingLocked 调用 updateInputChannelLocked(null)，进而调用 mCurChannel.dispose() 和 mCurSender.dispose()，彻底关闭 Socket 通道。同时置空 mCurMethod (Binder 代理)。 新应用绑定 (Steps 17-20) IMMS 将新应用的 inputContext 传递给 IME (startInput)。 IMMS 调用新应用的 onBindMethod (Line 1303)，回传 InputBindResult（包含 InputChannel）。 新应用响应：IMM 处理 MSG_BIND (Line 1073)，调用 updateInputChannelLocked (Line 1582) 保存 mCurChannel 并实例化 mCurSender (ImeInputEventSender)。 第二阶段：显示控制 (Visibility Control) 此阶段描述用户点击输入框唤起软键盘的过程。\n触发显示 (Step 21-23) 用户点击 EditText，触发点击事件处理。 EditText 调用 IMM.showSoftInput (Line 1640)。 状态检查：IMM 检查 hasServedByInputMethodLocked(view) 确保当前 View 是连接的持有者。 IPC 请求 (Steps 24-25) IMM 调用 IInputMethodManagerGlobalInvoker.showSoftInput。 IMMS 接收请求后，通知 IME 进程显示窗口 (showWindow)。 第三阶段：文本分发 (Text Delivery) 此阶段描述用户输入字符如何从 IME 传输到应用，展示了 Binder 直连机制。\nIME 内部处理 (Step 26) IME 进程接收屏幕触摸事件，内部逻辑判定为字符输入（如 “A”）。 跨进程数据传输 (Step 27-28) 关键路径：IME 获取在第一阶段 startInput 中保存的 IInputContext (即 App 端 InputConnection 的 Binder 代理)。 IME 直接调用 commitText(\"A\", 1)。此调用通过 Binder 驱动直接到达 App 进程，不经过 System Server。 应用端上屏 (Step 29-32) App 进程的 Binder 线程池收到 IInputContext 调用。 InputConnection 执行 Editable.replace() 修改内存中的文本数据。 View 触发 invalidate()，重绘 UI，字符 “A” 显示在屏幕上。 2. windowFocusChanged 的调用时机 基于 ViewRootImpl.java 和 ImeFocusController.java 的逻辑，应用进程感知窗口焦点变化主要有以下两种路径：\nWMS 主动通知 (Binder Callback) 时机：当 Activity 启动、Resume、Pause、被 Dialog 覆盖、或者在多窗口模式下用户点击其他窗口导致 Z-Order 变化时。 路径：SystemServer -\u003e Binder -\u003e ViewRootImpl.W.windowFocusChanged -\u003e MSG_WINDOW_FOCUS_CHANGED -\u003e handleWindowFocusChanged。 作用：这是最主要的焦点更新机制，决定了应用是否处于 “Active” 状态。 输入事件分发前的延迟同步 (Lazy Synchronization) 时机：当 ViewRootImpl 接收到底层 InputDispatcher 分发的输入事件（Key 或 Touch），准备进入 InputStage 流水线之前。 路径：ViewRootImpl.deliverInputEvent -\u003e handleWindowFocusChanged。 作用：作为防御性机制。如果在处理输入事件的瞬间，WMS 的焦点变更通过 Binder 刚刚到达但尚未处理，该机制强制先处理焦点变更，确保事件分发时 ImeFocusController 的状态（如 mHasImeFocus）是最新的。 3. InputChannel 的技术作用 在 InputMethodManager (IMM) 的设计中，InputChannel 是独立于 InputConnection (Binder) 之外的第二条通信链路。\n基于源码 InputMethodManager.java (Line 1582 updateInputChannelLocked 和 Line 2375 ImeInputEventSender)，其作用如下：\n物理载体： 它持有一个 Linux Socket 文件描述符 (File Descriptor)，构成了 App 进程与 IME 进程之间的高速、全双工数据通道。 发送端角色 (App -\u003e IME)： IMM 内部维护了 mCurSender (类型为 ImeInputEventSender)。 作用：当应用接收到 Key Events (物理按键) 或部分 Touch Events 时，如果需要分发给 IME 处理（例如物理键盘按 “A” 需要 IME 转为 “阿”），App 会调用 sendInputEventOnMainLooperLocked (Line 1930) 将事件写入此 Channel。 区别于 Binder： InputConnection (Binder) 用于 高层语义交互（如 commitText, deleteSurroundingText）。 InputChannel (Socket) 用于 底层原始事件传输（如 KeyEvent, MotionEvent）。它支持异步处理和时序控制，适合高频、低延迟的输入流。 总结：InputChannel 是 App 主动向 IME 推送原始输入事件的专用管道，确保了物理键盘和非文本编辑操作能被输入法正确拦截和处理。\n架构一览 这张图将更清晰地展现 App、System Server 和 IME 三大进程中对象的直接交互关系。\nInputMethod 逻辑架构图 @startuml !theme plain skinparam defaultFontName Arial skinparam linetype ortho skinparam nodesep 200 skinparam ranksep 100 skinparam defaultFontSize 12 skinparam shadowing false skinparam Padding 10 ' --- Layer 1: App Process --- frame \"App Process (Client)\" #Honeydew { rectangle \"ViewRootImpl\" as VRI rectangle \"ImeFocusController\" as FocusCtrl #LightPink rectangle \"\\t\\tView / EditText\\t\\t\\t\\t\" as View package \"InputMethodManager (IMM)\" { rectangle \"IInputMethodClient.Stub\\n(Callback)\" as ClientStub #White rectangle \"ImeInputEventSender\\n(Sender)\" as Sender #Yellow rectangle \"InputMethodManager\\n(API)\" as IMM_API } rectangle \"InputConnection(Binder Stub)\\t\" as IC_Stub #Cyan FocusCtrl -[hidden]left-- IC_Stub } ' --- Layer 2: System Server --- frame \"System_Server Process\" #LightBlue { rectangle \"\\t\\t\\t\\tInputMethodManagerService\\t\\t\\t\\t\\t\\t\\t\" as IMMS rectangle \"WindowManagerService(WMS)\" as WMS map \"IMMS State\" as Record { mCurClient =\u003e App A mCurFocusedWindow =\u003e Window A } IMMS -[hidden]down-- Record WMS -[hidden]left-- Record } ' --- Layer 3: IME Process --- frame \"IME Process (Service)\" #MistyRose { rectangle \"InputMethodService\" as IMS rectangle \"IInputContext\\n(Binder Proxy)\" as IC_Proxy #Cyan rectangle \"InputEventReceiver\\n(Receiver)\" as Receiver #Yellow rectangle \"Keyboard UI\" as UI } ' === Relationships === ' 1. App 内部逻辑 VRI -down-\u003e FocusCtrl : 1. 焦点/事件分发 FocusCtrl -down-\u003e IMM_API : 2. 触发逻辑 View ..\u003e IC_Stub : 3. 创建连接 IMM_API -- ClientStub IMM_API -- Sender ' 2. 控制链路 (Control Link) - 经过 System Server IMM_API -down-\u003e IMMS : 4. startInput (IPC) WMS -up-\u003e IMMS : 5. Window Focus Change IMMS -up-\u003e IMS : 6. bind / startInput (IPC) IMMS .up.\u003e ClientStub : 7. onBindMethod (IPC) ' 3. 文本链路 (Text Link) - 逻辑直连 IMS -up-- IC_Proxy : 持有 IC_Proxy ..\u003e IC_Stub : **[Direct IPC]** commitText\\n(文字上屏) IC_Stub -up--\u003e View : 修改 Editable ' 4. 事件链路 (Event Link) - 逻辑直连 Sender ..\u003e Receiver : **[InputChannel]**\\n(物理按键分发) Receiver --\u003e IMS : onKeyDown ' 5. UI IMS -left--\u003e UI : 显示 @enduml 架构图核心逻辑说明 这张图凸显了三个关键的“逻辑通道”：\n1. 控制通道 (Control Channel) - 黑色实线 路径：App \u003c-\u003e IMMS \u003c-\u003e IME 核心类：InputMethodManager, InputMethodManagerService, InputMethodService。 作用：这是唯一的“官方沟通渠道”。 App 告诉 IMMS：“我获焦了，我要连输入法”。 IMMS 告诉 IME：“有新客户了，这是他的地址（Binder句柄），请准备服务”。 IMMS 告诉 App：“连接好了，这是你的专用通道（InputChannel），拿好”。 2. 文本通道 (Text Channel) - 青色虚线 路径：IME (IInputContext Proxy) -\u003e App (InputConnection Stub) 核心类：IInputContext, InputConnection。 作用：这是输入法最高频使用的数据通道。 当用户在软键盘打字时，IME 直接通过这个通道“遥控”App 中的 EditText。 注意：虽然物理上经过 Binder 驱动，但在逻辑架构上，它是 绕过 System Server 直接连接两个应用的。 3. 事件通道 (Event Channel) - 黄色虚线 路径：App (Sender) -\u003e IME (Receiver) 核心类：ImeInputEventSender, InputEventReceiver。 作用：这是 App 反向推数据给 IME 的通道。 当 App 收到物理按键（如回车、蓝牙键盘按键）时，它通过这个通道把“生肉”（Raw Event）扔给 IME 处理。 这个通道基于 Socket，也是点对点直连，不经过 System Server。 ","wordCount":"1184","inLanguage":"en","datePublished":"2025-09-29T10:22:54+08:00","dateModified":"2025-09-29T10:22:54+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethodservice/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/>WindowManager</a></div><h1 class="post-title entry-hint-parent">Android InputMethod 交互流程技术说明文档</h1><div class=post-meta><span title='2025-09-29 10:22:54 +0800 CST'>September 29, 2025</span>&nbsp;·&nbsp;6 min&nbsp;·&nbsp;1184 words</div></header><div class=post-content><h3 id=1-流程详细解析>1. 流程详细解析<a hidden class=anchor aria-hidden=true href=#1-流程详细解析>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+autonumber
+skinparam backgroundColor white
+skinparam boxPadding 10
+skinparam noteBackgroundColor #FFFFA0
+skinparam noteBorderColor #808080
+skinparam participantBackgroundColor white
+
+actor &#34;User&#34; as User
+
+box &#34;新应用进程 (New App - 抢焦者)&#34; #Honeydew
+    participant &#34;ViewRootImpl&#34; as VRI
+    participant &#34;ImeFocusController&#34; as Controller
+    participant &#34;InputMethodManager\n(IMM)&#34; as IMM
+    participant &#34;IInputMethodClient\n(Stub)&#34; as ClientStub
+    participant &#34;View (EditText)&#34; as EditText
+    participant &#34;InputConnection\n(Binder Stub)&#34; as IC_Stub
+end box
+
+box &#34;系统服务 (System Server)&#34; #LightBlue
+    participant &#34;WindowManagerService\n(WMS)&#34; as WMS
+    participant &#34;InputMethodManagerService\n(IMMS)&#34; as IMMS
+end box
+
+box &#34;输入法进程 (IME Process)&#34; #MistyRose
+    participant &#34;InputMethodService\n(IME)&#34; as IME
+    participant &#34;IInputContext\n(Binder Proxy)&#34; as IC_Proxy
+end box
+
+box &#34;旧应用进程 (Old App - 受害者)&#34; #LightGrey
+    participant &#34;IInputMethodClient\n(Stub)&#34; as Old_Stub
+    participant &#34;InputMethodManager\n(IMM)&#34; as Old_IMM
+end box
+
+== 第一阶段：连接建立与切换 (Switch Client) ==
+
+note right of WMS: App 启动，窗口添加完成
+
+WMS -&gt; VRI: **windowFocusChanged**(true)
+activate VRI
+    VRI -&gt; VRI: handleWindowFocusChanged()
+    VRI -&gt; Controller: **onPostWindowFocus**()
+    activate Controller
+        Controller -&gt; Controller: check **mayUseInputMethod**
+        
+        Controller -&gt; IMM: **onPostWindowGainedFocus**()
+        activate IMM
+            IMM -&gt; IMM: **startInputInner**()
+            
+            group 关键：创建通信对象
+                IMM -&gt; EditText: **onCreateInputConnection**()
+                activate EditText
+                    EditText --&gt; IMM: return **InputConnection**
+                deactivate EditText
+            end
+            
+            IMM -&gt; IMMS: **startInputOrWindowGainedFocus**(client=Stub, inputContext=IC_Stub)
+            activate IMMS
+                note right of IMMS
+                    **服务端逻辑 (Switch Client)：**
+                    1. 发现请求者(New) != 当前记录(Old)
+                    2. **必须先清理旧状态**
+                    3. 再绑定新应用
+                end note
+
+                group [新增] 通知旧应用断开连接 (Unbind Sequence)
+                    IMMS -&gt; Old_Stub: **onUnbindMethod**(sequence, UNBIND_REASON_SWITCH_CLIENT)
+                    activate Old_Stub
+                        note right of Old_Stub
+                            **反向控制生效：**
+                            系统通知旧应用下线
+                        end note
+                        Old_Stub -&gt; Old_IMM: sendMessage(MSG_UNBIND)
+                        activate Old_IMM
+                            Old_IMM -&gt; Old_IMM: **closeCurrentInput()**
+                            note right of Old_IMM
+                                1. 销毁 InputChannel
+                                2. 断开 InputConnection
+                                3. 停止光标闪烁
+                            end note
+                        deactivate Old_IMM
+                    deactivate Old_Stub
+                end
+                
+                IMMS -&gt; IME: **startInput**(inputContext=IC_Proxy)
+                activate IME
+                    IME -&gt; IME: 保存 IC_Proxy (持有 New App 的操作句柄)
+                deactivate IME
+                
+                IMMS -&gt; ClientStub: **onBindMethod**(res)
+                activate ClientStub
+                    note right of ClientStub
+                        **反向链路生效：**
+                        系统回传 InputChannel (Socket)
+                    end note
+                    ClientStub -&gt; IMM: sendMessage(MSG_BIND)
+                deactivate ClientStub
+                
+            IMMS --&gt; IMM: Success
+            deactivate IMMS
+            
+            IMM -&gt; IMM: **handleMessage(MSG_BIND)**
+            note left of IMM
+                连接建立完成
+                New App 持有 IME Channel
+                IME 持有 New App InputConnection
+            end note
+            
+        deactivate IMM
+    deactivate Controller
+deactivate VRI
+
+== 第二阶段：显示控制 (Touch -&gt; Show) ==
+
+User -&gt; EditText: 点击输入框
+activate EditText
+    EditText -&gt; IMM: **showSoftInput**(view)
+    activate IMM
+        IMM -&gt; IMMS: **showSoftInput**(client)
+        activate IMMS
+            IMMS -&gt; IME: **showSoftInput**()
+            activate IME
+                IME -&gt; IME: **showWindow**(true)
+                note right of IME
+                    软键盘 UI 此时对用户可见
+                end note
+            deactivate IME
+        deactivate IMMS
+    deactivate IMM
+deactivate EditText
+
+== 第三阶段：文本分发 (Typing -&gt; Commit) ==
+
+User -&gt; IME: 点击虚拟键盘 &#34;A&#34;
+activate IME
+    IME -&gt; IME: onCodeInput(&#34;A&#34;)
+    
+    note right of IME
+        **核心交互：**
+        IME 使用之前保存的 Proxy
+        直接操作 App 内部状态
+    end note
+    
+    IME -&gt; IC_Proxy: **commitText**(&#34;A&#34;, 1)
+    activate IC_Proxy
+        IC_Proxy -&gt; IC_Stub: **IPC: Transmit Text**
+    deactivate IC_Proxy
+
+    activate IC_Stub
+        note left of IC_Stub
+            **App 进程响应：**
+            Binder 线程收到数据
+            修改 Editable Buffer
+        end note
+        IC_Stub -&gt; EditText: **Editable.replace**(...)
+        EditText -&gt; VRI: invalidate() -&gt; onDraw()
+    deactivate IC_Stub
+    
+    VRI -&gt; User: 屏幕显示字符 &#34;A&#34;
+deactivate IME
+
+@enduml
+</code></pre><p>本节对应时序图中的三个核心阶段，描述代码层面的执行逻辑。</p><h4 id=第一阶段连接建立与切换-connection-establishment--switching>第一阶段：连接建立与切换 (Connection Establishment & Switching)<a hidden class=anchor aria-hidden=true href=#第一阶段连接建立与切换-connection-establishment--switching>#</a></h4><p>此阶段描述应用获焦后，如何通过系统服务（IMMS）建立与输入法（IME）的通信链路，以及旧应用如何被断开。</p><ol><li><strong>窗口获焦通知 (Steps 1-3)</strong></li></ol><ul><li><strong>触发</strong>：WMS 通过 Binder 调用应用进程的 <code>IWindow.windowFocusChanged</code>。</li><li><strong>应用侧响应</strong>：<code>ViewRootImpl.W</code> 接收调用，通过 <code>ViewRootHandler</code> 发送消息，最终执行 <code>ViewRootImpl.handleWindowFocusChanged()</code>。</li><li><strong>控制权转移</strong>：<code>ViewRootImpl</code> 调用 <code>mImeFocusController.onPostWindowFocus()</code>。</li></ul><ol start=2><li><strong>连接发起 (Steps 4-6)</strong></li></ol><ul><li><strong>逻辑判定</strong>：<code>ImeFocusController</code> 检查 <code>windowAttribute.flags</code> (是否包含 <code>FLAG_NOT_FOCUSABLE</code>) 以确定 <code>mHasImeFocus</code>。</li><li><strong>委托调用</strong>：若满足条件，调用 <code>InputMethodManager.DelegateImpl.onPostWindowGainedFocus()</code>。</li><li><strong>内部启动</strong>：<code>InputMethodManager</code> (IMM) 执行 <code>startInputInner</code> (Line 2073)，这是建立连接的核心入口。</li></ul><ol start=3><li><strong>创建通信对象 (Steps 7-9)</strong></li></ol><ul><li><strong>IMM</strong> 调用 <code>View.onCreateInputConnection</code> (Line 3072)。</li><li><strong>EditText</strong> 返回一个 <code>InputConnection</code> 实例（通常是 <code>EditableInputConnection</code>），它封装了对 <code>Editable</code> 缓冲区的修改操作。</li></ul><ol start=4><li><strong>IPC 请求与服务端仲裁 (Step 10)</strong></li></ol><ul><li><strong>IMM</strong> 调用 <code>startInputOrWindowGainedFocus</code> (Line 2235) 向 <code>InputMethodManagerService</code> (IMMS) 发起 Binder IPC 请求。</li><li>请求参数包含：<code>mClient</code> (应用进程的 <code>IInputMethodClient.Stub</code>) 和 <code>inputContext</code> (<code>InputConnection</code> 的 Binder 存根)。</li></ul><ol start=5><li><strong>旧应用断开连接 (Steps 11-16, Unbind Sequence)</strong></li></ol><ul><li><strong>服务端逻辑</strong>：IMMS 检测到 Client 变更，向旧应用发起 <code>onUnbindMethod</code> 调用。</li><li><strong>旧应用响应</strong>：</li><li>旧应用的 <code>IInputMethodClient.Stub</code> (Line 1326) 接收调用，发送 <code>MSG_UNBIND</code> 到主线程。</li><li><strong>资源销毁</strong>：主线程处理 <code>MSG_UNBIND</code> (Line 1129)，调用 <strong><code>clearBindingLocked()</code></strong> (Line 1557)。</li><li><strong>物理断开</strong>：<code>clearBindingLocked</code> 调用 <code>updateInputChannelLocked(null)</code>，进而调用 <strong><code>mCurChannel.dispose()</code></strong> 和 <strong><code>mCurSender.dispose()</code></strong>，彻底关闭 Socket 通道。同时置空 <code>mCurMethod</code> (Binder 代理)。</li></ul><ol start=6><li><strong>新应用绑定 (Steps 17-20)</strong></li></ol><ul><li><strong>IMMS</strong> 将新应用的 <code>inputContext</code> 传递给 <strong>IME</strong> (<code>startInput</code>)。</li><li><strong>IMMS</strong> 调用新应用的 <code>onBindMethod</code> (Line 1303)，回传 <code>InputBindResult</code>（包含 <code>InputChannel</code>）。</li><li><strong>新应用响应</strong>：IMM 处理 <code>MSG_BIND</code> (Line 1073)，调用 <code>updateInputChannelLocked</code> (Line 1582) 保存 <code>mCurChannel</code> 并实例化 <code>mCurSender</code> (<code>ImeInputEventSender</code>)。</li></ul><h4 id=第二阶段显示控制-visibility-control>第二阶段：显示控制 (Visibility Control)<a hidden class=anchor aria-hidden=true href=#第二阶段显示控制-visibility-control>#</a></h4><p>此阶段描述用户点击输入框唤起软键盘的过程。</p><ol><li><strong>触发显示 (Step 21-23)</strong></li></ol><ul><li>用户点击 <code>EditText</code>，触发点击事件处理。</li><li><code>EditText</code> 调用 <code>IMM.showSoftInput</code> (Line 1640)。</li><li><strong>状态检查</strong>：IMM 检查 <code>hasServedByInputMethodLocked(view)</code> 确保当前 View 是连接的持有者。</li></ul><ol start=2><li><strong>IPC 请求 (Steps 24-25)</strong></li></ol><ul><li>IMM 调用 <code>IInputMethodManagerGlobalInvoker.showSoftInput</code>。</li><li>IMMS 接收请求后，通知 IME 进程显示窗口 (<code>showWindow</code>)。</li></ul><h4 id=第三阶段文本分发-text-delivery>第三阶段：文本分发 (Text Delivery)<a hidden class=anchor aria-hidden=true href=#第三阶段文本分发-text-delivery>#</a></h4><p>此阶段描述用户输入字符如何从 IME 传输到应用，展示了 Binder 直连机制。</p><ol><li><strong>IME 内部处理 (Step 26)</strong></li></ol><ul><li>IME 进程接收屏幕触摸事件，内部逻辑判定为字符输入（如 &ldquo;A&rdquo;）。</li></ul><ol start=2><li><strong>跨进程数据传输 (Step 27-28)</strong></li></ol><ul><li><strong>关键路径</strong>：IME 获取在第一阶段 <code>startInput</code> 中保存的 <code>IInputContext</code> (即 App 端 <code>InputConnection</code> 的 Binder 代理)。</li><li>IME 直接调用 <code>commitText("A", 1)</code>。此调用通过 Binder 驱动直接到达 App 进程，<strong>不经过 System Server</strong>。</li></ul><ol start=3><li><strong>应用端上屏 (Step 29-32)</strong></li></ol><ul><li>App 进程的 Binder 线程池收到 <code>IInputContext</code> 调用。</li><li><code>InputConnection</code> 执行 <code>Editable.replace()</code> 修改内存中的文本数据。</li><li><code>View</code> 触发 <code>invalidate()</code>，重绘 UI，字符 &ldquo;A&rdquo; 显示在屏幕上。</li></ul><hr><h3 id=2-windowfocuschanged-的调用时机>2. <code>windowFocusChanged</code> 的调用时机<a hidden class=anchor aria-hidden=true href=#2-windowfocuschanged-的调用时机>#</a></h3><p>基于 <code>ViewRootImpl.java</code> 和 <code>ImeFocusController.java</code> 的逻辑，应用进程感知窗口焦点变化主要有以下两种路径：</p><ol><li><strong>WMS 主动通知 (Binder Callback)</strong></li></ol><ul><li><strong>时机</strong>：当 Activity 启动、Resume、Pause、被 Dialog 覆盖、或者在多窗口模式下用户点击其他窗口导致 Z-Order 变化时。</li><li><strong>路径</strong>：SystemServer -> Binder -> <code>ViewRootImpl.W.windowFocusChanged</code> -> <code>MSG_WINDOW_FOCUS_CHANGED</code> -> <code>handleWindowFocusChanged</code>。</li><li><strong>作用</strong>：这是最主要的焦点更新机制，决定了应用是否处于 &ldquo;Active&rdquo; 状态。</li></ul><ol start=2><li><strong>输入事件分发前的延迟同步 (Lazy Synchronization)</strong></li></ol><ul><li><strong>时机</strong>：当 <code>ViewRootImpl</code> 接收到底层 InputDispatcher 分发的输入事件（Key 或 Touch），准备进入 <code>InputStage</code> 流水线之前。</li><li><strong>路径</strong>：<code>ViewRootImpl.deliverInputEvent</code> -> <code>handleWindowFocusChanged</code>。</li><li><strong>作用</strong>：作为防御性机制。如果在处理输入事件的瞬间，WMS 的焦点变更通过 Binder 刚刚到达但尚未处理，该机制强制先处理焦点变更，确保事件分发时 <code>ImeFocusController</code> 的状态（如 <code>mHasImeFocus</code>）是最新的。</li></ul><hr><h3 id=3-inputchannel-的技术作用>3. InputChannel 的技术作用<a hidden class=anchor aria-hidden=true href=#3-inputchannel-的技术作用>#</a></h3><p>在 <code>InputMethodManager</code> (IMM) 的设计中，<code>InputChannel</code> 是独立于 <code>InputConnection</code> (Binder) 之外的第二条通信链路。</p><p>基于源码 <code>InputMethodManager.java</code> (Line 1582 <code>updateInputChannelLocked</code> 和 Line 2375 <code>ImeInputEventSender</code>)，其作用如下：</p><ol><li><strong>物理载体</strong>：
+它持有一个 Linux Socket 文件描述符 (File Descriptor)，构成了 App 进程与 IME 进程之间的高速、全双工数据通道。</li><li><strong>发送端角色 (App -> IME)</strong>：</li></ol><ul><li>IMM 内部维护了 <code>mCurSender</code> (类型为 <code>ImeInputEventSender</code>)。</li><li><strong>作用</strong>：当应用接收到 <strong>Key Events (物理按键)</strong> 或部分 <strong>Touch Events</strong> 时，如果需要分发给 IME 处理（例如物理键盘按 &ldquo;A&rdquo; 需要 IME 转为 &ldquo;阿&rdquo;），App 会调用 <code>sendInputEventOnMainLooperLocked</code> (Line 1930) 将事件写入此 Channel。</li></ul><ol start=3><li><strong>区别于 Binder</strong>：</li></ol><ul><li><code>InputConnection</code> (Binder) 用于 <strong>高层语义交互</strong>（如 <code>commitText</code>, <code>deleteSurroundingText</code>）。</li><li><code>InputChannel</code> (Socket) 用于 <strong>底层原始事件传输</strong>（如 <code>KeyEvent</code>, <code>MotionEvent</code>）。它支持异步处理和时序控制，适合高频、低延迟的输入流。</li></ul><p><strong>总结</strong>：<code>InputChannel</code> 是 App 主动向 IME 推送原始输入事件的专用管道，确保了物理键盘和非文本编辑操作能被输入法正确拦截和处理。</p><h2 id=架构一览>架构一览<a hidden class=anchor aria-hidden=true href=#架构一览>#</a></h2><p>这张图将更清晰地展现 App、System Server 和 IME 三大进程中对象的直接交互关系。</p><h3 id=inputmethod-逻辑架构图>InputMethod 逻辑架构图<a hidden class=anchor aria-hidden=true href=#inputmethod-逻辑架构图>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+skinparam defaultFontName Arial
+skinparam linetype ortho
+skinparam nodesep 200
+skinparam ranksep 100
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam Padding 10
+
+
+&#39; --- Layer 1: App Process ---
+frame &#34;App Process (Client)&#34; #Honeydew {
+    rectangle &#34;ViewRootImpl&#34; as VRI
+    rectangle &#34;ImeFocusController&#34; as FocusCtrl #LightPink
+    
+    rectangle &#34;\t\tView / EditText\t\t\t\t&#34; as View
+    
+    package &#34;InputMethodManager (IMM)&#34; {
+        rectangle &#34;IInputMethodClient.Stub\n(Callback)&#34; as ClientStub #White
+        rectangle &#34;ImeInputEventSender\n(Sender)&#34; as Sender #Yellow
+        rectangle &#34;InputMethodManager\n(API)&#34; as IMM_API
+    }
+    
+    rectangle &#34;InputConnection(Binder Stub)\t&#34; as IC_Stub #Cyan
+
+    FocusCtrl -[hidden]left-- IC_Stub
+
+}
+
+&#39; --- Layer 2: System Server ---
+frame &#34;System_Server Process&#34; #LightBlue {
+    rectangle &#34;\t\t\t\tInputMethodManagerService\t\t\t\t\t\t\t&#34; as IMMS
+    rectangle &#34;WindowManagerService(WMS)&#34; as WMS
+
+    
+    map &#34;IMMS State&#34; as Record {
+       mCurClient =&gt; App A
+       mCurFocusedWindow =&gt; Window A
+    }
+
+    IMMS -[hidden]down-- Record
+    WMS -[hidden]left-- Record
+}
+
+&#39; --- Layer 3: IME Process ---
+frame &#34;IME Process (Service)&#34; #MistyRose {
+    rectangle &#34;InputMethodService&#34; as IMS
+    rectangle &#34;IInputContext\n(Binder Proxy)&#34; as IC_Proxy #Cyan
+    rectangle &#34;InputEventReceiver\n(Receiver)&#34; as Receiver #Yellow
+    rectangle &#34;Keyboard UI&#34; as UI
+
+}
+
+&#39; === Relationships ===
+
+&#39; 1. App 内部逻辑
+VRI -down-&gt; FocusCtrl : 1. 焦点/事件分发
+FocusCtrl -down-&gt; IMM_API : 2. 触发逻辑
+View ..&gt; IC_Stub : 3. 创建连接
+IMM_API -- ClientStub
+IMM_API -- Sender
+
+&#39; 2. 控制链路 (Control Link) - 经过 System Server
+IMM_API -down-&gt; IMMS : 4. startInput (IPC)
+WMS -up-&gt; IMMS : 5. Window Focus Change
+IMMS -up-&gt; IMS : 6. bind / startInput (IPC)
+IMMS .up.&gt; ClientStub : 7. onBindMethod (IPC)
+
+&#39; 3. 文本链路 (Text Link) - 逻辑直连
+IMS -up-- IC_Proxy : 持有
+IC_Proxy ..&gt; IC_Stub : **[Direct IPC]** commitText\n(文字上屏)
+IC_Stub -up--&gt; View : 修改 Editable
+
+&#39; 4. 事件链路 (Event Link) - 逻辑直连
+Sender ..&gt; Receiver : **[InputChannel]**\n(物理按键分发)
+Receiver --&gt; IMS : onKeyDown
+
+&#39; 5. UI
+IMS -left--&gt; UI : 显示
+
+@enduml
+</code></pre><h3 id=架构图核心逻辑说明>架构图核心逻辑说明<a hidden class=anchor aria-hidden=true href=#架构图核心逻辑说明>#</a></h3><p>这张图凸显了三个关键的“逻辑通道”：</p><h4 id=1-控制通道-control-channel---黑色实线>1. 控制通道 (Control Channel) - 黑色实线<a hidden class=anchor aria-hidden=true href=#1-控制通道-control-channel---黑色实线>#</a></h4><ul><li><strong>路径</strong>：<code>App</code> &lt;-> <code>IMMS</code> &lt;-> <code>IME</code></li><li><strong>核心类</strong>：<code>InputMethodManager</code>, <code>InputMethodManagerService</code>, <code>InputMethodService</code>。</li><li><strong>作用</strong>：这是唯一的“官方沟通渠道”。</li><li>App 告诉 IMMS：“我获焦了，我要连输入法”。</li><li>IMMS 告诉 IME：“有新客户了，这是他的地址（Binder句柄），请准备服务”。</li><li>IMMS 告诉 App：“连接好了，这是你的专用通道（InputChannel），拿好”。</li></ul><h4 id=2-文本通道-text-channel---青色虚线>2. 文本通道 (Text Channel) - 青色虚线<a hidden class=anchor aria-hidden=true href=#2-文本通道-text-channel---青色虚线>#</a></h4><ul><li><strong>路径</strong>：<code>IME (IInputContext Proxy)</code> -> <code>App (InputConnection Stub)</code></li><li><strong>核心类</strong>：<code>IInputContext</code>, <code>InputConnection</code>。</li><li><strong>作用</strong>：<strong>这是输入法最高频使用的数据通道。</strong></li><li>当用户在软键盘打字时，IME 直接通过这个通道“遥控”App 中的 <code>EditText</code>。</li><li><strong>注意</strong>：虽然物理上经过 Binder 驱动，但在逻辑架构上，它是 <strong>绕过 System Server</strong> 直接连接两个应用的。</li></ul><h4 id=3-事件通道-event-channel---黄色虚线>3. 事件通道 (Event Channel) - 黄色虚线<a hidden class=anchor aria-hidden=true href=#3-事件通道-event-channel---黄色虚线>#</a></h4><ul><li><strong>路径</strong>：<code>App (Sender)</code> -> <code>IME (Receiver)</code></li><li><strong>核心类</strong>：<code>ImeInputEventSender</code>, <code>InputEventReceiver</code>。</li><li><strong>作用</strong>：<strong>这是 App 反向推数据给 IME 的通道。</strong></li><li>当 App 收到物理按键（如回车、蓝牙键盘按键）时，它通过这个通道把“生肉”（Raw Event）扔给 IME 处理。</li><li>这个通道基于 Socket，也是点对点直连，<strong>不经过 System Server</strong>。</li></ul></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/bindercallsstatsservice/><span class=title>« Prev</span><br><span>BinderCallsStatsService 技术详解</span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/><span class=title>Next »</span><br><span>Android 窗口焦点抢占与输入法连接断开技术时序分析</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

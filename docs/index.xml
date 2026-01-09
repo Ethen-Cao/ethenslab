@@ -327,7 +327,145 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;聚合 (Aggregation)&lt;/strong&gt;: 数据存储在内存中的哈希表中，按 UID 和方法名聚合，避免无限增长。&lt;/li&gt;
 &lt;/ol&gt;
 &lt;h3 id="22-架构时序图-plantuml"&gt;2.2 架构时序图 (PlantUML)&lt;/h3&gt;
-&lt;p&gt;以下图表展示了 Binder 调用是如何被拦截和统计的：&lt;/p&gt;</description></item><item><title> Android 窗口焦点抢占与输入法连接断开技术时序分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/</guid><description>&lt;h3 id="1-概述"&gt;1. 概述&lt;/h3&gt;
+&lt;p&gt;以下图表展示了 Binder 调用是如何被拦截和统计的：&lt;/p&gt;</description></item><item><title> Android InputMethod 交互流程技术说明文档</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethodservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethodservice/</guid><description>&lt;h3 id="1-流程详细解析"&gt;1. 流程详细解析&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+autonumber
+skinparam backgroundColor white
+skinparam boxPadding 10
+skinparam noteBackgroundColor #FFFFA0
+skinparam noteBorderColor #808080
+skinparam participantBackgroundColor white
+actor &amp;#34;User&amp;#34; as User
+box &amp;#34;新应用进程 (New App - 抢焦者)&amp;#34; #Honeydew
+participant &amp;#34;ViewRootImpl&amp;#34; as VRI
+participant &amp;#34;ImeFocusController&amp;#34; as Controller
+participant &amp;#34;InputMethodManager\n(IMM)&amp;#34; as IMM
+participant &amp;#34;IInputMethodClient\n(Stub)&amp;#34; as ClientStub
+participant &amp;#34;View (EditText)&amp;#34; as EditText
+participant &amp;#34;InputConnection\n(Binder Stub)&amp;#34; as IC_Stub
+end box
+box &amp;#34;系统服务 (System Server)&amp;#34; #LightBlue
+participant &amp;#34;WindowManagerService\n(WMS)&amp;#34; as WMS
+participant &amp;#34;InputMethodManagerService\n(IMMS)&amp;#34; as IMMS
+end box
+box &amp;#34;输入法进程 (IME Process)&amp;#34; #MistyRose
+participant &amp;#34;InputMethodService\n(IME)&amp;#34; as IME
+participant &amp;#34;IInputContext\n(Binder Proxy)&amp;#34; as IC_Proxy
+end box
+box &amp;#34;旧应用进程 (Old App - 受害者)&amp;#34; #LightGrey
+participant &amp;#34;IInputMethodClient\n(Stub)&amp;#34; as Old_Stub
+participant &amp;#34;InputMethodManager\n(IMM)&amp;#34; as Old_IMM
+end box
+== 第一阶段：连接建立与切换 (Switch Client) ==
+note right of WMS: App 启动，窗口添加完成
+WMS -&amp;gt; VRI: **windowFocusChanged**(true)
+activate VRI
+VRI -&amp;gt; VRI: handleWindowFocusChanged()
+VRI -&amp;gt; Controller: **onPostWindowFocus**()
+activate Controller
+Controller -&amp;gt; Controller: check **mayUseInputMethod**
+Controller -&amp;gt; IMM: **onPostWindowGainedFocus**()
+activate IMM
+IMM -&amp;gt; IMM: **startInputInner**()
+group 关键：创建通信对象
+IMM -&amp;gt; EditText: **onCreateInputConnection**()
+activate EditText
+EditText --&amp;gt; IMM: return **InputConnection**
+deactivate EditText
+end
+IMM -&amp;gt; IMMS: **startInputOrWindowGainedFocus**(client=Stub, inputContext=IC_Stub)
+activate IMMS
+note right of IMMS
+**服务端逻辑 (Switch Client)：**
+1. 发现请求者(New) != 当前记录(Old)
+2. **必须先清理旧状态**
+3. 再绑定新应用
+end note
+group [新增] 通知旧应用断开连接 (Unbind Sequence)
+IMMS -&amp;gt; Old_Stub: **onUnbindMethod**(sequence, UNBIND_REASON_SWITCH_CLIENT)
+activate Old_Stub
+note right of Old_Stub
+**反向控制生效：**
+系统通知旧应用下线
+end note
+Old_Stub -&amp;gt; Old_IMM: sendMessage(MSG_UNBIND)
+activate Old_IMM
+Old_IMM -&amp;gt; Old_IMM: **closeCurrentInput()**
+note right of Old_IMM
+1. 销毁 InputChannel
+2. 断开 InputConnection
+3. 停止光标闪烁
+end note
+deactivate Old_IMM
+deactivate Old_Stub
+end
+IMMS -&amp;gt; IME: **startInput**(inputContext=IC_Proxy)
+activate IME
+IME -&amp;gt; IME: 保存 IC_Proxy (持有 New App 的操作句柄)
+deactivate IME
+IMMS -&amp;gt; ClientStub: **onBindMethod**(res)
+activate ClientStub
+note right of ClientStub
+**反向链路生效：**
+系统回传 InputChannel (Socket)
+end note
+ClientStub -&amp;gt; IMM: sendMessage(MSG_BIND)
+deactivate ClientStub
+IMMS --&amp;gt; IMM: Success
+deactivate IMMS
+IMM -&amp;gt; IMM: **handleMessage(MSG_BIND)**
+note left of IMM
+连接建立完成
+New App 持有 IME Channel
+IME 持有 New App InputConnection
+end note
+deactivate IMM
+deactivate Controller
+deactivate VRI
+== 第二阶段：显示控制 (Touch -&amp;gt; Show) ==
+User -&amp;gt; EditText: 点击输入框
+activate EditText
+EditText -&amp;gt; IMM: **showSoftInput**(view)
+activate IMM
+IMM -&amp;gt; IMMS: **showSoftInput**(client)
+activate IMMS
+IMMS -&amp;gt; IME: **showSoftInput**()
+activate IME
+IME -&amp;gt; IME: **showWindow**(true)
+note right of IME
+软键盘 UI 此时对用户可见
+end note
+deactivate IME
+deactivate IMMS
+deactivate IMM
+deactivate EditText
+== 第三阶段：文本分发 (Typing -&amp;gt; Commit) ==
+User -&amp;gt; IME: 点击虚拟键盘 &amp;#34;A&amp;#34;
+activate IME
+IME -&amp;gt; IME: onCodeInput(&amp;#34;A&amp;#34;)
+note right of IME
+**核心交互：**
+IME 使用之前保存的 Proxy
+直接操作 App 内部状态
+end note
+IME -&amp;gt; IC_Proxy: **commitText**(&amp;#34;A&amp;#34;, 1)
+activate IC_Proxy
+IC_Proxy -&amp;gt; IC_Stub: **IPC: Transmit Text**
+deactivate IC_Proxy
+activate IC_Stub
+note left of IC_Stub
+**App 进程响应：**
+Binder 线程收到数据
+修改 Editable Buffer
+end note
+IC_Stub -&amp;gt; EditText: **Editable.replace**(...)
+EditText -&amp;gt; VRI: invalidate() -&amp;gt; onDraw()
+deactivate IC_Stub
+VRI -&amp;gt; User: 屏幕显示字符 &amp;#34;A&amp;#34;
+deactivate IME
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;本节对应时序图中的三个核心阶段，描述代码层面的执行逻辑。&lt;/p&gt;</description></item><item><title> Android 窗口焦点抢占与输入法连接断开技术时序分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/</guid><description>&lt;h3 id="1-概述"&gt;1. 概述&lt;/h3&gt;
 &lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
 autonumber
