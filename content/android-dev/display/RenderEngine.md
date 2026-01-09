@@ -530,8 +530,6 @@ note right: SF 在需要时等待 GPU 完成
   * `GrDirectContext::submit()`: 将指令流真正推送到 GPU 驱动的 Command Buffer 中。
   * **Fence**: 创建一个原生同步栅栏（Native Fence）。这个对象非常重要，它代表了 GPU 工作的结束时间点。这个 Fence 会一路返回给 SurfaceFlinger，最终传递给 HWC。
 
-基于您提供的 `renderengine.txt` 源码，特别是 `SkiaRenderEngine.cpp/h` 和 `SkiaGLRenderEngine.cpp/h` 的实现，我为您编写了关于这两个类职责分工与协同工作的详细章节。
-
 ---
 
 ## RenderEngine 后端架构：通用逻辑与 GL 实现的协同
