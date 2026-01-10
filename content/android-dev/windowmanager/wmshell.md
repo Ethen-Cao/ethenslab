@@ -1,4 +1,10 @@
 
++++
+date = '2025-09-29T10:22:54+08:00'
+draft = true
+title = 'wmshell
++++
+
 ### TransitionHandler
 
 `TransitionHandler` 是一个**接口 (Interface)**，它为 Shell 动画系统定义了一个**“动画处理器”**的标准或**契约**。

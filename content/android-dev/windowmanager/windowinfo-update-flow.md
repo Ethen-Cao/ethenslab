@@ -1,6 +1,8 @@
-# Android Subsystem Wiki: WindowInfos Update Flow
-
-
++++
+date = '2025-09-29T10:22:54+08:00'
+draft = true
+title = 'WindowInfos Update Flow'
++++
 ## 1. 概述 (Overview)
 
 **WindowInfos Update Flow** 是 Android 图形与输入系统协同工作的核心机制。它负责将 SurfaceFlinger (SF) 合成过程中产生的最新窗口属性（WindowInfo，如几何位置、Z-Order、透明度、触摸区域、焦点及其变换矩阵）实时同步给 SystemServer 进程。
