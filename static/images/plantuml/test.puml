@@ -1,190 +1,203 @@
 @startuml
 !theme plain
-autonumber
+autonumber "<b>[0]"
 
-box "Application Process" #WhiteSmoke
-    participant "Activity/Window" as App
+title SystemServer: Registration & WindowInfos Update Flow (Complete)
+
+box "SurfaceFlinger Process" #E3F2FD
+    participant "SurfaceFlinger" as SF
 end box
 
-box "System Server: WindowManager" #MistyRose
-    participant "WindowSurfacePlacer" as Placer
-    participant "RootWindowContainer" as Root
-    participant "RootWindowContainer\nMyHandler" as RootHandler
+box "Kernel Space" #F5F5F5
+    participant "Binder Driver" as Kernel
 end box
 
-box "System Server: PowerManager" #Lavender
-    participant "PowerManagerService" as PMS
-    participant "PowerGroup" as PG
+box "SystemServer Process (Native)" #FFF3E0
+    participant "IPCThreadState" as IPC
+    participant "BnWindowInfosListener\n(Stub)" as Stub
+    participant "WindowInfosListenerReporter\n(Singleton)" as Reporter
+    participant "SurfaceComposerClient" as SCC
+    participant "InputDispatcher" as Dispatcher
+    participant "DispatcherWindowListener" as Listener
 end box
 
-box "System Server: DisplayManager" #LightCyan
-    participant "DisplayManagerInternal" as DMI
-    participant "DisplayManagerService" as DMS
-    participant "DisplayPowerController\n(DPC)" as DPC
-    participant "DisplayControllerHandler" as DPCHandler
-    participant "DisplayBrightness\nController" as DBC
-    participant "DisplayPowerState" as DPS
+box "SystemServer Process (Java)" #FFE0B2
+    participant "AccessibilityWindowsPopulator\n(A11yPop)" as A11yPop
+    participant "WMS Handler Thread" as WMS_Thread
+    participant "WindowManagerService" as WMS
+    participant "AccessibilityWindowManager" as AWM
+    participant "AccessibilityManagerService" as AMS
 end box
 
-box "CarService" #MistyRose
-    participant "BrightnessUtils" as Utils
-    participant "DeviceConfig" as Config
-    participant "CarBrightness\nSynchronizer" as CarSync
-    participant "CarApiController" as CarCtrl
-    participant "CarPropertyService" as CarProp
-    ' participant "ICarPropertyEventListener" as Listener
-end box
+== 0.1 InputDispatcher 注册流程 (Native) ==
 
-box "System Server: PhotonicModulator Thread" #Lavender
-    participant "PhotonicModulator" as PM
-    participant "DisplayBlanker" as Blanker
-    participant "LocalDisplayDevice" as LDD
-    participant "BacklightAdapter" as Backlight
-end box
+Dispatcher -> Dispatcher: new DispatcherWindowListener(*this)
+activate Dispatcher
+note right: 创建本地监听器
 
-box "SurfaceFlinger (Native)" #WhiteSmoke
-    participant "SurfaceControlProxy" as SC
-end box
+Dispatcher -> SCC: addWindowInfosListener(listener)
+activate SCC
+SCC -> Reporter: getInstance()
+SCC -> Reporter: addWindowInfosListener(listener, ...)
+activate Reporter
 
-== 1. 应用层: 发起亮度覆盖 ==
-App -> App: setAttributes(lp)\n[screenBrightness = 0.8]
-App -> Placer: requestTraversal()
-note right: Binder调用触发布局
+Reporter -> Reporter: check mWindowInfosListeners.empty()
 
-== 2. WMS层: 布局与数据收集 ==
-Placer -> Root: performSurfacePlacement()
-activate Root
-    Root -> Root: performSurfacePlacementNoTrace()
-    
-    group 收集 Override 数据
-        Root -> Root: applySurfaceChangesTransaction()
+alt #LightGreen <color:green><b>首次注册 (First Time)</b></color>
+    note right of Reporter
+        集合为空，说明 Reporter 尚未连接 SF。
+        将 Reporter (this) 注册到远程。
+    end note
+    Reporter -> SF: IWindowInfosListener.addWindowInfosListener(this)
+    activate SF
+    SF -> SF: 保存 Reporter 句柄
+    SF --> Reporter: status
+    deactivate SF
+else <color:gray>后续注册 (Re-use)</color>
+    note right of Reporter
+        集合不为空，通道已建立。
+        直接复用，不发起 Binder 调用。
+    end note
+end
+
+Reporter -> Reporter: mWindowInfosListeners.insert(listener)
+note right: 将 InputDispatcher 加入本地集合
+
+Reporter --> SCC: status
+deactivate Reporter
+SCC --> Dispatcher: status
+deactivate SCC
+deactivate Dispatcher
+
+== 0.2 Accessibility 注册流程 (Java Stack) ==
+
+note right of AMS
+  <b>触发时机:</b>
+  1. 系统启动完毕
+  2. 开启无障碍服务 (TalkBack等)
+  3. 显示器插拔 (onDisplayAdded)
+end note
+
+AMS -> AWM: startTrackingWindows()
+activate AMS
+AWM -> WMS: setWindowsForAccessibilityCallback()
+activate AWM
+WMS -> A11yPop: setWindowsNotification(true)
+activate WMS
+activate A11yPop
+
+A11yPop -> A11yPop: register()
+A11yPop -> SCC: nativeRegister() [JNI]
+activate SCC
+
+SCC -> Reporter: addWindowInfosListener(listener)
+activate Reporter
+note right of Reporter
+  检测到 InputDispatcher 已注册，
+  这里直接复用现有通道，
+  将 A11yPop 加入本地集合。
+end note
+Reporter -> Reporter: mWindowInfosListeners.insert(A11yPop)
+
+Reporter --> SCC: status
+deactivate Reporter
+SCC --> A11yPop: status
+deactivate SCC
+A11yPop --> WMS: void
+deactivate A11yPop
+WMS --> AWM: void
+deactivate WMS
+AWM --> AMS: void
+deactivate AWM
+deactivate AMS
+
+|||
+
+== 1. 跨进程接收 (Binder Thread) ==
+
+SF -> Kernel: onWindowInfosChanged(data) (Oneway)
+note left: SF 生产 46KB 数据\n疯狂发送
+
+Kernel -> IPC: ioctl(BR_TRANSACTION)
+activate IPC
+note left: Binder 线程被唤醒
+
+IPC -> Stub: onTransact(...)
+activate Stub
+note right: <color:red><b>反序列化 (Unmarshalling)</b></color>\n解析 Parcel -> vector<WindowInfo>
+
+Stub -> Reporter: onWindowInfosChanged(windowInfos, ...)
+deactivate Stub
+activate Reporter
+
+== 2. 进程内分发 (Reporter Loop) ==
+
+note right of Reporter
+    <color:red><b>同步循环 (Synchronous Loop)</b></color>
+    运行在 Binder 线程中。
+    必须等所有 Listener 处理完才能返回。
+end note
+
+loop foreach listener in mWindowInfosListeners
+
+    alt #MistyRose Listener == InputDispatcher (Native)
+        Reporter -> Listener: onWindowInfosChanged(windowInfos)
+        activate Listener
+        
+        == 3. 业务处理 (InputDispatcher) ==
+        
+        Listener -> Dispatcher: setInputWindows(windowInfos)
+        activate Dispatcher
+        
+        Dispatcher -> Dispatcher: <color:red>std::scoped_lock _l(mLock)</color>
         note right
-            遍历所有 DisplayContent
-            调用 handleNotObscuredLocked
-            填充 mDisplayBrightnessOverrides
-        end note
-    end group
-
-    Root -> RootHandler: sendMessage(SET_SCREEN_BRIGHTNESS_OVERRIDE)
-    activate RootHandler
-        note right
-            异步发送，避免死锁
+            <color:red><b>关键阻塞点 (Critical Block)</b></color>
+            InputDispatcher 持锁处理。
+            如果有 Input 事件积压，这里会卡住。
+            <b>这是导致 Oneway Spamming 的主要原因。</b>
         end note
         
-        RootHandler -> DMI: **setScreenBrightnessOverrideFromWindowManager(overrides)**
-    deactivate RootHandler
-deactivate Root
+        Dispatcher -> Dispatcher: setInputWindowsLocked(...)
+        
+        Dispatcher --> Listener: void
+        deactivate Dispatcher
+        
+        Listener --> Reporter: void
+        deactivate Listener
 
-== 3. DMS -> DPC: 异步分发 ==
-activate DMI
-    DMI -> DMS: setScreenBrightnessOverrideFromWindowManager()
-    activate DMS
-        DMS -> DPC: setBrightnessOverrideRequest(request)
-        activate DPC
-            DPC -> DPCHandler: sendMessage(MSG_SET_WINDOW_MANAGER_BRIGHTNESS_OVERRIDE)
-        deactivate DPC
-    deactivate DMS
-deactivate DMI
-
-== 4. DPC层: 策略更新与执行 ==
-activate DPCHandler
-    DPCHandler -> DBC: **updateWindowManagerBrightnessOverride(request)**
-    activate DBC
-        note right:
-        DBC --> DPCHandler: return true (Changed)
-    deactivate DBC
-
-    alt Value Changed (亮度变化)
-        DPCHandler -> DPC: **updatePowerState()**
-        activate DPC
-            DPC -> DPC: updatePowerStateInternal()
-            note right: 策略合并: Override(0.8) > PMS(NaN) => Target=0.8
-            
-            DPC -> DPC: animateScreenBrightness(target=0.8, ...)
-            
-            note right of DPC
-                <color:red><b>定制逻辑 (Voyah Porting):</b></color>
-                原生 RampAnimator 被移除
-                改为直接调用 directSetScreenBrightness
-            end note
-
-            DPC -> DPC: **directSetScreenBrightness(0.8, ...)**
-            activate DPC
-                
-                group A. 底层硬件下发 (Real Hardware)
-                    DPC -> Utils: **setBrightnessToConfig(displayId, 0.8, reason)**
-                    activate Utils
-                        Utils -> Config: setProperty(NAMESPACE, KEY, json)
-                        note right: 写入 DeviceConfig
-                    deactivate Utils
-                    
-                    note over CarSync: 监听到 DeviceConfig 变化
-                    Config -> CarSync: **onDisplayBrightnessRequested(properties)**
-                    activate CarSync
-                        CarSync -> CarSync: 解析 JSON (id, value, reason)
-                        CarSync -> CarSync: **setBrightnessLocked**
-                        
-                        note right of CarSync
-                            <b>仲裁逻辑:</b>
-                            if (current == OVERRIDE && new == MANUAL)
-                                return; // 忽略手动调节
-                        end note
-                        
-                        CarSync -> CarCtrl: **setBrightness(type, val, reason)**
-                        activate CarCtrl
-                            CarCtrl -> CarCtrl: 构建 JSON {type, value, reason}
-                            CarCtrl -> CarCtrl: setProperty(ID_BACKLIGHT_SET, json)
-                            
-                            CarCtrl -> CarProp: **setProperty(propertyValue, listener)**
-                            activate CarProp
-                                note right: 最终调用 VHAL
-                            deactivate CarProp
-                        deactivate CarCtrl
-                    deactivate CarSync
-                end group
-
-                group B. 框架状态同步 (Framework State)
-                    DPC -> DPS: **setScreenBrightness(0.8)**
-                    activate DPS
-                        note right
-                            更新 PowerState 以触发 PhotonicModulator
-                        end note
-                        DPS -> PM: setState(state, 0.8, ...)
-                        note right: 异步唤醒 PM 线程
-                        PM --// DPS: notify
-                    deactivate DPS
-                end group
-                
-            deactivate DPC
-        deactivate DPC
+    else #AliceBlue Listener == AccessibilityWindowsPopulator (Java)
+        Reporter -> A11yPop: onWindowInfosChanged(windowHandles, ...) [JNI]
+        activate A11yPop
+        
+        == 3.1 业务处理 (A11yPopulator) ==
+        
+        A11yPop -> A11yPop: mHandler.post(...)
+        note right
+            <color:green><b>异步非阻塞 (Async)</b></color>
+            源码: mHandler.post(() -> onWindowInfosChangedInternal)
+            立即返回，不占用 Binder 线程时间。
+        end note
+        
+        A11yPop --> Reporter: void
+        deactivate A11yPop
+        
+        A11yPop -[#blue]> WMS_Thread: onWindowInfosChangedInternal(...)
+        activate WMS_Thread
+        note right
+           <b>延迟处理:</b>
+           繁重的矩阵计算(Matrix)和
+           遍历逻辑在此线程执行。
+        end note
+        deactivate WMS_Thread
     end
-deactivate DPCHandler
+end
 
-== 5. 异步: 标准显示链路更新 (Metadata) ==
-note over PM: PhotonicModulator Thread
-activate PM
-    PM -> PM: run()
-    PM -> Blanker: requestDisplayState(..., 0.8, ...)
-    activate Blanker
-        Blanker -> LDD: requestDisplayStateLocked(...)
-        activate LDD
-            note right: 构建 Runnable
-        return workRunnable
-        
-        Blanker -> Blanker: workRunnable.run()
-        activate Blanker
-            Blanker -> LDD: setDisplayBrightness(0.8)
-            activate LDD
-                LDD -> Backlight: setBacklight(..., 0.8)
-                activate Backlight
-                    Backlight -> SC: **setDisplayBrightness(0.8)**
-                    note right
-                        通知 SurfaceFlinger 亮度值
-                        (用于 HDR/截图/状态同步，非背光驱动)
-                    end note
-                deactivate Backlight
-            deactivate LDD
-        deactivate Blanker
-    deactivate Blanker
-deactivate PM
+Reporter --> Stub: void
+deactivate Reporter
+
+Stub --> IPC: void
+IPC -> Kernel: ioctl(BC_FREE_BUFFER)
+note left: 只有执行到这里，\n内核缓冲区才会被释放。
+deactivate IPC
+
 @enduml
