@@ -1286,79 +1286,82 @@ classDiagram
     CommandResultPayload ..> ComposerClientReader : 输入解析
     ComposerClientReader *-- ReturnData : 内部存储解析结果
 
-
 ```
 
 ### 6.3 HWC 交互时序
 
 只有当调用 `execute()` 或 `presentOrValidateDisplay()` 时，`AidlComposer` 才会将缓冲区中的所有命令打包，通过 `IComposerClient::executeCommands` 发起一次 Binder 调用，并将返回结果交给 `ComposerClientReader` 解析。
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Caller as HWComposer
-    participant Aidl as AidlComposer
-    participant Writer as ComposerClientWriter
-    participant Binder as "IComposerClient (Binder)"
-    participant Reader as ComposerClientReader
+```plantuml
+@startuml
+!theme plain
+hide footbox
+autonumber
 
-    Note over Caller, Writer: 阶段 1: 命令积攒 (Buffering)<br/>此处不发生 IPC，仅内存操作
+participant "HWComposer" as Caller
+participant "AidlComposer" as Aidl
+participant "ComposerClientWriter" as Writer
+participant "IComposerClient (Binder)" as Binder
+participant "ComposerClientReader" as Reader
 
-    Caller->>Aidl: setLayerBuffer(display, layer, buffer...)
-    activate Aidl
-    Aidl->>Aidl: getWriter(display)
-    Aidl->>Writer: setLayerBuffer(..., buffer)
-    activate Writer
-    Writer->>Writer: getLayerCommand()
-    Writer->>Writer: 填充 Buffer 数据到 mLayerCommand
-    deactivate Writer
-    deactivate Aidl
+note over Caller, Writer: 阶段 1: 命令积攒 (Buffering)\n此处不发生 IPC，仅内存操作
 
-    Caller->>Aidl: setLayerColor(display, layer, color...)
-    activate Aidl
-    Aidl->>Writer: setLayerColor(..., color)
-    deactivate Aidl
+Caller -> Aidl: setLayerBuffer(display, layer, buffer...)
+activate Aidl
+Aidl -> Aidl: getWriter(display)
+Aidl -> Writer: setLayerBuffer(..., buffer)
+activate Writer
+Writer -> Writer: getLayerCommand()
+Writer -> Writer: 填充 Buffer 数据到 mLayerCommand
+deactivate Writer
+deactivate Aidl
 
-    Note over Caller, Reader: 阶段 2: 批量提交与解析 (Execution & Parsing)
+Caller -> Aidl: setLayerColor(display, layer, color...)
+activate Aidl
+Aidl -> Writer: setLayerColor(..., color)
+deactivate Aidl
 
-    Caller->>Aidl: execute(display) / presentDisplay
-    activate Aidl
+note over Caller, Reader: 阶段 2: 批量提交与解析 (Execution & Parsing)
 
-    Aidl->>Writer: takePendingCommands()
-    activate Writer
-    Writer->>Writer: flushLayerCommand()
-    Writer->>Writer: flushDisplayCommand()
-    Writer-->>Aidl: `vector<DisplayCommand>` cmds
-    deactivate Writer
+Caller -> Aidl: execute(display) / presentDisplay
+activate Aidl
 
-    Note right of Writer: mCommands 被清空<br/>cmds 被移动到 AidlComposer
+Aidl -> Writer: takePendingCommands()
+activate Writer
+Writer -> Writer: flushLayerCommand()
+Writer -> Writer: flushDisplayCommand()
+Writer --> Aidl: vector<DisplayCommand> cmds
+deactivate Writer
 
-    Aidl->>Binder: executeCommands(cmds)
-    activate Binder
-    Note right of Binder: 跨进程传输<br/>Hardware Composer 处理命令
-    Binder-->>Aidl: `vector<CommandResultPayload>` results
-    deactivate Binder
+note right of Writer: mCommands 被清空\ncmds 被移动到 AidlComposer
 
-    Aidl->>Reader: parse(results)
+Aidl -> Binder: executeCommands(cmds)
+activate Binder
+note right of Binder: 跨进程传输\nHardware Composer 处理命令
+Binder --> Aidl: vector<CommandResultPayload> results
+deactivate Binder
+
+Aidl -> Reader: parse(results)
+activate Reader
+loop 遍历 results
+    Reader -> Reader: 根据 Tag (Fence/Error/etc)\n分类存入 mReturnData
+end
+deactivate Reader
+
+Aidl -> Reader: takeErrors()
+activate Reader
+Reader --> Aidl: errors
+deactivate Reader
+
+opt 如果 Caller 需要 PresentFence
+    Aidl -> Reader: takePresentFence(display)
     activate Reader
-    loop 遍历 results
-        Reader->>Reader: 根据 Tag (Fence/Error/etc)<br/>分类存入 mReturnData
-    end
+    Reader --> Aidl: ScopedFileDescriptor
     deactivate Reader
+end
 
-    Aidl->>Reader: takeErrors()
-    activate Reader
-    Reader-->>Aidl: errors
-    deactivate Reader
+Aidl --> Caller: Error::NONE
+deactivate Aidl
 
-    opt 如果 Caller 需要 PresentFence
-        Aidl->>Reader: takePresentFence(display)
-        activate Reader
-        Reader-->>Aidl: ScopedFileDescriptor
-        deactivate Reader
-    end
-
-    Aidl-->>Caller: Error::NONE
-    deactivate Aidl
-
+@enduml
 ```

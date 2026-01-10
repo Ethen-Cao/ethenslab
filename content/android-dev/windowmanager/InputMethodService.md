@@ -394,7 +394,7 @@ IMS -left--> UI : 显示
 
 这张图凸显了三个关键的“逻辑通道”：
 
-#### 1. 控制通道 (Control Channel) - 黑色实线
+#### 1. 控制通道 (Control Channel)
 
 * **路径**：`App` <-> `IMMS` <-> `IME`
 * **核心类**：`InputMethodManager`, `InputMethodManagerService`, `InputMethodService`。
@@ -405,7 +405,7 @@ IMS -left--> UI : 显示
 
 
 
-#### 2. 文本通道 (Text Channel) - 青色虚线
+#### 2. 文本通道 (Text Channel)
 
 * **路径**：`IME (IInputContext Proxy)` -> `App (InputConnection Stub)`
 * **核心类**：`IInputContext`, `InputConnection`。
@@ -415,7 +415,7 @@ IMS -left--> UI : 显示
 
 
 
-#### 3. 事件通道 (Event Channel) - 黄色虚线
+#### 3. 事件通道 (Event Channel)
 
 * **路径**：`App (Sender)` -> `IME (Receiver)`
 * **核心类**：`ImeInputEventSender`, `InputEventReceiver`。

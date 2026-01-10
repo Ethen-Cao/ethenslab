@@ -1,0 +1,248 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android Internals: Activity Launch into PiP 流程深度解析 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='1. 概述 (Overview)
+在 Android 系统中，Activity 进入画中画（PiP）并非简单的 UI 缩放，而是一次复杂的窗口层级重构 (Hierarchy Reparenting)。
+特别是当通过 Intent 标志 (isLaunchIntoPip) 触发时，系统实际上执行了一个“欺骗”操作：
+
+先按标准流程启动 Activity（Resume, Add to Task）。
+在启动流程收尾阶段，拦截并立即将其移动到 Pinned Root Task。
+利用 SurfaceFreezer 冻结画面，执行无缝的进入动画。
+
+2. 核心流程图 (Architecture Flow)
+下面的时序图展示了从 startActivity 到最终通过 SurfaceAnimator 执行动画的完整调用链。
+@startuml
+!theme plain
+skinparam dpi 120
+skinparam wrapWidth 200
+
+participant "ActivityStarter" as Starter
+participant "RootWindowContainer" as RWC
+participant "Task (Current)" as OldTask
+participant "Task (New PiP)" as NewTask
+participant "WindowContainer" as WC
+participant "TransitionController" as TC
+participant "SurfaceFreezer" as SF
+
+note over Starter
+  1. 标准启动流程结束
+  (startActivityInner)
+end note
+
+Starter -> Starter: Check mOptions.isLaunchIntoPip()
+activate Starter
+    note right
+      代码最后一道防线：
+      若包含 PiP 标志，则触发移动
+    end note
+
+    Starter -> RWC: moveActivityToPinnedRootTask(r, source, ...)
+    activate RWC
+        
+        RWC -> OldTask: getNonFinishingActivityCount()
+        
+        alt Case A: 单个 Activity (独占 Task)
+            RWC -> RWC: rootTask = OldTask
+            note right: 直接将当前 Task\n变更为 Pinned 模式
+            
+        else Case B: 多个 Activities (共享 Task)
+            RWC -> NewTask: new Task.Builder().build()
+            activate NewTask
+            note right: 必须剥离：创建新 Task\n作为 PiP 容器
+            
+            RWC -> WC: r.reparent(NewTask, MAX, ...)
+            WC -> OldTask: Remove Child
+            WC -> NewTask: Add Child
+            note right: 将 ActivityRecord\n移动到新 Task
+        end
+
+        RWC -> NewTask: reparent(TaskDisplayArea, ON_TOP)
+        note right: 确保 PiP 窗口\n悬浮于所有 Task 之上
+
+        RWC -> NewTask: setWindowingMode(PINNED)
+        
+        RWC -> TC: requestStartTransition(TRANSIT_PIP)
+        activate TC
+        note left: 触发过渡动画
+        
+            TC -> SF: freeze()
+            activate SF
+            SF -> SF: captureLayers()
+            SF -> SF: createAnimationLeash()
+            note right: 截图并创建\n动画容器
+            deactivate SF
+            
+        deactivate TC
+        
+    deactivate RWC
+deactivate Starter
+@enduml
+3. 关键机制详解 (Implementation Details)
+3.1 启动拦截 (The Hook)
+文件: ActivityStarter.java'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Android Internals: Activity Launch into PiP 流程深度解析"><meta property="og:description" content='1. 概述 (Overview) 在 Android 系统中，Activity 进入画中画（PiP）并非简单的 UI 缩放，而是一次复杂的窗口层级重构 (Hierarchy Reparenting)。
+特别是当通过 Intent 标志 (isLaunchIntoPip) 触发时，系统实际上执行了一个“欺骗”操作：
+先按标准流程启动 Activity（Resume, Add to Task）。 在启动流程收尾阶段，拦截并立即将其移动到 Pinned Root Task。 利用 SurfaceFreezer 冻结画面，执行无缝的进入动画。 2. 核心流程图 (Architecture Flow) 下面的时序图展示了从 startActivity 到最终通过 SurfaceAnimator 执行动画的完整调用链。
+@startuml !theme plain skinparam dpi 120 skinparam wrapWidth 200 participant "ActivityStarter" as Starter participant "RootWindowContainer" as RWC participant "Task (Current)" as OldTask participant "Task (New PiP)" as NewTask participant "WindowContainer" as WC participant "TransitionController" as TC participant "SurfaceFreezer" as SF note over Starter 1. 标准启动流程结束 (startActivityInner) end note Starter -> Starter: Check mOptions.isLaunchIntoPip() activate Starter note right 代码最后一道防线： 若包含 PiP 标志，则触发移动 end note Starter -> RWC: moveActivityToPinnedRootTask(r, source, ...) activate RWC RWC -> OldTask: getNonFinishingActivityCount() alt Case A: 单个 Activity (独占 Task) RWC -> RWC: rootTask = OldTask note right: 直接将当前 Task\n变更为 Pinned 模式 else Case B: 多个 Activities (共享 Task) RWC -> NewTask: new Task.Builder().build() activate NewTask note right: 必须剥离：创建新 Task\n作为 PiP 容器 RWC -> WC: r.reparent(NewTask, MAX, ...) WC -> OldTask: Remove Child WC -> NewTask: Add Child note right: 将 ActivityRecord\n移动到新 Task end RWC -> NewTask: reparent(TaskDisplayArea, ON_TOP) note right: 确保 PiP 窗口\n悬浮于所有 Task 之上 RWC -> NewTask: setWindowingMode(PINNED) RWC -> TC: requestStartTransition(TRANSIT_PIP) activate TC note left: 触发过渡动画 TC -> SF: freeze() activate SF SF -> SF: captureLayers() SF -> SF: createAnimationLeash() note right: 截图并创建\n动画容器 deactivate SF deactivate TC deactivate RWC deactivate Starter @enduml 3. 关键机制详解 (Implementation Details) 3.1 启动拦截 (The Hook) 文件: ActivityStarter.java'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-08-27T11:36:11+08:00"><meta property="article:modified_time" content="2025-08-27T11:36:11+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android Internals: Activity Launch into PiP 流程深度解析"><meta name=twitter:description content='1. 概述 (Overview)
+在 Android 系统中，Activity 进入画中画（PiP）并非简单的 UI 缩放，而是一次复杂的窗口层级重构 (Hierarchy Reparenting)。
+特别是当通过 Intent 标志 (isLaunchIntoPip) 触发时，系统实际上执行了一个“欺骗”操作：
+
+先按标准流程启动 Activity（Resume, Add to Task）。
+在启动流程收尾阶段，拦截并立即将其移动到 Pinned Root Task。
+利用 SurfaceFreezer 冻结画面，执行无缝的进入动画。
+
+2. 核心流程图 (Architecture Flow)
+下面的时序图展示了从 startActivity 到最终通过 SurfaceAnimator 执行动画的完整调用链。
+@startuml
+!theme plain
+skinparam dpi 120
+skinparam wrapWidth 200
+
+participant "ActivityStarter" as Starter
+participant "RootWindowContainer" as RWC
+participant "Task (Current)" as OldTask
+participant "Task (New PiP)" as NewTask
+participant "WindowContainer" as WC
+participant "TransitionController" as TC
+participant "SurfaceFreezer" as SF
+
+note over Starter
+  1. 标准启动流程结束
+  (startActivityInner)
+end note
+
+Starter -> Starter: Check mOptions.isLaunchIntoPip()
+activate Starter
+    note right
+      代码最后一道防线：
+      若包含 PiP 标志，则触发移动
+    end note
+
+    Starter -> RWC: moveActivityToPinnedRootTask(r, source, ...)
+    activate RWC
+        
+        RWC -> OldTask: getNonFinishingActivityCount()
+        
+        alt Case A: 单个 Activity (独占 Task)
+            RWC -> RWC: rootTask = OldTask
+            note right: 直接将当前 Task\n变更为 Pinned 模式
+            
+        else Case B: 多个 Activities (共享 Task)
+            RWC -> NewTask: new Task.Builder().build()
+            activate NewTask
+            note right: 必须剥离：创建新 Task\n作为 PiP 容器
+            
+            RWC -> WC: r.reparent(NewTask, MAX, ...)
+            WC -> OldTask: Remove Child
+            WC -> NewTask: Add Child
+            note right: 将 ActivityRecord\n移动到新 Task
+        end
+
+        RWC -> NewTask: reparent(TaskDisplayArea, ON_TOP)
+        note right: 确保 PiP 窗口\n悬浮于所有 Task 之上
+
+        RWC -> NewTask: setWindowingMode(PINNED)
+        
+        RWC -> TC: requestStartTransition(TRANSIT_PIP)
+        activate TC
+        note left: 触发过渡动画
+        
+            TC -> SF: freeze()
+            activate SF
+            SF -> SF: captureLayers()
+            SF -> SF: createAnimationLeash()
+            note right: 截图并创建\n动画容器
+            deactivate SF
+            
+        deactivate TC
+        
+    deactivate RWC
+deactivate Starter
+@enduml
+3. 关键机制详解 (Implementation Details)
+3.1 启动拦截 (The Hook)
+文件: ActivityStarter.java'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"ActivityManager","item":"https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/"},{"@type":"ListItem","position":3,"name":"Android Internals: Activity Launch into PiP 流程深度解析","item":"https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android Internals: Activity Launch into PiP 流程深度解析","name":"Android Internals: Activity Launch into PiP 流程深度解析","description":"1. 概述 (Overview) 在 Android 系统中，Activity 进入画中画（PiP）并非简单的 UI 缩放，而是一次复杂的窗口层级重构 (Hierarchy Reparenting)。\n特别是当通过 Intent 标志 (isLaunchIntoPip) 触发时，系统实际上执行了一个“欺骗”操作：\n先按标准流程启动 Activity（Resume, Add to Task）。 在启动流程收尾阶段，拦截并立即将其移动到 Pinned Root Task。 利用 SurfaceFreezer 冻结画面，执行无缝的进入动画。 2. 核心流程图 (Architecture Flow) 下面的时序图展示了从 startActivity 到最终通过 SurfaceAnimator 执行动画的完整调用链。\n@startuml !theme plain skinparam dpi 120 skinparam wrapWidth 200 participant \u0026#34;ActivityStarter\u0026#34; as Starter participant \u0026#34;RootWindowContainer\u0026#34; as RWC participant \u0026#34;Task (Current)\u0026#34; as OldTask participant \u0026#34;Task (New PiP)\u0026#34; as NewTask participant \u0026#34;WindowContainer\u0026#34; as WC participant \u0026#34;TransitionController\u0026#34; as TC participant \u0026#34;SurfaceFreezer\u0026#34; as SF note over Starter 1. 标准启动流程结束 (startActivityInner) end note Starter -\u0026gt; Starter: Check mOptions.isLaunchIntoPip() activate Starter note right 代码最后一道防线： 若包含 PiP 标志，则触发移动 end note Starter -\u0026gt; RWC: moveActivityToPinnedRootTask(r, source, ...) activate RWC RWC -\u0026gt; OldTask: getNonFinishingActivityCount() alt Case A: 单个 Activity (独占 Task) RWC -\u0026gt; RWC: rootTask = OldTask note right: 直接将当前 Task\\n变更为 Pinned 模式 else Case B: 多个 Activities (共享 Task) RWC -\u0026gt; NewTask: new Task.Builder().build() activate NewTask note right: 必须剥离：创建新 Task\\n作为 PiP 容器 RWC -\u0026gt; WC: r.reparent(NewTask, MAX, ...) WC -\u0026gt; OldTask: Remove Child WC -\u0026gt; NewTask: Add Child note right: 将 ActivityRecord\\n移动到新 Task end RWC -\u0026gt; NewTask: reparent(TaskDisplayArea, ON_TOP) note right: 确保 PiP 窗口\\n悬浮于所有 Task 之上 RWC -\u0026gt; NewTask: setWindowingMode(PINNED) RWC -\u0026gt; TC: requestStartTransition(TRANSIT_PIP) activate TC note left: 触发过渡动画 TC -\u0026gt; SF: freeze() activate SF SF -\u0026gt; SF: captureLayers() SF -\u0026gt; SF: createAnimationLeash() note right: 截图并创建\\n动画容器 deactivate SF deactivate TC deactivate RWC deactivate Starter @enduml 3. 关键机制详解 (Implementation Details) 3.1 启动拦截 (The Hook) 文件: ActivityStarter.java\n","keywords":[],"articleBody":"1. 概述 (Overview) 在 Android 系统中，Activity 进入画中画（PiP）并非简单的 UI 缩放，而是一次复杂的窗口层级重构 (Hierarchy Reparenting)。\n特别是当通过 Intent 标志 (isLaunchIntoPip) 触发时，系统实际上执行了一个“欺骗”操作：\n先按标准流程启动 Activity（Resume, Add to Task）。 在启动流程收尾阶段，拦截并立即将其移动到 Pinned Root Task。 利用 SurfaceFreezer 冻结画面，执行无缝的进入动画。 2. 核心流程图 (Architecture Flow) 下面的时序图展示了从 startActivity 到最终通过 SurfaceAnimator 执行动画的完整调用链。\n@startuml !theme plain skinparam dpi 120 skinparam wrapWidth 200 participant \"ActivityStarter\" as Starter participant \"RootWindowContainer\" as RWC participant \"Task (Current)\" as OldTask participant \"Task (New PiP)\" as NewTask participant \"WindowContainer\" as WC participant \"TransitionController\" as TC participant \"SurfaceFreezer\" as SF note over Starter 1. 标准启动流程结束 (startActivityInner) end note Starter -\u003e Starter: Check mOptions.isLaunchIntoPip() activate Starter note right 代码最后一道防线： 若包含 PiP 标志，则触发移动 end note Starter -\u003e RWC: moveActivityToPinnedRootTask(r, source, ...) activate RWC RWC -\u003e OldTask: getNonFinishingActivityCount() alt Case A: 单个 Activity (独占 Task) RWC -\u003e RWC: rootTask = OldTask note right: 直接将当前 Task\\n变更为 Pinned 模式 else Case B: 多个 Activities (共享 Task) RWC -\u003e NewTask: new Task.Builder().build() activate NewTask note right: 必须剥离：创建新 Task\\n作为 PiP 容器 RWC -\u003e WC: r.reparent(NewTask, MAX, ...) WC -\u003e OldTask: Remove Child WC -\u003e NewTask: Add Child note right: 将 ActivityRecord\\n移动到新 Task end RWC -\u003e NewTask: reparent(TaskDisplayArea, ON_TOP) note right: 确保 PiP 窗口\\n悬浮于所有 Task 之上 RWC -\u003e NewTask: setWindowingMode(PINNED) RWC -\u003e TC: requestStartTransition(TRANSIT_PIP) activate TC note left: 触发过渡动画 TC -\u003e SF: freeze() activate SF SF -\u003e SF: captureLayers() SF -\u003e SF: createAnimationLeash() note right: 截图并创建\\n动画容器 deactivate SF deactivate TC deactivate RWC deactivate Starter @enduml 3. 关键机制详解 (Implementation Details) 3.1 启动拦截 (The Hook) 文件: ActivityStarter.java\n常规的 startActivity 流程（解析 Intent -\u003e 寻找 Task -\u003e Resume Activity）完成后，函数并不会立即返回。在 startActivityInner 的末尾，存在一个特殊的 Checkpoint：\n// ActivityStarter.java L120+ if (mOptions != null \u0026\u0026 mOptions.isLaunchIntoPip() \u0026\u0026 sourceRecord.getTask() == mStartActivity.getTask()) { // 拦截点：虽然 Activity 已经加到了普通 Task， // 但立刻将其移动到 Pinned 栈，用户几乎无感知。 mRootWindowContainer.moveActivityToPinnedRootTask(...); } 这解释了为什么通过 Intent 启动 PiP 时，不会看到 Activity 先全屏再变小的闪烁，因为这一步是在 WindowManager 内部同步完成的。\n3.2 任务栈分裂 (Task Hierarchy Split) 文件: RootWindowContainer.java\n这是设计最精妙的地方。系统必须处理两种情况：\n独享 (Single Activity): Activity 本身就占有一个 Task。直接修改该 Task 的 WindowingMode 为 PINNED。 共享 (Task Stack): Activity 是某个 Task 的一部分（例如在“设置”里打开了一个视频详情页）。 问题: 如果直接把 Task 设为 PiP，整个“设置”应用都会变成小窗口。 解决: 代码通过 new Task.Builder(mService)...build() 创建一个新的孤儿 Task，然后调用 r.reparent(rootTask, ...) 将目标 Activity 从原 Task “过继”到新 Task。 // RootWindowContainer.java if (singleActivity) { rootTask = task; // Case 1 } else { // Case 2: 创建新房，把孩子(Activity)接走 rootTask = new Task.Builder(mService).setOnTop(true)...build(); r.reparent(rootTask, MAX_VALUE, reason); } 3.3 视觉冻结 文件: SurfaceFreezer.java\n在层级结构剧烈变化（Reparent）和模式切换（Fullscreen -\u003e PiP）期间，为了保证视觉平滑，WM 使用了“快照大法”。\nSnapshot: 调用 SurfaceControl.captureLayers 截取当前 Activity 的最后一帧 HardwareBuffer。 Leash: 创建一个临时的 AnimationLeash 覆盖在 Activity 之上。 Cover: 将 Snapshot 设置为 Integer.MAX_VALUE 层级，挡住底下正在进行 Resize 的真实 Window。 Animate: 动画系统（SurfaceAnimator）只对这个 Leash 进行缩放操作。 这避免了 Activity 在进入 PiP 过程中因为 Layout 重绘导致的闪烁或内容拉伸。\n4. 总结 Android 的 Launch-into-PiP 流程本质上是一个 “Start then Move” (先启动后移动) 的策略。\n逻辑层: 依赖 ActivityStarter 的后置钩子和 RootWindowContainer 的动态 Reparent 能力，确保了 PiP 窗口的独立性（拥有独立的 Task）。 表现层: 依赖 SurfaceFreezer 和 Transition 系统，通过 Snapshot 掩盖了复杂的窗口重组过程，实现了从全屏到小窗的无缝过渡。 ","wordCount":"423","inLanguage":"en","datePublished":"2025-08-27T11:36:11+08:00","dateModified":"2025-08-27T11:36:11+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/>ActivityManager</a></div><h1 class="post-title entry-hint-parent">Android Internals: Activity Launch into PiP 流程深度解析</h1><div class=post-meta><span title='2025-08-27 11:36:11 +0800 CST'>August 27, 2025</span>&nbsp;·&nbsp;2 min&nbsp;·&nbsp;423 words</div></header><div class=post-content><h2 id=1-概述-overview>1. 概述 (Overview)<a hidden class=anchor aria-hidden=true href=#1-概述-overview>#</a></h2><p>在 Android 系统中，Activity 进入画中画（PiP）并非简单的 UI 缩放，而是一次复杂的<strong>窗口层级重构 (Hierarchy Reparenting)</strong>。</p><p>特别是当通过 Intent 标志 (<code>isLaunchIntoPip</code>) 触发时，系统实际上执行了一个“欺骗”操作：</p><ol><li>先按标准流程启动 Activity（Resume, Add to Task）。</li><li>在启动流程收尾阶段，拦截并立即将其移动到 <strong>Pinned Root Task</strong>。</li><li>利用 <code>SurfaceFreezer</code> 冻结画面，执行无缝的进入动画。</li></ol><h2 id=2-核心流程图-architecture-flow>2. 核心流程图 (Architecture Flow)<a hidden class=anchor aria-hidden=true href=#2-核心流程图-architecture-flow>#</a></h2><p>下面的时序图展示了从 <code>startActivity</code> 到最终通过 <code>SurfaceAnimator</code> 执行动画的完整调用链。</p><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+skinparam dpi 120
+skinparam wrapWidth 200
+
+participant &#34;ActivityStarter&#34; as Starter
+participant &#34;RootWindowContainer&#34; as RWC
+participant &#34;Task (Current)&#34; as OldTask
+participant &#34;Task (New PiP)&#34; as NewTask
+participant &#34;WindowContainer&#34; as WC
+participant &#34;TransitionController&#34; as TC
+participant &#34;SurfaceFreezer&#34; as SF
+
+note over Starter
+  1. 标准启动流程结束
+  (startActivityInner)
+end note
+
+Starter -&gt; Starter: Check mOptions.isLaunchIntoPip()
+activate Starter
+    note right
+      代码最后一道防线：
+      若包含 PiP 标志，则触发移动
+    end note
+
+    Starter -&gt; RWC: moveActivityToPinnedRootTask(r, source, ...)
+    activate RWC
+        
+        RWC -&gt; OldTask: getNonFinishingActivityCount()
+        
+        alt Case A: 单个 Activity (独占 Task)
+            RWC -&gt; RWC: rootTask = OldTask
+            note right: 直接将当前 Task\n变更为 Pinned 模式
+            
+        else Case B: 多个 Activities (共享 Task)
+            RWC -&gt; NewTask: new Task.Builder().build()
+            activate NewTask
+            note right: 必须剥离：创建新 Task\n作为 PiP 容器
+            
+            RWC -&gt; WC: r.reparent(NewTask, MAX, ...)
+            WC -&gt; OldTask: Remove Child
+            WC -&gt; NewTask: Add Child
+            note right: 将 ActivityRecord\n移动到新 Task
+        end
+
+        RWC -&gt; NewTask: reparent(TaskDisplayArea, ON_TOP)
+        note right: 确保 PiP 窗口\n悬浮于所有 Task 之上
+
+        RWC -&gt; NewTask: setWindowingMode(PINNED)
+        
+        RWC -&gt; TC: requestStartTransition(TRANSIT_PIP)
+        activate TC
+        note left: 触发过渡动画
+        
+            TC -&gt; SF: freeze()
+            activate SF
+            SF -&gt; SF: captureLayers()
+            SF -&gt; SF: createAnimationLeash()
+            note right: 截图并创建\n动画容器
+            deactivate SF
+            
+        deactivate TC
+        
+    deactivate RWC
+deactivate Starter
+@enduml
+</code></pre><h2 id=3-关键机制详解-implementation-details>3. 关键机制详解 (Implementation Details)<a hidden class=anchor aria-hidden=true href=#3-关键机制详解-implementation-details>#</a></h2><h3 id=31-启动拦截-the-hook>3.1 启动拦截 (The Hook)<a hidden class=anchor aria-hidden=true href=#31-启动拦截-the-hook>#</a></h3><p><strong>文件</strong>: <code>ActivityStarter.java</code></p><p>常规的 <code>startActivity</code> 流程（解析 Intent -> 寻找 Task -> Resume Activity）完成后，函数并不会立即返回。在 <code>startActivityInner</code> 的末尾，存在一个特殊的 Checkpoint：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// ActivityStarter.java L120+</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> (mOptions <span style=color:#f92672>!=</span> <span style=color:#66d9ef>null</span> <span style=color:#f92672>&amp;&amp;</span> mOptions.<span style=color:#a6e22e>isLaunchIntoPip</span>() 
+</span></span><span style=display:flex><span>        <span style=color:#f92672>&amp;&amp;</span> sourceRecord.<span style=color:#a6e22e>getTask</span>() <span style=color:#f92672>==</span> mStartActivity.<span style=color:#a6e22e>getTask</span>()) {
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 拦截点：虽然 Activity 已经加到了普通 Task，</span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 但立刻将其移动到 Pinned 栈，用户几乎无感知。</span>
+</span></span><span style=display:flex><span>    mRootWindowContainer.<span style=color:#a6e22e>moveActivityToPinnedRootTask</span>(...);
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>这解释了为什么通过 <code>Intent</code> 启动 PiP 时，不会看到 Activity 先全屏再变小的闪烁，因为这一步是在 WindowManager 内部同步完成的。</p><h3 id=32-任务栈分裂-task-hierarchy-split>3.2 任务栈分裂 (Task Hierarchy Split)<a hidden class=anchor aria-hidden=true href=#32-任务栈分裂-task-hierarchy-split>#</a></h3><p><strong>文件</strong>: <code>RootWindowContainer.java</code></p><p>这是设计最精妙的地方。系统必须处理两种情况：</p><ol><li><strong>独享 (Single Activity)</strong>: Activity 本身就占有一个 Task。直接修改该 Task 的 <code>WindowingMode</code> 为 <code>PINNED</code>。</li><li><strong>共享 (Task Stack)</strong>: Activity 是某个 Task 的一部分（例如在“设置”里打开了一个视频详情页）。</li></ol><ul><li><strong>问题</strong>: 如果直接把 Task 设为 PiP，整个“设置”应用都会变成小窗口。</li><li><strong>解决</strong>: 代码通过 <code>new Task.Builder(mService)...build()</code> 创建一个新的孤儿 Task，然后调用 <code>r.reparent(rootTask, ...)</code> 将目标 Activity 从原 Task “过继”到新 Task。</li></ul><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// RootWindowContainer.java</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> (singleActivity) {
+</span></span><span style=display:flex><span>    rootTask <span style=color:#f92672>=</span> task; <span style=color:#75715e>// Case 1</span>
+</span></span><span style=display:flex><span>} <span style=color:#66d9ef>else</span> {
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// Case 2: 创建新房，把孩子(Activity)接走</span>
+</span></span><span style=display:flex><span>    rootTask <span style=color:#f92672>=</span> <span style=color:#66d9ef>new</span> Task.<span style=color:#a6e22e>Builder</span>(mService).<span style=color:#a6e22e>setOnTop</span>(<span style=color:#66d9ef>true</span>)...<span style=color:#a6e22e>build</span>();
+</span></span><span style=display:flex><span>    r.<span style=color:#a6e22e>reparent</span>(rootTask, MAX_VALUE, reason); 
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h3 id=33-视觉冻结>3.3 视觉冻结<a hidden class=anchor aria-hidden=true href=#33-视觉冻结>#</a></h3><p><strong>文件</strong>: <code>SurfaceFreezer.java</code></p><p>在层级结构剧烈变化（Reparent）和模式切换（Fullscreen -> PiP）期间，为了保证视觉平滑，WM 使用了“快照大法”。</p><ol><li><strong>Snapshot</strong>: 调用 <code>SurfaceControl.captureLayers</code> 截取当前 Activity 的最后一帧 <code>HardwareBuffer</code>。</li><li><strong>Leash</strong>: 创建一个临时的 <code>AnimationLeash</code> 覆盖在 Activity 之上。</li><li><strong>Cover</strong>: 将 Snapshot 设置为 <code>Integer.MAX_VALUE</code> 层级，挡住底下正在进行 Resize 的真实 Window。</li><li><strong>Animate</strong>: 动画系统（SurfaceAnimator）只对这个 Leash 进行缩放操作。</li></ol><p>这避免了 Activity 在进入 PiP 过程中因为 Layout 重绘导致的闪烁或内容拉伸。</p><h2 id=4-总结>4. 总结<a hidden class=anchor aria-hidden=true href=#4-总结>#</a></h2><p>Android 的 Launch-into-PiP 流程本质上是一个 <strong>&ldquo;Start then Move&rdquo; (先启动后移动)</strong> 的策略。</p><ul><li><strong>逻辑层</strong>: 依赖 <code>ActivityStarter</code> 的后置钩子和 <code>RootWindowContainer</code> 的动态 Reparent 能力，确保了 PiP 窗口的独立性（拥有独立的 Task）。</li><li><strong>表现层</strong>: 依赖 <code>SurfaceFreezer</code> 和 <code>Transition</code> 系统，通过 Snapshot 掩盖了复杂的窗口重组过程，实现了从全屏到小窗的无缝过渡。</li></ul></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/basic-communication-mechanism/binder/><span class=title>« Prev</span><br><span>Binder</span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/debug/log/><span class=title>Next »</span><br><span>Android log机制</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

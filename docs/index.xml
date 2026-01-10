@@ -1806,7 +1806,71 @@ component WindowManager
 &lt;h3 id="1-构建统一的全域感知数据底座为大模型提供可持续进化的输入能力"&gt;1. 构建统一的全域感知数据底座：&lt;strong&gt;为大模型提供“可持续进化”的输入能力&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;打破数据割裂，形成统一视图&lt;/strong&gt;：将操作系统状态、车辆运行数据、用户行为及应用生态等多源感知数据进行统一建模与归一化处理，消除系统与业务之间的数据孤岛。&lt;/p&gt;</description></item><item><title>Android log机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-eventlog.png" alt="" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;打破数据割裂，形成统一视图&lt;/strong&gt;：将操作系统状态、车辆运行数据、用户行为及应用生态等多源感知数据进行统一建模与归一化处理，消除系统与业务之间的数据孤岛。&lt;/p&gt;</description></item><item><title>Android Internals: Activity Launch into PiP 流程深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/</guid><description>&lt;h2 id="1-概述-overview"&gt;1. 概述 (Overview)&lt;/h2&gt;
+&lt;p&gt;在 Android 系统中，Activity 进入画中画（PiP）并非简单的 UI 缩放，而是一次复杂的&lt;strong&gt;窗口层级重构 (Hierarchy Reparenting)&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;特别是当通过 Intent 标志 (&lt;code&gt;isLaunchIntoPip&lt;/code&gt;) 触发时，系统实际上执行了一个“欺骗”操作：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;先按标准流程启动 Activity（Resume, Add to Task）。&lt;/li&gt;
+&lt;li&gt;在启动流程收尾阶段，拦截并立即将其移动到 &lt;strong&gt;Pinned Root Task&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;利用 &lt;code&gt;SurfaceFreezer&lt;/code&gt; 冻结画面，执行无缝的进入动画。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id="2-核心流程图-architecture-flow"&gt;2. 核心流程图 (Architecture Flow)&lt;/h2&gt;
+&lt;p&gt;下面的时序图展示了从 &lt;code&gt;startActivity&lt;/code&gt; 到最终通过 &lt;code&gt;SurfaceAnimator&lt;/code&gt; 执行动画的完整调用链。&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+skinparam dpi 120
+skinparam wrapWidth 200
+participant &amp;#34;ActivityStarter&amp;#34; as Starter
+participant &amp;#34;RootWindowContainer&amp;#34; as RWC
+participant &amp;#34;Task (Current)&amp;#34; as OldTask
+participant &amp;#34;Task (New PiP)&amp;#34; as NewTask
+participant &amp;#34;WindowContainer&amp;#34; as WC
+participant &amp;#34;TransitionController&amp;#34; as TC
+participant &amp;#34;SurfaceFreezer&amp;#34; as SF
+note over Starter
+1. 标准启动流程结束
+(startActivityInner)
+end note
+Starter -&amp;gt; Starter: Check mOptions.isLaunchIntoPip()
+activate Starter
+note right
+代码最后一道防线：
+若包含 PiP 标志，则触发移动
+end note
+Starter -&amp;gt; RWC: moveActivityToPinnedRootTask(r, source, ...)
+activate RWC
+RWC -&amp;gt; OldTask: getNonFinishingActivityCount()
+alt Case A: 单个 Activity (独占 Task)
+RWC -&amp;gt; RWC: rootTask = OldTask
+note right: 直接将当前 Task\n变更为 Pinned 模式
+else Case B: 多个 Activities (共享 Task)
+RWC -&amp;gt; NewTask: new Task.Builder().build()
+activate NewTask
+note right: 必须剥离：创建新 Task\n作为 PiP 容器
+RWC -&amp;gt; WC: r.reparent(NewTask, MAX, ...)
+WC -&amp;gt; OldTask: Remove Child
+WC -&amp;gt; NewTask: Add Child
+note right: 将 ActivityRecord\n移动到新 Task
+end
+RWC -&amp;gt; NewTask: reparent(TaskDisplayArea, ON_TOP)
+note right: 确保 PiP 窗口\n悬浮于所有 Task 之上
+RWC -&amp;gt; NewTask: setWindowingMode(PINNED)
+RWC -&amp;gt; TC: requestStartTransition(TRANSIT_PIP)
+activate TC
+note left: 触发过渡动画
+TC -&amp;gt; SF: freeze()
+activate SF
+SF -&amp;gt; SF: captureLayers()
+SF -&amp;gt; SF: createAnimationLeash()
+note right: 截图并创建\n动画容器
+deactivate SF
+deactivate TC
+deactivate RWC
+deactivate Starter
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="3-关键机制详解-implementation-details"&gt;3. 关键机制详解 (Implementation Details)&lt;/h2&gt;
+&lt;h3 id="31-启动拦截-the-hook"&gt;3.1 启动拦截 (The Hook)&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;文件&lt;/strong&gt;: &lt;code&gt;ActivityStarter.java&lt;/code&gt;&lt;/p&gt;</description></item><item><title>Android log机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-eventlog.png" alt="" /&gt;&lt;/p&gt;
 &lt;h3 id="架構圖詳解"&gt;架構圖詳解&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
