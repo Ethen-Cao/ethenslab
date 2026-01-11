@@ -1063,7 +1063,43 @@ note right of Main: 服务就绪，等待 SurfaceFlinger 连接
 &lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog start
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
-&lt;/ol&gt;</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/spamming-oneway/</guid><description>&lt;h2 id="binder-spam-detection原理"&gt;Binder spam detection原理&lt;/h2&gt;
+&lt;/ol&gt;</description></item><item><title>WindowInfos Update Flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</guid><description>&lt;h2 id="1-概述-overview"&gt;1. 概述 (Overview)&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;WindowInfos Update Flow&lt;/strong&gt; 是 Android 图形与输入系统协同工作的核心机制。它负责将 SurfaceFlinger (SF) 合成过程中产生的最新窗口属性（WindowInfo，如几何位置、Z-Order、透明度、触摸区域、焦点及其变换矩阵）实时同步给 SystemServer 进程。&lt;/p&gt;
+&lt;p&gt;主要消费者包括：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;InputDispatcher (Native)&lt;/strong&gt;: 负责根据窗口信息计算触摸事件的目标窗口（Hit Testing）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;AccessibilityWindowsPopulator (Java)&lt;/strong&gt;: 负责为无障碍服务（A11y）构建屏幕内容的窗口节点树。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;该机制的高效性直接决定了触摸响应的延迟和窗口焦点的准确性。由于涉及高频跨进程通信（IPC）和大数据量传输，它是系统稳定性问题（如 &lt;code&gt;DeadSystemException&lt;/code&gt;、Binder 缓冲区耗尽）的高发区。&lt;/p&gt;
+&lt;h2 id="2-核心架构与组件-architecture"&gt;2. 核心架构与组件 (Architecture)&lt;/h2&gt;
+&lt;p&gt;数据流向遵循 &lt;strong&gt;Producer-Consumer&lt;/strong&gt; 模型，并通过 &lt;strong&gt;WindowInfosListenerReporter&lt;/strong&gt; 实现多路复用。&lt;/p&gt;
+&lt;h3 id="21-发送端-producer-surfaceflinger"&gt;2.1 发送端 (Producer: SurfaceFlinger)&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;触发源&lt;/strong&gt;: 每一帧合成（Vsync）后，若检测到图层属性变化 (&lt;code&gt;mVisibleRegionsDirty&lt;/code&gt; 或 &lt;code&gt;mInputInfoChanged&lt;/code&gt;)，触发更新。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;异步发送&lt;/strong&gt;: 通过 &lt;code&gt;BackgroundExecutor&lt;/code&gt; 线程发送，避免阻塞主渲染线程。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;通信接口&lt;/strong&gt;: &lt;code&gt;IWindowInfosListener.onWindowInfosChanged&lt;/code&gt; (AIDL)，定义为 &lt;code&gt;oneway&lt;/code&gt;（非阻塞），允许极高的发送频率。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="22-中转与分发-transport--dispatch-systemserver"&gt;2.2 中转与分发 (Transport &amp;amp; Dispatch: SystemServer)&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;WindowInfosListenerReporter (Native)&lt;/strong&gt;:&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;角色&lt;/strong&gt;: SystemServer 进程内的单例 Binder Stub (&lt;code&gt;BnWindowInfosListener&lt;/code&gt;)。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;职责&lt;/strong&gt;: 它是 SystemServer 与 SurfaceFlinger 之间&lt;strong&gt;唯一&lt;/strong&gt;的 Binder 通道。负责接收跨进程数据，并&lt;strong&gt;同步&lt;/strong&gt;分发给进程内注册的所有监听器。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="23-接收端-consumers"&gt;2.3 接收端 (Consumers)&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;InputDispatcher (Native)&lt;/strong&gt;:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;行为&lt;/strong&gt;: &lt;strong&gt;同步阻塞&lt;/strong&gt;。在回调中必须获取全局锁 &lt;code&gt;mLock&lt;/code&gt; 以更新窗口状态。这是性能瓶颈所在。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start="2"&gt;
+&lt;li&gt;&lt;strong&gt;AccessibilityWindowsPopulator (Java)&lt;/strong&gt;:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;行为&lt;/strong&gt;: &lt;strong&gt;异步非阻塞&lt;/strong&gt;。通过 JNI 接收回调后，立即通过 &lt;code&gt;Handler.post&lt;/code&gt; 将繁重逻辑转移至 WMS 线程，不占用 Binder 线程。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="3-详细时序流程-sequence-diagram"&gt;3. 详细时序流程 (Sequence Diagram)&lt;/h2&gt;
+&lt;p&gt;下图展示了从 InputDispatcher 注册监听，到 SurfaceFlinger 分发数据，再到不同消费者处理数据的完整时序。&lt;/p&gt;</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/spamming-oneway/</guid><description>&lt;h2 id="binder-spam-detection原理"&gt;Binder spam detection原理&lt;/h2&gt;
 &lt;p&gt;当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:&lt;/p&gt;
 &lt;pre tabindex="0"&gt;&lt;code&gt;IPCThreadState: Process seems to be sending too many oneway calls.
 &lt;/code&gt;&lt;/pre&gt;&lt;h3 id="核心原因"&gt;核心原因&lt;/h3&gt;
