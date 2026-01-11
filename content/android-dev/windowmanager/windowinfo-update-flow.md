@@ -444,3 +444,203 @@ UIF --> ID : 5. setFocusedWindow
 
 **总结：**
 `InputWindowCommands` 是 WMS 等客户端通过 **Transaction** 捎带给 SurfaceFlinger 的指令包，暂存在 SurfaceFlinger 中，并在下一帧合成时转发给 InputDispatcher。
+
+### SurfaceFlinger合成流程概览
+
+这是一个非常经典且宏大的系统流程。从 VSYNC 信号触发到最终像素上屏，SurfaceFlinger (SF) 完成了一次完整的“心跳”循环。
+这个过程主要发生在 **SurfaceFlinger Main Thread (主线程)** 中，但也涉及到调度线程、Binder 线程池和渲染线程。
+以下是基于现代 Android (Android 12/13/14) 架构的详细阶段拆解：
+
+#### 核心流程概览
+
+```plantuml
+@startuml
+!theme plain
+autonumber "<b>[0]"
+
+title SurfaceFlinger: VSYNC to Present Pipeline
+
+box "Hardware / Kernel" #F5F5F5
+    participant "VSYNC Generator" as HW_VSYNC
+    participant "HWC / DRM" as HWC
+end box
+
+box "SurfaceFlinger Process" #E3F2FD
+    participant "Scheduler/EventThread" as Sched
+    participant "MessageQueue" as MQ
+    participant "SurfaceFlinger (Main)" as SF
+    participant "Layer / BufferQueue" as Layer
+    participant "CompositionEngine" as CE
+    participant "RenderEngine (GPU)" as RE
+end box
+
+== Phase 1: VSYNC 唤醒 ==
+HW_VSYNC -> Sched: Hardware Vsync Signal
+Sched -> MQ: dispatchVsync
+MQ -> SF: handleMessageInvalidate()
+
+== Phase 2: 状态更新 (Commit) ==
+activate SF
+SF -> SF: commit()
+
+group 2.1 处理事务 (Transactions)
+    SF -> SF: flushTransactionQueues()
+    SF -> Layer: apply transactions (pos, alpha, z-order...)
+end
+
+group 2.2 锁定缓冲区 (Latch Buffers)
+    SF -> Layer: latchBuffer()
+    Layer -> Layer: acquireBuffer() (from BufferQueue)
+end
+
+group 2.3 几何与输入更新
+    SF -> SF: updateLayerGeometry()
+    SF -> SF: updateInputFlinger()
+end
+
+== Phase 3: 合成 (Composite) ==
+
+SF -> CE: composite(display)
+
+group 3.1 验证 (HWC Validation)
+    CE -> HWC: validateDisplay()
+    HWC --> CE: changes (Client vs Device composition)
+end
+
+group 3.2 客户端合成 (GPU Rendering)
+    CE -> RE: drawLayers() (SkiaGL/SkiaVk)
+    activate RE
+    RE --> CE: Output Buffer (Framebuffer)
+    deactivate RE
+end
+
+group 3.3 设备合成 (HWC Present)
+    CE -> HWC: setOutputBuffer (if GPU used)
+    CE -> HWC: presentDisplay()
+end
+
+deactivate SF
+
+@enduml
+
+```
+
+
+#### 详细阶段解析
+
+整个流程通常由 `MessageQueue::Handler::handleMessage` 触发，主要逻辑封装在 `SurfaceFlinger::commit` 和 `SurfaceFlinger::composite` 中。
+
+##### Phase 1: VSYNC 调度与唤醒 (Scheduling)
+
+这是流程的起点。硬件发出垂直同步信号，告诉系统“显示器准备好下一帧了”。
+
+* **工作内容**:
+1. 硬件 VSYNC 信号到达内核，DispSync 模型进行校准。
+2. `Scheduler` 决定是否需要唤醒 SF（如果没有 Layer 更新，SF 会休眠）。
+3. 通过 `MessageQueue` 发送 `INVALIDATE` 消息给 SF 主线程。
+
+
+* **涉及线程**:
+* `DispSyncThread` (或类似的 Vsync 线程)
+* `EventThread` (分发 Vsync)
+* **SF Main Thread** (接收消息)
+
+
+* **核心类**:
+* `Scheduler`: 统管 Vsync 分发和帧率选择。
+* `EventThread`: 连接 DispSync 和 Client (SF/App) 的桥梁。
+* `MessageQueue`: SF 的 Looper 机制。
+
+
+
+#### Phase 2: 提交与状态更新 (Commit)
+
+SF 被唤醒后，首先要处理“逻辑状态”，确定这一帧“该画什么”、“在哪画”。
+
+**2.1 处理事务 (Transactions)**
+
+* **工作内容**: 处理来自 App 或 WMS 的 Binder 调用 (`SurfaceControl.Transaction`)。
+* 应用窗口的移动、缩放、隐藏/显示。
+* `mVisibleRegionsDirty` 在此阶段被置为 true。
+
+
+* **核心类**: `TransactionCallbackInvoker`, `Layer`。
+
+**2.2 锁定缓冲区 (Latch Buffers)**
+
+* **工作内容**: 检查各个 Layer 的 BufferQueue 中是否有应用刚刚生产好的 Buffer（Fence 已 Signal）。
+* 如果有，调用 `acquireBuffer` 获取图形数据。
+* 将 Layer 的状态从“待定”更新为“当前绘制状态”。
+* **关键点**: 这里决定了这一帧显示的是 App 的哪一张图。
+
+
+* **核心类**: `BufferQueue`, `BufferLayer`, `ConsumerBase`。
+
+**2.3 几何与输入更新 (Geometry & Input)**
+
+* **工作内容**:
+* `updateLayerGeometry()`: 计算可见区域 (Visible Region)、脏区域 (Dirty Region)、遮挡关系。
+* `updateInputFlinger()`: **(我们刚讨论过的)** 将计算好的窗口信息同步给 InputDispatcher。
+
+
+* **核心类**: `Region`, `Layer`, `InputWindowCommands`。
+
+#### Phase 3: 合成 (Composition)
+
+此时逻辑状态已确定，开始生成像素或指令。现代 Android 使用 `CompositionEngine` (CE) 模块来管理这一步。
+
+**3.1 HWC 验证 (Validation)**
+
+* **工作内容**: SF 询问 HWC：“这些 Layer 你能处理吗？”
+* SF 将 Layer 列表发给 HWC。
+* HWC 返回每个 Layer 的合成方式：
+* **Device Composition**: HWC 硬件直接处理（高效，如 Overlay）。
+* **Client Composition**: HWC 处理不了（如复杂 Shader、圆角、模糊），需要 GPU 处理。
+
+
+* **核心类**: `HWComposer`, `CompositionEngine`, `Output`.
+
+**3.2 客户端合成 (Client Composition / GPU)**
+
+* **工作内容**: 如果 HWC 说“我处理不了”，SF 就调用 `RenderEngine` 用 GPU 把这些 Layer 画到一个 Buffer (Framebuffer) 上。
+* Android 12+ 默认使用 Skia (SkiaGL 或 SkiaVk)。
+
+
+* **涉及线程**:
+* **SF Main Thread**: 发起绘制指令。
+* **RenderEngine Thread**: (视实现而定，可能有专门的渲染线程) 执行 GPU 指令提交。
+
+
+* **核心类**: `RenderEngine`, `SkiaRenderEngine`, `FramebufferSurface`.
+
+**3.3 设备合成与上屏 (Device Composition & Present)**
+
+* **工作内容**:
+* 如果进行了 GPU 合成，将 GPU 生成的 Buffer 作为一个特殊的 Layer 传给 HWC。
+* 调用 `HWC::presentDisplay()`。
+* HWC 驱动将最终配置提交给显示硬件。
+* **Fence 机制**: 系统不会死等 GPU/Display 完成，而是通过 Fence (文件描述符) 同步。
+
+
+* **核心类**: `HWComposer`, `DisplayDevice`.
+
+### 线程模型总结
+
+| 线程名称 | 职责 | 涉及阶段 |
+| --- | --- | --- |
+| **SurfaceFlinger Main** | **大总管**。负责逻辑状态更新、Buffer锁定、几何计算、指挥合成。90% 的代码运行于此。 | All Stages |
+| **EventThread** | **节拍器**。负责接收硬件 VSYNC 并分发给 SF 主线程和 App。 | Phase 1 |
+| **Binder Threads** | **接收员**。负责接收 App/WMS 的 `Transaction` 和 `queueBuffer` 调用，放入队列供主线程消费。 | Phase 2 (Pre-processing) |
+| **RenderEngine** | **画师**。如果需要 GPU 合成，负责执行 OpenGL/Vulkan 指令。 | Phase 3.2 |
+| **HWC / DRM** | **放映员**。内核/硬件层，负责最终将图层叠加并输出到屏幕。 | Phase 3.3 |
+
+### 关键总结
+
+SurfaceFlinger 的一帧就像一条流水线：
+
+1. **VSYNC** 是发令枪。
+2. **Commit** 阶段确定“物体”的位置和形状（Logic）。
+3. **Latch Buffer** 阶段给物体贴上“材质”（Content）。
+4. **HWC Validate** 阶段决定“谁来画”（Strategy）。
+5. **Composite** 阶段真正执行“画”的动作（Rendering）。
+6. **Present** 阶段把画好的图交给屏幕（Display）。
