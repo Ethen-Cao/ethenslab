@@ -1,4 +1,9 @@
-# Android InputChannel 原理与生命周期详解
++++
+date = '2025-09-29T10:22:54+08:00'
+draft = false
+title = ' Android InputChannel 原理与生命周期详解'
++++
+
 
 ## 1. 什么是 InputChannel？
 
@@ -48,7 +53,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
     status_t result = InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
 
     { // acquire lock
-        // 2. 获取全局锁 mLock (这就是我们之前讨论的竞争点)
+        // 2. 获取全局锁 mLock 
         std::scoped_lock _l(mLock);
         
         const sp<IBinder>& token = serverChannel->getConnectionToken();
