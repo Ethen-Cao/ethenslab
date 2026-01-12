@@ -47,7 +47,6 @@ title = 'WindowInfos Update Flow'
 
 ```plantuml
 @startuml
-@startuml
 !theme plain
 autonumber "<b>[0]"
 
