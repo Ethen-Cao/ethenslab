@@ -6,11 +6,272 @@ title = 'Binder'
 
 ## 同步通信
 
-![](/ethenslab/images/binder-sync.png)
+
+![](../../../static/images/binder-sync.png)
 
 ## 异步通信
 
-![](/ethenslab/images/binder-async.png)
+![](../../../static/images/binder-async.png)
+
+### 异步线程管理
+
+为了清晰地展示 Binder 驱动的线程选择策略和并发/串行逻辑，我设计了以下场景：
+
+1. **Client** 向 **Server** 发送 **Txn_1** (目标: Node_A)。 -> **立即执行 (ST1)**
+2. **Client** 向 **Server** 发送 **Txn_2** (目标: Node_A)。 -> **串行排队 (Serialization)**
+3. **Client** 向 **Server** 发送 **Txn_3** (目标: Node_B)。 -> **并发执行 (ST2)**
+4. **ST1** 完成 Txn_1，触发 Txn_2 执行。
+
+这个图展示了 `proc->todo`（全局队列）与 `node->async_todo`（节点私有队列）的交互。
+
+```plantuml
+@startuml
+!theme plain
+autonumber "<b>[000]"
+hide footbox
+
+title Binder Async Threading Model: Serialization (Node_A) vs Concurrency (Node_B)
+
+box "Client Process" #E1F5FE
+    participant "ClientThread" as CT
+end box
+
+box "Kernel Space (Binder Driver)" #F5F5F5
+    participant "BinderDriver" as BD
+    participant "ServerProc\n(proc->todo)" as P_TODO
+    participant "Node_A\n(node->async_todo)" as NA_TODO
+    participant "Node_B\n(node->async_todo)" as NB_TODO
+end box
+
+box "Server Process" #FFF3E0
+    participant "ServerThread_1\n(ST1)" as ST1
+    participant "ServerThread_2\n(ST2)" as ST2
+end box
+
+== Phase 0: Server Threads Enter Pool (Wait) ==
+
+note over ST1, ST2: ST1 and ST2 enter the thread pool to wait for work
+
+ST1 -> BD: ioctl(BINDER_WRITE_READ, ...)
+activate BD
+BD -> BD: binder_ioctl_write_read()\n -> binder_thread_read()
+BD -> BD: binder_wait_for_work()
+note right of BD: ST1 sleeps on\nwait_event_freezable_exclusive(proc->wait)
+deactivate BD
+
+ST2 -> BD: ioctl(BINDER_WRITE_READ, ...)
+activate BD
+BD -> BD: binder_ioctl_write_read()\n -> binder_thread_read()
+BD -> BD: binder_wait_for_work()
+note right of BD: ST2 sleeps on\nwait_event_freezable_exclusive(proc->wait)
+deactivate BD
+
+|||
+
+== Phase 1: Txn_1 to Node_A (Success: Wake ST1) ==
+
+CT -> BD: ioctl(BC_TRANSACTION | TF_ONEWAY, target=Node_A)
+activate BD
+BD -> BD: binder_transaction()
+
+note right of BD
+  <b>Logic Check:</b>
+  Node_A->has_async_transaction == 0
+end note
+
+BD -> BD: Node_A->has_async_transaction = 1
+BD -> BD: binder_alloc_new_buf()
+
+BD -> BD: binder_proc_transaction(target_proc)
+note right of BD
+  Since !pending_async:
+  Enqueue to Process Global TODO
+end note
+BD -> P_TODO: binder_enqueue_work_ilocked(Txn_1)
+
+BD -> BD: binder_select_thread_ilocked(proc)
+note right of BD
+  Pops ST1 from 
+  proc->waiting_threads
+end note
+
+BD -> BD: binder_wakeup_thread_ilocked(proc, ST1)
+BD -> ST1: wake_up_interruptible(&ST1->wait)
+
+BD -->> CT: return (Async returns immediately)
+deactivate BD
+
+activate ST1
+ST1 -> BD: (Wakes up inside binder_thread_read)
+activate BD
+BD -> P_TODO: binder_dequeue_work_head_ilocked()
+note left of P_TODO: Txn_1 moved from proc->todo to ST1
+BD -->> ST1: return BR_TRANSACTION (Txn_1 data)
+deactivate BD
+note over ST1: <b>ST1 Processing Txn_1 (Node_A)</b>
+deactivate ST1
+
+|||
+
+== Phase 2: Txn_2 to Node_A (Busy: Queued) ==
+
+note left of CT: ST1 is still busy with Node_A.\nClient sends another to Node_A.
+
+CT -> BD: ioctl(BC_TRANSACTION | TF_ONEWAY, target=Node_A)
+activate BD
+BD -> BD: binder_transaction()
+
+note right of BD
+  <b>Logic Check:</b>
+  Node_A->has_async_transaction == 1
+  (Because Txn_1 is active)
+end note
+
+BD -> BD: pending_async = true
+
+BD -> BD: binder_proc_transaction(target_proc)
+note right of BD
+  Since pending_async == true:
+  Enqueue to Node Private TODO
+  <b>NO THREAD WOKEN UP!</b>
+end note
+BD -> NA_TODO: binder_enqueue_work_ilocked(Txn_2)
+
+BD -->> CT: return
+deactivate BD
+
+|||
+
+== Phase 3: Txn_3 to Node_B (Independent: Wake ST2) ==
+
+note left of CT: ST1 busy with A, Txn_2 queued on A.\nClient sends to <b>Node_B</b>.
+
+CT -> BD: ioctl(BC_TRANSACTION | TF_ONEWAY, target=Node_B)
+activate BD
+BD -> BD: binder_transaction()
+
+note right of BD
+  <b>Logic Check:</b>
+  Node_B->has_async_transaction == 0
+  (Node_B is independent)
+end note
+
+BD -> BD: Node_B->has_async_transaction = 1
+
+BD -> BD: binder_proc_transaction(target_proc)
+note right of BD
+  Enqueue to Process Global TODO
+end note
+BD -> P_TODO: binder_enqueue_work_ilocked(Txn_3)
+
+BD -> BD: binder_select_thread_ilocked(proc)
+note right of BD
+  ST1 is not in waiting_threads.
+  Pops ST2 from waiting_threads.
+end note
+
+BD -> BD: binder_wakeup_thread_ilocked(proc, ST2)
+BD -> ST2: wake_up_interruptible(&ST2->wait)
+
+BD -->> CT: return
+deactivate BD
+
+activate ST2
+ST2 -> BD: (Wakes up)
+activate BD
+BD -> P_TODO: binder_dequeue_work_head_ilocked()
+BD -->> ST2: return BR_TRANSACTION (Txn_3 data)
+deactivate BD
+note over ST2: <b>ST2 Processing Txn_3 (Node_B)</b>
+deactivate ST2
+
+|||
+
+== Phase 4: ST1 Finishes Txn_1 & Triggers Txn_2 ==
+
+note over ST1: ST1 finishes work,\ncalls free buffer
+
+ST1 -> BD: ioctl(BC_FREE_BUFFER, buffer_ptr)
+activate BD
+BD -> BD: binder_thread_write() -> binder_free_buf()
+
+note right of BD
+  <b>Logic Check:</b>
+  buffer->async_transaction && buffer->target_node
+end note
+
+BD -> NA_TODO: binder_dequeue_work_head_ilocked()
+note right of NA_TODO
+  Found Txn_2 waiting!
+end note
+
+alt Work Found in Async_Todo
+    BD -> P_TODO: binder_enqueue_work_ilocked(Txn_2)
+    note right of P_TODO
+      Move Txn_2 from Node_A private queue
+      to Global Process queue
+    end note
+    
+    BD -> BD: binder_wakeup_proc_ilocked(proc)
+    note right of BD
+      <b>Wake up any available thread.</b>
+      ST1 is currently in ioctl, so it will likely
+      loop back and pick this up immediately
+      in binder_thread_read.
+    end note
+else No Work Found
+    BD -> BD: buf_node->has_async_transaction = false
+end
+
+BD -->> ST1: return
+deactivate BD
+
+ST1 -> BD: ioctl(BINDER_WRITE_READ, read...)
+activate BD
+BD -> BD: binder_thread_read()
+BD -> P_TODO: binder_dequeue_work_head_ilocked()
+note right of P_TODO: Picking up Txn_2
+BD -->> ST1: return BR_TRANSACTION (Txn_2 data)
+deactivate BD
+
+note over ST1: <b>ST1 Processing Txn_2 (Node_A)</b>
+
+@enduml
+
+```
+
+#### 时序图核心逻辑解析 (基于 `binder.c`)
+
+1. **线程池等待 (Phase 0)**:
+* `ST1` 和 `ST2` 调用 `binder_thread_read` 并最终在一个等待队列上睡眠 (`wait_event_freezable_exclusive`)。此时它们都在 `proc->waiting_threads` 链表中。
+
+
+2. **首次异步调用 (Phase 1)**:
+* **发送**: `binder_transaction` 检查 `Node_A->has_async_transaction` 为 0。
+* **入队**: 设置标志位为 1，将 `Txn_1` 放入全局 `proc->todo`。
+* **选人**: `binder_select_thread_ilocked` 从 `waiting_threads` 中弹出 `ST1`。
+* **唤醒**: `binder_wakeup_thread_ilocked` 唤醒 `ST1`。
+
+
+3. **串行化排队 (Phase 2)**:
+* **发送**: 此时 `ST1` 正在处理 `Txn_1`，还没有释放 Buffer。驱动再次检查 `Node_A->has_async_transaction`，发现是 1。
+* **入队**: `pending_async` 为真。`Txn_2` 被放入 `Node_A` 的私有队列 `node->async_todo`。
+* **不唤醒**: 此时**不会**调用 `binder_wakeup_thread_ilocked`。即使 `ST2` 空闲，它也拿不到这个任务。这就是“单线程处理”效果的来源。
+
+
+4. **并发处理不同实体 (Phase 3)**:
+* **发送**: 发送给 `Node_B`。`Node_B` 的 `has_async_transaction` 还是 0（独立计数）。
+* **入队**: `Txn_3` 放入全局 `proc->todo`。
+* **选人**: `ST1` 不在等待队列中（忙碌）。驱动从等待队列中弹出 `ST2`。
+* **唤醒**: 唤醒 `ST2`。此时 `ST1` 和 `ST2` 并行工作。
+
+
+5. **接力执行 (Phase 4)**:
+* `ST1` 处理完 `Txn_1`，调用 `BC_FREE_BUFFER`。
+* `binder_free_buf` 发现这是异步事务，于是去检查 `Node_A->async_todo`。
+* 发现 `Txn_2` 在排队，将其**搬运**到全局 `proc->todo`。
+* 调用 `binder_wakeup_proc_ilocked` 唤醒任意空闲线程（通常 `ST1` 马上进入 Read 循环，会直接再次拿到这个任务）。
+  
 
 ## 内存管理
 

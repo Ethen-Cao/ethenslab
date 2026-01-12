@@ -1391,28 +1391,223 @@ note right of Main: 服务就绪，等待 SurfaceFlinger 连接
 &lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binder-sync.png" alt="" /&gt;&lt;/p&gt;
 &lt;h2 id="异步通信"&gt;异步通信&lt;/h2&gt;
 &lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/binder-async.png" alt="" /&gt;&lt;/p&gt;
+&lt;h3 id="异步线程管理"&gt;异步线程管理&lt;/h3&gt;
+&lt;p&gt;为了清晰地展示 Binder 驱动的线程选择策略和并发/串行逻辑，我设计了以下场景：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Client&lt;/strong&gt; 向 &lt;strong&gt;Server&lt;/strong&gt; 发送 &lt;strong&gt;Txn_1&lt;/strong&gt; (目标: Node_A)。 -&amp;gt; &lt;strong&gt;立即执行 (ST1)&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Client&lt;/strong&gt; 向 &lt;strong&gt;Server&lt;/strong&gt; 发送 &lt;strong&gt;Txn_2&lt;/strong&gt; (目标: Node_A)。 -&amp;gt; &lt;strong&gt;串行排队 (Serialization)&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Client&lt;/strong&gt; 向 &lt;strong&gt;Server&lt;/strong&gt; 发送 &lt;strong&gt;Txn_3&lt;/strong&gt; (目标: Node_B)。 -&amp;gt; &lt;strong&gt;并发执行 (ST2)&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;ST1&lt;/strong&gt; 完成 Txn_1，触发 Txn_2 执行。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;这个图展示了 &lt;code&gt;proc-&amp;gt;todo&lt;/code&gt;（全局队列）与 &lt;code&gt;node-&amp;gt;async_todo&lt;/code&gt;（节点私有队列）的交互。&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+autonumber &amp;#34;&amp;lt;b&amp;gt;[000]&amp;#34;
+hide footbox
+title Binder Async Threading Model: Serialization (Node_A) vs Concurrency (Node_B)
+box &amp;#34;Client Process&amp;#34; #E1F5FE
+participant &amp;#34;ClientThread&amp;#34; as CT
+end box
+box &amp;#34;Kernel Space (Binder Driver)&amp;#34; #F5F5F5
+participant &amp;#34;BinderDriver&amp;#34; as BD
+participant &amp;#34;ServerProc\n(proc-&amp;gt;todo)&amp;#34; as P_TODO
+participant &amp;#34;Node_A\n(node-&amp;gt;async_todo)&amp;#34; as NA_TODO
+participant &amp;#34;Node_B\n(node-&amp;gt;async_todo)&amp;#34; as NB_TODO
+end box
+box &amp;#34;Server Process&amp;#34; #FFF3E0
+participant &amp;#34;ServerThread_1\n(ST1)&amp;#34; as ST1
+participant &amp;#34;ServerThread_2\n(ST2)&amp;#34; as ST2
+end box
+== Phase 0: Server Threads Enter Pool (Wait) ==
+note over ST1, ST2: ST1 and ST2 enter the thread pool to wait for work
+ST1 -&amp;gt; BD: ioctl(BINDER_WRITE_READ, ...)
+activate BD
+BD -&amp;gt; BD: binder_ioctl_write_read()\n -&amp;gt; binder_thread_read()
+BD -&amp;gt; BD: binder_wait_for_work()
+note right of BD: ST1 sleeps on\nwait_event_freezable_exclusive(proc-&amp;gt;wait)
+deactivate BD
+ST2 -&amp;gt; BD: ioctl(BINDER_WRITE_READ, ...)
+activate BD
+BD -&amp;gt; BD: binder_ioctl_write_read()\n -&amp;gt; binder_thread_read()
+BD -&amp;gt; BD: binder_wait_for_work()
+note right of BD: ST2 sleeps on\nwait_event_freezable_exclusive(proc-&amp;gt;wait)
+deactivate BD
+|||
+== Phase 1: Txn_1 to Node_A (Success: Wake ST1) ==
+CT -&amp;gt; BD: ioctl(BC_TRANSACTION | TF_ONEWAY, target=Node_A)
+activate BD
+BD -&amp;gt; BD: binder_transaction()
+note right of BD
+&amp;lt;b&amp;gt;Logic Check:&amp;lt;/b&amp;gt;
+Node_A-&amp;gt;has_async_transaction == 0
+end note
+BD -&amp;gt; BD: Node_A-&amp;gt;has_async_transaction = 1
+BD -&amp;gt; BD: binder_alloc_new_buf()
+BD -&amp;gt; BD: binder_proc_transaction(target_proc)
+note right of BD
+Since !pending_async:
+Enqueue to Process Global TODO
+end note
+BD -&amp;gt; P_TODO: binder_enqueue_work_ilocked(Txn_1)
+BD -&amp;gt; BD: binder_select_thread_ilocked(proc)
+note right of BD
+Pops ST1 from
+proc-&amp;gt;waiting_threads
+end note
+BD -&amp;gt; BD: binder_wakeup_thread_ilocked(proc, ST1)
+BD -&amp;gt; ST1: wake_up_interruptible(&amp;amp;ST1-&amp;gt;wait)
+BD --&amp;gt;&amp;gt; CT: return (Async returns immediately)
+deactivate BD
+activate ST1
+ST1 -&amp;gt; BD: (Wakes up inside binder_thread_read)
+activate BD
+BD -&amp;gt; P_TODO: binder_dequeue_work_head_ilocked()
+note left of P_TODO: Txn_1 moved from proc-&amp;gt;todo to ST1
+BD --&amp;gt;&amp;gt; ST1: return BR_TRANSACTION (Txn_1 data)
+deactivate BD
+note over ST1: &amp;lt;b&amp;gt;ST1 Processing Txn_1 (Node_A)&amp;lt;/b&amp;gt;
+deactivate ST1
+|||
+== Phase 2: Txn_2 to Node_A (Busy: Queued) ==
+note left of CT: ST1 is still busy with Node_A.\nClient sends another to Node_A.
+CT -&amp;gt; BD: ioctl(BC_TRANSACTION | TF_ONEWAY, target=Node_A)
+activate BD
+BD -&amp;gt; BD: binder_transaction()
+note right of BD
+&amp;lt;b&amp;gt;Logic Check:&amp;lt;/b&amp;gt;
+Node_A-&amp;gt;has_async_transaction == 1
+(Because Txn_1 is active)
+end note
+BD -&amp;gt; BD: pending_async = true
+BD -&amp;gt; BD: binder_proc_transaction(target_proc)
+note right of BD
+Since pending_async == true:
+Enqueue to Node Private TODO
+&amp;lt;b&amp;gt;NO THREAD WOKEN UP!&amp;lt;/b&amp;gt;
+end note
+BD -&amp;gt; NA_TODO: binder_enqueue_work_ilocked(Txn_2)
+BD --&amp;gt;&amp;gt; CT: return
+deactivate BD
+|||
+== Phase 3: Txn_3 to Node_B (Independent: Wake ST2) ==
+note left of CT: ST1 busy with A, Txn_2 queued on A.\nClient sends to &amp;lt;b&amp;gt;Node_B&amp;lt;/b&amp;gt;.
+CT -&amp;gt; BD: ioctl(BC_TRANSACTION | TF_ONEWAY, target=Node_B)
+activate BD
+BD -&amp;gt; BD: binder_transaction()
+note right of BD
+&amp;lt;b&amp;gt;Logic Check:&amp;lt;/b&amp;gt;
+Node_B-&amp;gt;has_async_transaction == 0
+(Node_B is independent)
+end note
+BD -&amp;gt; BD: Node_B-&amp;gt;has_async_transaction = 1
+BD -&amp;gt; BD: binder_proc_transaction(target_proc)
+note right of BD
+Enqueue to Process Global TODO
+end note
+BD -&amp;gt; P_TODO: binder_enqueue_work_ilocked(Txn_3)
+BD -&amp;gt; BD: binder_select_thread_ilocked(proc)
+note right of BD
+ST1 is not in waiting_threads.
+Pops ST2 from waiting_threads.
+end note
+BD -&amp;gt; BD: binder_wakeup_thread_ilocked(proc, ST2)
+BD -&amp;gt; ST2: wake_up_interruptible(&amp;amp;ST2-&amp;gt;wait)
+BD --&amp;gt;&amp;gt; CT: return
+deactivate BD
+activate ST2
+ST2 -&amp;gt; BD: (Wakes up)
+activate BD
+BD -&amp;gt; P_TODO: binder_dequeue_work_head_ilocked()
+BD --&amp;gt;&amp;gt; ST2: return BR_TRANSACTION (Txn_3 data)
+deactivate BD
+note over ST2: &amp;lt;b&amp;gt;ST2 Processing Txn_3 (Node_B)&amp;lt;/b&amp;gt;
+deactivate ST2
+|||
+== Phase 4: ST1 Finishes Txn_1 &amp;amp; Triggers Txn_2 ==
+note over ST1: ST1 finishes work,\ncalls free buffer
+ST1 -&amp;gt; BD: ioctl(BC_FREE_BUFFER, buffer_ptr)
+activate BD
+BD -&amp;gt; BD: binder_thread_write() -&amp;gt; binder_free_buf()
+note right of BD
+&amp;lt;b&amp;gt;Logic Check:&amp;lt;/b&amp;gt;
+buffer-&amp;gt;async_transaction &amp;amp;&amp;amp; buffer-&amp;gt;target_node
+end note
+BD -&amp;gt; NA_TODO: binder_dequeue_work_head_ilocked()
+note right of NA_TODO
+Found Txn_2 waiting!
+end note
+alt Work Found in Async_Todo
+BD -&amp;gt; P_TODO: binder_enqueue_work_ilocked(Txn_2)
+note right of P_TODO
+Move Txn_2 from Node_A private queue
+to Global Process queue
+end note
+BD -&amp;gt; BD: binder_wakeup_proc_ilocked(proc)
+note right of BD
+&amp;lt;b&amp;gt;Wake up any available thread.&amp;lt;/b&amp;gt;
+ST1 is currently in ioctl, so it will likely
+loop back and pick this up immediately
+in binder_thread_read.
+end note
+else No Work Found
+BD -&amp;gt; BD: buf_node-&amp;gt;has_async_transaction = false
+end
+BD --&amp;gt;&amp;gt; ST1: return
+deactivate BD
+ST1 -&amp;gt; BD: ioctl(BINDER_WRITE_READ, read...)
+activate BD
+BD -&amp;gt; BD: binder_thread_read()
+BD -&amp;gt; P_TODO: binder_dequeue_work_head_ilocked()
+note right of P_TODO: Picking up Txn_2
+BD --&amp;gt;&amp;gt; ST1: return BR_TRANSACTION (Txn_2 data)
+deactivate BD
+note over ST1: &amp;lt;b&amp;gt;ST1 Processing Txn_2 (Node_A)&amp;lt;/b&amp;gt;
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h4 id="时序图核心逻辑解析-基于-binderc"&gt;时序图核心逻辑解析 (基于 &lt;code&gt;binder.c&lt;/code&gt;)&lt;/h4&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;线程池等待 (Phase 0)&lt;/strong&gt;:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;ST1&lt;/code&gt; 和 &lt;code&gt;ST2&lt;/code&gt; 调用 &lt;code&gt;binder_thread_read&lt;/code&gt; 并最终在一个等待队列上睡眠 (&lt;code&gt;wait_event_freezable_exclusive&lt;/code&gt;)。此时它们都在 &lt;code&gt;proc-&amp;gt;waiting_threads&lt;/code&gt; 链表中。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start="2"&gt;
+&lt;li&gt;&lt;strong&gt;首次异步调用 (Phase 1)&lt;/strong&gt;:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;发送&lt;/strong&gt;: &lt;code&gt;binder_transaction&lt;/code&gt; 检查 &lt;code&gt;Node_A-&amp;gt;has_async_transaction&lt;/code&gt; 为 0。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;入队&lt;/strong&gt;: 设置标志位为 1，将 &lt;code&gt;Txn_1&lt;/code&gt; 放入全局 &lt;code&gt;proc-&amp;gt;todo&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;选人&lt;/strong&gt;: &lt;code&gt;binder_select_thread_ilocked&lt;/code&gt; 从 &lt;code&gt;waiting_threads&lt;/code&gt; 中弹出 &lt;code&gt;ST1&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;唤醒&lt;/strong&gt;: &lt;code&gt;binder_wakeup_thread_ilocked&lt;/code&gt; 唤醒 &lt;code&gt;ST1&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start="3"&gt;
+&lt;li&gt;&lt;strong&gt;串行化排队 (Phase 2)&lt;/strong&gt;:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;发送&lt;/strong&gt;: 此时 &lt;code&gt;ST1&lt;/code&gt; 正在处理 &lt;code&gt;Txn_1&lt;/code&gt;，还没有释放 Buffer。驱动再次检查 &lt;code&gt;Node_A-&amp;gt;has_async_transaction&lt;/code&gt;，发现是 1。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;入队&lt;/strong&gt;: &lt;code&gt;pending_async&lt;/code&gt; 为真。&lt;code&gt;Txn_2&lt;/code&gt; 被放入 &lt;code&gt;Node_A&lt;/code&gt; 的私有队列 &lt;code&gt;node-&amp;gt;async_todo&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;不唤醒&lt;/strong&gt;: 此时&lt;strong&gt;不会&lt;/strong&gt;调用 &lt;code&gt;binder_wakeup_thread_ilocked&lt;/code&gt;。即使 &lt;code&gt;ST2&lt;/code&gt; 空闲，它也拿不到这个任务。这就是“单线程处理”效果的来源。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start="4"&gt;
+&lt;li&gt;&lt;strong&gt;并发处理不同实体 (Phase 3)&lt;/strong&gt;:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;发送&lt;/strong&gt;: 发送给 &lt;code&gt;Node_B&lt;/code&gt;。&lt;code&gt;Node_B&lt;/code&gt; 的 &lt;code&gt;has_async_transaction&lt;/code&gt; 还是 0（独立计数）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;入队&lt;/strong&gt;: &lt;code&gt;Txn_3&lt;/code&gt; 放入全局 &lt;code&gt;proc-&amp;gt;todo&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;选人&lt;/strong&gt;: &lt;code&gt;ST1&lt;/code&gt; 不在等待队列中（忙碌）。驱动从等待队列中弹出 &lt;code&gt;ST2&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;唤醒&lt;/strong&gt;: 唤醒 &lt;code&gt;ST2&lt;/code&gt;。此时 &lt;code&gt;ST1&lt;/code&gt; 和 &lt;code&gt;ST2&lt;/code&gt; 并行工作。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start="5"&gt;
+&lt;li&gt;&lt;strong&gt;接力执行 (Phase 4)&lt;/strong&gt;:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;ST1&lt;/code&gt; 处理完 &lt;code&gt;Txn_1&lt;/code&gt;，调用 &lt;code&gt;BC_FREE_BUFFER&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;binder_free_buf&lt;/code&gt; 发现这是异步事务，于是去检查 &lt;code&gt;Node_A-&amp;gt;async_todo&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;发现 &lt;code&gt;Txn_2&lt;/code&gt; 在排队，将其&lt;strong&gt;搬运&lt;/strong&gt;到全局 &lt;code&gt;proc-&amp;gt;todo&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;调用 &lt;code&gt;binder_wakeup_proc_ilocked&lt;/code&gt; 唤醒任意空闲线程（通常 &lt;code&gt;ST1&lt;/code&gt; 马上进入 Read 循环，会直接再次拿到这个任务）。&lt;/li&gt;
+&lt;/ul&gt;
 &lt;h2 id="内存管理"&gt;内存管理&lt;/h2&gt;
 &lt;h3 id="binder-驱动的通信内存管理机制"&gt;&lt;strong&gt;Binder 驱动的通信内存管理机制&lt;/strong&gt;&lt;/h3&gt;
-&lt;p&gt;Binder 驱动的内存管理是一套内核层面的复杂机制，其核心目标是在进程间高效、安全地传输数据，并实现“一次拷贝”原则。&lt;/p&gt;
-&lt;h4 id="第一部分binder-通信内存的总体管理机制"&gt;&lt;strong&gt;第一部分：Binder 通信内存的总体管理机制&lt;/strong&gt;&lt;/h4&gt;
-&lt;p&gt;该机制主要分为三个阶段：虚拟内存区的建立、事务缓冲区的分配与映射、以及事务缓冲区的释放。&lt;/p&gt;
-&lt;p&gt;&lt;strong&gt;1.1 进程虚拟内存区的建立&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;当一个用户进程首次打开 &lt;code&gt;/dev/binder&lt;/code&gt; 设备并对其执行 &lt;code&gt;mmap()&lt;/code&gt; 系统调用时，Binder 驱动会执行 &lt;code&gt;binder_mmap()&lt;/code&gt; 内核函数。此函数的主要工作包括：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;为该进程在内核中创建一个 &lt;code&gt;binder_proc&lt;/code&gt; 结构体实例，用于追踪其所有 Binder 相关状态。&lt;/li&gt;
-&lt;li&gt;在该进程的虚拟地址空间中，分配并初始化一块指定大小（由 &lt;code&gt;BINDER_VM_SIZE&lt;/code&gt; 决定，通常为 1MB）的虚拟内存区域（Virtual Memory Area, VMA）。&lt;/li&gt;
-&lt;li&gt;将这个 VMA 与进程的 &lt;code&gt;binder_proc&lt;/code&gt; 结构体关联。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;此阶段的关键在于，&lt;strong&gt;仅分配了虚拟地址空间，并未分配实际的物理内存&lt;/strong&gt;。这块 VMA 的作用是为未来接收 Binder 数据提供一个预先确定的目标地址范围。&lt;/p&gt;
-&lt;p&gt;&lt;strong&gt;1.2 事务缓冲区的分配与映射&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;当一个进程（Client）通过 &lt;code&gt;ioctl(BINDER_WRITE_READ)&lt;/code&gt; 发起一次事务（Transaction）时：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;&lt;strong&gt;分配内核缓冲区&lt;/strong&gt;：Binder 驱动的 &lt;code&gt;binder_thread_write()&lt;/code&gt; 函数会调用 &lt;code&gt;binder_alloc_buf()&lt;/code&gt;，根据事务数据的大小，从内核的通用物理内存池（如 &lt;code&gt;vmalloc&lt;/code&gt; 或 slab 分配器）中分配一个 &lt;code&gt;binder_buffer&lt;/code&gt; 内核对象。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;数据拷贝（一次拷贝）&lt;/strong&gt;：驱动调用 &lt;code&gt;copy_from_user()&lt;/code&gt;，将数据从 Client 进程的用户空间地址，拷贝到上一步分配的内核 &lt;code&gt;binder_buffer&lt;/code&gt; 中。这是整个跨进程通信中唯一的一次数据内容拷贝。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;地址空间映射&lt;/strong&gt;：驱动识别出目标进程（Server）后，并不会再次拷贝数据。它会执行一个核心操作：&lt;strong&gt;修改 Server 进程的内核页表&lt;/strong&gt;，将承载着数据的 &lt;code&gt;binder_buffer&lt;/code&gt; 的物理内存页，直接映射到 Server 进程在 1.1 阶段建立的 VMA 中。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;数据投递&lt;/strong&gt;：驱动将映射后的缓冲区在 Server 进程中的虚拟地址，连同事务命令（如 &lt;code&gt;BR_TRANSACTION&lt;/code&gt; 或 &lt;code&gt;BR_ONEWAY&lt;/code&gt;），一同投递给 Server 中等待的 Binder 线程。Server 线程可以直接访问该地址，如同访问进程内内存一样。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;&lt;strong&gt;1.3 事务缓冲区的释放&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Netflix DRM 流程与白名单验证</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/netflix-verification.png" alt="" /&gt;&lt;/p&gt;
+&lt;p&gt;Binder 驱动的内存管理是一套内核层面的复杂机制，其核心目标是在进程间高效、安全地传输数据，并实现“一次拷贝”原则。&lt;/p&gt;</description></item><item><title>Netflix DRM 流程与白名单验证</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/netflix-verification/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/netflix-verification.png" alt="" /&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;用户操作&lt;/strong&gt;：用户在浏览器中打开 Netflix 并点击播放。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;请求清单&lt;/strong&gt;：浏览器向 Netflix 服务器请求视频的元数据（Manifest 文件，如 MPD）。&lt;/li&gt;
