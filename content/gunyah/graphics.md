@@ -155,3 +155,112 @@ tags = ["Android", "Graphics", "Virtualization", "Gunyah", "Qualcomm"]
 7. **执行**：Host 端 GPU 响应并渲染像素到 Buffer。
 8. **上屏**：`libhwui` 将 Buffer 交给 `BLASTBufferQueue`，打包为 Transaction 发送给 SurfaceFlinger。
 
+
+## 附录
+
+### SyncFrame 机制
+
+SyncFrame 机制是 Android 硬件加速渲染管线中，连接 **主线程 (UI Thread)** 和 **渲染线程 (RenderThread)** 的关键同步点。
+
+简单来说，它是**交接棒**的时刻：UI 线程把自己计算好的最新画面数据（绘制指令、属性变化），安全、原子地拷贝给渲染线程，然后 UI 线程就可以去处理下一帧逻辑，而渲染线程拿着这份数据去驱动 GPU 绘图。
+
+以下是深度的技术解析：
+
+#### 1. 为什么需要 SyncFrame？
+
+Android 5.0 (Lollipop) 引入了 `RenderThread`，实现了渲染的双缓冲模型（Double Buffering regarding threads）：
+
+* **UI Thread**: 处理输入、执行动画 (`ValueAnimator`)、布局 (`onLayout`)、记录绘图指令 (`onDraw`)。操作的是 Java 层的 `View` 对象。
+* **RenderThread**: 处理 GPU 资源、执行 OpenGL/Vulkan 调用。操作的是 Native 层的 `RenderNode` (C++) 对象。
+
+**问题**：如果 RenderThread 正在读取一个 View 的透明度（Alpha）准备绘图，而 UI 线程同时正在修改这个 Alpha 值，就会发生**竞争条件 (Race Condition)**，导致画面撕裂或崩溃。
+
+**解决**：引入 **SyncFrame**。UI 线程修改的数据不会立即生效于渲染，而是先存放在一个“暂存区”（Staging）。只有在 SyncFrame 阶段，这些数据才会被同步到 RenderThread 真正使用的“渲染树”中。
+
+#### 2. SyncFrame 的工作流程
+
+这个过程通常发生在 VSync 信号到来，Choreographer 驱动 UI 线程完成 `performTraversals` 之后。
+
+调用链：
+
+`ViewRootImpl.performDraw()` -> `ThreadedRenderer.draw()` -> `updateRootDisplayList()` -> **`nSyncAndDrawFrame()` (JNI)**
+
+##### 阶段一：UI 线程准备 (Staging)
+
+在 Java 层，当你调用 `setAlpha(0.5f)` 或 `onDraw(Canvas)` 时：
+
+* **属性**：View 的属性变化（x, y, alpha, scale...）被标记为 Dirty，并保存在 Native 对应的 `RenderNode` 的 **Staging Properties** 中。
+* **指令**：`onDraw` 生成的 `DisplayList` (SkPicture) 也被挂载到 `RenderNode` 的 Staging 区域。
+* **注意**：此时 RenderThread 可能正在画上一帧，互不干扰。
+
+##### 阶段二：SyncFrame (The Blocking Phase)
+
+这是最关键的一步。UI 线程调用 JNI 进入 Native 层，向 RenderThread 发起同步请求。
+
+1. **UI 线程阻塞**：UI 线程必须停下来等待，不能继续跑 Java 代码。
+2. **RenderThread 唤醒**：RenderThread 醒来处理同步任务。
+3. **数据拷贝 (Push Staging to Render)**：
+* RenderThread 遍历 RenderNode 树。
+* 将 **Staging Properties**（UI 线程改的）拷贝到 **Render Properties**（GPU 要用的）。
+* 交换 **DisplayList** 指针。
+
+4. **UI 线程解除阻塞**：一旦拷贝完成，RenderThread 通知 UI 线程：“我拿到了，你可以走了”。
+5. **分道扬镳**：
+* **UI 线程**：立刻返回 Java 层，处理下一帧的输入或动画。
+* **RenderThread**：开始执行 `DrawFrame`，驱动 Skia/OpenGL/Vulkan 去渲染刚刚拿到的数据。
+
+### 3. 图解数据流向
+
+```mermaid
+sequenceDiagram
+    participant UI as UI Thread (Main)
+    participant RT as RenderThread (Native)
+    participant GPU as GPU/Driver
+
+    Note over UI: 1. Input/Animation/Layout
+    Note over UI: 2. Record View.onDraw() to RenderNode (Staging)
+    
+    UI->>RT: 3. request SyncFrame (PROXY_SYNC)
+    activate UI
+    Note right of UI: UI Thread BLOCKED here!
+    
+    activate RT
+    Note over RT: 4. Copy Staging -> Render Properties
+    Note over RT: 5. Prepare Tree
+    RT-->>UI: Sync Complete
+    deactivate UI
+    
+    par Parallel Execution
+        UI->>UI: Process Next Frame...
+    and
+        Note over RT: 6. Issue Draw Ops (Skia)
+        RT->>GPU: 7. OpenGL/Vulkan Commands
+    end
+    deactivate RT
+```
+
+#### 4. 性能影响 (Performance Implications)
+
+在 Systrace 或 Perfetto 中，会看到一个名为 `syncFrame` 或 `syncAndDrawFrame` 的 slice。
+
+* **耗时过长意味着什么？**
+    如果 `syncFrame` 耗时很长（超过 1-2ms），通常意味着：
+    1. **RenderNode 树太复杂**：View 太多，遍历树和拷贝属性花了太多时间。
+    2. **DisplayList 重建过多**：太多的 View 在这一帧调用了 `invalidate()`，导致 DisplayList 结构变化大。
+    3. **上传位图 (Bitmap Upload)**：这是最常见的卡顿原因。如果新加载了一张大图，Bitmap 的像素数据会在 Sync 阶段（或者紧接着的 Draw 阶段）上传到 GPU 显存。这非常耗时。
+
+* **为什么 UI 线程必须等？**
+为了保证**原子性 (Atomicity)**。如果不等，UI 线程可能在 RenderThread 读到一半时又改了数据，导致一帧画面里上半部分是透明度 1.0，下半部分是 0.5。
+
+#### 5. 结合架构图
+
+在架构图中：
+
+* **位置**：SyncFrame 发生在 **`ThreadedRenderer`** 和 **`libhwui (RenderThread)`** 之间的那条连线上。
+* **View/Canvas 作用**：`View` 和 `Canvas` 在 UI 线程产出数据（Staging），SyncFrame 负责把这些数据搬运到 `libhwui` 真正控制的渲染树上。
+* **BLASTBufferQueue**：SyncFrame 只是同步内部树结构。真正向 BBQ 提交 Buffer (`queueBuffer`) 是在 RenderThread 随后的绘制阶段完成的。
+
+#### 总结
+
+**SyncFrame** 是 Android 渲染机制中的**“数据提交点”**。它是一个短暂的阻塞操作，用于将 UI 线程的最新修改安全地“提交”给渲染线程。它是保证 Android 界面流畅且无撕裂的核心机制。
+
