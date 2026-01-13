@@ -1,7 +1,7 @@
 +++
 date = '2026-01-13T10:00:00+08:00'
 draft = false
-title = 'Android 图形渲染架构详解 (Gunyah Hypervisor / Qualcomm Gen5)'
+title = 'Android 图形渲染架构详解 (Gunyah Hypervisor)'
 tags = ["Android", "Graphics", "Virtualization", "Gunyah", "Qualcomm"]
 +++
 
