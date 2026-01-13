@@ -1,7 +1,7 @@
 +++
 date = '2025-08-04T09:49:58+08:00'
 draft = false
-title = '高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image'
+title = '高通 Gunyah Virtio-blk实现机制'
 +++
 
 
@@ -158,4 +158,3 @@ HBLK --> DISK
 * **内存安全:** Guest 与 Host 之间的数据交换完全通过受控的共享内存进行，无额外数据搬运。
 * **轻量级通知:** 利用 `eventfd` 和 `irqfd` 避免了繁重的上下文切换开销。
 
----
