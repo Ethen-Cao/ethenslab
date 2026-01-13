@@ -1,27 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Gunyah开发笔记 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/gunyah/</link><description>Recent content in Gunyah开发笔记 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 04 Aug 2025 09:49:58 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/gunyah/index.xml" rel="self" type="application/rss+xml"/><item><title>Android 图形渲染架构 (Gunyah Hypervisor 虚拟化平台)</title><link>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
-&lt;p&gt;本文档详细描述了在基于 &lt;strong&gt;Qualcomm SA8295/SA8255 (Gen5)&lt;/strong&gt; 智能座舱平台中，Android Guest VM 的图形渲染软件架构。&lt;/p&gt;
-&lt;p&gt;在该平台中，Android 运行在 &lt;strong&gt;Gunyah Hypervisor&lt;/strong&gt; 之上作为客户机（Guest VM）。图形系统采用前后端分离的虚拟化架构，Android 侧（Guest）通过 &lt;strong&gt;HGSL (Hypervisor Graphics Service Layer)&lt;/strong&gt; 驱动与宿主机（Host/Hypervisor）通信，最终由 Host 端的物理驱动操控 Adreno GPU 硬件。&lt;/p&gt;
-&lt;h2 id="2-整体架构图"&gt;2. 整体架构图&lt;/h2&gt;
-&lt;p&gt;下图展示了从应用层 &lt;code&gt;RenderThread&lt;/code&gt; 到底层内核驱动 &lt;code&gt;gh_dbl&lt;/code&gt; 的完整调用链路：&lt;/p&gt;
-&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/gunyah-graphics.png" alt="" /&gt;&lt;/p&gt;
-&lt;p&gt;架构主要分为三个层次：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;&lt;strong&gt;User Space (用户空间)&lt;/strong&gt;：负责生成绘图指令，通过 OpenGL ES API 调用底层驱动。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Kernel Interface (内核接口)&lt;/strong&gt;：通过 &lt;code&gt;/dev/hgsl&lt;/code&gt; 字符设备进行系统调用。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Kernel Space (内核空间)&lt;/strong&gt;：负责内存管理、命令队列调度，并通过 IPC 机制跨越虚拟机边界。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h2 id="3-组件职责详解"&gt;3. 组件职责详解&lt;/h2&gt;
-&lt;h3 id="31-用户空间-native-user-space"&gt;3.1 用户空间 (Native User Space)&lt;/h3&gt;
-&lt;p&gt;用户空间组件构成了 Android 的渲染管线，负责将 UI 布局转换为 GPU 可识别的绘图指令。&lt;/p&gt;
-&lt;h4 id="renderthread-渲染线程"&gt;&lt;strong&gt;RenderThread (渲染线程)&lt;/strong&gt;&lt;/h4&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;职责&lt;/strong&gt;：Android &lt;code&gt;hwui&lt;/code&gt; 库中的核心线程，专门负责 UI 的绘制任务。它从主线程（UI Thread）接收 &lt;code&gt;DisplayList&lt;/code&gt;，并驱动后续的渲染流程。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;关键动作&lt;/strong&gt;：它是整个渲染链路的起点（Initiator）。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h4 id="libhwuiso-hardware-ui-library"&gt;&lt;strong&gt;libhwui.so (Hardware UI Library)&lt;/strong&gt;&lt;/h4&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;职责&lt;/strong&gt;：Android 的 2D 硬件加速核心库。&lt;/p&gt;</description></item><item><title>高通 Gunyah Virtio-blk实现机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>&lt;h4 id="1-概述"&gt;1. 概述&lt;/h4&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Gunyah开发笔记 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/gunyah/</link><description>Recent content in Gunyah开发笔记 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 04 Aug 2025 09:49:58 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/gunyah/index.xml" rel="self" type="application/rss+xml"/><item><title>高通 Gunyah Virtio-blk实现机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>&lt;h4 id="1-概述"&gt;1. 概述&lt;/h4&gt;
 &lt;p&gt;本图展示了在 Android 虚拟化场景下，Guest OS（Android 虚拟机）如何通过 &lt;strong&gt;Virtio-blk&lt;/strong&gt; 协议高效地访问 Host 侧的物理存储设备。该架构采用 &lt;strong&gt;Userspace Backend&lt;/strong&gt; 模式，即虚拟磁盘的后端处理逻辑集成在 VMM（此处为 &lt;code&gt;qcrosvm&lt;/code&gt;）的用户态进程中。&lt;/p&gt;
 &lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
@@ -138,4 +115,16 @@ HBLK --&amp;gt; DISK
 &lt;/li&gt;
 &lt;/ol&gt;
 &lt;h2 id="2-编译配置-bitbake-recipe"&gt;2. 编译配置 (Bitbake Recipe)&lt;/h2&gt;
-&lt;p&gt;Yocto 构建系统通过 Recipe 来管理编译过程。&lt;/p&gt;</description></item></channel></rss>
+&lt;p&gt;Yocto 构建系统通过 Recipe 来管理编译过程。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</guid><description>&lt;p&gt;这是一份经过全面融合、深度完善的&lt;strong&gt;终极版 Wiki 文档&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;它整合了我们在过去对话中讨论的所有核心技术点，包括 &lt;strong&gt;Android 16 BLAST 架构&lt;/strong&gt;、&lt;strong&gt;Vulkan 与 OpenGL 的并行支持&lt;/strong&gt;、&lt;strong&gt;Skia 的角色&lt;/strong&gt;以及 &lt;strong&gt;Gunyah 虚拟化驱动的深层机制&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;您可以直接使用此文档作为项目组的官方架构说明书。&lt;/p&gt;
+&lt;p&gt;+++
+date = &amp;lsquo;2026-01-13T10:00:00+08:00&amp;rsquo;
+draft = false
+title = &amp;lsquo;Android 图形渲染架构详解 (Gunyah Hypervisor / Qualcomm Gen5)&amp;rsquo;
+tags = [&amp;ldquo;Android&amp;rdquo;, &amp;ldquo;Graphics&amp;rdquo;, &amp;ldquo;Virtualization&amp;rdquo;, &amp;ldquo;Gunyah&amp;rdquo;, &amp;ldquo;Qualcomm&amp;rdquo;]
++++&lt;/p&gt;
+&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;本文档详细描述了在基于 &lt;strong&gt;Qualcomm SA8295/SA8255 (Gen5)&lt;/strong&gt; 智能座舱平台中，Android Guest VM 的图形渲染软件架构。&lt;/p&gt;
+&lt;p&gt;在该平台中，Android 运行在 &lt;strong&gt;Gunyah Hypervisor&lt;/strong&gt; 之上作为客户机（Guest VM）。图形系统采用&lt;strong&gt;前后端分离的虚拟化架构 (Split-Rendering Architecture)&lt;/strong&gt;。Android 侧（Guest）负责生成渲染指令，通过 &lt;strong&gt;HGSL (Hypervisor Graphics Service Layer)&lt;/strong&gt; 驱动栈穿透虚拟机边界，最终由 Host 端的物理驱动操控 Adreno GPU 硬件执行渲染。&lt;/p&gt;
+&lt;p&gt;本文档涵盖了从应用层 View 系统、Native 渲染管线、到内核虚拟化驱动的全链路技术细节。&lt;/p&gt;</description></item></channel></rss>
