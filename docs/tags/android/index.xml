@@ -4,7 +4,7 @@
 &lt;p&gt;本文档涵盖了从应用层 View 系统、Native 渲染管线、到内核虚拟化驱动的全链路技术细节。&lt;/p&gt;
 &lt;h2 id="2-整体架构图"&gt;2. 整体架构图&lt;/h2&gt;
 &lt;p&gt;下图展示了从应用层 &lt;code&gt;ViewRootImpl&lt;/code&gt; 到底层内核驱动 &lt;code&gt;gh_dbl&lt;/code&gt; 的完整调用链路。架构清晰地展示了 &lt;strong&gt;BLASTBufferQueue&lt;/strong&gt; 的引入、&lt;strong&gt;OpenGL ES / Vulkan&lt;/strong&gt; 的双链路支持，以及内核态的&lt;strong&gt;快慢通道分离&lt;/strong&gt;设计。&lt;/p&gt;
-&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/gunyah-graphics.png.png" alt="" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/gunyah-graphics.png" alt="" /&gt;&lt;/p&gt;
 &lt;h2 id="3-应用层从-ui-到渲染线程-application-ui-layer"&gt;3. 应用层：从 UI 到渲染线程 (Application UI Layer)&lt;/h2&gt;
 &lt;p&gt;在 Android 16+ 架构中，应用层不仅负责 UI 逻辑，还直接参与图形缓冲区的管理。&lt;/p&gt;
 &lt;h3 id="viewrootimpl--blastbufferqueue"&gt;&lt;strong&gt;ViewRootImpl &amp;amp; BLASTBufferQueue&lt;/strong&gt;&lt;/h3&gt;

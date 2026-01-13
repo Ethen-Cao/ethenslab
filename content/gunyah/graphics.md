@@ -17,7 +17,7 @@ tags = ["Android", "Graphics", "Virtualization", "Gunyah", "Qualcomm"]
 
 下图展示了从应用层 `ViewRootImpl` 到底层内核驱动 `gh_dbl` 的完整调用链路。架构清晰地展示了 **BLASTBufferQueue** 的引入、**OpenGL ES / Vulkan** 的双链路支持，以及内核态的**快慢通道分离**设计。
 
-![](../../static/images/gunyah-graphics.png.png)
+![](../../static/images/gunyah-graphics.png)
 
 ## 3. 应用层：从 UI 到渲染线程 (Application UI Layer)
 
@@ -262,5 +262,85 @@ sequenceDiagram
 
 #### 总结
 
-**SyncFrame** 是 Android 渲染机制中的**“数据提交点”**。它是一个短暂的阻塞操作，用于将 UI 线程的最新修改安全地“提交”给渲染线程。它是保证 Android 界面流畅且无撕裂的核心机制。
+**SyncFrame** 是 Android 渲染机制中的**数据提交点**。它是一个短暂的阻塞操作，用于将 UI 线程的最新修改安全地“提交”给渲染线程。它是保证 Android 界面流畅且无撕裂的核心机制。
+
+
+这是一份为您准备的 **"BLAST/Transaction 机制"** 章节内容。它基于我们之前的深度讨论和代码分析，采用了专业的 Wiki 风格，可以直接插入到文档的第 4 节之后作为补充，或者作为单独的第 5 章节。
+
+
+
+### BLAST/Transaction 机制详解
+
+在 Android 10 引入并于后续版本（Android 12+）完全标准化的 **BLAST (Buffer Layer as Transaction)** 机制，彻底改变了应用层与 SurfaceFlinger 的交互方式。本章节详细阐述该机制如何解决画面同步问题，以及其在双路径（原生 UI 与第三方引擎）渲染中的统一作用。
+
+#### 背景与演进：解决同步难题
+
+在旧版 Android 渲染架构中，**窗口属性的变化**（如大小调整、位置移动）与**缓冲区的内容更新**（Buffer Queue）是两条异步的路径：
+
+* **WMS/SF** 负责调整 Layer 大小。
+* **App** 负责绘制 Buffer 内容。
+
+这导致了经典的 **"Visual Tearing" (视觉撕裂)** 或 **"Black Screen"** 问题：当窗口大小改变时，SurfaceFlinger 可能先缩放了 Layer，但 App 新尺寸的 Buffer 还没画好，导致屏幕上出现拉伸或黑边。
+
+**BLAST** 的核心理念是**“原子性” (Atomicity)**：将“缓冲区内容”视为一种特殊的“图层属性”，与其他属性（位置、大小、透明度、Z-Order）打包在同一个 **Transaction** 中提交。只有当所有条件都满足时，SurfaceFlinger 才会同时应用这些变更。
+
+#### 核心组件
+
+* **BLASTBufferQueue (BBQ)**
+* **定义**：运行在**应用进程**（App Process）内的适配器，连接了 `ANativeWindow` (Surface) 和 `SurfaceControl.Transaction`。
+* **职责**：它拦截了原本直接发往 SurfaceFlinger 的 `queueBuffer` 调用。当渲染线程提交一个 Buffer 时，BBQ 不会立即发送到 SF，而是将其持有，并封装进一个 Transaction。
+
+
+* **SurfaceControl.Transaction**
+* **定义**：一个原子操作包，可以包含对多个 Layer 的多个属性修改。
+* **作用**：它是 BLAST 机制的数据载体。所有的绘图结果（Buffer）最终都必须转化为 Transaction 才能上屏。
+
+
+* **ViewRootImpl (VRI)**
+* **职责**：作为 UI 的管理者，它负责协调窗口的 Resize 操作与内容的 Draw 操作，通过 `applyTransactionOnDraw` 确保两者同步。
+
+
+
+#### 工作流程 (The BLAST Workflow)
+
+下图描述了从绘制完成到最终上屏的原子化流程：
+
+1. **绘制 (Draw)**：
+* **原生 UI**：`libhwui` (RenderThread) 完成渲染，调用 `ANativeWindow::queueBuffer`。
+* **第三方引擎**：调用 `eglSwapBuffers`，底层驱动完成命令提交后，同样触发 `ANativeWindow::queueBuffer`。
+
+
+2. **拦截与打包 (Intercept & Package)**：
+* 进程内的 `BLASTBufferQueue` 拦截该 `queueBuffer` 调用。
+* BBQ 获取一个新的 Buffer，创建一个 `SurfaceControl.Transaction`，并将该 Buffer 绑定到 Transaction 中 (`setBuffer`)。
+
+
+3. **合并 (Merge)**：
+* **UI 场景**：`ViewRootImpl` 可能会将当前的窗口属性变化（如 `resize`）合并到同一个 Transaction 中（`mergeWithNextTransaction`）。
+* **同步场景**：如果存在跨进程同步（如 SurfaceView 嵌入），父窗口会收集子窗口的 Transaction 进行合并。
+
+
+4. **提交 (Apply)**：
+* 最终的 Transaction 被发送给 SurfaceFlinger (`Transaction.apply()`)。
+* SurfaceFlinger 在下一个 VSync 到来时，**原子地**应用新的 Buffer 和新的窗口属性。
+
+
+
+#### 在架构中的体现
+
+结合前文的架构图，BLAST 机制统一了系统的输出路径：
+
+* **路径 A：原生 UI (Android View System)**
+* `ViewRootImpl` 创建并持有主画面的 `BLASTBufferQueue`。
+* `libhwui` 生产的 Buffer 通过此 BBQ 转化为 Transaction 提交。
+
+
+* **路径 B：第三方引擎 (SurfaceView/Game)**
+* `SurfaceView` 在 Java 层创建独立的 `BLASTBufferQueue`。
+* C++ 层的 3D Engine 获取该 BBQ 对应的 `ANativeWindow`。
+* 引擎的渲染结果（SwapBuffers）同样经由该 BBQ 转化为 Transaction 提交。
+
+
+
+**总结**：在 Gunyah 虚拟化平台上的 Android Guest VM 中，无论渲染源是 Skia 还是 Unity/Unreal，最终都通过 **BLASTBufferQueue** 殊途同归，以 **Transaction** 的形式将数据交付给 SurfaceFlinger 合成。
 
