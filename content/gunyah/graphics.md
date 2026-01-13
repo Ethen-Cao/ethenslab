@@ -282,7 +282,7 @@ sequenceDiagram
 
 这导致了经典的 **"Visual Tearing" (视觉撕裂)** 或 **"Black Screen"** 问题：当窗口大小改变时，SurfaceFlinger 可能先缩放了 Layer，但 App 新尺寸的 Buffer 还没画好，导致屏幕上出现拉伸或黑边。
 
-**BLAST** 的核心理念是**“原子性” (Atomicity)**：将“缓冲区内容”视为一种特殊的“图层属性”，与其他属性（位置、大小、透明度、Z-Order）打包在同一个 **Transaction** 中提交。只有当所有条件都满足时，SurfaceFlinger 才会同时应用这些变更。
+**BLAST** 的核心理念是**原子性 (Atomicity)**：将“缓冲区内容”视为一种特殊的“图层属性”，与其他属性（位置、大小、透明度、Z-Order）打包在同一个 **Transaction** 中提交。只有当所有条件都满足时，SurfaceFlinger 才会同时应用这些变更。
 
 #### 核心组件
 
@@ -305,26 +305,101 @@ sequenceDiagram
 
 下图描述了从绘制完成到最终上屏的原子化流程：
 
+```plantuml
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 50
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 12
+
+' 定义颜色宏，模拟 Material Design 风格
+!define COLOR_UI_BG #E8F5E9
+!define COLOR_UI_BORDER #2E7D32
+!define COLOR_ENG_BG #FCE4EC
+!define COLOR_ENG_BORDER #C2185B
+!define COLOR_TX_BG #FFF9C4
+!define COLOR_TX_BORDER #FBC02D
+!define COLOR_SF_BG #E1F5FE
+!define COLOR_SF_BORDER #0277BD
+
+package "Application Process (Client)" {
+    
+    package "Path A: Native UI" {
+        component "ViewRootImpl" as VRI ##COLOR_UI_BORDER {
+            BackgroundColor COLOR_UI_BG
+        }
+        component "RenderThread\n(libhwui)" as RT ##COLOR_UI_BORDER {
+            BackgroundColor COLOR_UI_BG
+        }
+        component "BLASTBufferQueue\n(Main Window)" as BBQ_UI ##COLOR_UI_BORDER {
+            BackgroundColor COLOR_UI_BG
+        }
+    }
+
+    package "Path B: 3rd Party Engine" {
+        component "3D Engine\n(Unity/Unreal)" as Eng ##COLOR_ENG_BORDER {
+            BackgroundColor COLOR_ENG_BG
+        }
+        component "BLASTBufferQueue\n(SurfaceView)" as BBQ_SV ##COLOR_ENG_BORDER {
+            BackgroundColor COLOR_ENG_BG
+        }
+    }
+
+    component "SurfaceControl\nTransaction" as Tx ##COLOR_TX_BORDER {
+        BackgroundColor COLOR_TX_BG
+    }
+}
+
+package "SurfaceFlinger process" {
+    component "SurfaceFlinger\t\t\t\t\t\t\t\t\t\t" as SF ##COLOR_SF_BORDER {
+        BackgroundColor COLOR_SF_BG
+    }
+
+    note right of SF: 5. Atomic Latch\n(Wait for VSync)
+
+}
+
+' --- 关系定义 ---
+
+' Path A 连接
+RT --> BBQ_UI : 1. queueBuffer
+BBQ_UI --> Tx : 2. setBuffer
+VRI --> Tx : 3. merge properties\n(Resize/Pos/Alpha)
+
+' Path B 连接
+Eng --> BBQ_SV : 1. eglSwapBuffers
+BBQ_SV --> Tx : 2. setBuffer
+
+' 提交连接 (使用粗箭头表示 IPC)
+Tx ===> SF : "4. apply() (IPC)"
+
+' ' 内部逻辑 (自连接)
+' SF ..> SF : "5. Atomic Latch\n(Wait for VSync)"
+
+@enduml
+```
+
 1. **绘制 (Draw)**：
-* **原生 UI**：`libhwui` (RenderThread) 完成渲染，调用 `ANativeWindow::queueBuffer`。
-* **第三方引擎**：调用 `eglSwapBuffers`，底层驱动完成命令提交后，同样触发 `ANativeWindow::queueBuffer`。
+   * **原生 UI**：`libhwui` (RenderThread) 完成渲染，调用 `ANativeWindow::queueBuffer`。
+   * **第三方引擎**：调用 `eglSwapBuffers`，底层驱动完成命令提交后，同样触发 `ANativeWindow::queueBuffer`。
 
 
 2. **拦截与打包 (Intercept & Package)**：
-* 进程内的 `BLASTBufferQueue` 拦截该 `queueBuffer` 调用。
-* BBQ 获取一个新的 Buffer，创建一个 `SurfaceControl.Transaction`，并将该 Buffer 绑定到 Transaction 中 (`setBuffer`)。
+   * 进程内的 `BLASTBufferQueue` 拦截该 `queueBuffer` 调用。
+   * BBQ 获取一个新的 Buffer，创建一个 `SurfaceControl.Transaction`，并将该 Buffer 绑定到 Transaction 中 (`setBuffer`)。
 
 
 3. **合并 (Merge)**：
-* **UI 场景**：`ViewRootImpl` 可能会将当前的窗口属性变化（如 `resize`）合并到同一个 Transaction 中（`mergeWithNextTransaction`）。
-* **同步场景**：如果存在跨进程同步（如 SurfaceView 嵌入），父窗口会收集子窗口的 Transaction 进行合并。
+   * **UI 场景**：`ViewRootImpl` 可能会将当前的窗口属性变化（如 `resize`）合并到同一个 Transaction 中（`mergeWithNextTransaction`）。
+   * **同步场景**：如果存在跨进程同步（如 SurfaceView 嵌入），父窗口会收集子窗口的 Transaction 进行合并。
 
 
 4. **提交 (Apply)**：
-* 最终的 Transaction 被发送给 SurfaceFlinger (`Transaction.apply()`)。
-* SurfaceFlinger 在下一个 VSync 到来时，**原子地**应用新的 Buffer 和新的窗口属性。
-
-
+   * 最终的 Transaction 被发送给 SurfaceFlinger (`Transaction.apply()`)。
+   * SurfaceFlinger 在下一个 VSync 到来时，**原子地**应用新的 Buffer 和新的窗口属性。
 
 #### 在架构中的体现
 
