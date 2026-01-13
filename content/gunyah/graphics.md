@@ -27,20 +27,18 @@ tags = ["Android", "Graphics", "Virtualization", "Gunyah", "Qualcomm"]
 
 * **ViewRootImpl**：它是 View 树的管理者。在现代架构中，它直接持有并管理 **`BLASTBufferQueue`** 实例。
 * **BLASTBufferQueue (BBQ)**：
-* 这是 Android 图形架构的重大变革。BufferQueue 的生产者逻辑现在运行在**应用进程内部**。
-* 它负责将应用绘制的内容与窗口属性（位置、大小）打包成原子化的 **Transaction** 提交给 SurfaceFlinger，从而彻底解决了画面与窗口不同步（Tearing/Desync）的问题。
-* **本地 Surface**：应用使用的 `ANativeWindow` (Surface) 直接连接到进程内的 BBQ，因此申请缓冲区 (`dequeueBuffer`) 是极快的**进程内操作**，不再频繁依赖 IPC 请求 SurfaceFlinger。
+  * 这是 Android 图形架构的重大变革。BufferQueue 的生产者逻辑现在运行在**应用进程内部**。
+  * 它负责将应用绘制的内容与窗口属性（位置、大小）打包成原子化的 **Transaction** 提交给 SurfaceFlinger，从而彻底解决了画面与窗口不同步（Tearing/Desync）的问题。
+  * **本地 Surface**：应用使用的 `ANativeWindow` (Surface) 直接连接到进程内的 BBQ，因此申请缓冲区 (`dequeueBuffer`) 是极快的**进程内操作**，不再频繁依赖 IPC 请求 SurfaceFlinger。
 
 
 ### **录制与同步 (Record & Sync)**
 
 * **View / Canvas (RecordingCanvas)**：
-* 当 `onDraw()` 被调用时，Canvas 实际上是一个**指令录制器**。开发者调用的 `drawRect` 等 API 并没有产生像素，而是生成了 **RenderNode** 中的绘图指令（DisplayList Ops）。
-
+  * 当 `onDraw()` 被调用时，Canvas 实际上是一个**指令录制器**。开发者调用的 `drawRect` 等 API 并没有产生像素，而是生成了 **RenderNode** 中的绘图指令（DisplayList Ops）。
 
 * **ThreadedRenderer**：
-* 负责将 UI 线程录制好的 RenderNode 数据，通过 **SyncFrame** 机制同步给 Native 层的渲染线程 (`RenderThread`)。
-
+  * 负责将 UI 线程录制好的 RenderNode 数据，通过 **SyncFrame** 机制同步给 Native 层的渲染线程 (`RenderThread`)。
 
 ## 4. 用户空间组件 (Native User Space)
 
@@ -56,19 +54,17 @@ tags = ["Android", "Graphics", "Virtualization", "Gunyah", "Qualcomm"]
 
 * **职责**：Android 的 2D 硬件加速核心库，扮演“管理者”角色。
 * **功能**：
-* **环境管理**：根据系统属性（`debug.hwui.renderer`），实例化 `EglManager` (OpenGL) 或 `VulkanManager` (Vulkan)。
-* **缓冲区管理**：通过 `ANativeWindow` 接口操作本地的 `BLASTBufferQueue` 进行 `dequeue/queue`。
-* **任务分发**：将具体的绘制任务转交给 Skia 引擎。
-
-
+  * **环境管理**：根据系统属性（`debug.hwui.renderer`），实例化 `EglManager` (OpenGL) 或 `VulkanManager` (Vulkan)。
+  * **缓冲区管理**：通过 `ANativeWindow` 接口操作本地的 `BLASTBufferQueue` 进行 `dequeue/queue`。
+  * **任务分发**：将具体的绘制任务转交给 Skia 引擎。
 
 #### **libskia.so (Skia Graphics Engine)**
 
 * **职责**：Google 开发的跨平台图形引擎，扮演“执行者”角色。
 * **功能**：
-* **光栅化**：将矢量图形（路径、文字）转换为像素数据。
-* **后端适配 (Ganesh/Graphite)**：Skia 包含多种 GPU 后端。在 Android 16 中，**Graphite** 后端能够高效地生成 Vulkan Command Buffer，减少 CPU 开销。
-* **Shader 生成**：动态生成 GLSL 或 SPIR-V 代码供驱动编译。
+  * **光栅化**：将矢量图形（路径、文字）转换为像素数据。
+  * **后端适配 (Ganesh/Graphite)**：Skia 包含多种 GPU 后端。在 Android 16 中，**Graphite** 后端能够高效地生成 Vulkan Command Buffer，减少 CPU 开销。
+  * **Shader 生成**：动态生成 GLSL 或 SPIR-V 代码供驱动编译。
 
 
 
@@ -76,8 +72,8 @@ tags = ["Android", "Graphics", "Virtualization", "Gunyah", "Qualcomm"]
 
 * **libGLESv2.so (OpenGL ES Stub)**：提供标准 GL 符号，通过内部的 `gl_hooks` 分发表跳转到厂商驱动。
 * **libvulkan.so (Vulkan System Loader)**：
-* Vulkan API 的统一入口。
-* **注意**：Vulkan 驱动的加载**不依赖 libEGL**。Loader 会直接扫描并加载厂商的 ICD (`vulkan.adreno.so`)。
+  * Vulkan API 的统一入口。
+  * **注意**：Vulkan 驱动的加载**不依赖 libEGL**。Loader 会直接扫描并加载厂商的 ICD (`vulkan.adreno.so`)。
 
 
 * **libEGL.so (EGL Loader)**：负责 OpenGL 环境初始化，通过 `dlopen` 加载厂商 GL 驱动。
@@ -85,15 +81,13 @@ tags = ["Android", "Graphics", "Virtualization", "Gunyah", "Qualcomm"]
 ### **厂商驱动层 (Vendor Implementation)**
 
 * **libGLESv2_adreno.so / vulkan.adreno.so**
-* **职责**：Qualcomm 提供的 OpenGL ES 和 Vulkan 用户态驱动。
-* **功能**：将 API 调用编译为 Adreno GPU 专用的硬件指令，并打包到 **IB (Indirect Buffer)** 中。
-* **汇聚点**：无论上层使用 GL 还是 VK，底层均统一调用 `libgsl`。
-
+  * **职责**：Qualcomm 提供的 OpenGL ES 和 Vulkan 用户态驱动。
+  * **功能**：将 API 调用编译为 Adreno GPU 专用的硬件指令，并打包到 **IB (Indirect Buffer)** 中。
+  * **汇聚点**：无论上层使用 GL 还是 VK，底层均统一调用 `libgsl`。
 
 * **libgsl.so (Graphics Service Layer Library)**
-* **职责**：内核交互网关。
-* **功能**：封装所有对 `/dev/hgsl` 的 `ioctl` 调用。它是 Guest OS 与 Hypervisor 通信的最后一道用户态防线。
-
+  * **职责**：内核交互网关。
+  * **功能**：封装所有对 `/dev/hgsl` 的 `ioctl` 调用。它是 Guest OS 与 Hypervisor 通信的最后一道用户态防线。
 
 ## 5. 内核空间组件 (Linux Kernel - Guest)
 
@@ -111,17 +105,17 @@ tags = ["Android", "Graphics", "Virtualization", "Gunyah", "Qualcomm"]
 为了平衡控制灵活性与绘图性能，HGSL 设计了两条截然不同的通信路径：
 
 1. **慢速控制通道 (Control RPC)**
-* **组件**：`hgsl_hyp.c`
-* **场景**：低频、高延迟操作（如 `Device Open`, `Context Create`, `Power Control`）。
-* **机制**：使用 **RPC** 协议，将请求序列化后通过 HAB 发送，线程会阻塞等待 Host 返回。
+   * **组件**：`hgsl_hyp.c`
+   * **场景**：低频、高延迟操作（如 `Device Open`, `Context Create`, `Power Control`）。
+   * **机制**：使用 **RPC** 协议，将请求序列化后通过 HAB 发送，线程会阻塞等待 Host 返回。
 
 
 2. **快速数据通道 (Data Path / Doorbell)**
-* **组件**：**Shared Memory Queue (Ring Buffer)**
-* **场景**：高频、低延迟的绘图指令提交 (`ISSUE_IB`)。
-* **机制**：
-* **零拷贝**：用户态生成的 GPU 命令流直接写入与 Host 共享的 DMA-BUF 内存。
-* **门铃机制**：写入完成后，仅发送一个轻量级的信号（Doorbell）通知 Host。Host 直接从共享内存取指执行，无 RPC 开销。
+   * **组件**：**Shared Memory Queue (Ring Buffer)**
+   * **场景**：高频、低延迟的绘图指令提交 (`ISSUE_IB`)。
+   * **机制**：
+   * **零拷贝**：用户态生成的 GPU 命令流直接写入与 Host 共享的 DMA-BUF 内存。
+   * **门铃机制**：写入完成后，仅发送一个轻量级的信号（Doorbell）通知 Host。Host 直接从共享内存取指执行，无 RPC 开销。
 
 
 ### **虚拟化传输层**
@@ -200,14 +194,14 @@ Android 5.0 (Lollipop) 引入了 `RenderThread`，实现了渲染的双缓冲模
 1. **UI 线程阻塞**：UI 线程必须停下来等待，不能继续跑 Java 代码。
 2. **RenderThread 唤醒**：RenderThread 醒来处理同步任务。
 3. **数据拷贝 (Push Staging to Render)**：
-* RenderThread 遍历 RenderNode 树。
-* 将 **Staging Properties**（UI 线程改的）拷贝到 **Render Properties**（GPU 要用的）。
-* 交换 **DisplayList** 指针。
+   * RenderThread 遍历 RenderNode 树。
+   * 将 **Staging Properties**（UI 线程改的）拷贝到 **Render Properties**（GPU 要用的）。
+   * 交换 **DisplayList** 指针。
 
 4. **UI 线程解除阻塞**：一旦拷贝完成，RenderThread 通知 UI 线程：“我拿到了，你可以走了”。
 5. **分道扬镳**：
-* **UI 线程**：立刻返回 Java 层，处理下一帧的输入或动画。
-* **RenderThread**：开始执行 `DrawFrame`，驱动 Skia/OpenGL/Vulkan 去渲染刚刚拿到的数据。
+   * **UI 线程**：立刻返回 Java 层，处理下一帧的输入或动画。
+   * **RenderThread**：开始执行 `DrawFrame`，驱动 Skia/OpenGL/Vulkan 去渲染刚刚拿到的数据。
 
 ### 3. 图解数据流向
 
@@ -264,10 +258,7 @@ sequenceDiagram
 
 **SyncFrame** 是 Android 渲染机制中的**数据提交点**。它是一个短暂的阻塞操作，用于将 UI 线程的最新修改安全地“提交”给渲染线程。它是保证 Android 界面流畅且无撕裂的核心机制。
 
-
 这是一份为您准备的 **"BLAST/Transaction 机制"** 章节内容。它基于我们之前的深度讨论和代码分析，采用了专业的 Wiki 风格，可以直接插入到文档的第 4 节之后作为补充，或者作为单独的第 5 章节。
-
-
 
 ### BLAST/Transaction 机制详解
 
@@ -287,17 +278,15 @@ sequenceDiagram
 #### 核心组件
 
 * **BLASTBufferQueue (BBQ)**
-* **定义**：运行在**应用进程**（App Process）内的适配器，连接了 `ANativeWindow` (Surface) 和 `SurfaceControl.Transaction`。
-* **职责**：它拦截了原本直接发往 SurfaceFlinger 的 `queueBuffer` 调用。当渲染线程提交一个 Buffer 时，BBQ 不会立即发送到 SF，而是将其持有，并封装进一个 Transaction。
-
+  * **定义**：运行在**应用进程**（App Process）内的适配器，连接了 `ANativeWindow` (Surface) 和 `SurfaceControl.Transaction`。
+  * **职责**：它拦截了原本直接发往 SurfaceFlinger 的 `queueBuffer` 调用。当渲染线程提交一个 Buffer 时，BBQ 不会立即发送到 SF，而是将其持有，并封装进一个 Transaction。
 
 * **SurfaceControl.Transaction**
-* **定义**：一个原子操作包，可以包含对多个 Layer 的多个属性修改。
-* **作用**：它是 BLAST 机制的数据载体。所有的绘图结果（Buffer）最终都必须转化为 Transaction 才能上屏。
-
+  * **定义**：一个原子操作包，可以包含对多个 Layer 的多个属性修改。
+  * **作用**：它是 BLAST 机制的数据载体。所有的绘图结果（Buffer）最终都必须转化为 Transaction 才能上屏。
 
 * **ViewRootImpl (VRI)**
-* **职责**：作为 UI 的管理者，它负责协调窗口的 Resize 操作与内容的 Draw 操作，通过 `applyTransactionOnDraw` 确保两者同步。
+  * **职责**：作为 UI 的管理者，它负责协调窗口的 Resize 操作与内容的 Draw 操作，通过 `applyTransactionOnDraw` 确保两者同步。
 
 
 
@@ -406,16 +395,14 @@ Tx ===> SF : "4. apply() (IPC)"
 结合前文的架构图，BLAST 机制统一了系统的输出路径：
 
 * **路径 A：原生 UI (Android View System)**
-* `ViewRootImpl` 创建并持有主画面的 `BLASTBufferQueue`。
-* `libhwui` 生产的 Buffer 通过此 BBQ 转化为 Transaction 提交。
+  * `ViewRootImpl` 创建并持有主画面的 `BLASTBufferQueue`。
+  * `libhwui` 生产的 Buffer 通过此 BBQ 转化为 Transaction 提交。
 
 
 * **路径 B：第三方引擎 (SurfaceView/Game)**
-* `SurfaceView` 在 Java 层创建独立的 `BLASTBufferQueue`。
-* C++ 层的 3D Engine 获取该 BBQ 对应的 `ANativeWindow`。
-* 引擎的渲染结果（SwapBuffers）同样经由该 BBQ 转化为 Transaction 提交。
-
-
+  * `SurfaceView` 在 Java 层创建独立的 `BLASTBufferQueue`。
+  * C++ 层的 3D Engine 获取该 BBQ 对应的 `ANativeWindow`。
+  * 引擎的渲染结果（SwapBuffers）同样经由该 BBQ 转化为 Transaction 提交。
 
 **总结**：在 Gunyah 虚拟化平台上的 Android Guest VM 中，无论渲染源是 Skia 还是 Unity/Unreal，最终都通过 **BLASTBufferQueue** 殊途同归，以 **Transaction** 的形式将数据交付给 SurfaceFlinger 合成。
 

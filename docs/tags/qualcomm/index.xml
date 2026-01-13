@@ -10,10 +10,13 @@
 &lt;h3 id="viewrootimpl--blastbufferqueue"&gt;&lt;strong&gt;ViewRootImpl &amp;amp; BLASTBufferQueue&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;ViewRootImpl&lt;/strong&gt;：它是 View 树的管理者。在现代架构中，它直接持有并管理 &lt;strong&gt;&lt;code&gt;BLASTBufferQueue&lt;/code&gt;&lt;/strong&gt; 实例。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;BLASTBufferQueue (BBQ)&lt;/strong&gt;：&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;BLASTBufferQueue (BBQ)&lt;/strong&gt;：
+&lt;ul&gt;
 &lt;li&gt;这是 Android 图形架构的重大变革。BufferQueue 的生产者逻辑现在运行在&lt;strong&gt;应用进程内部&lt;/strong&gt;。&lt;/li&gt;
 &lt;li&gt;它负责将应用绘制的内容与窗口属性（位置、大小）打包成原子化的 &lt;strong&gt;Transaction&lt;/strong&gt; 提交给 SurfaceFlinger，从而彻底解决了画面与窗口不同步（Tearing/Desync）的问题。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;本地 Surface&lt;/strong&gt;：应用使用的 &lt;code&gt;ANativeWindow&lt;/code&gt; (Surface) 直接连接到进程内的 BBQ，因此申请缓冲区 (&lt;code&gt;dequeueBuffer&lt;/code&gt;) 是极快的&lt;strong&gt;进程内操作&lt;/strong&gt;，不再频繁依赖 IPC 请求 SurfaceFlinger。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id="录制与同步-record--sync"&gt;&lt;strong&gt;录制与同步 (Record &amp;amp; Sync)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
