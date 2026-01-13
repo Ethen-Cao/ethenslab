@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Qualcomm on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/tags/qualcomm/</link><description>Recent content in Qualcomm on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Tue, 13 Jan 2026 10:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/tags/qualcomm/index.xml" rel="self" type="application/rss+xml"/><item><title>Android 图形渲染架构详解 (Gunyah Hypervisor / Qualcomm Gen5)</title><link>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</link><pubDate>Tue, 13 Jan 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;本文档详细描述了在基于 &lt;strong&gt;Qualcomm SA8295/SA8255 (Gen5)&lt;/strong&gt; 智能座舱平台中，Android Guest VM 的图形渲染软件架构。&lt;/p&gt;
+&lt;p&gt;在该平台中，Android 运行在 &lt;strong&gt;Gunyah Hypervisor&lt;/strong&gt; 之上作为客户机（Guest VM）。图形系统采用&lt;strong&gt;前后端分离的虚拟化架构 (Split-Rendering Architecture)&lt;/strong&gt;。Android 侧（Guest）负责生成渲染指令，通过 &lt;strong&gt;HGSL (Hypervisor Graphics Service Layer)&lt;/strong&gt; 驱动栈穿透虚拟机边界，最终由 Host 端的物理驱动操控 Adreno GPU 硬件执行渲染。&lt;/p&gt;
+&lt;p&gt;本文档涵盖了从应用层 View 系统、Native 渲染管线、到内核虚拟化驱动的全链路技术细节。&lt;/p&gt;
+&lt;h2 id="2-整体架构图"&gt;2. 整体架构图&lt;/h2&gt;
+&lt;p&gt;下图展示了从应用层 &lt;code&gt;ViewRootImpl&lt;/code&gt; 到底层内核驱动 &lt;code&gt;gh_dbl&lt;/code&gt; 的完整调用链路。架构清晰地展示了 &lt;strong&gt;BLASTBufferQueue&lt;/strong&gt; 的引入、&lt;strong&gt;OpenGL ES / Vulkan&lt;/strong&gt; 的双链路支持，以及内核态的&lt;strong&gt;快慢通道分离&lt;/strong&gt;设计。&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/gunyah-graphics.png.png" alt="" /&gt;&lt;/p&gt;
+&lt;h2 id="3-应用层从-ui-到渲染线程-application-ui-layer"&gt;3. 应用层：从 UI 到渲染线程 (Application UI Layer)&lt;/h2&gt;
+&lt;p&gt;在 Android 16+ 架构中，应用层不仅负责 UI 逻辑，还直接参与图形缓冲区的管理。&lt;/p&gt;
+&lt;h3 id="viewrootimpl--blastbufferqueue"&gt;&lt;strong&gt;ViewRootImpl &amp;amp; BLASTBufferQueue&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;ViewRootImpl&lt;/strong&gt;：它是 View 树的管理者。在现代架构中，它直接持有并管理 &lt;strong&gt;&lt;code&gt;BLASTBufferQueue&lt;/code&gt;&lt;/strong&gt; 实例。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;BLASTBufferQueue (BBQ)&lt;/strong&gt;：&lt;/li&gt;
+&lt;li&gt;这是 Android 图形架构的重大变革。BufferQueue 的生产者逻辑现在运行在&lt;strong&gt;应用进程内部&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;它负责将应用绘制的内容与窗口属性（位置、大小）打包成原子化的 &lt;strong&gt;Transaction&lt;/strong&gt; 提交给 SurfaceFlinger，从而彻底解决了画面与窗口不同步（Tearing/Desync）的问题。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;本地 Surface&lt;/strong&gt;：应用使用的 &lt;code&gt;ANativeWindow&lt;/code&gt; (Surface) 直接连接到进程内的 BBQ，因此申请缓冲区 (&lt;code&gt;dequeueBuffer&lt;/code&gt;) 是极快的&lt;strong&gt;进程内操作&lt;/strong&gt;，不再频繁依赖 IPC 请求 SurfaceFlinger。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="录制与同步-record--sync"&gt;&lt;strong&gt;录制与同步 (Record &amp;amp; Sync)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;View / Canvas (RecordingCanvas)&lt;/strong&gt;：&lt;/p&gt;</description></item></channel></rss>

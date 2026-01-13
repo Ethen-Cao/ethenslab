@@ -1,4 +1,24 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/</link><description>Recent content on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Wed, 24 Dec 2025 17:17:50 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml"/><item><title>UML中package和component对比</title><link>https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/</link><pubDate>Wed, 24 Dec 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/</guid><description>&lt;h1 id="plantuml-元素规范-架构分层图layer-view与子系统设计图subsystem-view"&gt;PlantUML 元素规范: 架构分层图（Layer View）与子系统设计图（Subsystem View）&lt;/h1&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/</link><description>Recent content on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Tue, 13 Jan 2026 10:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml"/><item><title>Android 图形渲染架构详解 (Gunyah Hypervisor / Qualcomm Gen5)</title><link>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</link><pubDate>Tue, 13 Jan 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;本文档详细描述了在基于 &lt;strong&gt;Qualcomm SA8295/SA8255 (Gen5)&lt;/strong&gt; 智能座舱平台中，Android Guest VM 的图形渲染软件架构。&lt;/p&gt;
+&lt;p&gt;在该平台中，Android 运行在 &lt;strong&gt;Gunyah Hypervisor&lt;/strong&gt; 之上作为客户机（Guest VM）。图形系统采用&lt;strong&gt;前后端分离的虚拟化架构 (Split-Rendering Architecture)&lt;/strong&gt;。Android 侧（Guest）负责生成渲染指令，通过 &lt;strong&gt;HGSL (Hypervisor Graphics Service Layer)&lt;/strong&gt; 驱动栈穿透虚拟机边界，最终由 Host 端的物理驱动操控 Adreno GPU 硬件执行渲染。&lt;/p&gt;
+&lt;p&gt;本文档涵盖了从应用层 View 系统、Native 渲染管线、到内核虚拟化驱动的全链路技术细节。&lt;/p&gt;
+&lt;h2 id="2-整体架构图"&gt;2. 整体架构图&lt;/h2&gt;
+&lt;p&gt;下图展示了从应用层 &lt;code&gt;ViewRootImpl&lt;/code&gt; 到底层内核驱动 &lt;code&gt;gh_dbl&lt;/code&gt; 的完整调用链路。架构清晰地展示了 &lt;strong&gt;BLASTBufferQueue&lt;/strong&gt; 的引入、&lt;strong&gt;OpenGL ES / Vulkan&lt;/strong&gt; 的双链路支持，以及内核态的&lt;strong&gt;快慢通道分离&lt;/strong&gt;设计。&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/gunyah-graphics.png.png" alt="" /&gt;&lt;/p&gt;
+&lt;h2 id="3-应用层从-ui-到渲染线程-application-ui-layer"&gt;3. 应用层：从 UI 到渲染线程 (Application UI Layer)&lt;/h2&gt;
+&lt;p&gt;在 Android 16+ 架构中，应用层不仅负责 UI 逻辑，还直接参与图形缓冲区的管理。&lt;/p&gt;
+&lt;h3 id="viewrootimpl--blastbufferqueue"&gt;&lt;strong&gt;ViewRootImpl &amp;amp; BLASTBufferQueue&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;ViewRootImpl&lt;/strong&gt;：它是 View 树的管理者。在现代架构中，它直接持有并管理 &lt;strong&gt;&lt;code&gt;BLASTBufferQueue&lt;/code&gt;&lt;/strong&gt; 实例。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;BLASTBufferQueue (BBQ)&lt;/strong&gt;：&lt;/li&gt;
+&lt;li&gt;这是 Android 图形架构的重大变革。BufferQueue 的生产者逻辑现在运行在&lt;strong&gt;应用进程内部&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;它负责将应用绘制的内容与窗口属性（位置、大小）打包成原子化的 &lt;strong&gt;Transaction&lt;/strong&gt; 提交给 SurfaceFlinger，从而彻底解决了画面与窗口不同步（Tearing/Desync）的问题。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;本地 Surface&lt;/strong&gt;：应用使用的 &lt;code&gt;ANativeWindow&lt;/code&gt; (Surface) 直接连接到进程内的 BBQ，因此申请缓冲区 (&lt;code&gt;dequeueBuffer&lt;/code&gt;) 是极快的&lt;strong&gt;进程内操作&lt;/strong&gt;，不再频繁依赖 IPC 请求 SurfaceFlinger。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="录制与同步-record--sync"&gt;&lt;strong&gt;录制与同步 (Record &amp;amp; Sync)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;View / Canvas (RecordingCanvas)&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>UML中package和component对比</title><link>https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/</link><pubDate>Wed, 24 Dec 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/</guid><description>&lt;h1 id="plantuml-元素规范-架构分层图layer-view与子系统设计图subsystem-view"&gt;PlantUML 元素规范: 架构分层图（Layer View）与子系统设计图（Subsystem View）&lt;/h1&gt;
 &lt;p&gt;&lt;strong&gt;版本&lt;/strong&gt;：v1.0
 &lt;strong&gt;适用范围&lt;/strong&gt;：智能座舱系统 / Android &amp;amp; Linux 系统架构 / 平台级设计文档
 &lt;strong&gt;目标&lt;/strong&gt;：统一 PlantUML 元素语义，避免“图看起来对，但语义不一致”的问题&lt;/p&gt;
@@ -3190,19 +3210,7 @@ note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
 &lt;li&gt;这是最古老且最通用的节点。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h4 id="阶段二直接尝试-the-direct-open-loop"&gt;&lt;strong&gt;阶段二：直接尝试 (The Direct Open Loop)&lt;/strong&gt;&lt;/h4&gt;
-&lt;p&gt;代码尝试通过 Linux 标准系统调用 &lt;code&gt;open()&lt;/code&gt; 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</guid><description>&lt;p&gt;这是一份经过全面融合、深度完善的&lt;strong&gt;终极版 Wiki 文档&lt;/strong&gt;。&lt;/p&gt;
-&lt;p&gt;它整合了我们在过去对话中讨论的所有核心技术点，包括 &lt;strong&gt;Android 16 BLAST 架构&lt;/strong&gt;、&lt;strong&gt;Vulkan 与 OpenGL 的并行支持&lt;/strong&gt;、&lt;strong&gt;Skia 的角色&lt;/strong&gt;以及 &lt;strong&gt;Gunyah 虚拟化驱动的深层机制&lt;/strong&gt;。&lt;/p&gt;
-&lt;p&gt;您可以直接使用此文档作为项目组的官方架构说明书。&lt;/p&gt;
-&lt;p&gt;+++
-date = &amp;lsquo;2026-01-13T10:00:00+08:00&amp;rsquo;
-draft = false
-title = &amp;lsquo;Android 图形渲染架构详解 (Gunyah Hypervisor / Qualcomm Gen5)&amp;rsquo;
-tags = [&amp;ldquo;Android&amp;rdquo;, &amp;ldquo;Graphics&amp;rdquo;, &amp;ldquo;Virtualization&amp;rdquo;, &amp;ldquo;Gunyah&amp;rdquo;, &amp;ldquo;Qualcomm&amp;rdquo;]
-+++&lt;/p&gt;
-&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
-&lt;p&gt;本文档详细描述了在基于 &lt;strong&gt;Qualcomm SA8295/SA8255 (Gen5)&lt;/strong&gt; 智能座舱平台中，Android Guest VM 的图形渲染软件架构。&lt;/p&gt;
-&lt;p&gt;在该平台中，Android 运行在 &lt;strong&gt;Gunyah Hypervisor&lt;/strong&gt; 之上作为客户机（Guest VM）。图形系统采用&lt;strong&gt;前后端分离的虚拟化架构 (Split-Rendering Architecture)&lt;/strong&gt;。Android 侧（Guest）负责生成渲染指令，通过 &lt;strong&gt;HGSL (Hypervisor Graphics Service Layer)&lt;/strong&gt; 驱动栈穿透虚拟机边界，最终由 Host 端的物理驱动操控 Adreno GPU 硬件执行渲染。&lt;/p&gt;
-&lt;p&gt;本文档涵盖了从应用层 View 系统、Native 渲染管线、到内核虚拟化驱动的全链路技术细节。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/hdr/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/hdr/</guid><description>&lt;h1 id="智能座舱大屏-hdr-体验与影响调研报告"&gt;智能座舱大屏 HDR 体验与影响调研报告&lt;/h1&gt;
+&lt;p&gt;代码尝试通过 Linux 标准系统调用 &lt;code&gt;open()&lt;/code&gt; 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/hdr/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/hdr/</guid><description>&lt;h1 id="智能座舱大屏-hdr-体验与影响调研报告"&gt;智能座舱大屏 HDR 体验与影响调研报告&lt;/h1&gt;
 &lt;p&gt;&lt;strong&gt;系统环境：&lt;/strong&gt; Android 16 (Automotive OS)
 &lt;strong&gt;核心议题：&lt;/strong&gt; 开启/关闭 HDR 对用户体验的全方位影响&lt;/p&gt;
 &lt;h2 id="1-核心结论摘要"&gt;1. 核心结论摘要&lt;/h2&gt;
