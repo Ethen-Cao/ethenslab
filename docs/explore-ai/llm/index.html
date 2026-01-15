@@ -1,0 +1,223 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Ethen 的实验室</title><meta name=keywords content><meta name=description content='@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam nodesep 60
+skinparam ranksep 60
+top to bottom direction
+
+title On-device LLM on Android (KV Cache Architecture)
+
+package "Application (Android)" {
+  [App / UI\n(Voice, Chat, Agent)]
+  [Prompt Builder]
+  [Stream UI / TTS]
+
+  [App / UI\n(Voice, Chat, Agent)] --> [Prompt Builder]
+  [Stream UI / TTS] --> [App / UI\n(Voice, Chat, Agent)]
+}
+
+package "LLM Service Layer\n(Android Service or in-app)" {
+  [Session Manager]
+  [Tokenizer]
+  [Inference Orchestrator\n(Prefill / Decode)]
+  [Sampler & Constraints]
+  [KV Cache Manager]
+
+  [Prompt Builder] --> [Tokenizer]
+  [Tokenizer] --> [Inference Orchestrator\n(Prefill / Decode)]
+  [Session Manager] --> [Inference Orchestrator\n(Prefill / Decode)]
+  [Inference Orchestrator\n(Prefill / Decode)] --> [Sampler & Constraints]
+}
+
+package "Model Runtime (Native)" {
+  [LLM Runtime]
+}
+
+package "Hardware / OS Resource" {
+  [Memory\n(DRAM / Native Heap)]
+  [Accelerator\n(NPU / DSP / GPU / CPU)]
+}
+
+&#39; Layer-to-layer flow
+[Inference Orchestrator\n(Prefill / Decode)] --> [LLM Runtime]
+[LLM Runtime] --> [Memory\n(DRAM / Native Heap)]
+[LLM Runtime] --> [Accelerator\n(NPU / DSP / GPU / CPU)]
+[Sampler & Constraints] --> [Tokenizer]
+[Tokenizer] --> [Stream UI / TTS]
+
+note right of [KV Cache Manager]
+KV Cache:
+- owned by Service Layer
+- per session
+- per layer/head
+- grows with context length
+Policies:
+- max context
+- sliding window
+- eviction
+end note
+
+note bottom of [Inference Orchestrator\n(Prefill / Decode)]
+Prefill:
+- consume prompt tokens
+- build KV Cache
+Decode:
+- read KV Cache
+- generate next token
+- append KV
+end note
+
+@enduml
+'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/explore-ai/llm/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.a1917769c3c78460b110da6d7905321bb53af4a56f22ba4cc0de824cf4d097ab.css integrity="sha256-oZF3acPHhGCxENpteQUyG7U69KVvIrpMwN6CTPTQl6s=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/explore-ai/llm/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/explore-ai/llm/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Ethen 的实验室"><meta property="og:description" content='@startuml !theme plain skinparam componentStyle rectangle skinparam shadowing false skinparam packageStyle rectangle skinparam nodesep 60 skinparam ranksep 60 top to bottom direction title On-device LLM on Android (KV Cache Architecture) package "Application (Android)" { [App / UI\n(Voice, Chat, Agent)] [Prompt Builder] [Stream UI / TTS] [App / UI\n(Voice, Chat, Agent)] --> [Prompt Builder] [Stream UI / TTS] --> [App / UI\n(Voice, Chat, Agent)] } package "LLM Service Layer\n(Android Service or in-app)" { [Session Manager] [Tokenizer] [Inference Orchestrator\n(Prefill / Decode)] [Sampler & Constraints] [KV Cache Manager] [Prompt Builder] --> [Tokenizer] [Tokenizer] --> [Inference Orchestrator\n(Prefill / Decode)] [Session Manager] --> [Inference Orchestrator\n(Prefill / Decode)] [Inference Orchestrator\n(Prefill / Decode)] --> [Sampler & Constraints] } package "Model Runtime (Native)" { [LLM Runtime] } package "Hardware / OS Resource" { [Memory\n(DRAM / Native Heap)] [Accelerator\n(NPU / DSP / GPU / CPU)] } &#39; Layer-to-layer flow [Inference Orchestrator\n(Prefill / Decode)] --> [LLM Runtime] [LLM Runtime] --> [Memory\n(DRAM / Native Heap)] [LLM Runtime] --> [Accelerator\n(NPU / DSP / GPU / CPU)] [Sampler & Constraints] --> [Tokenizer] [Tokenizer] --> [Stream UI / TTS] note right of [KV Cache Manager] KV Cache: - owned by Service Layer - per session - per layer/head - grows with context length Policies: - max context - sliding window - eviction end note note bottom of [Inference Orchestrator\n(Prefill / Decode)] Prefill: - consume prompt tokens - build KV Cache Decode: - read KV Cache - generate next token - append KV end note @enduml '><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="explore-ai"><meta name=twitter:card content="summary"><meta name=twitter:title content><meta name=twitter:description content='@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam nodesep 60
+skinparam ranksep 60
+top to bottom direction
+
+title On-device LLM on Android (KV Cache Architecture)
+
+package "Application (Android)" {
+  [App / UI\n(Voice, Chat, Agent)]
+  [Prompt Builder]
+  [Stream UI / TTS]
+
+  [App / UI\n(Voice, Chat, Agent)] --> [Prompt Builder]
+  [Stream UI / TTS] --> [App / UI\n(Voice, Chat, Agent)]
+}
+
+package "LLM Service Layer\n(Android Service or in-app)" {
+  [Session Manager]
+  [Tokenizer]
+  [Inference Orchestrator\n(Prefill / Decode)]
+  [Sampler & Constraints]
+  [KV Cache Manager]
+
+  [Prompt Builder] --> [Tokenizer]
+  [Tokenizer] --> [Inference Orchestrator\n(Prefill / Decode)]
+  [Session Manager] --> [Inference Orchestrator\n(Prefill / Decode)]
+  [Inference Orchestrator\n(Prefill / Decode)] --> [Sampler & Constraints]
+}
+
+package "Model Runtime (Native)" {
+  [LLM Runtime]
+}
+
+package "Hardware / OS Resource" {
+  [Memory\n(DRAM / Native Heap)]
+  [Accelerator\n(NPU / DSP / GPU / CPU)]
+}
+
+&#39; Layer-to-layer flow
+[Inference Orchestrator\n(Prefill / Decode)] --> [LLM Runtime]
+[LLM Runtime] --> [Memory\n(DRAM / Native Heap)]
+[LLM Runtime] --> [Accelerator\n(NPU / DSP / GPU / CPU)]
+[Sampler & Constraints] --> [Tokenizer]
+[Tokenizer] --> [Stream UI / TTS]
+
+note right of [KV Cache Manager]
+KV Cache:
+- owned by Service Layer
+- per session
+- per layer/head
+- grows with context length
+Policies:
+- max context
+- sliding window
+- eviction
+end note
+
+note bottom of [Inference Orchestrator\n(Prefill / Decode)]
+Prefill:
+- consume prompt tokens
+- build KV Cache
+Decode:
+- read KV Cache
+- generate next token
+- append KV
+end note
+
+@enduml
+'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Explore AI","item":"https://ethen-cao.github.io/ethenslab/explore-ai/"},{"@type":"ListItem","position":2,"name":"","item":"https://ethen-cao.github.io/ethenslab/explore-ai/llm/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"","name":"","description":"@startuml !theme plain skinparam componentStyle rectangle skinparam shadowing false skinparam packageStyle rectangle skinparam nodesep 60 skinparam ranksep 60 top to bottom direction title On-device LLM on Android (KV Cache Architecture) package \u0026#34;Application (Android)\u0026#34; { [App / UI\\n(Voice, Chat, Agent)] [Prompt Builder] [Stream UI / TTS] [App / UI\\n(Voice, Chat, Agent)] --\u0026gt; [Prompt Builder] [Stream UI / TTS] --\u0026gt; [App / UI\\n(Voice, Chat, Agent)] } package \u0026#34;LLM Service Layer\\n(Android Service or in-app)\u0026#34; { [Session Manager] [Tokenizer] [Inference Orchestrator\\n(Prefill / Decode)] [Sampler \u0026amp; Constraints] [KV Cache Manager] [Prompt Builder] --\u0026gt; [Tokenizer] [Tokenizer] --\u0026gt; [Inference Orchestrator\\n(Prefill / Decode)] [Session Manager] --\u0026gt; [Inference Orchestrator\\n(Prefill / Decode)] [Inference Orchestrator\\n(Prefill / Decode)] --\u0026gt; [Sampler \u0026amp; Constraints] } package \u0026#34;Model Runtime (Native)\u0026#34; { [LLM Runtime] } package \u0026#34;Hardware / OS Resource\u0026#34; { [Memory\\n(DRAM / Native Heap)] [Accelerator\\n(NPU / DSP / GPU / CPU)] } \u0026#39; Layer-to-layer flow [Inference Orchestrator\\n(Prefill / Decode)] --\u0026gt; [LLM Runtime] [LLM Runtime] --\u0026gt; [Memory\\n(DRAM / Native Heap)] [LLM Runtime] --\u0026gt; [Accelerator\\n(NPU / DSP / GPU / CPU)] [Sampler \u0026amp; Constraints] --\u0026gt; [Tokenizer] [Tokenizer] --\u0026gt; [Stream UI / TTS] note right of [KV Cache Manager] KV Cache: - owned by Service Layer - per session - per layer/head - grows with context length Policies: - max context - sliding window - eviction end note note bottom of [Inference Orchestrator\\n(Prefill / Decode)] Prefill: - consume prompt tokens - build KV Cache Decode: - read KV Cache - generate next token - append KV end note @enduml ","keywords":[],"articleBody":"@startuml !theme plain skinparam componentStyle rectangle skinparam shadowing false skinparam packageStyle rectangle skinparam nodesep 60 skinparam ranksep 60 top to bottom direction title On-device LLM on Android (KV Cache Architecture) package \"Application (Android)\" { [App / UI\\n(Voice, Chat, Agent)] [Prompt Builder] [Stream UI / TTS] [App / UI\\n(Voice, Chat, Agent)] --\u003e [Prompt Builder] [Stream UI / TTS] --\u003e [App / UI\\n(Voice, Chat, Agent)] } package \"LLM Service Layer\\n(Android Service or in-app)\" { [Session Manager] [Tokenizer] [Inference Orchestrator\\n(Prefill / Decode)] [Sampler \u0026 Constraints] [KV Cache Manager] [Prompt Builder] --\u003e [Tokenizer] [Tokenizer] --\u003e [Inference Orchestrator\\n(Prefill / Decode)] [Session Manager] --\u003e [Inference Orchestrator\\n(Prefill / Decode)] [Inference Orchestrator\\n(Prefill / Decode)] --\u003e [Sampler \u0026 Constraints] } package \"Model Runtime (Native)\" { [LLM Runtime] } package \"Hardware / OS Resource\" { [Memory\\n(DRAM / Native Heap)] [Accelerator\\n(NPU / DSP / GPU / CPU)] } ' Layer-to-layer flow [Inference Orchestrator\\n(Prefill / Decode)] --\u003e [LLM Runtime] [LLM Runtime] --\u003e [Memory\\n(DRAM / Native Heap)] [LLM Runtime] --\u003e [Accelerator\\n(NPU / DSP / GPU / CPU)] [Sampler \u0026 Constraints] --\u003e [Tokenizer] [Tokenizer] --\u003e [Stream UI / TTS] note right of [KV Cache Manager] KV Cache: - owned by Service Layer - per session - per layer/head - grows with context length Policies: - max context - sliding window - eviction end note note bottom of [Inference Orchestrator\\n(Prefill / Decode)] Prefill: - consume prompt tokens - build KV Cache Decode: - read KV Cache - generate next token - append KV end note @enduml ","wordCount":"241","inLanguage":"en","datePublished":"0001-01-01T00:00:00Z","dateModified":"0001-01-01T00:00:00Z","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/explore-ai/llm/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/explore-ai/>Explore AI</a></div><h1 class="post-title entry-hint-parent"></h1><div class=post-meta>2 min&nbsp;·&nbsp;241 words</div></header><div class=post-content><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam nodesep 60
+skinparam ranksep 60
+top to bottom direction
+
+title On-device LLM on Android (KV Cache Architecture)
+
+package &#34;Application (Android)&#34; {
+  [App / UI\n(Voice, Chat, Agent)]
+  [Prompt Builder]
+  [Stream UI / TTS]
+
+  [App / UI\n(Voice, Chat, Agent)] --&gt; [Prompt Builder]
+  [Stream UI / TTS] --&gt; [App / UI\n(Voice, Chat, Agent)]
+}
+
+package &#34;LLM Service Layer\n(Android Service or in-app)&#34; {
+  [Session Manager]
+  [Tokenizer]
+  [Inference Orchestrator\n(Prefill / Decode)]
+  [Sampler &amp; Constraints]
+  [KV Cache Manager]
+
+  [Prompt Builder] --&gt; [Tokenizer]
+  [Tokenizer] --&gt; [Inference Orchestrator\n(Prefill / Decode)]
+  [Session Manager] --&gt; [Inference Orchestrator\n(Prefill / Decode)]
+  [Inference Orchestrator\n(Prefill / Decode)] --&gt; [Sampler &amp; Constraints]
+}
+
+package &#34;Model Runtime (Native)&#34; {
+  [LLM Runtime]
+}
+
+package &#34;Hardware / OS Resource&#34; {
+  [Memory\n(DRAM / Native Heap)]
+  [Accelerator\n(NPU / DSP / GPU / CPU)]
+}
+
+&#39; Layer-to-layer flow
+[Inference Orchestrator\n(Prefill / Decode)] --&gt; [LLM Runtime]
+[LLM Runtime] --&gt; [Memory\n(DRAM / Native Heap)]
+[LLM Runtime] --&gt; [Accelerator\n(NPU / DSP / GPU / CPU)]
+[Sampler &amp; Constraints] --&gt; [Tokenizer]
+[Tokenizer] --&gt; [Stream UI / TTS]
+
+note right of [KV Cache Manager]
+KV Cache:
+- owned by Service Layer
+- per session
+- per layer/head
+- grows with context length
+Policies:
+- max context
+- sliding window
+- eviction
+end note
+
+note bottom of [Inference Orchestrator\n(Prefill / Decode)]
+Prefill:
+- consume prompt tokens
+- build KV Cache
+Decode:
+- read KV Cache
+- generate next token
+- append KV
+end note
+
+@enduml
+</code></pre></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
