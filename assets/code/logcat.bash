@@ -5,6 +5,7 @@
 # 功能: 模拟 adb logcat 的参数习惯，搜索离线日志文件。
 #       1. 支持多 Tag、多 PID、多关键字 (空格分隔，自动转换为正则 OR)。
 #       2. 支持多文件/目录搜索 (空格分隔)。
+#       3. 智能区分关键字和文件路径。
 # 核心: 基于 ripgrep (rg) + awk 的高性能过滤。
 # =============================================================================
 
@@ -95,11 +96,9 @@ function execute_search() {
             if (f_pid != "" && $3 !~ f_pid) next
             
             # Tag 过滤 (正则匹配)
-            # f_tag 格式为 "Tag1|Tag2"
             if (f_tag != "" && $6 !~ f_tag) next
             
             # Keyword 过滤 (正则匹配)
-            # f_key 格式为 "Key1|Key2"
             if (f_key != "" && $0 !~ f_key) next
 
             # 4. 输出
@@ -128,12 +127,24 @@ if [ $# -eq 0 ]; then
     show_usage
 fi
 
+# 辅助函数：判断参数是否应停止解析
+# 如果参数是 flag (-开头)，或者是存在的路径，或者看起来像路径，则停止贪婪解析
+function is_stop_arg() {
+    local arg="$1"
+    if [[ "$arg" == -* ]]; then return 0; fi          # 是 flag
+    if [[ -e "$arg" ]]; then return 0; fi             # 文件存在
+    if [[ "$arg" == /* || "$arg" == ./* || "$arg" == ../* ]]; then return 0; fi # 看起来像路径
+    return 1 # 继续解析
+}
+
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
         -f) # File / Directory (显式指定，支持多个)
             shift
-            while [[ $# -gt 0 && "$1" != -* ]]; do
+            while [[ $# -gt 0 ]]; do
+                # 对于 -f，我们只在遇到下一个 flag 时停止，因为 -f 后面肯定是文件
+                if [[ "$1" == -* ]]; then break; fi
                 SEARCH_TARGETS+=("$1")
                 shift
             done
@@ -143,14 +154,13 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p) # Process ID (支持多个)
             shift
-            # 修正点：移除了 local 关键字
             _pids=""
-            while [[ $# -gt 0 && "$1" != -* ]]; do
+            while [[ $# -gt 0 ]]; do
+                is_stop_arg "$1" && break
                 if [[ -z "$_pids" ]]; then _pids="$1"; else _pids="${_pids}|$1"; fi
                 shift
             done
             if [[ -n "$_pids" ]]; then
-                # 构造精准匹配正则: ^(123|456)$
                 FILTER_PID="^(${_pids})$"
             else
                 echo "Warning: Option -p requires at least one PID." >&2
@@ -158,7 +168,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         -s) # Tag (支持多个)
             shift
-            while [[ $# -gt 0 && "$1" != -* ]]; do
+            while [[ $# -gt 0 ]]; do
+                is_stop_arg "$1" && break
                 if [[ -z "$FILTER_TAG" ]]; then FILTER_TAG="$1"; else FILTER_TAG="${FILTER_TAG}|$1"; fi
                 shift
             done
@@ -168,7 +179,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         -k) # Keyword (支持多个)
             shift
-            while [[ $# -gt 0 && "$1" != -* ]]; do
+            while [[ $# -gt 0 ]]; do
+                is_stop_arg "$1" && break
                 if [[ -z "$FILTER_KEY" ]]; then FILTER_KEY="$1"; else FILTER_KEY="${FILTER_KEY}|$1"; fi
                 shift
             done
@@ -197,7 +209,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             # 处理位置参数 (文件名/目录)
-            # 如果当前参数不是以 - 开头，则认为是搜索目标
             if [[ "$1" != -* ]]; then
                 SEARCH_TARGETS+=("$1")
                 shift 1
