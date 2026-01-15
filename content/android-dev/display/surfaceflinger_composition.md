@@ -459,7 +459,8 @@ SFIGBC --> FramebufferSurface
 
 ### 3.2 完整的合成时序
 
-整个合成周期分为调度、锁定、策略决策、执行与上屏四个阶段。
+
+本时序图展示了 Android 图形系统从 VSYNC 信号触发到最终画面上屏的完整生命周期。它精确描绘了 SurfaceFlinger、CompositionEngine 与 Hardware Composer (HWC) 之间的交互细节，涵盖了调度、数据锁定、策略决策、执行合成以及最终提交四个核心阶段。
 
 ```plantuml
 @startuml
@@ -476,10 +477,12 @@ autonumber
 box "Scheduling & Logic" #f9f9f9
     participant "MessageQueue\n(VSYNC)" as MQ
     participant "SurfaceFlinger" as SF
+    participant "Scheduler" as Scheduler
     participant "Layer" as Layer
 end box
 
-box "Composition Engine" #e1f5fe
+box "Composition Engine Core" #d1c4e9
+    participant "CompositionEngine" as CE
     participant "Output\n(Display)" as Output
     participant "LayerFE\n(Snapshot)" as LayerFE
     participant "OutputLayer" as OutLayer
@@ -519,125 +522,239 @@ loop 遍历所有 Layer
 end
 
 ' ==========================================
-' Phase 2: 收集与策略协商 (Strategy)
+' Phase 2: SurfaceFlinger Composite Entry
 ' ==========================================
-== Phase 2: Visibility & Strategy Choice ==
+== Phase 2: SurfaceFlinger::composite ==
 
-SF ->> Output: composeSurfaces()
-activate Output
+SF ->> SF: composite(pacesetterId, frameTargeters)
+activate SF
 
-' 1. 收集可见层
-Output ->> Output: collectVisibleLayers()
-note right of Output: 计算可见性、裁剪、Z-Order\n创建 OutputLayer 列表
+SF ->> SF: moveSnapshotsToCompositionArgs()
+note right of SF: 将 LayerFE 快照移动到\nCompositionRefreshArgs
 
-' 2. 更新合成状态
-Output ->> OutLayer: updateCompositionState()
-activate OutLayer
-OutLayer ->> LayerFE: getCompositionState()
-LayerFE -->> OutLayer: return Snapshot (Geometry, Buffer)
-deactivate OutLayer
-
-' 3. 询问 HWC (Validate)
-Output ->> Output: prepareFrame() (策略协商)
-Output ->> HWC: validateDisplay()
-note right of HWC
-    HWC 检查每个 Layer 的属性。
-    返回它<b>不能</b>处理的 Layer 列表。
-end note
-HWC -->> Output: ChangedCompositionTypes (Fallback to GPU)
-
-Output ->> OutLayer: applyCompositionType()
-note right of OutLayer
-    根据 HWC 的反馈，标记每个 Layer 是
-    <color:red><b>DEVICE (HWC)</b></color> 还是 <color:blue><b>CLIENT (GPU)</b></color>
-end note
-
-' ==========================================
-' Phase 3: 执行合成 (Execution)
-' ==========================================
-== Phase 3: Composition Execution ==
-
-' --- 分支 B: GPU 合成 (Client Composition) ---
-group Client Composition (GPU Rendering)
-    Output ->> Output: generateClientCompositionRequests()
-    
-    loop 遍历标记为 CLIENT 的 OutputLayer
-        Output ->> LayerFE: prepareClientComposition()
-        activate LayerFE
-        note right of LayerFE: 封装 LayerSettings\n包含 ExternalTexture(Buffer)
-        LayerFE -->> Output: LayerSettings
-        deactivate LayerFE
-    end
-
-    Output ->> RS: dequeueBuffer()
-    RS -->> Output: 目标 Buffer (Render Target)
-
-    Output ->> RE: drawLayers(LayerSettings[], TargetBuffer)
-    activate RE
-    note right of RE
-        GPU Shader 运行：
-        采样 Layer Buffer (纹理)
-        混合写入 Target Buffer
-    end note
-    RE -->> Output: 绘制完成 (Fence)
-    deactivate RE
-
-    Output ->> RS: queueBuffer(TargetBuffer)
-    activate RS
-    
-    ' 关键连接点：RenderSurface 通知 FramebufferSurface
-    RS ->> FBS: advanceFrame()
-    activate FBS
-    note right of FBS: 从 BufferQueue 获取\nGPU 画好的 Buffer
-    
-    FBS ->> HWC: setClientTarget(TargetBuffer)
-    note right of HWC
-        HWC 接收 GPU 合成结果
-        作为背景层或混合层
-    end note
-    deactivate FBS
-    deactivate RS
+loop 遍历 refreshArgs.layers
+    SF ->> Layer: onPreComposition(refreshStartTime)
+    note right of Layer: 更新可信呈现状态\n(TrustedPresentation)
 end
 
-' --- 分支 A: HWC 合成 (Device Composition) ---
-group Device Composition (Overlay)
-    loop 遍历标记为 DEVICE 的 OutputLayer
-        Output ->> OutLayer: writeStateToHWC()
+' ==========================================
+' Phase 3: CompositionEngine Present Flow
+' ==========================================
+== Phase 3: CompositionEngine::present ==
+
+SF ->> CE: present(CompositionRefreshArgs)
+activate CE
+
+CE ->> CE: preComposition()
+loop 遍历所有 LayerFE
+    CE ->> LayerFE: onPreComposition()
+    note right of LayerFE: 检查是否有 Pending 更新
+end
+
+' --- 3.1 Prepare 阶段 (对应代码: output->prepare) ---
+group Step: Prepare (Strategy & Validation)
+    loop 遍历所有 Output (args.outputs)
+        CE ->> Output: prepare(args, latchedLayers)
+        activate Output
+        
+        Output ->> Output: collectVisibleLayers()
+        Output ->> Output: ensureOutputLayerIfVisible()
+        
+        Output ->> OutLayer: updateCompositionState()
         activate OutLayer
-        OutLayer ->> LayerFE: getBuffer()
-        OutLayer ->> HWC: setLayerBuffer(Slot, BufferHandle, Fence)
-        note right of HWC
-            <color:red><b>透传模式</b></color>
-            HWC 直接持有 Layer 的 Buffer 句柄
-        end note
+        OutLayer ->> LayerFE: getCompositionState()
+        LayerFE -->> OutLayer: Snapshot (Geometry, Buffer)
         deactivate OutLayer
+
+        ' 策略协商核心 (HWC Validate)
+        Output ->> Output: prepareFrame()
+        Output ->> HWC: validateDisplay()
+        note right of HWC:HWC 检查图层属性,返回无法处理的 Layer
+
+        HWC -->> Output: ChangedCompositionTypes (Fallback to GPU)
+
+        Output ->> OutLayer: applyCompositionType()
+        note right of OutLayer:标记 Layer 为<color:red><b>DEVICE (HWC)</b></color> 或 <color:blue><b>CLIENT (GPU)</b></color>
+        
+        deactivate Output
     end
 end
 
-' ==========================================
-' Phase 4: 最终上屏 (Present)
-' ==========================================
-== Phase 4: Final Present ==
+CE ->> CE: offloadOutputs()
 
-Output ->> HWC: presentDisplay()
-activate HWC
-note right of HWC
-    硬件刷新屏幕：
-    读取 ClientTarget (GPU结果)
-    + 读取 Overlay Layers (透传结果)
-end note
-HWC -->> Output: PresentFence
-deactivate HWC
+' --- 3.2 Present 阶段 (对应代码: output->present) ---
+group Step: Present (Execution & Submission)
+    loop 遍历所有 Output (args.outputs)
+        CE ->> Output: present(args)
+        activate Output
+        note right of Output: 返回 Future<monostate>
 
-Output ->> Output: onFrameCommitted()
-deactivate Output
+        Output ->> Output: planComposition()
+        
+        ' --- 3.2.1 HWC 状态设置 (writeCompositionState) ---
+        group Device Composition (Overlay Setup)
+            Output ->> Output: writeCompositionState()
+            activate Output
+            loop 遍历 DEVICE OutputLayer
+                Output ->> OutLayer: writeStateToHWC()
+                OutLayer -[#red]>> HWC : setLayerBuffer(Slot, Handle, Fence) 
+                note right of HWC: 将 Overlay 图层给 HWC
+            end
+            deactivate Output
+        end
+
+        ' --- 3.2.2 GPU 合成 (finishFrame) ---
+        Output ->> Output: finishFrame()
+        activate Output
+
+        alt Strategy Prediction Failed or Buffer needed
+            Output ->> RS: dequeueRenderBuffer()
+            activate RS
+            RS -->> Output: Buffer & Fence
+            deactivate RS
+
+            Output ->> Output: composeSurfaces() (开始 GPU 绘图)
+            activate Output
+
+            group Client Composition (GPU Rendering)
+                Output ->> Output: generateClientCompositionRequests()
+                
+                loop 遍历 CLIENT OutputLayer
+                    Output ->> LayerFE: prepareClientComposition()
+                    LayerFE -->> Output: LayerSettings
+                end
+
+                alt hasClientComposition
+                    Output ->> RE: drawLayers(LayerSettings[], TargetBuffer)
+                    activate RE
+                    RE -->> Output: Fence
+                    deactivate RE
+                end
+            end
+            deactivate Output
+
+            Output ->> RS: queueBuffer(TargetBuffer)
+            activate RS
+            RS ->> FBS: advanceFrame()
+            activate FBS
+            FBS -[#red]>> HWC: setClientTarget(TargetBuffer)
+            note right of HWC: 将 GPU 结果给 HWC
+            deactivate FBS
+            deactivate RS
+        end
+        deactivate Output
+        
+        ' --- 3.2.3 最终提交 (presentFrameAndReleaseLayers) ---
+        Output ->> Output: presentFrameAndReleaseLayers()
+        activate Output
+        Output ->> HWC: presentDisplay()
+        activate HWC
+        HWC -->> Output: PresentFence
+        deactivate HWC
+        deactivate Output
+        
+        Output -->> CE: return ftl::Future
+        deactivate Output
+    end
+end
+
+' --- 3.3 等待与收尾 ---
+group Step: Wait & Post
+    loop 遍历 presentFutures
+        CE ->> CE: future.get()
+        note right of CE: 等待所有屏幕 HWC 提交完成
+    end
+
+    CE ->> CE: postComposition()
+end
+
+CE -->> SF: return
+deactivate CE
+
+' ==========================================
+' Phase 4: 后处理 (Post-Composition)
+' ==========================================
+== Phase 4: Post Composition (Stats & Input) ==
+
+SF ->> SF: moveSnapshotsFromCompositionArgs()
+note right of SF: 释放快照所有权
+
+SF ->> Scheduler: onCompositionPresented(presentTime)
+activate Scheduler
+note right of Scheduler: 更新 VSYNC 模型\n计算下一帧时间
+deactivate Scheduler
+
+SF ->> SF: onCompositionPresented()
+note right of SF: 更新 Fence\n触发 Layer 回调
+
+SF ->> SF: updateInputFlinger()
+note right of SF: 发送窗口信息给 Input
+
+SF ->> SF: mTimeStats->recordFrameDuration()
+
 deactivate SF
 
 @enduml
-
 ```
 
----
+#### **Phase 1: 调度与锁定 (Scheduling & Latching)**
+
+这是合成周期的起点，目的是冻结当前帧的数据状态，确保合成过程的一致性。
+
+1. **VSYNC 触发**: `MessageQueue` 收到 VSYNC 信号，调用 `onMessageInvalidate()` 唤醒 SurfaceFlinger 主线程。
+2. **处理事务**: 主线程处理 WindowManager 发来的层级更新和属性变更。
+3. **锁定 Buffer (Latching)**:
+   * SF 遍历所有 Layer，调用 `latchBuffer()` 锁定应用最新提交的 Buffer。
+   * **关键动作**: 调用 `LayerFE::updateSnapshot()`。这会将 Layer 当前的属性（几何、Buffer句柄等）复制到 `LayerFE` 中。后续的合成操作仅读取 LayerFE 的快照，从而允许 SF 主线程在合成进行的同时处理下一帧的逻辑（实现了无锁并发）。
+
+
+#### **Phase 2: 进入合成入口 (Composite Entry)**
+
+此阶段负责准备合成所需的数据结构。
+
+* **参数打包**: `SurfaceFlinger::composite` 将所有的 LayerFE 快照移动到 `CompositionRefreshArgs` 对象中。
+* **预处理**: 触发 `onPreComposition`，更新图层的可信呈现（TrustedPresentation）状态等元数据。
+
+#### **Phase 3: CompositionEngine 核心流程 (The Core Loop)**
+
+这是最复杂的阶段，由 `CompositionEngine::present` 驱动，分为策略（Prepare）和执行（Present）两个子步骤。
+
+**3.1 Prepare 阶段：策略协商**
+
+* **收集可见层**: 遍历 Output，计算每个 Layer 在该屏幕上的可见区域和裁剪矩形。
+* **更新状态**: 从 LayerFE 快照中获取最新的几何与 Buffer 信息。
+* **HWC 协商 (Validate)**:
+  * CE 调用 `HWC::validateDisplay()` 询问硬件：“这些图层你能处理吗？”
+  * HWC 返回它无法处理的图层列表。
+  * CE 根据反馈，将图层标记为 **`DEVICE`** (走硬件 Overlay) 或 **`CLIENT`** (走 GPU 合成)。
+
+
+
+**3.2 Present 阶段：执行与提交**
+此阶段将 Buffer 真正分发给硬件。
+
+* **HWC 状态配置 (Device Composition)**:
+  * 对于标记为 **`DEVICE`** 的图层，通过 `Output::writeCompositionState` -> `writeStateToHWC`。
+  * **关键路径**: 调用 `HWC::setLayerBuffer`。这是一次**透传**操作，直接将 App 的 Buffer 句柄交给 HWC 硬件，不经过 GPU。
+
+* **GPU 合成 (Client Composition)**:
+  * 在 `Output::finishFrame` 中，如果存在标记为 **`CLIENT`** 的图层：
+  * `RenderSurface` 申请目标 Buffer (`dequeueRenderBuffer`)。
+  * `RenderEngine` 读取 Layer Buffer 作为纹理，绘制到目标 Buffer 上 (`drawLayers`)。
+  * **关键路径**: 绘制完成后，Buffer 入队并通过 `FramebufferSurface` 传递给 `HWC::setClientTarget`。这块 Buffer 包含了所有 GPU 合成的图层内容。
+
+* **最终提交**:
+  * 调用 `Output::presentFrameAndReleaseLayers` -> `HWC::presentDisplay()`。
+  * 这是硬件刷新的“扳机”。HWC 驱动会读取之前配置的 Overlay Layers 和 ClientTarget Buffer，将它们混合并输出到物理屏幕。
+
+#### **Phase 4: 后处理 (Post Composition)**
+
+一帧提交后的收尾工作。
+
+* **释放资源**: 释放 LayerFE 快照的所有权。
+* **VSYNC 反馈**: 通知 Scheduler 合成已完成 (`onCompositionPresented`)，用于更新 VSYNC 预测模型。
+* **Input 更新**: 发送最新的窗口信息给 InputFlinger，确保触摸事件能分发给正确的窗口。
+* **统计**: 记录帧耗时等性能指标。
 
 ## 4. 深入 RenderEngine：GPU 合成详解
 

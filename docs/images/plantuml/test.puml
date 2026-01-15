@@ -1,203 +1,232 @@
 @startuml
 !theme plain
-autonumber "<b>[0]"
+hide footbox
+skinparam linetype ortho
+skinparam sequenceMessageAlign center
+autonumber
 
-title SystemServer: Registration & WindowInfos Update Flow (Complete)
+' ==========================================
+' 参与者定义
+' ==========================================
 
-box "SurfaceFlinger Process" #E3F2FD
+box "Scheduling & Logic" #f9f9f9
+    participant "MessageQueue\n(VSYNC)" as MQ
     participant "SurfaceFlinger" as SF
+    participant "Scheduler" as Scheduler
+    participant "Layer" as Layer
 end box
 
-box "Kernel Space" #F5F5F5
-    participant "Binder Driver" as Kernel
+box "Composition Engine Core" #d1c4e9
+    participant "CompositionEngine" as CE
+    participant "Output\n(Display)" as Output
+    participant "LayerFE\n(Snapshot)" as LayerFE
+    participant "OutputLayer" as OutLayer
+    participant "RenderSurface" as RS
 end box
 
-box "SystemServer Process (Native)" #FFF3E0
-    participant "IPCThreadState" as IPC
-    participant "BnWindowInfosListener\n(Stub)" as Stub
-    participant "WindowInfosListenerReporter\n(Singleton)" as Reporter
-    participant "SurfaceComposerClient" as SCC
-    participant "InputDispatcher" as Dispatcher
-    participant "DispatcherWindowListener" as Listener
+box "Render Hardware" #e8f5e9
+    participant "RenderEngine\n(GPU)" as RE
+    participant "FramebufferSurface" as FBS
 end box
 
-box "SystemServer Process (Java)" #FFE0B2
-    participant "AccessibilityWindowsPopulator\n(A11yPop)" as A11yPop
-    participant "WMS Handler Thread" as WMS_Thread
-    participant "WindowManagerService" as WMS
-    participant "AccessibilityWindowManager" as AWM
-    participant "AccessibilityManagerService" as AMS
+box "Hardware Composer" #fff3e0
+    participant "HWComposer\n(HAL)" as HWC
 end box
 
-== 0.1 InputDispatcher 注册流程 (Native) ==
+' ==========================================
+' Phase 1: 调度与锁定 (Heartbeat & Latch)
+' ==========================================
+== Phase 1: VSYNC Trigger & Data Latching ==
 
-Dispatcher -> Dispatcher: new DispatcherWindowListener(*this)
-activate Dispatcher
-note right: 创建本地监听器
+MQ ->> SF: onMessageInvalidate() \n(VSYNC Arrives)
+activate SF
 
-Dispatcher -> SCC: addWindowInfosListener(listener)
-activate SCC
-SCC -> Reporter: getInstance()
-SCC -> Reporter: addWindowInfosListener(listener, ...)
-activate Reporter
+SF ->> SF: handleMessageTransaction()\n处理 Layer 属性变化
+SF ->> SF: handleMessageInvalidate()
 
-Reporter -> Reporter: check mWindowInfosListeners.empty()
-
-alt #LightGreen <color:green><b>首次注册 (First Time)</b></color>
-    note right of Reporter
-        集合为空，说明 Reporter 尚未连接 SF。
-        将 Reporter (this) 注册到远程。
-    end note
-    Reporter -> SF: IWindowInfosListener.addWindowInfosListener(this)
-    activate SF
-    SF -> SF: 保存 Reporter 句柄
-    SF --> Reporter: status
-    deactivate SF
-else <color:gray>后续注册 (Re-use)</color>
-    note right of Reporter
-        集合不为空，通道已建立。
-        直接复用，不发起 Binder 调用。
-    end note
+loop 遍历所有 Layer
+    SF ->> Layer: latchBuffer()
+    activate Layer
+    note right of Layer: 锁定当前帧的 Buffer\n更新 mBufferInfo
+    
+    Layer ->> LayerFE: updateSnapshot()
+    activate LayerFE
+    note right of LayerFE: 固化 Buffer 句柄\n隔离主线程
+    deactivate LayerFE
+    deactivate Layer
 end
 
-Reporter -> Reporter: mWindowInfosListeners.insert(listener)
-note right: 将 InputDispatcher 加入本地集合
+' ==========================================
+' Phase 2: SurfaceFlinger Composite Entry
+' ==========================================
+== Phase 2: SurfaceFlinger::composite ==
 
-Reporter --> SCC: status
-deactivate Reporter
-SCC --> Dispatcher: status
-deactivate SCC
-deactivate Dispatcher
+SF ->> SF: composite(pacesetterId, frameTargeters)
+activate SF
 
-== 0.2 Accessibility 注册流程 (Java Stack) ==
+SF ->> SF: moveSnapshotsToCompositionArgs()
+note right of SF: 将 LayerFE 快照移动到\nCompositionRefreshArgs
 
-note right of AMS
-  <b>触发时机:</b>
-  1. 系统启动完毕
-  2. 开启无障碍服务 (TalkBack等)
-  3. 显示器插拔 (onDisplayAdded)
-end note
+loop 遍历 refreshArgs.layers
+    SF ->> Layer: onPreComposition(refreshStartTime)
+    note right of Layer: 更新可信呈现状态\n(TrustedPresentation)
+end
 
-AMS -> AWM: startTrackingWindows()
-activate AMS
-AWM -> WMS: setWindowsForAccessibilityCallback()
-activate AWM
-WMS -> A11yPop: setWindowsNotification(true)
-activate WMS
-activate A11yPop
+' ==========================================
+' Phase 3: CompositionEngine Present Flow
+' ==========================================
+== Phase 3: CompositionEngine::present ==
 
-A11yPop -> A11yPop: register()
-A11yPop -> SCC: nativeRegister() [JNI]
-activate SCC
+SF ->> CE: present(CompositionRefreshArgs)
+activate CE
 
-SCC -> Reporter: addWindowInfosListener(listener)
-activate Reporter
-note right of Reporter
-  检测到 InputDispatcher 已注册，
-  这里直接复用现有通道，
-  将 A11yPop 加入本地集合。
-end note
-Reporter -> Reporter: mWindowInfosListeners.insert(A11yPop)
+CE ->> CE: preComposition()
+loop 遍历所有 LayerFE
+    CE ->> LayerFE: onPreComposition()
+    note right of LayerFE: 检查是否有 Pending 更新
+end
 
-Reporter --> SCC: status
-deactivate Reporter
-SCC --> A11yPop: status
-deactivate SCC
-A11yPop --> WMS: void
-deactivate A11yPop
-WMS --> AWM: void
-deactivate WMS
-AWM --> AMS: void
-deactivate AWM
-deactivate AMS
-
-|||
-
-== 1. 跨进程接收 (Binder Thread) ==
-
-SF -> Kernel: onWindowInfosChanged(data) (Oneway)
-note left: SF 生产 46KB 数据\n疯狂发送
-
-Kernel -> IPC: ioctl(BR_TRANSACTION)
-activate IPC
-note left: Binder 线程被唤醒
-
-IPC -> Stub: onTransact(...)
-activate Stub
-note right: <color:red><b>反序列化 (Unmarshalling)</b></color>\n解析 Parcel -> vector<WindowInfo>
-
-Stub -> Reporter: onWindowInfosChanged(windowInfos, ...)
-deactivate Stub
-activate Reporter
-
-== 2. 进程内分发 (Reporter Loop) ==
-
-note right of Reporter
-    <color:red><b>同步循环 (Synchronous Loop)</b></color>
-    运行在 Binder 线程中。
-    必须等所有 Listener 处理完才能返回。
-end note
-
-loop foreach listener in mWindowInfosListeners
-
-    alt #MistyRose Listener == InputDispatcher (Native)
-        Reporter -> Listener: onWindowInfosChanged(windowInfos)
-        activate Listener
+' --- 3.1 Prepare 阶段 (对应代码: output->prepare) ---
+group Step: Prepare (Strategy & Validation)
+    loop 遍历所有 Output (args.outputs)
+        CE ->> Output: prepare(args, latchedLayers)
+        activate Output
         
-        == 3. 业务处理 (InputDispatcher) ==
+        Output ->> Output: collectVisibleLayers()
+        Output ->> Output: ensureOutputLayerIfVisible()
         
-        Listener -> Dispatcher: setInputWindows(windowInfos)
-        activate Dispatcher
-        
-        Dispatcher -> Dispatcher: <color:red>std::scoped_lock _l(mLock)</color>
-        note right
-            <color:red><b>关键阻塞点 (Critical Block)</b></color>
-            InputDispatcher 持锁处理。
-            如果有 Input 事件积压，这里会卡住。
-            <b>这是导致 Oneway Spamming 的主要原因。</b>
-        end note
-        
-        Dispatcher -> Dispatcher: setInputWindowsLocked(...)
-        
-        Dispatcher --> Listener: void
-        deactivate Dispatcher
-        
-        Listener --> Reporter: void
-        deactivate Listener
+        Output ->> OutLayer: updateCompositionState()
+        activate OutLayer
+        OutLayer ->> LayerFE: getCompositionState()
+        LayerFE -->> OutLayer: Snapshot (Geometry, Buffer)
+        deactivate OutLayer
 
-    else #AliceBlue Listener == AccessibilityWindowsPopulator (Java)
-        Reporter -> A11yPop: onWindowInfosChanged(windowHandles, ...) [JNI]
-        activate A11yPop
+        ' 策略协商核心 (HWC Validate)
+        Output ->> Output: prepareFrame()
+        Output ->> HWC: validateDisplay()
+        note right of HWC:HWC 检查图层属性,返回无法处理的 Layer
+
+        HWC -->> Output: ChangedCompositionTypes (Fallback to GPU)
+
+        Output ->> OutLayer: applyCompositionType()
+        note right of OutLayer:标记 Layer 为<color:red><b>DEVICE (HWC)</b></color> 或 <color:blue><b>CLIENT (GPU)</b></color>
         
-        == 3.1 业务处理 (A11yPopulator) ==
-        
-        A11yPop -> A11yPop: mHandler.post(...)
-        note right
-            <color:green><b>异步非阻塞 (Async)</b></color>
-            源码: mHandler.post(() -> onWindowInfosChangedInternal)
-            立即返回，不占用 Binder 线程时间。
-        end note
-        
-        A11yPop --> Reporter: void
-        deactivate A11yPop
-        
-        A11yPop -[#blue]> WMS_Thread: onWindowInfosChangedInternal(...)
-        activate WMS_Thread
-        note right
-           <b>延迟处理:</b>
-           繁重的矩阵计算(Matrix)和
-           遍历逻辑在此线程执行。
-        end note
-        deactivate WMS_Thread
+        deactivate Output
     end
 end
 
-Reporter --> Stub: void
-deactivate Reporter
+CE ->> CE: offloadOutputs()
 
-Stub --> IPC: void
-IPC -> Kernel: ioctl(BC_FREE_BUFFER)
-note left: 只有执行到这里，\n内核缓冲区才会被释放。
-deactivate IPC
+' --- 3.2 Present 阶段 (对应代码: output->present) ---
+group Step: Present (Execution & Submission)
+    loop 遍历所有 Output (args.outputs)
+        CE ->> Output: present(args)
+        activate Output
+        note right of Output: 返回 Future<monostate>
+
+        Output ->> Output: planComposition()
+        
+        ' --- 3.2.1 HWC 状态设置 (writeCompositionState) ---
+        group Device Composition (Overlay Setup)
+            Output ->> Output: writeCompositionState()
+            activate Output
+            loop 遍历 DEVICE OutputLayer
+                Output ->> OutLayer: writeStateToHWC()
+                OutLayer -[#red]>> HWC : setLayerBuffer(Slot, Handle, Fence) 
+                note right of HWC: 将 Overlay 图层给 HWC
+            end
+            deactivate Output
+        end
+
+        ' --- 3.2.2 GPU 合成 (finishFrame) ---
+        Output ->> Output: finishFrame()
+        activate Output
+
+        alt Strategy Prediction Failed or Buffer needed
+            Output ->> RS: dequeueRenderBuffer()
+            activate RS
+            RS -->> Output: Buffer & Fence
+            deactivate RS
+
+            Output ->> Output: composeSurfaces() (开始 GPU 绘图)
+            activate Output
+
+            group Client Composition (GPU Rendering)
+                Output ->> Output: generateClientCompositionRequests()
+                
+                loop 遍历 CLIENT OutputLayer
+                    Output ->> LayerFE: prepareClientComposition()
+                    LayerFE -->> Output: LayerSettings
+                end
+
+                alt hasClientComposition
+                    Output ->> RE: drawLayers(LayerSettings[], TargetBuffer)
+                    activate RE
+                    RE -->> Output: Fence
+                    deactivate RE
+                end
+            end
+            deactivate Output
+
+            Output ->> RS: queueBuffer(TargetBuffer)
+            activate RS
+            RS ->> FBS: advanceFrame()
+            activate FBS
+            FBS -[#red]>> HWC: setClientTarget(TargetBuffer)
+            note right of HWC: 将 GPU 结果给 HWC
+            deactivate FBS
+            deactivate RS
+        end
+        deactivate Output
+        
+        ' --- 3.2.3 最终提交 (presentFrameAndReleaseLayers) ---
+        Output ->> Output: presentFrameAndReleaseLayers()
+        activate Output
+        Output ->> HWC: presentDisplay()
+        activate HWC
+        HWC -->> Output: PresentFence
+        deactivate HWC
+        deactivate Output
+        
+        Output -->> CE: return ftl::Future
+        deactivate Output
+    end
+end
+
+' --- 3.3 等待与收尾 ---
+group Step: Wait & Post
+    loop 遍历 presentFutures
+        CE ->> CE: future.get()
+        note right of CE: 等待所有屏幕 HWC 提交完成
+    end
+
+    CE ->> CE: postComposition()
+end
+
+CE -->> SF: return
+deactivate CE
+
+' ==========================================
+' Phase 4: 后处理 (Post-Composition)
+' ==========================================
+== Phase 4: Post Composition (Stats & Input) ==
+
+SF ->> SF: moveSnapshotsFromCompositionArgs()
+note right of SF: 释放快照所有权
+
+SF ->> Scheduler: onCompositionPresented(presentTime)
+activate Scheduler
+note right of Scheduler: 更新 VSYNC 模型\n计算下一帧时间
+deactivate Scheduler
+
+SF ->> SF: onCompositionPresented()
+note right of SF: 更新 Fence\n触发 Layer 回调
+
+SF ->> SF: updateInputFlinger()
+note right of SF: 发送窗口信息给 Input
+
+SF ->> SF: mTimeStats->recordFrameDuration()
+
+deactivate SF
 
 @enduml
