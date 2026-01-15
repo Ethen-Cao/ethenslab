@@ -3,7 +3,8 @@
 # =============================================================================
 # 脚本名称: logcat.bash
 # 功能: 模拟 adb logcat 的参数习惯，搜索离线日志文件。
-#       支持递归搜索当前目录，或通过 -f 指定特定文件/目录。
+#       1. 支持多 Tag 空格分隔 (自动转换为正则 OR)。
+#       2. 支持直接在命令末尾指定搜索文件/目录 (无需 -f)。
 # 核心: 基于 ripgrep (rg) + awk 的高性能过滤。
 # =============================================================================
 
@@ -14,20 +15,20 @@ COLOR_LINE="\033[32m" # 绿色行号
 
 # --- 帮助函数 ---
 function show_usage() {
-    echo "Usage: logcat [options]"
+    echo "Usage: logcat [options] [file/dir]"
     echo ""
     echo "Options:"
-    echo "  -f <file/dir>           Specify file or directory to search (Default: current dir)"
+    echo "  -f <file/dir>           Specify file or directory to search (Optional if path is last arg)"
     echo "  -p <pid>                Filter by Process ID (PID)"
-    echo "  -s <tag>                Filter by Log Tag (e.g., ActivityManager)"
+    echo "  -s <tags...>            Filter by Log Tag (Space separated, e.g., 'Tag1 Tag2')"
     echo "  -k <keyword>            Filter by Keyword (content search)"
     echo "  -t <start> <end>        Filter by Time Range (MM-DD HH:MM:SS)"
     echo "  --plain                 Output plain text (no filename/line numbers)"
     echo ""
     echo "Examples:"
-    echo "  logcat -t \"01-15 09:28:00\" \"01-15 09:30:00\""
-    echo "  logcat -f system.log -p 1375"
-    echo "  logcat -f ./crash_logs/ -k \"Exception\""
+    echo "  1. Time & Tag:    logcat -t \"09:28:00\" \"09:30:00\" -s SurfaceFlinger"
+    echo "  2. Multiple Tags: logcat -s SurfaceFlinger InputDispatcher system.log"
+    echo "  3. PID & File:    logcat -p 1375 ./crash_logs/"
     exit 1
 }
 
@@ -59,7 +60,6 @@ function execute_search() {
     if [[ -n "$FILTER_KEY" ]]; then rg_pattern="$FILTER_KEY"; fi
 
     # rg 预搜索 -> xargs -> awk 精确处理
-    # 注意: 这里将原来的 . 替换为了 "$target"
     rg --files-with-matches --null "$rg_pattern" "$target" | xargs -0 awk \
         -v s="$s_time" \
         -v e="$e_time" \
@@ -84,7 +84,13 @@ function execute_search() {
 
             # 3. 属性过滤
             if (f_pid != "" && $3 != f_pid) next
-            if (f_tag != "" && index($6, f_tag) != 1) next
+            
+            # Tag 过滤 (正则匹配)
+            # 使用 ~ 进行正则匹配，以支持 "Tag1|Tag2" 这种形式
+            # 检查 $6 (Tag列) 是否匹配 f_tag 正则
+            if (f_tag != "" && $6 !~ f_tag) next
+            
+            # Keyword 过滤
             if (f_key != "" && index($0, f_key) == 0) next
 
             # 4. 输出
@@ -115,7 +121,7 @@ fi
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
-        -f) # File / Directory
+        -f) # File / Directory (显式指定)
             if [[ -n "$2" && "$2" != -* ]]; then
                 SEARCH_TARGET="$2"
                 shift 2
@@ -133,13 +139,21 @@ while [[ $# -gt 0 ]]; do
                 shift 1
             fi
             ;;
-        -s) # Tag
-            if [[ -n "$2" && "$2" != -* ]]; then
-                FILTER_TAG="$2"
-                shift 2
-            else
-                echo "Warning: Option -s requires an argument (Tag). Ignoring." >&2
-                shift 1
+        -s) # Tag (支持空格分隔多 Tag)
+            shift # 移除 -s
+            # 循环读取后续参数，直到遇到下一个以 - 开头的 flag 或参数结束
+            while [[ $# -gt 0 && "$1" != -* ]]; do
+                if [[ -z "$FILTER_TAG" ]]; then
+                    FILTER_TAG="$1"
+                else
+                    # 拼接正则: Tag1|Tag2
+                    FILTER_TAG="${FILTER_TAG}|$1"
+                fi
+                shift
+            done
+            
+            if [[ -z "$FILTER_TAG" ]]; then
+                echo "Warning: Option -s requires at least one tag." >&2
             fi
             ;;
         -k) # Keyword
@@ -171,8 +185,15 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         *)
-            echo "Unknown option: $1"
-            show_usage
+            # 处理位置参数 (文件名/目录)
+            # 如果当前参数不是以 - 开头，则认为是搜索目标
+            if [[ "$1" != -* ]]; then
+                SEARCH_TARGET="$1"
+                shift 1
+            else
+                echo "Unknown option: $1"
+                show_usage
+            fi
             ;;
     esac
 done
