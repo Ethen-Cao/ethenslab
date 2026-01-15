@@ -2,11 +2,13 @@
 
 # =============================================================================
 # 脚本名称: logcat.bash
-# 功能: 模拟 adb logcat 的参数习惯，搜索离线日志文件。
-#       1. 支持多 Tag、多 PID、多关键字 (空格分隔，自动转换为正则 OR)。
-#       2. 支持多文件/目录搜索 (空格分隔)。
+# 逻辑模式: Scoped OR (时间限定下的或逻辑)
+#          Time AND ( PID OR Tag OR Keyword )
+# 功能: 
+#       1. 支持多 Tag、多 PID、多关键字 (空格分隔)。
+#       2. 支持多文件/目录搜索。
 #       3. 智能区分关键字和文件路径。
-# 核心: 基于 ripgrep (rg) + awk 的高性能过滤。
+# 核心: 基于 ripgrep (rg) + awk。
 # =============================================================================
 
 # --- 颜色定义 ---
@@ -18,6 +20,8 @@ COLOR_LINE="\033[32m" # 绿色行号
 function show_usage() {
     echo "Usage: logcat [options] [file/dir...]"
     echo ""
+    echo "Logic: Time_Range AND ( PID OR Tag OR Keyword )"
+    echo ""
     echo "Options:"
     echo "  -f <paths...>           Specify files/dirs to search (Space separated)"
     echo "  -p <pids...>            Filter by Process ID (Space separated)"
@@ -27,9 +31,8 @@ function show_usage() {
     echo "  --plain                 Output plain text (no filename/line numbers)"
     echo ""
     echo "Examples:"
-    echo "  1. Multiple Files: logcat -s SurfaceFlinger sys.log events.log"
-    echo "  2. Multiple PIDs:  logcat -p 1001 1002 -f ./logs/"
-    echo "  3. Multiple Keys:  logcat -k \"Error\" \"Exception\" -t \"09:00\" \"09:05\""
+    echo "  1. PID OR Keyword: logcat -p 1234 -k \"Error\" (Show PID 1234 OR any Error)"
+    echo "  2. Scoped OR:      logcat -t \"09:00\" \"09:05\" -s AudioFlinger -k Fatal"
     exit 1
 }
 
@@ -37,7 +40,6 @@ function show_usage() {
 function execute_search() {
     local s_time="$1"
     local e_time="$2"
-    # 注意: 搜索目标现在使用全局数组 SEARCH_TARGETS
     local use_time_filter=1
 
     # 如果没有指定时间，则关闭时间过滤
@@ -50,23 +52,18 @@ function execute_search() {
         SEARCH_TARGETS=(".")
     fi
 
-    # --- 策略优化 (极速模式) ---
-    # 如果仅有关键字，无其他限制(无时间、无PID、无Tag)，直接使用 rg
-    if [[ $use_time_filter -eq 0 && -z "$FILTER_PID" && -z "$FILTER_TAG" && -n "$FILTER_KEY" ]]; then
-        local rg_opts="--line-number --with-filename"
-        if [[ $PLAIN_MODE -eq 1 ]]; then rg_opts="--no-line-number --no-filename"; fi
-        
-        # 直接执行 rg，传递数组 "${SEARCH_TARGETS[@]}"
-        rg $rg_opts "$FILTER_KEY" "${SEARCH_TARGETS[@]}"
-        return
+    # --- 逻辑变更说明 (Scoped OR) ---
+    # 为了保证 (PID or Tag or Key) 的逻辑正确性，我们不能单独使用 rg 过滤某一个字段。
+    # 必须把所有行交给 awk，让 awk 来判断是否满足任意一个条件。
+    # 因此，rg 这里仅作为文件读取器 (输出所有行)，不再进行预过滤 (rg_pattern=".")。
+    # 唯一的例外是：如果用户没有 PID 也没 Tag，只有 Keyword，rg 依然可以预过滤。
+
+    local rg_pattern="."
+    if [[ -z "$FILTER_PID" && -z "$FILTER_TAG" && -n "$FILTER_KEY" ]]; then
+        rg_pattern="$FILTER_KEY"
     fi
 
-    # --- 默认模式 (rg + awk) ---
-    local rg_pattern="."
-    if [[ -n "$FILTER_KEY" ]]; then rg_pattern="$FILTER_KEY"; fi
-
-    # rg 预搜索 -> xargs -> awk 精确处理
-    # 使用 "${SEARCH_TARGETS[@]}" 展开数组传递给 rg
+    # rg 读取 -> xargs -> awk 逻辑判断
     rg --files-with-matches --null "$rg_pattern" "${SEARCH_TARGETS[@]}" | xargs -0 awk \
         -v s="$s_time" \
         -v e="$e_time" \
@@ -83,29 +80,46 @@ function execute_search() {
             # 1. 格式校验 (MM-DD HH:MM:SS.mmm)
             if ($1 !~ /^[0-9]{2}-[0-9]{2}$/ || $2 !~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+$/) next
 
-            # 2. 时间过滤
+            # 2. 时间过滤 (Gatekeeper - 依然是一票否决 AND 关系)
+            # 只有时间满足了，才配进行后面的 OR 判断
             if (enable_time == 1) {
                 current_time = $1 " " $2
                 if ((s != "" && current_time < s) || (e != "" && current_time > e)) next
             }
 
-            # 3. 属性过滤
+            # 3. 属性过滤 (Scoped OR 逻辑)
             
-            # PID 过滤 (正则匹配)
-            # f_pid 格式为 "^(123|456)$"，确保精准匹配数字
-            if (f_pid != "" && $3 !~ f_pid) next
-            
-            # Tag 过滤 (正则匹配)
-            if (f_tag != "" && $6 !~ f_tag) next
-            
-            # Keyword 过滤 (正则匹配)
-            if (f_key != "" && $0 !~ f_key) next
+            has_condition = 0  # 标记用户是否指定了至少一个筛选条件
+            is_matched = 0     # 标记当前行是否命中
 
-            # 4. 输出
-            if (p == 1) {
-                print $0
-            } else {
-                printf "%s%s%s:%s%s%s: %s\n", c_file, FILENAME, c_reset, c_line, FNR, c_reset, $0
+            # --- 检查 PID ---
+            if (f_pid != "") {
+                has_condition = 1
+                if ($3 ~ f_pid) is_matched = 1
+            }
+
+            # --- 检查 Tag ---
+            # 优化：如果已经 matched 了，就不必检查 Tag 了 (因为是 OR)
+            if (f_tag != "" && is_matched == 0) {
+                has_condition = 1
+                if ($6 ~ f_tag) is_matched = 1
+            }
+
+            # --- 检查 Keyword ---
+            if (f_key != "" && is_matched == 0) {
+                has_condition = 1
+                if ($0 ~ f_key) is_matched = 1
+            }
+
+            # 4. 输出决策
+            # 如果 has_condition == 0 (用户只查时间，或没给条件)，默认输出。
+            # 如果 has_condition == 1，则必须 is_matched == 1 才输出。
+            if (has_condition == 0 || is_matched == 1) {
+                if (p == 1) {
+                    print $0
+                } else {
+                    printf "%s%s%s:%s%s%s: %s\n", c_file, FILENAME, c_reset, c_line, FNR, c_reset, $0
+                }
             }
         }
     '
@@ -122,13 +136,11 @@ END_TIME=""
 # 使用数组存储多个搜索目标
 declare -a SEARCH_TARGETS=()
 
-# 如果没有参数，显示帮助
 if [ $# -eq 0 ]; then
     show_usage
 fi
 
 # 辅助函数：判断参数是否应停止解析
-# 如果参数是 flag (-开头)，或者是存在的路径，或者看起来像路径，则停止贪婪解析
 function is_stop_arg() {
     local arg="$1"
     if [[ "$arg" == -* ]]; then return 0; fi          # 是 flag
@@ -140,10 +152,9 @@ function is_stop_arg() {
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
-        -f) # File / Directory (显式指定，支持多个)
+        -f) # File / Directory
             shift
             while [[ $# -gt 0 ]]; do
-                # 对于 -f，我们只在遇到下一个 flag 时停止，因为 -f 后面肯定是文件
                 if [[ "$1" == -* ]]; then break; fi
                 SEARCH_TARGETS+=("$1")
                 shift
@@ -152,7 +163,7 @@ while [[ $# -gt 0 ]]; do
                 echo "Warning: Option -f requires at least one file/dir." >&2
             fi
             ;;
-        -p) # Process ID (支持多个)
+        -p) # Process ID
             shift
             _pids=""
             while [[ $# -gt 0 ]]; do
@@ -166,7 +177,7 @@ while [[ $# -gt 0 ]]; do
                 echo "Warning: Option -p requires at least one PID." >&2
             fi
             ;;
-        -s) # Tag (支持多个)
+        -s) # Tag
             shift
             while [[ $# -gt 0 ]]; do
                 is_stop_arg "$1" && break
@@ -177,7 +188,7 @@ while [[ $# -gt 0 ]]; do
                 echo "Warning: Option -s requires at least one tag." >&2
             fi
             ;;
-        -k) # Keyword (支持多个)
+        -k) # Keyword
             shift
             while [[ $# -gt 0 ]]; do
                 is_stop_arg "$1" && break
