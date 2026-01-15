@@ -2,11 +2,12 @@
 
 # =============================================================================
 # 脚本名称: logcat.bash
-# 功能: 模拟 adb logcat 的参数习惯，递归搜索当前目录下的离线日志文件。
+# 功能: 模拟 adb logcat 的参数习惯，搜索离线日志文件。
+#       支持递归搜索当前目录，或通过 -f 指定特定文件/目录。
 # 核心: 基于 ripgrep (rg) + awk 的高性能过滤。
 # =============================================================================
 
-# --- 颜色定义 (可选，为了更好看，如果不需要可删除) ---
+# --- 颜色定义 ---
 COLOR_RESET="\033[0m"
 COLOR_FILE="\033[35m" # 紫色文件名
 COLOR_LINE="\033[32m" # 绿色行号
@@ -16,6 +17,7 @@ function show_usage() {
     echo "Usage: logcat [options]"
     echo ""
     echo "Options:"
+    echo "  -f <file/dir>           Specify file or directory to search (Default: current dir)"
     echo "  -p <pid>                Filter by Process ID (PID)"
     echo "  -s <tag>                Filter by Log Tag (e.g., ActivityManager)"
     echo "  -k <keyword>            Filter by Keyword (content search)"
@@ -24,15 +26,16 @@ function show_usage() {
     echo ""
     echo "Examples:"
     echo "  logcat -t \"01-15 09:28:00\" \"01-15 09:30:00\""
-    echo "  logcat -p 1375 -s InputDispatcher"
-    echo "  logcat -k \"Exception\" -t \"09:00\" \"09:05\""
+    echo "  logcat -f system.log -p 1375"
+    echo "  logcat -f ./crash_logs/ -k \"Exception\""
     exit 1
 }
 
-# --- 核心搜索逻辑 (复用之前的 Time_Awk 逻辑) ---
+# --- 核心搜索逻辑 ---
 function execute_search() {
     local s_time="$1"
     local e_time="$2"
+    local target="$3"  # 接收搜索目标
     local use_time_filter=1
 
     # 如果没有指定时间，则关闭时间过滤
@@ -40,19 +43,24 @@ function execute_search() {
         use_time_filter=0
     fi
 
-    # 优化策略：如果仅有关键字，无其他限制，直接使用 rg (极速模式)
+    # --- 策略优化 (极速模式) ---
+    # 如果仅有关键字，无其他限制(无时间、无PID、无Tag)，直接使用 rg
     if [[ $use_time_filter -eq 0 && -z "$FILTER_PID" && -z "$FILTER_TAG" && -n "$FILTER_KEY" ]]; then
         local rg_opts="--line-number --with-filename"
         if [[ $PLAIN_MODE -eq 1 ]]; then rg_opts="--no-line-number --no-filename"; fi
-        rg $rg_opts "$FILTER_KEY" .
+        
+        # 直接执行 rg，搜索目标为 $target
+        rg $rg_opts "$FILTER_KEY" "$target"
         return
     fi
 
-    # 默认模式：rg 预搜索 + awk 精确过滤
+    # --- 默认模式 (rg + awk) ---
     local rg_pattern="."
     if [[ -n "$FILTER_KEY" ]]; then rg_pattern="$FILTER_KEY"; fi
 
-    rg --files-with-matches --null "$rg_pattern" . | xargs -0 awk \
+    # rg 预搜索 -> xargs -> awk 精确处理
+    # 注意: 这里将原来的 . 替换为了 "$target"
+    rg --files-with-matches --null "$rg_pattern" "$target" | xargs -0 awk \
         -v s="$s_time" \
         -v e="$e_time" \
         -v enable_time="$use_time_filter" \
@@ -65,14 +73,12 @@ function execute_search() {
         -v c_reset="$COLOR_RESET" '
         BEGIN { }
         {
-            # 1. 格式校验
+            # 1. 格式校验 (MM-DD HH:MM:SS.mmm)
             if ($1 !~ /^[0-9]{2}-[0-9]{2}$/ || $2 !~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+$/) next
 
             # 2. 时间过滤
             if (enable_time == 1) {
                 current_time = $1 " " $2
-                # 支持仅输入 HH:MM:SS 的情况 (自动补全日期太复杂，这里假设用户输入完整或者日志匹配)
-                # 为了简单，如果用户只输了时间，这里进行简单字符串比较
                 if ((s != "" && current_time < s) || (e != "" && current_time > e)) next
             }
 
@@ -85,15 +91,13 @@ function execute_search() {
             if (p == 1) {
                 print $0
             } else {
-                # 带颜色的输出格式: 文件名:行号: 内容
                 printf "%s%s%s:%s%s%s: %s\n", c_file, FILENAME, c_reset, c_line, FNR, c_reset, $0
             }
         }
     '
 }
 
-# --- 参数解析 (关键修改) ---
-# 使用 while loop 手动解析，以支持 -t start end 这种双参数结构
+# --- 参数解析 ---
 
 PLAIN_MODE=0
 FILTER_PID=""
@@ -101,36 +105,65 @@ FILTER_TAG=""
 FILTER_KEY=""
 START_TIME=""
 END_TIME=""
+SEARCH_TARGET="." # 默认搜索当前目录
 
+# 如果没有参数，显示帮助
 if [ $# -eq 0 ]; then
     show_usage
 fi
 
 while [[ $# -gt 0 ]]; do
-    case $1 in
-        -p)
-            FILTER_PID="$2"
-            shift 2
-            ;;
-        -s)
-            FILTER_TAG="$2"
-            shift 2
-            ;;
-        -k)
-            FILTER_KEY="$2"
-            shift 2
-            ;;
-        -t)
-            # 处理 -t start_time [end_time]
-            START_TIME="$2"
-            # 检查下一个参数是否存在，且不是以 - 开头 (说明是 end_time)
-            if [[ -n "$3" && "$3" != -* ]]; then
-                END_TIME="$3"
-                shift 3
-            else
-                # 只有开始时间，没有结束时间 (意味着直到最后)
-                END_TIME="99-99 23:59:59.999" 
+    key="$1"
+    case $key in
+        -f) # File / Directory
+            if [[ -n "$2" && "$2" != -* ]]; then
+                SEARCH_TARGET="$2"
                 shift 2
+            else
+                echo "Warning: Option -f requires an argument (file/dir). Using current dir." >&2
+                shift 1
+            fi
+            ;;
+        -p) # Process ID
+            if [[ -n "$2" && "$2" != -* ]]; then
+                FILTER_PID="$2"
+                shift 2
+            else
+                echo "Warning: Option -p requires an argument (PID). Ignoring." >&2
+                shift 1
+            fi
+            ;;
+        -s) # Tag
+            if [[ -n "$2" && "$2" != -* ]]; then
+                FILTER_TAG="$2"
+                shift 2
+            else
+                echo "Warning: Option -s requires an argument (Tag). Ignoring." >&2
+                shift 1
+            fi
+            ;;
+        -k) # Keyword
+            if [[ -n "$2" && "$2" != -* ]]; then
+                FILTER_KEY="$2"
+                shift 2
+            else
+                echo "Warning: Option -k requires an argument (Keyword). Ignoring." >&2
+                shift 1
+            fi
+            ;;
+        -t) # Time Range
+            if [[ -n "$2" && "$2" != -* ]]; then
+                START_TIME="$2"
+                if [[ -n "$3" && "$3" != -* ]]; then
+                    END_TIME="$3"
+                    shift 3
+                else
+                    END_TIME="99-99 23:59:59.999"
+                    shift 2
+                fi
+            else
+                echo "Warning: Option -t requires at least one time argument. Ignoring." >&2
+                shift 1
             fi
             ;;
         --plain)
@@ -145,4 +178,5 @@ while [[ $# -gt 0 ]]; do
 done
 
 # --- 执行 ---
-execute_search "$START_TIME" "$END_TIME"
+# 将搜索目标作为第三个参数传递
+execute_search "$START_TIME" "$END_TIME" "$SEARCH_TARGET"
