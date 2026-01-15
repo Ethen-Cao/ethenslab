@@ -3,8 +3,8 @@
 # =============================================================================
 # 脚本名称: logcat.bash
 # 功能: 模拟 adb logcat 的参数习惯，搜索离线日志文件。
-#       1. 支持多 Tag 空格分隔 (自动转换为正则 OR)。
-#       2. 支持直接在命令末尾指定搜索文件/目录 (无需 -f)。
+#       1. 支持多 Tag、多 PID、多关键字 (空格分隔，自动转换为正则 OR)。
+#       2. 支持多文件/目录搜索 (空格分隔)。
 # 核心: 基于 ripgrep (rg) + awk 的高性能过滤。
 # =============================================================================
 
@@ -15,20 +15,20 @@ COLOR_LINE="\033[32m" # 绿色行号
 
 # --- 帮助函数 ---
 function show_usage() {
-    echo "Usage: logcat [options] [file/dir]"
+    echo "Usage: logcat [options] [file/dir...]"
     echo ""
     echo "Options:"
-    echo "  -f <file/dir>           Specify file or directory to search (Optional if path is last arg)"
-    echo "  -p <pid>                Filter by Process ID (PID)"
-    echo "  -s <tags...>            Filter by Log Tag (Space separated, e.g., 'Tag1 Tag2')"
-    echo "  -k <keyword>            Filter by Keyword (content search)"
+    echo "  -f <paths...>           Specify files/dirs to search (Space separated)"
+    echo "  -p <pids...>            Filter by Process ID (Space separated)"
+    echo "  -s <tags...>            Filter by Log Tag (Space separated)"
+    echo "  -k <keywords...>        Filter by Keyword (Space separated, Regex OR)"
     echo "  -t <start> <end>        Filter by Time Range (MM-DD HH:MM:SS)"
     echo "  --plain                 Output plain text (no filename/line numbers)"
     echo ""
     echo "Examples:"
-    echo "  1. Time & Tag:    logcat -t \"09:28:00\" \"09:30:00\" -s SurfaceFlinger"
-    echo "  2. Multiple Tags: logcat -s SurfaceFlinger InputDispatcher system.log"
-    echo "  3. PID & File:    logcat -p 1375 ./crash_logs/"
+    echo "  1. Multiple Files: logcat -s SurfaceFlinger sys.log events.log"
+    echo "  2. Multiple PIDs:  logcat -p 1001 1002 -f ./logs/"
+    echo "  3. Multiple Keys:  logcat -k \"Error\" \"Exception\" -t \"09:00\" \"09:05\""
     exit 1
 }
 
@@ -36,12 +36,17 @@ function show_usage() {
 function execute_search() {
     local s_time="$1"
     local e_time="$2"
-    local target="$3"  # 接收搜索目标
+    # 注意: 搜索目标现在使用全局数组 SEARCH_TARGETS，不再通过参数传递单个路径
     local use_time_filter=1
 
     # 如果没有指定时间，则关闭时间过滤
     if [[ -z "$s_time" ]]; then
         use_time_filter=0
+    fi
+
+    # 如果没有指定搜索目标，默认为当前目录
+    if [[ ${#SEARCH_TARGETS[@]} -eq 0 ]]; then
+        SEARCH_TARGETS=(".")
     fi
 
     # --- 策略优化 (极速模式) ---
@@ -50,8 +55,8 @@ function execute_search() {
         local rg_opts="--line-number --with-filename"
         if [[ $PLAIN_MODE -eq 1 ]]; then rg_opts="--no-line-number --no-filename"; fi
         
-        # 直接执行 rg，搜索目标为 $target
-        rg $rg_opts "$FILTER_KEY" "$target"
+        # 直接执行 rg，传递数组 "${SEARCH_TARGETS[@]}"
+        rg $rg_opts "$FILTER_KEY" "${SEARCH_TARGETS[@]}"
         return
     fi
 
@@ -60,7 +65,8 @@ function execute_search() {
     if [[ -n "$FILTER_KEY" ]]; then rg_pattern="$FILTER_KEY"; fi
 
     # rg 预搜索 -> xargs -> awk 精确处理
-    rg --files-with-matches --null "$rg_pattern" "$target" | xargs -0 awk \
+    # 使用 "${SEARCH_TARGETS[@]}" 展开数组传递给 rg
+    rg --files-with-matches --null "$rg_pattern" "${SEARCH_TARGETS[@]}" | xargs -0 awk \
         -v s="$s_time" \
         -v e="$e_time" \
         -v enable_time="$use_time_filter" \
@@ -83,15 +89,18 @@ function execute_search() {
             }
 
             # 3. 属性过滤
-            if (f_pid != "" && $3 != f_pid) next
+            
+            # PID 过滤 (正则匹配)
+            # f_pid 格式为 "^(123|456)$"，确保精准匹配数字
+            if (f_pid != "" && $3 !~ f_pid) next
             
             # Tag 过滤 (正则匹配)
-            # 使用 ~ 进行正则匹配，以支持 "Tag1|Tag2" 这种形式
-            # 检查 $6 (Tag列) 是否匹配 f_tag 正则
+            # f_tag 格式为 "Tag1|Tag2"
             if (f_tag != "" && $6 !~ f_tag) next
             
-            # Keyword 过滤
-            if (f_key != "" && index($0, f_key) == 0) next
+            # Keyword 过滤 (正则匹配)
+            # f_key 格式为 "Key1|Key2"
+            if (f_key != "" && $0 !~ f_key) next
 
             # 4. 输出
             if (p == 1) {
@@ -111,7 +120,8 @@ FILTER_TAG=""
 FILTER_KEY=""
 START_TIME=""
 END_TIME=""
-SEARCH_TARGET="." # 默认搜索当前目录
+# 使用数组存储多个搜索目标
+declare -a SEARCH_TARGETS=()
 
 # 如果没有参数，显示帮助
 if [ $# -eq 0 ]; then
@@ -121,48 +131,49 @@ fi
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
-        -f) # File / Directory (显式指定)
-            if [[ -n "$2" && "$2" != -* ]]; then
-                SEARCH_TARGET="$2"
-                shift 2
-            else
-                echo "Warning: Option -f requires an argument (file/dir). Using current dir." >&2
-                shift 1
-            fi
-            ;;
-        -p) # Process ID
-            if [[ -n "$2" && "$2" != -* ]]; then
-                FILTER_PID="$2"
-                shift 2
-            else
-                echo "Warning: Option -p requires an argument (PID). Ignoring." >&2
-                shift 1
-            fi
-            ;;
-        -s) # Tag (支持空格分隔多 Tag)
-            shift # 移除 -s
-            # 循环读取后续参数，直到遇到下一个以 - 开头的 flag 或参数结束
+        -f) # File / Directory (显式指定，支持多个)
+            shift
             while [[ $# -gt 0 && "$1" != -* ]]; do
-                if [[ -z "$FILTER_TAG" ]]; then
-                    FILTER_TAG="$1"
-                else
-                    # 拼接正则: Tag1|Tag2
-                    FILTER_TAG="${FILTER_TAG}|$1"
-                fi
+                SEARCH_TARGETS+=("$1")
                 shift
             done
-            
+            if [[ ${#SEARCH_TARGETS[@]} -eq 0 ]]; then
+                echo "Warning: Option -f requires at least one file/dir." >&2
+            fi
+            ;;
+        -p) # Process ID (支持多个)
+            shift
+            # 临时变量存储 PID 列表
+            local _pids=""
+            while [[ $# -gt 0 && "$1" != -* ]]; do
+                if [[ -z "$_pids" ]]; then _pids="$1"; else _pids="${_pids}|$1"; fi
+                shift
+            done
+            if [[ -n "$_pids" ]]; then
+                # 构造精准匹配正则: ^(123|456)$
+                FILTER_PID="^(${_pids})$"
+            else
+                echo "Warning: Option -p requires at least one PID." >&2
+            fi
+            ;;
+        -s) # Tag (支持多个)
+            shift
+            while [[ $# -gt 0 && "$1" != -* ]]; do
+                if [[ -z "$FILTER_TAG" ]]; then FILTER_TAG="$1"; else FILTER_TAG="${FILTER_TAG}|$1"; fi
+                shift
+            done
             if [[ -z "$FILTER_TAG" ]]; then
                 echo "Warning: Option -s requires at least one tag." >&2
             fi
             ;;
-        -k) # Keyword
-            if [[ -n "$2" && "$2" != -* ]]; then
-                FILTER_KEY="$2"
-                shift 2
-            else
-                echo "Warning: Option -k requires an argument (Keyword). Ignoring." >&2
-                shift 1
+        -k) # Keyword (支持多个)
+            shift
+            while [[ $# -gt 0 && "$1" != -* ]]; do
+                if [[ -z "$FILTER_KEY" ]]; then FILTER_KEY="$1"; else FILTER_KEY="${FILTER_KEY}|$1"; fi
+                shift
+            done
+            if [[ -z "$FILTER_KEY" ]]; then
+                echo "Warning: Option -k requires at least one keyword." >&2
             fi
             ;;
         -t) # Time Range
@@ -188,7 +199,7 @@ while [[ $# -gt 0 ]]; do
             # 处理位置参数 (文件名/目录)
             # 如果当前参数不是以 - 开头，则认为是搜索目标
             if [[ "$1" != -* ]]; then
-                SEARCH_TARGET="$1"
+                SEARCH_TARGETS+=("$1")
                 shift 1
             else
                 echo "Unknown option: $1"
@@ -199,5 +210,4 @@ while [[ $# -gt 0 ]]; do
 done
 
 # --- 执行 ---
-# 将搜索目标作为第三个参数传递
-execute_search "$START_TIME" "$END_TIME" "$SEARCH_TARGET"
+execute_search "$START_TIME" "$END_TIME"
