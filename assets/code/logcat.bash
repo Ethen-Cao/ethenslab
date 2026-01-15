@@ -36,7 +36,7 @@ function show_usage() {
 function execute_search() {
     local s_time="$1"
     local e_time="$2"
-    # 注意: 搜索目标现在使用全局数组 SEARCH_TARGETS，不再通过参数传递单个路径
+    # 注意: 搜索目标现在使用全局数组 SEARCH_TARGETS
     local use_time_filter=1
 
     # 如果没有指定时间，则关闭时间过滤
@@ -143,8 +143,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p) # Process ID (支持多个)
             shift
-            # 临时变量存储 PID 列表
-            local _pids=""
+            # 修正点：移除了 local 关键字
+            _pids=""
             while [[ $# -gt 0 && "$1" != -* ]]; do
                 if [[ -z "$_pids" ]]; then _pids="$1"; else _pids="${_pids}|$1"; fi
                 shift
