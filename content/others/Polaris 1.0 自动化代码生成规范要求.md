@@ -1,3 +1,9 @@
++++
+date = '2025-12-24T17:17:50+08:00'
+draft = true
+title = 'Polaris 1.0 自动化代码生成规范要求'
++++
+
 # Polaris 1.0 自动化代码生成规范要求
 
 **Polaris Code Generation Specification**

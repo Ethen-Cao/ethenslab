@@ -1,3 +1,9 @@
++++
+date = '2025-12-24T17:17:50+08:00'
+draft = true
+title = 'Polaris 1.0 全局事件 ID 与注册表规范'
++++
+
 # Polaris 1.0 全局事件 ID 与注册表规范
 
 **Global Event ID & Registry Specification**

@@ -3182,68 +3182,7 @@ note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
 &lt;/li&gt;
 &lt;/ol&gt;
 &lt;h3 id="第二阶段路由至沙盒服务-routing-to-sandboxed-service"&gt;第二阶段：路由至沙盒服务 (Routing to Sandboxed Service)&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;VoiceInteractionManagerService&lt;/code&gt; 接收到硬件事件后，不会直接发给 Google App，而是先路由给运行在隔离进程中的 &lt;code&gt;HotwordDetectionService&lt;/code&gt; 进行校验。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/llm/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/llm/</guid><description>&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
-!theme plain
-skinparam componentStyle rectangle
-skinparam shadowing false
-skinparam packageStyle rectangle
-skinparam nodesep 60
-skinparam ranksep 60
-top to bottom direction
-title On-device LLM on Android (KV Cache Architecture)
-package &amp;#34;Application (Android)&amp;#34; {
-[App / UI\n(Voice, Chat, Agent)]
-[Prompt Builder]
-[Stream UI / TTS]
-[App / UI\n(Voice, Chat, Agent)] --&amp;gt; [Prompt Builder]
-[Stream UI / TTS] --&amp;gt; [App / UI\n(Voice, Chat, Agent)]
-}
-package &amp;#34;LLM Service Layer\n(Android Service or in-app)&amp;#34; {
-[Session Manager]
-[Tokenizer]
-[Inference Orchestrator\n(Prefill / Decode)]
-[Sampler &amp;amp; Constraints]
-[KV Cache Manager]
-[Prompt Builder] --&amp;gt; [Tokenizer]
-[Tokenizer] --&amp;gt; [Inference Orchestrator\n(Prefill / Decode)]
-[Session Manager] --&amp;gt; [Inference Orchestrator\n(Prefill / Decode)]
-[Inference Orchestrator\n(Prefill / Decode)] --&amp;gt; [Sampler &amp;amp; Constraints]
-}
-package &amp;#34;Model Runtime (Native)&amp;#34; {
-[LLM Runtime]
-}
-package &amp;#34;Hardware / OS Resource&amp;#34; {
-[Memory\n(DRAM / Native Heap)]
-[Accelerator\n(NPU / DSP / GPU / CPU)]
-}
-&amp;#39; Layer-to-layer flow
-[Inference Orchestrator\n(Prefill / Decode)] --&amp;gt; [LLM Runtime]
-[LLM Runtime] --&amp;gt; [Memory\n(DRAM / Native Heap)]
-[LLM Runtime] --&amp;gt; [Accelerator\n(NPU / DSP / GPU / CPU)]
-[Sampler &amp;amp; Constraints] --&amp;gt; [Tokenizer]
-[Tokenizer] --&amp;gt; [Stream UI / TTS]
-note right of [KV Cache Manager]
-KV Cache:
-- owned by Service Layer
-- per session
-- per layer/head
-- grows with context length
-Policies:
-- max context
-- sliding window
-- eviction
-end note
-note bottom of [Inference Orchestrator\n(Prefill / Decode)]
-Prefill:
-- consume prompt tokens
-- build KV Cache
-Decode:
-- read KV Cache
-- generate next token
-- append KV
-end note
-@enduml
-&lt;/code&gt;&lt;/pre&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/qnn-achitecture/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/qnn-achitecture/</guid><description>&lt;h1 id="deep-dive-into-qualcomm-qnn-htp-architecture-fastrpc-and-the-side-load-mechanism"&gt;Deep Dive into Qualcomm QNN HTP: Architecture, FastRPC, and the Side-load Mechanism&lt;/h1&gt;
+&lt;p&gt;&lt;code&gt;VoiceInteractionManagerService&lt;/code&gt; 接收到硬件事件后，不会直接发给 Google App，而是先路由给运行在隔离进程中的 &lt;code&gt;HotwordDetectionService&lt;/code&gt; 进行校验。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/explore-ai/qnn-achitecture/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/qnn-achitecture/</guid><description>&lt;h1 id="deep-dive-into-qualcomm-qnn-htp-architecture-fastrpc-and-the-side-load-mechanism"&gt;Deep Dive into Qualcomm QNN HTP: Architecture, FastRPC, and the Side-load Mechanism&lt;/h1&gt;
 &lt;h2 id="libadsprpcso"&gt;libadsprpc.so&lt;/h2&gt;
 &lt;h2 id="open_device_node"&gt;open_device_node&lt;/h2&gt;
 &lt;h3 id="函数概览"&gt;函数概览&lt;/h3&gt;
@@ -3277,7 +3216,46 @@ end note
 &lt;li&gt;这是最古老且最通用的节点。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h4 id="阶段二直接尝试-the-direct-open-loop"&gt;&lt;strong&gt;阶段二：直接尝试 (The Direct Open Loop)&lt;/strong&gt;&lt;/h4&gt;
-&lt;p&gt;代码尝试通过 Linux 标准系统调用 &lt;code&gt;open()&lt;/code&gt; 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/hdr/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/hdr/</guid><description>&lt;h1 id="智能座舱大屏-hdr-体验与影响调研报告"&gt;智能座舱大屏 HDR 体验与影响调研报告&lt;/h1&gt;
+&lt;p&gt;代码尝试通过 Linux 标准系统调用 &lt;code&gt;open()&lt;/code&gt; 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/mcu/s32kxx-ota/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/mcu/s32kxx-ota/</guid><description>&lt;h1 id="s32k324-mcu-ota-ab-swap-机制系统设计文档system-design-specification"&gt;S32K324 MCU OTA A/B Swap 机制系统设计文档（System Design Specification）&lt;/h1&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;适用对象&lt;/strong&gt;：NXP S32K324（S32K3 系列）
+&lt;strong&gt;升级链路假设&lt;/strong&gt;：SoC 通过 &lt;strong&gt;SPI&lt;/strong&gt; 向 MCU 下发升级镜像；MCU 将新镜像写入 &lt;strong&gt;Passive（B）&lt;/strong&gt; 区域；通过 &lt;strong&gt;HSE A/B Swap&lt;/strong&gt; 在复位后完成映射切换并启动新镜像。
+&lt;strong&gt;已知约束&lt;/strong&gt;：Bootloader &lt;strong&gt;不在 swap 区域内&lt;/strong&gt;；B 区物理地址范围与链接地址 &lt;strong&gt;TBD&lt;/strong&gt;。
+&lt;strong&gt;术语说明&lt;/strong&gt;：本文“分区 A/B”指 &lt;strong&gt;Flash 双镜像（Active/Passive block remapping）&lt;/strong&gt;，非 Linux 分区表概念。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;hr&gt;
+&lt;h2 id="0-文档控制"&gt;0. 文档控制&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;文档编号：SDS-S32K324-OTA-ABSWAP-001&lt;/li&gt;
+&lt;li&gt;版本：v0.9（Draft）&lt;/li&gt;
+&lt;li&gt;状态：Draft&lt;/li&gt;
+&lt;li&gt;作者：TBD&lt;/li&gt;
+&lt;li&gt;评审人：TBD&lt;/li&gt;
+&lt;li&gt;生效日期：TBD&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="变更记录"&gt;变更记录&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;版本&lt;/th&gt;
+&lt;th&gt;日期&lt;/th&gt;
+&lt;th&gt;变更说明&lt;/th&gt;
+&lt;th&gt;作者&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;v0.9&lt;/td&gt;
+&lt;td&gt;TBD&lt;/td&gt;
+&lt;td&gt;初版：定义 OTA、A/B swap、回滚策略与排障流程&lt;/td&gt;
+&lt;td&gt;TBD&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;hr&gt;
+&lt;h2 id="1-引言"&gt;1. 引言&lt;/h2&gt;
+&lt;h3 id="11-目的"&gt;1.1 目的&lt;/h3&gt;
+&lt;p&gt;定义 S32K324 上 &lt;strong&gt;OTA + A/B Swap&lt;/strong&gt; 的端到端机制：镜像传输、写入、校验、切换、试运行确认、回滚触发条件与实现要点，并提供“切 B 成功但不启动”的应对流程。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/hdr/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/hdr/</guid><description>&lt;h1 id="智能座舱大屏-hdr-体验与影响调研报告"&gt;智能座舱大屏 HDR 体验与影响调研报告&lt;/h1&gt;
 &lt;p&gt;&lt;strong&gt;系统环境：&lt;/strong&gt; Android 16 (Automotive OS)
 &lt;strong&gt;核心议题：&lt;/strong&gt; 开启/关闭 HDR 对用户体验的全方位影响&lt;/p&gt;
 &lt;h2 id="1-核心结论摘要"&gt;1. 核心结论摘要&lt;/h2&gt;
@@ -3335,137 +3313,4 @@ end note
 &lt;/ul&gt;
 &lt;hr&gt;
 &lt;h2 id="3-android-16-的技术特性与系统影响"&gt;3. Android 16 的技术特性与系统影响&lt;/h2&gt;
-&lt;p&gt;在 Android 16 中，Google 对 HDR 的处理逻辑进行了显著优化，主要体现在&lt;strong&gt;混合内容管理&lt;/strong&gt;上。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/polaris-1.0-%E5%85%A8%E5%B1%80%E4%BA%8B%E4%BB%B6-id-%E4%B8%8E%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%A7%84%E8%8C%83/</guid><description>&lt;h1 id="polaris-10-全局事件-id-与注册表规范"&gt;Polaris 1.0 全局事件 ID 与注册表规范&lt;/h1&gt;
-&lt;p&gt;&lt;strong&gt;Global Event ID &amp;amp; Registry Specification&lt;/strong&gt;&lt;/p&gt;
-&lt;h2 id="版本历史"&gt;版本历史&lt;/h2&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;文档版本&lt;/th&gt;
-&lt;th&gt;修改日期&lt;/th&gt;
-&lt;th&gt;修改人&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;V1.0&lt;/td&gt;
-&lt;td&gt;2025-12-XX&lt;/td&gt;
-&lt;td&gt;[xxx名字]&lt;/td&gt;
-&lt;td&gt;初始发布&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id="概述"&gt;概述&lt;/h2&gt;
-&lt;p&gt;为了支撑 Polaris 1.0 实现“端云一体”的性能与稳定性监控，解决跨 SoC（Android/Linux）与 MCU 的异构数据治理难题，并适配车云 SDK 的接口限制，本项目采用 &lt;strong&gt;“注册制 + 扁平化 ID”&lt;/strong&gt; 的管理模式。&lt;/p&gt;
-&lt;p&gt;&lt;strong&gt;核心原则：&lt;/strong&gt;&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;&lt;strong&gt;ID 去语义化&lt;/strong&gt;：EventID 仅作为唯一索引（Key），不再承载复杂的业务含义。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;定义元数据化&lt;/strong&gt;：所有的业务属性（模块、等级、日志策略）统一在《全局注册表》中维护。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;文档即代码&lt;/strong&gt;：注册表是唯一可信来源，模版代码以及常量由注册表自动生成。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h2 id="事件-id-编码规范"&gt;事件 ID 编码规范&lt;/h2&gt;
-&lt;p&gt;Polaris 事件 ID 采用 &lt;strong&gt;10 位纯数字&lt;/strong&gt; 格式，分为三个物理段。&lt;/p&gt;
-&lt;h3 id="id-结构公式"&gt;ID 结构公式&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;[Prefix (3位)]&lt;/code&gt; + &lt;code&gt;[Scope (1位)]&lt;/code&gt; + &lt;code&gt;[Sequence (6位)]&lt;/code&gt;&lt;/p&gt;
-&lt;h3 id="字段定义"&gt;字段定义&lt;/h3&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;字段&lt;/th&gt;
-&lt;th&gt;位数&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;th&gt;取值定义&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;Prefix&lt;/td&gt;
-&lt;td&gt;3&lt;/td&gt;
-&lt;td&gt;物理系统归属 (硬性约束）&lt;/td&gt;
-&lt;td&gt;666: Android 系统; 668: Linux Host 系统; 685: MCU 子系统&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Scope&lt;/td&gt;
-&lt;td&gt;1&lt;/td&gt;
-&lt;td&gt;管理域 (ID 分配权隔离）&lt;/td&gt;
-&lt;td&gt;0: 平台/系统维护; 1: 业务/应用维护&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Sequence&lt;/td&gt;
-&lt;td&gt;6&lt;/td&gt;
-&lt;td&gt;流水号 (全局唯一）&lt;/td&gt;
-&lt;td&gt;000001 ~ 999999 按申请顺序递增，不分类，不回退。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id="全局事件注册表模版"&gt;全局事件注册表模版&lt;/h2&gt;
-&lt;p&gt;本注册表建议使用 &lt;strong&gt;Git 托管的 CSV 文件&lt;/strong&gt; 或 &lt;strong&gt;在线协作表格&lt;/strong&gt; 维护。它是生成 SDK 代码的唯一依据。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/polaris-1.0-%E8%87%AA%E5%8A%A8%E5%8C%96%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90%E8%A7%84%E8%8C%83%E8%A6%81%E6%B1%82/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/polaris-1.0-%E8%87%AA%E5%8A%A8%E5%8C%96%E4%BB%A3%E7%A0%81%E7%94%9F%E6%88%90%E8%A7%84%E8%8C%83%E8%A6%81%E6%B1%82/</guid><description>&lt;h1 id="polaris-10-自动化代码生成规范要求"&gt;Polaris 1.0 自动化代码生成规范要求&lt;/h1&gt;
-&lt;p&gt;&lt;strong&gt;Polaris Code Generation Specification&lt;/strong&gt;&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;版本&lt;/th&gt;
-&lt;th&gt;日期&lt;/th&gt;
-&lt;th&gt;作者&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;v1.0&lt;/td&gt;
-&lt;td&gt;2025-12-XX&lt;/td&gt;
-&lt;td&gt;Polaris Team&lt;/td&gt;
-&lt;td&gt;初始版本&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;hr&gt;
-&lt;h2 id="1-目标与原则goals--principles"&gt;1. 目标与原则（Goals &amp;amp; Principles）&lt;/h2&gt;
-&lt;h3 id="11-目标"&gt;1.1 目标&lt;/h3&gt;
-&lt;p&gt;自动化代码生成（Codegen）用于将 &lt;strong&gt;全局事件注册表&lt;/strong&gt; 转换为：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;强类型、可编译校验的 SDK 代码&lt;/li&gt;
-&lt;li&gt;跨语言一致（Java / C++）&lt;/li&gt;
-&lt;li&gt;可被 IDE 精准提示&lt;/li&gt;
-&lt;li&gt;在大规模事件数量下依然可维护&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id="12-核心设计原则强制"&gt;1.2 核心设计原则（强制）&lt;/h3&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;原则&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;类型安全优先&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;任何参数错误必须在&lt;strong&gt;编译期或构造期&lt;/strong&gt;暴露&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;去中心化&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;禁止生成集中式 God Class（如 Reporter 聚合类）&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;一事件一类型&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;每个 Event 必须生成独立的 Context 类&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;构造即合法&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;构造函数必须保证必填字段完整;可选字段提供setter方法&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;生成代码可删可裁剪&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;未使用事件允许被 R8 / Linker 移除&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;Core 稳定，Generated 易变&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;Core SDK 不因新增事件而变化&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;hr&gt;
-&lt;h2 id="2-输入源规范source-of-truth"&gt;2. 输入源规范（Source of Truth）&lt;/h2&gt;
-&lt;h3 id="21-唯一输入源"&gt;2.1 唯一输入源&lt;/h3&gt;
-&lt;p&gt;自动化生成的&lt;strong&gt;唯一可信输入源&lt;/strong&gt;为：&lt;/p&gt;</description></item></channel></rss>
+&lt;p&gt;在 Android 16 中，Google 对 HDR 的处理逻辑进行了显著优化，主要体现在&lt;strong&gt;混合内容管理&lt;/strong&gt;上。&lt;/p&gt;</description></item></channel></rss>
