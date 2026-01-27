@@ -1,232 +1,69 @@
 @startuml
 !theme plain
+autonumber "<b>[00]</b>"
 hide footbox
-skinparam linetype ortho
-skinparam sequenceMessageAlign center
-autonumber
 
-' ==========================================
-' 参与者定义
-' ==========================================
+participant "Reset / Boot ROM" as ROM
+participant "HSE (Secure Boot)" as HSE
+database   "Secure NVM\n(SMR Table / CR Table / Keys)" as NVM
+participant "CPU Subsystem\n(App Core)" as CPU
+participant "Recovery App\n(Alt Boot Image)" as REC
+participant "HSE Service API\n(ActivatePassiveBlock)" as SRV
+participant "MCU Reset Gen\n(MC_RGM / Functional Reset)" as RST
+participant "Old Application\n(Restored Active @0x0040_0000)" as OLD
 
-box "Scheduling & Logic" #f9f9f9
-    participant "MessageQueue\n(VSYNC)" as MQ
-    participant "SurfaceFlinger" as SF
-    participant "Scheduler" as Scheduler
-    participant "Layer" as Layer
-end box
+note over HSE,NVM
+Pre-condition:
+- System uses SMR-based secure boot + CR table.
+- CR entry links SMR sets via preBootSmrMap / altPreBootSmrMap.
+- pAltReset MUST lie within an SMR listed in altPreBootSmrMap.
+- Sanction policy is defined by CR.crSanction.
+end note
 
-box "Composition Engine Core" #d1c4e9
-    participant "CompositionEngine" as CE
-    participant "Output\n(Display)" as Output
-    participant "LayerFE\n(Snapshot)" as LayerFE
-    participant "OutputLayer" as OutLayer
-    participant "RenderSurface" as RS
-end box
+== Boot / Secure Boot Pre-boot Phase ==
+ROM -> HSE: System reset -> HSE starts secure boot flow
+HSE -> NVM: Load SMR table / CR table / keys
+HSE -> CPU: Keep CPU in reset (pre-boot verify)
 
-box "Render Hardware" #e8f5e9
-    participant "RenderEngine\n(GPU)" as RE
-    participant "FramebufferSurface" as FBS
-end box
-
-box "Hardware Composer" #fff3e0
-    participant "HWComposer\n(HAL)" as HWC
-end box
-
-' ==========================================
-' Phase 1: 调度与锁定 (Heartbeat & Latch)
-' ==========================================
-== Phase 1: VSYNC Trigger & Data Latching ==
-
-MQ ->> SF: onMessageInvalidate() \n(VSYNC Arrives)
-activate SF
-
-SF ->> SF: handleMessageTransaction()\n处理 Layer 属性变化
-SF ->> SF: handleMessageInvalidate()
-
-loop 遍历所有 Layer
-    SF ->> Layer: latchBuffer()
-    activate Layer
-    note right of Layer: 锁定当前帧的 Buffer\n更新 mBufferInfo
-    
-    Layer ->> LayerFE: updateSnapshot()
-    activate LayerFE
-    note right of LayerFE: 固化 Buffer 句柄\n隔离主线程
-    deactivate LayerFE
-    deactivate Layer
+== Primary (Active) Pre-boot Verification ==
+HSE -> HSE: Verify SMRs in preBootSmrMap\n(for Active image at logical 0x0040_0000)
+alt Primary verification SUCCESS
+  HSE -> CPU: Release CPU to pPassReset (normal boot)
+  note right: (Not this scenario)
+else Primary verification FAIL (e.g., app auth fails)
+  HSE -> HSE: Enter altPreBoot verification path
 end
 
-' ==========================================
-' Phase 2: SurfaceFlinger Composite Entry
-' ==========================================
-== Phase 2: SurfaceFlinger::composite ==
-
-SF ->> SF: composite(pacesetterId, frameTargeters)
-activate SF
-
-SF ->> SF: moveSnapshotsToCompositionArgs()
-note right of SF: 将 LayerFE 快照移动到\nCompositionRefreshArgs
-
-loop 遍历 refreshArgs.layers
-    SF ->> Layer: onPreComposition(refreshStartTime)
-    note right of Layer: 更新可信呈现状态\n(TrustedPresentation)
+== Alternate Pre-boot Verification (Recovery App) ==
+HSE -> HSE: Verify SMRs in altPreBootSmrMap\n(Recovery App region)
+alt Alt verification SUCCESS
+  HSE -> CPU: Release CPU to pAltReset\n(VTOR/reset vector = pAltReset)
+  CPU -> REC: Start executing Recovery App
+else Alt verification FAIL
+  HSE -> HSE: Apply CR.crSanction\n(KEEP_CORE_IN_RESET / RESET_SOC / DIS_KEYS ...)
+  HSE -> RST: (If sanction==RESET_SOC)\nIssue Functional Reset
+  note over HSE: End / stay in reset / recovery mode path (per policy)
+  stop
 end
 
-' ==========================================
-' Phase 3: CompositionEngine Present Flow
-' ==========================================
-== Phase 3: CompositionEngine::present ==
+== Recovery App Executes Rollback ==
+REC -> SRV: Call HSE_SRV_ID_ACTIVATE_PASSIVE_BLOCK\n(request rollback to previous image)
+SRV -> HSE: Send service request via MU (host->HSE)
+HSE --> SRV: Response OK / FAIL
 
-SF ->> CE: present(CompositionRefreshArgs)
-activate CE
-
-CE ->> CE: preComposition()
-loop 遍历所有 LayerFE
-    CE ->> LayerFE: onPreComposition()
-    note right of LayerFE: 检查是否有 Pending 更新
+alt ActivatePassiveBlock OK
+  REC -> RST: Trigger System Reset\n(Functional reset)
+  note over RST,HSE: After reset, Passive becomes Active\nand maps back to logical low address space.
+else ActivatePassiveBlock FAIL
+  REC -> REC: Enter safe halt / log / retry policy (TBD)
+  note right: For safety, do NOT jump to unverified code
+  stop
 end
 
-' --- 3.1 Prepare 阶段 (对应代码: output->prepare) ---
-group Step: Prepare (Strategy & Validation)
-    loop 遍历所有 Output (args.outputs)
-        CE ->> Output: prepare(args, latchedLayers)
-        activate Output
-        
-        Output ->> Output: collectVisibleLayers()
-        Output ->> Output: ensureOutputLayerIfVisible()
-        
-        Output ->> OutLayer: updateCompositionState()
-        activate OutLayer
-        OutLayer ->> LayerFE: getCompositionState()
-        LayerFE -->> OutLayer: Snapshot (Geometry, Buffer)
-        deactivate OutLayer
-
-        ' 策略协商核心 (HWC Validate)
-        Output ->> Output: prepareFrame()
-        Output ->> HWC: validateDisplay()
-        note right of HWC:HWC 检查图层属性,返回无法处理的 Layer
-
-        HWC -->> Output: ChangedCompositionTypes (Fallback to GPU)
-
-        Output ->> OutLayer: applyCompositionType()
-        note right of OutLayer:标记 Layer 为<color:red><b>DEVICE (HWC)</b></color> 或 <color:blue><b>CLIENT (GPU)</b></color>
-        
-        deactivate Output
-    end
-end
-
-CE ->> CE: offloadOutputs()
-
-' --- 3.2 Present 阶段 (对应代码: output->present) ---
-group Step: Present (Execution & Submission)
-    loop 遍历所有 Output (args.outputs)
-        CE ->> Output: present(args)
-        activate Output
-        note right of Output: 返回 Future<monostate>
-
-        Output ->> Output: planComposition()
-        
-        ' --- 3.2.1 HWC 状态设置 (writeCompositionState) ---
-        group Device Composition (Overlay Setup)
-            Output ->> Output: writeCompositionState()
-            activate Output
-            loop 遍历 DEVICE OutputLayer
-                Output ->> OutLayer: writeStateToHWC()
-                OutLayer -[#red]>> HWC : setLayerBuffer(Slot, Handle, Fence) 
-                note right of HWC: 将 Overlay 图层给 HWC
-            end
-            deactivate Output
-        end
-
-        ' --- 3.2.2 GPU 合成 (finishFrame) ---
-        Output ->> Output: finishFrame()
-        activate Output
-
-        alt Strategy Prediction Failed or Buffer needed
-            Output ->> RS: dequeueRenderBuffer()
-            activate RS
-            RS -->> Output: Buffer & Fence
-            deactivate RS
-
-            Output ->> Output: composeSurfaces() (开始 GPU 绘图)
-            activate Output
-
-            group Client Composition (GPU Rendering)
-                Output ->> Output: generateClientCompositionRequests()
-                
-                loop 遍历 CLIENT OutputLayer
-                    Output ->> LayerFE: prepareClientComposition()
-                    LayerFE -->> Output: LayerSettings
-                end
-
-                alt hasClientComposition
-                    Output ->> RE: drawLayers(LayerSettings[], TargetBuffer)
-                    activate RE
-                    RE -->> Output: Fence
-                    deactivate RE
-                end
-            end
-            deactivate Output
-
-            Output ->> RS: queueBuffer(TargetBuffer)
-            activate RS
-            RS ->> FBS: advanceFrame()
-            activate FBS
-            FBS -[#red]>> HWC: setClientTarget(TargetBuffer)
-            note right of HWC: 将 GPU 结果给 HWC
-            deactivate FBS
-            deactivate RS
-        end
-        deactivate Output
-        
-        ' --- 3.2.3 最终提交 (presentFrameAndReleaseLayers) ---
-        Output ->> Output: presentFrameAndReleaseLayers()
-        activate Output
-        Output ->> HWC: presentDisplay()
-        activate HWC
-        HWC -->> Output: PresentFence
-        deactivate HWC
-        deactivate Output
-        
-        Output -->> CE: return ftl::Future
-        deactivate Output
-    end
-end
-
-' --- 3.3 等待与收尾 ---
-group Step: Wait & Post
-    loop 遍历 presentFutures
-        CE ->> CE: future.get()
-        note right of CE: 等待所有屏幕 HWC 提交完成
-    end
-
-    CE ->> CE: postComposition()
-end
-
-CE -->> SF: return
-deactivate CE
-
-' ==========================================
-' Phase 4: 后处理 (Post-Composition)
-' ==========================================
-== Phase 4: Post Composition (Stats & Input) ==
-
-SF ->> SF: moveSnapshotsFromCompositionArgs()
-note right of SF: 释放快照所有权
-
-SF ->> Scheduler: onCompositionPresented(presentTime)
-activate Scheduler
-note right of Scheduler: 更新 VSYNC 模型\n计算下一帧时间
-deactivate Scheduler
-
-SF ->> SF: onCompositionPresented()
-note right of SF: 更新 Fence\n触发 Layer 回调
-
-SF ->> SF: updateInputFlinger()
-note right of SF: 发送窗口信息给 Input
-
-SF ->> SF: mTimeStats->recordFrameDuration()
-
-deactivate SF
+== Post-reset Boot (Old image restored as Active) ==
+RST -> ROM: Reset sequence
+ROM -> HSE: HSE boot again (normal boot flow)
+HSE -> CPU: Verify new Active (previous-old) image
+HSE -> OLD: Release CPU -> Old Application runs\nat logical base 0x0040_0000
 
 @enduml
