@@ -103,8 +103,6 @@ deactivate LC
 
 ```
 
----test
-
 ## 2. 核心组件架构详解
 
 整个 Rawdump 机制跨越了 Bootloader、Host OS (QNX)、Guest OS (Android) 和 硬件层。
