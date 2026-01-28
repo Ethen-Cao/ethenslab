@@ -103,19 +103,19 @@ deactivate LC
 
 ```
 
----
+---test
 
 ## 2. 核心组件架构详解
 
 整个 Rawdump 机制跨越了 Bootloader、Host OS (QNX)、Guest OS (Android) 和 硬件层。
 
-| 组件名称 | 运行环境 | 核心源码证据 | 职责与作用 |
+| 组件名称 | 运行环境 | 核心源码 | 职责与作用 |
 | --- | --- | --- | --- |
 | **SMEM (Shared Memory)** | Hardware | `smem_type.h` | **数据中心**<br>存储 ID 为 `602` 的 Global TOC。它是所有子系统注册内存区域（Region）的共享账本，XBL 和 log_collector 都依据此表工作。 |
 | **`memorydump`** | QNX Host | `ss_minidump_main.c` | **Host 侧登记处**<br>负责维护 Host 侧的 SMEM 表，提供接口供 QNX 驱动注册内存。同时负责向硬件寄存器写入 Magic Cookie (`MINI_RAWDUMP`)。 |
 | **`vdev-msm`** | QNX Host | `vdev-msm.c` | **Guest 吹哨人**<br>监听 Android 虚拟机的看门狗状态。当 Guest Panic 时，它负责触发在线采集流程 (`DCMD_COLLECT_GUEST_MINIDUMP`)。 |
 | **`log_collector`** | QNX Host | `log_collect_resmgr.c` | **搬运工**<br>1. **在线模式**：响应 `vdev-msm` 请求，通过 `mmap` 读取 Guest 内存并存为文件。<br>2. **离线模式**：系统重启后，检查 Rawdump 分区头，提取 XBL 写入的数据。 |
-| **XBL Firmware** | Bootloader | `XBLRamDump.txt` | **离线执行者**<br>仅在**全系统重启**（System Crash）时工作。它无视文件系统，直接将物理内存“裸写”到 Rawdump 分区。 |
+| **XBL Firmware** | Bootloader | `XBLRamDump` | **离线执行者**<br>仅在**全系统重启**（System Crash）时工作。它无视文件系统，直接将物理内存“裸写”到 Rawdump 分区。 |
 
 ---
 

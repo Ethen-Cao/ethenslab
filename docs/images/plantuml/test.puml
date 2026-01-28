@@ -1,69 +1,92 @@
 @startuml
 !theme plain
-autonumber "<b>[00]</b>"
-hide footbox
+skinparam responseMessageBelowArrow true
+skinparam pageSize A4
+skinparam pageOrientation landscape
+skinparam dpi 150
+scale 1200 width
 
-participant "Reset / Boot ROM" as ROM
-participant "HSE (Secure Boot)" as HSE
-database   "Secure NVM\n(SMR Table / CR Table / Keys)" as NVM
-participant "CPU Subsystem\n(App Core)" as CPU
-participant "Recovery App\n(Alt Boot Image)" as REC
-participant "HSE Service API\n(ActivatePassiveBlock)" as SRV
-participant "MCU Reset Gen\n(MC_RGM / Functional Reset)" as RST
-participant "Old Application\n(Restored Active @0x0040_0000)" as OLD
+participant "User / Script" as User
+participant "memorydump\n(QNX Daemon)" as MD
+participant "Guest Kernel\n(Android)" as Guest
+participant "vdev-msm\n(QNX Driver)" as VDEV
+participant "SMEM\n(Shared Memory)" as SMEM
+participant "Hardware Register\n(Boot MISC / IMEM)" as HW
+participant "Firmware\n(XBL / PBL)" as FW
+participant "Rawdump Partition\n(Storage)" as Disk
+participant "log_collector\n(QNX Daemon)" as LC
 
-note over HSE,NVM
-Pre-condition:
-- System uses SMR-based secure boot + CR table.
-- CR entry links SMR sets via preBootSmrMap / altPreBootSmrMap.
-- pAltReset MUST lie within an SMR listed in altPreBootSmrMap.
-- Sanction policy is defined by CR.crSanction.
-end note
+== Phase 1: 系统启动与注册 (Registration) ==
+activate MD
+User -> MD: 启动服务
+MD -> SMEM: 初始化 Global TOC (ID 602)
+activate SMEM
+deactivate MD
 
-== Boot / Secure Boot Pre-boot Phase ==
-ROM -> HSE: System reset -> HSE starts secure boot flow
-HSE -> NVM: Load SMR table / CR table / keys
-HSE -> CPU: Keep CPU in reset (pre-boot verify)
-
-== Primary (Active) Pre-boot Verification ==
-HSE -> HSE: Verify SMRs in preBootSmrMap\n(for Active image at logical 0x0040_0000)
-alt Primary verification SUCCESS
-  HSE -> CPU: Release CPU to pPassReset (normal boot)
-  note right: (Not this scenario)
-else Primary verification FAIL (e.g., app auth fails)
-  HSE -> HSE: Enter altPreBoot verification path
+group Guest 注册 (Android Boot)
+    Guest -> Guest: qcom_minidump_init()
+    Guest -> SMEM: 注册 Region (dmesg, stack, etc.)
+    Guest -> SMEM: 代理注册 ADSP/CDSP Regions
 end
 
-== Alternate Pre-boot Verification (Recovery App) ==
-HSE -> HSE: Verify SMRs in altPreBootSmrMap\n(Recovery App region)
-alt Alt verification SUCCESS
-  HSE -> CPU: Release CPU to pAltReset\n(VTOR/reset vector = pAltReset)
-  CPU -> REC: Start executing Recovery App
-else Alt verification FAIL
-  HSE -> HSE: Apply CR.crSanction\n(KEEP_CORE_IN_RESET / RESET_SOC / DIS_KEYS ...)
-  HSE -> RST: (If sanction==RESET_SOC)\nIssue Functional Reset
-  note over HSE: End / stay in reset / recovery mode path (per policy)
-  stop
+group Host 注册 (QNX Boot)
+    User -> MD: 驱动调用 md_ss_register_region()
+    MD -> SMEM: 注册 QNX Regions (Audio Heap, etc.)
 end
 
-== Recovery App Executes Rollback ==
-REC -> SRV: Call HSE_SRV_ID_ACTIVATE_PASSIVE_BLOCK\n(request rollback to previous image)
-SRV -> HSE: Send service request via MU (host->HSE)
-HSE --> SRV: Response OK / FAIL
+== Phase 2: 模式配置 (Configuration) ==
+User -> MD: echo "mini_rawdump" > /dev/pdbg/.../dload_mode
+activate MD
+MD -> HW: set_wdog_dload_cookie(MINI_RAWDUMP)
+note right: 在硬件寄存器中插旗，\n告知固件崩溃后执行 Rawdump
+deactivate MD
 
-alt ActivatePassiveBlock OK
-  REC -> RST: Trigger System Reset\n(Functional reset)
-  note over RST,HSE: After reset, Passive becomes Active\nand maps back to logical low address space.
-else ActivatePassiveBlock FAIL
-  REC -> REC: Enter safe halt / log / retry policy (TBD)
-  note right: For safety, do NOT jump to unverified code
-  stop
+== Scene A: 在线采集流程 (Online Guest Dump) ==
+note over Guest, LC: 场景：仅 Guest VM 崩溃，Host 正常运行
+Guest -> Guest: Kernel Panic / Watchdog
+Guest -> VDEV: 通知 Host (Hypercall / Signal)
+activate VDEV
+VDEV -> LC: devctl(DCMD_COLLECT_GUEST_MINIDUMP)
+activate LC
+LC -> SMEM: 读取 Guest Subsystem TOC
+LC -> LC: mmap(MAP_PHYS) 映射 Guest 物理内存
+LC -> LC: 生成 .bin 文件 (含 Header + Sections)
+LC -> Disk: 写入 /var/log/guest_dump.bin (或其他文件路径)
+note right of Disk: **OTA 分区安全** (未被覆盖)
+LC --> VDEV: 返回成功
+deactivate LC
+deactivate VDEV
+
+== Scene B: 全系统崩溃流程 (System Crash / Rawdump) ==
+note over User, Disk: 场景：Host 崩溃或 Watchdog 触发全系统重启
+User -> User: System Crash / Watchdog Bite
+User -> FW: CPU Reset & Jump to XBL
+activate FW
+
+FW -> HW: 读取 Boot Cookie
+alt Cookie == MINI_RAWDUMP
+    FW -> SMEM: 读取 Global TOC & Region List
+    loop 遍历所有注册的 Region
+        FW -> Disk: 裸写物理内存数据到 Rawdump 分区
+        note right of Disk: **OTA 数据被销毁**
+    end
 end
 
-== Post-reset Boot (Old image restored as Active) ==
-RST -> ROM: Reset sequence
-ROM -> HSE: HSE boot again (normal boot flow)
-HSE -> CPU: Verify new Active (previous-old) image
-HSE -> OLD: Release CPU -> Old Application runs\nat logical base 0x0040_0000
+FW -> FW: Cold Boot (Reboot OS)
+deactivate FW
+
+== Phase 3: 重启后提取 (Extraction) ==
+activate LC
+LC -> LC: 启动 (main)
+LC -> Disk: fopen("/dev/disk/rawdump")
+LC -> Disk: 读取 Header & 校验 Signature ("Raw_Dmp!")
+
+alt Header 有效 (Previous Crash Found)
+    LC -> Disk: 读取所有 Section 数据
+    LC -> LC: 写入 /var/log/sbldump.bin
+    LC -> Disk: fwrite(ZERO) 清空分区 Header
+    note right: 清除标志防止重复提取
+end
+deactivate LC
 
 @enduml
