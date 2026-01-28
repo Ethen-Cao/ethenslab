@@ -136,7 +136,88 @@ rectangle &amp;#34;Linux Kernel&amp;#34;
 &lt;p&gt;&lt;code&gt;repo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml&lt;/code&gt;&lt;/p&gt;
 &lt;p&gt;这行命令是使用 &lt;code&gt;repo&lt;/code&gt; 工具来初始化一个代码仓库的本地工作区。&lt;code&gt;repo&lt;/code&gt; 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。
 简单来说，这条命令的意思是：&lt;strong&gt;准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 &lt;code&gt;dev_rc16_3.1_20250730&lt;/code&gt;，同时使用 &lt;code&gt;qssi.xml&lt;/code&gt; 这个配置文件来决定具体下载哪些代码模块。&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;下面我们来逐段分解这个命令：&lt;/p&gt;</description></item><item><title>UML中package和component对比</title><link>https://ethen-cao.github.io/ethenslab/others/package-component-comparison/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/package-component-comparison/</guid><description>&lt;h2 id="一概念本质对比"&gt;一、概念本质对比&lt;/h2&gt;
+&lt;p&gt;下面我们来逐段分解这个命令：&lt;/p&gt;</description></item><item><title>QNX/Android Rawdump 机制完全原理解析</title><link>https://ethen-cao.github.io/ethenslab/others/log_collector/</link><pubDate>Thu, 28 Aug 2025 16:25:03 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/log_collector/</guid><description>&lt;p&gt;本文档基于系统源码（QNX/Android/Bootloader）及实际配置分析，详细阐述了智能座舱系统中的内存转储（Crash Dump）机制。&lt;/p&gt;
+&lt;h2 id="1-全系统生命周期与时序总览"&gt;1. 全系统生命周期与时序总览&lt;/h2&gt;
+&lt;p&gt;此图描述了从系统启动注册、模式配置，到发生崩溃（分两种场景），最后到重启提取的完整闭环流程。&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+skinparam responseMessageBelowArrow true
+participant &amp;#34;User / Script&amp;#34; as User
+participant &amp;#34;memorydump\n(QNX Daemon)&amp;#34; as MD
+participant &amp;#34;Guest Kernel\n(Android)&amp;#34; as Guest
+participant &amp;#34;vdev-msm\n(QNX Driver)&amp;#34; as VDEV
+participant &amp;#34;SMEM\n(Shared Memory)&amp;#34; as SMEM
+participant &amp;#34;Hardware Register\n(Boot MISC / IMEM)&amp;#34; as HW
+participant &amp;#34;Firmware\n(XBL / PBL)&amp;#34; as FW
+participant &amp;#34;Rawdump Partition\n(Storage)&amp;#34; as Disk
+participant &amp;#34;log_collector\n(QNX Daemon)&amp;#34; as LC
+== Phase 1: 系统启动与注册 (Registration) ==
+activate MD
+User -&amp;gt; MD: 启动服务
+MD -&amp;gt; SMEM: 初始化 Global TOC (ID 602)
+activate SMEM
+deactivate MD
+group Guest 注册 (Android Boot)
+Guest -&amp;gt; Guest: qcom_minidump_init()
+Guest -&amp;gt; SMEM: 注册 Region (dmesg, stack, etc.)
+Guest -&amp;gt; SMEM: 代理注册 ADSP/CDSP Regions
+end
+group Host 注册 (QNX Boot)
+User -&amp;gt; MD: 驱动调用 md_ss_register_region()
+MD -&amp;gt; SMEM: 注册 QNX Regions (Audio Heap, etc.)
+end
+== Phase 2: 模式配置 (Configuration) ==
+User -&amp;gt; MD: echo &amp;#34;mini_rawdump&amp;#34; &amp;gt; /dev/pdbg/.../dload_mode
+activate MD
+MD -&amp;gt; HW: set_wdog_dload_cookie(MINI_RAWDUMP)
+note right: 在硬件寄存器中插旗，\n告知固件崩溃后执行 Rawdump
+deactivate MD
+== Scene A: 在线采集流程 (Online Guest Dump) ==
+note over Guest, LC: 场景：仅 Guest VM 崩溃，Host 正常运行
+Guest -&amp;gt; Guest: Kernel Panic / Watchdog
+Guest -&amp;gt; VDEV: 通知 Host (Hypercall / Signal)
+activate VDEV
+VDEV -&amp;gt; LC: devctl(DCMD_COLLECT_GUEST_MINIDUMP)
+activate LC
+LC -&amp;gt; SMEM: 读取 Guest Subsystem TOC
+LC -&amp;gt; LC: mmap(MAP_PHYS) 映射 Guest 物理内存
+LC -&amp;gt; LC: 生成 .bin 文件 (含 Header + Sections)
+LC -&amp;gt; Disk: 写入 /var/log/guest_dump.bin (或其他文件路径)
+note right of Disk: **OTA 分区安全** (未被覆盖)
+LC --&amp;gt; VDEV: 返回成功
+deactivate LC
+deactivate VDEV
+== Scene B: 全系统崩溃流程 (System Crash / Rawdump) ==
+note over User, Disk: 场景：Host 崩溃或 Watchdog 触发全系统重启
+User -&amp;gt; User: System Crash / Watchdog Bite
+User -&amp;gt; FW: CPU Reset &amp;amp; Jump to XBL
+activate FW
+FW -&amp;gt; HW: 读取 Boot Cookie
+alt Cookie == MINI_RAWDUMP
+FW -&amp;gt; SMEM: 读取 Global TOC &amp;amp; Region List
+loop 遍历所有注册的 Region
+FW -&amp;gt; Disk: 裸写物理内存数据到 Rawdump 分区
+note right of Disk: **OTA 数据被销毁**
+end
+end
+FW -&amp;gt; FW: Cold Boot (Reboot OS)
+deactivate FW
+== Phase 3: 重启后提取 (Extraction) ==
+activate LC
+LC -&amp;gt; LC: 启动 (main)
+LC -&amp;gt; Disk: fopen(&amp;#34;/dev/disk/rawdump&amp;#34;)
+LC -&amp;gt; Disk: 读取 Header &amp;amp; 校验 Signature (&amp;#34;Raw_Dmp!&amp;#34;)
+alt Header 有效 (Previous Crash Found)
+LC -&amp;gt; Disk: 读取所有 Section 数据
+LC -&amp;gt; LC: 写入 /var/log/sbldump.bin
+LC -&amp;gt; Disk: fwrite(ZERO) 清空分区 Header
+note right: 清除标志防止重复提取
+end
+deactivate LC
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
+&lt;h2 id="2-核心组件架构详解"&gt;2. 核心组件架构详解&lt;/h2&gt;
+&lt;p&gt;整个 Rawdump 机制跨越了 Bootloader、Host OS (QNX)、Guest OS (Android) 和 硬件层。&lt;/p&gt;</description></item><item><title>UML中package和component对比</title><link>https://ethen-cao.github.io/ethenslab/others/package-component-comparison/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/package-component-comparison/</guid><description>&lt;h2 id="一概念本质对比"&gt;一、概念本质对比&lt;/h2&gt;
 &lt;table&gt;
 &lt;thead&gt;
 &lt;tr&gt;
