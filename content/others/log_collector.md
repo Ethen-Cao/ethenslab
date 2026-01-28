@@ -157,3 +157,155 @@ deactivate LC
 2. **检测**：`dd` 读取分区头，检查是否存在 `Raw_Dmp!`。
 3. **避让**：如果发现签名，脚本会循环等待（Time-wait），给 QNX `log_collector` 提取数据留出时间。
 4. **格式化**：提取完成或等待超时后，强制格式化分区，恢复 OTA 功能。
+
+
+## 6. DEBUG
+
+手动触发 Ramdump 主要分为两种场景：**触发 Guest（Android）崩溃** 和 **触发全系统（System）崩溃**。
+
+这两种方式会分别走不同的数据采集路径，你可以根据测试目的选择。
+
+### 方法一：触发 Android Guest 崩溃 (在线采集)
+
+**目的**：测试 `vdev-msm` -> `log_collector` -> `mmap` 的路径。
+**结果**：QNX 不重启，仅 Android 重启。生成的 Dump 文件通常位于 QNX 文件系统中（不破坏 OTA 分区）。
+
+#### 1. 通过 Android Shell (最推荐)
+
+这是最标准的 Linux Kernel Panic 触发方式。
+
+1. 进入 Android Shell (ADB 或 串口)：
+```bash
+adb shell
+su
+
+```
+
+
+2. 开启 SysRq 功能 (如果未开启)：
+```bash
+echo 1 > /proc/sys/kernel/sysrq
+
+```
+
+
+3. **触发 Panic**：
+```bash
+echo c > /proc/sysrq-trigger
+
+```
+
+
+**现象**：
+
+* Android 界面卡死或立即黑屏。
+* QNX 串口会打印检测到 Guest 崩溃的日志 (`vdev-msm: Guest ... watchdog bite` 或类似)。
+* Android 随后会自动重启。
+
+#### 2. 通过 QNX Shell (如果 Android 已死锁)
+
+如果 Android 已经完全无响应（连 adb 都进不去），你可以在 QNX 侧强制杀掉 Android 虚拟机进程来模拟崩溃。
+
+1. 找到 Android 虚拟机进程 (通常叫 `qvm` 且参数包含 `la` 或 `android`)：
+```bash
+pidin ar | grep qvm
+
+```
+
+
+2. **发送信号触发异常**：
+* 注意：直接 `kill` 可能只会导致虚拟机退出而不产生 Dump。
+* 尝试发送 `SIGABRT` (Signal 6) 或 `SIGSEGV` (Signal 11)：
+
+
+```bash
+# 假设 PID 为 12345
+slay -s SIGABRT 12345
+
+```
+
+
+* *注意：这取决于 QNX `vdev` 驱动如何捕获信号，不如方法 1 可靠。*
+
+
+
+---
+
+### 方法二：触发全系统崩溃 (离线 Rawdump)
+
+**目的**：测试 XBL 固件 -> 覆盖 Rawdump (OTA) 分区 -> `init.mount_ota.sh` 恢复的路径。
+**警告**：**此操作会销毁 OTA 分区中的数据！**
+
+#### 1. 通过 QNX Shell 设置 DLOAD 模式
+
+我们需要手动设置 Magic Cookie，告诉固件“下次重启时抓 Dump”，然后强制重启。
+
+1. **设置 Cookie**：
+在 QNX 串口中执行：
+```bash
+# 写入 mini_rawdump 或 full_rawdump (取决于你们的策略配置)
+echo mini_rawdump > /dev/utils/dload_mode
+
+# 如果没有 /dev/utils/dload_mode，尝试 memorydump 的调试节点
+# (根据 memorydump 源码，可能有特定的 devctl 工具)
+
+```
+
+
+2. **强制重启**：
+```bash
+shutdown -S reboot
+
+```
+
+#### 2. 物理按键 (如果支持)
+
+很多开发板或量产车机支持组合键触发。
+
+* 通常是 **“音量下 + 电源键”** 长按 10秒以上。
+* 或者在开机状态下长按 **Reset** 键。
+* 这种硬件复位通常会被 PMIC 捕获，如果配置了 `PON_RESIN` 触发 Dload，也会进入 XBL Rawdump 流程。
+
+---
+
+### 如何验证触发成功？
+
+#### 验证场景 A (Android 崩溃)
+
+Android 重启后，去 QNX 的存储目录检查：
+
+```bash
+# 在 QNX Shell 中
+ls -l /var/log/  # 或者你们配置的 dump 路径
+
+```
+
+看是否有新生成的 `guest_dump.bin` 或类似文件。
+
+#### 验证场景 B (全系统崩溃)
+
+系统完全重启后，在 **Android 启动过程中**（此时 Android 还未挂载 OTA 分区），在串口观察日志：
+
+1. **QNX `log_collector` 日志**：
+应该看到类似 `Found Raw_Dmp! signature`, `Extracting dump...` 的打印。
+2. **Android `init.mount_ota.sh` 日志**：
+应该看到：
+```text
+ramdump exist
+normal mount, ramdump exist please wait...
+
+```
+
+
+或者如果 QNX 已经提走了：
+```text
+mke2fs -t ext4 ...
+mount ota 0
+
+```
+
+
+### 总结建议
+
+* **日常调试**：使用 **`echo c > /proc/sysrq-trigger`**。这是最安全、最快捷的方式，且不破坏 OTA 分区。
+* **验证 OTA 鲁棒性**：使用 **全系统崩溃** 方法，验证系统重启后 OTA 分区是否能被脚本正确格式化并恢复使用。
