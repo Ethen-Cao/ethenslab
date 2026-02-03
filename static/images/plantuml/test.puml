@@ -1,92 +1,58 @@
 @startuml
 !theme plain
-skinparam responseMessageBelowArrow true
-skinparam pageSize A4
-skinparam pageOrientation landscape
-skinparam dpi 150
-scale 1200 width
+skinparam backgroundColor white
+skinparam handwritten false
+skinparam DefaultFontName "Arial"
+skinparam DefaultFontSize 12
 
-participant "User / Script" as User
-participant "memorydump\n(QNX Daemon)" as MD
-participant "Guest Kernel\n(Android)" as Guest
-participant "vdev-msm\n(QNX Driver)" as VDEV
-participant "SMEM\n(Shared Memory)" as SMEM
-participant "Hardware Register\n(Boot MISC / IMEM)" as HW
-participant "Firmware\n(XBL / PBL)" as FW
-participant "Rawdump Partition\n(Storage)" as Disk
-participant "log_collector\n(QNX Daemon)" as LC
+title Android Perfetto 性能追踪系统架构 (Smart Cockpit Implementation)
 
-== Phase 1: 系统启动与注册 (Registration) ==
-activate MD
-User -> MD: 启动服务
-MD -> SMEM: 初始化 Global TOC (ID 602)
-activate SMEM
-deactivate MD
+package "User Space (App/Service Layer)" as UserSpace {
+    [perfetto CLI] as CLI <<Consumer>>
+    [Traceur / System Tracing] as Traceur <<Consumer>>
+}
 
-group Guest 注册 (Android Boot)
-    Guest -> Guest: qcom_minidump_init()
-    Guest -> SMEM: 注册 Region (dmesg, stack, etc.)
-    Guest -> SMEM: 代理注册 ADSP/CDSP Regions
-end
+package "System Services (Producers)" as SystemServices {
+    [InputFlinger] as Input <<Producer>>
+    [SurfaceFlinger] as SF <<Producer>>
+    [System Server] as SS <<Producer>>
+}
 
-group Host 注册 (QNX Boot)
-    User -> MD: 驱动调用 md_ss_register_region()
-    MD -> SMEM: 注册 QNX Regions (Audio Heap, etc.)
-end
+package "Perfetto Core (The Brain)" as PerfettoCore {
+    component "traced (Daemon)" as Traced {
+        [Service_Impl] as Srv
+        [Shared Memory Pool] as SHM
+        [Buffer Manager] as BufMgr
+    }
+    
+    component "traced_probes" as Probes {
+        [Ftrace Probe]
+        [Sys_Stats Probe]
+    }
+}
 
-== Phase 2: 模式配置 (Configuration) ==
-User -> MD: echo "mini_rawdump" > /dev/pdbg/.../dload_mode
-activate MD
-MD -> HW: set_wdog_dload_cookie(MINI_RAWDUMP)
-note right: 在硬件寄存器中插旗，\n告知固件崩溃后执行 Rawdump
-deactivate MD
+package "Kernel Space" as KernelSpace {
+    [Ftrace / Debugfs] as Ftrace
+    [Kernel Sched/Binder] as KEvent
+}
 
-== Scene A: 在线采集流程 (Online Guest Dump) ==
-note over Guest, LC: 场景：仅 Guest VM 崩溃，Host 正常运行
-Guest -> Guest: Kernel Panic / Watchdog
-Guest -> VDEV: 通知 Host (Hypercall / Signal)
-activate VDEV
-VDEV -> LC: devctl(DCMD_COLLECT_GUEST_MINIDUMP)
-activate LC
-LC -> SMEM: 读取 Guest Subsystem TOC
-LC -> LC: mmap(MAP_PHYS) 映射 Guest 物理内存
-LC -> LC: 生成 .bin 文件 (含 Header + Sections)
-LC -> Disk: 写入 /var/log/guest_dump.bin (或其他文件路径)
-note right of Disk: **OTA 分区安全** (未被覆盖)
-LC --> VDEV: 返回成功
-deactivate LC
-deactivate VDEV
+' 交互连接
+CLI -down-> Srv : 1. 发送 .pbtxt 配置 (via Socket)
+Srv -right-> SHM : 2. 分配共享内存页
+Srv <-up-> Input : 3. IPC (通知开始录制)
+Input --> SHM : 4. 零拷贝写入数据 (Trace Events)
 
-== Scene B: 全系统崩溃流程 (System Crash / Rawdump) ==
-note over User, Disk: 场景：Host 崩溃或 Watchdog 触发全系统重启
-User -> User: System Crash / Watchdog Bite
-User -> FW: CPU Reset & Jump to XBL
-activate FW
+Probes -up-> Srv : 5. 汇聚内核数据
+Probes -down-> Ftrace : 监听内核事件
 
-FW -> HW: 读取 Boot Cookie
-alt Cookie == MINI_RAWDUMP
-    FW -> SMEM: 读取 Global TOC & Region List
-    loop 遍历所有注册的 Region
-        FW -> Disk: 裸写物理内存数据到 Rawdump 分区
-        note right of Disk: **OTA 数据被销毁**
-    end
-end
+Ftrace <-down-> KEvent : 捕获调度/Binder信息
 
-FW -> FW: Cold Boot (Reboot OS)
-deactivate FW
+Srv -left-> BufMgr : 6. 维护 Ring Buffer
+BufMgr .up.> CLI : 7. 触发落盘 (Result .perfetto-trace)
 
-== Phase 3: 重启后提取 (Extraction) ==
-activate LC
-LC -> LC: 启动 (main)
-LC -> Disk: fopen("/dev/disk/rawdump")
-LC -> Disk: 读取 Header & 校验 Signature ("Raw_Dmp!")
-
-alt Header 有效 (Previous Crash Found)
-    LC -> Disk: 读取所有 Section 数据
-    LC -> LC: 写入 /var/log/sbldump.bin
-    LC -> Disk: fwrite(ZERO) 清空分区 Header
-    note right: 清除标志防止重复提取
-end
-deactivate LC
+' note right of SHM
+'   座舱架构中，零拷贝是
+'   保证低 CPU 开销的核心
+' end note
 
 @enduml

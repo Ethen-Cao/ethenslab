@@ -1156,22 +1156,33 @@ note right of Main: 服务就绪，等待 SurfaceFlinger 连接
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;用户空间日志打印点 (IPCThreadState.cpp)&lt;/strong&gt;
-在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;</description></item><item><title>repo基础知识</title><link>https://ethen-cao.github.io/ethenslab/others/repo-%E5%9F%BA%E7%A1%80/</link><pubDate>Sat, 27 Sep 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/repo-%E5%9F%BA%E7%A1%80/</guid><description>&lt;h2 id="基础概念"&gt;基础概念&lt;/h2&gt;
+在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;</description></item><item><title>多仓库代码树管理</title><link>https://ethen-cao.github.io/ethenslab/others/repo-%E5%9F%BA%E7%A1%80/</link><pubDate>Sat, 27 Sep 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/repo-%E5%9F%BA%E7%A1%80/</guid><description>&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;适用场景&lt;/strong&gt;：高通平台 / Android（QSSI / QSSI+Vendor）这类由 &lt;strong&gt;上百/上千 Git 仓库&lt;/strong&gt; 组成的工程；公司内网采用 &lt;strong&gt;“一棵树”式命名空间&lt;/strong&gt; 托管仓库；开发日常通过 &lt;code&gt;repo init&lt;/code&gt; / &lt;code&gt;repo sync&lt;/code&gt; 拉取与更新代码，通过 &lt;strong&gt;Gerrit&lt;/strong&gt; 走评审与提交。&lt;/p&gt;
+&lt;p&gt;本文目标：&lt;strong&gt;从概念到落地&lt;/strong&gt;，把“多仓库代码树是如何被管理、如何被拉取、如何被评审与集成”的链路讲清楚，并用 PlantUML 图解关键过程。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;hr&gt;
+&lt;h2 id="目录"&gt;目录&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;基础概念速览（Git / Gerrit / Manifest / repo）&lt;/li&gt;
+&lt;li&gt;为什么需要 repo（多仓库工程的现实）&lt;/li&gt;
+&lt;li&gt;“一棵树”式内网 Git 托管模型（命名空间 vs 物理路径）&lt;/li&gt;
+&lt;li&gt;Manifest：工程蓝图（remote / fetch base / project / revision）&lt;/li&gt;
+&lt;li&gt;repo：多仓库批量驱动器（init / sync 的真实行为）&lt;/li&gt;
+&lt;li&gt;Gerrit：评审闸口与权限中心（Change-Id / refs/for / submit）&lt;/li&gt;
+&lt;li&gt;实操链路：取码 → 开发 → 评审 → 集成&lt;/li&gt;
+&lt;li&gt;常用命令工具箱（建议收藏）&lt;/li&gt;
+&lt;li&gt;Troubleshooting：常见问题与定位路径&lt;/li&gt;
+&lt;li&gt;团队工程化建议：可控、可追溯、可复现&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h2 id="1-基础概念速览你到底在用什么"&gt;1. 基础概念速览：你到底在用什么&lt;/h2&gt;
 &lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;Manifest：在 AOSP 或使用 repo 工具管理的多仓库项目中，Manifest 是一个 XML 文件（通常名为 manifest.xml），由 repo 工具使用，定义了项目的多个 Git 仓库的地址、分支、版本（commit 或 tag）等信息。它就像一个“蓝图”，告诉 repo 需要从哪些仓库拉取哪些代码。开发者运行 repo sync 时，repo 工具会读取 Manifest 文件（通常从 &lt;strong&gt;Manifest 仓库&lt;/strong&gt;获取），根据其中的配置（如仓库 URL、分支、版本）决定需要拉取哪些 Git 仓库的代码。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;Gerrit：Gerrit 是一个代码审核服务器，通常作为 Git 仓库的代理层（proxy）。它不仅托管代码仓库，还提供代码审核功能（如 Code Review、Verified 分数）。在实际操作中，开发者的 repo sync 请求会通过 Gerrit 获取代码，而不是直接访问原始 Git 仓库。&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;repo命令的含义：&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;code&gt;repo init -u ssh://h-caoquanli@10.82.64.202:8787/8397/DLS-Qualcomm-U/manifest -b dev_rc16_3.1_20250730 -m qssi.xml&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;这行命令是使用 &lt;code&gt;repo&lt;/code&gt; 工具来初始化一个代码仓库的本地工作区。&lt;code&gt;repo&lt;/code&gt; 是一个基于 Git 的仓库管理工具，通常用于管理包含多个 Git 仓库的大型项目，最典型的就是 Android 开源项目 (AOSP)。
-简单来说，这条命令的意思是：&lt;strong&gt;准备从一个内部服务器上，下载一个名为 “DLS-Qualcomm-U” 的高通平台项目，并指定其版本为 &lt;code&gt;dev_rc16_3.1_20250730&lt;/code&gt;，同时使用 &lt;code&gt;qssi.xml&lt;/code&gt; 这个配置文件来决定具体下载哪些代码模块。&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;下面我们来逐段分解这个命令：&lt;/p&gt;</description></item><item><title>build.py 技术原理详解</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid><description>&lt;h2 id="buildpy-技术原理详解"&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
+&lt;li&gt;&lt;strong&gt;Git&lt;/strong&gt;：单仓库的分布式版本管理工具（commit / branch / tag / fetch / merge）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Gerrit&lt;/strong&gt;：代码评审 + 权限控制 + 提交闸口；在多数企业内网中同时承担&lt;strong&gt;权威入口&lt;/strong&gt;（你日常 fetch/push 的就是它）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Manifest（清单）&lt;/strong&gt;：一个 XML（或一组 XML），描述“这个工程由哪些 Git 仓库组成、每个仓库取哪个版本、放到本地哪个路径”。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;repo&lt;/strong&gt;：面向 AOSP 生态的多仓库管理器；它读取 manifest，批量执行 &lt;code&gt;git fetch&lt;/code&gt; / &lt;code&gt;git checkout&lt;/code&gt;，并提供跨仓库的批量操作。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;一句话总结&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>build.py 技术原理详解</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid><description>&lt;h2 id="buildpy-技术原理详解"&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
 &lt;h3 id="核心定位声明式构建的执行引擎"&gt;核心定位：声明式构建的执行引擎&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 脚本是高通平台 Meta-Build 系统的核心&lt;strong&gt;自动化执行引擎&lt;/strong&gt;。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的&lt;strong&gt;任务调度器和执行器&lt;/strong&gt;。&lt;/p&gt;
 &lt;p&gt;它的核心设计哲学是&lt;strong&gt;声明式驱动&lt;/strong&gt;：开发者在 &lt;code&gt;contents.xml&lt;/code&gt; 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 &lt;code&gt;build.py&lt;/code&gt; 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。&lt;/p&gt;
@@ -3353,5 +3364,4 @@ note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
 &lt;li&gt;这是最古老且最通用的节点。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h4 id="阶段二直接尝试-the-direct-open-loop"&gt;&lt;strong&gt;阶段二：直接尝试 (The Direct Open Loop)&lt;/strong&gt;&lt;/h4&gt;
-&lt;p&gt;代码尝试通过 Linux 标准系统调用 &lt;code&gt;open()&lt;/code&gt; 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/%E4%B8%B4%E6%97%B6%E6%96%87%E4%BB%B6/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/%E4%B8%B4%E6%97%B6%E6%96%87%E4%BB%B6/</guid><description>&lt;h1 id="智能座舱操作系统国产化预研工作汇报"&gt;智能座舱操作系统国产化预研工作汇报&lt;/h1&gt;
-&lt;h2&gt;&lt;/h2&gt;</description></item></channel></rss>
+&lt;p&gt;代码尝试通过 Linux 标准系统调用 &lt;code&gt;open()&lt;/code&gt; 直接打开上述路径。这是**“乐观策略”**，假设当前进程有权限访问。&lt;/p&gt;</description></item></channel></rss>
