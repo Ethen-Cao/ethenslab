@@ -21,46 +21,94 @@ title = 'Android Perfetto "飞行记录仪" (Flight Recorder) 实施方案'
 ### 工作流程图
 
 ```plantuml
-
 @startuml
 !theme plain
-autonumber
+autonumber "<b>[00]"
 skinparam defaultFontName Arial
+skinparam ParticipantPadding 10
+skinparam BoxPadding 10
 
-title Perfetto 循环录制与触发流程
+title Android Perfetto 飞行记录仪 (Flight Recorder) 精确时序图
 
-participant "Android Init" as Init
-participant "Service: polaris_logger" as Svc
-participant "Perfetto Process" as Perfetto
-participant "Disk Storage" as Disk
+box "Android System" #F5F5F5
+    participant "Init 进程" as Init
+    participant "Trigger 触发器\n(exec_background)" as TriggerProc
+end box
 
-note over Svc: 状态: Running
+box "Polaris Service" #E1F5FE
+    participant "Shell 脚本\n(polaris_runner.sh)" as Script
+    participant "Perfetto 进程\n(Daemon)" as Perfetto
+end box
 
-Init -> Svc: 启动服务 (polaris_runner.sh)
-Svc -> Perfetto: 启动 perfetto (阻塞模式)
+participant "Disk Storage\n(/data/misc/...)" as Disk
+
+== 阶段 1: 启动与循环录制 ==
+
+Init -> Script: <b>start polaris_logger</b>\n(Service Start)
+activate Script
+
+note right of Script: 脚本定义 TEMP_FILE\n(e.g., trace_buffer.tmp)
+
+Script -> Perfetto: <b>exec perfetto</b>\n-c config.pbtxt --txt -o TEMP_FILE
 activate Perfetto
-Perfetto -> Perfetto: **内存循环录制 (Ring Buffer)**
-note right of Perfetto: 仅在 RAM 中覆写数据\n不写入磁盘
 
-... 系统运行中 (等待事件) ...
+note left of Perfetto #FFF9C4
+    <b>阻塞模式</b>
+    脚本在此暂停执行
+    等待 Perfetto 退出
+end note
 
-group 触发阶段
--> Init: setprop sys.polaris.dump 1
-Init -> Perfetto: 发送 Trigger 信号
-Perfetto -> Disk: **将 Buffer 数据写入文件**
-Perfetto -> Perfetto: 停止录制 & 退出 (Exit 0)
+Perfetto -> Perfetto: <b>Ring Buffer 录制</b>\n(仅在 RAM 中循环覆盖)
+
+... 系统正常运行 (无 IO 操作) ...
+
+== 阶段 2: 事件触发与落盘 ==
+
+[-> Init: <b>setprop sys.polaris.dump 1</b>\n(外部事件触发)
+
+Init -> TriggerProc: 监听属性 -> 启动命令\nperfetto --trigger polaris_event
+activate TriggerProc
+
+TriggerProc -> Perfetto: <b>IPC: 发送 Trigger 信号</b>
+deactivate TriggerProc
+
+note right of Perfetto #FFCCBC
+    <b>收到 Trigger!</b>
+    开始 Drain Buffer
+end note
+
+Perfetto -> Disk: <b>写入临时文件</b>\n(trace_buffer.tmp)
+Perfetto -> Perfetto: 写入完成，清理资源
+Perfetto --> Script: <b>进程退出 (Exit 0)</b>
 deactivate Perfetto
-end
 
-Svc -> Init: 脚本执行结束 (Service Stopped)
+== 阶段 3: 重命名与归档 ==
 
-group 自动复位
-Init -> Init: 检测到服务非正常停止(非oneshot)
-Init -> Svc: **重启服务 (Restart)**
-Svc -> Perfetto: 再次启动 perfetto
+note right of Script
+    <b>脚本恢复执行</b>
+    (子进程已结束)
+end note
+
+Script -> Script: 获取当前时间戳\n(TIMESTAMP = date)
+Script -> Disk: <b>mv trace_buffer.tmp -> crash_dump_$TIMESTAMP.trace</b>
+note right of Disk: 文件名时间 = 落盘时间\n便于事后排查
+
+Script --> Init: 脚本执行完毕 (Service Stopped)
+deactivate Script
+
+== 阶段 4: 自动复位 (Loop) ==
+
+Init -> Init: 检测服务退出
+note left of Init
+    非 oneshot 服务
+    等待 restart_period
+end note
+
+Init -> Script: <b>重启服务 (Restart)</b>
+activate Script
+Script -> Perfetto: <b>再次启动 Perfetto</b>
 activate Perfetto
-note right of Perfetto: 开始新一轮循环录制
-end
+note right of Perfetto: 开始新一轮\n黑匣子录制
 
 @enduml
 

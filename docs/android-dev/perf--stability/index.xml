@@ -139,38 +139,70 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;h2 id="2-核心架构与流程"&gt;2. 核心架构与流程&lt;/h2&gt;
 &lt;p&gt;本方案利用 Android &lt;code&gt;init&lt;/code&gt; 进程的服务管理机制来实现“自动复位”，利用 Perfetto 的 &lt;code&gt;trigger&lt;/code&gt; 机制来实现“按需落盘”。&lt;/p&gt;
 &lt;h3 id="工作流程图"&gt;工作流程图&lt;/h3&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;
-@startuml
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
-autonumber
+autonumber &amp;#34;&amp;lt;b&amp;gt;[00]&amp;#34;
 skinparam defaultFontName Arial
-title Perfetto 循环录制与触发流程
-participant &amp;#34;Android Init&amp;#34; as Init
-participant &amp;#34;Service: polaris_logger&amp;#34; as Svc
-participant &amp;#34;Perfetto Process&amp;#34; as Perfetto
-participant &amp;#34;Disk Storage&amp;#34; as Disk
-note over Svc: 状态: Running
-Init -&amp;gt; Svc: 启动服务 (polaris_runner.sh)
-Svc -&amp;gt; Perfetto: 启动 perfetto (阻塞模式)
+skinparam ParticipantPadding 10
+skinparam BoxPadding 10
+title Android Perfetto 飞行记录仪 (Flight Recorder) 精确时序图
+box &amp;#34;Android System&amp;#34; #F5F5F5
+participant &amp;#34;Init 进程&amp;#34; as Init
+participant &amp;#34;Trigger 触发器\n(exec_background)&amp;#34; as TriggerProc
+end box
+box &amp;#34;Polaris Service&amp;#34; #E1F5FE
+participant &amp;#34;Shell 脚本\n(polaris_runner.sh)&amp;#34; as Script
+participant &amp;#34;Perfetto 进程\n(Daemon)&amp;#34; as Perfetto
+end box
+participant &amp;#34;Disk Storage\n(/data/misc/...)&amp;#34; as Disk
+== 阶段 1: 启动与循环录制 ==
+Init -&amp;gt; Script: &amp;lt;b&amp;gt;start polaris_logger&amp;lt;/b&amp;gt;\n(Service Start)
+activate Script
+note right of Script: 脚本定义 TEMP_FILE\n(e.g., trace_buffer.tmp)
+Script -&amp;gt; Perfetto: &amp;lt;b&amp;gt;exec perfetto&amp;lt;/b&amp;gt;\n-c config.pbtxt --txt -o TEMP_FILE
 activate Perfetto
-Perfetto -&amp;gt; Perfetto: **内存循环录制 (Ring Buffer)**
-note right of Perfetto: 仅在 RAM 中覆写数据\n不写入磁盘
-... 系统运行中 (等待事件) ...
-group 触发阶段
--&amp;gt; Init: setprop sys.polaris.dump 1
-Init -&amp;gt; Perfetto: 发送 Trigger 信号
-Perfetto -&amp;gt; Disk: **将 Buffer 数据写入文件**
-Perfetto -&amp;gt; Perfetto: 停止录制 &amp;amp; 退出 (Exit 0)
+note left of Perfetto #FFF9C4
+&amp;lt;b&amp;gt;阻塞模式&amp;lt;/b&amp;gt;
+脚本在此暂停执行
+等待 Perfetto 退出
+end note
+Perfetto -&amp;gt; Perfetto: &amp;lt;b&amp;gt;Ring Buffer 录制&amp;lt;/b&amp;gt;\n(仅在 RAM 中循环覆盖)
+... 系统正常运行 (无 IO 操作) ...
+== 阶段 2: 事件触发与落盘 ==
+[-&amp;gt; Init: &amp;lt;b&amp;gt;setprop sys.polaris.dump 1&amp;lt;/b&amp;gt;\n(外部事件触发)
+Init -&amp;gt; TriggerProc: 监听属性 -&amp;gt; 启动命令\nperfetto --trigger polaris_event
+activate TriggerProc
+TriggerProc -&amp;gt; Perfetto: &amp;lt;b&amp;gt;IPC: 发送 Trigger 信号&amp;lt;/b&amp;gt;
+deactivate TriggerProc
+note right of Perfetto #FFCCBC
+&amp;lt;b&amp;gt;收到 Trigger!&amp;lt;/b&amp;gt;
+开始 Drain Buffer
+end note
+Perfetto -&amp;gt; Disk: &amp;lt;b&amp;gt;写入临时文件&amp;lt;/b&amp;gt;\n(trace_buffer.tmp)
+Perfetto -&amp;gt; Perfetto: 写入完成，清理资源
+Perfetto --&amp;gt; Script: &amp;lt;b&amp;gt;进程退出 (Exit 0)&amp;lt;/b&amp;gt;
 deactivate Perfetto
-end
-Svc -&amp;gt; Init: 脚本执行结束 (Service Stopped)
-group 自动复位
-Init -&amp;gt; Init: 检测到服务非正常停止(非oneshot)
-Init -&amp;gt; Svc: **重启服务 (Restart)**
-Svc -&amp;gt; Perfetto: 再次启动 perfetto
+== 阶段 3: 重命名与归档 ==
+note right of Script
+&amp;lt;b&amp;gt;脚本恢复执行&amp;lt;/b&amp;gt;
+(子进程已结束)
+end note
+Script -&amp;gt; Script: 获取当前时间戳\n(TIMESTAMP = date)
+Script -&amp;gt; Disk: &amp;lt;b&amp;gt;mv trace_buffer.tmp -&amp;gt; crash_dump_$TIMESTAMP.trace&amp;lt;/b&amp;gt;
+note right of Disk: 文件名时间 = 落盘时间\n便于事后排查
+Script --&amp;gt; Init: 脚本执行完毕 (Service Stopped)
+deactivate Script
+== 阶段 4: 自动复位 (Loop) ==
+Init -&amp;gt; Init: 检测服务退出
+note left of Init
+非 oneshot 服务
+等待 restart_period
+end note
+Init -&amp;gt; Script: &amp;lt;b&amp;gt;重启服务 (Restart)&amp;lt;/b&amp;gt;
+activate Script
+Script -&amp;gt; Perfetto: &amp;lt;b&amp;gt;再次启动 Perfetto&amp;lt;/b&amp;gt;
 activate Perfetto
-note right of Perfetto: 开始新一轮循环录制
-end
+note right of Perfetto: 开始新一轮\n黑匣子录制
 @enduml
 &lt;/code&gt;&lt;/pre&gt;&lt;h2 id="3-详细实施步骤"&gt;3. 详细实施步骤&lt;/h2&gt;
 &lt;h3 id="步骤-1perfetto-配置文件-pbtxt"&gt;步骤 1：Perfetto 配置文件 (&lt;code&gt;.pbtxt&lt;/code&gt;)&lt;/h3&gt;
