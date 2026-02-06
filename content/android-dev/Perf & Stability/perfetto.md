@@ -120,7 +120,6 @@ end
 此脚本负责为每次 Trace 生成独立的文件名，并阻塞执行。
 
 * **文件路径示例**：`/system/bin/polaris_runner.sh` (需 `chmod +x`)
-
     ```bash
     #!/system/bin/sh
 
