@@ -74,7 +74,6 @@ end
 此配置定义了“怎么录”。核心是使用 `RING_BUFFER` 模式和 `trigger_config`。
 
 * **文件路径示例**：`/data/local/tmp/polaris_ring.pbtxt`
-
     ```protobuf
     # 1. 缓冲区设置 (核心)
     # size_kb 决定了能回溯多久的时间。
@@ -166,7 +165,6 @@ end
 此配置负责服务的生命周期管理和信号监听。
 
 * **文件路径示例**：`/system/etc/init/polaris_monitor.rc`
-
     ```rc
     # 定义主服务
     service polaris_logger /system/bin/sh /system/bin/polaris_runner.sh
@@ -204,7 +202,7 @@ end
         setprop sys.polaris.dump 0
 
     ```
----
+
 
 ## 4. 验证与测试
 
@@ -228,7 +226,6 @@ end
    * 查看 `/data/misc/perfetto-traces/`，应该生成了一个新文件。
    * 再次执行 `ps -A | grep perfetto`，进程号（PID）应该变了（说明旧的退出了，新的自动启动了）。
 
----
 
 ## 5. 关键注意事项 (Caveats)
 
