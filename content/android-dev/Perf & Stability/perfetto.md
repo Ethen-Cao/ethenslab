@@ -123,31 +123,43 @@ end
 
 * **文件路径示例**：`/system/bin/polaris_runner.sh` (需 `chmod +x`)
 
-```bash
-#!/system/bin/sh
+    ```bash
+    #!/system/bin/sh
 
-# 定义输出目录
-OUT_DIR="/data/misc/perfetto-traces"
+    OUT_DIR="/data/misc/perfetto-traces"
+    # 定义一个临时文件路径（内存缓冲的暂存目标）
+    TEMP_FILE="${OUT_DIR}/trace_buffer_running.tmp"
 
-# 确保目录存在 (可选，建议在 rc 中创建)
-# mkdir -p $OUT_DIR
+    # 确保目录存在
+    if [ ! -d "$OUT_DIR" ]; then
+        mkdir -p "$OUT_DIR"
+    fi
 
-# 生成带时间戳的文件名
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-OUTPUT_FILE="${OUT_DIR}/crash_trace_${TIMESTAMP}.perfetto-trace"
+    # 启动 Perfetto (阻塞模式)
+    # 【修正点】：加上了 --txt 参数
+    /system/bin/perfetto \
+    -c /data/local/tmp/polaris_ring.pbtxt \
+    --txt \
+    -o "$TEMP_FILE"
 
-# 启动 Perfetto
-# 注意：
-# 1. 不使用 --background 或 --detach，脚本必须阻塞等待 perfetto 退出
-# 2. 当 trigger 发生并写入完成后，perfetto 会自动退出，脚本随之结束
-/system/bin/perfetto \
-  -c /data/local/tmp/polaris_ring.pbtxt \
-  -o "$OUTPUT_FILE"
+    # =======================================================
+    # 代码执行到这里，说明 Trigger 已经被触发，且文件写入完毕
+    # =======================================================
 
-# (可选) 打印日志到 logcat
-echo "Perfetto trace saved: $OUTPUT_FILE"
+    # 获取 Trigger 发生时的时间戳
+    TRIGGER_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    FINAL_FILE="${OUT_DIR}/crash_dump_${TRIGGER_TIMESTAMP}.perfetto-trace"
 
-```
+    # 重命名文件，固化证据
+    if [ -f "$TEMP_FILE" ]; then
+        mv "$TEMP_FILE" "$FINAL_FILE"
+        # 可选：打印日志到 logcat
+        echo "Polaris: Trace saved and renamed to $FINAL_FILE"
+    else
+        echo "Polaris: Error - Trace file not found."
+    fi
+
+    ```
 
 ### 步骤 3：Init 服务配置 (`.rc`)
 
