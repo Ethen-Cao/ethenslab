@@ -334,7 +334,6 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;li&gt;&lt;strong&gt;事件触发落盘&lt;/strong&gt;：当特定事件发生时（通过 Property 信号触发），立即停止录制并将内存中的数据写入磁盘文件。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;自动复位&lt;/strong&gt;：数据落盘完成后，自动重新开始新一轮的内存循环录制，等待下一次触发。&lt;/li&gt;
 &lt;/ol&gt;
-&lt;hr&gt;
 &lt;h2 id="2-核心架构与流程"&gt;2. 核心架构与流程&lt;/h2&gt;
 &lt;p&gt;本方案利用 Android &lt;code&gt;init&lt;/code&gt; 进程的服务管理机制来实现“自动复位”，利用 Perfetto 的 &lt;code&gt;trigger&lt;/code&gt; 机制来实现“按需落盘”。&lt;/p&gt;
 &lt;h3 id="工作流程图"&gt;工作流程图&lt;/h3&gt;
