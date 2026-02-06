@@ -1,6 +1,12 @@
-# polarisd 架构设计文档 (v0.1)
++++
+date = '2025-12-24T17:17:50+08:00'
+draft = true
+title = 'polarisd 架构设计文档'
++++
 
-**版本**: v0.1
+# polarisd 架构设计文档 (v0.2)
+
+**版本**: v0.2
 **日期**: 2026-02-05
 **状态**: **Draft**
 
@@ -188,6 +194,84 @@ SysMonitor --> Queue:push(ManagerEvent)
 | `Reserved` | 2 | 0 |
 | `ReqID` | 4 | 请求 ID |
 
+
+#### 4.1.1 核心字段与 Framing 策略
+
+* **TotalLen (包总长)**
+  * **语义**: 表示整个数据包的长度，计算公式为 `TotalLen = 12 (Header) + Payload Length`。
+  * **最小有效值**: 12 (即 Payload 为空的情况)。
+  * **最大限制**: 建议限制为 **4MB**。若收到 `TotalLen > 4MB` 的包，视为非法攻击或错误，应立即断开连接。
+
+* **Socket 类型对应的 Framing (分帧) 规则**:
+  * **SOCK_STREAM (TCP-like)**:
+  * **粘包/半包处理**: 接收端必须维护一个 RingBuffer。
+  * **读取步骤**:
+    1. 先尝试读取 12 字节 Header。
+    2. 解析 `TotalLen`。
+    3. 检查 Buffer 中剩余数据是否 >= `TotalLen - 12`。
+    4. 若满足，切分出一个完整包；若不满足，继续等待 Socket 数据。
+
+* **SOCK_SEQPACKET / SOCK_DGRAM**:
+  * 内核保证消息边界。`recv` 调用返回的数据即为一个完整包（或被截断）。
+  * **校验**: 接收端仍需校验 `read_count == TotalLen`，以确保数据未被内核截断。
+
+
+#### 4.1.2 JSON Payload Schema 定义
+
+所有 Payload 均为 UTF-8 编码的 JSON 字符串。
+
+**A. 事件上报 (`EVENT_REPORT` - 0x0001)**
+对应 `PolarisEvent` 数据结构。
+
+```json
+{
+  "eventId": 10001,
+  "timestamp": 1707123456789,
+  "pid": 520,
+  "processName": "audio_hal",
+  "processVer": "1.0.2",
+  "logf": "/data/local/tmp/audio_dump.pcm",  // 可选附件
+  "params": {                                // 业务参数
+    "latency": 40,
+    "buffer_underrun": true
+  }
+}
+
+```
+
+**B. 命令请求 (`CMD_REQ` - 0x0020)**
+对应 `CommandRequest` 数据结构。
+
+```json
+{
+  "reqId": 8801,
+  "target": "LOCAL",       // "LOCAL" | "HOST"
+  "action": "capture_trace",
+  "timeout": 5000,         // 超时 (ms)
+  "args": {                // 动作参数
+    "category": "sched",
+    "duration": 3000
+  }
+}
+
+```
+
+**C. 命令回执 (`CMD_RESP` - 0x0021)**
+对应 `CommandResult` 数据结构。
+
+```json
+{
+  "reqId": 8801,           // 必须与请求 ID 一致
+  "code": 0,               // 0: Success, !=0: Error Code
+  "msg": "Trace captured successfully",
+  "data": {                // 执行产物
+    "path": "/data/local/tmp/trace.perfetto",
+    "size": 204800
+  }
+}
+
+```
+
 ### 4.2 PLP v1 (Polaris Link Protocol)
 
 用于 Host 与 Guest 通信。支持全双工控制。
@@ -206,7 +290,51 @@ SysMonitor --> Queue:push(ManagerEvent)
 | `PLP_CMD_REQ_G2H` | 0x0020 | G->H | Android 请求 Host 执行 |
 | `PLP_CMD_RESP_G2H` | 0x0021 | G->H | Android 回复 Host 的请求 |
 
----
+
+#### 4.2.1 Binary Header 结构定义
+
+PLP 采用严格的二进制对齐结构（24 字节），并在 C++ 中使用 `packed` 属性定义。
+
+```cpp
+// 字节序: Little Endian
+struct PlpHeader {
+    uint32_t magic;        // 固定值 0x504C5253 ("PLRS")
+    uint16_t version;      // 协议版本，当前为 0x0001
+    uint16_t header_len;   // 固定值 24
+    uint32_t payload_len;  // 仅 Payload 的长度 (不含 Header)
+    uint16_t type;         // 消息类型 (PlpMsgType)
+    uint16_t flags;        // 标志位 (见下文)
+    uint32_t seq_id;       // 序列号
+    uint32_t crc32;        // Payload 的 CRC32 校验值
+} __attribute__((packed));
+
+```
+
+**关键字段语义**:
+
+* **Flags (位掩码)**:
+  * `Bit 0 (IS_JSON)`: 1 表示 Payload 是 JSON 字符串，0 表示是原始二进制（如 Protobuf 或纯文件流）。
+  * `Bit 1 (GZIP)`: 1 表示 Payload 经过 Gzip 压缩，接收端需先解压。
+  * `Bit 2~15`: 预留。
+
+* **SeqID**:
+  * 用于双向通信的请求-响应匹配。
+  * 发起方（Request）生成 SeqID，响应方（Response）必须回传相同的 SeqID。
+  * 对于主动上报的 Event，SeqID 可由发送方自增，用于接收方检测丢包。
+
+* **CRC32**:
+  * 算法: 标准 IEEE 802.3 CRC32。
+  * 范围: **仅计算 Payload 部分**。Header 本身不参与 CRC 计算（Header 依靠 Magic 校验）。
+
+#### 4.2.2 传输控制策略
+
+* **Max Payload (最大载荷)**:
+  * 设定阈值: **1MB** (基于 VSOCK 缓冲区效率考虑)。
+* **超限策略**:
+  * 若 Host 或 Guest 试图发送 > 1MB 的数据，**协议层应直接拒绝 (Drop)** 并记录错误日志。
+  * v1 版本**不支持**应用层分片（Fragmentation）。如需传输大文件（如 Logcat），应通过命令回传文件路径，而非直接在 Payload 中传输文件内容。
+* **超时机制**:
+  * 通信双方应实现应用层超时。建议默认超时时间 **3000ms**。若发出 Request 后超时未收到 Response，应向上层返回 `TIMEOUT` 错误，并清理 Pending 状态。
 
 ## 5. 关键业务流程
 
@@ -274,4 +402,69 @@ struct IResponder {
     virtual void sendResult(std::shared_ptr<CommandResult> result) = 0;
 };
 
+```
+
+## 部署
+
+目录结构
+```txt
+vendor/voyah/system/polaris/native/
+├── Android.bp                  # 构建脚本 (定义 polarisd binary 和静态库)
+├── polarisd.rc                 # Init 启动脚本
+├── README.md                   # 项目文档
+├── main.cpp                    # 程序入口：初始化 Manager，启动 Transport 线程
+│
+├── include/                    # 【公共契约层】 (对应文档 Sec 2 & 6)
+│   └── polarisd/               # 对内/对外暴露的数据结构
+│       ├── PolarisEvent.h          # [2.1] 标准事件数据契约
+│       ├── CommandRequest.h        # [2.2] 命令请求定义
+│       ├── CommandResult.h         # [2.3] 命令结果定义
+│       ├── PolarisManagerEvent.h   # [6.1] 内部总线对象 (ManagerEvent)
+│       └── IResponder.h            # [6.2] 响应接口 (用于 Context 透传)
+│
+├── src/
+│   ├── communication/          # 【Layer 1: Communication】 (对应文档 Sec 3.2)
+│   │   ├── AppTransport.h/cpp      # [AF_UNIX + SOCK_SEQPACKET] 监听 /dev/socket/polaris_bridge
+│   │   ├── NativeTransport.h/cpp   # [AF_UNIX + SOCK_SEQPACKET]  接收 /dev/socket/polaris_report
+│   │   ├── HostTransport.h/cpp     # [AF_VSOCK + SOCK_STREAM] 监听或连接 CID:Port
+│   │   └── Session.h/cpp           # 基础会话类 (处理 fd 生命周期)
+│   │
+│   ├── protocol/               # 【Layer 2: Protocol】 (对应文档 Sec 4)
+│   │   ├── LspCodec.h/cpp          # [4.1] LSP v1 编解码 (Framing + JSON)
+│   │   ├── PlpCodec.h/cpp          # [4.2] PLP v1 编解码 (Binary + CRC)
+│   │   ├── PacketTypes.h           # 定义 MsgType 常量 (0x0001, 0x0020...)
+│   │   └── utils/                  # 协议层工具
+│   │       ├── Crc32.h/cpp             # PLP 校验算法
+│   │       └── JsonUtils.h/cpp         # JSON 序列化/反序列化封装
+│   │
+│   ├── message/                # 【Layer 3: Message】 (对应文档 Sec 3.2)
+│   │   ├── AppMessageHandler.h/cpp     # 将 LSP 对象归一化为 ManagerEvent
+│   │   ├── NativeEventHandler.h/cpp    # 将 Report 归一化为 ManagerEvent
+│   │   └── HostMessageHandler.h/cpp    # 将 PLP 对象归一化为 ManagerEvent
+│   │
+│   ├── core/                   # 【Layer 4: Core】 (对应文档 Sec 3.2 & 5)
+│   │   ├── PolarisManager.h/cpp    # [单一大脑] 消费队列，执行策略，分发结果
+│   │   └── EventQueue.h/cpp        # [唯一入口] 线程安全的阻塞队列
+│   │
+│   ├── infrastructure/         # 【Layer 5: Infrastructure】 (对应文档 Sec 3.2 & 5.2)
+│   │   ├── CommandExecutor.h/cpp   # 异步执行器 (fork/exec)
+│   │   └── actions/                # 具体命令策略 (防止 Executor 过于臃肿)
+│   │       ├── BaseAction.h
+│   │       ├── LogcatAction.cpp    # 抓取 Logcat 具体实现
+│   │       └── ShellAction.cpp     # 通用 Shell 执行实现
+│   │
+│   ├── monitor/                # 【Layer 6: Monitor】 (对应架构图 3.1)
+│   │   └── SystemMonitor.h/cpp     # 监控 CPU/Mem 并生成 Event 入队
+│   │
+│   └── utils/                  # 通用工具类
+│       ├── Log.h/cpp               # 统一日志宏 (ALOGI/ALOGE)
+│       ├── ThreadUtil.h            # 线程命名、绑定核
+│       └── FileUtil.h              # 文件读写辅助
+│
+└── client/                     # (可选) Native Client SDK
+|    ├── Android.bp
+|    ├── include/polaris_client.h    # 提供给 Audio/Camera HAL 的接口
+|    └── polaris_client.cpp          # 封装 socket sendto 逻辑
+|
+└── test/  
 ```

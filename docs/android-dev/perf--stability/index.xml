@@ -128,7 +128,54 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>BinderCallsStatsService 技术详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/bindercallsstatsservice/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/bindercallsstatsservice/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Android Perfetto "飞行记录仪" (Flight Recorder) 实施方案</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perfetto/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/perfetto/</guid><description>&lt;h2 id="1-需求概述"&gt;1. 需求概述&lt;/h2&gt;
+&lt;p&gt;本方案旨在实现一套基于 Android Perfetto 的系统级自动追踪机制，模拟飞机的“黑匣子”功能：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;开机自启&lt;/strong&gt;：系统启动后，自动启动 Perfetto 追踪服务。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内存循环录制&lt;/strong&gt;：采用 Ring Buffer（环形缓冲区）模式在内存中循环录制，始终保留&lt;strong&gt;最近 15 秒&lt;/strong&gt;的数据，不占用磁盘 I/O。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;事件触发落盘&lt;/strong&gt;：当特定事件发生时（通过 Property 信号触发），立即停止录制并将内存中的数据写入磁盘文件。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;自动复位&lt;/strong&gt;：数据落盘完成后，自动重新开始新一轮的内存循环录制，等待下一次触发。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h2 id="2-核心架构与流程"&gt;2. 核心架构与流程&lt;/h2&gt;
+&lt;p&gt;本方案利用 Android &lt;code&gt;init&lt;/code&gt; 进程的服务管理机制来实现“自动复位”，利用 Perfetto 的 &lt;code&gt;trigger&lt;/code&gt; 机制来实现“按需落盘”。&lt;/p&gt;
+&lt;h3 id="工作流程图"&gt;工作流程图&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;
+@startuml
+!theme plain
+autonumber
+skinparam defaultFontName Arial
+title Perfetto 循环录制与触发流程
+participant &amp;#34;Android Init&amp;#34; as Init
+participant &amp;#34;Service: polaris_logger&amp;#34; as Svc
+participant &amp;#34;Perfetto Process&amp;#34; as Perfetto
+participant &amp;#34;Disk Storage&amp;#34; as Disk
+note over Svc: 状态: Running
+Init -&amp;gt; Svc: 启动服务 (polaris_runner.sh)
+Svc -&amp;gt; Perfetto: 启动 perfetto (阻塞模式)
+activate Perfetto
+Perfetto -&amp;gt; Perfetto: **内存循环录制 (Ring Buffer)**
+note right of Perfetto: 仅在 RAM 中覆写数据\n不写入磁盘
+... 系统运行中 (等待事件) ...
+group 触发阶段
+-&amp;gt; Init: setprop sys.polaris.dump 1
+Init -&amp;gt; Perfetto: 发送 Trigger 信号
+Perfetto -&amp;gt; Disk: **将 Buffer 数据写入文件**
+Perfetto -&amp;gt; Perfetto: 停止录制 &amp;amp; 退出 (Exit 0)
+deactivate Perfetto
+end
+Svc -&amp;gt; Init: 脚本执行结束 (Service Stopped)
+group 自动复位
+Init -&amp;gt; Init: 检测到服务非正常停止(非oneshot)
+Init -&amp;gt; Svc: **重启服务 (Restart)**
+Svc -&amp;gt; Perfetto: 再次启动 perfetto
+activate Perfetto
+note right of Perfetto: 开始新一轮循环录制
+end
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="3-详细实施步骤"&gt;3. 详细实施步骤&lt;/h2&gt;
+&lt;h3 id="步骤-1perfetto-配置文件-pbtxt"&gt;步骤 1：Perfetto 配置文件 (&lt;code&gt;.pbtxt&lt;/code&gt;)&lt;/h3&gt;
+&lt;p&gt;此配置定义了“怎么录”。核心是使用 &lt;code&gt;RING_BUFFER&lt;/code&gt; 模式和 &lt;code&gt;trigger_config&lt;/code&gt;。&lt;/p&gt;</description></item><item><title>BinderCallsStatsService 技术详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/bindercallsstatsservice/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf--stability/bindercallsstatsservice/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
 &lt;p&gt;&lt;code&gt;BinderCallsStatsService&lt;/code&gt; 是 Android System Server 进程中的一个系统服务，用于收集和统计发往 &lt;code&gt;system_server&lt;/code&gt; 的 Binder 调用信息。它是分析系统级卡顿、高 CPU 占用以及排查 ANR（Application Not Responding）问题的核心工具。&lt;/p&gt;
 &lt;p&gt;它能够回答以下关键问题：&lt;/p&gt;
 &lt;ul&gt;

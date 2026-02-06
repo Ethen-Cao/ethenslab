@@ -1,3 +1,9 @@
++++
+date = '2025-12-24T17:17:50+08:00'
+draft = true
+title = 'Polaris 通信协议规范 (LSP v1)'
++++
+
 # Polaris 通信协议规范 (LSP v1)
 
 ## 1. 物理层与连接
