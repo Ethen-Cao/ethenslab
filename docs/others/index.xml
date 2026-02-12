@@ -264,7 +264,278 @@ component WindowManager
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;[01] &lt;code&gt;repo sync&lt;/code&gt; 同步所有源码&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/polarisevent/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/polarisevent/</guid><description>&lt;p&gt;为了实现 &lt;strong&gt;全域统一 (Universal Consistency)&lt;/strong&gt;，我们需要定义一个 &lt;strong&gt;“标准数据契约 (Canonical Data Contract)”&lt;/strong&gt;。无论是在 Linux Kernel (Host)、Android Native (C++) 还是 Android Framework (Java)，大家都在操作同一个逻辑实体，只是在不同语言下的表现形式不同。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;[01] &lt;code&gt;repo sync&lt;/code&gt; 同步所有源码&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/linux_host_ipc/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/linux_host_ipc/</guid><description>&lt;h1 id="linux-host-ipc-模块技术需求说明书"&gt;Linux Host IPC 模块技术需求说明书&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;版本&lt;/strong&gt;: v1.1
+&lt;strong&gt;日期&lt;/strong&gt;: 2026-02-10
+&lt;strong&gt;模块&lt;/strong&gt;: &lt;code&gt;src/transport/ipc&lt;/code&gt;
+&lt;strong&gt;状态&lt;/strong&gt;: &lt;strong&gt;已冻结 (Ready for Coding)&lt;/strong&gt;&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="1-概述-overview"&gt;1. 概述 (Overview)&lt;/h2&gt;
+&lt;p&gt;IPC 模块是 &lt;code&gt;polarisd&lt;/code&gt; 与 Linux 本地业务进程（Client）之间的通信桥梁。它基于 &lt;strong&gt;Unix Domain Socket (SOCK_STREAM)&lt;/strong&gt;，采用 &lt;strong&gt;Epoll Reactor&lt;/strong&gt; 模型。
+v1.1 版本重点增强了 &lt;strong&gt;生产环境适应性&lt;/strong&gt;，包括标准路径规范、优雅退出机制、发送流控（Backpressure）以及基础的安全审计能力。&lt;/p&gt;
+&lt;h3 id="核心组件"&gt;核心组件&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;IpcServer&lt;/strong&gt;: 负责 Socket 生命周期、连接监听、事件分发 (&lt;code&gt;epoll_wait&lt;/code&gt;) 和 线程控制。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;ClientSession&lt;/strong&gt;: 负责单连接的数据缓冲、LSP 协议编解码、以及 &lt;code&gt;EAGAIN&lt;/code&gt; 状态下的发送队列管理。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h2 id="2-详细功能需求-functional-requirements"&gt;2. 详细功能需求 (Functional Requirements)&lt;/h2&gt;
+&lt;h3 id="21-传输层规范-transport-layer"&gt;2.1 传输层规范 (Transport Layer)&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Socket 类型&lt;/strong&gt;: &lt;code&gt;AF_UNIX&lt;/code&gt; (Local Socket) / &lt;code&gt;SOCK_STREAM&lt;/code&gt; (TCP-like)。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Socket 路径&lt;/strong&gt;: &lt;code&gt;/run/polaris/polaris_bridge.sock&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;em&gt;理由&lt;/em&gt;: 符合 Linux FHS 标准，&lt;code&gt;/run&lt;/code&gt; 为 tmpfs (内存文件系统)，重启自动清理，且比 &lt;code&gt;/tmp&lt;/code&gt; 更安全。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;权限策略&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/linux_host_libpolaris_client/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/linux_host_libpolaris_client/</guid><description>&lt;h2 id="libpolaris_client-设计"&gt;libpolaris_client 设计&lt;/h2&gt;
+&lt;h3 id="接口定义"&gt;接口定义&lt;/h3&gt;
+&lt;p&gt;polaris_api.h&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;/*
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * Copyright (C) 2024 Voyah Polaris Project
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * Polaris Event Reporting SDK (C API)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * Thread-safe, Lazy-initialized, Opaque Handle based design.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * Semantics (v0.2):
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - Best-effort, at-most-once delivery.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - Caller thread MUST NOT block on IPC.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - All APIs return 0 on success, negative errno-style value on failure.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#ifndef POLARIS_API_H
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#define POLARIS_API_H
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#include&lt;/span&gt; &lt;span style="color:#75715e"&gt;&amp;lt;stdint.h&amp;gt;&lt;/span&gt;&lt;span style="color:#75715e"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#include&lt;/span&gt; &lt;span style="color:#75715e"&gt;&amp;lt;stdbool.h&amp;gt;&lt;/span&gt;&lt;span style="color:#75715e"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#ifdef __cplusplus
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;&lt;span style="color:#66d9ef"&gt;extern&lt;/span&gt; &lt;span style="color:#e6db74"&gt;&amp;#34;C&amp;#34;&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#endif
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ============================================================================
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// 0. 返回值规范 (Return Codes)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ============================================================================
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// 0: success
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// &amp;lt;0: failure, errno-style
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// Recommended common errors:
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// -EINVAL invalid args / invalid handle / invalid state
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// -ENOMEM allocation failure
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// -E2BIG payload too large / key-value too large
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// -EAGAIN queue full -&amp;gt; dropped
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// -ECANCELED handle already canceled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// -EALREADY handle already committed / SDK already deinit
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// -ENOTCONN (optional) policy disallows offline caching and not connected
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// Note: We intentionally do NOT expose internal error strings here.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// Logging is rate-limited inside SDK.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#ifndef POLARIS_OK
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#define POLARIS_OK 0
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#endif
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ============================================================================
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// 1. 类型定义 (Opaque Handle)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ============================================================================
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;typedef&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;struct&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;PolarisEventBuilderInternal&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; PolarisEventHandle;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ============================================================================
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// 2. 事件构建流程 (Builder Pattern)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ============================================================================
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;/**
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * [步骤 1] 创建事件构建器
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - Lazy init: first successful call triggers SDK initialization.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param event_id 事件 ID (必填, &amp;gt;0)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param process_name 逻辑进程名 (可选，NULL 则自动读取 /proc/self/comm)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param process_ver 版本号 (可选，NULL 默认为 &amp;#34;unknown&amp;#34;)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param out_handle [out] 返回 builder handle
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @return 0 on success; &amp;lt;0 on failure (errno-style)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;polaris_event_create&lt;/span&gt;(&lt;span style="color:#66d9ef"&gt;uint64_t&lt;/span&gt; event_id,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; process_name,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; process_ver,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; PolarisEventHandle&lt;span style="color:#f92672"&gt;*&lt;/span&gt; out_handle);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;/**
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * [步骤 2] 添加 Key-Value 数据
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - Builder is NOT thread-safe: same handle must not be mutated concurrently.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - On error, builder remains valid unless error indicates invalid handle/state.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @return 0 on success; &amp;lt;0 on failure
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;polaris_event_add_string&lt;/span&gt;(PolarisEventHandle handle, &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; key, &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; value);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;polaris_event_add_int&lt;/span&gt;(PolarisEventHandle handle, &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; key, &lt;span style="color:#66d9ef"&gt;int32_t&lt;/span&gt; value);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;polaris_event_add_long&lt;/span&gt;(PolarisEventHandle handle, &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; key, &lt;span style="color:#66d9ef"&gt;int64_t&lt;/span&gt; value);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;polaris_event_add_double&lt;/span&gt;(PolarisEventHandle handle, &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; key, &lt;span style="color:#66d9ef"&gt;double&lt;/span&gt; value);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;polaris_event_add_bool&lt;/span&gt;(PolarisEventHandle handle, &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; key, &lt;span style="color:#66d9ef"&gt;bool&lt;/span&gt; value);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;/**
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * [步骤 3] 提交发送
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - Serializes the event and enqueues to AsyncQueue.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - After this call (success or failure), SDK will destroy the handle.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * Caller must NOT use handle anymore.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param handle 事件句柄
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param log_path (可选) 附件路径（仅透传，不读文件）
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @return
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * 0 enqueue success
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * -EAGAIN queue full -&amp;gt; dropped
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * -E2BIG payload too large -&amp;gt; dropped
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * -EINVAL invalid handle / invalid state
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * -ENOMEM allocation failure
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;polaris_event_commit&lt;/span&gt;(PolarisEventHandle handle, &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; log_path);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;/**
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * [可选] 取消发送
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - Releases the builder without sending.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @return
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * 0 success
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * -EINVAL invalid handle
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * -EALREADY already committed
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * -ECANCELED already canceled
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;polaris_event_cancel&lt;/span&gt;(PolarisEventHandle handle);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ============================================================================
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// 3. 高级接口 (Raw JSON)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ============================================================================
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;/**
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * 直接发送原始 JSON
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - SDK will wrap it into the event schema and enqueue.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - Caller thread returns immediately.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param event_id 事件 ID
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param process_name 进程名 (可选，NULL 自动)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param process_ver 版本号 (可选)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param json_body 合法 JSON 字符串（UTF-8）
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @param log_path (可选) 附件路径
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @return 0 on success; &amp;lt;0 on failure (see return codes above)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;polaris_report_raw&lt;/span&gt;(&lt;span style="color:#66d9ef"&gt;uint64_t&lt;/span&gt; event_id,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; process_name,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; process_ver,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; json_body,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;const&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;char&lt;/span&gt;&lt;span style="color:#f92672"&gt;*&lt;/span&gt; log_path);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ============================================================================
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// 4. 生命周期管理 (可选)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// ============================================================================
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;/**
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * 显式反初始化（幂等）
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * Strategy A (recommended for low-intrusive):
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - Stop worker thread, drop pending events, return 0.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * Strategy B (strict):
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * - If pending queue not empty, return -EBUSY unless caller sets &amp;#34;force&amp;#34;.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * v0.2 default: Strategy A.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; *
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; * @return 0 on success; &amp;lt;0 on failure
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt; */&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;polaris_deinit&lt;/span&gt;(&lt;span style="color:#66d9ef"&gt;void&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#ifdef __cplusplus
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#endif
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;#endif &lt;/span&gt;&lt;span style="color:#75715e"&gt;// POLARIS_API_H
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/linux_host_polarisd/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/linux_host_polarisd/</guid><description>&lt;h1 id="linux-host-polarisd-软件架构设计说明书"&gt;Linux Host Polarisd 软件架构设计说明书&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;版本&lt;/strong&gt;: v1.0
+&lt;strong&gt;日期&lt;/strong&gt;: 2024-02-09
+&lt;strong&gt;状态&lt;/strong&gt;: 拟定中&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="1-概述-overview"&gt;1. 概述 (Overview)&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;polarisd&lt;/code&gt; (Linux Host Version) 是运行在 Linux 宿主机上的核心守护进程，充当 Linux 侧应用与 Android 虚拟机（Guest OS）之间的通信网关与策略执行中心。它负责跨系统的事件流转、系统监控以及跨端指令的落地执行。&lt;/p&gt;
+&lt;h3 id="11-设计目标"&gt;1.1 设计目标&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;高安全性&lt;/strong&gt;: 确保客户端调用非阻塞，确保 Android 端无法反向控制 Linux 关键进程。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;高可靠性&lt;/strong&gt;: 采用多线程隔离架构，单一模块阻塞不影响整体吞吐。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;可扩展性&lt;/strong&gt;: 支持灵活的策略联动（如 Crash 自动抓取日志）和协议扩展。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id="2-需求拆解-requirements"&gt;2. 需求拆解 (Requirements)&lt;/h2&gt;
+&lt;h3 id="21-功能需求"&gt;2.1 功能需求&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;事件上报 (Event Forwarding)&lt;/strong&gt;:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;接收 Linux 本地进程（如 Cluster HMI）通过 SDK 上报的业务事件。&lt;/li&gt;
+&lt;li&gt;接收内部 Monitor 监控到的系统事件（如进程崩溃、资源告警）。&lt;/li&gt;
+&lt;li&gt;将上述事件转发给 Android Guest 侧的 &lt;code&gt;polarisd&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start="2"&gt;
+&lt;li&gt;&lt;strong&gt;指令执行 (Command Execution)&lt;/strong&gt;:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;接收 Android Guest 发送的控制指令（如 Ping, CaptureLog）。&lt;/li&gt;
+&lt;li&gt;在 Linux Host 侧执行指令，并将结果返回给 Android。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol start="3"&gt;
+&lt;li&gt;&lt;strong&gt;策略联动 (Strategy Linkage)&lt;/strong&gt;:&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;支持“事件触发动作”机制（例如：收到 Crash 事件 触发 Log 抓取 填充 Log 路径 发送事件）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="22-非功能需求-技术约束"&gt;2.2 非功能需求 (技术约束)&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;线程隔离&lt;/strong&gt;: IPC 接收、业务分发、指令执行、VSOCK 通信必须运行在独立的线程中，防止死锁。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;调用者安全&lt;/strong&gt;: &lt;code&gt;libpolaris_client&lt;/code&gt; 必须是非阻塞的，SDK 内部错误不应导致宿主进程崩溃。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;单向控制&lt;/strong&gt;: 严禁通过 &lt;code&gt;polarisd&lt;/code&gt; 反向控制 Linux 本地业务进程。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h2 id="3-软件架构-software-architecture"&gt;3. 软件架构 (Software Architecture)&lt;/h2&gt;
+&lt;h3 id="31-架构模式"&gt;3.1 架构模式&lt;/h3&gt;
+&lt;p&gt;采用 &lt;strong&gt;多线程流水线 (Multi-threaded Pipeline)&lt;/strong&gt; 架构。系统被划分为四个独立的执行域（Execution Domains），通过线程安全的 &lt;code&gt;EventQueue&lt;/code&gt; 进行耦合。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/linux_host_sdk/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/linux_host_sdk/</guid><description>&lt;h1 id="linux-host-client-sdk-libpolaris_client-技术需求说明书"&gt;Linux Host Client SDK (&lt;code&gt;libpolaris_client&lt;/code&gt;) 技术需求说明书&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;版本&lt;/strong&gt;: &lt;strong&gt;v0.2&lt;/strong&gt;
+&lt;strong&gt;日期&lt;/strong&gt;: &lt;strong&gt;2026-02-10&lt;/strong&gt;
+&lt;strong&gt;模块&lt;/strong&gt;: &lt;code&gt;src/client&lt;/code&gt;
+&lt;strong&gt;状态&lt;/strong&gt;: &lt;strong&gt;待实现 (To Be Implemented)&lt;/strong&gt;
+&lt;strong&gt;适用范围&lt;/strong&gt;: Linux Host 端业务进程（Cluster/IVI/T-Box 等）→ &lt;code&gt;polarisd&lt;/code&gt;（UDS IPC）&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="订正历史-revision-history"&gt;订正历史 (Revision History)&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;版本&lt;/th&gt;
+&lt;th style="text-align: right"&gt;日期&lt;/th&gt;
+&lt;th&gt;订正人&lt;/th&gt;
+&lt;th&gt;订正摘要&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;v0.1&lt;/td&gt;
+&lt;td style="text-align: right"&gt;2026-02-10&lt;/td&gt;
+&lt;td&gt;-&lt;/td&gt;
+&lt;td&gt;初版：定义 C API + Builder + 异步队列 + UDS 发送模型&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;v0.2&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: right"&gt;&lt;strong&gt;2026-02-10&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;-&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;量产化修订&lt;/strong&gt;：对齐服务端 LSP 协议（12B Header / LE / msgType / reqId / MAX_PACKET）、明确投递语义（best-effort at-most-once）、补齐错误码与线程模型、完善队列容量/背压/重连退避、强化安全/权限与可观测性、明确 Init/Deinit 幂等与异常边界、修订 params 类型规范（推荐 Object）、补充测试验收要点&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;hr&gt;
+&lt;h2 id="1-概述-overview"&gt;1. 概述 (Overview)&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;libpolaris_client&lt;/code&gt; 是一个 C/C++ 动态链接库 (&lt;code&gt;.so&lt;/code&gt;)，供 Linux Host 端业务进程链接使用。其核心职责是将业务产生的事件、日志路径、性能数据通过 IPC 高效、稳定地发送给 &lt;code&gt;polarisd&lt;/code&gt; 守护进程。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/polarisevent/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/polarisevent/</guid><description>&lt;p&gt;为了实现 &lt;strong&gt;全域统一 (Universal Consistency)&lt;/strong&gt;，我们需要定义一个 &lt;strong&gt;“标准数据契约 (Canonical Data Contract)”&lt;/strong&gt;。无论是在 Linux Kernel (Host)、Android Native (C++) 还是 Android Framework (Java)，大家都在操作同一个逻辑实体，只是在不同语言下的表现形式不同。&lt;/p&gt;
 &lt;p&gt;我们需要对之前的 C++ 定义进行升级，使其与 Java 层的定义 &lt;strong&gt;严格对齐&lt;/strong&gt;。&lt;/p&gt;
 &lt;hr&gt;
 &lt;h3 id="1-全域统一数据模型-the-canonical-model"&gt;1. 全域统一数据模型 (The Canonical Model)&lt;/h3&gt;
@@ -325,4 +596,4 @@ component WindowManager
 &lt;/table&gt;
 &lt;hr&gt;
 &lt;h3 id="2-各层级的具体实现映射"&gt;2. 各层级的具体实现映射&lt;/h3&gt;
-&lt;p&gt;为了达成你的目标，我们需要修改 C++ 层的结构体，使其字段与 Java 完全一一对应。&lt;/p&gt;</description></item></channel></rss>
+&lt;p&gt;为了达成你的目标，我们需要修改 C++ 层的结构体，使其字段与 Java 完全一一对应。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/temp/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/temp/</guid><description>&lt;p&gt;polaris&lt;/p&gt;</description></item></channel></rss>
