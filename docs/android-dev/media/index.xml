@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android Media技术文档 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/</link><description>Recent content in Android Media技术文档 on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Wed, 27 Aug 2025 11:36:11 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/media/index.xml" rel="self" type="application/rss+xml"/><item><title>高通平台 Widevine L1 认证实施流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid><description>&lt;h2 id="整体流程"&gt;整体流程&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android Media技术文档 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/</link><description>Recent content in Android Media技术文档 on Ethen 的实验室</description><generator>Hugo -- 0.155.3</generator><language>en</language><lastBuildDate>Wed, 27 Aug 2025 11:36:11 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/media/index.xml" rel="self" type="application/rss+xml"/><item><title>高通平台 Widevine L1 认证实施流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid><description>&lt;h2 id="整体流程"&gt;整体流程&lt;/h2&gt;
 &lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png" alt="" /&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -148,4 +148,30 @@ DASH 文件和加密后的媒体分片会被放到 CDN 上，供终端播放器�
 &lt;/ol&gt;
 &lt;h2 id="4-典型场景流程解析"&gt;4. 典型场景流程解析&lt;/h2&gt;
 &lt;p&gt;以下流程描述了用户从 App A 切换到 App B 并进行播放控制的完整生命周期。
-&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-MediaSessionService-updateMediaSession.png" alt="" /&gt;&lt;/p&gt;</description></item></channel></rss>
+&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-MediaSessionService-updateMediaSession.png" alt="" /&gt;&lt;/p&gt;</description></item><item><title>AOSP Camera Click 音播放控制原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/camera/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/camera/</guid><description>&lt;h1 id="aosp-camera-click-音播放控制原理-android-16"&gt;AOSP Camera Click 音播放控制原理 (Android 16)&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;摘要&lt;/strong&gt;：在 Android (AOSP) 系统中，相机快门音（Camera Click / Shutter Sound）的播放机制并不像普通的媒体音频那样简单。为了满足部分国家或地区（如日韩）关于防止偷拍的法律法规，AOSP 设计了一套跨越 App 层、Java 音频服务层、Native 相机服务层以及底层音频引擎的&lt;strong&gt;动态合规防静音机制&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;本 Wiki 详细剖析了 Android 16 下快门音的资源加载、UI 呈现、合规裁决以及底层硬件输出的完整生命周期。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="核心设计哲学关注点分离"&gt;核心设计哲学：关注点分离&lt;/h2&gt;
+&lt;p&gt;整个快门音的控制逻辑遵循极度解耦的“关注点分离”原则：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;CameraService (Native)&lt;/strong&gt;：只负责“无脑”发声。只要触发快门，必定按照最高优先级的强制流（&lt;code&gt;ENFORCED_AUDIBLE&lt;/code&gt;）请求播放。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;AudioService (Java)&lt;/strong&gt;：系统的“最高裁决者”。根据系统属性、配置文件、甚至插入的 SIM 卡（MCC/MNC）动态决定当前是否必须强制发声，并通过调整音量系数（Volume Index）和路由策略来控制最终物理扬声器的状态。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;AudioFlinger (Native)&lt;/strong&gt;：忠诚的“执行者”。识别到强制音频流时，绝对拒绝上层应用下发的静音（Mute）指令，仅根据 AudioService 传下来的音量系数进行混音计算。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id="模块原理详解"&gt;模块原理详解&lt;/h2&gt;
+&lt;h3 id="1-资源加载与防侵入替换机制"&gt;1. 资源加载与防侵入替换机制&lt;/h3&gt;
+&lt;p&gt;相机的提示音文件并不由 App 层传递，而是硬编码在 Native 层的 &lt;code&gt;CameraService.cpp&lt;/code&gt; 中。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;加载逻辑 (&lt;code&gt;CameraService::loadSoundLocked&lt;/code&gt;)&lt;/strong&gt;
+当相机服务启动或准备播放声音时，会执行防御性的按需加载（Lazy Loading）。AOSP 在这里设计了优雅的&lt;strong&gt;双分区回退（Fallback）机制&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;优先尝试读取：&lt;code&gt;/product/media/audio/ui/camera_click.ogg&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;若不存在，回退读取：&lt;code&gt;/system/media/audio/ui/camera_click.ogg&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;如何无感替换资源？&lt;/strong&gt;
+由于上述回退机制的存在，定制开发时&lt;strong&gt;不需要&lt;/strong&gt;修改系统框架源码。只需在产品的 &lt;code&gt;device.mk&lt;/code&gt; 中配置编译拷贝规则，将自定义的 OGG 文件输出到 &lt;code&gt;product&lt;/code&gt; 分区即可实现拦截覆盖：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-makefile" data-lang="makefile"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;PRODUCT_COPY_FILES &lt;span style="color:#f92672"&gt;+=&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; device/vendor_name/media/audio/camera_click.ogg:&lt;span style="color:#66d9ef"&gt;$(&lt;/span&gt;TARGET_COPY_OUT_PRODUCT&lt;span style="color:#66d9ef"&gt;)&lt;/span&gt;/media/audio/ui/camera_click.ogg
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="2-ui-界面开关的呈现逻辑"&gt;2. UI 界面开关的呈现逻辑&lt;/h3&gt;
+&lt;p&gt;在原生的 Settings.apk 中，并没有全局的快门音控制开关。该开关由各个 Camera App 自行决定是否渲染。&lt;/p&gt;</description></item></channel></rss>

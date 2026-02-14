@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>WindowManager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/</link><description>Recent content in WindowManager on Ethen 的实验室</description><generator>Hugo -- 0.152.2</generator><language>en</language><lastBuildDate>Mon, 29 Sep 2025 10:22:54 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/index.xml" rel="self" type="application/rss+xml"/><item><title> Android InputChannel 原理与生命周期详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/</guid><description>&lt;h2 id="1-什么是-inputchannel"&gt;1. 什么是 InputChannel？&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>WindowManager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/</link><description>Recent content in WindowManager on Ethen 的实验室</description><generator>Hugo -- 0.155.3</generator><language>en</language><lastBuildDate>Mon, 29 Sep 2025 10:22:54 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/index.xml" rel="self" type="application/rss+xml"/><item><title> Android InputChannel 原理与生命周期详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/</guid><description>&lt;h2 id="1-什么是-inputchannel"&gt;1. 什么是 InputChannel？&lt;/h2&gt;
 &lt;p&gt;&lt;strong&gt;InputChannel&lt;/strong&gt; 是 Android 输入系统（Input System）中用于跨进程传输输入事件（如触摸、按键）的核心通信机制。&lt;/p&gt;
 &lt;p&gt;简单来说，它是连接 &lt;strong&gt;SystemServer (InputDispatcher)&lt;/strong&gt; 和 &lt;strong&gt;应用程序 (App Window)&lt;/strong&gt; 之间的一条&lt;strong&gt;全双工管道&lt;/strong&gt;。&lt;/p&gt;
 &lt;h3 id="核心特性"&gt;核心特性&lt;/h3&gt;
@@ -388,11 +388,11 @@ deactivate Browser_VRI
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;打印分屏区域&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell dumpsys activity service SystemUIService WMShell
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell dumpsys activity service SystemUIService WMShell
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;dump SystemUI&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;Enable protolog&lt;/p&gt;
@@ -400,11 +400,11 @@ deactivate Browser_VRI
 &lt;ul&gt;
 &lt;li&gt;help命令：&lt;/li&gt;
 &lt;/ul&gt;
-&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell help
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell help
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
 &lt;li&gt;查看protolog status：&lt;/li&gt;
 &lt;/ul&gt;
-&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; $ adb shell dumpsys activity service SystemUIService WMShell protolog status
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; $ adb shell dumpsys activity service SystemUIService WMShell protolog status
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; SERVICE com.android.systemui/.SystemUIService e73cb38 pid&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;4871&lt;/span&gt; user&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Client:
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
@@ -420,7 +420,7 @@ deactivate Browser_VRI
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
 &lt;li&gt;enable protolog：&lt;/li&gt;
 &lt;/ul&gt;
-&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog start
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;/ol&gt;</description></item><item><title>WindowInfos Update Flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</guid><description>&lt;h2 id="1-概述-overview"&gt;1. 概述 (Overview)&lt;/h2&gt;

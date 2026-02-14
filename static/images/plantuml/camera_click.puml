@@ -1,0 +1,124 @@
+@startuml
+!theme plain
+skinparam componentStyle material
+skinparam defaultFontColor black
+skinparam sequenceParticipantFontColor black
+skinparam sequenceActorFontColor black
+autonumber "<b>[0]"
+
+actor "User" as User
+participant "Camera App" as App
+
+box "Java Framework" #LightCyan
+participant "Camera.java (JNI)" as JNI
+participant "AudioService" as AS
+participant "SystemProperties" as SP
+participant "Resources" as Res
+participant "SubscriptionManager" as SubMgr
+end box
+
+box "Native Framework (C++)" #LightYellow
+participant "CameraService" as CS
+participant "AudioPolicyManager" as APM
+participant "AudioFlinger" as AF
+end box
+
+participant "Speaker" as SPK
+
+== 阶段一：系统初始化与动态配置变更 (AudioService) ==
+
+note over AS, SubMgr
+  调用时机：
+  1. 系统启动时 (onInitStreamsAndVolumes)
+  2. 配置改变时，例如插拔SIM卡、旋转屏幕等 (onConfigurationChanged)
+end note
+
+-> AS: 触发配置检查
+activate AS
+AS -> AS: readCameraSoundForced()
+activate AS
+
+AS -> SP: getBoolean("audio.camerasound.force", false)
+SP --> AS: return bool
+
+AS -> Res: getBoolean(config_camera_sound_forced)
+Res --> AS: return bool (全局资源配置)
+
+AS -> SubMgr: getActiveSubscriptionIdList()
+SubMgr --> AS: return 活跃的 SIM 卡列表
+
+loop 遍历所有活跃的 SIM 卡
+    AS -> SubMgr: getResourcesForSubId().getBoolean(config_camera_sound_forced)
+    SubMgr --> AS: return bool (基于 MCC/MNC 的专属配置)
+end
+
+note over AS
+  **裁决逻辑 (OR 运算)**：
+  如果 System Property、全局资源，
+  或者任意一张插在手机里的 SIM 卡配置要求强制发声，
+  则 cameraSoundForced = true。
+end note
+deactivate AS
+
+alt cameraSoundForced == true (强制发声生效)
+    AS -> AS: setAllIndexesToMax() (音量拉满)
+    AS -> AS: 从“受静音模式影响”的流列表中剔除
+    AS -> APM: MSG_SET_FORCE_USE (FORCE_SYSTEM_ENFORCED)
+else cameraSoundForced == false (允许静音)
+    AS -> AS: 同步为普通系统提示音量
+    AS -> AS: 加入“受静音模式影响”的流列表
+    AS -> APM: MSG_SET_FORCE_USE (FORCE_NONE)
+end
+deactivate AS
+
+== 阶段二：App 层获取硬件状态 (UI 呈现) ==
+
+User -> App: 启动相机
+App -> JNI: getCameraInfo()
+JNI -> SP: property_get("ro.camera.sound.forced")
+note right of JNI
+  注意 AOSP 的细微差别：
+  App 层的 C++ JNI 直接读取只读属性，不检查 SIM 卡。
+  所以定制开发时需要确保这里和 AudioService 的策略同步。
+end note
+JNI --> App: 返回 canDisableShutterSound 状态
+
+alt canDisableShutterSound == true
+    App -> App: UI 设置界面显示“关闭快门音”
+else
+    App -> App: UI 强制隐藏该开关
+end
+
+== 阶段三：拍照执行与物理输出 ==
+
+User -> App: 点击拍照
+App -> CS: Capture Request
+
+note over CS: HAL 上报 CAMERA_MSG_SHUTTER
+CS -> CS: playSound(SOUND_SHUTTER)
+CS -> CS: loadSoundLocked() 
+note right of CS: 无视任何逻辑，坚决打上\nAUDIO_STREAM_ENFORCED_AUDIBLE 标签
+
+CS -> AF: createTrack & start()
+AF -> APM: 获取路由策略与音量
+
+note over APM
+  根据【阶段一】设定的动态规则，返回最终音量 (Volume)。
+  如果允许静音且开启了静音模式，Volume 为 0。
+end note
+APM --> AF: 返回 Output 句柄和 Volume
+
+AF -> AF: Tracks.cpp 豁免 Mute 检查
+note right of AF: 发现是 ENFORCED_AUDIBLE 流，\n直接拒绝执行物理 Mute！
+
+AF -> AF: 混音器相乘 (音频 PCM 数据 * Volume)
+
+alt Volume == 0 
+    AF -> SPK: 传输振幅为 0 的空数据
+    SPK --> User: 听不到声音 (实现静默)
+else Volume > 0
+    AF -> SPK: 传输真实音频数据
+    SPK --> User: 听到 "咔嚓" 声
+end
+
+@enduml
