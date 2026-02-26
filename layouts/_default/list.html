@@ -29,11 +29,10 @@
   {{ else }}
     {{/* 如果沒有子目錄，就顯示「文章列表」 */}}
     <div class="posts">
-      {{ range .Paginator.Pages }}
+      {{ range .Pages }}
         {{ .Render "summary" }}
       {{ end }}
     </div>
-    {{ .Render "pagination" }}
   {{ end }}
 </main>
 {{ end }}
