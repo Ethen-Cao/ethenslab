@@ -1,3 +1,10 @@
++++
+date = '2025-08-27T17:17:50+08:00'
+draft = true
+title = ' '
++++
+
+
 为了实现 **全域统一 (Universal Consistency)**，我们需要定义一个 **“标准数据契约 (Canonical Data Contract)”**。无论是在 Linux Kernel (Host)、Android Native (C++) 还是 Android Framework (Java)，大家都在操作同一个逻辑实体，只是在不同语言下的表现形式不同。
 
 我们需要对之前的 C++ 定义进行升级，使其与 Java 层的定义 **严格对齐**。
