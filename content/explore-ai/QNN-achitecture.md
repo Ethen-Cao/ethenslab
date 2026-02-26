@@ -1,3 +1,10 @@
++++
+date = '2025-08-27T17:17:50+08:00'
+draft = true
+title = ' '
++++
+
+
 # Deep Dive into Qualcomm QNN HTP: Architecture, FastRPC, and the Side-load Mechanism
 
 ## libadsprpc.so
