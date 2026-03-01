@@ -1,0 +1,92 @@
+@startuml
+' =========================
+'  统一主题：淡雅中文时序图
+' =========================
+
+' --- 字体（中文友好：按你机器可用字体择一） ---
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+
+' --- 抗锯齿/圆角/阴影：整体更柔和 ---
+skinparam shadowing false
+skinparam roundcorner 10
+
+' --- 背景与主文字：淡雅 + 清晰 ---
+skinparam backgroundColor #FAFAFB
+skinparam TitleFontColor  #1F2328
+
+' 通用字体颜色（参与者、消息、注释等）
+skinparam sequence {
+  FontColor           #1F2328
+  LifeLineBorderColor #B7BDC7
+  LifeLineBackgroundColor transparent
+
+  ' 参与者框：浅底 + 深字 + 柔边框
+  ParticipantBorderColor #C9CED8
+  ParticipantBackgroundColor #F3F5F8
+  ParticipantFontColor #1F2328
+
+  ' 消息线条：与 Loop 框线区分（消息偏蓝灰）
+  ArrowColor          #3E6EA8
+  ArrowFontColor      #1F2328
+  MessageAlign        left
+
+  ' 激活条：淡蓝灰
+  ActivationBorderColor #9FB4CF
+  ActivationBackgroundColor #DDE8F5
+
+  ' 分组框（loop/alt/opt等）：框线偏紫灰，与消息线区分明显
+  GroupBorderColor    #7B6FAE
+  GroupFontColor      #2B2F36
+  GroupBackgroundColor #F6F4FB
+
+  ' 分隔线
+  DividerBorderColor  #D5DAE3
+  DividerFontColor    #6B7280
+
+  ' 注释：浅淡黄色纸张感
+  NoteBorderColor     #D2B24C
+  NoteBackgroundColor #FFF7D6
+  NoteFontColor       #2B2F36
+}
+
+' 可选：页边距更舒展
+skinparam Padding 10
+
+' =========================
+'  示例（可删）
+' =========================
+title 示例：登录与会话建立
+
+actor 用户 as U
+participant "App(客户端)" as APP
+participant "Auth 服务" as AUTH
+database "用户库" as DB
+
+U -> APP : 输入账号/密码（中文支持）
+activate APP
+
+APP -> AUTH : /login 请求
+activate AUTH
+
+loop 重试（最多 3 次）
+  AUTH -> DB : 查询用户 + 校验密码
+  DB --> AUTH : 返回用户记录
+end
+
+alt 成功
+  AUTH --> APP : 200 + token
+  APP --> U : 登录成功
+else 失败
+  AUTH --> APP : 401
+  note right of APP
+    这是一条注释：
+    浅淡黄色，像纸张
+  end note
+  APP --> U : 提示错误
+end
+
+deactivate AUTH
+deactivate APP
+
+@enduml
