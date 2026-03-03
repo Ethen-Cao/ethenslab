@@ -1,6 +1,6 @@
-# polarisd 架构设计文档 (v0.9)
+# polarisd 架构设计文档 (v1.0)
 
-**版本**: v0.9
+**版本**: v1.0
 **日期**: 2026-03-03
 **状态**: **Draft**
 
@@ -133,7 +133,7 @@ graph TB
     Dispatcher -. "IEventSink::sendEvent()" .-> AppSrv
 
     %% Infrastructure
-    Dispatcher -- "App 离线 30min" --> Persist
+    Dispatcher -- "offlineBuffer_ 满" --> Persist
     Persist -- "App 恢复后拉取" --> Dispatcher
 ```
 
@@ -154,7 +154,7 @@ graph TB
 |  | **IEventPolicy** | 事件策略接口。根据事件内容决定透传或联动。 | 被 Dispatcher 同步调用 |
 | **Execution** | **Executor** | **有界线程池**执行器。线程数可配置 (默认 4)，任务队列有界。命令和联动 Action 提交到线程池执行，结果推回 EventQueue。 | 固定线程池 |
 |  | **ActionRegistry** | 根据 action 名称查找并创建具体的 Action 实例 | N/A |
-| **Infrastructure** | **EventPersistence** | 事件落盘管理。App 离线超过 30 分钟 (可配置) 后将事件序列化到本地文件，App 恢复后拉取回放。 | 被 Dispatcher 同步调用 |
+| **Infrastructure** | **EventPersistence** | 事件落盘管理。App 离线期间，`offlineBuffer_` 达到容量阈值 (默认 5000 条) 时异步落盘到本地文件，App 恢复后拉取回放。 | 独立 I/O 线程 |
 |  | **StatsReporter** | 每小时 (可配置) 采集并打印进程运行时统计：CPU、内存、文件句柄、队列指标等。 | 独立 Timer Thread |
 
 > **注意**: 系统中只有一个 APP (PolarisAgent) 会和 polarisd 建立连接。polarisd 会将收到的 PolarisEvent 通过 `IEventSink` 发送到 PolarisAgent。PolarisAgent 同时接收来自 Java SDK 和本地 Monitor 的事件，经过自身的策略联动处理后，统一落盘 (SQLite) 并上传云端。
@@ -472,11 +472,20 @@ sequenceDiagram
 3. **Forward**: 调用 `IHostForwarder::forwardCommand(cmd, seqId)` → HostConnector 将命令编码为 `PLP_CMD_REQ_G2H` 并通过 HostSession 的写队列异步发送到 Host。若 Host 断连，命令进入 HostConnector 的待发送队列排队（参见 §5.7）。
 4. **Host Execute**: Linux Host 收到命令后执行，生成结果，以 `PLP_CMD_RESP_H2G` (携带相同 `seqId`) 回复。
 5. **Result Receive**: HostSession.readLoop() 收到 PLP 回复 → PlpCodec 解码 → 构造 `InternalEvent(TYPE_CMD_EXEC_RESULT)` 并携带 `resultData` 和 `seqId` → Push `EventQueue`。
-6. **Result Match**: Dispatcher Pop 结果 → 通过 `seqId` 查找 `pendingHostCommands_` → 取出 `originalRequester` (即 AppSession 的 `weak_ptr<IResponder>`) 和 `appReqId` → 将 `resultData.reqId` 替换为 `appReqId` (App 侧的原始请求 ID)。
+6. **Result Match**: Dispatcher Pop 结果 → 通过 `seqId` 查找 `pendingHostCommands_` → 若找到：取出 `originalRequester` 和 `appReqId` → 将 `resultData.reqId` 替换为 `appReqId`；若未找到 (已超时清理)：**静默丢弃**，不做任何处理。
 7. **Response**: 调用 `IResponder::sendResult()` 将结果回送给 App。若 AppSession 已断开，丢弃结果。
-8. **Timeout**: 若 Host **10 秒** (可配置) 内未回复，Dispatcher 的 `cleanExpiredHostCommands()` 将回送 `TIMEOUT` 错误给 App，并清理 `pendingHostCommands_` 条目。
+8. **Timeout**: 若 Host 在 **15 秒** (`hostCmdTimeoutMs_`, 可配置) 内未回复，Dispatcher 的 `cleanExpiredHostCommands()` 执行以下操作：回送 `TIMEOUT` 错误给 App → 通知 `HostConnector::cancelPending(seqId)` 移除对应的排队命令 → 清理 `pendingHostCommands_` 条目。
 
-> **关键设计**: App 侧的 `reqId` 和 PLP 侧的 `seqId` 是两个独立的序列号空间。Dispatcher 通过 `pendingHostCommands_` 表建立映射关系，对 App 完全透明——App 只看到自己的 `reqId` 请求和响应，不感知中间经过了 Host 转发。
+> **超时分层设计**: HostConnector 的 `pendingQueue_` 超时为 **10 秒**，Dispatcher 的 `pendingHostCommands_` 超时为 **15 秒**。Dispatcher 超时 **严格大于** HostConnector 超时，确保 HostConnector 侧先超时丢弃未发送的命令，避免竞态条件。具体场景：
+>
+> | 场景 | HostConnector (10s) | Dispatcher (15s) | 结果 |
+> | --- | --- | --- | --- |
+> | Host 正常回复 (< 10s) | 正常发送 | 收到回复，匹配成功 | ✅ 正常 |
+> | Host 断连 > 10s | 队列超时丢弃 | 15s 后超时清理，回送 TIMEOUT | ✅ 一致 |
+> | Host 在 9.5s 重连 | drain 队列发送 | 等待回复或 15s 超时 | ✅ 无竞态 |
+> | Dispatcher 超时 (15s) 但 Host 回复晚到 | N/A | `pendingHostCommands_` 已清理 | ✅ 静默丢弃 |
+
+> **关键设计**: App 侧的 `reqId` 和 PLP 侧的 `seqId` 是两个独立的序列号空间。Dispatcher 通过 `pendingHostCommands_` 表建立映射关系，对 App 完全透明——App 只看到自己的 `reqId` 请求和响应，不感知中间经过了 Host 转发。Dispatcher 对超时命令的处理遵循"简单鲁棒"原则：超时即清理 + 回送错误，晚到的结果静默丢弃，不做复杂的状态同步。
 
 ### 5.5 Host 事件转发 (Host → polarisd → App)
 
@@ -513,30 +522,42 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant D as Dispatcher
-    participant Sink as IEventSink
+    participant BUF as offlineBuffer_
+    participant IO as I/O Thread
     participant EP as EventPersistence
     participant AS as AppSession (恢复后)
 
     Note over D: AppSession 断开, appSink_.lock() 失败
-    D->>D: 事件暂存内存队列
+    D->>BUF: 事件暂存 offlineBuffer_
 
-    Note over D: 30 分钟仍未恢复
-    D->>EP: persist(events)
-    EP->>EP: 序列化 → 写入本地文件
+    Note over BUF: 达到 5000 条 (容量阈值)
+    D->>IO: asyncPersist(移动 buffer)
+    Note over D: Dispatcher 立即继续处理<br/>(不阻塞)
+    IO->>EP: persist(events)
+    EP->>EP: 序列化 → 写入本地文件 (追加)
+
+    Note over BUF: 再次积满 5000 条
+    D->>IO: asyncPersist(移动 buffer)
+    IO->>EP: persist(events) [追加]
 
     Note over AS: PolarisAgent 恢复, 重新连接
     AS->>D: 注册为新的 IEventSink
-    D->>EP: loadPending()
-    EP-->>D: 磁盘上的待发送事件
-    D->>AS: IEventSink::sendEvent(旧事件)
+    D->>IO: asyncLoad()
+    IO->>EP: loadPending()
+    EP-->>IO: 磁盘上的待发送事件
+    IO-->>D: 回调: 事件列表
+    D->>AS: IEventSink::sendEvent(磁盘旧事件)
+    D->>AS: IEventSink::sendEvent(内存缓存事件)
     D->>AS: IEventSink::sendEvent(新事件)
 ```
 
-1. **App 断连**: `Dispatcher` 检测到 `appSink_.lock()` 失败，事件暂存在内存 `EventQueue` 中。
-2. **超时落盘**: 若 PolarisAgent 超过 **30 分钟** (可配置，`PERSIST_TIMEOUT_MINUTES`) 仍未重新连接，`Dispatcher` 调用 `EventPersistence::persist()` 将内存中累积的事件序列化写入本地文件。
-3. **落盘路径**: 可通过配置变量 `PERSIST_FILE_PATH` 指定，默认 `/data/local/tmp/polarisd_events.dat`。
-4. **App 恢复**: PolarisAgent 重启后重新连接 AppServer → 新的 AppSession 注册为 `IEventSink` → Dispatcher 调用 `EventPersistence::loadPending()` 读取磁盘上的待发送事件 → 按时间顺序先回放旧事件，再继续发送新事件。
-5. **清理**: 回放成功后，`EventPersistence::clear()` 删除磁盘文件。
+1. **App 断连**: `Dispatcher` 检测到 `appSink_.lock()` 失败，事件暂存到内存 `offlineBuffer_`。
+2. **容量触发落盘**: 当 `offlineBuffer_` 积累达到 **5000 条** (可配置，`PERSIST_FLUSH_THRESHOLD`)，Dispatcher 将 buffer 内容**移动** (`std::move`) 给 `EventPersistence` 的独立 I/O 线程，由后台线程完成序列化和文件写入 (追加模式)。Dispatcher **立即清空 buffer 并继续处理**，不阻塞事件循环。
+3. **多次落盘**: App 长时间离线期间，buffer 可能多次达到阈值，每次触发追加写入。落盘文件采用 JSON Lines 格式，支持多次追加。
+4. **落盘路径**: 可通过配置变量 `PERSIST_FILE_PATH` 指定，默认 `/data/local/tmp/polarisd_events.dat`。
+5. **App 恢复**: PolarisAgent 重启后重新连接 AppServer → 新的 AppSession 注册为 `IEventSink` → Dispatcher 触发异步加载 → I/O 线程读取磁盘文件 → 回调 Dispatcher → 按时间顺序依次发送：磁盘旧事件 → 当前 offlineBuffer_ 中的缓存事件 → 后续新事件。
+6. **清理**: 回放成功后，`EventPersistence::clear()` 删除磁盘文件。
+7. **进程退出保护**: 收到 SIGTERM 时，关闭流程中会同步将 `offlineBuffer_` 中剩余事件落盘 (此时允许阻塞，因为进程即将退出)。
 
 ### 5.7 Host 断连期间命令排队
 
@@ -545,24 +566,34 @@ sequenceDiagram
     participant D as Dispatcher
     participant HC as HostConnector
     participant PQ as PendingQueue
-
+    participant H as Linux Host
     Note over HC: Host 连接断开, 进入重连循环
 
-    D->>HC: forwardCommand(cmd1)
+    D->>HC: forwardCommand(cmd1, seqId=101)
     HC->>PQ: enqueue(cmd1)
-    D->>HC: forwardCommand(cmd2)
+    D->>HC: forwardCommand(cmd2, seqId=102)
     HC->>PQ: enqueue(cmd2)
 
+    Note over PQ: cmd1 排队超过 10s
+    PQ->>PQ: 超时丢弃 cmd1
+
+    Note over D: cmd1 在 Dispatcher 侧 15s 超时
+    D->>HC: cancelPending(seqId=101)
+    D->>D: 回送 TIMEOUT 给 App
+
     Note over HC: Host 重连成功
-    HC->>HC: drain PendingQueue
-    HC-->>D: 逐个发送排队命令
+    HC->>HC: drain PendingQueue (仅剩 cmd2)
+    HC->>H: 发送 cmd2 到 Host
 ```
 
 1. **Host 断连**: HostConnector 检测到 VSOCK 连接断开，进入重连循环。
 2. **命令排队**: 重连期间收到的 `forwardCommand()` 调用不立即失败，而是放入 HostConnector 内部的 **有界待发送队列** (`pendingQueue_`)。
-3. **队列参数**: 容量 **100 条** (可配置)，单条超时 **10 秒** (可配置)。超时的命令由 Dispatcher 回送 `TIMEOUT` 错误给原始请求方。
-4. **重连成功**: HostConnector 重建 HostSession 后，**drain** 待发送队列，逐个通过新 HostSession 发送。
-5. **队列满**: 若排队期间队列已满，新命令直接返回 `-EAGAIN`，Dispatcher 回送错误给请求方。
+3. **超时分层**: HostConnector 队列超时 **10 秒**，Dispatcher `pendingHostCommands_` 超时 **15 秒**。两层超时的时序关系确保无竞态：
+   * HostConnector 先超时 → 命令从 `pendingQueue_` 中移除，不会被发送给 Host。
+   * Dispatcher 后超时 → 回送 `TIMEOUT` 给 App，调用 `HostConnector::cancelPending(seqId)` 清理残余 (防御性)。
+   * 若 Host 回复晚于 Dispatcher 超时，`pendingHostCommands_` 已清理，结果被静默丢弃。
+4. **重连成功**: HostConnector 重建 HostSession 后，**drain** 待发送队列中未超时的命令，逐个通过新 HostSession 发送。
+5. **队列满**: 若排队期间队列已满 (100 条, 可配置)，新命令直接返回 `-EAGAIN`，Dispatcher 回送错误给请求方。
 
 ---
 
@@ -671,6 +702,8 @@ struct IHostForwarder {
     virtual ~IHostForwarder() = default;
     virtual void forwardCommand(std::shared_ptr<polaris::CommandRequest> cmd,
                                 uint32_t seqId) = 0;
+    // Dispatcher 超时时调用, 移除 pendingQueue_ 中对应 seqId 的命令
+    virtual void cancelPending(uint32_t seqId) = 0;
 };
 
 } // namespace polarisd
@@ -699,8 +732,8 @@ std::unordered_map<uint64_t, PendingEnrichment>     pendingEvents_;         // k
 std::unordered_map<uint32_t, PendingHostCommand>    pendingHostCommands_;   // key: PLP seqId
 
 // App 离线状态追踪
-uint64_t    appDisconnectTimeMs_ = 0;       // App 断连时间戳, 0 表示在线
-bool        persistedToDisk_ = false;       // 是否已落盘
+bool        appOffline_ = false;            // App 是否离线
+uint32_t    persistFileIndex_ = 0;          // 落盘文件追加计数
 ```
 
 ### 6.7 Session 接口实现关系
@@ -735,7 +768,7 @@ void Dispatcher::processEvent(InternalEvent& ev) {
         auto decision = policy_->evaluate(*ev.eventData);
 
         if (decision.type == EventDecision::PASS_THROUGH) {
-            deliverEvent(ev.eventData);     // 内部处理 App 离线 → 缓存/落盘
+            deliverEvent(ev.eventData);
 
         } else if (decision.type == EventDecision::ENRICH_THEN_FORWARD) {
             uint64_t id = ev.eventData->eventId;
@@ -774,10 +807,13 @@ void Dispatcher::processEvent(InternalEvent& ev) {
         executor_->submitCommand(ev.cmdData, ev.responder);
         break;
 
-    case TYPE_CMD_EXEC_RESULT:
+    case TYPE_CMD_EXEC_RESULT: {
+        // HOST 命令结果: 通过 seqId 匹配
+        // 若 pendingHostCommands_ 中找不到 (已超时清理), 静默丢弃
         if (auto resp = ev.responder.lock())
             resp->sendResult(ev.resultData);
         break;
+    }
 
     case TYPE_EVENT_ENRICHMENT_RESULT: {
         uint64_t id = ev.eventData->eventId;
@@ -802,29 +838,41 @@ void Dispatcher::processEvent(InternalEvent& ev) {
     }
 
     cleanExpiredEnrichments();    // 超时 30s 降级转发
-    cleanExpiredHostCommands();   // 超时 10s 回送错误
-    checkAppOfflinePersist();    // 检查是否需要落盘
+    cleanExpiredHostCommands();   // 超时 15s 回送错误 + 通知 HostConnector 清理
 }
 
-// App 离线感知的事件投递
+// ──────────────────────────────────────────────────────
+// App 离线感知的事件投递 (容量触发异步落盘)
+// ──────────────────────────────────────────────────────
 void Dispatcher::deliverEvent(std::shared_ptr<polaris::PolarisEvent> event) {
     if (auto sink = appSink_.lock()) {
-        sink->sendEvent(event);
-        appDisconnectTimeMs_ = 0;
-        // 如果有磁盘上的旧数据，先回放
-        if (persistedToDisk_) {
-            replayPersistedEvents();
-            persistedToDisk_ = false;
+        // App 在线: 发送事件
+        if (appOffline_) {
+            // 刚恢复: 先异步回放磁盘旧数据 + 内存缓存
+            appOffline_ = false;
+            replayPersistedEventsAsync();   // I/O 线程加载磁盘 → 回调发送
+            for (auto& cached : offlineBuffer_)
+                sink->sendEvent(cached);
+            offlineBuffer_.clear();
         }
+        sink->sendEvent(event);
     } else {
-        // App 离线: 记录断连时间
-        if (appDisconnectTimeMs_ == 0)
-            appDisconnectTimeMs_ = currentTimeMs();
-        offlineBuffer_.push_back(event);    // 暂存内存
+        // App 离线: 暂存内存
+        appOffline_ = true;
+        offlineBuffer_.push_back(event);
+
+        // 容量触发异步落盘: buffer 达到阈值时移交给 I/O 线程
+        if (offlineBuffer_.size() >= persistFlushThreshold_) {
+            persistence_->asyncPersist(std::move(offlineBuffer_));  // 移动, 不拷贝
+            offlineBuffer_.clear();                                  // 移动后为空, 显式 clear
+            offlineBuffer_.reserve(persistFlushThreshold_);          // 预分配下一轮
+        }
     }
 }
 
-// 联动超时降级: 发送原事件 + 部分结果 + timeout 标记
+// ──────────────────────────────────────────────────────
+// 联动超时降级: 原事件 + 部分结果 + timeout 标记
+// ──────────────────────────────────────────────────────
 void Dispatcher::cleanExpiredEnrichments() {
     auto now = currentTimeMs();
     for (auto it = pendingEvents_.begin(); it != pendingEvents_.end(); ) {
@@ -834,6 +882,29 @@ void Dispatcher::cleanExpiredEnrichments() {
             enriched->params += ", \"_enrichTimeout\": true";
             deliverEvent(enriched);
             it = pendingEvents_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+// ──────────────────────────────────────────────────────
+// Host 命令超时 (15s): 回送 TIMEOUT + 通知 HostConnector 移除 seqId
+// ──────────────────────────────────────────────────────
+void Dispatcher::cleanExpiredHostCommands() {
+    auto now = currentTimeMs();
+    for (auto it = pendingHostCommands_.begin(); it != pendingHostCommands_.end(); ) {
+        if (now - it->second.createTimeMs > HOST_CMD_TIMEOUT_MS) {
+            // 回送 TIMEOUT 给 App
+            if (auto resp = it->second.originalRequester.lock())
+                resp->sendResult(polaris::CommandResult::makeError(
+                    it->second.appReqId, -2, "Host command timeout"));
+
+            // 通知 HostConnector 移除排队中的该命令 (防御性清理)
+            if (auto fwd = hostForwarder_.lock())
+                fwd->cancelPending(it->first);  // seqId
+
+            it = pendingHostCommands_.erase(it);
         } else {
             ++it;
         }
@@ -1421,9 +1492,10 @@ polaris_event_commit(handle, "/data/audio_dump.pcm");
 | `polaris.executor.queue_size` | 100 | Executor 任务队列容量 |
 | `polaris.eventqueue.capacity` | 2000 | EventQueue 环形缓冲区容量 |
 | `polaris.enrichment.timeout_ms` | 30000 | 事件联动超时 (ms)，超时后降级转发 |
-| `polaris.host.cmd_timeout_ms` | 10000 | Host 命令超时 (ms) |
+| `polaris.host.cmd_timeout_ms` | 15000 | **Dispatcher 侧** Host 命令超时 (ms)，必须 > pending_timeout_ms |
+| `polaris.host.pending_timeout_ms` | 10000 | **HostConnector 侧** 排队命令超时 (ms) |
 | `polaris.host.pending_queue_size` | 100 | HostConnector 断连期间的待发送队列容量 |
-| `polaris.persist.timeout_minutes` | 30 | App 离线多久后触发事件落盘 |
+| `polaris.persist.flush_threshold` | 5000 | offlineBuffer_ 达到此容量时触发异步落盘 |
 | `polaris.persist.file_path` | `/data/local/tmp/polarisd_events.dat` | 落盘文件路径 |
 | `polaris.stats.interval_minutes` | 60 | StatsReporter 打印间隔 (分钟) |
 
@@ -1472,7 +1544,7 @@ polaris_event_commit(handle, "/data/audio_dump.pcm");
     ├── 停止 Dispatcher                // push TYPE_SYSTEM_EXIT (Poison Pill) 唤醒队列
     ├── Dispatcher.join()              // 等待事件循环线程退出
     ├── 停止 Executor                  // 等待线程池所有 worker 完成
-    └── 落盘未发送事件                  // EventPersistence::persist(offlineBuffer_)
+    └── 同步落盘 offlineBuffer_          // EventPersistence::syncPersist() (允许阻塞)
 ```
 
 ### 10.3 init.rc 配置
@@ -1673,6 +1745,7 @@ vendor/voyah/system/polaris/
 | `HostSession-R` | HostSession | Host 连接的读线程 |
 | `HostSession-W` | HostSession | Host 连接的写线程 (Queue-based) |
 | `Exec-Worker-N` | Executor | 线程池 worker 线程 (默认 4 个, 可配置) |
+| `Persist-IO` | EventPersistence | 独立 I/O 线程，异步执行事件落盘和加载 |
 | `StatsTimer` | StatsReporter | 定时采集统计线程 |
 
 ### 13.2 PolarisAgent (Java)
@@ -1708,8 +1781,8 @@ vendor/voyah/system/polaris/
 | PLP Payload | 16MB | 超限拒绝解码 |
 | libpolaris_client 队列 | 4MB 总量 / 1024 字节单包 | 超限返回 -EAGAIN |
 | Dispatcher pendingEvents_ | 上限 500 | 超时 30s 降级转发 (原事件 + 部分结果 + timeout 标记) |
-| Dispatcher pendingHostCommands_ | 上限 100 | 超时 10s 回送 TIMEOUT 错误 |
-| Dispatcher offlineBuffer_ | 上限 10000 条 | 超限时触发提前落盘 |
+| Dispatcher pendingHostCommands_ | 上限 100 | 超时 15s 回送 TIMEOUT 错误 + 通知 HostConnector 清理 |
+| Dispatcher offlineBuffer_ | 达到 5000 条时异步落盘 | 容量触发，移交 I/O 线程写入，Dispatcher 不阻塞 |
 
 ### 14.2 PolarisAgent (Java)
 
@@ -2068,6 +2141,8 @@ struct IHostForwarder {
     virtual ~IHostForwarder() = default;
     virtual void forwardCommand(std::shared_ptr<polaris::CommandRequest> cmd,
                                 uint32_t seqId) = 0;
+    // Dispatcher 超时时调用, 移除 pendingQueue_ 中对应 seqId 的命令 (防御性)
+    virtual void cancelPending(uint32_t seqId) = 0;
 };
 
 } // namespace polarisd
@@ -2223,14 +2298,13 @@ private:
     void handleCommandResult(InternalEvent& event);
     void handleEnrichmentResult(InternalEvent& event);
 
-    // 事件投递 (感知 App 在线/离线状态)
+    // 事件投递 (感知 App 在线/离线状态, 容量触发异步落盘)
     void deliverEvent(std::shared_ptr<polaris::PolarisEvent> event);
-    void replayPersistedEvents();
+    void replayPersistedEventsAsync();
 
     // 超时清理
     void cleanExpiredEnrichments();
-    void cleanExpiredHostCommands();
-    void checkAppOfflinePersist();
+    void cleanExpiredHostCommands();      // 15s 超时 + 通知 HostConnector
 
     std::shared_ptr<polaris::PolarisEvent> mergeResults(
         std::shared_ptr<polaris::PolarisEvent> original,
@@ -2264,17 +2338,15 @@ private:
     std::atomic<uint32_t>                                   nextPlpSeqId_{1};
 
     // App 离线状态
-    uint64_t                                                appDisconnectTimeMs_ = 0;
-    bool                                                    persistedToDisk_ = false;
+    bool                                                    appOffline_ = false;
     std::vector<std::shared_ptr<polaris::PolarisEvent>>     offlineBuffer_;
 
     // 可配置参数 (从 Config 加载)
     size_t      maxPendingEvents_       = 500;
     size_t      maxPendingHostCmds_     = 100;
     uint64_t    enrichmentTimeoutMs_    = 30000;    // 30s
-    uint64_t    hostCmdTimeoutMs_       = 10000;    // 10s
-    uint64_t    persistTimeoutMinutes_  = 30;       // 30min
-    size_t      maxOfflineBuffer_       = 10000;
+    uint64_t    hostCmdTimeoutMs_       = 15000;    // 15s (必须 > HostConnector 的 10s)
+    size_t      persistFlushThreshold_  = 5000;     // offlineBuffer_ 达到此容量时异步落盘
 
     std::thread             thread_;
     std::atomic<bool>       running_{false};
@@ -2634,6 +2706,9 @@ public:
     void forwardCommand(std::shared_ptr<polaris::CommandRequest> cmd,
                         uint32_t seqId) override;
 
+    // Dispatcher 超时时调用, 从 pendingQueue_ 中移除对应 seqId (防御性清理)
+    void cancelPending(uint32_t seqId) override;
+
     std::shared_ptr<HostSession> getSession() const;
 
 private:
@@ -2898,6 +2973,8 @@ public:
 
 #### A.7.1 EventPersistence.h
 
+异步落盘: Dispatcher 将 buffer 移交给独立 I/O 线程，不阻塞事件循环。
+
 ```cpp
 #pragma once
 
@@ -2905,6 +2982,12 @@ public:
 #include <memory>
 #include <vector>
 #include <string>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <functional>
+#include <atomic>
 
 namespace polarisd {
 
@@ -2912,12 +2995,25 @@ class EventPersistence {
 public:
     // filePath: 落盘文件路径 (可通过 Config 配置)
     explicit EventPersistence(const std::string& filePath);
+    ~EventPersistence();
 
-    // 将事件列表序列化写入磁盘 (JSON Lines 格式)
-    bool persist(const std::vector<std::shared_ptr<polaris::PolarisEvent>>& events);
+    void start();   // 启动 I/O 线程
+    void stop();    // 停止 I/O 线程
 
-    // 从磁盘加载待发送事件
-    std::vector<std::shared_ptr<polaris::PolarisEvent>> loadPending();
+    // ── 异步接口 (Dispatcher 调用, 不阻塞) ──
+
+    // 将事件列表移交给 I/O 线程异步写入磁盘 (JSON Lines, 追加模式)
+    // Dispatcher 调用后立即返回, offlineBuffer_ 内容已被 move 走
+    void asyncPersist(std::vector<std::shared_ptr<polaris::PolarisEvent>> events);
+
+    // 异步加载磁盘数据, 完成后通过 callback 回调 (在 I/O 线程中执行)
+    using LoadCallback = std::function<void(
+        std::vector<std::shared_ptr<polaris::PolarisEvent>>)>;
+    void asyncLoad(LoadCallback callback);
+
+    // ── 同步接口 (仅用于进程退出时的最后一次落盘) ──
+
+    void syncPersist(const std::vector<std::shared_ptr<polaris::PolarisEvent>>& events);
 
     // 清理磁盘文件 (回放成功后调用)
     void clear();
@@ -2926,7 +3022,14 @@ public:
     bool hasPending() const;
 
 private:
-    std::string filePath_;
+    void ioLoop();
+
+    std::string                             filePath_;
+    std::thread                             ioThread_;
+    std::mutex                              mutex_;
+    std::condition_variable                 cv_;
+    std::queue<std::function<void()>>       taskQueue_;
+    std::atomic<bool>                       running_{false};
 };
 
 } // namespace polarisd
@@ -3022,13 +3125,12 @@ struct Config {
 
     // Dispatcher
     uint64_t    enrichmentTimeoutMs     = 30000;        // 30s
-    uint64_t    hostCmdTimeoutMs        = 10000;        // 10s
-    uint64_t    persistTimeoutMinutes   = 30;           // 30min
-    size_t      maxOfflineBuffer        = 10000;
+    uint64_t    hostCmdTimeoutMs        = 15000;        // 15s (必须 > hostPendingTimeoutMs)
+    size_t      persistFlushThreshold   = 5000;         // offlineBuffer_ 达到此容量时异步落盘
 
     // HostConnector
     size_t      hostPendingQueueSize    = 100;
-    uint64_t    hostPendingTimeoutMs    = 10000;        // 10s
+    uint64_t    hostPendingTimeoutMs    = 10000;        // 10s (必须 < hostCmdTimeoutMs)
 
     // EventPersistence
     std::string persistFilePath         = "/data/local/tmp/polarisd_events.dat";
