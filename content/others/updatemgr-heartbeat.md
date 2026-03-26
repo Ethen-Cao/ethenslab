@@ -1,3 +1,8 @@
++++
+date = '2025-08-08T11:36:11+08:00'
+draft = true
++++
+
 # updatemgr 与 updatemgr_script 心跳机制分析
 
 ## 1. 总结

@@ -28,7 +28,7 @@ function show_usage() {
     echo "  -s <tags...>            Filter by Log Tag (Space separated)"
     echo "  -k <keywords...>        Filter by Keyword (Include) (Space separated)"
     echo "  -e <keywords...>        Exclude lines containing keywords (Space separated)"
-    echo "  -t <start> <end>        Filter by Time Range (MM-DD HH:MM:SS)"
+    echo "  -t <start> <end>        Filter by Time Range (HH:MM or MM-DD HH:MM:SS)"
     echo "  --plain                 Output plain text (no filename/line numbers)"
     echo ""
     echo "Examples:"
@@ -41,6 +41,7 @@ function show_usage() {
 function execute_search() {
     local s_time="$1"
     local e_time="$2"
+    local TIME_ONLY="$3"
     local use_time_filter=1
 
     if [[ -z "$s_time" ]]; then
@@ -61,6 +62,7 @@ function execute_search() {
         -v s="$s_time" \
         -v e="$e_time" \
         -v enable_time="$use_time_filter" \
+        -v time_only="$TIME_ONLY" \
         -v p="$PLAIN_MODE" \
         -v f_pid="$FILTER_PID" \
         -v f_tag="$FILTER_TAG" \
@@ -75,8 +77,13 @@ function execute_search() {
             if ($1 !~ /^[0-9]{2}-[0-9]{2}$/ || $2 !~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+$/) next
 
             # 2. 时间过滤 (Gatekeeper 1)
+            # time_only=1 时只比较时间部分 ($2)，否则比较完整时间戳 ($1 " " $2)
             if (enable_time == 1) {
-                current_time = $1 " " $2
+                if (time_only == 1) {
+                    current_time = $2
+                } else {
+                    current_time = $1 " " $2
+                }
                 if ((s != "" && current_time < s) || (e != "" && current_time > e)) next
             }
 
@@ -96,9 +103,17 @@ function execute_search() {
             }
 
             # --- 检查 Tag ---
+            # $6 = 标准 threadtime 格式 (D Tag:)
+            # $5 = 合并格式 (D/Tag:), 需从中提取 tag 部分
             if (f_tag != "" && is_matched == 0) {
                 has_condition = 1
-                if ($6 ~ f_tag) is_matched = 1
+                tag = $6
+                if (tag ~ f_tag) {
+                    is_matched = 1
+                } else if ($5 ~ /\//) {
+                    split($5, _t, "/")
+                    if (_t[2] ~ f_tag) is_matched = 1
+                }
             }
 
             # --- 检查 Keyword ---
@@ -130,7 +145,13 @@ FILTER_KEY=""
 FILTER_EXCLUDE=""
 START_TIME=""
 END_TIME=""
+TIME_ONLY=0
 declare -a SEARCH_TARGETS=()
+
+# 检测时间参数是否包含日期 (MM-DD)
+function has_date_prefix() {
+    [[ "$1" =~ ^[0-9]{2}-[0-9]{2} ]]
+}
 
 if [ $# -eq 0 ]; then
     show_usage
@@ -139,8 +160,6 @@ fi
 function is_stop_arg() {
     local arg="$1"
     if [[ "$arg" == -* ]]; then return 0; fi
-    if [[ -e "$arg" ]]; then return 0; fi
-    if [[ "$arg" == /* || "$arg" == ./* || "$arg" == ../* ]]; then return 0; fi
     return 1
 }
 
@@ -192,7 +211,15 @@ while [[ $# -gt 0 ]]; do
         -t) # Time
             if [[ -n "$2" && "$2" != -* ]]; then
                 START_TIME="$2"
-                if [[ -n "$3" && "$3" != -* ]]; then END_TIME="$3"; shift 3; else END_TIME="99-99 23:59:59.999"; shift 2; fi
+                # 检测是否为短格式 (无日期前缀)
+                if ! has_date_prefix "$2"; then TIME_ONLY=1; fi
+                if [[ -n "$3" && "$3" != -* ]]; then
+                    END_TIME="$3"
+                    shift 3
+                else
+                    END_TIME=""
+                    shift 2
+                fi
             else
                 echo "Warning: Option -t requires time args." >&2; shift 1
             fi
@@ -207,4 +234,4 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-execute_search "$START_TIME" "$END_TIME"
+execute_search "$START_TIME" "$END_TIME" "$TIME_ONLY"

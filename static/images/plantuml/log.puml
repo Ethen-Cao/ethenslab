@@ -1,0 +1,47 @@
+@startuml
+!theme plain
+skinparam defaultFontColor black
+skinparam ActivityBackgroundColor #FFFFFF
+skinparam ActivityBorderColor #000000
+skinparam ArrowColor #000000
+skinparam roundCorner 4
+
+start
+:提取并分类原始文件 (Host / Guest);
+
+partition 启动周期识别与切分 {
+  fork
+    :扫描 Host 启动特征边界\n(如 dmesg "Linux version", systemd "Startup finished");
+  fork again
+    :扫描 Guest 启动特征边界\n(如 logcat "--------- beginning of", Zygote 启动);
+  end fork
+  :建立 Boot Session 映射表;
+  :将物理日志按 Boot Session 切割为独立的逻辑切片;
+}
+
+partition 会话内时间重构与对齐 {
+  :提取 Host/Guest 授时同步点;
+  :计算当前 Session 的 Host/Guest 时间偏差 (ΔT);
+}
+
+partition 结构化与绝对时间注入 {
+  fork
+    :Host: 结构化 DLT / Journalctl / dmesg;
+  fork again
+    :Guest: 结构化 Logcat / Event Log / Dropbox 摘要;
+  end fork
+  :基于 ΔT，将所有相对时间/未校准时间\n统一转换为全局绝对时间戳 (EPOCH);
+}
+
+partition 跨系统特征关联 {
+  :依赖统一时间轴，执行跨系统时序追踪\n(如：Host VirtIO 异常 -> Guest 渲染或通信超时);
+  :提取致命错误时间节点 (OOM / ANR / Crash 触发时刻);
+}
+
+partition 合并与入库 {
+  :按绝对时间戳合并该 Boot Session 的全局日志;
+  :落盘至时序数据库或输出合并视图;
+}
+
+stop
+@enduml
