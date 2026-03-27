@@ -75,14 +75,17 @@ public:
 
 ### 创建
 
-InputChannel 的创建伴随窗口添加过程。调用链：
+InputChannel 的创建伴随窗口添加过程。按当前实现，窗口侧的完整调用链是：
 
-```
-WMS.addWindow()
-  → WindowState.openInputChannel()
-    → InputManagerService.createInputChannel(name)
-      → [JNI] NativeInputManagerService.createInputChannel(name)
-        → InputDispatcher::createInputChannel(name)
+```text
+ViewRootImpl.setView()
+  → IWindowSession.addToDisplayAsUser(..., outInputChannel, ...)
+    → Session.addToDisplayAsUser(...)
+      → WMS.addWindow(...)
+        → WindowState.openInputChannel(outInputChannel)
+          → InputManagerService.createInputChannel(name)
+            → [JNI] NativeInputManagerService.createInputChannel(name)
+              → InputDispatcher::createInputChannel(name)
 ```
 
 `WindowState.openInputChannel()` 是 Java 层的入口：
@@ -137,9 +140,11 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
 3. 将 server 端 FD 注册到 Looper（epoll），监听 `ALOOPER_EVENT_INPUT`，回调函数为 `handleReceiveCallback`
 4. 唤醒 Looper，返回 client 端给调用方
 
+这里最容易混淆的一点是：`InputDispatcher::createInputChannel()` 返回给 Java 的是 `clientChannel`；`serverChannel` 已经在 native 层被 `Connection` 接管并加入 `mConnectionsByToken`。因此，`WindowState.mInputChannel` 持有的是 SystemServer 进程中的 client 端代理，而不是 `InputDispatcher` 中用于分发事件的 server 端连接。
+
 返回的 `clientChannel` 经 JNI 包装为 Java `InputChannel` 对象，再通过 `copyTo` 写入 `outInputChannel`（Parcelable），最终由 Binder 传输 FD 到 App 进程。
 
-App 进程收到后，在 `ViewRootImpl` 中创建 `WindowInputEventReceiver`（继承自 `InputEventReceiver`），将 client 端 FD 注册到 App 的主线程 Looper 上，开始监听输入事件：
+App 进程收到后，在 `ViewRootImpl` 中创建 `WindowInputEventReceiver`（继承自 `InputEventReceiver`）。其底层 native `InputEventReceiver` 会把 client 端 FD 注册到 `MessageQueue` 绑定的 `Looper` 上，开始监听输入事件：
 
 ```java
 // ViewRootImpl.java
@@ -154,6 +159,7 @@ mInputEventReceiver = new WindowInputEventReceiver(inputChannel, Looper.myLooper
 title InputChannel 创建流程
 
 participant "App Process\n(ViewRootImpl)" as App
+participant "IWindowSession\n(Session)" as IWS
 participant "WindowManagerService" as WMS
 participant "WindowState" as WS
 participant "InputManagerService" as IMS
@@ -161,7 +167,10 @@ participant "InputDispatcher\n(C++)" as ID
 
 autonumber
 
-App -> WMS: addWindow(outInputChannel)
+App -> IWS: addToDisplayAsUser(..., outInputChannel)
+activate IWS
+
+IWS -> WMS: addWindow(..., outInputChannel)
 activate WMS
 
 WMS -> WS: openInputChannel(outInputChannel)
@@ -174,13 +183,13 @@ IMS -> ID: createInputChannel(name)
 activate ID
 
 ID -> ID: openInputChannelPair()\n→ socketpair(AF_UNIX, SOCK_SEQPACKET)
-ID -> ID: 创建 Connection，存入 mConnectionsByToken
-ID -> ID: mLooper->addFd() 注册 epoll 监听
+ID -> ID: 创建 Connection 接管 serverChannel\n存入 mConnectionsByToken
+ID -> ID: mLooper->addFd(serverFd)\n注册 Looper 监听
 
 ID --> IMS: clientChannel
 deactivate ID
 
-IMS --> WS: InputChannel (Java)
+IMS --> WS: Java InputChannel\n(client 端代理)
 deactivate IMS
 
 WS -> WS: mInputToWindowMap.put(token, this)
@@ -189,10 +198,14 @@ WS -> WS: mInputChannel.copyTo(outInputChannel)
 WS --> WMS
 deactivate WS
 
-WMS --> App: outInputChannel (通过 Binder 传输 FD)
+WMS --> IWS: outInputChannel
 deactivate WMS
 
-App -> App: new WindowInputEventReceiver(channel, looper)\n注册 epoll 监听 ClientFD
+IWS --> App: outInputChannel\n(Binder 传输 client FD)
+deactivate IWS
+
+App -> App: new WindowInputEventReceiver(inputChannel, looper)
+App -> App: NativeInputEventReceiver\n通过 Looper.addFd(clientFd, ...) 监听
 
 @enduml
 ```
@@ -325,6 +338,8 @@ status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connection
 
 外层 `removeInputChannel` 在调用 `removeInputChannelLocked` 后，还会调用 `mLooper->wake()` 唤醒 Looper，因为连接变化可能影响当前的同步状态。
 
+这里也需要和创建流程对应起来理解：`removeInputChannelLocked()` 处理的是 `InputDispatcher` 内部 `Connection` 持有的 server 端连接；`WindowState.mInputChannel.dispose()` 释放的则是 SystemServer 进程中持有的 client 端 Java 代理。两者不是同一个对象。
+
 #### 销毁流程时序图
 
 ```plantuml
@@ -354,12 +369,14 @@ ID -> ID: connection->status = ZOMBIE
 ID --> IMS: OK
 deactivate ID
 
+note over ID: 当 Connection 的最后一个引用释放后\n其持有的 InputChannel 析构\n底层 unique_fd 自动关闭 Server 端 FD
+
 IMS --> WS
 deactivate IMS
 
-WS -> WS: mInputChannel.dispose()\n关闭 Server 端 FD
+WS -> WS: mInputChannel.dispose()\n释放 SystemServer 持有的 Client 端代理
 
-note over WS: App 侧 Client FD 由\nInputEventReceiver.dispose() 关闭
+note over WS: 在普通窗口路径中，App 侧 Client FD 副本通常由\nViewRootImpl 销毁时的 InputEventReceiver.dispose()\n进一步触发 InputChannel.dispose() 释放
 
 @enduml
 ```

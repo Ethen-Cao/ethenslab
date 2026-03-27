@@ -153,6 +153,34 @@ function has_date_prefix() {
     [[ "$1" =~ ^[0-9]{2}-[0-9]{2} ]]
 }
 
+# 检测参数是否像时间值 (HH:MM... 或 MM-DD ...)
+function is_time_arg() {
+    [[ "$1" =~ ^[0-9]{2}:[0-9]{2} || "$1" =~ ^[0-9]{2}-[0-9]{2} ]]
+}
+
+# 规范化时间值为 logcat 可比较格式
+# 输入: 任意格式如 "15:18", "15:18:00", "15:18:000000", "03-24 15:18:00.123"
+# 输出: "HH:MM:SS.ffffff" 或 "MM-DD HH:MM:SS.ffffff"
+function normalize_time_value() {
+    local t="$1"
+    local date_prefix=""
+    # 提取日期前缀
+    if [[ "$t" =~ ^([0-9]{2}-[0-9]{2})[[:space:]]+(.*) ]]; then
+        date_prefix="${BASH_REMATCH[1]} "
+        t="${BASH_REMATCH[2]}"
+    fi
+    # 解析 HH:MM[:SS[.frac]]
+    if [[ "$t" =~ ^([0-9]{2}):([0-9]{2})(:([0-9]{2})(\.([0-9]+))?)? ]]; then
+        local h="${BASH_REMATCH[1]}" m="${BASH_REMATCH[2]}"
+        local s="${BASH_REMATCH[4]:-00}" f="${BASH_REMATCH[6]:-000000}"
+        # 补齐小数部分到 6 位
+        while [[ ${#f} -lt 6 ]]; do f="${f}0"; done
+        echo "${date_prefix}${h}:${m}:${s}.${f}"
+    else
+        echo "${date_prefix}${t}"
+    fi
+}
+
 if [ $# -eq 0 ]; then
     show_usage
 fi
@@ -160,6 +188,7 @@ fi
 function is_stop_arg() {
     local arg="$1"
     if [[ "$arg" == -* ]]; then return 0; fi
+    if [[ -e "$arg" ]]; then return 0; fi
     return 1
 }
 
@@ -210,11 +239,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         -t) # Time
             if [[ -n "$2" && "$2" != -* ]]; then
-                START_TIME="$2"
                 # 检测是否为短格式 (无日期前缀)
                 if ! has_date_prefix "$2"; then TIME_ONLY=1; fi
-                if [[ -n "$3" && "$3" != -* ]]; then
-                    END_TIME="$3"
+                START_TIME=$(normalize_time_value "$2")
+                if [[ -n "$3" && "$3" != -* ]] && is_time_arg "$3"; then
+                    END_TIME=$(normalize_time_value "$3")
                     shift 3
                 else
                     END_TIME=""
