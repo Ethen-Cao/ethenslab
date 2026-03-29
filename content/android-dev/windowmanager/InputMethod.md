@@ -1,4 +1,8 @@
-# InputMethodManagerService 技术文档大纲
++++
+date = '2025-09-29T10:22:54+08:00'
+draft = false
+title = 'InputMethodManagerService 技术文档大纲'
++++
 
 ## 架构概述与系统定位
 
@@ -1503,7 +1507,7 @@ rectangle “AOSP 实验架构 (Multi-Client IME)” {
 
 #### 当前实际方案
 
-在当前项目中，多屏并发输入通过独立的 IME 应用包（`com.voyah.multiclientinputmethod/.MultiClientInputMethod`）实现，而非框架层的 Multi-Client 架构。具体实现细节不在 AOSP 框架范畴内。
+在当前项目中，多屏并发输入通过独立的 IME 应用包（`com.xxx.multiclientinputmethod/.MultiClientInputMethod`）实现，而非框架层的 Multi-Client 架构。具体实现细节不在 AOSP 框架范畴内。
 
 ## 调试、排错与日志分析
 - 命令行工具：`dumpsys input_method` 输出状态字段详解（重点查看 `mCurMethodId`, `mCurFocusedWindow`, `mImeWindowVis`）。
