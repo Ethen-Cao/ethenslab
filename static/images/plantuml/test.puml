@@ -1,58 +1,23 @@
 @startuml
 !theme plain
-skinparam backgroundColor white
-skinparam handwritten false
-skinparam DefaultFontName "Arial"
-skinparam DefaultFontSize 12
+skinparam defaultFontColor black
+skinparam sequenceArrowColor #212121
+skinparam sequenceLifeLineBorderColor #757575
+skinparam sequenceParticipantBorderColor #757575
+skinparam sequenceParticipantBackgroundColor #FFFFFF
+autonumber "[0]"
 
-title Android Perfetto 性能追踪系统架构 (Smart Cockpit Implementation)
+participant "Launcher\n(Task Organizer)" as Launcher
+participant "ATMS / WMS\n(System Server)" as WMS
+participant "SurfaceFlinger" as SF
 
-package "User Space (App/Service Layer)" as UserSpace {
-    [perfetto CLI] as CLI <<Consumer>>
-    [Traceur / System Tracing] as Traceur <<Consumer>>
-}
-
-package "System Services (Producers)" as SystemServices {
-    [InputFlinger] as Input <<Producer>>
-    [SurfaceFlinger] as SF <<Producer>>
-    [System Server] as SS <<Producer>>
-}
-
-package "Perfetto Core (The Brain)" as PerfettoCore {
-    component "traced (Daemon)" as Traced {
-        [Service_Impl] as Srv
-        [Shared Memory Pool] as SHM
-        [Buffer Manager] as BufMgr
-    }
-    
-    component "traced_probes" as Probes {
-        [Ftrace Probe]
-        [Sys_Stats Probe]
-    }
-}
-
-package "Kernel Space" as KernelSpace {
-    [Ftrace / Debugfs] as Ftrace
-    [Kernel Sched/Binder] as KEvent
-}
-
-' 交互连接
-CLI -down-> Srv : 1. 发送 .pbtxt 配置 (via Socket)
-Srv -right-> SHM : 2. 分配共享内存页
-Srv <-up-> Input : 3. IPC (通知开始录制)
-Input --> SHM : 4. 零拷贝写入数据 (Trace Events)
-
-Probes -up-> Srv : 5. 汇聚内核数据
-Probes -down-> Ftrace : 监听内核事件
-
-Ftrace <-down-> KEvent : 捕获调度/Binder信息
-
-Srv -left-> BufMgr : 6. 维护 Ring Buffer
-BufMgr .up.> CLI : 7. 触发落盘 (Result .perfetto-trace)
-
-' note right of SHM
-'   座舱架构中，零拷贝是
-'   保证低 CPU 开销的核心
-' end note
-
+Launcher -> WMS: startActivity(Map)
+WMS -> WMS: 创建 Map Task 与 ActivityRecord
+WMS -> WMS: 分配初始默认 Bounds (通常是全局 0,0)
+WMS -> SF: 提交 Transaction: \n显示 Starting Window (图中的灰白块)
+note right of SF: 此时触发 Bug。\nSF 直接在屏幕左侧渲染了默认位置的背景，\n用户肉眼看到闪现的色块。
+WMS -> Launcher: onTaskAppeared(TaskInfo, SurfaceControl)
+Launcher -> Launcher: 重新计算 TaskView 实际挂载节点与坐标
+Launcher -> SF: 提交 Transaction: \n将 Map Surface 移动至正确位置或隐藏
+note right of SF: 状态同步完成，画面恢复预期层级。
 @enduml

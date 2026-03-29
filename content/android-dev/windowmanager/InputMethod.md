@@ -215,9 +215,7 @@ IMMS 负责建链和调度，不负责逐条转发文本编辑命令。
 
 ### 线程模型与一个常见误区
 
-`InputConnection` 的方法最终会回到 App 进程内执行，但不应简单写成“总是在主线程执行”。
-
-更准确的说法是：
+`InputConnection` 的方法最终会回到 App 进程内执行：
 
 - 系统优先使用 `InputConnection.getHandler()` 对应的 `Looper`
 - 如果没有提供专用 `Handler`，再回退到默认线程模型
@@ -1258,11 +1256,13 @@ App 侧 `InputMethodManager.dispatchInputEvent(...)` 在 `mCurrentInputMethodSes
 3. 把 `PendingEvent` 放进 `mPendingEvents`
 4. 等待 IME 侧回调处理结果
 
-IME 侧 `IInputMethodSessionWrapper.ImeInputEventReceiver.onInputEvent(...)` 收到事件后：
+IME 侧 `IInputMethodSessionWrapper.ImeInputEventReceiver.onInputEvent(...)` 收到事件后，按如下优先级分发：
 
-- `KeyEvent` -> `mInputMethodSession.dispatchKeyEvent(...)`
-- 非 `SOURCE_CLASS_POINTER` / 非 `SOURCE_ROTARY_ENCODER` 的 `MotionEvent` -> `dispatchGenericMotionEvent(...)`
-- `SOURCE_CLASS_TRACKBALL` -> `dispatchTrackballEvent(...)`
+- `KeyEvent` → `mInputMethodSession.dispatchKeyEvent(...)`
+- `SOURCE_CLASS_TRACKBALL` 的 `MotionEvent` → `dispatchTrackballEvent(...)`
+- 其他 `MotionEvent` → `dispatchGenericMotionEvent(...)`
+
+注意：`SOURCE_CLASS_POINTER` 和 `SOURCE_ROTARY_ENCODER` 的 `MotionEvent` 不会到达这里——它们在 App 侧 `QueuedInputEvent.shouldSkipIme()` 中已被跳过。
 
 因此，`InputChannel` 承载的是“原始事件流”，它解决的是“IME 是否要先消费这个按键/运动事件”的问题。
 
@@ -1392,9 +1392,118 @@ end
 ```
 
 ## 进阶：多屏与座舱场景输入法管理
-- 多屏幕输入法支持（Per-Display IME）的焦点隔离机制。
-- 焦点抢占与物理按键拦截（在车机等异构输入环境下的处理逻辑）。
-- Multi-Client IME 架构解析（允许多个应用同时拥有输入法连接的定制化方案）。
+
+在智能座舱（Smart Cockpit）环境中，多屏异构（仪表、中控、副驾、后排）和多模态输入（触屏、方控、旋钮、语音）是标准配置。传统的 Android 单屏单焦点输入法架构在此场景下会面临焦点抢占、状态同步混乱和物理按键拦截等问题。
+
+### 多屏幕输入法支持（Per-Display IME）的焦点隔离机制
+
+Android 原生 IMMS 默认是**单例状态机**（Single-Client），即全局无论有多少块屏幕，同一时刻只能有一个活跃的 `IInputMethodSession`。
+
+在引入多屏支持后，WMS 和 IMMS 的协同机制发生了变化，核心逻辑是**焦点隔离与 Token 动态迁移**：
+
+1. **WMS 侧的焦点隔离**
+   WMS 为每个屏幕维护独立的 `DisplayContent`。每个 `DisplayContent` 拥有自己的 `mCurrentFocus`（焦点窗口）。这意味着中控屏和副驾屏可以各自拥有一个处于 Focused 状态的 Activity 和 EditText。
+2. **IMMS 侧的 Token 追踪**
+   IMMS 引入了 `mCurTokenDisplayId` 来追踪当前 IME 窗口附着的屏幕 ID。当 WMS 报告焦点变化时，IMMS 会对比新焦点窗口所在屏幕与 `mCurTokenDisplayId`。
+3. **IME 窗口的跨屏迁移（Token 移除 + 重建）**
+   当副驾屏的 EditText 获得输入焦点时（`cs.selfReportedDisplayId != mCurTokenDisplayId`），IMMS 不会启动一个新的 IME 进程，但会执行一次**完整的 unbind/rebind 循环**：
+   - `InputMethodBindingController.unbindCurrentMethod()`：解除与 IME 服务的绑定（`unbindService`），并调用 `removeCurrentToken()` 从旧屏幕移除 IME 窗口 Token（`removeWindowToken(mCurToken, curTokenDisplayId)`）。
+   - 随后重新绑定时，`bindCurrentMethod()` 调用 `addFreshWindowToken()`：在新屏幕上创建全新 Token（`addWindowToken(mCurToken, TYPE_INPUT_METHOD, displayIdToShowIme)`），并重新 `bindServiceAsUser()` 绑定 IME 服务。
+   - IME 服务重新连接后，走完整的 `initializeInternal` → `createSession` → `attachNewInputLocked` 流程。
+
+   注意：`DisplayContent` 中的 `reparent(mImeWindowsContainer.mSurfaceControl, newParent)` 是**同一屏幕内**根据 target app 调整 IME 的父层级，不是跨屏迁移机制。
+
+**架构局限性**：这种 Per-Display IME 机制本质上是“分时复用”。如果主驾和副驾同时点击输入框，IMMS 会发生焦点剧烈抖动（Focus Thrashing），键盘会在两块屏幕间来回跳跃，无法实现真正的并发输入。
+
+### 焦点抢占与物理按键拦截（在车机等异构输入环境下的处理逻辑）
+
+座舱环境包含大量的硬件输入设备（方向盘按键、中控旋钮、空调硬按键）。这些输入流进入系统后，必须在到达 `ImeInputStage` 之前进行严格的路由与拦截。
+
+#### 物理按键（Hard Keys）的全局拦截
+方向盘上的语音唤醒、媒体控制等按键，不能被当前获得 IME 焦点的应用或输入法截获。
+- **拦截层**：`InputManagerService` 在分发事件前，会通过 `PhoneWindowManager.interceptKeyBeforeDispatching()`（或车机定制的 Policy）进行同步拦截。
+- **机制**：如果 Policy 消费了该 `KeyEvent`（例如识别为音量调节或唤醒语音助手），事件将直接丢弃，永远不会进入 `ViewRootImpl` 的 Input Pipeline，IME 彻底无感。
+
+#### 旋钮（Rotary Encoder）与触控板的绕过机制
+如前文所述，座舱常见的物理旋钮（`SOURCE_ROTARY_ENCODER`）事件，在 App 侧的 `QueuedInputEvent.shouldSkipIme()` 中会被强制标记为跳过 IME。
+- **原因**：旋钮通常用于 UI 焦点的空间导航（上下左右移动 Focus），而 IME 的 `InputChannel` 主要处理文本录入相关的 `KeyEvent`。如果旋钮事件进入 IME，会导致输入法内部的光标逻辑与 App 视图树的焦点逻辑产生冲突。
+- **处理路径**：旋钮事件直接进入 `ViewPostImeInputStage`，由 App 的 `ViewRootImpl` 转换为 D-pad 模拟按键或直接驱动 View 树的 focus 移动。
+
+#### 仪表盘（Cluster）的防抢占策略
+仪表盘通常是一个独立的 Display，显示车速、导航等关键信息。为了防止仪表盘上的弹窗（如低电量警告）意外抢走中控屏的输入法焦点，系统层通过 **Display IME Policy** 进行屏幕级屏蔽：
+
+- WMS 为每个 Display 维护 IME 策略（`mDisplayImePolicyCache`），IMMS 在 `startInput` 时通过 `getDisplayImePolicy(displayId)` 查询：
+  - `DISPLAY_IME_POLICY_LOCAL`：IME 显示在该屏幕上。
+  - `DISPLAY_IME_POLICY_HIDE`：禁止 IME，IMMS 直接返回 `InputBindResult.NO_IME`，并设置 `mImeHiddenByDisplayPolicy = true`。
+  - `DISPLAY_IME_POLICY_FALLBACK_DISPLAY`：IME 回落到默认屏幕显示。
+- 仪表盘的 Display 应配置为 `DISPLAY_IME_POLICY_HIDE`，这样 IMMS 在绑定阶段就会拒绝，确保 `mCurClient` 永远不会指向仪表盘进程。
+
+注意：`canBeImeTarget()`（WindowState:2675）是**窗口级**判断（检查 FLAG、PiP、focusability 等），不包含 Display ID 级别的过滤。Display 级别的屏蔽由上述 Policy 机制在 IMMS 侧完成。
+
+### Multi-Client IME 架构（AOSP 历史方案）
+
+> **注意**：以下描述基于 AOSP Android 10-11 时期在 `frameworks/opt/car/services/` 中的实验性实现。该方案后来从 AOSP 主线中移除，相关类（`MultiClientInputMethodManagerService`、`MultiClientInputMethodServiceDelegateImpl`）在当前代码库中**不存在**。本节仅作为历史参考，帮助理解多屏并发输入的设计思路。
+
+为了解决座舱多屏并发输入的痛点，AOSP 曾引入 Multi-Client IME 架构，目标是允许**多个应用在不同的屏幕上同时与输入法建立活跃的 Session**。
+
+```plantuml
+@startuml
+!theme plain
+skinparam defaultFontColor black
+scale 1080 width
+skinparam {
+    rectangleRoundCorner 10
+    defaultFontSize 12
+    shadowing false
+    rectangleBorderColor #666666
+    arrowColor #333333
+    arrowThickness 1.2
+}
+
+rectangle “标准架构 (Single-Client IME)” {
+    rectangle “IMMS (system_server)” as IMMS1
+    rectangle “IME Process” as IME1
+    rectangle “App 1 (中控屏)” as App1_1
+    rectangle “App 2 (副驾屏)” as App1_2
+
+    App1_1 -.-> IMMS1 : 抢占焦点
+    App1_2 -.-> IMMS1 : 抢占焦点
+    IMMS1 -down-> IME1 : 维持单一 Session\n(Token 跨屏流转)
+}
+
+rectangle “AOSP 实验架构 (Multi-Client IME)” {
+    rectangle “MultiClientIMMS” as IMMS2
+    rectangle “IME Process (支持多 Client)” as IME2 {
+        rectangle “Session 1” as S1
+        rectangle “Session 2” as S2
+    }
+    rectangle “App 1 (中控屏)” as App2_1
+    rectangle “App 2 (副驾屏)” as App2_2
+
+    App2_1 -down-> IMMS2 : 独立建链
+    App2_2 -down-> IMMS2 : 独立建链
+    IMMS2 -down-> S1 : 绑定 Display 0
+    IMMS2 -down-> S2 : 绑定 Display 1
+    App2_1 <-right-> S1 : 独立输入通道 (IInputContext)
+    App2_2 <-right-> S2 : 独立输入通道 (IInputContext)
+}
+@enduml
+```
+
+#### 设计思路（已从 AOSP 主线移除）
+
+1. **服务替换**
+   通过系统属性启用后，系统启动 `MultiClientInputMethodManagerService` 替代标准 IMMS。
+2. **去中心化的 Session 管理**
+   Multi-Client IMMS 不再维护全局唯一的 `mCurMethod` 和 `mCurClient`，而是按 Display 分别管理 Session。
+3. **IME 进程的责任放大**
+   输入法应用需实现 `MultiClientInputMethodServiceDelegateImpl`，内部维护 `DisplayId -> Session` 映射。每个 Display 拥有独立的 `SoftInputWindow`、`InputChannel` 和 `IInputContext`。
+4. **Insets 协同的解耦**
+   WMS 将特定 Display 的 IME Insets 控制权直接下发给该屏幕上拥有焦点的 App，中控屏的键盘弹起不影响副驾屏的 View 树布局。
+
+#### 当前实际方案
+
+在当前项目中，多屏并发输入通过独立的 IME 应用包（`com.voyah.multiclientinputmethod/.MultiClientInputMethod`）实现，而非框架层的 Multi-Client 架构。具体实现细节不在 AOSP 框架范畴内。
 
 ## 调试、排错与日志分析
 - 命令行工具：`dumpsys input_method` 输出状态字段详解（重点查看 `mCurMethodId`, `mCurFocusedWindow`, `mImeWindowVis`）。
