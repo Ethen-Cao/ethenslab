@@ -1,6 +1,6 @@
 ---
-title: "OTA 刷写 I/O 优化：zstdext seg-size 调优与系统实时性保障"
-date: 2026-03-16
+title = "OTA 刷写 I/O 优化：zstdext seg-size 调优与系统实时性保障"
+date = '2025-08-08T11:36:11+08:00'
 draft = true
 ---
 
