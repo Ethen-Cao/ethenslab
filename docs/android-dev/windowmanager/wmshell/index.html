@@ -1,0 +1,283 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>WMShell 介绍：SystemUI 与 WindowManager 之间的壳层 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='WMShell 不是一个单独的类，而是 Android 在 SystemUI 进程里承载的一组窗口管理能力。它位于 SystemUI 与 system_server 之间：一边接收配置变化、锁屏状态、用户切换、命令队列等 SysUI 事件；另一边通过 WindowOrganizer、TaskOrganizer、Transitions 等接口去控制 system_server 中的 Task、DisplayArea 和窗口转场。
+这篇文章只做总览，重点解释 WMShell 在系统里的位置、启动方式、任务组织模型、转场模型，以及为什么分屏是理解它的最好入口。
+WMShell 在哪里启动
+WMShell 的启动链路在当前源码里比较清晰：
+flowchart LR
+    A["SystemUIInitializer.init()"] --> B["setupWmComponent()"]
+    B --> C["mWMComponent.init()"]
+    C --> D["WMComponent.getShell().onInit()"]
+    D --> E["ShellController\n.ShellInterfaceImpl\n.onInit()"]
+    E --> F["ShellController\n.handleInit()"]
+    F --> G["ShellInit.init()"]
+这里有两个关键点。
+第一，WMComponent 是 Shell 的 Dagger 子图。它会把 Pip、SplitScreen、OneHanded、Bubbles、RecentTasks、DesktopMode、ShellTransitions 等能力显式导出给 SystemUI 使用。
+第二，SystemUI 侧真正启动的服务类是 com.android.systemui.wmshell.WMShell。它实现了 CoreStartable，在 start() 里把 SysUI 的外部事件转给 Shell，例如：
+
+配置变化
+Keyguard 可见性
+用户切换
+CommandQueue 回调
+PiP、SplitScreen、One-handed、DesktopMode、RecentTasks 的额外绑定
+
+因此，WMShell 的"运行位置"和"控制对象"是分开的：'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.d72e395e7ae968ea569a36ddda9be4e6f6402d891a3f24d4c9bf64f412f875a1.css integrity="sha256-1y45XnrpaOpWmjbd2pvk5vZALYkaPyTUyb9k9BL4daE=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="WMShell 介绍：SystemUI 与 WindowManager 之间的壳层"><meta property="og:description" content='WMShell 不是一个单独的类，而是 Android 在 SystemUI 进程里承载的一组窗口管理能力。它位于 SystemUI 与 system_server 之间：一边接收配置变化、锁屏状态、用户切换、命令队列等 SysUI 事件；另一边通过 WindowOrganizer、TaskOrganizer、Transitions 等接口去控制 system_server 中的 Task、DisplayArea 和窗口转场。
+这篇文章只做总览，重点解释 WMShell 在系统里的位置、启动方式、任务组织模型、转场模型，以及为什么分屏是理解它的最好入口。
+WMShell 在哪里启动 WMShell 的启动链路在当前源码里比较清晰：
+flowchart LR A["SystemUIInitializer.init()"] --> B["setupWmComponent()"] B --> C["mWMComponent.init()"] C --> D["WMComponent.getShell().onInit()"] D --> E["ShellController\n.ShellInterfaceImpl\n.onInit()"] E --> F["ShellController\n.handleInit()"] F --> G["ShellInit.init()"] 这里有两个关键点。
+第一，WMComponent 是 Shell 的 Dagger 子图。它会把 Pip、SplitScreen、OneHanded、Bubbles、RecentTasks、DesktopMode、ShellTransitions 等能力显式导出给 SystemUI 使用。
+第二，SystemUI 侧真正启动的服务类是 com.android.systemui.wmshell.WMShell。它实现了 CoreStartable，在 start() 里把 SysUI 的外部事件转给 Shell，例如：
+配置变化 Keyguard 可见性 用户切换 CommandQueue 回调 PiP、SplitScreen、One-handed、DesktopMode、RecentTasks 的额外绑定 因此，WMShell 的"运行位置"和"控制对象"是分开的：'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2026-03-29T00:00:00+08:00"><meta property="article:modified_time" content="2026-03-29T00:00:00+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="WMShell 介绍：SystemUI 与 WindowManager 之间的壳层"><meta name=twitter:description content='WMShell 不是一个单独的类，而是 Android 在 SystemUI 进程里承载的一组窗口管理能力。它位于 SystemUI 与 system_server 之间：一边接收配置变化、锁屏状态、用户切换、命令队列等 SysUI 事件；另一边通过 WindowOrganizer、TaskOrganizer、Transitions 等接口去控制 system_server 中的 Task、DisplayArea 和窗口转场。
+这篇文章只做总览，重点解释 WMShell 在系统里的位置、启动方式、任务组织模型、转场模型，以及为什么分屏是理解它的最好入口。
+WMShell 在哪里启动
+WMShell 的启动链路在当前源码里比较清晰：
+flowchart LR
+    A["SystemUIInitializer.init()"] --> B["setupWmComponent()"]
+    B --> C["mWMComponent.init()"]
+    C --> D["WMComponent.getShell().onInit()"]
+    D --> E["ShellController\n.ShellInterfaceImpl\n.onInit()"]
+    E --> F["ShellController\n.handleInit()"]
+    F --> G["ShellInit.init()"]
+这里有两个关键点。
+第一，WMComponent 是 Shell 的 Dagger 子图。它会把 Pip、SplitScreen、OneHanded、Bubbles、RecentTasks、DesktopMode、ShellTransitions 等能力显式导出给 SystemUI 使用。
+第二，SystemUI 侧真正启动的服务类是 com.android.systemui.wmshell.WMShell。它实现了 CoreStartable，在 start() 里把 SysUI 的外部事件转给 Shell，例如：
+
+配置变化
+Keyguard 可见性
+用户切换
+CommandQueue 回调
+PiP、SplitScreen、One-handed、DesktopMode、RecentTasks 的额外绑定
+
+因此，WMShell 的"运行位置"和"控制对象"是分开的：'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"WindowManager","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/"},{"@type":"ListItem","position":3,"name":"WMShell 介绍：SystemUI 与 WindowManager 之间的壳层","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"WMShell 介绍：SystemUI 与 WindowManager 之间的壳层","name":"WMShell 介绍：SystemUI 与 WindowManager 之间的壳层","description":"WMShell 不是一个单独的类，而是 Android 在 SystemUI 进程里承载的一组窗口管理能力。它位于 SystemUI 与 system_server 之间：一边接收配置变化、锁屏状态、用户切换、命令队列等 SysUI 事件；另一边通过 WindowOrganizer、TaskOrganizer、Transitions 等接口去控制 system_server 中的 Task、DisplayArea 和窗口转场。\n这篇文章只做总览，重点解释 WMShell 在系统里的位置、启动方式、任务组织模型、转场模型，以及为什么分屏是理解它的最好入口。\nWMShell 在哪里启动 WMShell 的启动链路在当前源码里比较清晰：\nflowchart LR A[\"SystemUIInitializer.init()\"] --\u003e B[\"setupWmComponent()\"] B --\u003e C[\"mWMComponent.init()\"] C --\u003e D[\"WMComponent.getShell().onInit()\"] D --\u003e E[\"ShellController\\n.ShellInterfaceImpl\\n.onInit()\"] E --\u003e F[\"ShellController\\n.handleInit()\"] F --\u003e G[\"ShellInit.init()\"] 这里有两个关键点。\n第一，WMComponent 是 Shell 的 Dagger 子图。它会把 Pip、SplitScreen、OneHanded、Bubbles、RecentTasks、DesktopMode、ShellTransitions 等能力显式导出给 SystemUI 使用。\n第二，SystemUI 侧真正启动的服务类是 com.android.systemui.wmshell.WMShell。它实现了 CoreStartable，在 start() 里把 SysUI 的外部事件转给 Shell，例如：\n配置变化 Keyguard 可见性 用户切换 CommandQueue 回调 PiP、SplitScreen、One-handed、DesktopMode、RecentTasks 的额外绑定 因此，WMShell 的\u0026quot;运行位置\u0026quot;和\u0026quot;控制对象\u0026quot;是分开的：\n","keywords":[],"articleBody":"WMShell 不是一个单独的类，而是 Android 在 SystemUI 进程里承载的一组窗口管理能力。它位于 SystemUI 与 system_server 之间：一边接收配置变化、锁屏状态、用户切换、命令队列等 SysUI 事件；另一边通过 WindowOrganizer、TaskOrganizer、Transitions 等接口去控制 system_server 中的 Task、DisplayArea 和窗口转场。\n这篇文章只做总览，重点解释 WMShell 在系统里的位置、启动方式、任务组织模型、转场模型，以及为什么分屏是理解它的最好入口。\nWMShell 在哪里启动 WMShell 的启动链路在当前源码里比较清晰：\nflowchart LR A[\"SystemUIInitializer.init()\"] --\u003e B[\"setupWmComponent()\"] B --\u003e C[\"mWMComponent.init()\"] C --\u003e D[\"WMComponent.getShell().onInit()\"] D --\u003e E[\"ShellController\\n.ShellInterfaceImpl\\n.onInit()\"] E --\u003e F[\"ShellController\\n.handleInit()\"] F --\u003e G[\"ShellInit.init()\"] 这里有两个关键点。\n第一，WMComponent 是 Shell 的 Dagger 子图。它会把 Pip、SplitScreen、OneHanded、Bubbles、RecentTasks、DesktopMode、ShellTransitions 等能力显式导出给 SystemUI 使用。\n第二，SystemUI 侧真正启动的服务类是 com.android.systemui.wmshell.WMShell。它实现了 CoreStartable，在 start() 里把 SysUI 的外部事件转给 Shell，例如：\n配置变化 Keyguard 可见性 用户切换 CommandQueue 回调 PiP、SplitScreen、One-handed、DesktopMode、RecentTasks 的额外绑定 因此，WMShell 的\"运行位置\"和\"控制对象\"是分开的：\n大多数 Shell 代码运行在 SystemUI 进程 被控制的窗口容器和转场状态在 system_server 两者之间靠 WindowOrganizer 家族 Binder 接口配合 SurfaceControl 完成协作 Shell 内部是如何初始化的 Shell 并不是在一个巨大的构造函数里一次性拉起的，而是通过 ShellInit.addInitCallback() 让各模块在构造阶段登记自己的 onInit()。\n等到 WMComponent.init() 触发 getShell().onInit() 之后，ShellController 会在 Shell 主线程里执行 handleInit()，再统一调用 mShellInit.init()，按注册顺序逐个执行这些初始化回调。\n这种做法有两个直接好处：\n初始化顺序与 Dagger 依赖顺序一致，不容易出现先用后注册的问题 模块可以把\"真正有副作用的注册动作\"放到 onInit()，例如注册 organizer、注册 transition player、注册 dump 命令、导出 Binder 接口 在当前源码里几个典型例子是：\nShellTaskOrganizer 在 onInit() 里调用 registerOrganizer() Transitions 在 onInit() 里调用 shareTransactionQueue() 和 registerTransitionPlayer() SplitScreenController 在 onInit() 里注册 ISplitScreen 外部接口，并创建 StageCoordinator ShellTaskOrganizer：WMShell 的任务总入口 如果只选一个类作为 WMShell 的任务入口，那就是 ShellTaskOrganizer。\n它继承自 android.window.TaskOrganizer，源码注释写得很直接：\nUnified task organizer for all components in the shell.\n也就是说，它不是某一个窗口模式专用的 organizer，而是 Shell 内多个能力共享的统一 task organizer。\nTaskOrganizer 客户端类链路 下面这张图展示了 Shell 侧 ShellTaskOrganizer 到 framework 层 TaskOrganizer、WindowOrganizer 的继承关系，以及 TaskOrganizer 内部持有的 Binder stub 和 Executor：\nclassDiagram direction TB class ShellTaskOrganizer { Shell 统一 Task 入口 +onInit() 中调用 registerOrganizer() +createRootTask() +按 taskId / type 绑定 TaskListener } class TaskOrganizer { -ITaskOrganizerController mTaskOrganizerController -Executor mExecutor +registerOrganizer() +createRootTask() } class WindowOrganizer { +applyTransaction(WindowContainerTransaction) +applySyncTransaction(WindowContainerTransaction, callback) +startNewTransition(type, WindowContainerTransaction) +startTransition(transitionToken, WindowContainerTransaction) +finishTransition(transitionToken, WindowContainerTransaction, callback) +registerTransitionPlayer(ITransitionPlayer) } class `ITaskOrganizer.Stub` { Binder 线程接收回调 +onTaskAppeared() +onTaskInfoChanged() +onTaskVanished() +addStartingWindow() } class ITaskOrganizer { \u003c\u003e } class Executor { BinderThread → Shell 主线程 } ShellTaskOrganizer --|\u003e TaskOrganizer : extends TaskOrganizer --|\u003e WindowOrganizer : extends TaskOrganizer *-- `ITaskOrganizer.Stub` : mInterface TaskOrganizer --\u003e Executor : mExecutor `ITaskOrganizer.Stub` ..|\u003e ITaskOrganizer : implements TaskOrganizer 内部持有一个 ITaskOrganizer.Stub（即 mInterface）。当 system_server 通过 Binder 回调 onTaskAppeared()、onTaskInfoChanged()、onTaskVanished()、addStartingWindow() 时，这些回调不会直接在 Binder 线程里执行业务逻辑，而是先切到 TaskOrganizer 构造时传入的 Executor。这对 Shell 很重要，因为大多数 UI、动画和状态机逻辑都要求在 Shell 主线程或指定 executor 上串行运行。\n任务是怎么注册到 system_server 的 客户端这边，TaskOrganizer.registerOrganizer() 会调用：\nITaskOrganizerController.registerTaskOrganizer(mInterface) 服务端这边，TaskOrganizerController.registerTaskOrganizer() 会做几件事：\n记录当前 organizer 扫描系统里已有的 task 把需要交给 organizer 管理的 task 封装成 TaskAppearedInfo 返回 后续在 task 生命周期变化时，通过 ITaskOrganizer 回调 ShellTaskOrganizer 又在 Shell 内部做了什么 ShellTaskOrganizer 在 TaskOrganizer 之上又加了一层分发能力：\n按 taskId 绑定 TaskListener 按类型绑定 TaskListener 缓存已经出现的 TaskAppearedInfo 维护当前 task 和 leash 的映射 把任务回调继续路由给全屏、分屏、PiP、Freeform 等模块 所以它更像一个\"任务事件总线\"，而不是一个只服务某个 feature 的小类。\n为什么很多模块都依赖 createRootTask ShellTaskOrganizer.createRootTask() 的实现也很关键。它会先生成一个 launch cookie，再调用 TaskOrganizer.createRootTask() 去 system_server 里创建持久 root task。\n这意味着 Shell 不只是被动监听已有 task，还可以主动要求 WM Core 创建自己需要的容器。分屏、TaskView 等功能都依赖这套能力来准备自己的 task 层级。\nsystem_server 侧：WindowOrganizerController 是收口点 客户端的 WindowOrganizer、TaskOrganizer 和 transition 相关 API，最终都落在 ActivityTaskManagerService 暴露的 IWindowOrganizerController 上。\n下面这张图展示了 system_server 侧从 ActivityTaskManagerService 到各个子 controller 的持有关系，以及 AIDL 接口与 controller 之间的实现关系：\nclassDiagram direction TB class ActivityTaskManagerService { -WindowOrganizerController mWindowOrganizerController } class WindowOrganizerController { -TaskOrganizerController mTaskOrganizerController -TaskFragmentOrganizerController mTaskFragmentOrganizerController -TransitionController mTransitionController } class IWindowOrganizerController { \u003c\u003e } class TaskOrganizerController { -mTaskOrganizers } class ITaskOrganizerController { \u003c\u003e +registerTaskOrganizer() +unregisterTaskOrganizer() +createRootTask() +deleteRootTask() } class TaskFragmentOrganizerController class ITaskFragmentOrganizerController { \u003c\u003e } class TransitionController { -mTransitionPlayers } class ITaskOrganizer { \u003c\u003e +onTaskAppeared() +onTaskInfoChanged() +onTaskVanished() +addStartingWindow() +removeStartingWindow() } class ITransitionPlayer { \u003c\u003e +onTransitionReady() +requestStartTransition() } class WindowContainer { -TransitionController mTransitionController } class DisplayContent { -AppTransition mAppTransition -AppTransitionController mAppTransitionController } ActivityTaskManagerService *-- WindowOrganizerController : mWindowOrganizerController WindowOrganizerController ..|\u003e IWindowOrganizerController : implements WindowOrganizerController *-- TaskOrganizerController : mTaskOrganizerController WindowOrganizerController *-- TaskFragmentOrganizerController WindowOrganizerController *-- TransitionController : mTransitionController TaskOrganizerController ..|\u003e ITaskOrganizerController : implements TaskOrganizerController o-- ITaskOrganizer : mTaskOrganizers TaskFragmentOrganizerController ..|\u003e ITaskFragmentOrganizerController : implements TransitionController o-- ITransitionPlayer : mTransitionPlayers DisplayContent --|\u003e WindowContainer : extends DisplayContent *-- AppTransition DisplayContent *-- AppTransitionController 从当前源码看，ActivityTaskManagerService 持有 mWindowOrganizerController。当前项目树虽然通过 VoyahServicePolicyManager.makeNewWindowOrganizerController(this) 包了一层初始化，但最终暴露出来的仍然是同一套 WindowOrganizerController 结构。\nWindowOrganizerController 自身实现了 IWindowOrganizerController.Stub，因此 Shell 侧常见的这些 API：\napplyTransaction() applySyncTransaction() startNewTransition() startTransition() finishTransition() registerTransitionPlayer() 本质上都是在操纵 WindowOrganizerController 以及它下面的具体 controller。\nTransitions：把动画播放权从 WM Core 接回 Shell 如果说 ShellTaskOrganizer 解决的是\"谁来管理 task\"，那么 Transitions 解决的就是\"谁来处理窗口变化动画\"。\nTransitions 转场播放链路 下面这张图展示了 Shell 侧 Transitions 如何通过 TransitionPlayerImpl 注册到 system_server，以及 TransitionController 如何通过 ITransitionPlayer 回调 Shell：\nclassDiagram direction TB class Transitions { Shell 侧转场总调度器 -TransitionPlayerImpl mPlayerImpl -ArrayList~TransitionHandler~ mHandlers +onInit() 中注册 player +dispatchRequest() +dispatchTransition() +onTransitionReady() +requestStartTransition() } class TransitionPlayerImpl { Binder 回调 → mMainExecutor } class `ITransitionPlayer.Stub` class ITransitionPlayer { \u003c\u003e +onTransitionReady() +requestStartTransition() } class TransitionController { system_server 侧 -mTransitionPlayers } class ShellTaskOrganizer { +registerTransitionPlayer() } Transitions *-- TransitionPlayerImpl : mPlayerImpl TransitionPlayerImpl --|\u003e `ITransitionPlayer.Stub` : extends `ITransitionPlayer.Stub` ..|\u003e ITransitionPlayer : implements TransitionController o-- ITransitionPlayer : mTransitionPlayers Transitions --\u003e ShellTaskOrganizer : registerTransitionPlayer TransitionController ..\u003e ITransitionPlayer : onTransitionReady / requestStartTransition TransitionPlayerImpl ..\u003e Transitions : mMainExecutor.execute → onTransitionReady / requestStartTransition Transitions.onInit() 做了两件非常关键的事情：\nmOrganizer.shareTransactionQueue() —— 让 Shell 与 WM Core 共享 transaction queue，避免两边各自提交事务导致状态不同步 mOrganizer.registerTransitionPlayer(mPlayerImpl) —— 把 ITransitionPlayer 注册给 system_server 之后，TransitionController 在完成 transition 的收集和准备后，就会通过这个 player 回调 Shell 侧的 requestStartTransition() 和 onTransitionReady()。而 TransitionPlayerImpl 收到 Binder 回调后，会再切回 Shell 主 executor 执行真正的逻辑。\nTransitionHandler 责任链 Transitions 的角色更像一个\"转场总调度器\"。它自己维护了一组 TransitionHandler，但并不要求所有动画都写在自己内部。\nclassDiagram direction TB class TransitionHandler { \u003c\u003e +handleRequest(transition, request) WindowContainerTransaction +startAnimation(transition, info, startT, finishT, cb) boolean } class StageCoordinator { 分屏转场 } class PipTransition { 画中画转场 } class RecentsTransitionHandler { 最近任务转场 } class ActivityEmbeddingController { Activity 嵌入转场 } class DefaultMixedHandler { 混合场景转场 } class RemoteTransitionHandler { 远程转场(Launcher 等) } class KeyguardTransitionHandler { 锁屏转场 } StageCoordinator ..|\u003e TransitionHandler PipTransition ..|\u003e TransitionHandler RecentsTransitionHandler ..|\u003e TransitionHandler ActivityEmbeddingController ..|\u003e TransitionHandler DefaultMixedHandler ..|\u003e TransitionHandler RemoteTransitionHandler ..|\u003e TransitionHandler KeyguardTransitionHandler ..|\u003e TransitionHandler 核心分发逻辑可以分成两步：\ndispatchRequest() —— 让每个 handler 通过 handleRequest() 判断\"这次 transition 是不是归我管\" dispatchTransition() —— 让已经注册的 handler 通过 startAnimation() 去真正播放动画 这两次分发都会逆序遍历 mHandlers，所以后加入的 handler 优先级更高，而默认的 DefaultTransitionHandler 则留在最低优先级兜底。\n从扩展性上看，这个设计非常适合 WMShell。因为每个 feature 都可以带着自己的动画处理器接入，而不用把所有逻辑堆在一个大类里。\n为什么分屏是理解 WMShell 的最好入口 分屏正好把 WMShell 的几个核心思想同时串起来了：task 组织、root task 创建、布局与 divider 管理、transition 认领与播放、对外 Binder 接口导出。\nSplitScreen 分屏类关系 下面这张图展示了分屏涉及的核心类及其关系：\nclassDiagram direction TB class SplitScreenController { 分屏对外门面 +onInit() 注册 ISplitScreen +创建 StageCoordinator } class StageCoordinator { 分屏总协调者 +createRootTask() 建立容器 +transitions.addHandler(this) } class SplitLayout { divider 位置与 bounds 管理 -SplitWindowManager mSplitWindowManager -DividerSnapAlgorithm mDividerSnapAlgorithm } class SplitWindowManager { divider window 及 surface 附着 } class DividerSnapAlgorithm { 拖动吸附目标与阈值判断 } class SplitLayoutHandler { \u003c\u003e } class `SplitWindowManager.ParentContainerCallbacks` { \u003c\u003e } class TransitionHandler { \u003c\u003e } class `ShellTaskOrganizer.TaskListener` { \u003c\u003e } class `DisplayController.OnDisplaysChangedListener` { \u003c\u003e } SplitScreenController --\u003e StageCoordinator : 创建 StageCoordinator --\u003e SplitLayout : 驱动布局 StageCoordinator ..|\u003e SplitLayoutHandler : implements StageCoordinator ..|\u003e `SplitWindowManager.ParentContainerCallbacks` : implements StageCoordinator ..|\u003e TransitionHandler : implements StageCoordinator ..|\u003e `ShellTaskOrganizer.TaskListener` : implements StageCoordinator ..|\u003e `DisplayController.OnDisplaysChangedListener` : implements SplitLayout *-- SplitWindowManager : mSplitWindowManager SplitLayout *-- DividerSnapAlgorithm : mDividerSnapAlgorithm SplitScreenController 是对外门面 SplitScreenController 是分屏功能的主入口。它在 onInit() 里做了几件事：\n注册 dump 回调 注册 splitscreen shell command 通过 ShellController.addExternalInterface() 导出 ISplitScreen 创建 StageCoordinator 与拖拽分屏、window decor、desktop mode 等模块建立联动 因此它更像一个 facade，负责把分屏功能整体挂到 Shell 运行时里。\nStageCoordinator 才是分屏真正的核心 StageCoordinator 的类声明本身就很能说明问题。它同时实现了：\nSplitLayout.SplitLayoutHandler DisplayController.OnDisplaysChangedListener Transitions.TransitionHandler ShellTaskOrganizer.TaskListener StageTaskListener.StageListenerCallbacks SplitMultiDisplayProvider 这说明它不是单一职责的小类，而是分屏 feature 的总协调者。它同时负责：\n作为 TaskListener 接收 root task / stage task 的组织回调 作为 TransitionHandler 认领并播放 split 相关转场 作为 SplitLayoutHandler 驱动 divider 与 bounds 变化 作为 display listener 处理旋转、IME、Insets 等环境变化 StageCoordinator 是怎么建立 split 容器的 在构造阶段，StageCoordinator 首先会调用：\ntaskOrganizer.createRootTask(displayId, WINDOWING_MODE_FULLSCREEN, this) 为 split 创建一个顶层 root task。\n随后又会创建 MainStage 和 SideStage 对应的 StageTaskListener。这些 stage listener 内部还会继续创建 WINDOWING_MODE_MULTI_WINDOW 的 root task。最终形成的是一套分层容器，而不是简单地把两个 app 直接摆到屏幕上。\nStageCoordinator 为什么还能处理转场 StageCoordinator 在构造里会调用：\ntransitions.addHandler(this) 把自己加入 Transitions 的 handler 链。\n于是，split 相关 transition 会先进入它的 handleRequest()。如果当前处于 split active 状态，它甚至会在 display rotation 这类场景下继续返回非空 WindowContainerTransaction，确保分屏状态仍被纳入 transition 管理。\n等 transition 真正开始播放时，又会进入它的 startAnimation()。这里会根据 TransitionInfo 去处理：\nsplit enter / exit divider freeze / unfreeze stage 可见性更新 与 PiP、desktop mode 等混合场景的协同 所以从分屏这个例子可以看得很清楚：WMShell 并不是\"task 管理在一边，动画在另一边\"，而是把 task 组织、布局和转场统一放进同一个 feature coordinator 里。\nSplitLayout、SplitWindowManager、DividerSnapAlgorithm 分别在做什么 这几个类更偏 UI 和交互层：\nSplitLayout 负责维护 divider 位置、两个 stage 的 bounds，以及对旋转、IME、Insets 的响应 SplitWindowManager 负责 divider window 本身及其 parent surface 附着 DividerSnapAlgorithm 负责 divider 拖动后的吸附目标和阈值判断 从依赖方向看，StageCoordinator 依赖 SplitLayout，SplitLayout 再聚合 SplitWindowManager 和 DividerSnapAlgorithm，这与源码结构一致。\n如何理解 WMShell 的价值 把这些类放在一起看，WMShell 的价值主要体现在四点。\n把复杂交互从 system_server 拆出来 system_server 更适合维护全局窗口状态的一致性，而 Shell 更适合承载高频演进、交互密集、动画密集的功能，例如：\n分屏 PiP 最近任务转场 Drag and Drop Desktop Mode One-handed Starting Surface Back 动画 用 organizer 模式取代大量硬编码 通过 TaskOrganizer、DisplayAreaOrganizer、TaskFragmentOrganizer，Shell 不必把每种窗口模式都硬编码进 WM Core。WM Core 负责暴露容器和维护一致性，策略层交给 organizer。\n用 TransitionHandler 责任链保持可扩展性 Transitions 不要求所有动画都堆在一个类里，而是让每个 feature 自己认领、自己播放、自己清理。新增一个窗口模式，通常意味着新增一个 handler，而不是重写整个动画系统。\n用 ShellController 统一对内对外接口 无论是：\n进程内的 SysUI 调用 通过 ISplitScreen、IShellTransitions、IPip 暴露给外部的 Binder 接口 最终都要通过 ShellController 统一创建和管理。这让 WMShell 既能作为 SystemUI 的内部组件，又能对 Launcher 或其他进程导出特定能力。\n调试 WMShell 时先看什么 如果你在排查 WMShell 相关问题，通常可以按下面顺序看：\ncom.android.systemui.wmshell.WMShell 有没有把 SysUI 事件正确转给 Shell ShellInit 的初始化回调有没有按顺序执行 ShellTaskOrganizer.registerOrganizer() 有没有成功 Transitions.registerTransitionPlayer() 有没有成功 具体 feature 有没有把自己挂进 Transitions，例如分屏的 StageCoordinator dump 和 protolog 是否能看到当前内部状态 常用命令包括：\nadb shell dumpsys activity service SystemUIService WMShell adb shell dumpsys activity service SystemUIService WMShell help adb shell dumpsys activity service SystemUIService WMShell transitions adb shell dumpsys activity service SystemUIService WMShell splitscreen adb shell dumpsys activity service SystemUIService WMShell protolog status 如果只想继续深入分屏，可以再看同目录下的 splitscreen-wmshell.md。\n阅读源码的推荐入口 如果你准备顺着这篇文章继续读源码，建议从下面这些文件开始：\nframeworks/base/packages/SystemUI/src/com/android/systemui/wmshell/WMShell.java frameworks/base/packages/SystemUI/src/com/android/systemui/SystemUIInitializer.java frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/dagger/WMComponent.java frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/sysui/ShellController.java frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/sysui/ShellInit.java frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/ShellTaskOrganizer.java frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/transition/Transitions.java frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/splitscreen/SplitScreenController.java frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/splitscreen/StageCoordinator.java frameworks/base/core/java/android/window/WindowOrganizer.java frameworks/base/core/java/android/window/TaskOrganizer.java frameworks/base/core/java/android/window/ITaskOrganizer.aidl frameworks/base/services/core/java/com/android/server/wm/WindowOrganizerController.java frameworks/base/services/core/java/com/android/server/wm/TaskOrganizerController.java frameworks/base/services/core/java/com/android/server/wm/TransitionController.java 小结 可以把 WMShell 理解成 Android 新窗口能力的\"壳层编排器\"：\n它在 SystemUI 进程里启动和运行 它通过 WindowOrganizer、TaskOrganizer、TransitionPlayer 与 system_server 协作 它用 ShellTaskOrganizer 统一管理 task 入口 它用 Transitions 统一管理转场入口 它用 StageCoordinator 这类 feature coordinator 把任务、布局和动画落到具体功能里 理解了这几层以后，再去看 PiP、Recents、Desktop Mode、Back 动画、Starting Surface 等模块，基本都会落回同一套设计思路里。\n","wordCount":"1307","inLanguage":"en","datePublished":"2026-03-29T00:00:00+08:00","dateModified":"2026-03-29T00:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/>WindowManager</a></div><h1 class="post-title entry-hint-parent">WMShell 介绍：SystemUI 与 WindowManager 之间的壳层</h1><div class=post-meta><span title='2026-03-29 00:00:00 +0800 CST'>March 29, 2026</span>&nbsp;·&nbsp;7 min&nbsp;·&nbsp;1307 words</div></header><div class=post-content><p><code>WMShell</code> 不是一个单独的类，而是 Android 在 <code>SystemUI</code> 进程里承载的一组窗口管理能力。它位于 <code>SystemUI</code> 与 <code>system_server</code> 之间：一边接收配置变化、锁屏状态、用户切换、命令队列等 SysUI 事件；另一边通过 <code>WindowOrganizer</code>、<code>TaskOrganizer</code>、<code>Transitions</code> 等接口去控制 <code>system_server</code> 中的 Task、DisplayArea 和窗口转场。</p><p>这篇文章只做总览，重点解释 WMShell 在系统里的位置、启动方式、任务组织模型、转场模型，以及为什么分屏是理解它的最好入口。</p><h2 id=wmshell-在哪里启动>WMShell 在哪里启动<a hidden class=anchor aria-hidden=true href=#wmshell-在哪里启动>#</a></h2><p>WMShell 的启动链路在当前源码里比较清晰：</p><div class=mermaid>flowchart LR
+A["SystemUIInitializer.init()"] --> B["setupWmComponent()"]
+B --> C["mWMComponent.init()"]
+C --> D["WMComponent.getShell().onInit()"]
+D --> E["ShellController\n.ShellInterfaceImpl\n.onInit()"]
+E --> F["ShellController\n.handleInit()"]
+F --> G["ShellInit.init()"]</div><p>这里有两个关键点。</p><p>第一，<code>WMComponent</code> 是 Shell 的 Dagger 子图。它会把 <code>Pip</code>、<code>SplitScreen</code>、<code>OneHanded</code>、<code>Bubbles</code>、<code>RecentTasks</code>、<code>DesktopMode</code>、<code>ShellTransitions</code> 等能力显式导出给 SystemUI 使用。</p><p>第二，SystemUI 侧真正启动的服务类是 <code>com.android.systemui.wmshell.WMShell</code>。它实现了 <code>CoreStartable</code>，在 <code>start()</code> 里把 SysUI 的外部事件转给 Shell，例如：</p><ul><li>配置变化</li><li>Keyguard 可见性</li><li>用户切换</li><li><code>CommandQueue</code> 回调</li><li>PiP、SplitScreen、One-handed、DesktopMode、RecentTasks 的额外绑定</li></ul><p>因此，WMShell 的"运行位置"和"控制对象"是分开的：</p><ul><li>大多数 Shell 代码运行在 <code>SystemUI</code> 进程</li><li>被控制的窗口容器和转场状态在 <code>system_server</code></li><li>两者之间靠 <code>WindowOrganizer</code> 家族 Binder 接口配合 <code>SurfaceControl</code> 完成协作</li></ul><h2 id=shell-内部是如何初始化的>Shell 内部是如何初始化的<a hidden class=anchor aria-hidden=true href=#shell-内部是如何初始化的>#</a></h2><p>Shell 并不是在一个巨大的构造函数里一次性拉起的，而是通过 <code>ShellInit.addInitCallback()</code> 让各模块在构造阶段登记自己的 <code>onInit()</code>。</p><p>等到 <code>WMComponent.init()</code> 触发 <code>getShell().onInit()</code> 之后，<code>ShellController</code> 会在 Shell 主线程里执行 <code>handleInit()</code>，再统一调用 <code>mShellInit.init()</code>，按注册顺序逐个执行这些初始化回调。</p><p>这种做法有两个直接好处：</p><ul><li>初始化顺序与 Dagger 依赖顺序一致，不容易出现先用后注册的问题</li><li>模块可以把"真正有副作用的注册动作"放到 <code>onInit()</code>，例如注册 organizer、注册 transition player、注册 dump 命令、导出 Binder 接口</li></ul><p>在当前源码里几个典型例子是：</p><ul><li><code>ShellTaskOrganizer</code> 在 <code>onInit()</code> 里调用 <code>registerOrganizer()</code></li><li><code>Transitions</code> 在 <code>onInit()</code> 里调用 <code>shareTransactionQueue()</code> 和 <code>registerTransitionPlayer()</code></li><li><code>SplitScreenController</code> 在 <code>onInit()</code> 里注册 <code>ISplitScreen</code> 外部接口，并创建 <code>StageCoordinator</code></li></ul><h2 id=shelltaskorganizerwmshell-的任务总入口>ShellTaskOrganizer：WMShell 的任务总入口<a hidden class=anchor aria-hidden=true href=#shelltaskorganizerwmshell-的任务总入口>#</a></h2><p>如果只选一个类作为 WMShell 的任务入口，那就是 <code>ShellTaskOrganizer</code>。</p><p>它继承自 <code>android.window.TaskOrganizer</code>，源码注释写得很直接：</p><blockquote><p>Unified task organizer for all components in the shell.</p></blockquote><p>也就是说，它不是某一个窗口模式专用的 organizer，而是 Shell 内多个能力共享的统一 task organizer。</p><h3 id=taskorganizer-客户端类链路>TaskOrganizer 客户端类链路<a hidden class=anchor aria-hidden=true href=#taskorganizer-客户端类链路>#</a></h3><p>下面这张图展示了 Shell 侧 <code>ShellTaskOrganizer</code> 到 framework 层 <code>TaskOrganizer</code>、<code>WindowOrganizer</code> 的继承关系，以及 <code>TaskOrganizer</code> 内部持有的 Binder stub 和 Executor：</p><div class=mermaid>classDiagram
+direction TB
+class ShellTaskOrganizer {
+Shell 统一 Task 入口
++onInit() 中调用 registerOrganizer()
++createRootTask()
++按 taskId / type 绑定 TaskListener
+}
+class TaskOrganizer {
+-ITaskOrganizerController mTaskOrganizerController
+-Executor mExecutor
++registerOrganizer()
++createRootTask()
+}
+class WindowOrganizer {
++applyTransaction(WindowContainerTransaction)
++applySyncTransaction(WindowContainerTransaction, callback)
++startNewTransition(type, WindowContainerTransaction)
++startTransition(transitionToken, WindowContainerTransaction)
++finishTransition(transitionToken, WindowContainerTransaction, callback)
++registerTransitionPlayer(ITransitionPlayer)
+}
+class `ITaskOrganizer.Stub` {
+Binder 线程接收回调
++onTaskAppeared()
++onTaskInfoChanged()
++onTaskVanished()
++addStartingWindow()
+}
+class ITaskOrganizer {
+<<aidl>>
+}
+class Executor {
+BinderThread → Shell 主线程
+}
+ShellTaskOrganizer --|> TaskOrganizer : extends
+TaskOrganizer --|> WindowOrganizer : extends
+TaskOrganizer *-- `ITaskOrganizer.Stub` : mInterface
+TaskOrganizer --> Executor : mExecutor
+`ITaskOrganizer.Stub` ..|> ITaskOrganizer : implements</div><p><code>TaskOrganizer</code> 内部持有一个 <code>ITaskOrganizer.Stub</code>（即 <code>mInterface</code>）。当 <code>system_server</code> 通过 Binder 回调 <code>onTaskAppeared()</code>、<code>onTaskInfoChanged()</code>、<code>onTaskVanished()</code>、<code>addStartingWindow()</code> 时，这些回调不会直接在 Binder 线程里执行业务逻辑，而是先切到 <code>TaskOrganizer</code> 构造时传入的 <code>Executor</code>。这对 Shell 很重要，因为大多数 UI、动画和状态机逻辑都要求在 Shell 主线程或指定 executor 上串行运行。</p><h3 id=任务是怎么注册到-system_server-的>任务是怎么注册到 system_server 的<a hidden class=anchor aria-hidden=true href=#任务是怎么注册到-system_server-的>#</a></h3><p>客户端这边，<code>TaskOrganizer.registerOrganizer()</code> 会调用：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span>ITaskOrganizerController.<span style=color:#a6e22e>registerTaskOrganizer</span>(mInterface)
+</span></span></code></pre></div><p>服务端这边，<code>TaskOrganizerController.registerTaskOrganizer()</code> 会做几件事：</p><ol><li>记录当前 organizer</li><li>扫描系统里已有的 task</li><li>把需要交给 organizer 管理的 task 封装成 <code>TaskAppearedInfo</code> 返回</li><li>后续在 task 生命周期变化时，通过 <code>ITaskOrganizer</code> 回调</li></ol><h3 id=shelltaskorganizer-又在-shell-内部做了什么>ShellTaskOrganizer 又在 Shell 内部做了什么<a hidden class=anchor aria-hidden=true href=#shelltaskorganizer-又在-shell-内部做了什么>#</a></h3><p><code>ShellTaskOrganizer</code> 在 <code>TaskOrganizer</code> 之上又加了一层分发能力：</p><ul><li>按 <code>taskId</code> 绑定 <code>TaskListener</code></li><li>按类型绑定 <code>TaskListener</code></li><li>缓存已经出现的 <code>TaskAppearedInfo</code></li><li>维护当前 task 和 leash 的映射</li><li>把任务回调继续路由给全屏、分屏、PiP、Freeform 等模块</li></ul><p>所以它更像一个"任务事件总线"，而不是一个只服务某个 feature 的小类。</p><h3 id=为什么很多模块都依赖-createroottask>为什么很多模块都依赖 createRootTask<a hidden class=anchor aria-hidden=true href=#为什么很多模块都依赖-createroottask>#</a></h3><p><code>ShellTaskOrganizer.createRootTask()</code> 的实现也很关键。它会先生成一个 launch cookie，再调用 <code>TaskOrganizer.createRootTask()</code> 去 <code>system_server</code> 里创建持久 root task。</p><p>这意味着 Shell 不只是被动监听已有 task，还可以主动要求 WM Core 创建自己需要的容器。分屏、TaskView 等功能都依赖这套能力来准备自己的 task 层级。</p><h2 id=system_server-侧windoworganizercontroller-是收口点>system_server 侧：WindowOrganizerController 是收口点<a hidden class=anchor aria-hidden=true href=#system_server-侧windoworganizercontroller-是收口点>#</a></h2><p>客户端的 <code>WindowOrganizer</code>、<code>TaskOrganizer</code> 和 transition 相关 API，最终都落在 <code>ActivityTaskManagerService</code> 暴露的 <code>IWindowOrganizerController</code> 上。</p><p>下面这张图展示了 <code>system_server</code> 侧从 <code>ActivityTaskManagerService</code> 到各个子 controller 的持有关系，以及 AIDL 接口与 controller 之间的实现关系：</p><div class=mermaid>classDiagram
+direction TB
+class ActivityTaskManagerService {
+-WindowOrganizerController mWindowOrganizerController
+}
+class WindowOrganizerController {
+-TaskOrganizerController mTaskOrganizerController
+-TaskFragmentOrganizerController mTaskFragmentOrganizerController
+-TransitionController mTransitionController
+}
+class IWindowOrganizerController {
+<<aidl>>
+}
+class TaskOrganizerController {
+-mTaskOrganizers
+}
+class ITaskOrganizerController {
+<<aidl>>
++registerTaskOrganizer()
++unregisterTaskOrganizer()
++createRootTask()
++deleteRootTask()
+}
+class TaskFragmentOrganizerController
+class ITaskFragmentOrganizerController {
+<<aidl>>
+}
+class TransitionController {
+-mTransitionPlayers
+}
+class ITaskOrganizer {
+<<aidl>>
++onTaskAppeared()
++onTaskInfoChanged()
++onTaskVanished()
++addStartingWindow()
++removeStartingWindow()
+}
+class ITransitionPlayer {
+<<aidl>>
++onTransitionReady()
++requestStartTransition()
+}
+class WindowContainer {
+-TransitionController mTransitionController
+}
+class DisplayContent {
+-AppTransition mAppTransition
+-AppTransitionController mAppTransitionController
+}
+ActivityTaskManagerService *-- WindowOrganizerController : mWindowOrganizerController
+WindowOrganizerController ..|> IWindowOrganizerController : implements
+WindowOrganizerController *-- TaskOrganizerController : mTaskOrganizerController
+WindowOrganizerController *-- TaskFragmentOrganizerController
+WindowOrganizerController *-- TransitionController : mTransitionController
+TaskOrganizerController ..|> ITaskOrganizerController : implements
+TaskOrganizerController o-- ITaskOrganizer : mTaskOrganizers
+TaskFragmentOrganizerController ..|> ITaskFragmentOrganizerController : implements
+TransitionController o-- ITransitionPlayer : mTransitionPlayers
+DisplayContent --|> WindowContainer : extends
+DisplayContent *-- AppTransition
+DisplayContent *-- AppTransitionController</div><p>从当前源码看，<code>ActivityTaskManagerService</code> 持有 <code>mWindowOrganizerController</code>。当前项目树虽然通过 <code>VoyahServicePolicyManager.makeNewWindowOrganizerController(this)</code> 包了一层初始化，但最终暴露出来的仍然是同一套 <code>WindowOrganizerController</code> 结构。</p><p><code>WindowOrganizerController</code> 自身实现了 <code>IWindowOrganizerController.Stub</code>，因此 Shell 侧常见的这些 API：</p><ul><li><code>applyTransaction()</code></li><li><code>applySyncTransaction()</code></li><li><code>startNewTransition()</code></li><li><code>startTransition()</code></li><li><code>finishTransition()</code></li><li><code>registerTransitionPlayer()</code></li></ul><p>本质上都是在操纵 <code>WindowOrganizerController</code> 以及它下面的具体 controller。</p><h2 id=transitions把动画播放权从-wm-core-接回-shell>Transitions：把动画播放权从 WM Core 接回 Shell<a hidden class=anchor aria-hidden=true href=#transitions把动画播放权从-wm-core-接回-shell>#</a></h2><p>如果说 <code>ShellTaskOrganizer</code> 解决的是"谁来管理 task"，那么 <code>Transitions</code> 解决的就是"谁来处理窗口变化动画"。</p><h3 id=transitions-转场播放链路>Transitions 转场播放链路<a hidden class=anchor aria-hidden=true href=#transitions-转场播放链路>#</a></h3><p>下面这张图展示了 Shell 侧 <code>Transitions</code> 如何通过 <code>TransitionPlayerImpl</code> 注册到 <code>system_server</code>，以及 <code>TransitionController</code> 如何通过 <code>ITransitionPlayer</code> 回调 Shell：</p><div class=mermaid>classDiagram
+direction TB
+class Transitions {
+Shell 侧转场总调度器
+-TransitionPlayerImpl mPlayerImpl
+-ArrayList~TransitionHandler~ mHandlers
++onInit() 中注册 player
++dispatchRequest()
++dispatchTransition()
++onTransitionReady()
++requestStartTransition()
+}
+class TransitionPlayerImpl {
+Binder 回调 → mMainExecutor
+}
+class `ITransitionPlayer.Stub`
+class ITransitionPlayer {
+<<aidl>>
++onTransitionReady()
++requestStartTransition()
+}
+class TransitionController {
+system_server 侧
+-mTransitionPlayers
+}
+class ShellTaskOrganizer {
++registerTransitionPlayer()
+}
+Transitions *-- TransitionPlayerImpl : mPlayerImpl
+TransitionPlayerImpl --|> `ITransitionPlayer.Stub` : extends
+`ITransitionPlayer.Stub` ..|> ITransitionPlayer : implements
+TransitionController o-- ITransitionPlayer : mTransitionPlayers
+Transitions --> ShellTaskOrganizer : registerTransitionPlayer
+TransitionController ..> ITransitionPlayer : onTransitionReady / requestStartTransition
+TransitionPlayerImpl ..> Transitions : mMainExecutor.execute → onTransitionReady / requestStartTransition</div><p><code>Transitions.onInit()</code> 做了两件非常关键的事情：</p><ol><li><code>mOrganizer.shareTransactionQueue()</code> —— 让 Shell 与 WM Core 共享 transaction queue，避免两边各自提交事务导致状态不同步</li><li><code>mOrganizer.registerTransitionPlayer(mPlayerImpl)</code> —— 把 <code>ITransitionPlayer</code> 注册给 <code>system_server</code></li></ol><p>之后，<code>TransitionController</code> 在完成 transition 的收集和准备后，就会通过这个 player 回调 Shell 侧的 <code>requestStartTransition()</code> 和 <code>onTransitionReady()</code>。而 <code>TransitionPlayerImpl</code> 收到 Binder 回调后，会再切回 Shell 主 executor 执行真正的逻辑。</p><h3 id=transitionhandler-责任链>TransitionHandler 责任链<a hidden class=anchor aria-hidden=true href=#transitionhandler-责任链>#</a></h3><p><code>Transitions</code> 的角色更像一个"转场总调度器"。它自己维护了一组 <code>TransitionHandler</code>，但并不要求所有动画都写在自己内部。</p><div class=mermaid>classDiagram
+direction TB
+class TransitionHandler {
+<<interface>>
++handleRequest(transition, request) WindowContainerTransaction
++startAnimation(transition, info, startT, finishT, cb) boolean
+}
+class StageCoordinator {
+分屏转场
+}
+class PipTransition {
+画中画转场
+}
+class RecentsTransitionHandler {
+最近任务转场
+}
+class ActivityEmbeddingController {
+Activity 嵌入转场
+}
+class DefaultMixedHandler {
+混合场景转场
+}
+class RemoteTransitionHandler {
+远程转场(Launcher 等)
+}
+class KeyguardTransitionHandler {
+锁屏转场
+}
+StageCoordinator ..|> TransitionHandler
+PipTransition ..|> TransitionHandler
+RecentsTransitionHandler ..|> TransitionHandler
+ActivityEmbeddingController ..|> TransitionHandler
+DefaultMixedHandler ..|> TransitionHandler
+RemoteTransitionHandler ..|> TransitionHandler
+KeyguardTransitionHandler ..|> TransitionHandler</div><p>核心分发逻辑可以分成两步：</p><ol><li><strong><code>dispatchRequest()</code></strong> —— 让每个 handler 通过 <code>handleRequest()</code> 判断"这次 transition 是不是归我管"</li><li><strong><code>dispatchTransition()</code></strong> —— 让已经注册的 handler 通过 <code>startAnimation()</code> 去真正播放动画</li></ol><p>这两次分发都会逆序遍历 <code>mHandlers</code>，所以后加入的 handler 优先级更高，而默认的 <code>DefaultTransitionHandler</code> 则留在最低优先级兜底。</p><p>从扩展性上看，这个设计非常适合 WMShell。因为每个 feature 都可以带着自己的动画处理器接入，而不用把所有逻辑堆在一个大类里。</p><h2 id=为什么分屏是理解-wmshell-的最好入口>为什么分屏是理解 WMShell 的最好入口<a hidden class=anchor aria-hidden=true href=#为什么分屏是理解-wmshell-的最好入口>#</a></h2><p>分屏正好把 WMShell 的几个核心思想同时串起来了：task 组织、root task 创建、布局与 divider 管理、transition 认领与播放、对外 Binder 接口导出。</p><h3 id=splitscreen-分屏类关系>SplitScreen 分屏类关系<a hidden class=anchor aria-hidden=true href=#splitscreen-分屏类关系>#</a></h3><p>下面这张图展示了分屏涉及的核心类及其关系：</p><div class=mermaid>classDiagram
+direction TB
+class SplitScreenController {
+分屏对外门面
++onInit() 注册 ISplitScreen
++创建 StageCoordinator
+}
+class StageCoordinator {
+分屏总协调者
++createRootTask() 建立容器
++transitions.addHandler(this)
+}
+class SplitLayout {
+divider 位置与 bounds 管理
+-SplitWindowManager mSplitWindowManager
+-DividerSnapAlgorithm mDividerSnapAlgorithm
+}
+class SplitWindowManager {
+divider window 及 surface 附着
+}
+class DividerSnapAlgorithm {
+拖动吸附目标与阈值判断
+}
+class SplitLayoutHandler {
+<<interface>>
+}
+class `SplitWindowManager.ParentContainerCallbacks` {
+<<interface>>
+}
+class TransitionHandler {
+<<interface>>
+}
+class `ShellTaskOrganizer.TaskListener` {
+<<interface>>
+}
+class `DisplayController.OnDisplaysChangedListener` {
+<<interface>>
+}
+SplitScreenController --> StageCoordinator : 创建
+StageCoordinator --> SplitLayout : 驱动布局
+StageCoordinator ..|> SplitLayoutHandler : implements
+StageCoordinator ..|> `SplitWindowManager.ParentContainerCallbacks` : implements
+StageCoordinator ..|> TransitionHandler : implements
+StageCoordinator ..|> `ShellTaskOrganizer.TaskListener` : implements
+StageCoordinator ..|> `DisplayController.OnDisplaysChangedListener` : implements
+SplitLayout *-- SplitWindowManager : mSplitWindowManager
+SplitLayout *-- DividerSnapAlgorithm : mDividerSnapAlgorithm</div><h3 id=splitscreencontroller-是对外门面>SplitScreenController 是对外门面<a hidden class=anchor aria-hidden=true href=#splitscreencontroller-是对外门面>#</a></h3><p><code>SplitScreenController</code> 是分屏功能的主入口。它在 <code>onInit()</code> 里做了几件事：</p><ul><li>注册 dump 回调</li><li>注册 <code>splitscreen</code> shell command</li><li>通过 <code>ShellController.addExternalInterface()</code> 导出 <code>ISplitScreen</code></li><li>创建 <code>StageCoordinator</code></li><li>与拖拽分屏、window decor、desktop mode 等模块建立联动</li></ul><p>因此它更像一个 facade，负责把分屏功能整体挂到 Shell 运行时里。</p><h3 id=stagecoordinator-才是分屏真正的核心>StageCoordinator 才是分屏真正的核心<a hidden class=anchor aria-hidden=true href=#stagecoordinator-才是分屏真正的核心>#</a></h3><p><code>StageCoordinator</code> 的类声明本身就很能说明问题。它同时实现了：</p><ul><li><code>SplitLayout.SplitLayoutHandler</code></li><li><code>DisplayController.OnDisplaysChangedListener</code></li><li><code>Transitions.TransitionHandler</code></li><li><code>ShellTaskOrganizer.TaskListener</code></li><li><code>StageTaskListener.StageListenerCallbacks</code></li><li><code>SplitMultiDisplayProvider</code></li></ul><p>这说明它不是单一职责的小类，而是分屏 feature 的总协调者。它同时负责：</p><ul><li>作为 <code>TaskListener</code> 接收 root task / stage task 的组织回调</li><li>作为 <code>TransitionHandler</code> 认领并播放 split 相关转场</li><li>作为 <code>SplitLayoutHandler</code> 驱动 divider 与 bounds 变化</li><li>作为 display listener 处理旋转、IME、Insets 等环境变化</li></ul><h3 id=stagecoordinator-是怎么建立-split-容器的>StageCoordinator 是怎么建立 split 容器的<a hidden class=anchor aria-hidden=true href=#stagecoordinator-是怎么建立-split-容器的>#</a></h3><p>在构造阶段，<code>StageCoordinator</code> 首先会调用：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span>taskOrganizer.<span style=color:#a6e22e>createRootTask</span>(displayId, WINDOWING_MODE_FULLSCREEN, <span style=color:#66d9ef>this</span>)
+</span></span></code></pre></div><p>为 split 创建一个顶层 root task。</p><p>随后又会创建 <code>MainStage</code> 和 <code>SideStage</code> 对应的 <code>StageTaskListener</code>。这些 stage listener 内部还会继续创建 <code>WINDOWING_MODE_MULTI_WINDOW</code> 的 root task。最终形成的是一套分层容器，而不是简单地把两个 app 直接摆到屏幕上。</p><h3 id=stagecoordinator-为什么还能处理转场>StageCoordinator 为什么还能处理转场<a hidden class=anchor aria-hidden=true href=#stagecoordinator-为什么还能处理转场>#</a></h3><p><code>StageCoordinator</code> 在构造里会调用：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span>transitions.<span style=color:#a6e22e>addHandler</span>(<span style=color:#66d9ef>this</span>)
+</span></span></code></pre></div><p>把自己加入 <code>Transitions</code> 的 handler 链。</p><p>于是，split 相关 transition 会先进入它的 <code>handleRequest()</code>。如果当前处于 split active 状态，它甚至会在 display rotation 这类场景下继续返回非空 <code>WindowContainerTransaction</code>，确保分屏状态仍被纳入 transition 管理。</p><p>等 transition 真正开始播放时，又会进入它的 <code>startAnimation()</code>。这里会根据 <code>TransitionInfo</code> 去处理：</p><ul><li>split enter / exit</li><li>divider freeze / unfreeze</li><li>stage 可见性更新</li><li>与 PiP、desktop mode 等混合场景的协同</li></ul><p>所以从分屏这个例子可以看得很清楚：WMShell 并不是"task 管理在一边，动画在另一边"，而是把 task 组织、布局和转场统一放进同一个 feature coordinator 里。</p><h3 id=splitlayoutsplitwindowmanagerdividersnapalgorithm-分别在做什么>SplitLayout、SplitWindowManager、DividerSnapAlgorithm 分别在做什么<a hidden class=anchor aria-hidden=true href=#splitlayoutsplitwindowmanagerdividersnapalgorithm-分别在做什么>#</a></h3><p>这几个类更偏 UI 和交互层：</p><ul><li><code>SplitLayout</code> 负责维护 divider 位置、两个 stage 的 bounds，以及对旋转、IME、Insets 的响应</li><li><code>SplitWindowManager</code> 负责 divider window 本身及其 parent surface 附着</li><li><code>DividerSnapAlgorithm</code> 负责 divider 拖动后的吸附目标和阈值判断</li></ul><p>从依赖方向看，<code>StageCoordinator</code> 依赖 <code>SplitLayout</code>，<code>SplitLayout</code> 再聚合 <code>SplitWindowManager</code> 和 <code>DividerSnapAlgorithm</code>，这与源码结构一致。</p><h2 id=如何理解-wmshell-的价值>如何理解 WMShell 的价值<a hidden class=anchor aria-hidden=true href=#如何理解-wmshell-的价值>#</a></h2><p>把这些类放在一起看，WMShell 的价值主要体现在四点。</p><h3 id=把复杂交互从-system_server-拆出来>把复杂交互从 system_server 拆出来<a hidden class=anchor aria-hidden=true href=#把复杂交互从-system_server-拆出来>#</a></h3><p><code>system_server</code> 更适合维护全局窗口状态的一致性，而 Shell 更适合承载高频演进、交互密集、动画密集的功能，例如：</p><ul><li>分屏</li><li>PiP</li><li>最近任务转场</li><li>Drag and Drop</li><li>Desktop Mode</li><li>One-handed</li><li>Starting Surface</li><li>Back 动画</li></ul><h3 id=用-organizer-模式取代大量硬编码>用 organizer 模式取代大量硬编码<a hidden class=anchor aria-hidden=true href=#用-organizer-模式取代大量硬编码>#</a></h3><p>通过 <code>TaskOrganizer</code>、<code>DisplayAreaOrganizer</code>、<code>TaskFragmentOrganizer</code>，Shell 不必把每种窗口模式都硬编码进 WM Core。WM Core 负责暴露容器和维护一致性，策略层交给 organizer。</p><h3 id=用-transitionhandler-责任链保持可扩展性>用 TransitionHandler 责任链保持可扩展性<a hidden class=anchor aria-hidden=true href=#用-transitionhandler-责任链保持可扩展性>#</a></h3><p><code>Transitions</code> 不要求所有动画都堆在一个类里，而是让每个 feature 自己认领、自己播放、自己清理。新增一个窗口模式，通常意味着新增一个 handler，而不是重写整个动画系统。</p><h3 id=用-shellcontroller-统一对内对外接口>用 ShellController 统一对内对外接口<a hidden class=anchor aria-hidden=true href=#用-shellcontroller-统一对内对外接口>#</a></h3><p>无论是：</p><ul><li>进程内的 SysUI 调用</li><li>通过 <code>ISplitScreen</code>、<code>IShellTransitions</code>、<code>IPip</code> 暴露给外部的 Binder 接口</li></ul><p>最终都要通过 <code>ShellController</code> 统一创建和管理。这让 WMShell 既能作为 SystemUI 的内部组件，又能对 Launcher 或其他进程导出特定能力。</p><h2 id=调试-wmshell-时先看什么>调试 WMShell 时先看什么<a hidden class=anchor aria-hidden=true href=#调试-wmshell-时先看什么>#</a></h2><p>如果你在排查 WMShell 相关问题，通常可以按下面顺序看：</p><ol><li><code>com.android.systemui.wmshell.WMShell</code> 有没有把 SysUI 事件正确转给 Shell</li><li><code>ShellInit</code> 的初始化回调有没有按顺序执行</li><li><code>ShellTaskOrganizer.registerOrganizer()</code> 有没有成功</li><li><code>Transitions.registerTransitionPlayer()</code> 有没有成功</li><li>具体 feature 有没有把自己挂进 <code>Transitions</code>，例如分屏的 <code>StageCoordinator</code></li><li>dump 和 protolog 是否能看到当前内部状态</li></ol><p>常用命令包括：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-shell data-lang=shell><span style=display:flex><span>adb shell dumpsys activity service SystemUIService WMShell
+</span></span><span style=display:flex><span>adb shell dumpsys activity service SystemUIService WMShell help
+</span></span><span style=display:flex><span>adb shell dumpsys activity service SystemUIService WMShell transitions
+</span></span><span style=display:flex><span>adb shell dumpsys activity service SystemUIService WMShell splitscreen
+</span></span><span style=display:flex><span>adb shell dumpsys activity service SystemUIService WMShell protolog status
+</span></span></code></pre></div><p>如果只想继续深入分屏，可以再看同目录下的 <code>splitscreen-wmshell.md</code>。</p><h2 id=阅读源码的推荐入口>阅读源码的推荐入口<a hidden class=anchor aria-hidden=true href=#阅读源码的推荐入口>#</a></h2><p>如果你准备顺着这篇文章继续读源码，建议从下面这些文件开始：</p><ul><li><code>frameworks/base/packages/SystemUI/src/com/android/systemui/wmshell/WMShell.java</code></li><li><code>frameworks/base/packages/SystemUI/src/com/android/systemui/SystemUIInitializer.java</code></li><li><code>frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/dagger/WMComponent.java</code></li><li><code>frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/sysui/ShellController.java</code></li><li><code>frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/sysui/ShellInit.java</code></li><li><code>frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/ShellTaskOrganizer.java</code></li><li><code>frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/transition/Transitions.java</code></li><li><code>frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/splitscreen/SplitScreenController.java</code></li><li><code>frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/splitscreen/StageCoordinator.java</code></li><li><code>frameworks/base/core/java/android/window/WindowOrganizer.java</code></li><li><code>frameworks/base/core/java/android/window/TaskOrganizer.java</code></li><li><code>frameworks/base/core/java/android/window/ITaskOrganizer.aidl</code></li><li><code>frameworks/base/services/core/java/com/android/server/wm/WindowOrganizerController.java</code></li><li><code>frameworks/base/services/core/java/com/android/server/wm/TaskOrganizerController.java</code></li><li><code>frameworks/base/services/core/java/com/android/server/wm/TransitionController.java</code></li></ul><h2 id=小结>小结<a hidden class=anchor aria-hidden=true href=#小结>#</a></h2><p>可以把 WMShell 理解成 Android 新窗口能力的"壳层编排器"：</p><ul><li>它在 <code>SystemUI</code> 进程里启动和运行</li><li>它通过 <code>WindowOrganizer</code>、<code>TaskOrganizer</code>、<code>TransitionPlayer</code> 与 <code>system_server</code> 协作</li><li>它用 <code>ShellTaskOrganizer</code> 统一管理 task 入口</li><li>它用 <code>Transitions</code> 统一管理转场入口</li><li>它用 <code>StageCoordinator</code> 这类 feature coordinator 把任务、布局和动画落到具体功能里</li></ul><p>理解了这几层以后，再去看 PiP、Recents、Desktop Mode、Back 动画、Starting Surface 等模块，基本都会落回同一套设计思路里。</p></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/trace-cmd/><span class=title>Next »</span><br><span>Linux trace-cmd 原理与分析技巧</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
