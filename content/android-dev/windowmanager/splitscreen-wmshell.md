@@ -6,7 +6,7 @@ title = 'SplitScreenController flow'
 
 ## 时序图
 
-![](/ethenslab/images/splitscreen_wmshell.png)
+![](../../../static/images/splitscreen_wmshell.png)
 
 ## Debug
 

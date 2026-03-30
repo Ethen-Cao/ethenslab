@@ -1,6 +1,6 @@
 +++
 date = '2026-03-29T00:00:00+08:00'
-draft = false
+draft = true
 title = 'WMShell 介绍：SystemUI 与 WindowManager 之间的壳层'
 +++
 
@@ -508,6 +508,165 @@ transitions.addHandler(this)
 
 从依赖方向看，`StageCoordinator` 依赖 `SplitLayout`，`SplitLayout` 再聚合 `SplitWindowManager` 和 `DividerSnapAlgorithm`，这与源码结构一致。
 
+### 分屏的三个阶段
+
+分屏的完整生命周期可以分成三个阶段：进入分屏、拖动 divider、松手定稿。它们走的代码路径完全不同。
+
+#### 阶段一：进入分屏
+
+进入分屏有两条路径。
+
+**Shell 主动发起**：用户从 Recents 或 intent 触发分屏时，`SplitScreenController` 调用 `StageCoordinator.startTasks()`。`startTasks()` 内部构造一个 `WindowContainerTransaction`，通过 `activateSplit()` 激活 split 状态、`updateWindowBounds()` 设置初始 bounds、`wct.startTask()` 把两个 task 塞进对应 stage，最后调用 `SplitScreenTransitions.startEnterTransition()` 发起 transition：
+
+```java
+// StageCoordinator.startWithTask()
+activateSplit(wct, false, SPLIT_INDEX_UNDEFINED);
+mSplitLayout.setDivideRatio(snapPosition);
+updateWindowBounds(mSplitLayout, wct);
+wct.reorder(mRootTaskInfo.token, true);
+wct.startTask(mainTaskId, mainOptions);
+mSplitTransitions.startEnterTransition(
+        TRANSIT_TO_FRONT, wct, remoteTransition, this,
+        TRANSIT_SPLIT_SCREEN_PAIR_OPEN, false, snapPosition);
+```
+
+`SplitScreenTransitions.startEnterTransition()` 做两件事：先通过 `mTransitions.startTransition()` 把 WCT 提交给 `system_server`（内部调用 `WindowOrganizer.startNewTransition()`），再用 `setEnterTransition()` 记录一个 `EnterSession`，等 `onTransitionReady` 回来时用于匹配。
+
+**WM Core 被动触发**：如果 split 已经在后台运行，某个 stage 中的 task 被系统唤起（例如通知点击），`system_server` 会通过 `ITransitionPlayer.requestStartTransition()` 回调 Shell。`Transitions.requestStartTransition()` 收到后逆序遍历 `mHandlers`，调用每个 handler 的 `handleRequest()`。`StageCoordinator.handleRequest()` 检测到 trigger task 属于某个 stage 且 split 不可见，就走 `prepareEnterSplitScreen()` + `setEnterTransition()`，返回一个非空 WCT 认领这次 transition。
+
+两条路径最终汇合到同一个动画流程：`system_server` 准备好 transition 后，通过 `ITransitionPlayer.onTransitionReady()` 把 `TransitionInfo`、`startTransaction`、`finishTransaction` 发给 Shell。`Transitions.onTransitionReady()` 收到后调用 `dispatchTransition()`，逆序遍历 `mHandlers` 调用 `startAnimation()`。`StageCoordinator.startAnimation()` 检查 `mSplitTransitions.isPendingEnter(transition)` 为 true，进入 `startPendingEnterAnimation()` 设置各 stage 的 surface 可见性和初始状态，再交给 `SplitScreenTransitions.playAnimation()` 执行实际的动画帧。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SC as SplitScreenController
+    participant Coord as StageCoordinator
+    participant ST as SplitScreenTransitions
+    participant Trans as Transitions
+    participant WO as WindowOrganizer
+    participant WMS as system_server
+
+    SC ->> Coord: startTasks(taskId1, taskId2, ...)
+    Coord ->> Coord: activateSplit(wct) + updateWindowBounds(wct)
+    Coord ->> ST: startEnterTransition(TRANSIT_TO_FRONT, wct, handler)
+    ST ->> Trans: startTransition(type, wct, handler)
+    Trans ->> WO: startNewTransition(type, wct)
+    WO ->> WMS: Binder → WindowOrganizerController
+
+    WMS -->> Trans: ITransitionPlayer.onTransitionReady(token, info, startT, finishT)
+    Trans ->> Trans: dispatchTransition() 逆序遍历 mHandlers
+    Trans ->> Coord: startAnimation(transition, info, startT, finishT, cb)
+    Coord ->> Coord: startPendingAnimation() → isPendingEnter → startPendingEnterAnimation()
+    Coord ->> ST: playAnimation(transition, info, startT, finishT, cb, ...)
+    ST ->> ST: playInternalAnimation() 逐帧 surface 操作
+    ST ->> Trans: finishCallback.onTransitionFinished(wct)
+    Trans ->> WO: finishTransition(token, wct)
+    WO ->> WMS: Binder → WindowOrganizerController.finishTransition()
+```
+
+#### 阶段二：拖动 divider
+
+用户拖动分隔条时不走 transition，Shell 直接操作 `SurfaceControl.Transaction`。
+
+触摸事件由 `SplitWindowManager` 接收，传给 `SplitLayout`。`SplitLayout.updateDividerBounds()` 根据触摸位置重算两个 stage 的 bounds，然后回调 `SplitLayoutHandler.onLayoutSizeChanging()`：
+
+```java
+// SplitLayout.updateDividerBounds()
+void updateDividerBounds(int position, boolean shouldUseParallaxEffect) {
+    updateBounds(position);
+    mSplitLayoutHandler.onLayoutSizeChanging(this,
+            mSurfaceEffectPolicy.mRetreatingSideParallax.x,
+            mSurfaceEffectPolicy.mRetreatingSideParallax.y, shouldUseParallaxEffect);
+}
+```
+
+`StageCoordinator.onLayoutSizeChanging()` 是实际干活的地方。它从 `TransactionPool` 获取一个 `SurfaceControl.Transaction`，调用 `updateSurfaceBounds()` 更新 root task 和各 stage 的 surface 位置与裁剪，再对每个 `StageTaskListener` 调用 `onResizing()` 处理子 task 的 parallax 缩放效果，最后 `t.apply()` 提交到 `SurfaceFlinger`：
+
+```java
+// StageCoordinator.onLayoutSizeChanging()
+final SurfaceControl.Transaction t = mTransactionPool.acquire();
+t.setFrameTimelineVsync(Choreographer.getInstance().getVsyncId());
+updateSurfaceBounds(layout, t, shouldUseParallaxEffect);
+mMainStage.onResizing(mTempRect1, mTempRect2, displayBounds, t, offsetX, offsetY, ...);
+mSideStage.onResizing(mTempRect2, mTempRect1, displayBounds, t, offsetX, offsetY, ...);
+t.apply();
+mTransactionPool.release(t);
+```
+
+整个拖动过程是 Shell 内部的纯 surface 操作，不涉及 `system_server` 的任何 transition 流程。
+
+#### 阶段三：松手定稿
+
+松手后 `SplitLayout.snapToTarget()` 根据 `DividerSnapAlgorithm` 计算出的吸附目标决定走 resize 还是 dismiss。
+
+**正常 resize**：divider 停在一个合法的 snap 位置。`snapToTarget()` 用 `flingDividerPosition()` 把 divider 弹到目标位置，完成后调 `setDividerPosition(snapTarget.position, true)`，触发 `StageCoordinator.onLayoutSizeChanged()`。`onLayoutSizeChanged()` 构造一个包含新 bounds 的 `WindowContainerTransaction`，交给 `SplitScreenTransitions.startResizeTransition()`：
+
+```java
+// StageCoordinator.onLayoutSizeChanged()
+final WindowContainerTransaction wct = new WindowContainerTransaction();
+boolean sizeChanged = updateWindowBounds(layout, wct);
+if (!sizeChanged) { /* 仅 surface 更新，无需 transition */ return; }
+mSplitLayout.setDividerInteractive(false, false, "onSplitResizeStart");
+mSplitTransitions.startResizeTransition(wct, this, consumedCb, finishCb, ...);
+```
+
+`startResizeTransition()` 内部调用 `mTransitions.startTransition(TRANSIT_CHANGE, wct, handler)` 向 `system_server` 发起一次 `TRANSIT_CHANGE` 类型的 transition。`system_server` 准备好后通过 `onTransitionReady` 回调 Shell，`StageCoordinator.startPendingAnimation()` 检测到 `isPendingResize`，直接调 `SplitScreenTransitions.playResizeAnimation()` 执行 resize 动画。
+
+**Dismiss**：divider 被拖到屏幕边缘。`snapToTarget()` 的 fling 回调触发 `StageCoordinator.onSnappedToDismiss()`。它根据拖动方向确定哪个 stage 保留在顶部，调用 `prepareExitSplitScreen()` 把退出分屏的 WCT 准备好，再交给 `SplitScreenTransitions.startDismissTransition()`：
+
+```java
+// StageCoordinator.onSnappedToDismiss()
+toTopStage.resetBounds(wct);
+prepareExitSplitScreen(dismissTop, wct, EXIT_REASON_DRAG_DIVIDER);
+mSplitTransitions.startDismissTransition(wct, this, dismissTop, EXIT_REASON_DRAG_DIVIDER);
+```
+
+`startDismissTransition()` 根据退出原因选择 transition 类型（`TRANSIT_SPLIT_DISMISS_SNAP` 或 `TRANSIT_SPLIT_DISMISS`），调用 `mTransitions.startTransition()` 提交。`system_server` 回调 `onTransitionReady` 后，`startPendingAnimation()` 检测到 `isPendingDismiss` 且原因是 `EXIT_REASON_DRAG_DIVIDER`，调用 `SplitScreenTransitions.playDragDismissAnimation()` 播放拖拽退出动画。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SL as SplitLayout
+    participant Coord as StageCoordinator
+    participant ST as SplitScreenTransitions
+    participant Trans as Transitions
+    participant WMS as system_server
+
+    Note over SL: 松手，snapToTarget() fling 到目标位置
+
+    alt snap 到合法位置 (resize)
+        SL ->> SL: setDividerPosition(pos, true)
+        SL ->> Coord: onLayoutSizeChanged()
+        Coord ->> Coord: updateWindowBounds(layout, wct)
+        Coord ->> ST: startResizeTransition(wct, handler, ...)
+        ST ->> Trans: startTransition(TRANSIT_CHANGE, wct, handler)
+        Trans ->> WMS: WindowOrganizer.startNewTransition()
+        WMS -->> Trans: onTransitionReady(token, info, startT, finishT)
+        Trans ->> Coord: startAnimation()
+        Coord ->> Coord: startPendingAnimation() → isPendingResize
+        Coord ->> ST: playResizeAnimation()
+
+    else snap 到边缘 (dismiss)
+        SL ->> Coord: onSnappedToDismiss(bottomOrRight, EXIT_REASON_DRAG_DIVIDER)
+        Coord ->> Coord: prepareExitSplitScreen(dismissTop, wct)
+        Coord ->> ST: startDismissTransition(wct, handler, dismissTop, reason)
+        ST ->> Trans: startTransition(TRANSIT_SPLIT_DISMISS_SNAP, wct, handler)
+        Trans ->> WMS: WindowOrganizer.startNewTransition()
+        WMS -->> Trans: onTransitionReady(token, info, startT, finishT)
+        Trans ->> Coord: startAnimation()
+        Coord ->> Coord: startPendingAnimation() → isPendingDismiss
+        Coord ->> ST: playDragDismissAnimation()
+    end
+
+    ST ->> Trans: finishCallback.onTransitionFinished(wct)
+    Trans ->> WMS: WindowOrganizer.finishTransition(token, wct)
+```
+
+除了拖动 divider 触发的 dismiss，还有两种常见的退出路径：
+
+- **stage 中最后一个 task 关闭**：`system_server` 通过 `requestStartTransition` 回调 Shell，`StageCoordinator.handleRequest()` 检测到 `isClosingType(type) && stage.getChildCount() == 1`，调用 `prepareExitSplitScreen()` + `setDismissTransition()`
+- **全屏请求**：某个 task 切到 fullscreen，`handleRequest()` 检测到 `inFullscreen && isSplitScreenVisible()`，同样走 `prepareExitSplitScreen()` + `setDismissTransition()`
+
 ## 如何理解 WMShell 的价值
 
 把这些类放在一起看，WMShell 的价值主要体现在四点。
@@ -558,10 +717,21 @@ transitions.addHandler(this)
 ```shell
 adb shell dumpsys activity service SystemUIService WMShell
 adb shell dumpsys activity service SystemUIService WMShell help
-adb shell dumpsys activity service SystemUIService WMShell transitions
-adb shell dumpsys activity service SystemUIService WMShell splitscreen
 adb shell dumpsys activity service SystemUIService WMShell protolog status
+adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
+adb shell dumpsys activity service SystemUIService WMShell protolog start
+adb shell dumpsys activity service SystemUIService WMShell splitscreen moveToSideStage <taskId> <SideStagePosition>
+adb shell dumpsys activity service SystemUIService WMShell splitscreen setSideStagePosition <SideStagePosition>
+adb shell dumpsys activity service SystemUIService WMShell splitscreen switchSplitPosition
+adb shell dumpsys activity service SystemUIService WMShell splitscreen exitSplitScreen <taskId>
 ```
+
+这里有几个点值得单独说明：
+
+- `adb shell dumpsys activity service SystemUIService WMShell` 是打印整个 WMShell 状态，不只是分屏区域；因为 `SplitScreenController.onInit()` 只是把自己的 dump 回调注册进 `ShellCommandHandler`
+- `help`、`protolog`、`splitscreen` 都是 `ShellCommandHandler` 里的 command class。`SplitScreenController.onInit()` 注册了 `splitscreen`，`ProtoLogController.onInit()` 注册了 `protolog`
+- `protolog enable` 在当前实现里就是打开对应 group 的 logcat 日志；如果设备仍走 legacy proto 路径，再配合 `protolog start/stop`
+- 从接口注释看，框架侧的标准形式仍然是 `adb shell wm shell protolog ...`；但在 SystemUI 进程里通过 `dumpsys activity service SystemUIService WMShell ...` 走 passthrough 也是通的
 
 如果只想继续深入分屏，可以再看同目录下的 `splitscreen-wmshell.md`。
 
