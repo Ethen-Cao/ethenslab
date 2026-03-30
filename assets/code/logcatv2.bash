@@ -6,9 +6,10 @@
 #          Time AND (NOT Exclude) AND ( PID OR Source OR Keyword )
 # 功能:
 #       1. 兼容现有 logcat 的主要 CLI: -f/-p/-s/-k/-e/-t/--plain
-#       2. 支持两类 DLT 文本文本行:
+#       2. 支持三类文本行:
 #          a) 常规 DLT 文本: app/ctx/message
 #          b) JOUR 文本: 外层 DLT + 内层 proc[pid] 消息
+#          c) Linux syslog: Mon DD HH:MM:SS(.us) host proc[pid]: message
 #       3. 支持多文件/目录搜索。
 # 核心: 基于 ripgrep (rg) + awk。
 # =============================================================================
@@ -21,12 +22,14 @@ CMD_NAME="$(basename "$0")"
 function show_usage() {
     echo "Usage: ${CMD_NAME} [options] [file/dir...]"
     echo ""
+    echo "Note: syslog lines do not carry year; full-date filters match by MM/DD HH:MM:SS."
+    echo ""
     echo "Logic: Time AND (NOT Exclude) AND ( PID OR Source OR Keyword )"
     echo ""
     echo "Options:"
     echo "  -f <paths...>           Specify files/dirs to search (Space separated)"
-    echo "  -p <pids...>            Filter by Process ID from JOUR payload (Space separated)"
-    echo "  -s <sources...>         Filter by DLT app/ctx or JOUR proc (Space separated)"
+    echo "  -p <pids...>            Filter by Process ID from JOUR/syslog payload (Space separated)"
+    echo "  -s <sources...>         Filter by DLT app/ctx, JOUR proc or syslog proc (Space separated)"
     echo "  -k <keywords...>        Filter by Keyword (Include) (Space separated)"
     echo "  -e <keywords...>        Exclude lines containing keywords (Space separated)"
     echo "  -t <start> <end>        Filter by Time Range (HH:MM or YYYY/MM/DD HH:MM:SS)"
@@ -102,7 +105,51 @@ function execute_search() {
         -v c_file="$COLOR_FILE" \
         -v c_line="$COLOR_LINE" \
         -v c_reset="$COLOR_RESET" '
-        function extract_msg() {
+        function normalize_fractional_time(t,    frac) {
+            if (t !~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?$/) return t
+
+            frac = "000000"
+            if (index(t, ".") > 0) {
+                frac = substr(t, index(t, ".") + 1)
+            }
+            while (length(frac) < 6) {
+                frac = frac "0"
+            }
+            if (length(frac) > 6) {
+                frac = substr(frac, 1, 6)
+            }
+
+            return substr(t, 1, 8) "." frac
+        }
+
+        function month_to_num(mon) {
+            return \
+                mon == "Jan" ? "01" : \
+                mon == "Feb" ? "02" : \
+                mon == "Mar" ? "03" : \
+                mon == "Apr" ? "04" : \
+                mon == "May" ? "05" : \
+                mon == "Jun" ? "06" : \
+                mon == "Jul" ? "07" : \
+                mon == "Aug" ? "08" : \
+                mon == "Sep" ? "09" : \
+                mon == "Oct" ? "10" : \
+                mon == "Nov" ? "11" : \
+                mon == "Dec" ? "12" : ""
+        }
+
+        function reset_parsed_fields() {
+            PARSED_FORMAT = ""
+            PARSED_DATE = ""
+            PARSED_TIME = ""
+            PARSED_SOURCE1 = ""
+            PARSED_SOURCE2 = ""
+            PARSED_SOURCE3 = ""
+            PARSED_PID = ""
+            PARSED_MSG = ""
+        }
+
+        function extract_dlt_msg() {
             if (NF < 13) return ""
             return substr($0, index($0, $13))
         }
@@ -136,23 +183,93 @@ function execute_search() {
             JOUR_PID = substr(proc_pid, pos + 1, RLENGTH - 2)
         }
 
-        BEGIN { }
-        {
-            if ($1 !~ /^[0-9]+$/) next
-            if ($2 !~ /^[0-9]{4}\/[0-9]{2}\/[0-9]{2}$/) next
-            if ($3 !~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+$/) next
-            if (NF < 12) next
+        function parse_dlt_line(    msg) {
+            if ($1 !~ /^[0-9]+$/) return 0
+            if ($2 !~ /^[0-9]{4}\/[0-9]{2}\/[0-9]{2}$/) return 0
+            if ($3 !~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?$/) return 0
+            if (NF < 12) return 0
 
-            msg = extract_msg()
+            msg = extract_dlt_msg()
             extract_jour_proc(msg)
 
+            PARSED_FORMAT = "dlt"
+            PARSED_DATE = $2
+            PARSED_TIME = normalize_fractional_time($3)
+            PARSED_SOURCE1 = $7
+            PARSED_SOURCE2 = $8
+            PARSED_SOURCE3 = JOUR_PROC
+            PARSED_PID = JOUR_PID
+            PARSED_MSG = msg
+
+            return 1
+        }
+
+        function parse_syslog_line(    month_num, proc_token, msg, rest, pid_pos) {
+            month_num = month_to_num($1)
+            if (month_num == "") return 0
+            if ($2 !~ /^[0-9]{1,2}$/) return 0
+            if ($3 !~ /^[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?$/) return 0
+            if (NF < 5) return 0
+
+            rest = substr($0, index($0, $5))
+            if (!match(rest, /^[^:]+:/)) return 0
+
+            proc_token = substr(rest, 1, RLENGTH)
+            sub(/:$/, "", proc_token)
+
+            msg = substr(rest, RLENGTH + 1)
+            sub(/^[[:space:]]+/, "", msg)
+
+            PARSED_FORMAT = "syslog"
+            PARSED_DATE = month_num "/" sprintf("%02d", $2 + 0)
+            PARSED_TIME = normalize_fractional_time($3)
+            PARSED_SOURCE1 = proc_token
+            PARSED_SOURCE2 = ""
+            PARSED_SOURCE3 = ""
+            PARSED_PID = ""
+            PARSED_MSG = msg
+
+            if (match(proc_token, /\[[0-9]+\]$/)) {
+                pid_pos = RSTART
+                PARSED_SOURCE1 = substr(proc_token, 1, pid_pos - 1)
+                PARSED_PID = substr(proc_token, pid_pos + 1, RLENGTH - 2)
+            }
+
+            return 1
+        }
+
+        function parse_line() {
+            reset_parsed_fields()
+            JOUR_PROC = ""
+            JOUR_PID = ""
+
+            if (parse_dlt_line()) return 1
+            if (parse_syslog_line()) return 1
+            return 0
+        }
+
+        function format_filter_time(val, format) {
+            if (val == "") return ""
+            if (time_only == 1) return val
+            if (format == "syslog") return substr(val, 6)
+            return val
+        }
+
+        function line_time_key() {
+            if (time_only == 1) return PARSED_TIME
+            if (PARSED_FORMAT == "syslog") return PARSED_DATE " " PARSED_TIME
+            return PARSED_DATE " " PARSED_TIME
+        }
+
+        BEGIN { }
+        {
+            if (!parse_line()) next
+
             if (enable_time == 1) {
-                if (time_only == 1) {
-                    current_time = $3
-                } else {
-                    current_time = $2 " " $3
-                }
-                if ((s != "" && current_time < s) || (e != "" && current_time > e)) next
+                current_time = line_time_key()
+                start_time = format_filter_time(s, PARSED_FORMAT)
+                end_time = format_filter_time(e, PARSED_FORMAT)
+                if ((start_time != "" && current_time < start_time) || (end_time != "" && current_time > end_time)) next
             }
 
             if (f_exclude != "" && $0 ~ f_exclude) next
@@ -162,12 +279,12 @@ function execute_search() {
 
             if (f_pid != "") {
                 has_condition = 1
-                if (JOUR_PID ~ f_pid) is_matched = 1
+                if (PARSED_PID ~ f_pid) is_matched = 1
             }
 
             if (f_source != "" && is_matched == 0) {
                 has_condition = 1
-                if ($7 ~ f_source || $8 ~ f_source || JOUR_PROC ~ f_source) is_matched = 1
+                if (PARSED_SOURCE1 ~ f_source || PARSED_SOURCE2 ~ f_source || PARSED_SOURCE3 ~ f_source) is_matched = 1
             }
 
             if (f_key != "" && is_matched == 0) {
