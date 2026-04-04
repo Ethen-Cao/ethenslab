@@ -89,6 +89,66 @@ zstdext --seg-size=256 -d --patch-from=/path/to/boot.patch /dev/zero -o=/dev/dis
 
 seg-size 越大，单次 fsync 的 I/O 风暴越猛烈，UFS IRQ handler 连续处理的 CQE 数量越多，BH 锁持有时间越长。
 
+```mermaid
+sequenceDiagram
+    autonumber
+    
+    participant zstdext as zstdext (User)
+    participant VFS as VFS (系统调用)
+    participant PC as Page Cache (内存)
+    participant WB as Writeback 线程
+    participant UFS as UFS Driver & HW
+    participant IRQ as UFS IRQ 线程 (irq/3xx)
+    participant Ktimers as ktimers/N (RT线程)
+    participant App as 关键应用进程
+
+    rect rgb(245, 245, 245)
+        note right of zstdext: 阶段1：数据生成与缓存 (含 CPU 拷贝)
+        zstdext->>VFS: fwrite(解压数据/预填零)
+        VFS->>PC: 【数据拷贝】CPU将数据拷入 Page Cache<br/>标记为 Dirty。积压量由 seg-size (256MB) 决定。
+        PC-->>VFS: 拷贝完成
+        VFS-->>zstdext: 快速返回写入字节数
+    end
+
+    rect rgb(255, 250, 240)
+        note right of zstdext: 阶段2：系统调用阻塞与集中回写
+        zstdext->>VFS: 调用 fsync() 请求落盘
+        VFS->>WB: 唤醒回写机制
+        note over zstdext, VFS: 【进程阻塞】zstdext 在等待队列中挂起，<br/>等待所有脏页物理落盘且解除锁定。
+        WB->>WB: 锁定物理页，获取 folio writeback 锁 (rt_mutex)
+        WB->>UFS: 批量提交 BIO (Block I/O 请求)
+        note over UFS: 【零拷贝】UFS 控制器通过 DMA 读取物理内存
+    end
+
+    rect rgb(255, 235, 235)
+        note right of zstdext: 阶段3：RT锁冲突与优先级反转 (Watchdog 根因)
+        UFS-->>IRQ: DMA 写入完成，触发硬件中断
+        note over IRQ: PREEMPT_RT：硬中断被线程化 (irq_forced_thread_fn)
+        IRQ->>IRQ: 线程自动获取当前 CPU 的 BH 锁
+        IRQ->>WB: 执行 folio_end_writeback()，请求 folio writeback 锁
+        note over IRQ: ❌ 获取失败 (正被持续下发I/O的 Writeback 线程持有)。<br/>IRQ 线程持有 BH 锁的同时，进入 D 状态。
+        
+        Ktimers->>Ktimers: 硬件时钟中断，soft hrtimer 到期
+        Ktimers->>IRQ: 准备派发应用层定时器，尝试获取 BH 锁
+        note over Ktimers: ❌ 获取失败 (被 D 状态的 IRQ 线程死死握住)。<br/>最高 RT 优先级的 ktimers/N 被迫进入 D 状态。
+        
+        note over Ktimers, App: 【系统停滞】<br/>该 CPU 上依赖 SCHED_NORMAL 的 futex/select/poll 超时全部挂起。<br/>应用的 500ms 唤醒预期被阻塞长达数秒。
+        App-->>App: Watchdog 监控到心跳断链，判定 Timeout
+    end
+
+    rect rgb(240, 255, 240)
+        note right of zstdext: 阶段4：锁释放、唤醒与 fsync 返回
+        WB->>WB: 单批次 BIO 下发完毕，释放 folio writeback 锁
+        IRQ->>IRQ: 终于拿到 folio 锁，完成收尾
+        IRQ->>PC: 【解除物理页锁定】清除 Writeback 状态
+        PC->>VFS: 唤醒等待该页落盘的等待队列
+        IRQ->>IRQ: 退出中断 handler，释放 BH 锁 (local_bh_enable)
+        Ktimers->>Ktimers: 拿到 BH 锁，集中触发积压的 soft hrtimers
+        Ktimers->>App: 唤醒被阻塞的关键进程 (实际延迟远超预期)
+        VFS-->>zstdext: 【fsync 返回】系统调用结束，返回用户态
+    end
+```
+
 ## 二、测试目的
 
 1. **找到 `seg-size` 的最佳值**：在保证 OTA 刷写总耗时可接受的前提下，使 UFS IRQ handler 单次 BH 锁持有时间不超过 watchdog 超时阈值，消除心跳超时
@@ -385,62 +445,8 @@ if(UTIL_isBlockDevice(dstFileName)) {
 
 **效果**：每个 segment 减少最多 256MB 的无效 I/O。在 page cache 压力大时，可将 UFS I/O 量降低接近一半。
 
-### 4.3 复用 heartbeat socket（修改 pmonitor 客户端库，低风险）
 
-**当前行为**：`pmonitorif_sendheartbeat()` 每次心跳执行 `socket() → sendto() → close()`。其中 `close()` 路径经过 `unix_release_sock() → local_bh_disable()`，在 PREEMPT_RT 内核中需要获取 per-CPU BH 锁——正是被 UFS IRQ handler 长期占用的那把锁。
-
-**修改建议**：
-
-```c
-// 修改前：每次心跳 open+close
-int32_t pmonitorif_sendheartbeat(const char *pname, int32_t pid) {
-    int32_t sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
-    sendto(sockfd, &msg, sizeof(msg), 0, ...);
-    close(sockfd);   // ← 每次都竞争 BH 锁
-}
-
-// 修改后：复用 socket，避免 close() 路径
-static int32_t g_heartbeat_sockfd = -1;
-
-int32_t pmonitorif_sendheartbeat(const char *pname, int32_t pid) {
-    if (g_heartbeat_sockfd < 0) {
-        g_heartbeat_sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
-    }
-    sendto(g_heartbeat_sockfd, &msg, sizeof(msg), 0, ...);
-    // 不 close，进程退出时自动释放
-}
-```
-
-**效果**：心跳发送路径完全绕开 BH 锁竞争。即使 UFS I/O 风暴仍在发生，watchdog 线程也不会被阻塞在 `close()` 上。
-
-### 4.4 UFS IRQ 亲和性隔离（系统配置，无需改代码）
-
-将 UFS IRQ 线程绑定到非关键 CPU 核心，避免 BH 锁饥饿影响关键进程：
-
-```bash
-# 查看当前 UFS IRQ 亲和性
-cat /proc/irq/314/smp_affinity
-
-# 绑定到 CPU 6-7（假设非关键核心）
-echo c0 > /proc/irq/314/smp_affinity   # 二进制 11000000 = CPU 6,7
-```
-
-**局限性**：需要同时将关键线程（watchdog、pmonitor）绑定到其他 CPU，否则调度器可能将它们迁移到 IRQ 所在核心。
-
-### 4.5 提升关键线程为 RT 调度类（修改应用代码）
-
-针对第十一章分析的 soft hrtimer 延迟问题，将依赖超时机制的关键线程提升为 `SCHED_FIFO`：
-
-```c
-// 在 process_main_matrix_task() 线程入口处
-struct sched_param param;
-param.sched_priority = 1;  // 最低 RT 优先级即可
-pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
-```
-
-**原理**：PREEMPT_RT 内核中，`SCHED_FIFO/RR` 线程的 `futex_wait`/`select`/`poll` 超时使用 **hard hrtimer**（硬中断上下文处理，微秒级精度），而 `SCHED_NORMAL` 线程使用 **soft hrtimer**（`ktimers/N` 线程处理，可被延迟数秒）。
-
-### 4.6 改造 zstdext 使用 Direct I/O（修改源码，效果最彻底）
+### 4.3 改造 zstdext 使用 Direct I/O（修改源码，效果最彻底）
 
 **修改方式**：在 `fileio.c` 中打开目标块设备时添加 `O_DIRECT` 标志，并确保写入缓冲区对齐。
 
@@ -457,7 +463,7 @@ pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
 - 失去 page cache 的写合并优化，小块写入性能可能下降
 - zstdext 的 sparse file 优化（跳过零块）需要适配
 
-### 4.7 UFS MCQ IRQ 改为原生线程化（内核修改，从根本上消除 BH 锁）
+### 4.4 UFS MCQ IRQ 改为原生线程化（内核修改，从根本上消除 BH 锁）
 
 修改 UFS 驱动注册方式，使 IRQ handler 走 `irq_thread_fn`（无 BH 锁包裹）而非 `irq_forced_thread_fn`：
 
