@@ -1,256 +1,159 @@
 ---
-title: "crash_dump流程"
+title: "Android Native Crash 处理机制深度解析"
 date: 2024-07-29T10:00:00+08:00 
 draft: false
 ---
 
-下图展示了从信号捕获、`crash_dump` 介入、Tombstone 生成、通知 AMS 到最后日志输出的交互细节。
+在 Android 系统中，Native Crash 的处理是一个高度解耦且极其鲁棒的多进程协作闭环。其核心哲学是：**在损坏的现场外（Out-of-Process）进行安全重建**。
 
-### Native Process Crash 处理时序图
+## 1. 系统组件架构 (Architectural Overview)
 
+下图展示了参与 Crash 处理的关键组件及其静态拓扑关系：
+
+```mermaid
+graph LR
+    subgraph "Native Process (Crasher)"
+        SC[libsigchain.so]
+        DH[libdebuggerd_handler.so]
+        PT[Pseudothread]
+        VM[VM Process / Snapshot]
+    end
+
+    subgraph "Debuggerd Daemon System"
+        CD[crash_dump64/32]
+        T[tombstoned]
+    end
+
+    subgraph "System Services"
+        LOG[logd / kmsg]
+        AMS[ActivityManagerService]
+    end
+
+    DH -- "linker_debuggerd_init" --> L[Linker]
+    SC -- "special_handler" --> DH
+    DH -- "clone(no CLONE_FILES)" --> PT
+    PT -- "exec" --> CD
+    CD -- "ptrace(SEIZE/INTERRUPT)" --> Crasher
+    PT -- "double-fork" --> VM
+    CD -- "ptrace(read memory)" --> VM
+    CD -- "kDumpRequest" --> T
+    T -- "InterceptCheck" --> CD
+    CD -- "ndebugsocket" --> AMS
+```
+
+---
+
+## 2. 详细交互流程 (Sequence Diagram)
+
+基于 `system/core/debuggerd` 源码深度还原的交互细节，涵盖了信号劫持、双重握手及内存镜像逻辑：
 
 ```plantuml
 @startuml
 !theme plain
+scale 1024 width
 autonumber
 
-participant "Native Process\n(Crasher)" as P
-participant "Signal Handler\n(debuggerd_handler)" as SH
-participant "Pseudothread\n(In Crasher)" as PT
-participant "crash_dump\n(Debuggerd)" as CD
-participant "tombstoned\n(Daemon)" as T
-participant "AMS\n(ActivityManager)" as AMS
-participant "Logcat\n(liblog)" as LOG
-participant "Init\n(PID 1)" as INIT
+participant "Native Process" as P
+participant "Sigchain / Handler" as SH
+participant "Pseudothread" as PT
+participant "VM Process (Snapshot)" as VM
+participant "crash_dump" as CD
+participant "tombstoned" as T
+participant "ActivityManager" as AMS
+participant "Logcat" as LOG
 
-== 1. 崩溃触发与拦截 ==
+== 1. 信号捕获与环境隔离 ==
 P -> P: 发生异常 (e.g., SIGSEGV)
-activate P
-P -> SH: 触发 debuggerd_signal_handler 
+P -> SH: 触发 debuggerd_signal_handler
 activate SH
 
-SH -> SH: pthread_mutex_lock \n防止多线程同时dump 
-SH -> LOG: log_signal_summary (Fatal signal...) 
+SH -> SH: pthread_mutex_lock (防并发转储)
+SH -> LOG: log_signal_summary (Fatal signal...)
 
 note right of SH
-  为了不污染原进程文件描述符，
-  debuggerd 使用 clone 创建
-  一个 Pseudothread 来处理
+  通过 clone(CLONE_VM) 创建伪线程
+  不带 CLONE_FILES，拥有独立 FD 表
+  以应对 EMFILE 导致的资源耗尽
 end note
-
-SH -> PT: clone() 创建伪线程 
+SH -> PT: clone()
 activate PT
+SH -> SH: futex_wait (等待 PT 完成)
 
-== 2. 启动 crash_dump 与握手 ==
-PT -> CD: execle("/apex/.../crash_dump64") 
+== 2. 启动调试器与双重握手 ==
+PT -> PT: close(0..1023) 暴力清空 FD
+PT -> PT: Pipe() 创建进程间通信管道
+PT -> CD: execle("/apex/.../crash_dump64")
 activate CD
 
-CD -> CD: 解析参数 (PID, TID) 
-CD -> P: ptrace(PTRACE_SEIZE) 附着目标线程 
+CD -> P: ptrace(PTRACE_SEIZE) 附着崩溃线程
+CD -> PT: ptrace(PTRACE_SEIZE, PTRACE_O_TRACECLONE) 监控 PT
+CD -> PT: write(pipe, "\1") [握手 1：Ptrace 就绪]
 
-note right of CD
-  crash_dump 通过管道与
-  目标进程握手
-end note
+PT -> PT: read(pipe) 阻塞等待
+PT -> VM: create_vm_process (Double-fork)
+activate VM
+note over PT, VM: VM 进程是地址空间的 CoW 镜像\n规避主进程 Mutex 死锁风险
 
-CD -> PT: Write pipe (Handshake '\1') 
-PT -> PT: read pipe 
+PT -> CD: write(pipe, CrashInfo V4) [握手 2：发送寄存器/元数据]
+deactivate PT
 
-PT -> PT: create_vm_process() \n(Fork 进程镜像供读取内存) 
-PT -> CD: Write pipe (CrashInfo: siginfo, regs) 
-
-== 3. 连接 Tombstoned 获取文件句柄 ==
-CD -> CD: ReadCrashInfo() 
-CD -> T: connect_tombstone_server() 
+== 3. 资源申请与堆栈回溯 ==
+CD -> CD: ReadCrashInfo (解析管道数据)
+CD -> T: connect_tombstone_server (kDumpRequest)
 activate T
-
-T -> T: CrashQueue::get_output() 
-T -> T: openat() 创建临时文件 
-T --> CD: 返回 Text FD 和 Proto FD 
+T -> T: InterceptCheck (检查 AMS 拦截请求)
+T -> T: openat(O_TMPFILE) 分配匿名临时文件
+T --> CD: 返回 Text FD & Proto FD
 deactivate T
 
-== 4. 生成 Tombstone 与 Logcat ==
-CD -> CD: unwinder.Initialize() 
-CD -> CD: engrave_tombstone() 
+CD -> CD: unwinder.Initialize(VM_PID)
+note right of CD: 回溯 VM 进程而非主进程\n彻底解决 dl_lock 竞争导致的挂死
+CD -> CD: Unwind Stack (libunwindstack)
+CD -> T: Write(FDs) 写入磁盘
+CD -> LOG: _LOG (写入 Logcat LOG_ID_CRASH)
 
-group 生成 Tombstone 内容
-    CD -> CD: 读取寄存器、Memory、Maps
-    CD -> CD: Unwind Stack (回溯堆栈)
-    CD -> T: Write to FD (写入磁盘文件) 
-end
-
-group 输出 Logcat
-    CD -> LOG: _LOG(..., "backtrace: ...") 
-    note right of LOG
-        libdebuggerd/utility.cpp 中的 _LOG 
-        将 tombstone 内容摘要写入 logcat
-    end note
-end
-
-== 5. 通知 AMS (DropBox) ==
-CD -> AMS: activity_manager_notify() 
+== 4. 系统通知与清理 ==
+CD -> AMS: activity_manager_notify (ndebugsocket)
 activate AMS
-note right of AMS
-  连接 /data/system/ndebugsocket
-  发送 PID, Signal, abort_msg
-  AMS 将生成 DropBox 条目
-end note
-CD -> AMS: write(socket, crash_info) 
+AMS --> CD: ACK
 deactivate AMS
 
-== 6. 完成与清理 ==
-CD -> T: notify_completion() 
+CD -> T: notify_completion (kCompletedDump)
 activate T
-T -> T: rename_tombstone_fd() \n(重命名为 tombstone_xx) 
+T -> T: linkat (原子性重命名临时文件)
 deactivate T
 
-CD -> P: ptrace(DETACH) 
+CD -> P: ptrace(DETACH)
 deactivate CD
-destroy CD
 
-PT -> P: resend_signal() (重发信号自杀) 
-deactivate PT
+SH -> SH: resend_signal (rt_tgsigqueueinfo 重发原始信号)
 deactivate SH
-deactivate P
-destroy P
 
-P -> INIT: SIGCHLD (进程死亡)
-INIT -> INIT: Process Reaping (回收僵尸进程)
-
+P -> P: 内核执行 SIG_DFL，进程彻底终止
 @enduml
 ```
 
-### 关键流程代码依据解析
+---
 
-1.  **信号拦截 (debuggerd_signal_handler)**
+## 3. 关键技术实现深度解析
 
-      * 当 Native 进程 Crash 时，内核回调 `debuggerd_signal_handler` 。
-      * 代码中显式使用了 `pthread_mutex_lock`  确保同一时间只有一个线程处理 Crash。
-      * 为了在不耗尽原进程文件描述符（FD）的情况下执行操作，代码调用 `clone` 创建了一个 **Pseudothread** 。
+### 3.1 信号劫持层 (Sigchain & Handler)
+*   **代码位置**：`art/sigchainlib/sigchain.cc`
+*   **机制**：`libsigchain` 劫持了 `sigaction`。ART 注册其处理程序以处理虚函数表修复等逻辑，而 `debuggerd_signal_handler` 被注册为 **Special Handler**。
+*   **自愈模式**：Android 14+ 引入 `android_handle_signal`。对于可恢复的 MTE 或 GWP-ASan 故障，调试器生成报告后会修改线程上下文（如禁用 MTE），使信号处理程序返回并恢复应用执行。
 
-2.  **启动 crash_dump (Exec)**
+### 3.2 伪线程 (Pseudothread) 的设计精髓
+*   **资源回收**：崩溃现场可能已耗尽 FD（`EMFILE`）。伪线程通过 `clone` 且不共享 FD 表，进入后执行 `syscall(__NR_close, i)` 暴力腾出空间，确保调试所需的管道和 Socket 能成功创建。
+*   **死锁规避**：不使用 `pthread_create` 是为了避免触发 `atfork` 钩子，因为主进程的 `Loader` 锁或堆锁此时可能已被破坏或死锁。
 
-      * Pseudothread 调用 `execle` 启动 `/apex/com.android.runtime/bin/crash_dump64` 。
-      * 这里通过管道（Pipe）传递了 `Crashing TID` 和 `Pseudothread TID` 给 `crash_dump`。
+### 3.3 VM Process：无锁镜像技术
+*   **实现**：通过 `double-fork` 产生的孤儿进程充当“物理内存快照”。
+*   **价值**：`unwindstack` 在回溯损坏的栈帧时需要频繁读取内存。在 VM 进程中读取可以完全规避主进程中因 `dl_lock` 或 `malloc` 锁竞争导致的调试器挂死问题。
 
-3.  **握手与 Ptrace**
+### 3.4 运行时元数据注入 (CrashInfo V4)
+*   **注入点**：Linker 在启动时通过 `linker_debuggerd_init` 将 `__libc_shared_globals()` 地址传递给 Handler。
+*   **内容**：V4 协议不仅传输 `ucontext`，还包含了 **Scudo 分配器状态**、**GWP-ASan 详情**以及 **fdsan 表地址**。这使得 `crash_dump` 能够精准定位 Use-After-Free 或 FD Double Close 等深层内存安全问题。
 
-      * `crash_dump` 启动后，首先 `ptrace` 附着（Seize）目标进程的所有线程 。
-      * 为了安全地读取内存，`crash_dump` 通过管道写 `\1` 通知 Pseudothread 。
-      * Pseudothread 收到通知后，调用 `create_vm_process()` ，本质上是 `fork` 出一个子进程（镜像），供 `crash_dump` 读取内存，防止在读取过程中因目标进程内存损坏而卡死。
-      * Pseudothread 将 `CrashInfo`（包含寄存器信息 `ucontext`）写入管道发送给 `crash_dump` 。
-
-4.  **连接 Tombstoned**
-
-      * `crash_dump` 调用 `connect_tombstone_server` 连接 `tombstoned` 守护进程 。
-      * `tombstoned` 收到请求后（`kDumpRequest`），在 `/data/tombstones/` 下创建临时文件 ，并通过 Socket 将文件描述符（FD）传回给 `crash_dump` 。
-
-5.  **生成 Tombstone 与 Logcat**
-
-      * `crash_dump` 调用 `engrave_tombstone` 。
-      * 它使用 `libunwindstack` 进行堆栈回溯，并将结果写入从 `tombstoned` 获取的 FD 中。
-      * 同时，`tombstone_proto_to_text.cpp` 中的回调会调用 `_LOG` 函数 。
-      * `_LOG` 函数会调用 `__android_log_buf_write` 将 Crash 的关键信息写入 **Logcat** (`LOG_ID_CRASH`) 。
-
-6.  **通知 AMS**
-
-      * `crash_dump` 调用 `activity_manager_notify` 。
-      * 它连接 `/data/system/ndebugsocket` ，将 Crash 信息发送给 `ActivityManagerService`。
-      * AMS 接收到数据后，会将其保存到 **DropBox** (`data_app_native_crash` 或 `system_app_native_crash`)。
-
-7.  **清理与退出**
-
-      * `crash_dump` 通知 `tombstoned` 完成转储 (`notify_completion`) 。`tombstoned` 此时将临时文件重命名为正式的 `tombstone_xx` 。
-      * Pseudothread 调用 `resend_signal` ，将原本导致 Crash 的信号（如 SIGSEGV）重新发送给自己，确保父进程（Init 或 Zygote）能收到正确的退出状态码（WIFSIGNALED）。
-  
-
-### Pseudothread
-
-**Pseudothread（伪线程）** 是 Android `debuggerd` 机制中为了解决“在极端崩溃环境下安全启动 crash_dump”而设计的一个极其巧妙的底层技巧。
-
-它的核心目的是：**在进程可能已经耗尽文件描述符（FD Exhaustion）的情况下，依然能够成功创建管道（Pipe）并启动 `crash_dump` 进程。**
-
-以下是 Pseudothread 的详细工作原理分析：
-
-1. 什么是 Pseudothread？
-
-在 Linux 内核视角下，它是一个通过 `clone` 系统调用创建的执行流。它处于一种“似线程非线程”的中间状态：
-
-  * **像线程：** 它共享父进程的地址空间（内存）。
-  * **像进程：** 它**不共享**父进程的文件描述符表（File Descriptor Table）。
-
-2. 核心代码实现：`clone` 的魔法
-
-在 `debuggerd_signal_handler` 函数中，代码并没有直接调用 `fork()` 或 `pthread_create()`，而是直接调用了 `clone()` 系统调用。
-
-代码引用 ：
-
-```cpp
-pid_t child_pid =
-    clone(debuggerd_dispatch_pseudothread, pseudothread_stack,
-          CLONE_THREAD | CLONE_SIGHAND | CLONE_VM | CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID,
-          &thread_info, nullptr, nullptr, &thread_info.pseudothread_tid);
-```
-
-这里的关键在于 **Flags（标志位）** 的组合：
-
-  * **`CLONE_VM`**: 共享内存。这使得 Pseudothread 可以直接读取崩溃线程的 `siginfo`、寄存器上下文等数据，无需复杂的 IPC。
-  * **`CLONE_THREAD`**: 放入同一个线程组。
-  * **`CLONE_SIGHAND`**: 共享信号处理表。
-  * **关键点：缺少了 `CLONE_FILES`**。
-      * 普通的 `pthread_create` 会包含 `CLONE_FILES`，意味着新线程和旧线程共享打开的文件句柄。
-      * **Pseudothread 故意不加这个标志**。这意味着 Pseudothread 启动时，会**拷贝**一份父进程的文件描述符表，但在 Pseudothread 里关闭文件，**不会影响**原崩溃进程。
-
-3. Pseudothread 的执行流程 (`debuggerd_dispatch_pseudothread`)
-
-Pseudothread 启动后，执行 `debuggerd_dispatch_pseudothread` 函数，其工作流如下：
-
-* 暴力腾挪空间 (FD Cleaning)
-
-这是 Pseudothread 存在的最大意义。如果原进程是因为打开了太多文件（FD 耗尽）而 Crash 的，那么普通的 `fork` 或 `exec` 可能会因为无法打开管道或 Socket 而失败。
-
-代码 ：
-
-```cpp
-for (int i = 0; i < 1024; ++i) {
-    // Don't use close to avoid bionic's file descriptor ownership checks.
-    syscall(__NR_close, i);
-}
-```
-
-Pseudothread 会直接关闭自己拷贝过来的前 1024 个文件描述符。因为没有 `CLONE_FILES`，**这个操作是安全的，不会关闭原崩溃进程正在用的文件**（比如日志文件或数据库连接），但却为 Pseudothread 腾出了大量的空闲 FD。
-
-* 准备通信管道
-
-腾出 FD 后，它终于可以安全地创建管道了 ：
-
-```cpp
-if (!Pipe(&input_read, &input_write) != 0 || !Pipe(&output_read, &output_write)) {
-    fatal_errno("failed to create pipe");
-}
-```
-
-这些管道用于连接 `crash_dump` 进程。
-
-* 启动真正的 crash_dump
-
-准备好环境后，Pseudothread 调用 `_Fork()` (避免触发 pthread\_atfork 锁) 来创建子进程，并执行 `execle` 加载 `crash_dump64` 。
-
-```cpp
-execle(CRASH_DUMP_PATH, CRASH_DUMP_NAME, main_tid, pseudothread_tid, debuggerd_dump_type, nullptr, nullptr);
-```
-
-* 中转数据与保活
-
-1.  **握手：** `crash_dump` 启动后，会通过管道发送一个 `\1` 字节 。Pseudothread 收到这个字节，意味着 `crash_dump` 已经成功 `ptrace` 住了所有线程。
-2.  **镜像进程：** 收到握手后，Pseudothread 调用 `create_vm_process()` ，再次 `fork` 一个子进程。这个子进程是崩溃瞬间的**内存镜像**，专门供 `crash_dump` 读取内存。这样做是为了防止读取内存时卡死主进程。
-3.  **阻塞等待：** 最后，Pseudothread 会读取管道等待，直到 `crash_dump` 完成工作。这实际上起到了**暂停崩溃进程**的作用，防止它过早退出导致 `tombstone` 生成失败 。
-
-### 总结
-
-**Pseudothread** 是 Android 系统编程中的一个“特种兵”。它利用 `clone` 系统调用的灵活性，创造了一个\*\*“内存共享但文件描述符独立”\*\*的特殊执行环境。
-
-**解决了什么痛点？**
-
-1.  **死锁规避：** 不使用 `malloc` 或 pthread 锁，直接使用 syscall。
-2.  **资源耗尽保护：** 即使主进程 FD 耗尽（导致 Crash），Pseudothread 也能通过“私有化并清空 FD 表”的方式，强行腾出资源来启动调试进程，确保 Crash Log (Tombstone) 能够被抓取到。
+### 3.5 信号重发与状态还原
+*   **rt_tgsigqueueinfo**：调试结束后，Handler 使用此系统调用重发导致崩溃的信号。
+*   **意义**：这确保了父进程（Init 或 Zygote）能捕获到真实的退出原因（Exit Status），触发正确的系统重启逻辑。
