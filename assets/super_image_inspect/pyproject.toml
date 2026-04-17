@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "super-image-inspect"
+version = "0.1.0"
+description = "Inspect a single Android super.img and emit structured reports."
+requires-python = ">=3.9"
+
+[project.scripts]
+super-image-inspect = "super_image_inspect.__main__:main"
+
