@@ -1,0 +1,120 @@
+@startuml
+!theme plain
+autonumber
+skinparam maxMessageSize 150
+
+box "App Process" #White
+participant "App (Activity)" as App #LightSkyBlue
+end box
+
+box "Framework Base (Modified by Mega)" #White
+participant "Activity.java\n(Framework)" as FW_Activity #FFE4B5
+participant "PackageManager.java\n(Framework)" as FW_PM #FFE4B5
+end box
+
+box "Mega Custom Permission UI" #White
+participant "GrantPermissionsActivity\n(com.mega...)" as MegaUI #LightGreen
+participant "PermissionRequestVM" as VM #LightGreen
+participant "SysPermissionUtilsKt" as SysUtils #LightGreen
+end box
+
+box "AOSP Core Services" #White
+participant "PackageManagerService\n(PMS)" as PMS #LightSkyBlue
+participant "AppOpsManager" as AppOps #LightSkyBlue
+end box
+
+== 阶段 1：请求发起与拦截重定向 (Framework 层) ==
+App -> FW_Activity : requestPermissions(permissions, requestCode)
+activate FW_Activity
+
+note over FW_Activity #FFE4B5
+  **[Mega Porting]** 检查 permissions
+  跳过以 "#" 开头的 permission
+end note
+
+FW_Activity -> FW_PM : buildRequestPermissionsIntent(permissions)
+activate FW_PM
+
+note over FW_PM #FFE4B5
+  **[Mega Porting]** 解析 "#" 提取 moduleName，并从数组过滤。
+  设置包名为 getMegaPermissionGrantPackageName()
+end note
+
+FW_PM --> FW_Activity : Intent (ACTION_REQUEST_PERMISSIONS)
+deactivate FW_PM
+
+FW_Activity -> MegaUI : startActivityForResult(intent)
+note right of FW_Activity : 跨进程拉起 Mega 定制的授权 UI
+FW_Activity --> App : 返回
+deactivate FW_Activity
+
+
+== 阶段 2：定制 UI 渲染与用户交互 (Mega 层) ==
+activate MegaUI
+note over MegaUI #LightGreen
+  onCreate() 解析 Intent，绑定 ViewModel，渲染 UI
+  *(等待用户点击允许/拒绝)*
+end note
+
+... 用户点击 "允许 (Allow)" ...
+
+MegaUI -> MegaUI : setResultAndFinish()
+MegaUI -> VM : setResultIfNeeded(activity, code=-1, needFinish=true)
+activate VM
+
+
+== 阶段 3：底层状态强行写入 (Mega Utils -> AOSP Service) ==
+note over VM #LightGreen
+  遍历 targetPkg 需要授予的权限 (如 LOCATION)
+end note
+
+VM -> SysUtils : updatePkgPermission(targetPkg, permStr, curUser, PermOp.Runtime, ...)
+activate SysUtils
+
+SysUtils -> PMS : grantRuntimePermission(targetPkg, permStr, user)
+note right of PMS #LightSkyBlue : **[AOSP 原生 API]**\n向 PMS 写入该包名的运行时权限
+
+SysUtils -> PMS : updatePermissionFlags(...)
+note right of PMS #LightSkyBlue : **[AOSP 原生 API]**\n更新 USER_SET 等标志位
+
+SysUtils -> AppOps : permissionToOp(permStr)
+AppOps --> SysUtils : strPermissionToOp
+
+SysUtils -> PMS : getPackageUidAsUser(targetPkg, userId)
+PMS --> SysUtils : packageUidAsUser (如 UID 1000)
+
+SysUtils -> AppOps : unsafeCheckOpRaw(...)
+AppOps --> SysUtils : mode
+
+SysUtils -> AppOps : setUidMode(strPermissionToOp, packageUidAsUser, 0 /* MODE_ALLOWED */)
+note right of AppOps #LightSkyBlue : **[AOSP 原生 API]**\n**核心突破点：**\n基于 UID (1000) 强行放行 AppOps
+
+SysUtils --> VM : Success
+deactivate SysUtils
+
+== 阶段 4：回调构造与完成 ==
+VM -> PMS : checkPermission(permStr, targetPkg)
+note right of VM #LightGreen : 再次向底座查验权限状态
+PMS --> VM : PERMISSION_GRANTED
+
+note over VM #LightGreen
+  构造 resultIntent：
+  putExtra(EXTRA_REQUEST_PERMISSIONS_NAMES, ...)
+  putExtra(EXTRA_REQUEST_PERMISSIONS_RESULTS, ...)
+end note
+
+VM -> MegaUI : activity.setResult(-1, resultIntent)
+VM -> MegaUI : activity.finishAfterTransition()
+
+note over VM #LightGreen
+  发送广播: OTHER_USER_NEED_UPDATE_ACTION
+end note
+
+deactivate VM
+
+MegaUI --> FW_Activity : onActivityResult()
+deactivate MegaUI
+
+FW_Activity -> App : onRequestPermissionsResult(..., GRANTED)
+note right of App #LightSkyBlue : App 获取到授权成功的最终回调
+@enduml
