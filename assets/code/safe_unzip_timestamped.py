@@ -3,7 +3,7 @@
 safe_unzip_nested.py - 安全递归解压工具 (智能目录命名版)
 功能：
  1. 递归解压所有常见压缩包。
- 2. 最外层解压时：创建 "时间戳_原文件名" 目录。
+ 2. 最外层解压时：创建 "时间戳_原文件名" 输出；普通 .gz 输出单文件，其它归档输出目录。
  3. 内部嵌套解压时：创建 "原文件名" 目录 (保持原始结构，不加时间戳)。
  4. 默认删除源压缩包 (使用 --keep 保留)。
 """
@@ -41,6 +41,10 @@ def is_archive_path(p: Path) -> bool:
     name = p.name.lower()
     return any(name.endswith(s) for s in ARCHIVE_SUFFIXES)
 
+def is_single_file_gzip_path(p: Path) -> bool:
+    name = p.name.lower()
+    return name.endswith('.gz') and not name.endswith('.tar.gz')
+
 def safe_member_name(member_name: str) -> bool:
     """
     检查归档成员名是否安全（无绝对路径、无上级引用、无 Windows 盘符等）
@@ -72,14 +76,27 @@ class SecureUnzipper:
         except Exception:
             return None
 
-    def get_output_folder_name(self, filename: str, add_timestamp: bool = True) -> str:
+    def get_output_name(self, filename: str, add_timestamp: bool = True) -> str:
         """
-        生成输出目录名
+        生成输出名称
         :param filename: 原始文件名
         :param add_timestamp:是否添加时间戳 (True=外层, False=内层)
         """
+        base_name = self.get_base_output_name(filename)
+
+        # 2. 根据层级决定是否添加时间戳
+        if add_timestamp:
+            timestamp = datetime.datetime.now().strftime("%y%m%d-%H-%M-%S")
+            return f"{timestamp}_{base_name}"
+        else:
+            return base_name
+
+    def get_base_output_name(self, filename: str) -> str:
+        """
+        生成不带时间戳的输出基础名
+        """
         lower = filename.lower()
-        
+
         # 1. 确定基础名称 (去掉后缀)
         base_name = filename + "_extracted" # default fallback
         found_suffix = False
@@ -90,18 +107,30 @@ class SecureUnzipper:
                 break
         
         if not found_suffix:
+            if lower.endswith('.gz'):
+                base_name = filename[:-3]
+                found_suffix = True
+
+        if not found_suffix:
             # 简单去除 .zip, .rar 等最后一个后缀
             if '.' in filename:
                 base_name = filename.rsplit('.', 1)[0]
             else:
                 base_name = filename
 
-        # 2. 根据层级决定是否添加时间戳
-        if add_timestamp:
-            timestamp = datetime.datetime.now().strftime("%y%m%d-%H-%M-%S")
-            return f"{timestamp}_{base_name}"
-        else:
-            return base_name
+        return base_name
+
+    def find_existing_timestamped_output(self, parent: Path, base_name: str) -> Optional[Path]:
+        """
+        查找已有的顶层时间戳输出，支持中断后重跑时跳过已完成项。
+        """
+        try:
+            for child in parent.iterdir():
+                if child.name.endswith(f"_{base_name}"):
+                    return child
+        except Exception as e:
+            logger.warning(f"Cannot scan existing outputs in {parent}: {e}")
+        return None
 
     def ensure_parent(self, p: Path):
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -144,6 +173,40 @@ class SecureUnzipper:
                         shutil.move(str(src_file), str(dst_file))
                 except Exception as e:
                     logger.error(f"Failed moving {src_file} -> {dst_file}: {e}")
+
+    def safe_move_single_file(self, src_file: Path, dst_file: Path):
+        """
+        将单个普通文件移动到目标文件路径，跳过 symlink/特殊文件
+        """
+        try:
+            if src_file.is_symlink():
+                logger.warning(f"Skipping symlink: {src_file}")
+                return False
+            if not src_file.is_file():
+                logger.warning(f"Skipping non-regular file: {src_file}")
+                return False
+
+            self.ensure_parent(dst_file)
+            parent = dst_file.parent.resolve()
+            if not str(dst_file.resolve().parent).startswith(str(parent)):
+                logger.error(f"Target path outside destination: {dst_file} (skip)")
+                return False
+
+            if self.dry_run:
+                logger.info(f"[DRY-RUN] Move {src_file} -> {dst_file}")
+                return True
+
+            if dst_file.exists():
+                if dst_file.is_dir():
+                    logger.error(f"Target file path is an existing directory: {dst_file}")
+                    return False
+                logger.info(f"Overwriting existing: {dst_file}")
+                dst_file.unlink()
+            shutil.move(str(src_file), str(dst_file))
+            return True
+        except Exception as e:
+            logger.error(f"Failed moving {src_file} -> {dst_file}: {e}")
+            return False
 
     # ------------ extraction helpers ------------
     def extract_zip_safe(self, archive_path: Path, temp_dir: Path) -> bool:
@@ -252,7 +315,7 @@ class SecureUnzipper:
             logger.error(f"extract_rar_safe error: {e}")
             return False
 
-    def extract_archive(self, archive_path: Path, output_dir: Path) -> bool:
+    def extract_archive(self, archive_path: Path, output_target: Path) -> bool:
         name = archive_path.name.lower()
         with tempfile.TemporaryDirectory(prefix="safe_unzip_") as tmpd:
             temp_dir = Path(tmpd)
@@ -275,11 +338,18 @@ class SecureUnzipper:
                 return False
 
             if self.dry_run:
-                logger.info(f"[DRY-RUN] Would move contents to {output_dir}")
+                logger.info(f"[DRY-RUN] Would move contents to {output_target}")
                 return True
 
             try:
-                self.safe_move_contents(temp_dir, output_dir)
+                if is_single_file_gzip_path(archive_path):
+                    extracted_files = [p for p in temp_dir.iterdir() if p.is_file() and not p.is_symlink()]
+                    if len(extracted_files) != 1:
+                        logger.error(f"Expected exactly one file from gzip archive, got {len(extracted_files)}: {archive_path}")
+                        return False
+                    return self.safe_move_single_file(extracted_files[0], output_target)
+
+                self.safe_move_contents(temp_dir, output_target)
                 return True
             except Exception as e:
                 logger.error(f"Failed to move sanitized contents: {e}")
@@ -320,15 +390,21 @@ class SecureUnzipper:
             return
 
         # [逻辑核心]：如果是嵌套文件，add_timestamp=False；如果是顶层，add_timestamp=True
-        folder = self.get_output_folder_name(target.name, add_timestamp=not is_nested)
-        
-        if output_base:
-            final_out = output_base / folder
-        else:
-            final_out = target.parent / folder
+        base_output_name = self.get_base_output_name(target.name)
+        output_name = self.get_output_name(target.name, add_timestamp=not is_nested)
+
+        output_parent = output_base if output_base else target.parent
+
+        if not is_nested:
+            existing_out = self.find_existing_timestamped_output(output_parent, base_output_name)
+            if existing_out:
+                logger.info(f"Existing timestamped output found, skip: {existing_out}")
+                return
+
+        final_out = output_parent / output_name
 
         if final_out.exists():
-            logger.warning(f"Output folder exists, skip: {final_out}")
+            logger.warning(f"Output path exists, skip: {final_out}")
             return
 
         logger.info(f"Extracting {target} -> {final_out}")
