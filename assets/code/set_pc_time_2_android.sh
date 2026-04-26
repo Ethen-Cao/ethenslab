@@ -1,0 +1,1 @@
+adb shell "su 0 toybox date $(date +%m%d%H%M%Y.%S) ; am broadcast -a android.intent.action.TIME_SET"
