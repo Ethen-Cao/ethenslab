@@ -1,9 +1,3 @@
-+++
-date = '2025-08-27T11:36:11+08:00'
-draft = true
-title = 'Android SELinux 编译与加载机制解析'
-+++
-
 # Android SELinux 编译与加载机制解析（基于 AOSP 16）
 
 本文基于 AOSP 16 源码详细讲解 Android 系统中 SELinux 的文件分类、按分区隔离的构建配置项与编译机制、常用编译与验证命令，以及在系统启动时的动态校验与加载机制。
@@ -193,6 +187,30 @@ sedispol out/target/product/<设备代号>/vendor/etc/selinux/precompiled_sepoli
 ```bash
 cat out/target/product/<设备代号>/obj/ETC/vendor_sepolicy.cil_intermediates/vendor_sepolicy.cil | grep "your_custom_type"
 ```
+
+### 2.7 跨版本 OTA 与 SELinux 兼容性映射 (compat 机制)
+
+在 AOSP 源码中，除了常规的 `.te` 策略文件外，你经常会在设备目录或系统的 private 目录下看到类似 `compat/34.0/34.0.ignore.cil` 的文件（例如 `device/<厂商>/common/sepolicy/system_ext/private/compat/` 下的文件）。这些文件是 Android **Treble 架构下保证跨版本 OTA 兼容性**的核心机制。
+
+#### 2.7.1 为什么需要 compat 与 ignore.cil？
+在 Treble 架构下，System 分区（包含 Framework）和 Vendor 分区（包含底层驱动）是可以独立升级的。
+假设这样一个场景：设备出厂时预装的是 Android 14 (API 34)，此时 System 和 Vendor 的策略都是基于 V34 的。后来用户通过 OTA 将 System 分区升级到了 Android 15 (API 35)，但 Vendor 分区并没有升级（依然是 V34 版本的策略）。
+
+此时，新版的 System 策略中必然会引入大量新的 Type（例如一个新的系统服务 `new_system_service`），但是老版本的 Vendor 策略中根本不存在这个 Type。当设备开机 `init` 进程动态联合编译新 System 和老 Vendor 的策略时，就会报“未定义类型”的错误并导致不开机。
+
+#### 2.7.2 `.ignore.cil` 的工作原理
+为了解决这种“新 System 不兼容老 Vendor”的冲突，AOSP 引入了 `.ignore.cil` 机制。
+
+以 `34.0.ignore.cil` 为例：它实际上是由**新版本（如 API 35）提供给老版本（API 34）的一份“免死金牌”白名单**。
+
+它的作用是：明确告诉策略编译器（`secilc`），当检测到系统运行在旧版的 Vendor 34.0 环境下时，如果遇到了这批新增加的 Types，请直接**忽略（Ignore）**它们，不要报错，也不要对老版本 Vendor 实施与这些新 Type 相关的 Neverallow 检查。
+
+#### 2.7.3 定制化兼容性适配
+当你们的定制化 System_ext 分区在做 Android 升级，并且在此分区中引入了你们特有的新 Type 时，如果你还要保证这个新镜像能兼容老版本的底层板端 Vendor，你就必须：
+1. 创建对应的 `compat/<old_api_level>/<old_api_level>.ignore.cil`。
+2. 将你新引入且不需要老 Vendor 感知的 Type 塞进 `new_objects` 属性中。
+
+这样，当新固件下发到搭载旧版 Vendor 的实车上时，就能成功合成 SELinux 策略并顺利启动。
 
 ---
 
