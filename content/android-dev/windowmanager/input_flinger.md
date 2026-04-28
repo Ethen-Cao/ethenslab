@@ -400,3 +400,169 @@ if (std::holds_alternative<InputPublisher::Finished>(*result)) {
 4.  **送显时间 (GraphicsTimeline / PresentTime)：** GPU 完成渲染并由 Display Controller 点亮屏幕的时间（由 `Timeline` 信号带回）。
 
 通过计算 **`PresentTime - ReadTime`**，系统就能得出精确到纳秒级的端到端触控延迟。如果该延迟频繁超过阈值（如 30ms-50ms，导致用户感觉“不跟手”或“掉帧”），系统底层（如 Perfetto/Systrace 埋点）就会将其记录为 Jank（卡顿）指标，供系统开发者进行图形栈或输入栈的性能调优。
+
+### 3. Finished 与 Timeline 信号双轨时序图及埋点上报
+
+为了更直观地展现从事件分发到“取消 ANR”，再到“计算端到端延迟”乃至“触发底层埋点上报”的全过程，我们绘制了如下的时序图。图中明确区分了 App 的 **UI 主线程**和 **RenderThread 渲染线程**，同时揭示了一个极其精妙的设计：**当前事件的最终耗时清算，往往是由下一个新事件的到来（作为时钟驱动）触发的**。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    
+    box LightYellow System Server
+    participant Disp as InputDispatcher
+    participant Tracker as LatencyTracker
+    participant Aggregator as LatencyAggregator
+    end
+    
+    box LightBlue App Process (JNI & UI)
+    participant Receiver as NativeInput<br>EventReceiver
+    participant UI as ViewRootImpl<br>(UI Thread)
+    end
+    
+    box LightGreen App Process (Render)
+    participant HWUI as HWUI /<br>RenderThread
+    end
+    
+    participant SF as SurfaceFlinger
+    participant StatsD as StatsD 服务
+
+    %% --- 1. 事件分发与 ANR 倒计时 ---
+    rect rgb(240, 240, 240)
+    Note over Disp, Receiver: 1. 事件分发与 ANR 防线
+    Disp ->> Disp: 开启 5s ANR 倒计时
+    Disp ->> Receiver: Socket write (MotionEvent)
+    Receiver ->> UI: JNI call: dispatchInputEvent()
+    UI ->> UI: 遍历 View 树 (onTouchEvent等)
+    UI -->> Receiver: JNI call: finishInputEvent(handled)
+    Receiver ->> Disp: Socket write (Type::FINISHED)
+    Disp ->> Disp: handleReceiveCallback()
+    Note right of Disp: 调用 finishDispatchCycleLocked()<br>撤销 5s ANR 倒计时
+    end
+
+    %% --- 2. 渲染流水线与送显 (Present) ---
+    rect rgb(240, 240, 240)
+    Note over UI, SF: 2. 渲染流水线与送显 (Present)
+    UI ->> HWUI: Choreographer::doFrame() 提交渲染树
+    HWUI ->> HWUI: GPU 光栅化绘制 (GpuCompletedTime)
+    HWUI ->> SF: 提交 Graphic Buffer (queueBuffer)
+    SF -->> HWUI: Vsync 通知物理屏幕已送显 (PresentTime)
+    end
+
+    %% --- 3. Timeline 延迟信号回传 ---
+    rect rgb(240, 240, 240)
+    Note over Disp, HWUI: 3. Timeline 延迟信号回传
+    HWUI ->> Receiver: InputFrameMetricsObserver::notify()
+    Note right of Receiver: 提取 inputEventId,<br>gpuCompletedTime, presentTime
+    Receiver ->> Receiver: enqueueTimeline()
+    Receiver ->> Disp: Socket write (Type::TIMELINE)
+    Disp ->> Disp: handleReceiveCallback()
+    Disp ->> Tracker: trackGraphicsLatency()
+    Note right of Tracker: 保存 PresentTime，完善当前事件的 Timeline
+    end
+
+    %% --- 4. 结算与埋点上报 (由下一个事件驱动) ---
+    rect rgb(240, 240, 240)
+    Note over Disp, StatsD: 4. 结算与埋点上报 (由下一个新事件驱动)
+    Disp ->> Tracker: 收到下一个新事件: notifyMotion() / notifyKey() -> trackListener()
+    Tracker ->> Tracker: reportAndPruneMatureRecords()
+    Note right of Tracker: 检查老事件的 Timeline 是否成熟(已收集齐全或超时)
+    Tracker ->> Aggregator: processTimeline()
+    Aggregator ->> Aggregator: processStatistics()<br>计算并记录 7 段切片耗时
+    Aggregator ->> Aggregator: processSlowEvent()<br>检查端到端延迟是否超标
+    opt 超过 sSlowEventThreshold 且满足汇报间隔
+        Aggregator ->> StatsD: stats_write(SLOW_INPUT_EVENT_REPORTED)
+    end
+    end
+```
+
+### 4. 关键疑问：是不是所有的 Touch 事件都会触发 TIMELINE？
+**答案是：绝对不会。** 
+
+`Timeline` 信号的本质是 **“UI 渲染流水线的反馈”**，只有当这个 Input 事件真实地导致了屏幕画面的改变**时，才会产生 `Timeline`。以下几种情况，App 只会回写 `Finished`，但**永远不会回写 `Timeline`：
+
+1.  **没有触发 UI 重绘 (No Invalidation)：** 比如你在一个已经滑到底部的列表继续往下划，或者点击了一个没有任何点击效果的空白区域。App 的 `onTouchEvent` 会正常消费事件并返回 `Finished`，但由于没有调用 `invalidate()` 或 `requestLayout()`，`Choreographer` 不会安排新一帧的绘制，RenderThread 也就不会向 SurfaceFlinger 提交 Graphic Buffer，自然就没有 `Timeline` 回调。
+2.  **事件被积攒合并 (Batching)：** 屏幕的报点率（如 120Hz）往往高于屏幕的刷新率（如 60Hz）。在两次 Vsync 信号之间，App 可能会收到多个 `ACTION_MOVE`。出于性能考虑，系统会将这些微小的 Move 事件合并。只有在这批合并事件的最后，UI 决定重绘时，才会对应产生一次 `Timeline`。
+3.  **事件未被消费 (Unhandled)：** 如果所有的 View 都不拦截处理这个事件，它最终被抛弃或交由系统的 Fallback 逻辑处理，当前 App 的渲染管道根本不会介入，因此也不会有 `Timeline`。
+
+这也是为什么在 Systrace/Perfetto 性能抓取分析中，我们只关心那些 **“有效触发了重绘的 Input 事件”** 的端到端延迟。`LatencyTracker` 在底层也会维护一个清理机制（如通过队列长度或时间过期淘汰），防止那些永远等不到 `Timeline` 的孤儿事件造成内存泄漏。
+
+### 3. 延迟切片计算与埋点输出 (LatencyAggregator)
+`LatencyTracker` 收集齐一帧完整的时间线后，会交由 `LatencyAggregator`（或 Android 14 引入的带有直方图的 `LatencyAggregatorWithHistograms`）进行处理。这是系统真正进行“耗时算账”的核心现场。在 `processStatistics` 方法中，系统会对整个链路进行**剥洋葱式的切片计算**，精准查出到底是哪一层导致了不跟手：
+
+*   **硬件层耗时 (`eventToRead`)：** 内核读到驱动中断，距离事件实际发生的时间。
+*   **系统输入框架耗时 (`readToDeliver`)：** Dispatcher 把事件发给 App，距离读到中断的时间。
+*   **App 调度耗时 (`deliverToConsume`)：** App 主线程开始处理事件，距离 Dispatcher 发给它的时间。
+*   **App 主线程逻辑耗时 (`consumeToFinish`)：** App 执行 `onTouchEvent` 等逻辑耗费的时间。
+*   **App 渲染引擎耗时 (`consumeToGpuComplete`)：** HWUI/RenderThread 绘制完一帧画面提交给 GPU 的耗时。
+*   **系统显示框架耗时 (`gpuCompleteToPresent`)：** SurfaceFlinger 图层合成并最终点亮物理屏幕 (Present) 的耗时。
+*   **端到端延迟 (`endToEnd`)：** 屏幕真正点亮，距离用户最初按下的总耗时。
+
+计算完成后，为了不影响性能，这些切片数据会被聚合进统计草图 (Sketches) 或直方图 (Histograms) 中，并通过 **StatsD** 服务批量上报为 `INPUT_EVENT_LATENCY_SKETCH` 原子指标。
+同时，如果计算出的端到端延迟 (`endToEndLatency`) 超过了系统规定的阈值，`processSlowEvent` 方法会单独触发一次名为 `SLOW_INPUT_EVENT_REPORTED` 的高优埋点记录。
+
+### 4. 如何查看 Input 延迟监控指标？
+
+这些底层的性能埋点数据，是供开发者分析卡顿 (Jank) 和跟手性的核心资产。获取它们的方法主要分为命令行排查和代码级订阅两种：
+
+#### 方式一：使用 dumpsys statsd 或 Perfetto (排查与分析)
+系统会将收集到的原子指标 (Atoms) 存储在底层 statsd 服务中。你可以通过命令行快速查看：
+
+```bash
+# 查看所有被 statsd 记录的缓慢输入事件 (SLOW_INPUT_EVENT_REPORTED)
+adb shell cmd stats print-stats | grep -i SLOW_INPUT_EVENT_REPORTED
+
+# 获取 statsd 服务的详细状态和配置
+adb shell dumpsys statsd
+```
+
+> **专家建议：** 纯文本的 StatsD 数据难以直观分析。Google 官方强推使用 **Perfetto (ui.perfetto.dev)** 抓取系统 Trace。当你在 Perfetto 中勾选了 `Input` 和 `Graphics` 数据源后，Perfetto 会在后台自动提取上述埋点，并在时间轴的 Input 轨道上直接将这些“延迟切片”以可视化的红绿块展示出来，让你一眼看出是哪一层的耗时导致了掉帧。
+
+#### 方式二：通过代码编程订阅 (StatsManager API)
+如果你正在开发性能监控 SDK、车机诊断工具或自动化压测框架，可以通过 Android 提供的 `StatsManager` API 编程订阅这些底层的 C++ 指标：
+
+1. **Pull 方式拉取聚合草图 (`INPUT_EVENT_LATENCY_SKETCH`)：**
+   由于聚合数据是积攒的，可以在系统级应用中注册 `OnPullAtomCallback` 定期拉取：
+   ```java
+   StatsManager statsManager = context.getSystemService(StatsManager.class);
+   statsManager.setPullAtomCallback(
+       FrameworkStatsLog.INPUT_EVENT_LATENCY_SKETCH,
+       null, // metadata
+       Executors.newSingleThreadExecutor(),
+       (atomTag, data) -> {
+           // data 列表中包含拉取到的序列化直方图/草图字节流
+           // 解析返回的聚合草图数据，评估过去一段时间的整体跟手性
+           return StatsManager.PULL_SUCCESS;
+       }
+   );
+   ```
+
+2. **Push 方式监听慢事件 (`SLOW_INPUT_EVENT_REPORTED`)：**
+   慢事件属于即时触发的 Push 型指标。你需要通过 `StatsManager.addConfig()` 向 statsd 下发一个包含了匹配规则（Matcher）的 `StatsdConfig`（通常是 protobuf 格式），并注册一个 `PendingIntent`。
+   当底层 `LatencyAggregator` 抛出 `SLOW_INPUT_EVENT_REPORTED` 时，statsd 会匹配规则，并通过 Broadcast 或 Service 唤醒你的 `PendingIntent`，你就能在代码里实时捕获到这次慢事件在“分发、消费、渲染、上屏”各个阶段的具体耗时数值了。
+
+
+> **补充说明：按键事件的延迟追踪**
+> 值得注意的是，除了触摸事件 (`notifyMotion`) 之外，`InputDispatcher::notifyKey()` 同样接入了这套延迟追踪体系。在源码中，如果开启了单设备输入延迟指标特性（`mPerDeviceInputLatencyMetricsFlag`），从实体按键（如音量键、电源键或外接键盘）产生的 `KeyEvent` 也会经过 `trackListener(args)`，参与端到端延迟的计算与打点。这对于车机方向盘按键或游戏手柄的响应调优同样至关重要。
+
+### 5. 影响 Latency Tracking 的关键配置开关
+
+在 `InputDispatcher` 的核心埋点代码中，有两个极其关键的变量会直接决定一个输入事件是否会被纳入端到端延迟的计算体系：`mInputFilterEnabled` 和 `mPerDeviceInputLatencyMetricsFlag`。
+
+#### `mInputFilterEnabled` (全局输入过滤器开关)
+*   **作用：** 决定是否因为“无障碍服务”而**放弃**延迟追踪。当 Android 系统中开启了某些无障碍服务（Accessibility Service，如 TalkBack）时，所有的触摸和按键事件都会先被拦截，发送到 Java 层的无障碍服务中处理，然后再由其决定是否重新注入系统。这种拦截会极大地拉长事件的物理生命周期。如果此时系统还去统计“端到端延迟”，得出的数据（动辄几百毫秒）是完全失真的。因此，出于严谨性考虑，只要该过滤器开启，系统就会主动放弃对这些事件的 Latency Tracking 埋点追踪。
+*   **默认值与触发：** 默认为 `false`。只有当用户在系统设置中手动开启了需要接管全局事件的无障碍功能时，Java 层的 `InputManagerService` 才会向下跨进程将其置为 `true`。
+
+#### `mPerDeviceInputLatencyMetricsFlag` (精细化外设延迟监控开关)
+*   **作用：** 这是 Android 14/15 引入的一个极具价值的性能诊断特性。在过去的版本中，系统的输入延迟埋点是“一锅炖”的（屏幕滑动的延迟和外接蓝牙手柄的延迟被混在一起算平均值，导致难以排查）。而当这个 Flag 开启后，系统底层会执行两项重大改变：
+    1.  **全面纳入按键事件：** 不仅追踪屏幕触摸事件（`notifyMotion`），还会额外把所有实体按键事件（`notifyKey`，如音量键、车机旋钮、游戏手柄按键）也一并纳入延迟追踪的生命周期。
+    2.  **启用直方图与设备隔离：** 处理器会从旧版的普通聚合器切换为带有直方图且按厂商 ID (Vendor ID) / 产品 ID (Product ID) 区分的高精度统计类（`LatencyAggregatorWithHistograms`）。这对于智能座舱中多外设并发的精准调优极其关键。
+*   **默认值与设置方法：** 
+    该变量由 AOSP 的 `aconfig` 特性框架控制（定义在 `input_flags.aconfig` 的 `enable_per_device_input_latency_metrics` 标志中）。在 AOSP 开源主干上，它的默认值通常为 `false` 以节省内存开销。
+    **如何在工程机上强行开启：** 测试人员或开发者可以通过 ADB 动态修改 `device_config` 命名空间来开启这个特性，以便在压测时抓取精细化数据：
+    ```bash
+    # 开启精细化按设备区分的输入延迟监控
+    adb shell device_config put input_native_boot enable_per_device_input_latency_metrics true
+    # 重启 Android Framework 服务生效
+    adb shell stop && adb shell start
+    ```
