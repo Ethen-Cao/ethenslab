@@ -1,3 +1,9 @@
++++
+date = '2025-09-29T10:22:54+08:00'
+draft = false
+title = 'Android InputFlinger'
++++
+
 # Android InputFlinger
 
 ## 架构图
