@@ -572,3 +572,31 @@ adb shell dumpsys statsd
     # 重启 Android Framework 服务生效
     adb shell stop && adb shell start
     ```
+
+### 6. 专家级调试技巧：动态调整 SLOW_EVENT 判定阈值
+
+在上文提到的 `SLOW_INPUT_EVENT_REPORTED` 慢事件埋点中，系统底层默认有两个硬编码的限制：
+
+1. **触发阈值 (Threshold)：默认 200ms**
+   只有当一个触摸事件的端到端总延迟 (`endToEndLatency`) 大于 200 毫秒时，系统才认为这是一次“严重卡顿 (Jank)”并触发埋点。
+2. **上报冷却时间 (Reporting Interval)：默认 60000ms (1 分钟)**
+   为了防止某个 App 突然抽风导致底层疯狂打埋点拖垮性能，系统做了一个“1分钟漏斗”。如果距离上一次上报还不到 1 分钟，后续即使再出现超过 200ms 的慢事件，系统也会静默跳过。
+
+**如何在压测时打破这些限制？**
+
+这两个硬编码的默认值其实是由 Android 的 `Device Config` (server_configurable_flags) 机制包裹的。这意味着我们可以**不修改 C++ 源码、不重新编译系统**，直接通过 ADB 动态调整这些底层参数！
+
+如果你正在进行极其严格的跟手性压测（例如想把所有超过 50ms 的轻微掉帧事件全抓出来），并且希望每次卡顿必定上报（关闭 1 分钟冷却期），你只需要在终端执行以下命令：
+
+```bash
+# 1. 把阈值从默认的 200ms 降为 50ms（极其严格的跟手性测试！）
+adb shell device_config put input_native_boot slow_event_min_reporting_latency_millis 50
+
+# 2. 把上报冷却时间从 1分钟 (60000) 降为 0（关掉冷却，有卡必报）
+adb shell device_config put input_native_boot slow_event_min_reporting_interval_millis 0
+
+# 3. 强制重启 Android Framework 让参数立即生效
+adb shell stop && adb shell start
+```
+
+结合我们在底层源码（`LatencyAggregator.cpp`）中自行添加的 `ALOGW` 蜗牛报警日志，修改这两个参数后，你就能在 `logcat` 中极其敏锐、无遗漏地抓出所有掉帧窗口和耗时明细，是智能座舱与高刷手机性能调优的终极利器！
