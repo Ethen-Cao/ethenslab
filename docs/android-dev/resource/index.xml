@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Android Resource on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/resource/</link><description>Recent content in Android Resource on Ethen 的实验室</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Fri, 08 Aug 2025 11:36:11 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/resource/index.xml" rel="self" type="application/rss+xml"/><item><title>Android Theme</title><link>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/</guid><description>简介 Android的Theme（主题），简单来说，就是一组预定义的视觉样式和属性集合，应用于整个应用或界面，决定界面元素的颜色、字体、控件样式、间距、背景等外观表现。
+详细解释 作用：统一管理应用界面风格，保持整体视觉一致性，避免在每个控件上单独设置样式。
+内容：包含颜色（primary color、accent color等）、文字样式、按钮样式、控件默认背景、动画、间距、图标等多种属性。
+继承：Theme是基于style构建的，且支持继承，常见有系统默认主题（如Theme.Holo、Theme.MaterialComponents），开发者可继承这些主题自定义。
+应用范围：
+全局：在AndroidManifest.xml中通过application标签的android:theme属性设置，影响整个App。 局部：可在Activity或View中单独设置，覆盖全局主题。 举例 &amp;lt;!-- 应用主题 --&amp;gt; &amp;lt;style name=&amp;#34;AppTheme&amp;#34; parent=&amp;#34;Theme.MaterialComponents.DayNight.NoActionBar&amp;#34;&amp;gt; &amp;lt;item name=&amp;#34;colorPrimary&amp;#34;&amp;gt;@color/my_primary_color&amp;lt;/item&amp;gt; &amp;lt;item name=&amp;#34;colorAccent&amp;#34;&amp;gt;@color/my_accent_color&amp;lt;/item&amp;gt; &amp;lt;!-- 更多自定义属性 --&amp;gt; &amp;lt;/style&amp;gt; 在AndroidManifest.xml：
+&amp;lt;application android:theme=&amp;#34;@style/AppTheme&amp;#34; ...&amp;gt; 主题与样式的区别 样式（Style）：作用于单个View控件的外观定义（如按钮颜色、字体大小）。 主题（Theme）：是作用于整个界面或应用的样式集合，包含大量样式属性，能控制全局控件默认行为和外观。 主题的演进 Theme.Holo：Android 3.x 引入的较早现代主题。 Theme.AppCompat：支持旧版本Android的兼容库主题，广泛使用。 Theme.MaterialComponents：实现Material Design规范，适合Android 5.0及以上。 Theme.Material3：最新Material You设计，支持动态色彩等新特性。 Android主题演进和结构的图参考如下：
+平台主题 平台主题（Platform Theme），指的是 Android 操作系统自身提供的、内置在系统框架中的主题样式集合。它们是 Android 系统从一开始就带有的基础视觉风格，定义了系统默认的界面外观和控件样式。
+详细说明 由谁提供：由 Android 系统平台（Framework）自带，随着系统版本升级而演进和扩展。
+作用：为所有应用和系统界面提供默认的视觉风格基准。
+特点：
+包含了一系列基础样式属性，例如颜色、字体、控件样式、背景等。 应用默认继承平台主题（如果没有显式指定主题），保证了不同应用界面风格的一致性。 是所有兼容库主题（如 AppCompat）和第三方主题的基底。 常见的平台主题 主题名称 适用API版本 特点 Theme API 1+ 最基础的系统主题 Theme.Holo API 11（Android 3.</description></item></channel></rss>

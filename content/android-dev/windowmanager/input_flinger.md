@@ -305,3 +305,98 @@ Android 的输入子系统通过一套严密的 **“设备绑定”** 与 **“
 *   **分区命中测试 (Hit Testing)：** Dispatcher 在执行 `findTouchedWindowTargets()` 时，**只会遍历那些属于 `displayId == 2` 的可见窗口列表**，从 Z 轴顶层开始寻找可触摸区域 (`TouchableRegion`) 包含落点的窗口。
 *   **绝对坐标隔离：** 即使中控屏（`displayId = 0`）上有一个设置了 `FLAG_SYSTEM_ERROR` 极高层级的全屏遮罩弹窗，只要触摸事件是副驾硬件产生的（携带 `displayId=2`），InputDispatcher 也绝对不会将事件误派发给中控屏的弹窗。坐标系（0,0）永远是相对于当前 `displayId` 对应屏幕的左上角。
 *   **多屏多焦点管理 (Per-Display Focus)：** Android 10 之后引入了多屏独立焦点支持。`InputDispatcher` 内部不再维护唯一的全局焦点，而是维护一个映射表（针对不同的显示器维护各自的 Focused Window）。这意味着：驾驶员可以通过方向盘的实体按键控制中控屏的焦点并确认，而此时副驾乘客在副驾屏幕上输入文本（拥有副驾屏的输入焦点），两者在底层的事件路由管道上是完全平行、互不干扰的。
+
+## 核心纽带：InputChannel 的跨进程通信机制
+
+在 Android 窗口管理与输入系统中，`InputChannel` 是连接 System Server (InputDispatcher) 和 App 进程的核心桥梁。不管是常规的触摸窗口，还是用于焦点监控的 `FocusInputMonitor`，底层都是通过 `InputChannel::openInputChannelPair` 创建的一对 **Unix Domain Socket (socketpair)** 来实现全双工的跨进程通信。
+
+下面通过 Mermaid 序列图结合 `createFocusInputMonitor` 等源码流程，详细展示 WMS、InputDispatcher 与 App 之间如何通过 `InputChannel` 建立通信纽带：
+
+```mermaid
+sequenceDiagram
+    participant WMS as WindowManagerService<br>(System Server Java)
+    participant Disp as InputDispatcher<br>(System Server Native)
+    participant ConnMgr as ConnectionManager<br>(Dispatcher 内部)
+    participant App as App Process<br>(ViewRootImpl)
+
+    Note over WMS, App: 1. 创建通信对 (Channel Pair)
+    WMS ->> Disp: 请求创建 InputChannel<br>(如 createInputChannel / createFocusInputMonitor)
+    activate Disp
+    Disp ->> Disp: openInputChannelPair()<br>底层调用 socketpair(AF_UNIX)
+    Note right of Disp: 产生一对 Socket FD:<br>1. serverChannel<br>2. clientChannel
+    
+    Note over Disp, ConnMgr: 2. Server 侧监听 (Dispatcher)
+    Disp ->> ConnMgr: 传递 serverChannel<br>(携带 handleReceiveCallback)
+    activate ConnMgr
+    ConnMgr ->> ConnMgr: 封装为 Connection 对象
+    ConnMgr ->> ConnMgr: Looper->addFd(serverChannel的fd)<br>监听 EPOLLIN 读取 App 的 FINISHED 信号
+    deactivate ConnMgr
+
+    Disp -->> WMS: 返回 clientChannel
+    deactivate Disp
+
+    Note over WMS, App: 3. 跨进程传递与 App 侧监听
+    WMS ->> App: 通过 Binder 传递 clientChannel<br>(实现 Parcelable)
+    activate App
+    App ->> App: 提取 clientChannel 的 fd
+    App ->> App: 构造 WindowInputEventReceiver
+    App ->> App: UI Thread Looper->addFd(clientChannel的fd)<br>监听 EPOLLIN 读取 Dispatcher 发来的事件
+    
+    Note over Disp, App: 4. 全双工异步通信建立完成
+    Disp ->> App: publishMotionEvent()<br>向 serverChannel 写入事件
+    App ->> Disp: finishInputEvent()<br>向 clientChannel 回写消费完毕信号
+    deactivate App
+```
+
+### 核心机制解析：
+
+1. **`socketpair` 机制：** `InputChannel` 的底层不是 Binder，而是 `socketpair`。这是因为 Input 事件具有极高的实时性和高频性（如 120Hz 屏幕每秒产生 120 个 Move 事件），传统的 Binder 通信会因频繁的序列化和内存拷贝带来极高延迟，而 Unix Domain Socket 提供了基于内核内存直接映射的高效双向字节流通道。
+2. **分离与交接：** 
+    * **Dispatcher 侧：** 永远持有 `serverChannel`。在 `createFocusInputMonitor` 或常规窗口注册时，Dispatcher 会将 `serverChannel` 的文件描述符 (FD) 注册到自己的 `Looper` 中，设置回调函数为 `handleReceiveCallback`。这主要是为了监听 App 回写的 `FINISHED` 信号，从而终止 5 秒的 ANR 倒计时。
+    * **WMS 侧：** 充当“媒人”。它向 InputManager 请求创建 Channel，拿到 `clientChannel` 后，不作保留，直接通过跨进程的 Binder（如 `IWindowSession.add()` 或焦点监听的回调）将其塞给 App 进程。
+    * **App 侧：** 接手 `clientChannel` 后，将其绑定到 UI 线程（Main Thread）的 `MessageQueue/Looper` 中。底层对应的 C++ 类是 `NativeInputEventReceiver`。一旦 Dispatcher 通过 Socket 写入了触摸事件，App 的 `epoll_wait` 就会被唤醒，随即通过 Java 层的回调分发给视图树。
+3. **安全与隔离：** 由于每一个窗口（或 Monitor）都拥有自己独立的 `InputChannel` pair，这就保证了极高的隔离性。Dispatcher 只会把事件精确 `send()` 给命中测试目标窗口所在的那个 Socket，其他进程绝不可能通过抓包或监听窃取到该窗口的触摸事件流。
+
+## Input 性能监控与端到端延迟追踪 (Latency Tracking)
+
+在现代 Android 系统（特别是高刷屏和车机等对流畅度要求极高的场景）中，单纯将事件派发给 App 并且不发生 ANR 是远远不够的。系统需要精确度量 **“跟手性”** ——即从用户手指接触屏幕（硬件中断），到最终画面在物理屏幕上产生相应变化（光子级响应）的 **端到端延迟 (End-to-End Latency)** 。
+
+`InputDispatcher` 通过复用 `InputChannel` (Socket) 建立了一套严密的性能监控闭环。
+
+### 1. 双重回调机制：Finished 与 Timeline
+当 `InputDispatcher` 监听 App 端的 Socket 返回数据时，`handleReceiveCallback` 核心处理逻辑会解析两种完全不同的信号结构体：
+
+```cpp
+if (std::holds_alternative<InputPublisher::Finished>(*result)) {
+    // 【分支 1：生命周期闭环】
+    const InputPublisher::Finished& finish = std::get<InputPublisher::Finished>(*result);
+    finishDispatchCycleLocked(currentTime, connection, finish.seq, finish.handled,
+                              finish.consumeTime);
+} else if (std::holds_alternative<InputPublisher::Timeline>(*result)) {
+    // 【分支 2：渲染时间线追踪】
+    if (shouldReportMetricsForConnection(*connection)) {
+        const InputPublisher::Timeline& timeline = std::get<InputPublisher::Timeline>(*result);
+        mLatencyTracker.trackGraphicsLatency(timeline.inputEventId,
+                                             connection->getToken(),
+                                             std::move(timeline.graphicsTimeline));
+    }
+}
+```
+
+#### 分支 1：`Finished` 信号 (ANR 防线)
+*   **触发时机：** App 进程主线程执行完 `onTouchEvent` 等逻辑后，立即向 Socket 写入 `Finished` 结构体。
+*   **作用：** `Dispatcher` 收到后，调用 `finishDispatchCycleLocked()`，携带序列号 (`seq`) 找到对应的分发记录并将其移除，**最重要的是撤销该事件的 5 秒 ANR 倒计时**。它只代表“代码执行完了”，并不代表“画面画出来了”。
+
+#### 分支 2：`Timeline` 信号 (跟手性监控核心)
+*   **触发时机：** App 消费完输入事件后，通常会触发 UI 树重绘（`Choreographer::doFrame`）。当 App 的渲染线程（RenderThread）将包含此次 UI 变更的图形缓冲区（Graphic Buffer）提交给 SurfaceFlinger，并且 SurfaceFlinger 最终将其**送显到物理屏幕 (Present)** 后，图形管道会向底层的 `InputChannel` 补发一条 `Timeline` 类型的消息。
+*   **作用：** `Dispatcher` 将这条包含精准时间戳的消息交给 `mLatencyTracker`（延迟追踪器）。
+
+### 2. LatencyTracker：拼接端到端时间线
+`LatencyTracker` 负责将散落在系统各个角落的时间戳通过唯一的 `inputEventId` 拼接成一条完整的故事线：
+
+1.  **内核读取时间 (ReadTime)：** `EventHub` 从 `/dev/input` 读到硬件中断的时间。
+2.  **派发时间 (DispatchTime)：** `InputDispatcher` 将事件写入 Socket 的时间。
+3.  **App 消费时间 (ConsumeTime)：** App 主线程开始处理该事件的时间。
+4.  **送显时间 (GraphicsTimeline / PresentTime)：** GPU 完成渲染并由 Display Controller 点亮屏幕的时间（由 `Timeline` 信号带回）。
+
+通过计算 **`PresentTime - ReadTime`**，系统就能得出精确到纳秒级的端到端触控延迟。如果该延迟频繁超过阈值（如 30ms-50ms，导致用户感觉“不跟手”或“掉帧”），系统底层（如 Perfetto/Systrace 埋点）就会将其记录为 Jank（卡顿）指标，供系统开发者进行图形栈或输入栈的性能调优。
