@@ -555,8 +555,13 @@ adb shell dumpsys statsd
 
 在 `InputDispatcher` 的核心埋点代码中，有两个极其关键的变量会直接决定一个输入事件是否会被纳入端到端延迟的计算体系：`mInputFilterEnabled` 和 `mPerDeviceInputLatencyMetricsFlag`。
 
-#### `mInputFilterEnabled` (全局输入过滤器开关)
-*   **作用：** 决定是否因为“无障碍服务”而**放弃**延迟追踪。当 Android 系统中开启了某些无障碍服务（Accessibility Service，如 TalkBack）时，所有的触摸和按键事件都会先被拦截，发送到 Java 层的无障碍服务中处理，然后再由其决定是否重新注入系统。这种拦截会极大地拉长事件的物理生命周期。如果此时系统还去统计“端到端延迟”，得出的数据（动辄几百毫秒）是完全失真的。因此，出于严谨性考虑，只要该过滤器开启，系统就会主动放弃对这些事件的 Latency Tracking 埋点追踪。
+#### `mInputFilterEnabled` 与 `Source` 的联合守卫 (&&)
+*   **作用：** 决定一个事件是否有资格进入端到端延迟追踪（`LatencyTracker`）。在 `InputDispatcher.cpp` 的入口处，系统通过一个极其严苛的联合条件来放行：
+    `IdGenerator::getSource(args.id) == Source::INPUT_READER && !mInputFilterEnabled`
+    
+    这两道守卫是 **逻辑与 (&&)** 的关系，**任何一个不满足，都会跳过打点**：
+    1. **`!mInputFilterEnabled`：** 只要挂载了无障碍过滤器，直接放弃测速。因为跨进程去 Java 服务旅游一圈会导致生命周期极其失真。
+    2. **`Source::INPUT_READER`：** 只有从底层硬件节点真实读上来的物理事件才配测速。像我们前面说的被 Filter 重新 `injectInputEvent` 进来的事件，由于 Source 变成了 `OTHER`，即使第一道守卫放行，也会被这第二道守卫无情拦截。
 *   **默认值与触发：** 默认为 `false`。只有当用户在系统设置中手动开启了需要接管全局事件的无障碍功能时，Java 层的 `InputManagerService` 才会向下跨进程将其置为 `true`。
 
 #### `mPerDeviceInputLatencyMetricsFlag` (精细化外设延迟监控开关)
@@ -564,7 +569,9 @@ adb shell dumpsys statsd
     1.  **全面纳入按键事件：** 不仅追踪屏幕触摸事件（`notifyMotion`），还会额外把所有实体按键事件（`notifyKey`，如音量键、车机旋钮、游戏手柄按键）也一并纳入延迟追踪的生命周期。
     2.  **启用直方图与设备隔离：** 处理器会从旧版的普通聚合器切换为带有直方图且按厂商 ID (Vendor ID) / 产品 ID (Product ID) 区分的高精度统计类（`LatencyAggregatorWithHistograms`）。这对于智能座舱中多外设并发的精准调优极其关键。
 *   **默认值与设置方法：** 
-    该变量由 AOSP 的 `aconfig` 特性框架控制（定义在 `input_flags.aconfig` 的 `enable_per_device_input_latency_metrics` 标志中）。在 AOSP 开源主干上，它的默认值通常为 `false` 以节省内存开销。
+    该变量由 AOSP 的 `aconfig` 特性框架控制（定义在 `input_flags.aconfig` 的 `enable_per_device_input_latency_metrics` 标志中）。根据 aconfig 约定，其默认状态通常为 `DISABLED`（即 `false`），是否启用由各 Release Config 或产品决定（在部分高配机型或如上述调查报告中的 H47A 车机上，该选项实际被启用了）。
+    
+    > **⚠️ 源码不对称陷阱：** 在 `InputDispatcher.cpp` 的原生源码中，`notifyKey` 路径的 `trackListener` 被包裹在这个 `mPerDeviceInputLatencyMetricsFlag` 的条件判断中；但在早期的 AOSP `notifyMotion` 路径中却**没有**包裹这层 Flag。这个不对称的坑曾经误导了大量开发者。
     **如何在工程机上强行开启：** 测试人员或开发者可以通过 ADB 动态修改 `device_config` 命名空间来开启这个特性，以便在压测时抓取精细化数据：
     ```bash
     # 开启精细化按设备区分的输入延迟监控
@@ -1068,7 +1075,7 @@ sequenceDiagram
 > *   **A11y** 是业界对 **Accessibility (无障碍/辅助功能)** 的标准缩写。因为从首字母 `A` 到尾字母 `y` 之间刚好有 11 个字母。
 > *   **`A11yInputFilter`** 则是 `dumpsys accessibility` 命令在输出日志时，对底层核心类 `AccessibilityInputFilter` 的简写。它代表的正是那个由于语音助手申请了特权，而在底层被强行挂载、导致物理触控事件被全局拦截和重注入的 Java 层“事件加工流水线”。
 
-### 7. 实战排查案例：基于 Dumpsys 解析被劫持的底层管线
+### 8. 实战排查案例：基于 Dumpsys 解析被劫持的底层管线
 
 当你怀疑系统的输入管线被异常劫持，或者 `SLOW_INPUT_EVENT_REPORTED` 日志打不出来时，通过对 `adb shell dumpsys accessibility` 输出日志的解析，往往能直接锁定“元凶”。
 
@@ -1152,7 +1159,7 @@ Enabled features of Display [3] = [MotionEventInjector]
 
 此现象进一步印证了在车机架构中，采用全局系统特权权限 (`INJECT_EVENTS`) 替代无障碍服务执行模拟点击的技术必要性。
 
-### 8. 架构重构指南：如何优雅实现车机“可见即可说”？
+### 9. 架构重构指南：如何优雅实现车机“可见即可说”？
 
 在明确了 `AccessibilityService`（无障碍服务）会为了“可见即可说”功能而挂载全局 `InputFilter`，进而毁灭整个系统的输入测速埋点（`SLOW_INPUT_EVENT_REPORTED`）之后，摆在车机架构师面前的灵魂拷问是：**不使用无障碍服务，如何正确实现“可见即可说”？**
 
@@ -1192,3 +1199,213 @@ InputManager.getInstance().injectInputEvent(motionEvent, InputManager.INJECT_INP
 智能座舱中的“语音可见即可说”是一项高频、核心的商业功能。**用低频的兜底后门（Accessibility）去承载高频的商业级交互，必然会遭到系统底层架构的“反噬”**（如 JNI 跨进程性能损耗、InputEventId 链条断裂、端到端延迟统计崩溃）。
 
 将“获取屏幕内容”和“模拟点击屏幕”解耦，使用 `Assist API` / 定制 `ViewRootImpl` 负责前者，使用系统级 `INJECT_EVENTS` 权限负责后者，这才是真正符合系统级输入输出架构（InputFlinger）美学的“最佳实践”。
+
+### 10. 扩展分析：除了无障碍，还有谁会触发全局 InputFilter？
+
+在原生的 Android 框架（AOSP）中，`InputDispatcher` 的 `mInputFilterEnabled` 是一个极具杀伤力的系统级变量。一旦它变为 `true`，底层的物理事件监控管线就会彻底瘫痪。
+
+通过前文的深入追踪，我们已经证实了**唯一合法的挂载入口是 `AccessibilityManagerService` (AMS)**。但在系统运行的生命周期中，除了车机上“伪装成辅助功能”的语音助手，究竟还有哪些原生功能会激活这个过滤器？
+
+#### AOSP 原生触发条件一览
+通过彻底解剖 AMS 的 `updateInputFilter()` 方法，我们梳理出了导致 `InputFilter` 被挂载的 **10 个充要条件**（只要触发其中任何一个，Filter 就会挂载）：
+
+1. **屏幕放大相关 (Magnification)**
+   - `isMagnificationSingleFingerTripleTapEnabledLocked`（单指三击放大屏幕）
+   - `isMagnificationTwoFingerTripleTapEnabledLocked`（双指三击放大屏幕，Android 14+）
+   - `isShortcutMagnificationEnabledLocked`（通过快捷键触发屏幕放大器）
+   - `userHasMagnificationServicesLocked`（存在注册了控制放大器特权的服务）
+2. **触摸与手势接管相关 (Touch Exploration & Gestures)**
+   - `isTouchExplorationEnabledLocked`（开启了 TalkBack 的触摸浏览模式）
+   - `isPerformGesturesEnabledLocked`（服务声明了注入执行全局手势的权限 `CAPABILITY_CAN_PERFORM_GESTURES`）
+   - `isSendMotionEventsEnabled` (允许服务观察物理触摸事件)
+3. **物理按键拦截相关 (Key Filtering)**
+   - `isFilterKeyEventsEnabledLocked`（服务声明了拦截物理按键的权限 `FLAG_REQUEST_FILTER_KEY_EVENTS`）
+4. **悬停与通用输入相关 (Generic/Hover Events)**
+   - `combinedGenericMotionEventSources != 0`（服务申请拦截或监听鼠标、摇杆等通用输入设备的事件）
+5. **辅助外设相关 (Hardware Accessibility)**
+   - `isAutoclickEnabledLocked`（开启了鼠标停止移动后自动点击的辅助功能）
+   - `isMouseKeysEnabled`（开启了小键盘模拟鼠标移动的功能）
+   
+*(注：以上列出了 AOSP `AccessibilityManagerService.java` 中导致 `InputFilter` 挂载的完整 10 余条触发条件分支，详见源码。)*
+
+#### 全局手势检测会导致 Filter 触发吗？
+许多开发者会混淆 Android 内部的两套手势机制。这里必须澄清一个常见的误区：**普通系统的全局手势检测（如边缘滑动返回、三指截屏）绝对不会导致 `InputFilter` 被挂载！**
+
+*   **真正的系统全局手势（System Gestures）：**
+    在 AOSP 原生实现中，像状态栏下拉、边缘滑动返回（Back Gesture）、三指截屏等系统手势，是由 `WindowManagerService` 内部的 **`SystemGesturesPointerEventListener`** 和 **`DisplayPolicy`** 处理的。
+    它们通过在底层注册一个 `InputChannel` 成为一个“监视者窗口 (`SPY_WINDOW`)”或者是“触摸前置窃听器 (`PointerEventListener`)”。这种方式是完全原生且合法的，事件依然走纯净的 C++ 派发管线，**绝不会触发 `InputFilter`，也完全不会影响端到端延迟统计 (`LatencyTracker`)。**
+*   **冒牌的系统手势（通过 Accessibility 伪装）：**
+    只有当开发者（或者 OEM 厂商）不想去修改底层的 `WindowManagerService` 源码，为了图省事，用一个上层的 App 去注册 `AccessibilityService`，并要求其代为执行手势或监听输入时，才会触发上述的这 10 个条件，进而招致架构灾难。
+
+**总结：** `InputFilter` 是一个专门且仅为残疾人辅助设施（Accessibility）设立的隔离舱。如果你不是在做盲人模式或者轮椅用户辅助工具，绝不要让你的系统级 App 触碰到那 10 个危险的触发开关。
+
+### 11. 架构纵深：原生系统全局手势 (System Gestures) 的窃听与派发时序
+
+在前文的分析中，我们明确了使用 `AccessibilityService` 拦截输入来实现业务逻辑会导致原生派发管线的异常。那么，Android 官方系统自身是如何实现诸如“边缘滑动返回 (Back Gesture)”、“状态栏下拉”、“三指截屏”等全局系统手势的呢？
+
+Android 框架并未采用高侵入性的 `InputFilter`，而是设计了一套极具解耦性与高性能的**“间谍窗口 (SPY Window)”机制**。系统在不阻断原始 C++ 派发管线的前提下，实现了对触摸事件的无损窃听与竞争。
+
+#### 1. SPY Window (间谍窗口) 机制原理
+在 `WindowManagerService` 中，类似 `SystemGesturesPointerEventListener` 这类需要全局监听触摸的模块，在向输入系统注册时，并不会拦截整个系统通道，而是会向 `SurfaceFlinger` 申请一个带有特殊属性 `InputConfig::SPY` 的隐形窗口（在 dumpsys 中常命名为 `[Gesture Monitor] ...`）。
+*   **非独占性：** 当 `InputDispatcher` 在 Z 轴从上到下执行坐标命中测试 (`Hit Testing`) 时，如果命中的是一个 `SPY` 窗口，Dispatcher **不会停止寻找**。它会将该 `SPY` 窗口加入目标列表，并继续向下贯穿，直至找到真正的实体交互窗口（如桌面或前台 App）。
+*   **一发多派：** 最终，Dispatcher 会将同一个硬件滑动事件，通过各自独立的 `InputChannel` (Unix Domain Socket)，**并发、同时**发送给 `SPY` 窗口与前台 App。
+*   **截胡机制 (Pilfering)：** 既然前台 App 和系统手势模块同时收到了滑动事件，如果用户确实是在执行“边缘返回”，App 界面岂不是也会跟着滑动？为了解决竞争，如果手势模块判定该手势成立，它会向 Dispatcher 发送一个 **`pilferPointers`（剥夺指针）**的 Binder 请求。Dispatcher 收到后，会立刻向前台 App 发送一个 `ACTION_CANCEL` 事件，强制终止 App 对该手势的响应，由系统手势模块独占接管。
+
+#### 2. 原生系统手势派发与竞争时序图
+
+下面的时序图详细推演了由 `InputReader` 产生真实硬件中断后，系统级手势如何与前台应用公平竞争，并完成合法的延迟统计：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    
+    box LightCyan InputReader Thread (Native)
+    participant Reader as InputReader
+    end
+    
+    box LightYellow System Server (Dispatcher Thread)
+    participant Disp as InputDispatcher
+    participant Monitor as Gesture Monitor<br>(SPY Window / WMS)
+    end
+    
+    box LightPink App Process (UI Thread)
+    participant App as 前台焦点 App
+    end
+    
+    participant Latency as LatencyTracker
+
+    %% --- 1. 硬件入口与入队 ---
+    Note over Reader, Disp: 1. 硬件入口与合规的延迟追踪
+    Reader ->> Disp: notifyMotion(args)
+    Note right of Disp: 此时无全局 InputFilter 拦截
+    Disp ->> Disp: mLock.lock()
+    Disp ->> Latency: trackListener(args)
+    Note right of Latency: 成功记录原始 eventTime，开始端到端性能统计
+    Disp ->> Disp: enqueueInboundEventLocked()
+    Disp ->> Disp: mLooper->wake()
+    Disp ->> Disp: mLock.unlock()
+
+    %% --- 2. 穿透式命中测试 (Hit Testing) ---
+    rect rgb(240, 240, 240)
+    Note over Disp, App: 2. 穿透式的 SPY Window 命中测试
+    Disp ->> Disp: dispatchOnceInnerLocked()
+    Disp ->> Disp: findTouchedSpyWindowsAt()
+    Note right of Disp: 从上至下遍历，命中 SPY 属性的手势监视窗口，<br>将其加入 target 列表，但【继续向下查找】
+    Disp ->> Disp: 命中下层非 SPY 属性的前台实体窗口，<br>作为主 target 加入列表
+    end
+
+    %% --- 3. 并发派发与应用消费 ---
+    rect rgb(230, 255, 230)
+    Note over Disp, App: 3. 并发派发机制
+    Disp ->> Monitor: Socket send: publishMotionEvent()
+    Disp ->> App: Socket send: publishMotionEvent()
+    Note over Monitor, App: 此时，系统手势监听器与前台应用【同时】收到触摸事件
+    
+    Monitor ->> Monitor: 判定手势轨迹 (如边缘滑入)<br>SystemGesturesPointerEventListener
+    App ->> App: 开始滑动处理 (如列表滚动)<br>onTouchEvent()
+    end
+
+    %% --- 4. 手势截胡 (Pilfer Pointers) ---
+    rect rgb(255, 240, 240)
+    Note over Monitor, App: 4. 合法的事件竞争与剥夺 (Pilfering)
+    alt 系统手势成立 (System Gesture Detected)
+        Monitor ->> Disp: Binder: pilferPointers(inputChannelToken)
+        Note right of Disp: 收到系统剥夺请求，中止其余接收者的分发
+        Disp ->> App: 强行发送 ACTION_CANCEL 事件
+        Note right of App: App 列表停止滚动，放弃当前手势上下文
+        App -->> Disp: Socket: FINISHED
+        Monitor -->> Disp: Socket: FINISHED (手势执行完毕)
+    else 非系统手势 (Normal App Touch)
+        Monitor -->> Disp: Socket: FINISHED (不关心该事件)
+        App ->> App: 继续执行常规滑动与渲染 UI
+        App -->> Disp: Socket: FINISHED
+        App -->> Disp: Socket: TIMELINE (正常触发跟手性监控)
+    end
+    end
+```
+
+#### 架构设计的优越性总结
+通过 `SPY Window` 机制与 `pilferPointers` 剥夺指令的配合，AOSP 官方手势系统实现了三个核心架构诉求：
+1. **零性能惩罚：** 手势判定模块与 App 处于同级的接收端（Receiver），Dispatcher 仅通过底层的 Socket 广播，没有引入任何同步的阻塞调用与锁竞争。
+2. **极佳的监控透明度：** 由于未拦截底层的入队与分发流程，事件始终保持最原始的硬件属性（`Source=INPUT_READER`），完美保留在 `LatencyTracker` 的端到端卡顿监控雷达中。
+3. **平滑的业务降级：** 即使处理系统手势的进程由于负载极高发生严重卡顿，因为 Socket 是全双工异步非阻塞的，前台焦点应用的正常触摸交互与界面渲染**绝对不会**因此受到牵连。这正是系统架构设计中容错性（Resilience）的典范。
+
+### 7. inputEventId 视角的事件生命周期对照图
+
+在排查 `SLOW_INPUT_EVENT_REPORTED` 日志丢失的问题时，最致命的盲区在于：我们潜意识里认为最初触摸屏幕的事件和最终渲染画面的事件是**同一个事件**。
+
+下面的对比图将基于 `inputEventId` 的视角，清晰地揭示：**在挂载了 InputFilter 的那一刻起，原始事件就已经死亡，而端到端延迟统计（LatencyTracker）由于在追踪两个完全不同的 ID 而永远无法闭环。**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    
+    participant Hardware as Touch Panel
+    
+    box LightCyan LatencyTracker (性能测速大盘)
+    participant Tracker as mTimelines<br>[字典集合]
+    end
+    
+    box LightYellow System Server (Native)
+    participant Reader as InputReader
+    participant Disp as InputDispatcher
+    end
+    
+    box LightPink System Server (Java)
+    participant JavaFilter as A11y InputFilter<br>及重组逻辑
+    end
+    
+    participant App as 前台焦点 App
+
+    %% --- 1. 原始事件的诞生与追踪 ---
+    Note over Hardware, Tracker: 1. 原始事件的诞生与追踪 (ID = A)
+    Hardware ->> Reader: 物理中断
+    Reader ->> Disp: notifyMotion(args)
+    Note right of Reader: 生成原始 inputEventId: A<br>Source: INPUT_READER
+    
+    Disp ->> Tracker: trackListener(id = A)
+    Note right of Tracker: Tracker 建档：<br>mTimelines[A] = { readTime, eventTime }
+
+    %% --- 2. 原始事件的死亡 ---
+    rect rgb(255, 230, 230)
+    Note over Disp, JavaFilter: 2. 原始事件的死亡 (ID = A 的终结)
+    Disp ->> JavaFilter: filterInputEvent()
+    JavaFilter -->> Disp: return false (拦截)
+    Note right of Disp: 原始事件 A 并没有被派发给 App！<br>它的生命周期在 Dispatcher 内部彻底结束。
+    end
+
+    %% --- 3. 克隆事件的诞生与派发 ---
+    rect rgb(230, 255, 230)
+    Note over JavaFilter, App: 3. 克隆事件的诞生与脱节 (ID = B)
+    JavaFilter ->> JavaFilter: MotionEvent.obtain(...)
+    Note right of JavaFilter: Java层调用 obtain 重载组装事件时，<br>Native 层分配了全新的 inputEventId: B
+    JavaFilter ->> Disp: injectInputEvent(id = B)
+    Note right of Disp: 注入事件 B：<br>Source 变为 OTHER，自动打上 INJECTED 标志
+    
+    Disp ->> Tracker: trackListener(id = B) ??
+    Note right of Tracker: 【核心断层】<br>由于 B 的 Source 是 OTHER，<br>不满足 Source == INPUT_READER，被强行拦截！<br>Tracker 根本没有为 B 建档！
+    
+    Disp ->> App: 跨进程 Socket 派发 (id = B)
+    end
+
+    %% --- 4. 悲惨的测速结账现场 ---
+    rect rgb(240, 240, 240)
+    Note over App, Tracker: 4. 错位的结账：Timeline 永远凑不齐
+    App ->> App: UI 消费完毕并触发渲染送显
+    App -->> Disp: 1. Socket 回写: Finished (id = B)
+    App -->> Disp: 2. Socket 回写: Timeline (id = B, presentTime)
+    
+    Disp ->> Tracker: trackFinishedEvent(id = B) / trackGraphicsLatency(id = B)
+    Tracker ->> Tracker: mTimelines.find(B)
+    Note right of Tracker: 找不到 B 的档案！(前面被拦截了)<br>直接 return，丢弃 App 传回的心血。
+    
+    Tracker ->> Tracker: 等待 5 秒后，处理成熟事件 A
+    Tracker ->> Tracker: processSlowEvent(A)
+    Note right of Tracker: 发现 A 的档案里只有 readTime，<br>根本没有 finishTime 和 presentTime (isComplete == false)！<br>不满足算账条件，A 被当做废弃垃圾清理。
+    end
+```
+
+从这幅时序图中可以得出终极的断案结论：
+车机上，底层的 `LatencyTracker` 痴情地等待着原始事件 A 画出画面；
+而 App 却在拼命处理克隆事件 B，并把 B 的画面送显时间老老实实地交给了系统；
+由于 Java 层的介入修改了 ID，A 永远等不到 B 的结果。这导致了 `connectionTimelines.size=0` 或 `isComplete() == false`，使得 `ALOGW` 和 StatsD 打点永远不可能触发。
