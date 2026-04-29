@@ -1,4 +1,8 @@
-# Android SELinux 编译与加载机制解析（基于 AOSP 16）
++++
+date = '2025-08-27T11:36:11+08:00'
+draft = false
+title = 'Android SELinux 编译与加载机制解析（基于 AOSP 16）'
++++
 
 本文基于 AOSP 16 源码详细讲解 Android 系统中 SELinux 的文件分类、按分区隔离的构建配置项与编译机制、常用编译与验证命令，以及在系统启动时的动态校验与加载机制。
 
