@@ -754,3 +754,199 @@ sequenceDiagram
 #### D. 软件注入后门 (`injectInputEvent`)
 不仅是无障碍服务，当你使用 `adb shell input tap x y`、自动化测试框架 (`Instrumentation`) 或者是自动化压测工具 (Monkey) 时，事件根本不会经过底层的硬件驱动读取。它们通过 Binder IPC 直接调用 `InputDispatcher::injectInputEvent`。
 在注入方法内部，系统会跳过 `interceptKeyBeforeQueueing` 和 `filterInputEvent` 的拦截，构造一个带有特殊 `policyFlags` 的 `InjectionState` 并直接塞进 `InboundQueue`。这也就是为什么我们在上一节的 Latency Tracking 源码中看到：**只有 `Source::INPUT_READER` 来源的事件才有资格被计入端到端延迟统计**，而这类 Inject 注入的事件则不配拥有测量性能的资格。
+
+### 4. 深度调查案例：车机环境下 Touch 事件被全部 Filter 拦截的现象与影响
+
+在部分定制化 Android 系统（特别是 Android Automotive 车机系统）中，可能会出现一种极端现象：**所有的真实触摸事件均被 `InputFilter` 拦截处理，随后又通过软件注入（`injectInputEvent`）的方式重新派发。**
+
+此现象导致了系统输入性能监控的失效，使得 `SLOW_INPUT_EVENT_REPORTED` 埋点无法正常采集数据。
+
+#### 现象还原 (基于 dumpsys input 调查)
+通过观察 `dumpsys input`，可以发现以下非预期状态：
+1. **`InputFilterEnabled: true`**：系统持续开启全局辅助输入过滤器。
+2. **`RecentQueue` 中的事件 PolicyFlags 异常**：
+   ```text
+   MotionEvent(deviceId=2, ... policyFlags=0x67000000, ...)
+   ```
+   其中 `0x67000000` 包含了 `POLICY_FLAG_INJECTED` 标志。这表明当前 `Dispatcher` 正在分发的并非 `InputReader` 直接读取的原始硬件事件，而是经过 Java 层重定向并重新注入的事件。
+
+#### 业务场景诱因
+在多屏车机环境（如主驾与副驾独立交互）中，OEM 厂商为快速实现复杂的业务策略，常常选择在全局 `InputFilter` 中集中处理逻辑：
+1. **驾驶安全策略限制（Driver Distraction Mitigation）：** 行驶中需要动态屏蔽部分屏幕（如中控特定交互区）的触摸输入。
+2. **座舱多屏动态路由：** 需根据副驾乘员状态及应用层叠关系，动态修改事件所属的逻辑屏幕 ID (DisplayId)。
+3. **全局手势与防误触：** 譬如三指滑动控制空调、方向盘物理按键的全局重映射等。
+
+基于 AOSP 现有架构，OEM 的 `InputManagerService` (IMS) 通常会注册一个底层 `IInputFilter`。当底层的真实事件抵达 `notifyMotion` 时，针对**每个** `ACTION_MOVE` 都会触发 `filterInputEvent()` 并回调至 Java 层；Java 层在完成业务判定后将原事件标记为已消费（导致底层 `return`），随后修改其坐标或显示器 ID，并调用 `injectInputEvent` 将其重新推入 C++ 派发管线。
+
+#### 此架构设计的技术影响
+
+这种“全局拦截与重新注入”的模式虽能迅速满足业务需求，却在底层框架层面上引发了显著的性能与观测问题：
+
+1. **JNI 与线程切换开销增加：** 触摸滑动操作每秒可产生逾 120 个中断数据包。原本完全在 C++ 层内完成的纯粹派发流水线，现在被迫对每个事件包执行跨进程 (Binder) 及 JNI 回调，在计算资源受限的车机 SoC 上可能引发 CPU 负载抖动。
+2. **`inputEventId` 关联断裂与监控失效：** 原始硬件中断的生命周期（ID 记为 A）在被 Filter 拦截时即告终止。随后注入的新事件（ID 记为 B）其 `Source` 属性变为 `OTHER`，且与事件 A 失去任何逻辑关联。这种割裂导致 `LatencyTracker` 无法闭环端到端时间线，**致使系统的触控性能大盘（包括 `SLOW_INPUT_EVENT_REPORTED`）彻底失效，成为性能调优时的盲区。**
+3. **`eventTime` 精度损失：** 注入事件的 `eventTime` 变为注入动作发生的时间点，而非手指真实接触屏幕的硬件时间。这会使得依赖高精度时间差的框架层算法（如 `VelocityTracker` 的滑动速度计算、Compose 的运动预测渲染）产生误差。
+
+#### 架构重构建议
+
+针对上述问题，建议在系统架构审查与迭代时考虑以下重构方案：
+
+1. **方案 A（监控层修复）：在注入时回传原始 ID 链条**
+   修改 Java 层的 InputFilter 框架及 `injectInputEvent` 的 JNI 入口。当服务重新注入事件时，**强制继承原始的 `inputEventId` 与原生 `eventTime`**，并在底层的注入入口处显式触发一次 `mLatencyTracker.trackListener()`，以此弥补链路断层，恢复端到端性能统计。
+2. **方案 B（架构层优化）：Native Hook 与按需拦截 (推荐)**
+   *   **基础策略下沉：** 将“事件丢弃”或“屏幕路由”等轻量级判定逻辑，直接以 C++ 实现在 `NativeInputManager::interceptMotionBeforeQueueing` 中。
+   *   **按需拦截机制 (Short-circuit)：** 优化 Java 层判定逻辑，使其仅在极少数特定条件（如特定车速与特定触摸区域）下返回 `false` 予以拦截。对于占绝大比例的正常 UI 交互，**应以极低延迟返回 `true`（放行）**，确保原生物理事件正常经过 C++ 派发管线。
+
+### 5. 源码剖析：InputFilter 开启与 LatencyTracker 失效的根因
+
+根据前文分析，只要 `mInputFilterEnabled` 状态为 `true`，底层的 `LatencyTracker` 即停止追踪。通过追溯 `frameworks/base` 的源码实现，我们可以明确触发该状态的业务源头。
+
+在 Android 框架中，全局 `InputFilter` 的合法持有者与调用源仅为一个：**`AccessibilityManagerService` (无障碍管理器服务)**。
+
+#### 追踪调用链 (Call Stack)
+从 C++ 层的 `NativeInputManager::setInputFilterEnabled` 向上追溯至 Java 层，调用关系如下：
+1. `InputManagerService.java` -> `setInputFilter(IInputFilter filter)`
+2. `WindowManagerService.java` -> `setInputFilter(IInputFilter filter)`
+3. **唯一触发端：** `AccessibilityManagerService.java` -> `updateInputFilter(AccessibilityUserState userState)`
+
+#### `updateInputFilter` 的触发逻辑
+在 `AccessibilityManagerService.java` 中，系统会汇集所有的无障碍权限状态标志 (flags)。只要当前运行的任何一个无障碍服务（Accessibility Service）申请了以下**任意权限**，系统即会实例化并挂载全局 `InputFilter`：
+
+```java
+int flags = 0;
+// 1. 启用了屏幕放大功能 (单指三击 / 双指三击)
+if (userState.isMagnificationSingleFingerTripleTapEnabledLocked()) {
+    flags |= AccessibilityInputFilter.FLAG_FEATURE_MAGNIFICATION_SINGLE_FINGER_TRIPLE_TAP;
+}
+// 2. 启用了“触摸浏览”模式 (TalkBack 核心功能)
+if (userState.isHandlingAccessibilityEventsLocked() && userState.isTouchExplorationEnabledLocked()) {
+    flags |= AccessibilityInputFilter.FLAG_FEATURE_TOUCH_EXPLORATION;
+}
+// 3. 申请了按键事件拦截权限
+if (userState.isFilterKeyEventsEnabledLocked()) {
+    flags |= AccessibilityInputFilter.FLAG_FEATURE_FILTER_KEY_EVENTS;
+}
+// 4. 申请了全局手势执行与注入权限
+if (userState.isPerformGesturesEnabledLocked()) {
+    flags |= AccessibilityInputFilter.FLAG_FEATURE_INJECT_MOTION_EVENTS;
+}
+
+// 若 flags 不为 0，则注册并挂载 InputFilter
+if (flags != 0) {
+    if (!mHasInputFilter) {
+        mHasInputFilter = true;
+        mInputFilter = new AccessibilityInputFilter(mContext, AccessibilityManagerService.this);
+        setInputFilter = true;
+    }
+}
+// 跨进程通知 C++ 层的 InputDispatcher，将 mInputFilterEnabled 置为 true
+if (setInputFilter) {
+    mWindowManagerService.setInputFilter(inputFilter); 
+}
+```
+
+#### 在车机系统 (AAOS) 中的普遍性
+在标准移动设备上，普通用户极少长期开启 TalkBack 等服务，因此 `mInputFilterEnabled` 通常为 `false`，`LatencyTracker` 运行处于正常状态。
+
+然而，在智能座舱开发中，OEM 开发人员往往需要实现超越单个应用生命周期的全局级交互，例如：
+*   **方向盘硬按键接管：** 拦截特定物理按键并转换为系统级别的指令广播。
+*   **全局手势识别：** 监听三指滑动以实时调节空调或音量。
+*   **输入隔离策略：** 根据特定业务状态屏蔽副驾显示器的输入。
+
+为满足上述需求，系统级应用（如 SystemUI 或定制化后台服务）通常会注册一个**开机自启动且对用户透明的 Accessibility Service**，并在 `AndroidManifest.xml` 中声明 `<accessibility-flags>flagRequestFilterKeyEvents</accessibility-flags>` 权限。
+
+**结论：**
+正是由于此类常驻无障碍服务的存在，导致 `AccessibilityManagerService` 长期将全局 `InputFilter` 挂载，进而使得 `InputDispatcher` 的 `mInputFilterEnabled` 变量被置为 `true`。这就导致了所有由硬件产生的原始中断事件，在 `trackListener` 处理逻辑中因条件不满足而无法进入延迟统计环节，导致了整车端到端输入延迟监控机制的停滞。
+
+
+#### 实战排查：如何定位触发 InputFilter 的无障碍服务？
+
+在线上排查 `SLOW_INPUT_EVENT_REPORTED` 埋点失效，或是发现 `dumpsys input` 中 `InputFilterEnabled` 为 `true` 时，可以通过以下系统级 ADB 命令，直接追踪到是哪一个后台应用或系统服务申请了特权，从而锁定了底层监控瘫痪的真正元凶：
+
+1. **查看系统激活的无障碍服务名单 (Settings Provider)：**
+   ```bash
+   adb shell settings get secure enabled_accessibility_services
+   ```
+   *输出示例：`com.crystal.h37.arservice/.MyA11yService:com.voyah.cockpit/.CockpitService`*
+   （冒号分隔的即为当前处于激活状态的无障碍服务包名与类名组合）。
+
+2. **查看当前绑定的无障碍服务及其权限详情：**
+   ```bash
+   adb shell dumpsys accessibility | grep -i -A 20 "Bound services"
+   ```
+   在此输出结果中，重点观察 `capabilities` 和 `flags` 字段。如果看到 `capabilities` 包含了 `CAPABILITY_CAN_PERFORM_GESTURES` (允许执行手势)，或者 `flags` 包含了 `FLAG_REQUEST_FILTER_KEY_EVENTS` (请求按键过滤)，即可实锤正是该服务在底层强制要求 `AccessibilityManagerService` 挂载了 `InputFilter`。
+
+### 6. 机制推演：AccessibilityManagerService 的拦截与重注入时序
+
+为直观展示上述架构逻辑，我们基于 `frameworks/base` 与 JNI 的源码调用栈，绘制了无障碍服务存在时，一次物理触控事件被拦截并重新注入的完整生命周期时序图。
+
+此时序图同时也解释了实车 `dumpsys input` 中观察到的 `policyFlags=0x67000000` (包含 `INJECTED`, `FILTERED`, `TRUSTED`, `INTERACTIVE`, `PASS_TO_USER`) 的代码逻辑来源。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    
+    box LightCyan Native 层 (C++)
+    participant Disp as InputDispatcher
+    participant NativeIMS as NativeInputManager
+    end
+    
+    box LightYellow Framework Java 层 (System Server)
+    participant IMS as InputManagerService
+    participant A11yFilter as AccessibilityInputFilter<br>(mInputFilter)
+    participant Host as InputFilterHost
+    end
+    
+    participant App as App Window<br>(UI Thread)
+
+    %% --- 1. 拦截与终止阶段 ---
+    rect rgb(255, 230, 230)
+    Note over Disp, A11yFilter: 1. 物理事件的拦截与终止分发
+    Disp ->> Disp: notifyMotion(args)
+    Note right of Disp: 此时事件携带原始 inputEventId (A)<br>且 Source = INPUT_READER
+    Disp ->> Disp: mLock.unlock()
+    Disp ->> NativeIMS: filterInputEvent(event, policyFlags)
+    NativeIMS ->> IMS: JNI: filterInputEvent()
+    
+    IMS ->> A11yFilter: mInputFilter.filterInputEvent()
+    Note right of IMS: 只要 mInputFilter 实例存在，<br>IMS 会在此强制 return false，<br>中断后续原生派发流程。
+    IMS -->> NativeIMS: return false
+    NativeIMS -->> Disp: return false (Consumed)
+    Note left of Disp: 原始事件 (A) 的原生派发流程终止，<br>因此 LatencyTracker 无法获取后续追踪节点。
+    end
+
+    %% --- 2. Java 层逻辑处理阶段 ---
+    rect rgb(240, 240, 240)
+    Note over A11yFilter, Host: 2. Java 层的事件评估处理 (EventStreamTransformation)
+    A11yFilter ->> A11yFilter: 根据业务配置进行事件判定<br>(如全局手势识别、特权按键转换)
+    Note right of A11yFilter: 若判定为需拦截的系统全局操作，<br>服务将直接消费事件而不做向下传递。
+    end
+
+    %% --- 3. 重新注入阶段 ---
+    rect rgb(230, 255, 230)
+    Note over A11yFilter, App: 3. 事件重注入与二次派发 (Re-Injection)
+    A11yFilter ->> Host: super.sendInputEvent(event, policyFlags)<br>(决定放行该事件至底层)
+    Host ->> NativeIMS: JNI: mNative.injectInputEvent(...)
+    Note right of Host: 执行注入时追加标志位：<br>policyFlags | FLAG_FILTERED
+    
+    NativeIMS ->> Disp: injectInputEvent()
+    Note right of Disp: 【状态转换】<br>1. 分配全新的 inputEventId (B)<br>2. 自动追加 POLICY_FLAG_INJECTED<br>3. 来源 Source 被重置为 OTHER / DISPATCHER
+    Disp ->> Disp: enqueueInboundEventLocked()
+    Disp ->> App: 最终派发给前台焦点应用
+    Note over App: 目标应用消费的事件已包含 INJECTED 等新标志位。
+    end
+```
+
+#### 时序机制的核心推论
+
+1.  **原生事件管线的终止原因**
+    查阅 `InputManagerService.java` 的源码可以发现，`filterInputEvent` 方法的实现逻辑为：当存在 `mInputFilter != null` 时，向其传递事件后**将无条件返回 `false`**。此设计意味着不论上层无障碍服务最终是否放行事件，原生的 C++ `notifyMotion` 分发流在调用该 JNI 方法后即被中断。
+2.  **`0x67000000` 标志位的组合逻辑**
+    通过分析时序图第 3 阶段的注入流程，该十六进制值系由以下标志位按位或 (Bitwise OR) 组合而成：
+    *   `0x40000000` = `POLICY_FLAG_PASS_TO_USER` (初始硬件层判定产生)
+    *   `0x20000000` = `POLICY_FLAG_INTERACTIVE` (初始硬件层判定产生)
+    *   `0x04000000` = `POLICY_FLAG_FILTERED` (由注入过程的 `InputFilterHost` 追加)
+    *   `0x02000000` = `POLICY_FLAG_TRUSTED` (默认可信事件标志)
+    *   `0x01000000` = `POLICY_FLAG_INJECTED` (在底层的 `injectInputEvent` 内部自动追加)
+    上述标志位的总和精确等于 `0x67000000`，与 `dumpsys` 的输出完全一致。
+3.  **性能统计失效的技术背景**
+    在重新注入时，由于事件被视作由外部框架调用的请求，系统会重新分配 **`inputEventId`** 并将其 `Source` 定义变更为非 `INPUT_READER`。基于这两项变化，底层监控框架将判定该事件不再是原始的物理输入行为，进而主动从 `LatencyTracker` 的考量范畴中将其剔除。
