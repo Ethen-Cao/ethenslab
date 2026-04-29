@@ -875,11 +875,87 @@ if (setInputFilter) {
    ```
    在此输出结果中，重点观察 `capabilities` 和 `flags` 字段。如果看到 `capabilities` 包含了 `CAPABILITY_CAN_PERFORM_GESTURES` (允许执行手势)，或者 `flags` 包含了 `FLAG_REQUEST_FILTER_KEY_EVENTS` (请求按键过滤)，即可实锤正是该服务在底层强制要求 `AccessibilityManagerService` 挂载了 `InputFilter`。
 
+
+### 5.5. 深度解剖：InputFilter 与无障碍服务架构图
+
+为了清晰展现事件是如何从底层的 C++ 管线“逃逸”到 Java 层，又如何经过复杂的业务链条被评估甚至篡改的，我们绘制了如下的 **InputFilter 核心架构图**。
+
+这幅架构图涵盖了从 Native C++ 到 Java 框架层，再到第三方 App 的完整拓扑结构，以及著名的 `EventStreamTransformation` 事件流转换加工链。
+
+```mermaid
+flowchart LR
+    %% 样式定义
+    classDef native fill:#dae8fc,stroke:#333,stroke-width:1px;
+    classDef java fill:#ffe6cc,stroke:#333,stroke-width:1px;
+    classDef a11y fill:#e1d5e7,stroke:#333,stroke-width:1px;
+    classDef jni fill:#f8cecc,stroke:#333,stroke-width:1px;
+
+    subgraph NativeSpace [Native C++ 层 System Server]
+        Reader[InputReader\n驱动读取]:::native
+        Dispatcher[InputDispatcher\n事件分发器]:::native
+        NativeIMS[NativeInputManager]:::native
+    end
+
+    subgraph JNISpace [JNI 跨语言边界]
+        JNI_Filter[JNI: filterInputEvent]:::jni
+        JNI_Inject[JNI: injectInputEvent]:::jni
+    end
+
+    subgraph JavaSpace [Java 框架层 System Server]
+        IMS[InputManagerService]:::java
+        
+        subgraph FilterChain [AccessibilityInputFilter 责任链 EventStreamTransformation]
+            direction TB
+            A11yFilter[AccessibilityInputFilter]:::java
+            Keyboard[KeyboardInterceptor\n按键拦截]:::java
+            TouchExp[TouchExplorer\n触摸与全局手势]:::java
+            Gesture[MagnificationGestureHandler\n屏幕放大]:::java
+            Host[InputFilterHost\n链条终点]:::java
+        end
+        
+        AMS[AccessibilityManagerService]:::java
+    end
+
+    subgraph AppSpace [用户进程域]
+        A11yService[AccessibilityService\n如 TalkBack, 车机防误触App]:::a11y
+        TargetApp[前台焦点应用]:::a11y
+    end
+
+    %% 流程关系
+    Reader -- "1. notifyMotion" --> Dispatcher
+    Dispatcher -- "2. 被锁定并移交" --> NativeIMS
+    NativeIMS -- "3. 跨进程调用" --> JNI_Filter
+    JNI_Filter --> IMS
+    IMS -- "4. 无条件 return false\n(原生分发死亡)" --> NativeIMS
+    NativeIMS -. "断开分发流" .-> Dispatcher
+
+    IMS -- "5. 丢给 Filter 加工链" --> A11yFilter
+    A11yFilter --> Keyboard
+    Keyboard --> TouchExp
+    TouchExp --> Gesture
+    
+    TouchExp -- "6. 广播事件给订阅者" --> AMS
+    AMS -- "7. Binder IPC 实时推送" --> A11yService
+    
+    Gesture -- "8. 判定为正常滑动则放行" --> Host
+    Host -- "9. 携带 FLAG_FILTERED\n强行重注入" --> JNI_Inject
+    JNI_Inject --> NativeIMS
+    NativeIMS -- "10. 变成新克隆事件入队" --> Dispatcher
+    Dispatcher -- "11. 跨进程分发" --> TargetApp
+```
+
+#### 架构图核心组件解析
+
+1. **NativeIMS (NativeInputManager)：** 它是 C++ 层与 Java 层沟通的桥梁。无论是向上汇报需要过滤的事件（`filterInputEvent`），还是接收 Java 层下达的注入命令（`injectInputEvent`），都要通过这道 JNI 关卡。
+2. **FilterChain (EventStreamTransformation 责任链)：** 当事件进入 `AccessibilityInputFilter` 时，并不是用一个臃肿的方法处理完所有逻辑。Android 采用了一套名为 `EventStreamTransformation` 的流水线模式（Pipeline）。事件会依次穿过按键拦截器、触摸流探测器和放大手势处理器。任何一个环节觉得“这个操作我包了”（例如识别到了单指双击），就可以直接终止整条流水线（即“消费” Consumed）。
+3. **AMS (AccessibilityManagerService) 的广播：** 责任链中的处理器（如 `TouchExplorer`）在分析轨迹的同时，会调用 AMS 的 `sendMotionEventToListeningServices`。AMS 会遍历所有已绑定的无障碍服务（比如车机 OEM 写的那个 `arservice`），通过 Binder 将坐标源源不断地推给它们，供它们执行上层的业务。
+4. **Host (InputFilterHost)：** 这是流水线的终点。如果一个事件极其幸运，没有被任何拦截器判定为特殊手势，它最终会流到 `Host` 节点。`Host` 的唯一使命就是调用 JNI，将这个经历了九死一生的事件，作为“外部软件注入请求”重新塞回 `InputDispatcher`。
+
 ### 6. 机制推演：AccessibilityManagerService 的拦截与重注入时序
 
-为直观展示上述架构逻辑，我们基于 `frameworks/base` 与 JNI 的源码调用栈，绘制了无障碍服务存在时，一次物理触控事件被拦截并重新注入的完整生命周期时序图。
+为了让你对上述的“架构骨刺”有一个最直观的体感，我们通过追踪 `frameworks/base` 和 JNI 的源码，精确绘制了当存在无障碍服务时，一个物理触控事件是如何经过 **C++ 拦截 -> Java 层责任链过滤 -> 分发至无障碍 App -> 再次通过 Binder 注入回 C++ 底层** 的完整生命周期。
 
-此时序图同时也解释了实车 `dumpsys input` 中观察到的 `policyFlags=0x67000000` (包含 `INJECTED`, `FILTERED`, `TRUSTED`, `INTERACTIVE`, `PASS_TO_USER`) 的代码逻辑来源。
+这也完美解释了你在 `dumpsys input` 中看到所有事件均带有 `policyFlags=0x67000000` (包含 `INJECTED`, `FILTERED`) 的源码级真相。
 
 ```mermaid
 sequenceDiagram
@@ -890,52 +966,85 @@ sequenceDiagram
     participant NativeIMS as NativeInputManager
     end
     
-    box LightYellow Framework Java 层 (System Server)
+    box LightYellow System Server (Java)
     participant IMS as InputManagerService
-    participant A11yFilter as AccessibilityInputFilter<br>(mInputFilter)
+    participant A11yFilter as Accessibility<br>InputFilter
     participant Host as InputFilterHost
+    participant AMS as Accessibility<br>ManagerService
     end
     
-    participant App as App Window<br>(UI Thread)
+    box LightPink App Process
+    participant A11yApp as AccessibilityService<br>(第三方/车机服务)
+    participant App as 前台焦点 App
+    end
 
-    %% --- 1. 拦截与终止阶段 ---
+    %% --- 1. C++ 层的拦截与强行掐断 ---
     rect rgb(255, 230, 230)
-    Note over Disp, A11yFilter: 1. 物理事件的拦截与终止分发
+    Note over Disp, A11yFilter: 1. 物理管线的无条件阻断
     Disp ->> Disp: notifyMotion(args)
-    Note right of Disp: 此时事件携带原始 inputEventId (A)<br>且 Source = INPUT_READER
+    Note right of Disp: 携带原始 inputEventId (A)<br>Source = INPUT_READER
     Disp ->> Disp: mLock.unlock()
     Disp ->> NativeIMS: filterInputEvent(event, policyFlags)
     NativeIMS ->> IMS: JNI: filterInputEvent()
     
     IMS ->> A11yFilter: mInputFilter.filterInputEvent()
-    Note right of IMS: 只要 mInputFilter 实例存在，<br>IMS 会在此强制 return false，<br>中断后续原生派发流程。
+    Note right of IMS: 关键源码揭秘：<br>只要挂载了 mInputFilter，<br>IMS 会在此立刻强制 return false！
     IMS -->> NativeIMS: return false
-    NativeIMS -->> Disp: return false (Consumed)
-    Note left of Disp: 原始事件 (A) 的原生派发流程终止，<br>因此 LatencyTracker 无法获取后续追踪节点。
+    NativeIMS -->> Disp: return false
+    Note left of Disp: C++ 分发流程终止！<br>原始事件 (A) 的 LatencyTracker 追踪链彻底断裂。
     end
 
-    %% --- 2. Java 层逻辑处理阶段 ---
+    %% --- 2. Java 层加工与评估阶段 ---
     rect rgb(240, 240, 240)
-    Note over A11yFilter, Host: 2. Java 层的事件评估处理 (EventStreamTransformation)
-    A11yFilter ->> A11yFilter: 根据业务配置进行事件判定<br>(如全局手势识别、特权按键转换)
-    Note right of A11yFilter: 若判定为需拦截的系统全局操作，<br>服务将直接消费事件而不做向下传递。
+    Note over A11yFilter, AMS: 2. Java 层事件评估流水线 (EventStreamTransformation)
+    A11yFilter ->> A11yFilter: 进入内部判定链 (TouchExplorer 等)
+    
+    alt 分发给注册了的无障碍应用
+        A11yFilter ->> AMS: sendMotionEventToListeningServices(event)
+        AMS ->> A11yApp: Binder Call: onMotionEvent()
+        Note right of AMS: 车机的拦截 App (如 arservice) 此时收到了触摸坐标
     end
 
-    %% --- 3. 重新注入阶段 ---
-    rect rgb(230, 255, 230)
-    Note over A11yFilter, App: 3. 事件重注入与二次派发 (Re-Injection)
-    A11yFilter ->> Host: super.sendInputEvent(event, policyFlags)<br>(决定放行该事件至底层)
-    Host ->> NativeIMS: JNI: mNative.injectInputEvent(...)
-    Note right of Host: 执行注入时追加标志位：<br>policyFlags | FLAG_FILTERED
+    A11yApp ->> A11yApp: 执行业务逻辑 (如防误触、手势识别)
     
-    NativeIMS ->> Disp: injectInputEvent()
-    Note right of Disp: 【状态转换】<br>1. 分配全新的 inputEventId (B)<br>2. 自动追加 POLICY_FLAG_INJECTED<br>3. 来源 Source 被重置为 OTHER / DISPATCHER
-    Disp ->> Disp: enqueueInboundEventLocked()
-    Disp ->> App: 最终派发给前台焦点应用
-    Note over App: 目标应用消费的事件已包含 INJECTED 等新标志位。
+    alt 判定为需要拦截的手势
+        Note right of A11yFilter: 判定链终止，丢弃该事件，<br>不再向下调用 super.onInputEvent()
+    end
+    end
+
+    %% --- 3. 重注入与“狸猫换太子” ---
+    rect rgb(230, 255, 230)
+    Note over A11yFilter, App: 3. 正常事件的重注入与“狸猫换太子” (Re-Injection)
+    alt 判定为正常触摸 (放行)
+        A11yFilter ->> Host: 判定链走到底，调用 super.onInputEvent()<br>触发 mHost.sendInputEvent(event, policyFlags)
+        Host ->> NativeIMS: JNI: mNative.injectInputEvent(...)
+        Note right of Host: 注入时强制追加标志位：<br>policyFlags | FLAG_FILTERED
+        
+        NativeIMS ->> Disp: injectInputEvent()
+        Note right of Disp: 【致命身份转换】<br>1. 分配全新的 inputEventId (B)<br>2. 底层自动追加 POLICY_FLAG_INJECTED<br>3. Source 沦为 OTHER
+        Disp ->> Disp: enqueueInboundEventLocked()
+        Disp ->> App: 最终跨进程 Socket 派发给前台应用
+        Note over App: 前台 App 顺利消费，但事件已是携带<br> INJECTED 和 FILTERED 标志的克隆体。
+    end
     end
 ```
 
+#### 从这幅时序图得出的残酷真相
+
+1. **为什么无论是否拦截，原生事件必死？**
+   在 `InputManagerService.java` 的源码实现中，它的 `filterInputEvent` 方法极其简单粗暴：只要 `mInputFilter != null`，它在把事件丢给 `mInputFilter.filterInputEvent()` 后，**会无条件直接 `return false;`**。
+   这意味着不管上层无障碍服务最终要不要放行这个事件，原生的 C++ `notifyMotion` 管线在第一步就被强行掐断了。
+2. **“放行”的本质其实是“重新注入”**
+   如果 `AccessibilityInputFilter`（A11y的事件评估流水线）决定**放行**这次点击，它的做法并不是通知 C++ 恢复执行，而是走到流水线的尽头调用 `super.onInputEvent()`。
+   这最终会调回 JNI 的 `injectInputEvent()`，把事件作为“外部软件注入请求”重新塞进 `InputDispatcher` 的 `InboundQueue` 中。**在 Android 架构下，经过 InputFilter 的事件，没有“生还者”，只有“克隆体”。**
+3. **`0x67000000` 标志位的破译与性能陷阱**
+   通过追踪图中第 3 步的重注入，你的 dump 日志中的十六进制标志位得到了完美解释：
+   *   `0x40000000` = `POLICY_FLAG_PASS_TO_USER` (初始硬件层判定)
+   *   `0x20000000` = `POLICY_FLAG_INTERACTIVE` (初始硬件层判定)
+   *   `0x04000000` = `POLICY_FLAG_FILTERED` (由注入层 `InputFilterHost` 强制追加)
+   *   `0x02000000` = `POLICY_FLAG_TRUSTED` (默认可信事件)
+   *   `0x01000000` = `POLICY_FLAG_INJECTED` (底层发现是外部 `inject` 调用自动追加)
+   相加恰好为 **`0x67000000`**。而正是由于它是通过 `injectInputEvent` 注入的，系统会为其分配**全新的 `inputEventId` (B)** 且来源不再是 `INPUT_READER`。这两点彻底剥夺了该事件进入 `LatencyTracker` 性能白名单的资格。
 #### 时序机制的核心推论
 
 1.  **原生事件管线的终止原因**
