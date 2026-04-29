@@ -600,3 +600,157 @@ adb shell stop && adb shell start
 ```
 
 结合我们在底层源码（`LatencyAggregator.cpp`）中自行添加的 `ALOGW` 蜗牛报警日志，修改这两个参数后，你就能在 `logcat` 中极其敏锐、无遗漏地抓出所有掉帧窗口和耗时明细，是智能座舱与高刷手机性能调优的终极利器！
+
+## InputDispatcher 事件入队与拦截过滤时序 (Inbound Flow)
+
+`InputDispatcher` 不仅负责将事件派发给具体的 App 窗口，它还是系统级按键拦截（如电源键亮屏）和无障碍辅助服务（Accessibility）截获事件的核心关卡。
+
+不论事件是由底层的 `InputReader` 读取产生的（`notifyKey`, `notifyMotion`），还是来自上层组件的软件模拟注入（`injectInputEvent`），它们在真正进入 `InboundQueue` 之前，都必须经过极其严密的拦截与过滤流程。
+
+### 1. 按键事件 (notifyKey) 入队与拦截时序图
+
+按键事件（如电源键、音量键、物理键盘）具有极高的特权要求，必须在入队排队前进行系统级的拦截判定，以确保诸如“长按电源键关机”等核心交互不被前台卡顿的 App 阻塞。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    
+    box LightCyan InputReader Thread (Native)
+    participant Reader as InputReader<br>及 Listener Chain
+    end
+    
+    box LightYellow System Server (Dispatcher Thread)
+    participant Disp as InputDispatcher
+    participant Policy as NativeInputManager
+    participant PWM as PhoneWindowManager<br>(Java)
+    end
+    
+    box LightPink App / System Components
+    participant JavaFilter as InputFilter<br>(Accessibility 等)
+    end
+    
+    participant Queue as InboundQueue
+
+    Note over Reader, PWM: 1. 硬件读取与 PhoneWindowManager 特权拦截
+    Reader ->> Disp: notifyKey()
+    Note right of Disp: 此时无锁 (No mLock)，防止阻塞 Reader 线程
+    Disp ->> Policy: interceptKeyBeforeQueueing()
+    Policy ->> PWM: JNI: interceptKeyBeforeQueueing()
+    Note right of PWM: 处理特权按键<br>(如电源键亮屏、音量键调节)
+    PWM -->> Policy: 返回 policyFlags
+    Policy -->> Disp: 决定是否放行或转为虚拟键
+
+    %% --- 2. 无障碍拦截与过滤 (InputFilter) ---
+    rect rgb(240, 240, 240)
+    Note over Disp, JavaFilter: 2. 检查全局输入过滤器 (mInputFilterEnabled)
+    Disp ->> Disp: mLock.lock()
+    alt 启用了全局无障碍过滤器
+        Disp ->> Disp: shouldSendKeyToInputFilterLocked() == true
+        Disp ->> Disp: mLock.unlock() // 【防死锁释放】
+        Disp ->> Policy: filterInputEvent()
+        Policy ->> JavaFilter: 跨进程 Java 过滤
+        JavaFilter -->> Policy: return true(放行) 或 false(拦截)
+        Policy -->> Disp: boolean result
+        Disp ->> Disp: mLock.lock() // 【重新上锁】
+        Note right of Disp: 若被拦截，提前 return 吞噬事件
+    end
+    end
+
+    %% --- 3. 入队排队 ---
+    Note over Disp, Queue: 3. 延迟打点与排队
+    Disp ->> Disp: mLatencyTracker.trackListener()
+    Note right of Disp: 仅开启 mPerDeviceInputLatencyMetricsFlag 且未被过滤时统计
+    Disp ->> Queue: enqueueInboundEventLocked()
+    Disp ->> Disp: mLooper->wake()
+    Note right of Disp: 唤醒 Dispatcher Thread 分发
+    Disp ->> Disp: mLock.unlock()
+```
+
+### 2. 触摸与注入事件 (notifyMotion & injectInputEvent) 时序图
+
+触摸事件（Motion）与按键事件最大的区别在于：它不需要经过 `PhoneWindowManager` 的 `interceptKeyBeforeQueueing` 特权拦截，但它依然需要接受无障碍服务的过滤。同时，无障碍服务或测试框架经常会通过 `injectInputEvent` 软件注入来模拟触摸。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    
+    box LightCyan Native Threads
+    participant Reader as InputReader<br>Thread
+    participant Injector as Injector Thread<br>(Binder IPC)
+    end
+    
+    box LightYellow System Server (Dispatcher)
+    participant Disp as InputDispatcher
+    participant Policy as NativeInputManager
+    end
+    
+    box LightPink App / System Components
+    participant JavaFilter as InputFilter<br>(Accessibility 等)
+    participant A11y as AccessibilityService
+    end
+    
+    participant Queue as InboundQueue
+
+    %% --- 1. 硬件触摸事件入口 ---
+    Note over Reader, Disp: 1. 硬件触摸事件入口 (无 BeforeQueueing)
+    Reader ->> Disp: notifyMotion()
+    
+    %% --- 2. 无障碍拦截与重注入闭环 ---
+    rect rgb(240, 240, 240)
+    Note over Disp, JavaFilter: 2. 无障碍拦截与全局手势识别
+    Disp ->> Disp: mLock.lock()
+    alt 启用了全局无障碍过滤器 (TalkBack等)
+        Disp ->> Disp: shouldSendMotionToInputFilterLocked() == true
+        Disp ->> Disp: mLock.unlock() // 【防死锁释放】
+        Disp ->> Policy: filterInputEvent()
+        Policy ->> JavaFilter: 跨进程 Java 过滤
+        
+        alt 判定为无障碍手势 (如三指滑动)
+            JavaFilter -->> Policy: return false (拦截)
+            Policy -->> Disp: return false
+            Note over Disp: 物理事件在底层被彻底吞噬！
+            
+            %% 闭环：重新注入
+            JavaFilter ->> A11y: 触发相应的 Accessibility 业务逻辑
+            Note over A11y, Injector: 服务处理完毕后，可能生成新事件接管系统输入
+            A11y ->> Injector: injectInputEvent() (Java API)
+        else 普通滑动放行
+            JavaFilter -->> Policy: return true (放行)
+            Policy -->> Disp: return true
+            Disp ->> Disp: mLock.lock() // 【重新上锁】
+        end
+    end
+    end
+
+    %% --- 3. 软件注入入口 (Injection) ---
+    Note over Injector, Disp: 3. 软件注入入口 (绕过 Reader 和 Filter)
+    Injector ->> Disp: injectInputEvent() (Binder IPC)
+    Note right of Disp: 携带 targetUid, syncMode 等<br>来自 Monkey、自动化测试或 A11y
+    Disp ->> Disp: mLock.lock()
+
+    %% --- 4. 延迟追踪与入队 ---
+    Note over Disp, Queue: 4. 延迟打点与排队
+    Disp ->> Disp: mLatencyTracker.trackListener(args)
+    Note right of Disp: 【注意】Inject事件无资格打点 (需 Source::INPUT_READER)
+    Disp ->> Queue: enqueueInboundEventLocked()
+    Disp ->> Disp: mLooper->wake()
+    Disp ->> Disp: mLock.unlock()
+```
+
+### 3. 核心审查机制解析
+
+#### A. 发送源头纠正：硬件并不是直接调用 Dispatcher
+在真实的架构中，硬件驱动产生中断后，并不是直接调用 `notifyKey`。而是由我们前文提到的 `InputReader` 的死循环提取事件，并途经 `UnwantedInteractionBlocker`、`InputProcessor` 等多道工序的 Listener 责任链后，由**责任链的最后一环**（即 `InputDispatcher` 实现的 Listener 接口）接收到加工好的 `NotifyArgs`。
+
+#### B. 为什么要有 `interceptKeyBeforeQueueing` 与 `PhoneWindowManager`？
+对于按键事件（尤其是电源键、音量键或 Home 键），系统需要做到**“即时响应”**。如果将电源键放入 `InboundQueue` 中，万一此时队列前方积压了大量导致应用卡顿的滑动事件，系统就会出现“按下电源键却迟迟不亮屏”的致命体验。
+因此，`InputDispatcher::notifyKey` 在**获取 `mLock` 之前**（即无锁、不会被阻塞的极早期阶段），会率先通过 `mPolicy` 调用 Java 层的 `PhoneWindowManager::interceptKeyBeforeQueueing`。在这里，Android 框架会最优先执行唤醒屏幕、特权系统按键截获的逻辑，从而实现了按键的最高优处理。
+
+#### C. `filterInputEvent` 拦截与再次 `inject` 回溯闭环
+`InputFilter` 是专为无障碍服务（如 TalkBack 盲人模式）设计的。当开启 TalkBack 时，你滑动的轨迹并不是直接发给桌面的，而是必须经过 Java 层的 `InputFilter` 过滤。
+*   **跨进程防死锁锁避让：** `filterInputEvent` 会跨进程调用 Java 层的代码。如果 `InputDispatcher` 握着全局的 `mLock` 去调用它，一旦 Java 层卡顿，整个 C++ 层的触控线程池将瞬间死锁。因此，源码在调用前执行了神级的 `mLock.unlock()`，等 Java 层判定完毕返回后再重新 `mLock.lock()`。
+*   **消费与再次注入：** 如果 TalkBack 判定这是一个需要拦截的手势，它会返回 `false`，导致 `notifyMotion` 直接 `return`（也就是**事件在底层被吞噬了**）。随后，无障碍服务在完成自身的业务逻辑（例如将三指滑动转义为某项操作）后，**它可能会主动调用框架层的 API，通过 `injectInputEvent` 将一个新的（或修改过的）事件强行注入回 `InputDispatcher`，以此来接管整个系统的输入流。**
+
+#### D. 软件注入后门 (`injectInputEvent`)
+不仅是无障碍服务，当你使用 `adb shell input tap x y`、自动化测试框架 (`Instrumentation`) 或者是自动化压测工具 (Monkey) 时，事件根本不会经过底层的硬件驱动读取。它们通过 Binder IPC 直接调用 `InputDispatcher::injectInputEvent`。
+在注入方法内部，系统会跳过 `interceptKeyBeforeQueueing` 和 `filterInputEvent` 的拦截，构造一个带有特殊 `policyFlags` 的 `InjectionState` 并直接塞进 `InboundQueue`。这也就是为什么我们在上一节的 Latency Tracking 源码中看到：**只有 `Source::INPUT_READER` 来源的事件才有资格被计入端到端延迟统计**，而这类 Inject 注入的事件则不配拥有测量性能的资格。
