@@ -917,8 +917,9 @@ flowchart LR
     end
 
     subgraph AppSpace [用户进程域]
-        A11yService[AccessibilityService\n如 TalkBack, 车机防误触App]:::a11y
         TargetApp[前台焦点应用]:::a11y
+        A11yService[AccessibilityService\n如 TalkBack, 车机防误触App]:::a11y
+        
     end
 
     %% 流程关系
@@ -1059,3 +1060,135 @@ sequenceDiagram
     上述标志位的总和精确等于 `0x67000000`，与 `dumpsys` 的输出完全一致。
 3.  **性能统计失效的技术背景**
     在重新注入时，由于事件被视作由外部框架调用的请求，系统会重新分配 **`inputEventId`** 并将其 `Source` 定义变更为非 `INPUT_READER`。基于这两项变化，底层监控框架将判定该事件不再是原始的物理输入行为，进而主动从 `LatencyTracker` 的考量范畴中将其剔除。
+
+
+> **名词解释：什么是 A11y / A11yInputFilter？**
+> 
+> 在前文的 dumpsys 报告和源码分析中，我们多次看到了 `A11yInputFilter` 和 `A11y` 这个词。
+> *   **A11y** 是业界对 **Accessibility (无障碍/辅助功能)** 的标准缩写。因为从首字母 `A` 到尾字母 `y` 之间刚好有 11 个字母。
+> *   **`A11yInputFilter`** 则是 `dumpsys accessibility` 命令在输出日志时，对底层核心类 `AccessibilityInputFilter` 的简写。它代表的正是那个由于语音助手申请了特权，而在底层被强行挂载、导致物理触控事件被全局拦截和重注入的 Java 层“事件加工流水线”。
+
+### 7. 实战排查案例：基于 Dumpsys 解析被劫持的底层管线
+
+当你怀疑系统的输入管线被异常劫持，或者 `SLOW_INPUT_EVENT_REPORTED` 日志打不出来时，通过对 `adb shell dumpsys accessibility` 输出日志的解析，往往能直接锁定“元凶”。
+
+以下是对一台真实车机（`h47a`）实车 dump 结果的专业级调查报告。
+
+#### 1. 抓获幕后元凶：到底是谁注册了无障碍服务？
+在 dumpsys 输出中，找到 `User state` 节点下的 `Enabled services` 和 `Bound services` 字段：
+
+```text
+Enabled services:{ {com.voyah.ai.voice/com.voyah.ai.business.viewcmd.accessibility.VoiceAccessibilityService} }
+Bound services:{ Service[label=智能助手, feedbackType[FEEDBACK_GENERIC], capabilities=33, ...] }
+```
+**解析：** 
+这就是导致整个 InputFlinger C++ 底层测速瘫痪的“元凶”！车机上的 **智能助手（语音助手）应用 `com.voyah.ai.voice`**，长期在后台静默注册并绑定了一个名为 `VoiceAccessibilityService` 的无障碍服务。
+
+#### 2. 罪证确凿：它到底申请了什么特权？
+我们继续看 `Bound services` 里面的 `capabilities` 字段：
+```text
+capabilities=33 (即二进制的 100001)
+```
+在 Android 源码 (`AccessibilityServiceInfo.java`) 中，capabilities 是按位或组合的：
+*   `CAPABILITY_CAN_RETRIEVE_WINDOW_CONTENT = 1`（允许获取窗口内容，如节点文字）
+*   `CAPABILITY_CAN_PERFORM_GESTURES = 32`（**允许执行和注入手势**）
+
+**解析：**
+这证明了该语音助手不仅申请了读取屏幕文字的权限，更**申请了注入触摸事件（`FLAG_FEATURE_INJECT_MOTION_EVENTS`）的特权**。
+正如我们上一节源码推演的，只要存在这个 `INJECT_MOTION_EVENTS` 权限，`AccessibilityManagerService` 就会立刻实例化一个 `InputFilter`，强行将底层 `InputDispatcher` 的 `mInputFilterEnabled` 置为 `true`！
+
+#### 3. A11yInputFilter 的生效证据
+在 dump 的尾部，有一段 `A11yInputFilter Info` 的输出，这简直就是给系统底层盖棺定论的判决书：
+```text
+A11yInputFilter Info : 
+Enabled features of Display [0] = [MotionEventInjector]
+Enabled features of Display [2] = [MotionEventInjector]
+Enabled features of Display [3] = [MotionEventInjector]
+```
+**解析：**
+这表明：在系统的这三块屏幕（0号中控屏、2号副驾屏、3号某个应用屏）上，由于语音助手申请了注入权限，`MotionEventInjector` 这个事件加工拦截器已经被全局挂载。
+所有的触摸事件，都会无差别地被迫跨越 JNI，跑去询问这个加工器。
+
+#### 4. 架构反思：既然车机没有改原生流程，他们为什么要注册这个？
+这是一个极具代表性的 Android 架构妥协。
+
+车机的“智能语音助手”有一个极其核心的功能：**“可见即可说”**。
+也就是你在屏幕上看到一个按钮写着“打开空调”，你直接用嘴喊“打开空调”，系统就会自动帮你点击那个按钮。
+
+**为了实现“可见即可说”，语音助手必须做到两件事：**
+1. **获取屏幕上所有的 View 树结构和文字：** 它需要知道屏幕上画了什么。这就是为什么它申请了 `capabilities` 里的 `1` (获取窗口内容)。
+2. **模拟用户的手指去点击那个坐标：** 当你说出指令后，它需要跨进程去点击那个 View。这就是为什么它申请了 `capabilities` 里的 `32` (执行和注入手势)。它利用的就是无障碍框架提供的 `dispatchGesture` API。
+
+**代价与悲剧：**
+车机开发团队非常“偷懒”地使用了 Android 标准的 Accessibility 接口来实现“可见即可说”。但他们可能并没有意识到，这个 `32`（注入手势）权限申请下去，系统框架就会为了“配合你可能要注入手势的动作”，粗暴地把底层 C++ 原生输入管线的监控网（LatencyTracker）全部拆除了。
+
+这就是为什么哪怕车机没有改一行底层 C++ 源码，原生的触摸测速埋点依然全盘崩溃的根本原因。这也是我们在进行车机底层性能调优时，必须要跨界具备 Java Framework 甚至上层业务理解能力的最佳反面教材。
+
+
+#### 关于非盲人模式下手势未达应用的溯源分析
+
+在上述机制推演中，存在一个核心疑问：当无障碍服务仅申请了 `CAPABILITY_CAN_PERFORM_GESTURES` (注入手势) 权限，而并未申请接管物理触摸 (如 `TouchExploration`) 时，**真实的物理触摸事件是否会通过 Binder 跨进程派发至该无障碍应用？**
+
+**结论：不会。** 在此特定配置下，物理事件仅在 System Server 进程的 Java 框架层空转，并不会实际触达无障碍服务的应用进程。其底层逻辑链条如下：
+
+1. **触发 `InputFilter` 挂载的充要条件：**
+   通过分析 `AccessibilityManagerService.updateInputFilter`，只需应用声明 `isPerformGesturesEnabledLocked`，系统即会强制实例化 `AccessibilityInputFilter` 并将底层 `mInputFilterEnabled` 置为 `true`。这是导致原生 C++ 管线中断的第一因。
+2. **`EventStreamTransformation` 责任链的极简状态：**
+   由于应用未申请盲人模式或按键拦截，此时组装的责任链中仅包含唯一的处理器：**`MotionEventInjector`**。
+3. **空转放行的源码实现：**
+   当底层物理滑动事件经由 JNI 传递至 `MotionEventInjector` 的 `onMotionEvent` 方法时，该处理器仅用于处理由辅助功能发起的模拟手势。对于来源为硬件的真实触摸事件，源码实现如下：
+   ```java
+   // 源码路径：frameworks/base/services/accessibility/java/com/android/server/accessibility/MotionEventInjector.java
+   @Override
+   public void onMotionEvent(MotionEvent event, MotionEvent rawEvent, int policyFlags) {
+       // ... 略过辅助工具防干扰逻辑 ...
+       
+       // 对于真实的物理触摸事件，不作任何处理，直接向下传递至责任链末端
+       super.onMotionEvent(event, rawEvent, policyFlags);
+   }
+   ```
+4. **系统资源的无效消耗：**
+   事件直接流至链条末端的 `InputFilterHost`，随后调用 `injectInputEvent` 重新排队。这意味着，无障碍服务本身对这些物理滑动**零感知、零消费**。系统仅仅为了维持“随时可能发起注入”的能力框架，付出了每次滑动事件均需经历 `Native -> JNI -> Java -> JNI -> Native` 完整跨语言调用的高昂性能代价，并不可逆地破坏了事件的原始溯源 ID。
+
+此现象进一步印证了在车机架构中，采用全局系统特权权限 (`INJECT_EVENTS`) 替代无障碍服务执行模拟点击的技术必要性。
+
+### 8. 架构重构指南：如何优雅实现车机“可见即可说”？
+
+在明确了 `AccessibilityService`（无障碍服务）会为了“可见即可说”功能而挂载全局 `InputFilter`，进而毁灭整个系统的输入测速埋点（`SLOW_INPUT_EVENT_REPORTED`）之后，摆在车机架构师面前的灵魂拷问是：**不使用无障碍服务，如何正确实现“可见即可说”？**
+
+“可见即可说”包含两个核心技术动作：**“可见”**（获取屏幕 View 树）和 **“即可说”** （触发目标 View 的点击）。
+在车机（AAOS）环境下，最佳的架构实践应当完全规避 `Accessibility` 框架，采用以下两套解耦方案：
+
+#### 核心思路：放弃全局过滤，改用“按需提取”与“直接注入”
+
+**错误的做法（当前痛点）：** 
+语音助手为了能“随时模拟点击”，长期注册了无障碍服务的 `CAPABILITY_CAN_PERFORM_GESTURES` 特权。这导致底层的 `AccessibilityManagerService` 认定系统中随时会有无障碍手势产生，从而**永久挂载**了 `InputFilter`，把 99.9% 正常的手指滑动也给拦截和重注入了。
+
+**正确的做法：系统级 `INJECT_EVENTS` 权限直调**
+语音助手作为车机的核心 System App，完全有资格在 `AndroidManifest.xml` 中申请系统级签名权限 `android.permission.INJECT_EVENTS`。
+当用户通过语音下达指令（如“打开空调”），语音助手只需计算出空调按钮的屏幕坐标 `(x, y)`，然后直接调用：
+```java
+InputManager.getInstance().injectInputEvent(motionEvent, InputManager.INJECT_INPUT_EVENT_MODE_ASYNC);
+```
+**这种做法的架构优势：**
+它**不需要**向系统注册任何无障碍服务！`InputManager.injectInputEvent()` 是一个独立的后门 API。当你调用它时，系统只会把这一个由语音生成的模拟点击打上 `INJECTED` 标签塞进队列，而**绝不会触发全局的 `mInputFilterEnabled = true`**。
+这样，用户用手指在屏幕上滑动的物理事件，依然会走最纯粹的 C++ 原生分发管线，完美保留在 `LatencyTracker` 的端到端测速大盘中。
+
+#### 方案一：采用官方的 VoiceInteractionService (Assist API)
+如果你想要获取屏幕上的按钮文字（“可见”），不需要用 Accessibility 去遍历节点。Android 官方为语音助手提供了专门的 **Assist API**：
+1. 语音助手继承并实现 `VoiceInteractionService` 和 `VoiceInteractionSession`。
+2. 当用户唤醒语音时，调用 `onHandleAssist(Bundle data, AssistStructure structure, ...)`。
+3. `AssistStructure` 是由底层的 `ViewRootImpl` 瞬间快照生成的一棵极度轻量级的屏幕 View 树（包含了文字、坐标、ContentDescription）。
+4. 语音助手通过这棵树找到目标按钮的坐标，然后用 `INJECT_EVENTS` 权限直接注入点击事件。
+
+#### 方案二：OEM 深度定制 ViewRootImpl (车厂常见魔改)
+如果你觉得 Assist API 每次生成全屏快照太重，OEM 完全可以在 Framework 层做极低侵入的定制：
+1. **自动上报：** 在 `frameworks/base/core/java/android/view/View.java` 的重绘或布局逻辑中，只要 View 包含文字且 `isClickable() == true`，就通过一条专属的 Binder 通道，将其哈希值、文字和屏幕绝对坐标异步推送给“语音分发系统服务 (VoiceDispatcherService)”。
+2. **精准制导：** 当语音助手识别到“打开空调”时，去 VoiceDispatcherService 的缓存里查到坐标，然后执行 `InputManager.injectInputEvent()`。
+
+### 总结
+**Accessibility（无障碍服务）在 Android 架构设计中的初衷，是为残障人士提供接管设备输入输出的“兜底后门”，它在性能和事件溯源上做出了极大的妥协。**
+
+智能座舱中的“语音可见即可说”是一项高频、核心的商业功能。**用低频的兜底后门（Accessibility）去承载高频的商业级交互，必然会遭到系统底层架构的“反噬”**（如 JNI 跨进程性能损耗、InputEventId 链条断裂、端到端延迟统计崩溃）。
+
+将“获取屏幕内容”和“模拟点击屏幕”解耦，使用 `Assist API` / 定制 `ViewRootImpl` 负责前者，使用系统级 `INJECT_EVENTS` 权限负责后者，这才是真正符合系统级输入输出架构（InputFlinger）美学的“最佳实践”。
