@@ -185,7 +185,7 @@ sequenceDiagram
     rect rgb(240, 240, 240)
     Note over Disp, App: 5. 命中测试与跨进程发送 (Dispatcher Thread)
     Disp ->> Disp: dispatchOnce() -> dispatchOnceInnerLocked()
-    Note right of Disp: 【核心修正】<br>触摸事件: findTouchedWindowTargets() 查坐标<br>按键事件: findFocusedWindowTargetLocked() 查焦点
+    Note right of Disp: <br>触摸事件: findTouchedWindowTargets() 查坐标<br>按键事件: findFocusedWindowTargetLocked() 查焦点
     Disp ->> Disp: 寻找目标 (Hit Testing / Focus)
     Disp ->> App: publishMotionEvent() <br> (Unix Domain Socket send)
     end
@@ -216,7 +216,7 @@ sequenceDiagram
 *   **解析组装：** Reader 调用 `processEventsLocked()` 将事件分发给对应的设备 Mapper。对于触摸屏，起作用的是 `MultiTouchInputMapper`。Mapper 的 `syncTouch()` 方法负责解析 Linux 的 Slot 协议和 Tracking ID，随后 `cookPointerData()` 将驱动的原始数据（Raw Data）转换为带有 Android 绝对坐标和逻辑的 `NotifyMotionArgs` 结构体。
 
 #### 3. 责任链处理 (Listener Pipeline)
-当 Mapper 将数据“煮熟 (cooked)”后，`InputReader` 会调用 `notifyMotion(args)` 启动责任链。正如架构图所示，事件在到达 Dispatcher 之前，会依次穿过一系列的 Listener：
+当 Mapper 将数据“cooked”后，`InputReader` 会调用 `notifyMotion(args)` 启动责任链。正如架构图所示，事件在到达 Dispatcher 之前，会依次穿过一系列的 Listener：
 1.  **UnwantedInteractionBlocker**：执行防误触策略（如掌托过滤 Palm Rejection）。
 2.  **PointerChoreographer**：处理鼠标等指针设备的坐标和光标转换。
 3.  **InputProcessor**：进行坐标的仿射变换（如处理屏幕旋转、折叠屏坐标映射）。
@@ -293,7 +293,7 @@ sequenceDiagram
 
 Android 的输入子系统通过一套严密的 **“设备绑定”** 与 **“分区路由”** 机制实现了多屏触控支持。
 
-### 1. 设备的发现与物理屏幕绑定 (InputReader 层)
+### 设备的发现与物理屏幕绑定 (InputReader 层)
 当一个新的触摸屏硬件（如通过 USB、I2C 或 GMSL 桥接的 I2C）接入时，内核会在 `/dev/input/` 下生成一个新的 `eventX` 节点。`InputReader` 的 `EventHub` 发现设备后，面临的核心问题是：**“这个触摸屏对应的是车里的哪一块屏幕？”**
 
 *   **IDC 配置文件 (Input Device Configuration)：** 系统集成商通常会为每个触摸屏硬件提供一个 `.idc` 配置文件（通过 Vendor ID 和 Product ID 匹配）。在文件中可以声明：
@@ -302,11 +302,11 @@ Android 的输入子系统通过一套严密的 **“设备绑定”** 与 **“
 *   **Viewport 注入与匹配：** WindowManager / DisplayManager 获知系统中点亮了多个屏幕后，会将所有屏幕的 `DisplayViewport`（包含逻辑显示器 ID、物理尺寸、对应的物理端口 `uniqueId`）下发给 Native 层的 `InputReader`。`InputReader` 会将物理触摸设备的 `location` 与 `DisplayViewport` 的 `uniqueId` 进行字符串匹配。
 *   **打上标签 (Stamping)：** 匹配成功后，该 InputDevice 就会和具体的 `displayId`（如中控是 0，副驾是 2）绑定。当这块屏幕被触摸时，`MultiTouchInputMapper` 产出的每一个 `NotifyMotionArgs` 都会被**强制打上 `displayId` 标签**。
 
-### 2. 多屏独立的可见窗口树 (SurfaceFlinger 层)
+### 多屏独立的可见窗口树 (SurfaceFlinger 层)
 如前文架构图所述，SurfaceFlinger 负责向 `InputDispatcher` 同步真实的可见窗口列表。
 在多屏环境下，SurfaceFlinger 会为**每一个物理显示器 (DisplayId)** 构建并混合一棵独立的 Layer 渲染树。当它通过 `setInputWindows()` 跨进程调用将窗口列表传递给 Input 层时，每一个 `InputWindowInfo` 数据结构中都严格包含着它所渲染在的 `displayId`。
 
-### 3. 精准的跨屏派发隔离 (InputDispatcher 层)
+### 精准的跨屏派发隔离 (InputDispatcher 层)
 当 `InputDispatcher` 收到一个带有屏幕标签（例如 `displayId = 2`，副驾屏）的 `MotionEvent` 时：
 *   **分区命中测试 (Hit Testing)：** Dispatcher 在执行 `findTouchedWindowTargets()` 时，**只会遍历那些属于 `displayId == 2` 的可见窗口列表**，从 Z 轴顶层开始寻找可触摸区域 (`TouchableRegion`) 包含落点的窗口。
 *   **绝对坐标隔离：** 即使中控屏（`displayId = 0`）上有一个设置了 `FLAG_SYSTEM_ERROR` 极高层级的全屏遮罩弹窗，只要触摸事件是副驾硬件产生的（携带 `displayId=2`），InputDispatcher 也绝对不会将事件误派发给中控屏的弹窗。坐标系（0,0）永远是相对于当前 `displayId` 对应屏幕的左上角。
@@ -316,7 +316,7 @@ Android 的输入子系统通过一套严密的 **“设备绑定”** 与 **“
 
 在 Android 窗口管理与输入系统中，`InputChannel` 是连接 System Server (InputDispatcher) 和 App 进程的核心桥梁。不管是常规的触摸窗口，还是用于焦点监控的 `FocusInputMonitor`，底层都是通过 `InputChannel::openInputChannelPair` 创建的一对 **Unix Domain Socket (socketpair)** 来实现全双工的跨进程通信。
 
-下面通过 Mermaid 序列图结合 `createFocusInputMonitor` 等源码流程，详细展示 WMS、InputDispatcher 与 App 之间如何通过 `InputChannel` 建立通信纽带：
+下面通过序列图结合 `createFocusInputMonitor` 等源码流程，详细展示 WMS、InputDispatcher 与 App 之间如何通过 `InputChannel` 建立通信纽带：
 
 ```mermaid
 sequenceDiagram
@@ -369,7 +369,7 @@ sequenceDiagram
 
 `InputDispatcher` 通过复用 `InputChannel` (Socket) 建立了一套严密的性能监控闭环。
 
-### 1. 双重回调机制：Finished 与 Timeline
+### 双重回调机制：Finished 与 Timeline
 当 `InputDispatcher` 监听 App 端的 Socket 返回数据时，`handleReceiveCallback` 核心处理逻辑会解析两种完全不同的信号结构体：
 
 ```cpp
@@ -397,7 +397,7 @@ if (std::holds_alternative<InputPublisher::Finished>(*result)) {
 *   **触发时机：** App 消费完输入事件后，通常会触发 UI 树重绘（`Choreographer::doFrame`）。当 App 的渲染线程（RenderThread）将包含此次 UI 变更的图形缓冲区（Graphic Buffer）提交给 SurfaceFlinger，并且 SurfaceFlinger 最终将其**送显到物理屏幕 (Present)** 后，图形管道会向底层的 `InputChannel` 补发一条 `Timeline` 类型的消息。
 *   **作用：** `Dispatcher` 将这条包含精准时间戳的消息交给 `mLatencyTracker`（延迟追踪器）。
 
-### 2. LatencyTracker：拼接端到端时间线
+### LatencyTracker：拼接端到端时间线
 `LatencyTracker` 负责将散落在系统各个角落的时间戳通过唯一的 `inputEventId` 拼接成一条完整的故事线：
 
 1.  **内核读取时间 (ReadTime)：** `EventHub` 从 `/dev/input` 读到硬件中断的时间。
@@ -407,7 +407,7 @@ if (std::holds_alternative<InputPublisher::Finished>(*result)) {
 
 通过计算 **`PresentTime - ReadTime`**，系统就能得出精确到纳秒级的端到端触控延迟。如果该延迟频繁超过阈值（如 30ms-50ms，导致用户感觉“不跟手”或“掉帧”），系统底层（如 Perfetto/Systrace 埋点）就会将其记录为 Jank（卡顿）指标，供系统开发者进行图形栈或输入栈的性能调优。
 
-### 3. Finished 与 Timeline 信号双轨时序图及埋点上报
+### Finished 与 Timeline 信号双轨时序图及埋点上报
 
 为了更直观地展现从事件分发到“取消 ANR”，再到“计算端到端延迟”乃至“触发底层埋点上报”的全过程，我们绘制了如下的时序图。图中明确区分了 App 的 **UI 主线程**和 **RenderThread 渲染线程**，同时揭示了一个极其精妙的设计：**当前事件的最终耗时清算，往往是由下一个新事件的到来（作为时钟驱动）触发的**。
 
@@ -482,7 +482,7 @@ sequenceDiagram
     end
 ```
 
-### 4. 关键疑问：是不是所有的 Touch 事件都会触发 TIMELINE？
+### 关键疑问：是不是所有的 Touch 事件都会触发 TIMELINE？
 **答案是：绝对不会。** 
 
 `Timeline` 信号的本质是 **“UI 渲染流水线的反馈”**，只有当这个 Input 事件真实地导致了屏幕画面的改变**时，才会产生 `Timeline`。以下几种情况，App 只会回写 `Finished`，但**永远不会回写 `Timeline`：
@@ -507,7 +507,7 @@ sequenceDiagram
 计算完成后，为了不影响性能，这些切片数据会被聚合进统计草图 (Sketches) 或直方图 (Histograms) 中，并通过 **StatsD** 服务批量上报为 `INPUT_EVENT_LATENCY_SKETCH` 原子指标。
 同时，如果计算出的端到端延迟 (`endToEndLatency`) 超过了系统规定的阈值，`processSlowEvent` 方法会单独触发一次名为 `SLOW_INPUT_EVENT_REPORTED` 的高优埋点记录。
 
-### 4. 如何查看 Input 延迟监控指标？
+### 如何查看 Input 延迟监控指标？
 
 这些底层的性能埋点数据，是供开发者分析卡顿 (Jank) 和跟手性的核心资产。获取它们的方法主要分为命令行排查和代码级订阅两种：
 
@@ -522,7 +522,7 @@ adb shell cmd stats print-stats | grep -i SLOW_INPUT_EVENT_REPORTED
 adb shell dumpsys statsd
 ```
 
-> **专家建议：** 纯文本的 StatsD 数据难以直观分析。Google 官方强推使用 **Perfetto (ui.perfetto.dev)** 抓取系统 Trace。当你在 Perfetto 中勾选了 `Input` 和 `Graphics` 数据源后，Perfetto 会在后台自动提取上述埋点，并在时间轴的 Input 轨道上直接将这些“延迟切片”以可视化的红绿块展示出来，让你一眼看出是哪一层的耗时导致了掉帧。
+> **建议：** 纯文本的 StatsD 数据难以直观分析。Google 官方强推使用 **Perfetto (ui.perfetto.dev)** 抓取系统 Trace。当你在 Perfetto 中勾选了 `Input` 和 `Graphics` 数据源后，Perfetto 会在后台自动提取上述埋点，并在时间轴的 Input 轨道上直接将这些“延迟切片”以可视化的红绿块展示出来，让你一眼看出是哪一层的耗时导致了掉帧。
 
 #### 方式二：通过代码编程订阅 (StatsManager API)
 如果你正在开发性能监控 SDK、车机诊断工具或自动化压测框架，可以通过 Android 提供的 `StatsManager` API 编程订阅这些底层的 C++ 指标：
@@ -551,7 +551,7 @@ adb shell dumpsys statsd
 > **补充说明：按键事件的延迟追踪**
 > 值得注意的是，除了触摸事件 (`notifyMotion`) 之外，`InputDispatcher::notifyKey()` 同样接入了这套延迟追踪体系。在源码中，如果开启了单设备输入延迟指标特性（`mPerDeviceInputLatencyMetricsFlag`），从实体按键（如音量键、电源键或外接键盘）产生的 `KeyEvent` 也会经过 `trackListener(args)`，参与端到端延迟的计算与打点。这对于车机方向盘按键或游戏手柄的响应调优同样至关重要。
 
-### 5. 影响 Latency Tracking 的关键配置开关
+### 影响 Latency Tracking 的关键配置开关
 
 在 `InputDispatcher` 的核心埋点代码中，有两个极其关键的变量会直接决定一个输入事件是否会被纳入端到端延迟的计算体系：`mInputFilterEnabled` 和 `mPerDeviceInputLatencyMetricsFlag`。
 
@@ -580,7 +580,7 @@ adb shell dumpsys statsd
     adb shell stop && adb shell start
     ```
 
-### 6. 专家级调试技巧：动态调整 SLOW_EVENT 判定阈值
+### 专家级调试技巧：动态调整 SLOW_EVENT 判定阈值
 
 在上文提到的 `SLOW_INPUT_EVENT_REPORTED` 慢事件埋点中，系统底层默认有两个硬编码的限制：
 
@@ -614,7 +614,7 @@ adb shell stop && adb shell start
 
 不论事件是由底层的 `InputReader` 读取产生的（`notifyKey`, `notifyMotion`），还是来自上层组件的软件模拟注入（`injectInputEvent`），它们在真正进入 `InboundQueue` 之前，都必须经过极其严密的拦截与过滤流程。
 
-### 1. 按键事件 (notifyKey) 入队与拦截时序图
+### 按键事件 (notifyKey) 入队与拦截时序图
 
 按键事件（如电源键、音量键、物理键盘）具有极高的特权要求，必须在入队排队前进行系统级的拦截判定，以确保诸如“长按电源键关机”等核心交互不被前台卡顿的 App 阻塞。
 
@@ -673,7 +673,7 @@ sequenceDiagram
     Disp ->> Disp: mLock.unlock()
 ```
 
-### 2. 触摸与注入事件 (notifyMotion & injectInputEvent) 时序图
+### 触摸与注入事件 (notifyMotion & injectInputEvent) 时序图
 
 触摸事件（Motion）与按键事件最大的区别在于：它不需要经过 `PhoneWindowManager` 的 `interceptKeyBeforeQueueing` 特权拦截，但它依然需要接受无障碍服务的过滤。同时，无障碍服务或测试框架经常会通过 `injectInputEvent` 软件注入来模拟触摸。
 
@@ -744,7 +744,7 @@ sequenceDiagram
     Disp ->> Disp: mLock.unlock()
 ```
 
-### 3. 核心审查机制解析
+### 核心审查机制解析
 
 #### A. 发送源头纠正：硬件并不是直接调用 Dispatcher
 在真实的架构中，硬件驱动产生中断后，并不是直接调用 `notifyKey`。而是由我们前文提到的 `InputReader` 的死循环提取事件，并途经 `UnwantedInteractionBlocker`、`InputProcessor` 等多道工序的 Listener 责任链后，由**责任链的最后一环**（即 `InputDispatcher` 实现的 Listener 接口）接收到加工好的 `NotifyArgs`。
@@ -762,7 +762,7 @@ sequenceDiagram
 不仅是无障碍服务，当你使用 `adb shell input tap x y`、自动化测试框架 (`Instrumentation`) 或者是自动化压测工具 (Monkey) 时，事件根本不会经过底层的硬件驱动读取。它们通过 Binder IPC 直接调用 `InputDispatcher::injectInputEvent`。
 在注入方法内部，系统会跳过 `interceptKeyBeforeQueueing` 和 `filterInputEvent` 的拦截，构造一个带有特殊 `policyFlags` 的 `InjectionState` 并直接塞进 `InboundQueue`。这也就是为什么我们在上一节的 Latency Tracking 源码中看到：**只有 `Source::INPUT_READER` 来源的事件才有资格被计入端到端延迟统计**，而这类 Inject 注入的事件则不配拥有测量性能的资格。
 
-### 4. 深度调查案例：车机环境下 Touch 事件被全部 Filter 拦截的现象与影响
+### 深度调查案例：车机环境下 Touch 事件被全部 Filter 拦截的现象与影响
 
 在部分定制化 Android 系统（特别是 Android Automotive 车机系统）中，可能会出现一种极端现象：**所有的真实触摸事件均被 `InputFilter` 拦截处理，随后又通过软件注入（`injectInputEvent`）的方式重新派发。**
 
@@ -803,7 +803,7 @@ sequenceDiagram
    *   **基础策略下沉：** 将“事件丢弃”或“屏幕路由”等轻量级判定逻辑，直接以 C++ 实现在 `NativeInputManager::interceptMotionBeforeQueueing` 中。
    *   **按需拦截机制 (Short-circuit)：** 优化 Java 层判定逻辑，使其仅在极少数特定条件（如特定车速与特定触摸区域）下返回 `false` 予以拦截。对于占绝大比例的正常 UI 交互，**应以极低延迟返回 `true`（放行）**，确保原生物理事件正常经过 C++ 派发管线。
 
-### 5. 源码剖析：InputFilter 开启与 LatencyTracker 失效的根因
+### 源码剖析：InputFilter 开启与 LatencyTracker 失效的根因
 
 根据前文分析，只要 `mInputFilterEnabled` 状态为 `true`，底层的 `LatencyTracker` 即停止追踪。通过追溯 `frameworks/base` 的源码实现，我们可以明确触发该状态的业务源头。
 
@@ -883,7 +883,7 @@ if (setInputFilter) {
    在此输出结果中，重点观察 `capabilities` 和 `flags` 字段。如果看到 `capabilities` 包含了 `CAPABILITY_CAN_PERFORM_GESTURES` (允许执行手势)，或者 `flags` 包含了 `FLAG_REQUEST_FILTER_KEY_EVENTS` (请求按键过滤)，即可实锤正是该服务在底层强制要求 `AccessibilityManagerService` 挂载了 `InputFilter`。
 
 
-### 5.5. 深度解剖：InputFilter 与无障碍服务架构图
+### 深度解剖：InputFilter 与无障碍服务架构图
 
 为了清晰展现事件是如何从底层的 C++ 管线“逃逸”到 Java 层，又如何经过复杂的业务链条被评估甚至篡改的，我们绘制了如下的 **InputFilter 核心架构图**。
 
@@ -959,7 +959,7 @@ flowchart LR
 3. **AMS (AccessibilityManagerService) 的广播：** 责任链中的处理器（如 `TouchExplorer`）在分析轨迹的同时，会调用 AMS 的 `sendMotionEventToListeningServices`。AMS 会遍历所有已绑定的无障碍服务（比如车机 OEM 写的那个 `arservice`），通过 Binder 将坐标源源不断地推给它们，供它们执行上层的业务。
 4. **Host (InputFilterHost)：** 这是流水线的终点。如果一个事件极其幸运，没有被任何拦截器判定为特殊手势，它最终会流到 `Host` 节点。`Host` 的唯一使命就是调用 JNI，将这个经历了九死一生的事件，作为“外部软件注入请求”重新塞回 `InputDispatcher`。
 
-### 6. 机制推演：AccessibilityManagerService 的拦截与重注入时序
+### 机制推演：AccessibilityManagerService 的拦截与重注入时序
 
 为了让你对上述的“架构骨刺”有一个最直观的体感，我们通过追踪 `frameworks/base` 和 JNI 的源码，精确绘制了当存在无障碍服务时，一个物理触控事件是如何经过 **C++ 拦截 -> Java 层责任链过滤 -> 分发至无障碍 App -> 再次通过 Binder 注入回 C++ 底层** 的完整生命周期。
 
@@ -1075,13 +1075,13 @@ sequenceDiagram
 > *   **A11y** 是业界对 **Accessibility (无障碍/辅助功能)** 的标准缩写。因为从首字母 `A` 到尾字母 `y` 之间刚好有 11 个字母。
 > *   **`A11yInputFilter`** 则是 `dumpsys accessibility` 命令在输出日志时，对底层核心类 `AccessibilityInputFilter` 的简写。它代表的正是那个由于语音助手申请了特权，而在底层被强行挂载、导致物理触控事件被全局拦截和重注入的 Java 层“事件加工流水线”。
 
-### 8. 实战排查案例：基于 Dumpsys 解析被劫持的底层管线
+### 实战排查案例：基于 Dumpsys 解析被劫持的底层管线
 
 当你怀疑系统的输入管线被异常劫持，或者 `SLOW_INPUT_EVENT_REPORTED` 日志打不出来时，通过对 `adb shell dumpsys accessibility` 输出日志的解析，往往能直接锁定“元凶”。
 
 以下是对一台真实车机（`h47a`）实车 dump 结果的专业级调查报告。
 
-#### 1. 抓获幕后元凶：到底是谁注册了无障碍服务？
+#### 抓获幕后元凶：到底是谁注册了无障碍服务？
 在 dumpsys 输出中，找到 `User state` 节点下的 `Enabled services` 和 `Bound services` 字段：
 
 ```text
@@ -1091,7 +1091,7 @@ Bound services:{ Service[label=智能助手, feedbackType[FEEDBACK_GENERIC], cap
 **解析：** 
 这就是导致整个 InputFlinger C++ 底层测速瘫痪的“元凶”！车机上的 **智能助手（语音助手）应用 `com.voyah.ai.voice`**，长期在后台静默注册并绑定了一个名为 `VoiceAccessibilityService` 的无障碍服务。
 
-#### 2. 罪证确凿：它到底申请了什么特权？
+#### 罪证确凿：它到底申请了什么特权？
 我们继续看 `Bound services` 里面的 `capabilities` 字段：
 ```text
 capabilities=33 (即二进制的 100001)
@@ -1104,7 +1104,7 @@ capabilities=33 (即二进制的 100001)
 这证明了该语音助手不仅申请了读取屏幕文字的权限，更**申请了注入触摸事件（`FLAG_FEATURE_INJECT_MOTION_EVENTS`）的特权**。
 正如我们上一节源码推演的，只要存在这个 `INJECT_MOTION_EVENTS` 权限，`AccessibilityManagerService` 就会立刻实例化一个 `InputFilter`，强行将底层 `InputDispatcher` 的 `mInputFilterEnabled` 置为 `true`！
 
-#### 3. A11yInputFilter 的生效证据
+#### A11yInputFilter 的生效证据
 在 dump 的尾部，有一段 `A11yInputFilter Info` 的输出，这简直就是给系统底层盖棺定论的判决书：
 ```text
 A11yInputFilter Info : 
@@ -1116,7 +1116,7 @@ Enabled features of Display [3] = [MotionEventInjector]
 这表明：在系统的这三块屏幕（0号中控屏、2号副驾屏、3号某个应用屏）上，由于语音助手申请了注入权限，`MotionEventInjector` 这个事件加工拦截器已经被全局挂载。
 所有的触摸事件，都会无差别地被迫跨越 JNI，跑去询问这个加工器。
 
-#### 4. 架构反思：既然车机没有改原生流程，他们为什么要注册这个？
+#### 架构反思：既然车机没有改原生流程，他们为什么要注册这个？
 这是一个极具代表性的 Android 架构妥协。
 
 车机的“智能语音助手”有一个极其核心的功能：**“可见即可说”**。
@@ -1159,7 +1159,7 @@ Enabled features of Display [3] = [MotionEventInjector]
 
 此现象进一步印证了在车机架构中，采用全局系统特权权限 (`INJECT_EVENTS`) 替代无障碍服务执行模拟点击的技术必要性。
 
-### 9. 架构重构指南：如何优雅实现车机“可见即可说”？
+### 架构重构指南：如何优雅实现车机“可见即可说”？
 
 在明确了 `AccessibilityService`（无障碍服务）会为了“可见即可说”功能而挂载全局 `InputFilter`，进而毁灭整个系统的输入测速埋点（`SLOW_INPUT_EVENT_REPORTED`）之后，摆在车机架构师面前的灵魂拷问是：**不使用无障碍服务，如何正确实现“可见即可说”？**
 
@@ -1200,7 +1200,7 @@ InputManager.getInstance().injectInputEvent(motionEvent, InputManager.INJECT_INP
 
 将“获取屏幕内容”和“模拟点击屏幕”解耦，使用 `Assist API` / 定制 `ViewRootImpl` 负责前者，使用系统级 `INJECT_EVENTS` 权限负责后者，这才是真正符合系统级输入输出架构（InputFlinger）美学的“最佳实践”。
 
-### 10. 扩展分析：除了无障碍，还有谁会触发全局 InputFilter？
+### 扩展分析：除了无障碍，还有谁会触发全局 InputFilter？
 
 在原生的 Android 框架（AOSP）中，`InputDispatcher` 的 `mInputFilterEnabled` 是一个极具杀伤力的系统级变量。一旦它变为 `true`，底层的物理事件监控管线就会彻底瘫痪。
 
@@ -1239,7 +1239,7 @@ InputManager.getInstance().injectInputEvent(motionEvent, InputManager.INJECT_INP
 
 **总结：** `InputFilter` 是一个专门且仅为残疾人辅助设施（Accessibility）设立的隔离舱。如果你不是在做盲人模式或者轮椅用户辅助工具，绝不要让你的系统级 App 触碰到那 10 个危险的触发开关。
 
-### 11. 架构纵深：原生系统全局手势 (System Gestures) 的窃听与派发时序
+### 架构纵深：原生系统全局手势 (System Gestures) 的窃听与派发时序
 
 在前文的分析中，我们明确了使用 `AccessibilityService` 拦截输入来实现业务逻辑会导致原生派发管线的异常。那么，Android 官方系统自身是如何实现诸如“边缘滑动返回 (Back Gesture)”、“状态栏下拉”、“三指截屏”等全局系统手势的呢？
 
@@ -1330,7 +1330,7 @@ sequenceDiagram
 2. **极佳的监控透明度：** 由于未拦截底层的入队与分发流程，事件始终保持最原始的硬件属性（`Source=INPUT_READER`），完美保留在 `LatencyTracker` 的端到端卡顿监控雷达中。
 3. **平滑的业务降级：** 即使处理系统手势的进程由于负载极高发生严重卡顿，因为 Socket 是全双工异步非阻塞的，前台焦点应用的正常触摸交互与界面渲染**绝对不会**因此受到牵连。这正是系统架构设计中容错性（Resilience）的典范。
 
-### 7. inputEventId 视角的事件生命周期对照图
+### inputEventId 视角的事件生命周期对照图
 
 在排查 `SLOW_INPUT_EVENT_REPORTED` 日志丢失的问题时，最致命的盲区在于：我们潜意识里认为最初触摸屏幕的事件和最终渲染画面的事件是**同一个事件**。
 
