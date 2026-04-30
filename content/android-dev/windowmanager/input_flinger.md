@@ -1332,80 +1332,92 @@ sequenceDiagram
 
 ### 7. inputEventId 视角的事件生命周期对照图
 
-在排查 `SLOW_INPUT_EVENT_REPORTED` 日志丢失的问题时，最致命的盲区在于：我们潜意识里认为最初触摸屏幕的事件和最终渲染画面的事件是**同一个事件**。
+> **修订说明（2026-04-29 实证修正）：**
+> 早期版本的本节曾推测：Java 层 InputFilter 拦截原始事件 A 并通过 `MotionEvent.obtain(...)` 重新组装事件 B 注入时，Native 层会**分配全新的 `inputEventId`**，从而造成 LatencyTracker 在两个不同 ID 之间永远凑不齐 timeline。
+>
+> 通过 adb logcat 实际抓取车机上 `notifyMotion` 与 `injectInputEvent` 的对应日志后证伪了该推测：
+>
+> ```text
+> InputDispatcher: notifyMotion - id=7031abe   eventTime=1782412215000ns ... action=MOVE ...
+> InputDispatcher: notifyMotion - id=194e7f53  eventTime=1782437144000ns ... action=UP   ...
+> InputDispatcher: injectInputEvent: ... event=MotionEvent { action=MOVE, ... eventId=0x7031abe }
+> InputDispatcher: injectInputEvent: ... event=MotionEvent { action=UP,   ... eventId=0x194e7f53 }
+> ```
+>
+> 同一笔触摸的 `notifyMotion id` 与 `injectInputEvent eventId` **完全一致**（MOVE 都是 `0x7031abe`，UP 都是 `0x194e7f53`）。说明车机上的 InputFilter 实现是把原 `MotionEvent` 直接透传/拷贝（保留 id），而不是 `obtain` 一个全新事件。**ID 错位假说不成立，timeline 不闭环必须从别处找原因。**
 
-下面的对比图将基于 `inputEventId` 的视角，清晰地揭示：**在挂载了 InputFilter 的那一刻起，原始事件就已经死亡，而端到端延迟统计（LatencyTracker）由于在追踪两个完全不同的 ID 而永远无法闭环。**
+#### 修订后的真相：trackListener 的调用点被短路
+
+在挂了 InputFilter 的车机上，原始事件 A 与注入事件其实是**同一个 `inputEventId`**，但 `LatencyTracker::trackListener(...)` 仍然没机会建档。原因不在 ID 错位，而在调用点：
+
+- `trackListener(...)` 是在 `InputDispatcher::notifyMotion(...)` 函数体的**下半段**才被调用的；
+- 而 `notifyMotion(...)` 在上半段就会通过 `shouldSendMotionToInputFilterLocked()` + `mPolicy.filterInputEvent(...)` 把事件交给 Java 侧 InputFilter，一旦后者返回 `false`（消费），函数立即 `return`，**下半段（含 `trackListener`）永远不会执行**；
+- Java 侧再以 `injectInputEvent(...)` 把事件喂回来时，走的是 `InputDispatcher::injectInputEvent(...)` 这条独立的代码路径，它直接构造 `MotionEntry` 入队，**根本不经过 `notifyMotion`**，自然也没有 `trackListener` 调用。
+
+结果：尽管原始事件和注入事件 ID 一致，`mTimelines` 这张表里压根没有这条 id 的档案；App 后续 `Finished` / `Timeline` 回包时 `mTimelines.find(id)` 一律 miss，timeline 永远不可能 `isComplete()`，`SLOW_INPUT_EVENT_REPORTED` 的 ALOGW 与 StatsD 打点也就永远触发不了。
 
 ```mermaid
 sequenceDiagram
     autonumber
-    
+
     participant Hardware as Touch Panel
-    
+
     box LightCyan LatencyTracker (性能测速大盘)
     participant Tracker as mTimelines<br>[字典集合]
     end
-    
+
     box LightYellow System Server (Native)
     participant Reader as InputReader
     participant Disp as InputDispatcher
     end
-    
+
     box LightPink System Server (Java)
-    participant JavaFilter as A11y InputFilter<br>及重组逻辑
+    participant JavaFilter as A11y InputFilter / OEM 输入策略
     end
-    
+
     participant App as 前台焦点 App
 
-    %% --- 1. 原始事件的诞生与追踪 ---
-    Note over Hardware, Tracker: 1. 原始事件的诞生与追踪 (ID = A)
+    %% --- 1. 事件诞生 ---
+    Note over Hardware, Disp: 1. 原始事件诞生 (ID = X)
     Hardware ->> Reader: 物理中断
-    Reader ->> Disp: notifyMotion(args)
-    Note right of Reader: 生成原始 inputEventId: A<br>Source: INPUT_READER
-    
-    Disp ->> Tracker: trackListener(id = A)
-    Note right of Tracker: Tracker 建档：<br>mTimelines[A] = { readTime, eventTime }
+    Reader ->> Disp: notifyMotion(args, id=X)
+    Note right of Reader: Source: INPUT_READER
 
-    %% --- 2. 原始事件的死亡 ---
+    %% --- 2. notifyMotion 上半段：被 Filter 短路 ---
     rect rgb(255, 230, 230)
-    Note over Disp, JavaFilter: 2. 原始事件的死亡 (ID = A 的终结)
-    Disp ->> JavaFilter: filterInputEvent()
-    JavaFilter -->> Disp: return false (拦截)
-    Note right of Disp: 原始事件 A 并没有被派发给 App！<br>它的生命周期在 Dispatcher 内部彻底结束。
+    Note over Disp, JavaFilter: 2. notifyMotion 上半段：filterInputEvent 拦截后 return
+    Disp ->> JavaFilter: mPolicy.filterInputEvent(event=X)
+    JavaFilter -->> Disp: return false (消费)
+    Note right of Disp: 函数体直接 return，<br>下半段的 trackListener(X) 永远不会执行！<br>mTimelines 中没有 id=X 的档案。
     end
 
-    %% --- 3. 克隆事件的诞生与派发 ---
+    %% --- 3. Java 侧重新注入，ID 保持为 X ---
     rect rgb(230, 255, 230)
-    Note over JavaFilter, App: 3. 克隆事件的诞生与脱节 (ID = B)
-    JavaFilter ->> JavaFilter: MotionEvent.obtain(...)
-    Note right of JavaFilter: Java层调用 obtain 重载组装事件时，<br>Native 层分配了全新的 inputEventId: B
-    JavaFilter ->> Disp: injectInputEvent(id = B)
-    Note right of Disp: 注入事件 B：<br>Source 变为 OTHER，自动打上 INJECTED 标志
-    
-    Disp ->> Tracker: trackListener(id = B) ??
-    Note right of Tracker: 【核心断层】<br>由于 B 的 Source 是 OTHER，<br>不满足 Source == INPUT_READER，被强行拦截！<br>Tracker 根本没有为 B 建档！
-    
-    Disp ->> App: 跨进程 Socket 派发 (id = B)
+    Note over JavaFilter, Disp: 3. Java 侧 inject，ID 仍然是 X
+    JavaFilter ->> Disp: injectInputEvent(event=X) [policyFlags |= INJECTED]
+    Note right of Disp: 走的是 injectInputEvent() 路径，<br>不经过 notifyMotion，也不调用 trackListener。<br>直接构造 MotionEntry 入队。
+    Disp ->> App: Socket 派发 (id=X)
     end
 
-    %% --- 4. 悲惨的测速结账现场 ---
+    %% --- 4. 结账时找不到档案 ---
     rect rgb(240, 240, 240)
-    Note over App, Tracker: 4. 错位的结账：Timeline 永远凑不齐
-    App ->> App: UI 消费完毕并触发渲染送显
-    App -->> Disp: 1. Socket 回写: Finished (id = B)
-    App -->> Disp: 2. Socket 回写: Timeline (id = B, presentTime)
-    
-    Disp ->> Tracker: trackFinishedEvent(id = B) / trackGraphicsLatency(id = B)
-    Tracker ->> Tracker: mTimelines.find(B)
-    Note right of Tracker: 找不到 B 的档案！(前面被拦截了)<br>直接 return，丢弃 App 传回的心血。
-    
-    Tracker ->> Tracker: 等待 5 秒后，处理成熟事件 A
-    Tracker ->> Tracker: processSlowEvent(A)
-    Note right of Tracker: 发现 A 的档案里只有 readTime，<br>根本没有 finishTime 和 presentTime (isComplete == false)！<br>不满足算账条件，A 被当做废弃垃圾清理。
+    Note over App, Tracker: 4. 结账失败：mTimelines 里压根没建过 X 的档
+    App ->> App: 渲染送显
+    App -->> Disp: Socket: Finished (id=X)
+    App -->> Disp: Socket: Timeline (id=X, presentTime)
+
+    Disp ->> Tracker: trackFinishedEvent(X) / trackGraphicsLatency(X)
+    Tracker ->> Tracker: mTimelines.find(X) → miss
+    Note right of Tracker: 找不到档案，直接 return。<br>没有任何 timeline 进入 isComplete 状态，<br>processSlowEvent 也无从触发 ALOGW / StatsD。
     end
 ```
 
-从这幅时序图中可以得出终极的断案结论：
-车机上，底层的 `LatencyTracker` 痴情地等待着原始事件 A 画出画面；
-而 App 却在拼命处理克隆事件 B，并把 B 的画面送显时间老老实实地交给了系统；
-由于 Java 层的介入修改了 ID，A 永远等不到 B 的结果。这导致了 `connectionTimelines.size=0` 或 `isComplete() == false`，使得 `ALOGW` 和 StatsD 打点永远不可能触发。
+#### 断案结论（修订版）
+
+车机上 `SLOW_INPUT_EVENT_REPORTED` 日志缺失的真正机制不是"ID 错位"，而是 **trackListener 调用点被 InputFilter 消费提前短路**：
+
+1. `InputFilterEnabled=true` 的目标上，每一笔触摸都会被 `filterInputEvent` 消费，使 `notifyMotion` 在调用 `trackListener` 之前 return；
+2. 走 `injectInputEvent` 重新进入的事件虽然保留了原始 `inputEventId`，但这条代码路径没有任何 `trackListener` 钩子；
+3. 两条路径都不建档，于是 App 后续回写的 `Finished/Timeline` 永远找不到对应 entry，`mTimelines` 里没有任何条目能 `isComplete()`，慢事件上报路径整体哑火。
+
+排查"timeline 不完整 / `connectionName` 为空 / SLOW 日志看不到"问题时，应当**首先确认 `InputFilterEnabled` 与 filter+inject 路径是否启用**，而不是去怀疑 ID 是否被改写。要让 LatencyTracker 在这类目标上重新工作，可选方案是把 `trackListener` 同时挂到 `injectInputEvent` 路径上，或在 InputFilter 拦截前提早建档。
