@@ -1,8 +1,80 @@
-<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android AccessibilityService 架构与原理深度剖析 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='Android AccessibilityService 架构与原理深度剖析
-AccessibilityService（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android AccessibilityService 架构与原理深度剖析-1 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='AccessibilityService（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。
 本文将深入 Android Framework 底层，解析 AccessibilityService 的架构拓扑，并重点推演它截获全局 onMotionEvent 与 onKeyEvent 的完整调用时序。
-1. 系统级架构拓扑 (Architecture)
-无障碍服务的核心架构横跨了 App 进程、System Server (Java 层) 以及 InputFlinger (Native C++ 层)。
+架构一览
+系统架构
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+top to bottom direction
+
+frame "Accessibility App Process (辅助服务进程)" {
+    [AccessibilityService\n(无障碍服务基类)] as A11yService #e1d5e7
+}
+
+frame "Target App Process (目标应用进程)" {
+    [ViewRootImpl\n(目标应用视图根节点)] as ViewRoot #d5e8d4
+    [AccessibilityNodeInfo\n(无障碍节点信息 / Parcelable 节点快照)] as A11yNode #d5e8d4
+}
+
+frame "Binder IPC 接口" {
+    interface "IAccessibilityServiceClient" as IA11yClient #fff2cc
+    interface "IAccessibilityServiceConnection" as IA11yConn #fff2cc
+    interface "IAccessibilityManager" as IA11yManager #fff2cc
+    interface "IAccessibilityInteractionConnection" as IA11yInteract #fff2cc
+}
+
+frame "System Server (Java Framework)" {
+    [AccessibilityManagerService\n(AMS 大管家)] as AMS #ffe6cc
+    [AccessibilityServiceConnection\n(AMS 内的 Per-Service 连接)] as Conn #ffe6cc
+    [UiAutomationManager\n(自动化测试代理)] as UiTest #ffe6cc
+    [AccessibilityInputFilter\n(事件过滤器)] as InputFilter #ffe6cc
+    [WindowManagerService\n(WMS 窗口管理)] as WMS #ffe6cc
+    [InputManagerService] as InputManagerService #ffe6cc
+}
+
+frame "Native C++ 层" {
+    [InputDispatcher(输入分发器)] as InputDispatcher #dae8fc
+    [NativeInputManager\n(JNI Bridge)] as NativeInputManager #dae8fc
+    [SurfaceFlinger(图层合成)] as SurfaceFlinger #dae8fc
+}
+
+&#39; ==========================================
+&#39;  关系连线 (强制 Top to Bottom 布局)
+&#39; ==========================================
+
+&#39; 1. App <--> Binder 接口
+IA11yClient -up-> A11yService : 持有/调用\n(onAccessibilityEvent 等)
+A11yService -down-> IA11yConn : 主动查询节点树 / 执行动作\n(via AccessibilityInteractionClient)
+IA11yInteract -up-> ViewRoot : 跨进程查询节点
+
+&#39; 2. App 内部视图树流转
+ViewRoot .right.> A11yNode : 生成并返回
+A11yNode .right.> A11yService : 跨进程序列化传递
+
+&#39; 3. Binder 接口 <--> System Server
+Conn -up-> IA11yClient : 持有/调用
+IA11yConn -down-> Conn
+IA11yManager -down-> AMS
+AMS -up-> IA11yInteract 
+
+&#39; 4. System Server 内部交互
+AMS -right-> Conn : 管理与绑定
+AMS -left-> UiTest : 测试注入
+InputFilter -up-> AMS : 传递过滤事件
+InputFilter -left-> InputManagerService : sendInputEvent\n(via super.sendInputEvent / IInputFilterHost)
+WMS -up-> AMS : 同步窗口状态/焦点\n(via WindowManagerInternal)
+AMS -down-> WMS : magnification / window transform
+
+&#39; 5. System Server <--> Native
+InputDispatcher -up-> NativeInputManager : filterInputEvent
+NativeInputManager -up-> InputManagerService : filterInputEvent (JNI)
+InputManagerService -up-> InputFilter : filterInputEvent\nInputFilter内部异步处理Touch事件
+
+InputManagerService --> NativeInputManager : injectInputEvent\n(via mNative/InputFilterHost)
+NativeInputManager --> InputDispatcher : injectInputEvent
+WMS -down-> SurfaceFlinger : SurfaceControl\n图层变换
+@enduml
+系统流程图
 flowchart TD
     %% 样式定义
     classDef native fill:#dae8fc,stroke:#333,stroke-width:1px;
@@ -12,10 +84,10 @@ flowchart TD
 
     subgraph NativeSpace [Native 层 System Server]
         Dispatcher[InputDispatcher]:::native
+        NativeIMS[NativeInputManagerJNI Bridge]:::native
     end
 
     subgraph SysJavaSpace [System Server Java 层]
-        NativeIMS[NativeInputManager]:::sysjava
         IMS[InputManagerService]:::sysjava
         AMS[AccessibilityManagerService]:::sysjava
         A11yFilter[AccessibilityInputFilter\n事件加工责任链]:::sysjava
@@ -28,30 +100,95 @@ flowchart TD
     end
 
     %% 连接关系
-    Dispatcher -- "1. 拦截底层物理事件\nJNI filterInputEvent" --> NativeIMS
-    NativeIMS --> IMS
+    Dispatcher -- "1. 拦截底层物理事件\nfilterInputEvent" --> NativeIMS
+    NativeIMS -- "JNI 回调 Java 层" --> IMS
     IMS -- "2. 交给无障碍流水线处理" --> A11yFilter
     A11yFilter -- "3. 提取特征并广播" --> AMS
     AMS --> A11yConn
     A11yConn -- "4. Binder IPC" --> Wrapper
     Wrapper -- "5. Handler 切主线程" --> A11yService
-核心组件职责：
 
-AccessibilityManagerService (AMS)： 系统中所有无障碍服务的中央大管家。它负责解析应用的 AndroidManifest.xml 中声明的 <accessibility-flags>，并在条件满足时，强行切断底层 InputDispatcher 的原生分发流，挂载全局的 InputFilter。
-AccessibilityInputFilter： 挂载在系统底层的事件加工流水线（EventStreamTransformation）。它负责实时监听和过滤用户的屏幕触摸轨迹与物理按键。
-AccessibilityServiceConnection： System Server 中用于维护与具体第三方 App (无障碍服务) Binder 连接的代理对象。
-IAccessibilityServiceClient： 跨进程通信的 Binder 接口，供 System Server 将事件推送到 App 进程。
-
-
-2. 关键时序：全局按键与触摸事件的监听闭环
-许多车机应用会在继承 AccessibilityService 的类中重写 onKeyEvent，或是通过配置 FLAG_REQUEST_TOUCH_EXPLORATION_MODE 来重写 onMotionEvent（或 onGesture）。'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.d72e395e7ae968ea569a36ddda9be4e6f6402d891a3f24d4c9bf64f412f875a1.css integrity="sha256-1y45XnrpaOpWmjbd2pvk5vZALYkaPyTUyb9k9BL4daE=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Android AccessibilityService 架构与原理深度剖析"><meta property="og:description" content='Android AccessibilityService 架构与原理深度剖析 AccessibilityService（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。
+关键时序：全局按键与触摸事件的监听闭环
+许多车机应用会在继承 AccessibilityService 的类中重写 onKeyEvent，或是通过配置 FLAG_REQUEST_TOUCH_EXPLORATION_MODE 来重写 onMotionEvent（或 onGesture）。'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.d72e395e7ae968ea569a36ddda9be4e6f6402d891a3f24d4c9bf64f412f875a1.css integrity="sha256-1y45XnrpaOpWmjbd2pvk5vZALYkaPyTUyb9k9BL4daE=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Android AccessibilityService 架构与原理深度剖析-1"><meta property="og:description" content='AccessibilityService（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。
 本文将深入 Android Framework 底层，解析 AccessibilityService 的架构拓扑，并重点推演它截获全局 onMotionEvent 与 onKeyEvent 的完整调用时序。
-1. 系统级架构拓扑 (Architecture) 无障碍服务的核心架构横跨了 App 进程、System Server (Java 层) 以及 InputFlinger (Native C++ 层)。
-flowchart TD %% 样式定义 classDef native fill:#dae8fc,stroke:#333,stroke-width:1px; classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px; classDef app fill:#e1d5e7,stroke:#333,stroke-width:1px; classDef binder fill:#d5e8d4,stroke:#333,stroke-width:1px; subgraph NativeSpace [Native 层 System Server] Dispatcher[InputDispatcher]:::native end subgraph SysJavaSpace [System Server Java 层] NativeIMS[NativeInputManager]:::sysjava IMS[InputManagerService]:::sysjava AMS[AccessibilityManagerService]:::sysjava A11yFilter[AccessibilityInputFilter\n事件加工责任链]:::sysjava A11yConn[AccessibilityServiceConnection]:::sysjava end subgraph AppSpace [Accessibility App 进程] A11yService[AccessibilityService]:::app Wrapper[AccessibilityServiceClientWrapper\nIAccessibilityServiceClient.Stub]:::app end %% 连接关系 Dispatcher -- "1. 拦截底层物理事件\nJNI filterInputEvent" --> NativeIMS NativeIMS --> IMS IMS -- "2. 交给无障碍流水线处理" --> A11yFilter A11yFilter -- "3. 提取特征并广播" --> AMS AMS --> A11yConn A11yConn -- "4. Binder IPC" --> Wrapper Wrapper -- "5. Handler 切主线程" --> A11yService 核心组件职责： AccessibilityManagerService (AMS)： 系统中所有无障碍服务的中央大管家。它负责解析应用的 AndroidManifest.xml 中声明的 <accessibility-flags>，并在条件满足时，强行切断底层 InputDispatcher 的原生分发流，挂载全局的 InputFilter。 AccessibilityInputFilter： 挂载在系统底层的事件加工流水线（EventStreamTransformation）。它负责实时监听和过滤用户的屏幕触摸轨迹与物理按键。 AccessibilityServiceConnection： System Server 中用于维护与具体第三方 App (无障碍服务) Binder 连接的代理对象。 IAccessibilityServiceClient： 跨进程通信的 Binder 接口，供 System Server 将事件推送到 App 进程。 2. 关键时序：全局按键与触摸事件的监听闭环 许多车机应用会在继承 AccessibilityService 的类中重写 onKeyEvent，或是通过配置 FLAG_REQUEST_TOUCH_EXPLORATION_MODE 来重写 onMotionEvent（或 onGesture）。'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-05-15T10:00:00+08:00"><meta property="article:modified_time" content="2025-05-15T10:00:00+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android AccessibilityService 架构与原理深度剖析"><meta name=twitter:description content='Android AccessibilityService 架构与原理深度剖析
-AccessibilityService（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。
+架构一览 系统架构 @startuml !theme plain skinparam componentStyle rectangle top to bottom direction frame "Accessibility App Process (辅助服务进程)" { [AccessibilityService\n(无障碍服务基类)] as A11yService #e1d5e7 } frame "Target App Process (目标应用进程)" { [ViewRootImpl\n(目标应用视图根节点)] as ViewRoot #d5e8d4 [AccessibilityNodeInfo\n(无障碍节点信息 / Parcelable 节点快照)] as A11yNode #d5e8d4 } frame "Binder IPC 接口" { interface "IAccessibilityServiceClient" as IA11yClient #fff2cc interface "IAccessibilityServiceConnection" as IA11yConn #fff2cc interface "IAccessibilityManager" as IA11yManager #fff2cc interface "IAccessibilityInteractionConnection" as IA11yInteract #fff2cc } frame "System Server (Java Framework)" { [AccessibilityManagerService\n(AMS 大管家)] as AMS #ffe6cc [AccessibilityServiceConnection\n(AMS 内的 Per-Service 连接)] as Conn #ffe6cc [UiAutomationManager\n(自动化测试代理)] as UiTest #ffe6cc [AccessibilityInputFilter\n(事件过滤器)] as InputFilter #ffe6cc [WindowManagerService\n(WMS 窗口管理)] as WMS #ffe6cc [InputManagerService] as InputManagerService #ffe6cc } frame "Native C++ 层" { [InputDispatcher(输入分发器)] as InputDispatcher #dae8fc [NativeInputManager\n(JNI Bridge)] as NativeInputManager #dae8fc [SurfaceFlinger(图层合成)] as SurfaceFlinger #dae8fc } &#39; ========================================== &#39; 关系连线 (强制 Top to Bottom 布局) &#39; ========================================== &#39; 1. App <--> Binder 接口 IA11yClient -up-> A11yService : 持有/调用\n(onAccessibilityEvent 等) A11yService -down-> IA11yConn : 主动查询节点树 / 执行动作\n(via AccessibilityInteractionClient) IA11yInteract -up-> ViewRoot : 跨进程查询节点 &#39; 2. App 内部视图树流转 ViewRoot .right.> A11yNode : 生成并返回 A11yNode .right.> A11yService : 跨进程序列化传递 &#39; 3. Binder 接口 <--> System Server Conn -up-> IA11yClient : 持有/调用 IA11yConn -down-> Conn IA11yManager -down-> AMS AMS -up-> IA11yInteract &#39; 4. System Server 内部交互 AMS -right-> Conn : 管理与绑定 AMS -left-> UiTest : 测试注入 InputFilter -up-> AMS : 传递过滤事件 InputFilter -left-> InputManagerService : sendInputEvent\n(via super.sendInputEvent / IInputFilterHost) WMS -up-> AMS : 同步窗口状态/焦点\n(via WindowManagerInternal) AMS -down-> WMS : magnification / window transform &#39; 5. System Server <--> Native InputDispatcher -up-> NativeInputManager : filterInputEvent NativeInputManager -up-> InputManagerService : filterInputEvent (JNI) InputManagerService -up-> InputFilter : filterInputEvent\nInputFilter内部异步处理Touch事件 InputManagerService --> NativeInputManager : injectInputEvent\n(via mNative/InputFilterHost) NativeInputManager --> InputDispatcher : injectInputEvent WMS -down-> SurfaceFlinger : SurfaceControl\n图层变换 @enduml 系统流程图 flowchart TD %% 样式定义 classDef native fill:#dae8fc,stroke:#333,stroke-width:1px; classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px; classDef app fill:#e1d5e7,stroke:#333,stroke-width:1px; classDef binder fill:#d5e8d4,stroke:#333,stroke-width:1px; subgraph NativeSpace [Native 层 System Server] Dispatcher[InputDispatcher]:::native NativeIMS[NativeInputManager
+JNI Bridge]:::native end subgraph SysJavaSpace [System Server Java 层] IMS[InputManagerService]:::sysjava AMS[AccessibilityManagerService]:::sysjava A11yFilter[AccessibilityInputFilter\n事件加工责任链]:::sysjava A11yConn[AccessibilityServiceConnection]:::sysjava end subgraph AppSpace [Accessibility App 进程] A11yService[AccessibilityService]:::app Wrapper[AccessibilityServiceClientWrapper\nIAccessibilityServiceClient.Stub]:::app end %% 连接关系 Dispatcher -- "1. 拦截底层物理事件\nfilterInputEvent" --> NativeIMS NativeIMS -- "JNI 回调 Java 层" --> IMS IMS -- "2. 交给无障碍流水线处理" --> A11yFilter A11yFilter -- "3. 提取特征并广播" --> AMS AMS --> A11yConn A11yConn -- "4. Binder IPC" --> Wrapper Wrapper -- "5. Handler 切主线程" --> A11yService 关键时序：全局按键与触摸事件的监听闭环 许多车机应用会在继承 AccessibilityService 的类中重写 onKeyEvent，或是通过配置 FLAG_REQUEST_TOUCH_EXPLORATION_MODE 来重写 onMotionEvent（或 onGesture）。'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-05-15T10:00:00+08:00"><meta property="article:modified_time" content="2025-05-15T10:00:00+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android AccessibilityService 架构与原理深度剖析-1"><meta name=twitter:description content='AccessibilityService（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。
 本文将深入 Android Framework 底层，解析 AccessibilityService 的架构拓扑，并重点推演它截获全局 onMotionEvent 与 onKeyEvent 的完整调用时序。
-1. 系统级架构拓扑 (Architecture)
-无障碍服务的核心架构横跨了 App 进程、System Server (Java 层) 以及 InputFlinger (Native C++ 层)。
+架构一览
+系统架构
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+top to bottom direction
+
+frame "Accessibility App Process (辅助服务进程)" {
+    [AccessibilityService\n(无障碍服务基类)] as A11yService #e1d5e7
+}
+
+frame "Target App Process (目标应用进程)" {
+    [ViewRootImpl\n(目标应用视图根节点)] as ViewRoot #d5e8d4
+    [AccessibilityNodeInfo\n(无障碍节点信息 / Parcelable 节点快照)] as A11yNode #d5e8d4
+}
+
+frame "Binder IPC 接口" {
+    interface "IAccessibilityServiceClient" as IA11yClient #fff2cc
+    interface "IAccessibilityServiceConnection" as IA11yConn #fff2cc
+    interface "IAccessibilityManager" as IA11yManager #fff2cc
+    interface "IAccessibilityInteractionConnection" as IA11yInteract #fff2cc
+}
+
+frame "System Server (Java Framework)" {
+    [AccessibilityManagerService\n(AMS 大管家)] as AMS #ffe6cc
+    [AccessibilityServiceConnection\n(AMS 内的 Per-Service 连接)] as Conn #ffe6cc
+    [UiAutomationManager\n(自动化测试代理)] as UiTest #ffe6cc
+    [AccessibilityInputFilter\n(事件过滤器)] as InputFilter #ffe6cc
+    [WindowManagerService\n(WMS 窗口管理)] as WMS #ffe6cc
+    [InputManagerService] as InputManagerService #ffe6cc
+}
+
+frame "Native C++ 层" {
+    [InputDispatcher(输入分发器)] as InputDispatcher #dae8fc
+    [NativeInputManager\n(JNI Bridge)] as NativeInputManager #dae8fc
+    [SurfaceFlinger(图层合成)] as SurfaceFlinger #dae8fc
+}
+
+&#39; ==========================================
+&#39;  关系连线 (强制 Top to Bottom 布局)
+&#39; ==========================================
+
+&#39; 1. App <--> Binder 接口
+IA11yClient -up-> A11yService : 持有/调用\n(onAccessibilityEvent 等)
+A11yService -down-> IA11yConn : 主动查询节点树 / 执行动作\n(via AccessibilityInteractionClient)
+IA11yInteract -up-> ViewRoot : 跨进程查询节点
+
+&#39; 2. App 内部视图树流转
+ViewRoot .right.> A11yNode : 生成并返回
+A11yNode .right.> A11yService : 跨进程序列化传递
+
+&#39; 3. Binder 接口 <--> System Server
+Conn -up-> IA11yClient : 持有/调用
+IA11yConn -down-> Conn
+IA11yManager -down-> AMS
+AMS -up-> IA11yInteract 
+
+&#39; 4. System Server 内部交互
+AMS -right-> Conn : 管理与绑定
+AMS -left-> UiTest : 测试注入
+InputFilter -up-> AMS : 传递过滤事件
+InputFilter -left-> InputManagerService : sendInputEvent\n(via super.sendInputEvent / IInputFilterHost)
+WMS -up-> AMS : 同步窗口状态/焦点\n(via WindowManagerInternal)
+AMS -down-> WMS : magnification / window transform
+
+&#39; 5. System Server <--> Native
+InputDispatcher -up-> NativeInputManager : filterInputEvent
+NativeInputManager -up-> InputManagerService : filterInputEvent (JNI)
+InputManagerService -up-> InputFilter : filterInputEvent\nInputFilter内部异步处理Touch事件
+
+InputManagerService --> NativeInputManager : injectInputEvent\n(via mNative/InputFilterHost)
+NativeInputManager --> InputDispatcher : injectInputEvent
+WMS -down-> SurfaceFlinger : SurfaceControl\n图层变换
+@enduml
+系统流程图
 flowchart TD
     %% 样式定义
     classDef native fill:#dae8fc,stroke:#333,stroke-width:1px;
@@ -61,10 +198,10 @@ flowchart TD
 
     subgraph NativeSpace [Native 层 System Server]
         Dispatcher[InputDispatcher]:::native
+        NativeIMS[NativeInputManagerJNI Bridge]:::native
     end
 
     subgraph SysJavaSpace [System Server Java 层]
-        NativeIMS[NativeInputManager]:::sysjava
         IMS[InputManagerService]:::sysjava
         AMS[AccessibilityManagerService]:::sysjava
         A11yFilter[AccessibilityInputFilter\n事件加工责任链]:::sysjava
@@ -77,25 +214,90 @@ flowchart TD
     end
 
     %% 连接关系
-    Dispatcher -- "1. 拦截底层物理事件\nJNI filterInputEvent" --> NativeIMS
-    NativeIMS --> IMS
+    Dispatcher -- "1. 拦截底层物理事件\nfilterInputEvent" --> NativeIMS
+    NativeIMS -- "JNI 回调 Java 层" --> IMS
     IMS -- "2. 交给无障碍流水线处理" --> A11yFilter
     A11yFilter -- "3. 提取特征并广播" --> AMS
     AMS --> A11yConn
     A11yConn -- "4. Binder IPC" --> Wrapper
     Wrapper -- "5. Handler 切主线程" --> A11yService
-核心组件职责：
 
-AccessibilityManagerService (AMS)： 系统中所有无障碍服务的中央大管家。它负责解析应用的 AndroidManifest.xml 中声明的 <accessibility-flags>，并在条件满足时，强行切断底层 InputDispatcher 的原生分发流，挂载全局的 InputFilter。
-AccessibilityInputFilter： 挂载在系统底层的事件加工流水线（EventStreamTransformation）。它负责实时监听和过滤用户的屏幕触摸轨迹与物理按键。
-AccessibilityServiceConnection： System Server 中用于维护与具体第三方 App (无障碍服务) Binder 连接的代理对象。
-IAccessibilityServiceClient： 跨进程通信的 Binder 接口，供 System Server 将事件推送到 App 进程。
-
-
-2. 关键时序：全局按键与触摸事件的监听闭环
-许多车机应用会在继承 AccessibilityService 的类中重写 onKeyEvent，或是通过配置 FLAG_REQUEST_TOUCH_EXPLORATION_MODE 来重写 onMotionEvent（或 onGesture）。'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"WindowManager","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/"},{"@type":"ListItem","position":3,"name":"Android AccessibilityService 架构与原理深度剖析","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android AccessibilityService 架构与原理深度剖析","name":"Android AccessibilityService 架构与原理深度剖析","description":"Android AccessibilityService 架构与原理深度剖析 AccessibilityService（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。\n本文将深入 Android Framework 底层，解析 AccessibilityService 的架构拓扑，并重点推演它截获全局 onMotionEvent 与 onKeyEvent 的完整调用时序。\n1. 系统级架构拓扑 (Architecture) 无障碍服务的核心架构横跨了 App 进程、System Server (Java 层) 以及 InputFlinger (Native C++ 层)。\nflowchart TD %% 样式定义 classDef native fill:#dae8fc,stroke:#333,stroke-width:1px; classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px; classDef app fill:#e1d5e7,stroke:#333,stroke-width:1px; classDef binder fill:#d5e8d4,stroke:#333,stroke-width:1px; subgraph NativeSpace [Native 层 System Server] Dispatcher[InputDispatcher]:::native end subgraph SysJavaSpace [System Server Java 层] NativeIMS[NativeInputManager]:::sysjava IMS[InputManagerService]:::sysjava AMS[AccessibilityManagerService]:::sysjava A11yFilter[AccessibilityInputFilter\\n事件加工责任链]:::sysjava A11yConn[AccessibilityServiceConnection]:::sysjava end subgraph AppSpace [Accessibility App 进程] A11yService[AccessibilityService]:::app Wrapper[AccessibilityServiceClientWrapper\\nIAccessibilityServiceClient.Stub]:::app end %% 连接关系 Dispatcher -- \"1. 拦截底层物理事件\\nJNI filterInputEvent\" --\u003e NativeIMS NativeIMS --\u003e IMS IMS -- \"2. 交给无障碍流水线处理\" --\u003e A11yFilter A11yFilter -- \"3. 提取特征并广播\" --\u003e AMS AMS --\u003e A11yConn A11yConn -- \"4. Binder IPC\" --\u003e Wrapper Wrapper -- \"5. Handler 切主线程\" --\u003e A11yService 核心组件职责： AccessibilityManagerService (AMS)： 系统中所有无障碍服务的中央大管家。它负责解析应用的 AndroidManifest.xml 中声明的 \u0026lt;accessibility-flags\u0026gt;，并在条件满足时，强行切断底层 InputDispatcher 的原生分发流，挂载全局的 InputFilter。 AccessibilityInputFilter： 挂载在系统底层的事件加工流水线（EventStreamTransformation）。它负责实时监听和过滤用户的屏幕触摸轨迹与物理按键。 AccessibilityServiceConnection： System Server 中用于维护与具体第三方 App (无障碍服务) Binder 连接的代理对象。 IAccessibilityServiceClient： 跨进程通信的 Binder 接口，供 System Server 将事件推送到 App 进程。 2. 关键时序：全局按键与触摸事件的监听闭环 许多车机应用会在继承 AccessibilityService 的类中重写 onKeyEvent，或是通过配置 FLAG_REQUEST_TOUCH_EXPLORATION_MODE 来重写 onMotionEvent（或 onGesture）。\n","keywords":[],"articleBody":"Android AccessibilityService 架构与原理深度剖析 AccessibilityService（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。\n本文将深入 Android Framework 底层，解析 AccessibilityService 的架构拓扑，并重点推演它截获全局 onMotionEvent 与 onKeyEvent 的完整调用时序。\n1. 系统级架构拓扑 (Architecture) 无障碍服务的核心架构横跨了 App 进程、System Server (Java 层) 以及 InputFlinger (Native C++ 层)。\nflowchart TD %% 样式定义 classDef native fill:#dae8fc,stroke:#333,stroke-width:1px; classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px; classDef app fill:#e1d5e7,stroke:#333,stroke-width:1px; classDef binder fill:#d5e8d4,stroke:#333,stroke-width:1px; subgraph NativeSpace [Native 层 System Server] Dispatcher[InputDispatcher]:::native end subgraph SysJavaSpace [System Server Java 层] NativeIMS[NativeInputManager]:::sysjava IMS[InputManagerService]:::sysjava AMS[AccessibilityManagerService]:::sysjava A11yFilter[AccessibilityInputFilter\\n事件加工责任链]:::sysjava A11yConn[AccessibilityServiceConnection]:::sysjava end subgraph AppSpace [Accessibility App 进程] A11yService[AccessibilityService]:::app Wrapper[AccessibilityServiceClientWrapper\\nIAccessibilityServiceClient.Stub]:::app end %% 连接关系 Dispatcher -- \"1. 拦截底层物理事件\\nJNI filterInputEvent\" --\u003e NativeIMS NativeIMS --\u003e IMS IMS -- \"2. 交给无障碍流水线处理\" --\u003e A11yFilter A11yFilter -- \"3. 提取特征并广播\" --\u003e AMS AMS --\u003e A11yConn A11yConn -- \"4. Binder IPC\" --\u003e Wrapper Wrapper -- \"5. Handler 切主线程\" --\u003e A11yService 核心组件职责： AccessibilityManagerService (AMS)： 系统中所有无障碍服务的中央大管家。它负责解析应用的 AndroidManifest.xml 中声明的 ，并在条件满足时，强行切断底层 InputDispatcher 的原生分发流，挂载全局的 InputFilter。 AccessibilityInputFilter： 挂载在系统底层的事件加工流水线（EventStreamTransformation）。它负责实时监听和过滤用户的屏幕触摸轨迹与物理按键。 AccessibilityServiceConnection： System Server 中用于维护与具体第三方 App (无障碍服务) Binder 连接的代理对象。 IAccessibilityServiceClient： 跨进程通信的 Binder 接口，供 System Server 将事件推送到 App 进程。 2. 关键时序：全局按键与触摸事件的监听闭环 许多车机应用会在继承 AccessibilityService 的类中重写 onKeyEvent，或是通过配置 FLAG_REQUEST_TOUCH_EXPLORATION_MODE 来重写 onMotionEvent（或 onGesture）。\n下面这幅时序图，精准还原了当用户按下音量键或在屏幕上滑动时，事件是如何穿透重重系统屏障，最终回调到你的 App 中的：\nsequenceDiagram autonumber box LightCyan System Server (Native) participant Disp as InputDispatcher end box LightYellow System Server (Java) participant IMS as InputManagerService participant Filter as AccessibilityInputFilter participant Interceptor as KeyboardInterceptor / TouchExplorer participant AMS as AccessibilityManagerService participant Conn as AccessibilityServiceConnection end box LightPink App Process (Accessibility Service) participant Wrapper as IAccessibilityServiceClient\n(Binder 线程) participant Handler as HandlerCaller participant Service as MyAccessibilityService\n(主线程) end %% --- 1. 底层拦截阶段 --- Note over Disp, IMS: 1. 底层物理事件的强制拦截 Disp -\u003e\u003e Disp: notifyKey() / notifyMotion() Note right of Disp: 发现 mInputFilterEnabled == true Disp -\u003e\u003e IMS: JNI: filterInputEvent() IMS -\u003e\u003e Filter: mInputFilter.filterInputEvent() Note right of IMS: 原生分发被 return false 直接中断 %% --- 2. 责任链评估阶段 --- rect rgb(240, 240, 240) Note over Filter, AMS: 2. 责任链事件提取与广播 (EventStreamTransformation) Filter -\u003e\u003e Interceptor: onKeyEvent() / onMotionEvent() Note right of Interceptor: 经过按键过滤或触控探索器评估 Interceptor -\u003e\u003e AMS: notifyKeyEvent() / sendMotionEventToListeningServices() end %% --- 3. 跨进程派发阶段 --- rect rgb(230, 255, 230) Note over AMS, Conn: 3. 跨进程派发至 App AMS -\u003e\u003e Conn: notifyKeyEvent() / notifyMotionEvent() Note right of Conn: 遍历所有已绑定的辅助服务 Connection Conn -\u003e\u003e Wrapper: Binder IPC: onKeyEvent() / onMotionEvent() end %% --- 4. App 进程内部分发阶段 --- rect rgb(255, 240, 240) Note over Wrapper, Service: 4. App 进程：切回主线程与业务消费 Wrapper -\u003e\u003e Handler: sendMessage() Note right of Handler: Binder 线程池切回 App 主线程 (Main Looper) Handler -\u003e\u003e Service: 回调: onKeyEvent(event) / onMotionEvent(event) alt 开发者业务逻辑 Service -\u003e\u003e Service: 执行车机实体按键映射 / 全局手势检测 end Service --\u003e\u003e Wrapper: boolean 消费结果 Wrapper --\u003e\u003e Conn: Binder Reply: 是否已被 App 消费 end 源码级深度剖析 1. 为什么你的 App 能收到事件？ 并不是所有的 AccessibilityService 都能收到底层的键盘或滑动事件。在 AccessibilityManagerService.java 的派发逻辑中（即图中的第 2 步到第 3 步）：\n按键事件 (onKeyEvent)： 只有当你的服务在 accessibility-service 配置文件中声明了 android:canRequestFilterKeyEvents=\"true\"，并且激活了 FLAG_REQUEST_FILTER_KEY_EVENTS 标志位时，KeyboardInterceptor 才会将按键跨进程发给你。 触摸事件 (onMotionEvent)： 对于触摸事件，原生的 AccessibilityService 并没有直接暴露出公共的 onMotionEvent 回调给开发者（官方更希望你通过 AccessibilityNodeInfo 节点操作）。但系统内部的服务（或者通过特殊反射/定制源码的服务）是通过 TouchExplorer 责任链节点，调用 sendMotionEventToListeningServices，经由 IAccessibilityServiceClient 接口的 onMotionEvent 方法接收原始物理坐标的。 2. App 的布尔返回值去哪了？(同步阻塞与超时) 注意到时序图的最后一步，当你的 App 在 onKeyEvent 中 return true; 时，这个布尔值是通过 Binder 同步返回给 System Server 的 AccessibilityServiceConnection 的。\n如果你的 App 返回了 true，系统就会认为这个按键动作已经被你的无障碍服务接管（消费）了，底层的 KeyboardInterceptor 就会将这个按键抛弃，不再将其发送给前台拥有焦点的 App。这就是车机厂商实现“方向盘按键强制重映射”的底层闭环原理。\n⚠️ 性能警告： 正是因为需要等待第三方 App 的布尔返回值来决定事件生死，无障碍服务的 Binder 调用往往是同步阻塞的 (Synchronous)。如果你的 onKeyEvent 中执行了耗时操作（例如读写数据库、发起网络请求），它将直接堵死系统 System Server 的分发线程池，导致严重的系统级卡顿。 因此，在无障碍服务中处理物理事件时，务必保持极致的轻量化，或者在极短时间内直接返回结果，将繁重的业务交由子线程异步处理。\n3. 核心组件交互图 (Component Diagram) 为了更宏观地理解 AccessibilityService 体系内各个模块的静态依赖与动态交互关系，并且为了保证从上到下 (App -\u003e Binder -\u003e System Server -\u003e Native) 的严谨层级排版，我们使用了 PlantUML 绘制了如下的组件图：\n@startuml !theme plain skinparam componentStyle rectangle top to bottom direction frame \"Accessibility App Process (辅助服务进程)\" { [AccessibilityService\\n(无障碍服务基类)] as A11yService #e1d5e7 } frame \"Target App Process (目标应用进程)\" { [ViewRootImpl\\n(目标应用视图根节点)] as ViewRoot #d5e8d4 [AccessibilityNodeInfo\\n(虚拟节点树)] as A11yNode #d5e8d4 } frame \"Binder IPC 接口\" { interface \"IAccessibilityServiceClient\" as IA11yClient #fff2cc interface \"IAccessibilityServiceConnection\" as IA11yConn #fff2cc interface \"IAccessibilityManager\" as IA11yManager #fff2cc interface \"IAccessibilityInteractionConnection\" as IWindow #fff2cc } frame \"System Server (Java Framework)\" { [AccessibilityManagerService\\n(AMS 大管家)] as AMS #ffe6cc [AccessibilityServiceConnection\\n(服务连接代理)] as Conn #ffe6cc [UiAutomationManager\\n(自动化测试代理)] as UiTest #ffe6cc [AccessibilityInputFilter\\n(事件过滤器)] as InputFilter #ffe6cc [WindowManagerService\\n(WMS 窗口管理)] as WMS #ffe6cc [InputManagerService] as InputManagerService #ffe6cc [InputFilterHost] as InputFilterHost #ffe6cc } frame \"Native C++ 层\" { [InputDispatcher(输入分发器)] as InputDispatcher #dae8fc [SurfaceFlinger(图层合成)] as SurfaceFlinger #dae8fc } ' ========================================== ' 关系连线 (强制 Top to Bottom 布局) ' ========================================== ' 1. App \u003c--\u003e Binder 接口 IA11yClient -up-\u003e A11yService : 推送事件\\n(onAccessibilityEvent) A11yService -down-\u003e IA11yConn : 请求执行动作\\n(performGlobalAction) A11yService -down-\u003e IA11yManager : 主动抓取视图树 IWindow -up-\u003e ViewRoot : 跨进程查询节点 ' 2. App 内部视图树流转 ViewRoot .right.\u003e A11yNode : 生成并返回 A11yNode .right.\u003e A11yService : 跨进程序列化传递 ' 3. Binder 接口 \u003c--\u003e System Server Conn -up-\u003e IA11yClient IA11yConn -down-\u003e Conn IA11yManager -down-\u003e AMS AMS -up-\u003e IWindow ' 4. System Server 内部交互 AMS -right-\u003e Conn : 管理与绑定 AMS -left-\u003e UiTest : 测试注入 InputFilter -up-\u003e AMS : 传递过滤事件 InputFilter -left-\u003e InputFilterHost:sendInputEvent WMS -up-\u003e AMS : 同步窗口状态/焦点 AMS -down-\u003e WMS : 请求屏幕放大/缩放 ' 5. System Server \u003c--\u003e Native InputDispatcher -up-\u003e InputManagerService:filterInputEvent InputManagerService -up-\u003e InputFilter:filterInputEvent\\nInputFilter内部异步处理Touch事件 InputFilterHost --\u003e InputDispatcher:injectInputEvent WMS -down-\u003e SurfaceFlinger : SurfaceControl\\n图层变换 @enduml 组件交互深度解析： AccessibilityManagerService (AMS)： 作为核心控制中枢，它不仅要接收 AccessibilityInputFilter 传来的物理按键和触摸手势，还要接收 WindowManagerService 传来的窗口焦点变化、屏幕旋转等全局状态，甚至控制 SurfaceFlinger 实现屏幕放大镜效果。 三组关键的 Binder 接口： IAccessibilityServiceClient： System Server 主动呼叫 App 的通道。用于推送 onAccessibilityEvent（如窗口变化、按钮点击）和 onKeyEvent。 IAccessibilityServiceConnection： App 主动呼叫 System Server 的通道。无障碍服务通过它执行全局动作（如 performGlobalAction 模拟返回键、回到桌面），或者请求注入手势（dispatchGesture）。 IAccessibilityInteractionConnection： 这是实现“可见”的核心。当无障碍服务请求获取当前屏幕文字时，AMS 会通过这个接口跨进程调用目标应用（如微信、车机 Launcher）的 ViewRootImpl，由目标应用在自己的主线程遍历 View 树，打包成 AccessibilityNodeInfo 节点发回给无障碍服务。 UiAutomationManager 的特殊角色： Android 的 UI 自动化测试框架（如 UiAutomator, Espresso）在底层完全复用了无障碍架构。它通过实例化一个特殊的虚拟无障碍服务来获取屏幕节点并注入点击事件，其在 AMS 内部的地位与第三方车机辅助应用几乎等同。 4. InputFilter 的挂载与状态同步机制 (动态下发) 前文剖析了底层物理事件是如何自下而上回传至 AccessibilityService 的。本节将自上而下地推演：当系统或应用层启用某个无障碍服务（以调用 AccessibilityManager.enableTrustedAccessibilityService API 为例）时，系统是如何重新评估事件拦截状态，并将 AccessibilityInputFilter 最终挂载至 InputManagerService 的。\nsequenceDiagram autonumber box LightCyan App / System Process participant AM as AccessibilityManager end box LightYellow System Server (Accessibility) participant AMS as AccessibilityManagerService participant Handler as AMS.MainHandler end box LightGreen System Server (Window \u0026 Input) participant WMS as WindowManagerInternal (WMS) participant IMS as InputManagerService end AM -\u003e\u003e AMS: IPC: enableTrustedAccessibilityService(ComponentName) Note right of AMS: 1. 权限校验与配置更新 AMS -\u003e\u003e AMS: enableAccessibilityServiceLocked() Note right of AMS: 同步更新 Settings.Secure 并修改 UserState AMS -\u003e\u003e AMS: onUserStateChangedLocked() AMS -\u003e\u003e Handler: scheduleUpdateInputFilter() Note right of Handler: 2. 异步切主线程，计算 Filter 状态 Handler --\u003e\u003e AMS: updateInputFilter(UserState) Note right of AMS: 3. 汇总 Feature Flags，实例化/更新 AccessibilityInputFilter AMS -\u003e\u003e WMS: setInputFilter(AccessibilityInputFilter) Note right of WMS: 4. 跨服务委托挂载 WMS -\u003e\u003e IMS: setInputFilter(IInputFilter) Note right of IMS: JNI 调用至 Native，挂载 InputFilter 至 InputDispatcher 核心源码执行流解析\n触发与鉴权 (IPC \u0026 Validation) 当系统或持有特权的组件调用 AccessibilityManager.enableTrustedAccessibilityService(ComponentName) 时，请求会通过 Binder IPC 陷入 System Server 的 AccessibilityManagerService (AMS)。AMS 接收后，首先严格校验 android.view.accessibility.Flags.enableTrustedAccessibilityServiceApi() 标志位及调用方的 UID 权限。鉴权通过后，进入 enableAccessibilityServiceLocked，该方法不仅将目标组件持久化至 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES，且会更新内存中的用户无障碍状态树 AccessibilityUserState。\n状态更新与异步调度 (State Update \u0026 Async Scheduling) 服务状态的实质性变更随即触发 onUserStateChangedLocked。由于无障碍特性的更新牵涉触控探索、放大镜、按键过滤等多个子系统的联动，AMS 出于性能与并发安全考量，不会在当前持锁状态下同步执行底层更新。相反，它调用 scheduleUpdateInputFilter，向系统主线程的 mMainHandler 投递一个异步 Message，切换至主线程继续执行，从而有效避免因跨模块调用引发的系统锁竞争。\n过滤器特征评估 (Filter Feature Evaluation) 主线程 Handler 调度执行 updateInputFilter(AccessibilityUserState)。在此阶段，AMS 将基于当前 AccessibilityUserState，系统性地评估所有需要开启的拦截特性（例如 FLAG_FEATURE_TOUCH_EXPLORATION、FLAG_FEATURE_FILTER_KEY_EVENTS 或多指手势等），并将这些标志位通过按位或 (|) 操作汇总为一个全局的 flags 掩码。只要存在需要过滤的特性，AMS 便会实例化或更新 AccessibilityInputFilter 对象，将最新的特性掩码下发至该拦截器实例。\n服务委托与底层挂载 (Service Delegation \u0026 Native Attachment) 因 AMS 侧重于无障碍上层业务逻辑，并不直接持有底层的输入子系统引用，它通过向 WindowManagerInternal 接口层调用 mWindowManagerService.setInputFilter(inputFilter) 实现跨服务通信。该调用被 WindowManagerService.LocalService 捕获后，原封不动地透传给内部持有的 mInputManager.setInputFilter(IInputFilter)。至此，由无障碍体系驱动的 Filter 对象成功传递至 InputManagerService，并最终通过 JNI 挂载到 Native C++ 层的 InputDispatcher，正式确立物理事件的拦截闭环。\n5. 多用户切换与解锁场景下的 InputFilter 重构时序 在智能座舱（AAOS）或支持多用户的 Android 设备中，无障碍服务的生命周期严格绑定于当前的前台用户 (User Handle)。当系统发生用户切换 (switchUser) 或用户解锁 (unlockUser) 时，底层 InputDispatcher 中的拦截规则必须发生“热切换”。\n以下时序图和原理解析，详细展示了在这两类系统级生命周期事件中，AccessibilityManagerService (AMS)、AccessibilityService 与 InputManagerService (IMS) 之间的拉扯与重建过程。\nsequenceDiagram autonumber box LightCyan Lifecycle / User participant Lifecycle as System / ActivityManager end box LightYellow System Server (Accessibility) participant AMS as AccessibilityManagerService participant OldState as OldUserState participant NewState as NewUserState participant Handler as AMS.MainHandler end box LightPink App Process (Accessibility Service) participant OldSvc as Old AccessibilityService participant NewSvc as New AccessibilityService end box LightGreen System Server (Window \u0026 Input) participant WMS as WindowManagerInternal (WMS) participant IMS as InputManagerService end %% --- 多用户切换或解锁触发 --- Lifecycle -\u003e\u003e AMS: switchUser(newUserId) / unlockUser(userId) rect rgb(255, 240, 240) Note right of AMS: 1. 剥离旧用户状态 (仅 switchUser) AMS -\u003e\u003e OldState: onSwitchToAnotherUserLocked() OldState -\u003e\u003e OldState: unbindAllServicesLocked() OldState --\u003e\u003e OldSvc: Context.unbindService() Note right of OldSvc: 旧用户的辅助服务被强行断开并销毁 end rect rgb(240, 240, 255) Note right of AMS: 2. 读取新用户配置与服务拉起 AMS -\u003e\u003e AMS: readConfigurationForUserStateLocked() Note right of AMS: 从 Settings.Secure 读取新用户的 ENABLED_SERVICES AMS -\u003e\u003e AMS: onUserStateChangedLocked(NewUserState) AMS --\u003e\u003e NewSvc: Context.bindServiceAsUser() Note right of NewSvc: 跨进程拉起新用户对应的辅助服务 end rect rgb(230, 255, 230) Note right of AMS: 3. 异步重算拦截掩码 AMS -\u003e\u003e Handler: scheduleUpdateInputFilter(NewUserState) Handler --\u003e\u003e AMS: updateInputFilter(NewUserState) Note right of AMS: 根据新服务的 Feature Flags(如触摸浏览、按键拦截) 构建 Filter end %% --- 底层挂载 --- AMS -\u003e\u003e WMS: setInputFilter(AccessibilityInputFilter) WMS -\u003e\u003e IMS: setInputFilter(IInputFilter) Note right of IMS: Native 层清空旧规则，挂载新拦截器 核心源码与交互机理深度剖析 在这段时序中，AccessibilityManagerService 扮演了“破与立”的架构枢纽，它必须妥善处理与应用层 AccessibilityService 之间的进程绑定关系，才能推导出正确的底层拦截规则：\n1. 破：旧服务的强制退场 (onSwitchToAnotherUserLocked) 在多用户架构下，Android 严格禁止后台用户的辅助服务继续窃听物理事件。当 switchUser 被触发时，AMS 会首先拿出旧用户的状态树 OldUserState，调用其 onSwitchToAnotherUserLocked()。\n与 Service 的交互： 该方法内部会暴烈地调用 unbindAllServicesLocked()，直接对旧用户下所有已绑定的 AccessibilityServiceConnection 执行 Context.unbindService()。旧用户的 AccessibilityService 会随之收到 onUnbind 与 onDestroy 回调，彻底失去与 System Server 的 IPC 连接。 2. 立：新服务的配置读取与拉起 (readConfigurationForUserStateLocked) 用户切换完毕或用户刚解锁 (unlockUser) 时，存储在凭据加密存储 (CE) 中的数据方可被正常访问（注意：部分辅助服务可能不支持 Direct Boot，只有在 unlockUser 后才能启动）。\n与 Service 的交互： AMS 会根据 Settings.Secure 中记录的启用列表，为当前活动用户重新执行 bindServiceAsUser。一旦新用户的辅助服务进程被唤起并返回 Binder 代理 (onServiceConnected)，AMS 就完成了新环境的重建。 3. 融：InputFilter 的重新挂载 (updateInputFilter) 无论是 switchUser 还是 unlockUser，最终都会汇流到 onUserStateChangedLocked(userState) 方法。 如前文所述，AMS 不会同步阻塞地去修改底层，而是通过 scheduleUpdateInputFilter 切到主线程。主线程的 updateInputFilter 会重新巡检当前用户下所有已绑定且活着的 AccessibilityService。\n如果新用户没有开启任何需要拦截底层事件的辅助服务（例如只开启了屏幕文字读取，没开启按键精灵或 TalkBack），flags 掩码计算结果为 0，AMS 会向下传递一个 null 或者置空的 Filter，从而释放 InputDispatcher 的拦截屏障。 如果新用户开启了特定的拦截特性，AMS 就会生成全新的 AccessibilityInputFilter 透传给 InputManagerService.setInputFilter。 一句话总结： switchUser 和 unlockUser 是一次系统级大换血。AMS 会先斩断与旧 AccessibilityService 的 Binder 连接，拉起新用户的 Service，再根据新 Service 的配置要求，重新合成一份 InputFilter 下发给 InputManagerService。这就是为什么切换用户时，车机方向盘重映射或全局手势可能会出现一两秒“失效”的根本原因。\n","wordCount":"1311","inLanguage":"en","datePublished":"2025-05-15T10:00:00+08:00","dateModified":"2025-05-15T10:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+关键时序：全局按键与触摸事件的监听闭环
+许多车机应用会在继承 AccessibilityService 的类中重写 onKeyEvent，或是通过配置 FLAG_REQUEST_TOUCH_EXPLORATION_MODE 来重写 onMotionEvent（或 onGesture）。'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"WindowManager","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/"},{"@type":"ListItem","position":3,"name":"Android AccessibilityService 架构与原理深度剖析-1","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android AccessibilityService 架构与原理深度剖析-1","name":"Android AccessibilityService 架构与原理深度剖析-1","description":"AccessibilityService（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。\n本文将深入 Android Framework 底层，解析 AccessibilityService 的架构拓扑，并重点推演它截获全局 onMotionEvent 与 onKeyEvent 的完整调用时序。\n架构一览 系统架构 @startuml !theme plain skinparam componentStyle rectangle top to bottom direction frame \u0026#34;Accessibility App Process (辅助服务进程)\u0026#34; { [AccessibilityService\\n(无障碍服务基类)] as A11yService #e1d5e7 } frame \u0026#34;Target App Process (目标应用进程)\u0026#34; { [ViewRootImpl\\n(目标应用视图根节点)] as ViewRoot #d5e8d4 [AccessibilityNodeInfo\\n(无障碍节点信息 / Parcelable 节点快照)] as A11yNode #d5e8d4 } frame \u0026#34;Binder IPC 接口\u0026#34; { interface \u0026#34;IAccessibilityServiceClient\u0026#34; as IA11yClient #fff2cc interface \u0026#34;IAccessibilityServiceConnection\u0026#34; as IA11yConn #fff2cc interface \u0026#34;IAccessibilityManager\u0026#34; as IA11yManager #fff2cc interface \u0026#34;IAccessibilityInteractionConnection\u0026#34; as IA11yInteract #fff2cc } frame \u0026#34;System Server (Java Framework)\u0026#34; { [AccessibilityManagerService\\n(AMS 大管家)] as AMS #ffe6cc [AccessibilityServiceConnection\\n(AMS 内的 Per-Service 连接)] as Conn #ffe6cc [UiAutomationManager\\n(自动化测试代理)] as UiTest #ffe6cc [AccessibilityInputFilter\\n(事件过滤器)] as InputFilter #ffe6cc [WindowManagerService\\n(WMS 窗口管理)] as WMS #ffe6cc [InputManagerService] as InputManagerService #ffe6cc } frame \u0026#34;Native C++ 层\u0026#34; { [InputDispatcher(输入分发器)] as InputDispatcher #dae8fc [NativeInputManager\\n(JNI Bridge)] as NativeInputManager #dae8fc [SurfaceFlinger(图层合成)] as SurfaceFlinger #dae8fc } \u0026#39; ========================================== \u0026#39; 关系连线 (强制 Top to Bottom 布局) \u0026#39; ========================================== \u0026#39; 1. App \u0026lt;--\u0026gt; Binder 接口 IA11yClient -up-\u0026gt; A11yService : 持有/调用\\n(onAccessibilityEvent 等) A11yService -down-\u0026gt; IA11yConn : 主动查询节点树 / 执行动作\\n(via AccessibilityInteractionClient) IA11yInteract -up-\u0026gt; ViewRoot : 跨进程查询节点 \u0026#39; 2. App 内部视图树流转 ViewRoot .right.\u0026gt; A11yNode : 生成并返回 A11yNode .right.\u0026gt; A11yService : 跨进程序列化传递 \u0026#39; 3. Binder 接口 \u0026lt;--\u0026gt; System Server Conn -up-\u0026gt; IA11yClient : 持有/调用 IA11yConn -down-\u0026gt; Conn IA11yManager -down-\u0026gt; AMS AMS -up-\u0026gt; IA11yInteract \u0026#39; 4. System Server 内部交互 AMS -right-\u0026gt; Conn : 管理与绑定 AMS -left-\u0026gt; UiTest : 测试注入 InputFilter -up-\u0026gt; AMS : 传递过滤事件 InputFilter -left-\u0026gt; InputManagerService : sendInputEvent\\n(via super.sendInputEvent / IInputFilterHost) WMS -up-\u0026gt; AMS : 同步窗口状态/焦点\\n(via WindowManagerInternal) AMS -down-\u0026gt; WMS : magnification / window transform \u0026#39; 5. System Server \u0026lt;--\u0026gt; Native InputDispatcher -up-\u0026gt; NativeInputManager : filterInputEvent NativeInputManager -up-\u0026gt; InputManagerService : filterInputEvent (JNI) InputManagerService -up-\u0026gt; InputFilter : filterInputEvent\\nInputFilter内部异步处理Touch事件 InputManagerService --\u0026gt; NativeInputManager : injectInputEvent\\n(via mNative/InputFilterHost) NativeInputManager --\u0026gt; InputDispatcher : injectInputEvent WMS -down-\u0026gt; SurfaceFlinger : SurfaceControl\\n图层变换 @enduml 系统流程图 flowchart TD %% 样式定义 classDef native fill:#dae8fc,stroke:#333,stroke-width:1px; classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px; classDef app fill:#e1d5e7,stroke:#333,stroke-width:1px; classDef binder fill:#d5e8d4,stroke:#333,stroke-width:1px; subgraph NativeSpace [Native 层 System Server] Dispatcher[InputDispatcher]:::native NativeIMS[NativeInputManager\nJNI Bridge]:::native end subgraph SysJavaSpace [System Server Java 层] IMS[InputManagerService]:::sysjava AMS[AccessibilityManagerService]:::sysjava A11yFilter[AccessibilityInputFilter\\n事件加工责任链]:::sysjava A11yConn[AccessibilityServiceConnection]:::sysjava end subgraph AppSpace [Accessibility App 进程] A11yService[AccessibilityService]:::app Wrapper[AccessibilityServiceClientWrapper\\nIAccessibilityServiceClient.Stub]:::app end %% 连接关系 Dispatcher -- \"1. 拦截底层物理事件\\nfilterInputEvent\" --\u003e NativeIMS NativeIMS -- \"JNI 回调 Java 层\" --\u003e IMS IMS -- \"2. 交给无障碍流水线处理\" --\u003e A11yFilter A11yFilter -- \"3. 提取特征并广播\" --\u003e AMS AMS --\u003e A11yConn A11yConn -- \"4. Binder IPC\" --\u003e Wrapper Wrapper -- \"5. Handler 切主线程\" --\u003e A11yService 关键时序：全局按键与触摸事件的监听闭环 许多车机应用会在继承 AccessibilityService 的类中重写 onKeyEvent，或是通过配置 FLAG_REQUEST_TOUCH_EXPLORATION_MODE 来重写 onMotionEvent（或 onGesture）。\n","keywords":[],"articleBody":"AccessibilityService（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。\n本文将深入 Android Framework 底层，解析 AccessibilityService 的架构拓扑，并重点推演它截获全局 onMotionEvent 与 onKeyEvent 的完整调用时序。\n架构一览 系统架构 @startuml !theme plain skinparam componentStyle rectangle top to bottom direction frame \"Accessibility App Process (辅助服务进程)\" { [AccessibilityService\\n(无障碍服务基类)] as A11yService #e1d5e7 } frame \"Target App Process (目标应用进程)\" { [ViewRootImpl\\n(目标应用视图根节点)] as ViewRoot #d5e8d4 [AccessibilityNodeInfo\\n(无障碍节点信息 / Parcelable 节点快照)] as A11yNode #d5e8d4 } frame \"Binder IPC 接口\" { interface \"IAccessibilityServiceClient\" as IA11yClient #fff2cc interface \"IAccessibilityServiceConnection\" as IA11yConn #fff2cc interface \"IAccessibilityManager\" as IA11yManager #fff2cc interface \"IAccessibilityInteractionConnection\" as IA11yInteract #fff2cc } frame \"System Server (Java Framework)\" { [AccessibilityManagerService\\n(AMS 大管家)] as AMS #ffe6cc [AccessibilityServiceConnection\\n(AMS 内的 Per-Service 连接)] as Conn #ffe6cc [UiAutomationManager\\n(自动化测试代理)] as UiTest #ffe6cc [AccessibilityInputFilter\\n(事件过滤器)] as InputFilter #ffe6cc [WindowManagerService\\n(WMS 窗口管理)] as WMS #ffe6cc [InputManagerService] as InputManagerService #ffe6cc } frame \"Native C++ 层\" { [InputDispatcher(输入分发器)] as InputDispatcher #dae8fc [NativeInputManager\\n(JNI Bridge)] as NativeInputManager #dae8fc [SurfaceFlinger(图层合成)] as SurfaceFlinger #dae8fc } ' ========================================== ' 关系连线 (强制 Top to Bottom 布局) ' ========================================== ' 1. App \u003c--\u003e Binder 接口 IA11yClient -up-\u003e A11yService : 持有/调用\\n(onAccessibilityEvent 等) A11yService -down-\u003e IA11yConn : 主动查询节点树 / 执行动作\\n(via AccessibilityInteractionClient) IA11yInteract -up-\u003e ViewRoot : 跨进程查询节点 ' 2. App 内部视图树流转 ViewRoot .right.\u003e A11yNode : 生成并返回 A11yNode .right.\u003e A11yService : 跨进程序列化传递 ' 3. Binder 接口 \u003c--\u003e System Server Conn -up-\u003e IA11yClient : 持有/调用 IA11yConn -down-\u003e Conn IA11yManager -down-\u003e AMS AMS -up-\u003e IA11yInteract ' 4. System Server 内部交互 AMS -right-\u003e Conn : 管理与绑定 AMS -left-\u003e UiTest : 测试注入 InputFilter -up-\u003e AMS : 传递过滤事件 InputFilter -left-\u003e InputManagerService : sendInputEvent\\n(via super.sendInputEvent / IInputFilterHost) WMS -up-\u003e AMS : 同步窗口状态/焦点\\n(via WindowManagerInternal) AMS -down-\u003e WMS : magnification / window transform ' 5. System Server \u003c--\u003e Native InputDispatcher -up-\u003e NativeInputManager : filterInputEvent NativeInputManager -up-\u003e InputManagerService : filterInputEvent (JNI) InputManagerService -up-\u003e InputFilter : filterInputEvent\\nInputFilter内部异步处理Touch事件 InputManagerService --\u003e NativeInputManager : injectInputEvent\\n(via mNative/InputFilterHost) NativeInputManager --\u003e InputDispatcher : injectInputEvent WMS -down-\u003e SurfaceFlinger : SurfaceControl\\n图层变换 @enduml 系统流程图 flowchart TD %% 样式定义 classDef native fill:#dae8fc,stroke:#333,stroke-width:1px; classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px; classDef app fill:#e1d5e7,stroke:#333,stroke-width:1px; classDef binder fill:#d5e8d4,stroke:#333,stroke-width:1px; subgraph NativeSpace [Native 层 System Server] Dispatcher[InputDispatcher]:::native NativeIMS[NativeInputManager\nJNI Bridge]:::native end subgraph SysJavaSpace [System Server Java 层] IMS[InputManagerService]:::sysjava AMS[AccessibilityManagerService]:::sysjava A11yFilter[AccessibilityInputFilter\\n事件加工责任链]:::sysjava A11yConn[AccessibilityServiceConnection]:::sysjava end subgraph AppSpace [Accessibility App 进程] A11yService[AccessibilityService]:::app Wrapper[AccessibilityServiceClientWrapper\\nIAccessibilityServiceClient.Stub]:::app end %% 连接关系 Dispatcher -- \"1. 拦截底层物理事件\\nfilterInputEvent\" --\u003e NativeIMS NativeIMS -- \"JNI 回调 Java 层\" --\u003e IMS IMS -- \"2. 交给无障碍流水线处理\" --\u003e A11yFilter A11yFilter -- \"3. 提取特征并广播\" --\u003e AMS AMS --\u003e A11yConn A11yConn -- \"4. Binder IPC\" --\u003e Wrapper Wrapper -- \"5. Handler 切主线程\" --\u003e A11yService 关键时序：全局按键与触摸事件的监听闭环 许多车机应用会在继承 AccessibilityService 的类中重写 onKeyEvent，或是通过配置 FLAG_REQUEST_TOUCH_EXPLORATION_MODE 来重写 onMotionEvent（或 onGesture）。\n下面这幅时序图，精准还原了当用户按下音量键或在屏幕上滑动时，事件是如何穿透重重系统屏障，最终回调到你的 App 中的：\nsequenceDiagram autonumber box LightCyan System Server (Native) participant Disp as InputDispatcher end box LightYellow System Server (Java) participant IMS as InputManagerService participant Filter as AccessibilityInputFilter participant Interceptor as KeyboardInterceptor / TouchExplorer participant AMS as AccessibilityManagerService participant Conn as AccessibilityServiceConnection end box LightPink App Process (Accessibility Service) participant Wrapper as IAccessibilityServiceClient\n(Binder 线程) participant Handler as HandlerCaller participant Service as MyAccessibilityService\n(主线程) end %% --- 1. 底层拦截阶段 --- Note over Disp, IMS: 1. 底层物理事件的强制拦截 Disp -\u003e\u003e Disp: notifyKey() / notifyMotion() Note right of Disp: 发现 mInputFilterEnabled == true Disp -\u003e\u003e IMS: JNI: filterInputEvent() IMS -\u003e\u003e Filter: mInputFilter.filterInputEvent() Note right of IMS: 原生分发被 return false 直接中断 %% --- 2. 责任链评估阶段 --- rect rgb(240, 240, 240) Note over Filter, AMS: 2. 责任链事件提取与广播 (EventStreamTransformation) Filter -\u003e\u003e Interceptor: onKeyEvent() / onMotionEvent() Note right of Interceptor: 经过按键过滤或触控探索器评估 Interceptor -\u003e\u003e AMS: notifyKeyEvent() / sendMotionEventToListeningServices() end %% --- 3. 跨进程派发阶段 --- rect rgb(230, 255, 230) Note over AMS, Conn: 3. 跨进程派发至 App AMS -\u003e\u003e Conn: notifyKeyEvent() / notifyMotionEvent() Note right of Conn: 遍历所有已绑定的辅助服务 Connection Conn -\u003e\u003e Wrapper: Binder IPC: onKeyEvent() / onMotionEvent() end %% --- 4. App 进程内部分发阶段 --- rect rgb(255, 240, 240) Note over Wrapper, Service: 4. App 进程：切回主线程与业务消费 Wrapper -\u003e\u003e Handler: sendMessage() Note right of Handler: Binder 线程池切回 App 主线程 (Main Looper) Handler -\u003e\u003e Service: 回调: onKeyEvent(event) / onMotionEvent(event) alt 开发者业务逻辑 Service -\u003e\u003e Service: 执行车机实体按键映射 / 全局手势检测 end Service --\u003e\u003e Wrapper: boolean 消费结果 Wrapper --\u003e\u003e Conn: Binder Reply: 是否已被 App 消费 end 源码级深度剖析 1. 为什么 AccessibilityService App 能收到事件？ 并不是所有的 AccessibilityService 都能收到底层的键盘或滑动事件。在 AccessibilityManagerService.java 的派发逻辑中（即图中的第 2 步到第 3 步）：\n按键事件 (onKeyEvent)： 只有当你的服务在 accessibility-service 配置文件中声明了 android:canRequestFilterKeyEvents=\"true\"，并且激活了 FLAG_REQUEST_FILTER_KEY_EVENTS 标志位时，KeyboardInterceptor 才会将按键跨进程发给你。 触摸事件 (onMotionEvent)： 对于触摸事件，原生的 AccessibilityService 并没有直接暴露出公共的 onMotionEvent 回调给开发者（官方更希望你通过 AccessibilityNodeInfo 节点操作）。但系统内部的服务（或者通过特殊反射/定制源码的服务）是通过 TouchExplorer 责任链节点，调用 sendMotionEventToListeningServices，经由 IAccessibilityServiceClient 接口的 onMotionEvent 方法接收原始物理坐标的。 2. App 的布尔返回值去哪了？(同步阻塞与超时) 注意到时序图的最后一步，当你的 App 在 onKeyEvent 中 return true; 时，这个布尔值是通过 Binder 同步返回给 System Server 的 AccessibilityServiceConnection 的。\n如果你的 App 返回了 true，系统就会认为这个按键动作已经被你的无障碍服务接管（消费）了，底层的 KeyboardInterceptor 就会将这个按键抛弃，不再将其发送给前台拥有焦点的 App。这就是车机厂商实现“方向盘按键强制重映射”的底层闭环原理。\n4. InputFilter 的挂载与状态同步机制 (动态下发) 前文剖析了底层物理事件是如何自下而上回传至 AccessibilityService 的。本节将自上而下地推演：当系统或应用层启用某个无障碍服务（以调用 AccessibilityManager.enableTrustedAccessibilityService API 为例）时，系统是如何重新评估事件拦截状态，并将 AccessibilityInputFilter 最终挂载至 InputManagerService 的。\nsequenceDiagram autonumber box LightCyan App / System Process participant AM as AccessibilityManager end box LightYellow System Server (Accessibility) participant AMS as AccessibilityManagerService participant Handler as AMS.MainHandler end box LightGreen System Server (Window \u0026 Input) participant WMS as WindowManagerInternal (WMS) participant IMS as InputManagerService end AM -\u003e\u003e AMS: IPC: enableTrustedAccessibilityService(ComponentName) Note right of AMS: 1. 权限校验与配置更新 AMS -\u003e\u003e AMS: enableAccessibilityServiceLocked() Note right of AMS: 同步更新 Settings.Secure 并修改 UserState AMS -\u003e\u003e AMS: onUserStateChangedLocked() AMS -\u003e\u003e Handler: scheduleUpdateInputFilter() Note right of Handler: 2. 异步切主线程，计算 Filter 状态 Handler --\u003e\u003e AMS: updateInputFilter(UserState) Note right of AMS: 3. 汇总 Feature Flags，实例化/更新 AccessibilityInputFilter AMS -\u003e\u003e WMS: setInputFilter(AccessibilityInputFilter) Note right of WMS: 4. 跨服务委托挂载 WMS -\u003e\u003e IMS: setInputFilter(IInputFilter) Note right of IMS: JNI 调用至 Native，挂载 InputFilter 至 InputDispatcher 核心源码执行流解析\n触发与鉴权 (IPC \u0026 Validation) 当系统或持有特权的组件调用 AccessibilityManager.enableTrustedAccessibilityService(ComponentName) 时，请求会通过 Binder IPC 陷入 System Server 的 AccessibilityManagerService (AMS)。AMS 接收后，首先严格校验 android.view.accessibility.Flags.enableTrustedAccessibilityServiceApi() 标志位及调用方的 UID 权限。鉴权通过后，进入 enableAccessibilityServiceLocked，该方法不仅将目标组件持久化至 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES，且会更新内存中的用户无障碍状态树 AccessibilityUserState。\n状态更新与异步调度 (State Update \u0026 Async Scheduling) 服务状态的实质性变更随即触发 onUserStateChangedLocked。由于无障碍特性的更新牵涉触控探索、放大镜、按键过滤等多个子系统的联动，AMS 出于性能与并发安全考量，不会在当前持锁状态下同步执行底层更新。相反，它调用 scheduleUpdateInputFilter，向系统主线程的 mMainHandler 投递一个异步 Message，切换至主线程继续执行，从而有效避免因跨模块调用引发的系统锁竞争。\n过滤器特征评估 (Filter Feature Evaluation) 主线程 Handler 调度执行 updateInputFilter(AccessibilityUserState)。在此阶段，AMS 将基于当前 AccessibilityUserState，系统性地评估所有需要开启的拦截特性（例如 FLAG_FEATURE_TOUCH_EXPLORATION、FLAG_FEATURE_FILTER_KEY_EVENTS 或多指手势等），并将这些标志位通过按位或 (|) 操作汇总为一个全局的 flags 掩码。只要存在需要过滤的特性，AMS 便会实例化或更新 AccessibilityInputFilter 对象，将最新的特性掩码下发至该拦截器实例。\n服务委托与底层挂载 (Service Delegation \u0026 Native Attachment) 因 AMS 侧重于无障碍上层业务逻辑，并不直接持有底层的输入子系统引用，它通过向 WindowManagerInternal 接口层调用 mWindowManagerService.setInputFilter(inputFilter) 实现跨服务通信。该调用被 WindowManagerService.LocalService 捕获后，原封不动地透传给内部持有的 mInputManager.setInputFilter(IInputFilter)。至此，由无障碍体系驱动的 Filter 对象成功传递至 InputManagerService，并最终通过 JNI 挂载到 Native C++ 层的 InputDispatcher，正式确立物理事件的拦截闭环。\n5. 多用户切换与解锁场景下的 InputFilter 重构时序 在智能座舱（AAOS）或支持多用户的 Android 设备中，无障碍服务的生命周期严格绑定于当前的前台用户 (User Handle)。当系统发生用户切换 (switchUser) 或用户解锁 (unlockUser) 时，底层 InputDispatcher 中的拦截规则必须发生“热切换”。\n以下时序图和原理解析，详细展示了在这两类系统级生命周期事件中，AccessibilityManagerService (AMS)、AccessibilityService 与 InputManagerService (IMS) 之间的拉扯与重建过程。\nsequenceDiagram autonumber box LightCyan Lifecycle / User participant Lifecycle as System / ActivityManager end box LightYellow System Server (Accessibility) participant AMS as AccessibilityManagerService participant OldState as OldUserState participant NewState as NewUserState participant Handler as AMS.MainHandler end box LightPink App Process (Accessibility Service) participant OldSvc as Old AccessibilityService participant NewSvc as New AccessibilityService end box LightGreen System Server (Window \u0026 Input) participant WMS as WindowManagerInternal (WMS) participant IMS as InputManagerService end %% --- 多用户切换或解锁触发 --- Lifecycle -\u003e\u003e AMS: switchUser(newUserId) / unlockUser(userId) rect rgb(255, 240, 240) Note right of AMS: 1. 剥离旧用户状态 (仅 switchUser) AMS -\u003e\u003e OldState: onSwitchToAnotherUserLocked() OldState -\u003e\u003e OldState: unbindAllServicesLocked() OldState --\u003e\u003e OldSvc: Context.unbindService() Note right of OldSvc: 旧用户的辅助服务被强行断开并销毁 end rect rgb(240, 240, 255) Note right of AMS: 2. 读取新用户配置与服务拉起 AMS -\u003e\u003e AMS: readConfigurationForUserStateLocked() Note right of AMS: 从 Settings.Secure 读取新用户的 ENABLED_SERVICES AMS -\u003e\u003e AMS: onUserStateChangedLocked(NewUserState) AMS --\u003e\u003e NewSvc: Context.bindServiceAsUser() Note right of NewSvc: 跨进程拉起新用户对应的辅助服务 end rect rgb(230, 255, 230) Note right of AMS: 3. 异步重算拦截掩码 AMS -\u003e\u003e Handler: scheduleUpdateInputFilter(NewUserState) Handler --\u003e\u003e AMS: updateInputFilter(NewUserState) Note right of AMS: 根据新服务的 Feature Flags(如触摸浏览、按键拦截) 构建 Filter end %% --- 底层挂载 --- AMS -\u003e\u003e WMS: setInputFilter(AccessibilityInputFilter) WMS -\u003e\u003e IMS: setInputFilter(IInputFilter) Note right of IMS: Native 层清空旧规则，挂载新拦截器 核心源码与交互机理深度剖析 在这段时序中，AccessibilityManagerService 扮演了“破与立”的架构枢纽，它必须妥善处理与应用层 AccessibilityService 之间的进程绑定关系，才能推导出正确的底层拦截规则：\n1. 破：旧服务的强制退场 (onSwitchToAnotherUserLocked) 在多用户架构下，Android 严格禁止后台用户的辅助服务继续窃听物理事件。当 switchUser 被触发时，AMS 会首先拿出旧用户的状态树 OldUserState，调用其 onSwitchToAnotherUserLocked()。\n与 Service 的交互： 该方法内部会暴烈地调用 unbindAllServicesLocked()，直接对旧用户下所有已绑定的 AccessibilityServiceConnection 执行 Context.unbindService()。旧用户的 AccessibilityService 会随之收到 onUnbind 与 onDestroy 回调，彻底失去与 System Server 的 IPC 连接。 2. 立：新服务的配置读取与拉起 (readConfigurationForUserStateLocked) 用户切换完毕或用户刚解锁 (unlockUser) 时，存储在凭据加密存储 (CE) 中的数据方可被正常访问（注意：部分辅助服务可能不支持 Direct Boot，只有在 unlockUser 后才能启动）。\n与 Service 的交互： AMS 会根据 Settings.Secure 中记录的启用列表，为当前活动用户重新执行 bindServiceAsUser。一旦新用户的辅助服务进程被唤起并返回 Binder 代理 (onServiceConnected)，AMS 就完成了新环境的重建。 3. 融：InputFilter 的重新挂载 (updateInputFilter) 无论是 switchUser 还是 unlockUser，最终都会汇流到 onUserStateChangedLocked(userState) 方法。 如前文所述，AMS 不会同步阻塞地去修改底层，而是通过 scheduleUpdateInputFilter 切到主线程。主线程的 updateInputFilter 会重新巡检当前用户下所有已绑定且活着的 AccessibilityService。\n如果新用户没有开启任何需要拦截底层事件的辅助服务（例如只开启了屏幕文字读取，没开启按键精灵或 TalkBack），flags 掩码计算结果为 0，AMS 会向下传递一个 null 或者置空的 Filter，从而释放 InputDispatcher 的拦截屏障。 如果新用户开启了特定的拦截特性，AMS 就会生成全新的 AccessibilityInputFilter 透传给 InputManagerService.setInputFilter。 一句话总结： switchUser 和 unlockUser 是一次系统级大换血。AMS 会先斩断与旧 AccessibilityService 的 Binder 连接，拉起新用户的 Service，再根据新 Service 的配置要求，重新合成一份 InputFilter 下发给 InputManagerService。这就是为什么切换用户时，车机方向盘重映射或全局手势可能会出现一两秒“失效”的根本原因。\n6. 深入 AccessibilityInputFilter 与责任链机制 在无障碍体系中，AccessibilityInputFilter 是物理输入事件（按键、触摸）进入 Java 层后的第一道关卡。它不仅是一个简单的过滤器，更是复杂无障碍手势（如屏幕放大镜、触摸浏览 TalkBack、自动点击等）的分发与加工中枢。\n本节将结合 Android AOSP 源码，深入剖析当一个 InputEvent 到达 AccessibilityInputFilter 时，系统是如何判断“是否需要处理”以及“如何处理”的。\n6.1 事件的准入判断逻辑 当底层 InputDispatcher 拦截到事件后，会通过 JNI 回调 Java 层的 InputManagerService，最终调用到 AccessibilityInputFilter.onInputEvent(InputEvent event, int policyFlags)。在这个方法及其内部调用的 onInputEventInternal 中，系统会执行严密的准入判断：\n多设备互斥校验 (Flags.handleMultiDeviceInput) 如果系统支持并开启了多设备输入逻辑，shouldProcessMultiDeviceEvent 方法会确保同一时间只有一个物理设备的连续手势被处理。如果当前正在处理设备 A 的滑动轨迹，设备 B 突然发来的 MOVE 事件将被直接抛弃（拦截并 return）。 处理链与特性开关检查 如果当前系统没有开启任何需要拦截底层事件的无障碍特性（即 mEventHandler.size() == 0，责任链为空），或者没有开启影响运动事件的特性标志（mEnabledFeatures \u0026 FEATURES_AFFECTING_MOTION_EVENTS == 0 且事件为 MotionEvent），则事件无需特殊处理，直接调用 super.onInputEvent(event, policyFlags)，放行回系统进行原生分发。 事件流状态机匹配 (getEventStreamState) 系统为不同类型的输入（触摸屏、鼠标、键盘）维护了独立的“事件流状态机”（EventStreamState）。如果当前事件不属于受管辖的类型，或者该状态机判定当前不该处理该事件（例如不处理悬停事件或特殊注入事件），则调用 super.onInputEvent 放行。 PolicyFlags 过滤 如果底层发来的事件标记位 policyFlags 中不包含 WindowManagerPolicy.FLAG_PASS_TO_USER（意味着这个事件在底层已被判定为不可传递给用户空间的无效事件），则直接放行，不做无障碍加工。 只有成功通过上述所有校验的事件，才会正式进入特征流水线（调用 processMotionEvent 或 processKeyEvent）。\n6.2 责任链的分发与加工 (EventStreamTransformation) 一旦事件进入加工阶段（例如 handleMotionEvent），系统会通过 MotionEvent.obtain(event) 克隆一份原始事件，并将其丢进名为 EventStreamTransformation 的事件转换责任链中。\n处理机制与责任链节点： AccessibilityInputFilter 在启用特性时，会根据配置动态组装出一条针对特定 Display 的处理链。典型的责任链组合如下： 屏幕放大镜 (MagnificationGestureHandler) -\u003e 触摸浏览 (TouchExplorer) -\u003e 自动点击 (AutoclickController)\n在链条中，每个节点都通过 onMotionEvent(MotionEvent event, MotionEvent rawEvent, int policyFlags) 接收事件，并可能做出以下三种决策之一：\n吞没/消费 (Swallow/Consume)： 例如 TouchExplorer 识别出用户正在进行“单指在屏幕上滑动探索控件”的手势。此时，它会向无障碍服务发送 hover 的反馈事件，并直接将原始的物理触摸事件吞没（不调用 super.onMotionEvent 传给下一节点）。事件在这一环中止，底层目标 App 完全不知情。 修改/转化 (Transform)： 如果 MagnificationGestureHandler 发现当前屏幕正处于放大状态，它会对事件坐标进行矩阵变换，按照放大比例将原始的物理屏幕坐标换算为逻辑坐标，然后将修改后的事件传递给链条的下一个节点。（注：这也是在某些车机或特定设备上，调试时发现原本整数的坐标在 inject 阶段变成浮点数的原因之一。） 放行 (Pass-through)： 如果节点认为当前操作属于普通触摸（例如单指快速点击，或者不在手势识别状态），它会调用 super.onMotionEvent，将事件原封不动地传递给下一个节点。 事件注回系统 (Injection)： 责任链的最末端是一个默认处理器。当事件顺利走完所有节点（或者被某个节点转换为普通事件后主动发出），末端处理器会调用父类 InputFilter.sendInputEvent(event, policyFlags)，经由 InputManagerService 内部的 IInputFilterHost 发送 injectInputEvent 指令。这个历经加工的事件便重新回到 InputDispatcher，继续向真正的 App Window 分发。\n6.3 责任链工作流图解 flowchart TD %% 样式定义 classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px; classDef ams fill:#d5e8d4,stroke:#333,stroke-width:1px; classDef handler fill:#dae8fc,stroke:#333,stroke-width:1px; classDef inject fill:#ffcccc,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5; classDef check fill:#f9f2f4,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5; subgraph FilterBase [AccessibilityInputFilter 准入判断阶段] direction TB Input[JNI: filterInputEvent]:::sysjava --\u003e Check1{多设备互斥校验}:::check Check1 -- 冲突 --\u003e Drop((抛弃事件)) Check1 -- 正常 --\u003e Check2{处理链与状态机校验\ngetEventStreamState}:::check Check2 -- 无需处理 / 放行 --\u003e Super[super.onInputEvent\n放行回系统原生分发]:::sysjava Check2 -- 需处理 --\u003e Clone[MotionEvent.obtain\n克隆事件]:::ams end subgraph FilterChain [EventStreamTransformation 责任链加工阶段] direction TB Clone --\u003e Interceptor_Mag[MagnificationGestureHandler\n屏幕放大镜]:::handler Interceptor_Mag -- \"若放大: 矩阵变换重算坐标\" --\u003e Interceptor_Exp[TouchExplorer\n触摸浏览 / TalkBack]:::handler Interceptor_Exp -- \"命中无障碍手势\" --\u003e Swallow((消费/吞没事件)) Interceptor_Exp -- \"普通触摸放行\" --\u003e Interceptor_Auto[AutoclickController\n自动点击]:::handler Interceptor_Auto -- \"放行/加工结束\" --\u003e Injector[InputManagerService.IInputFilterHost\nsendInputEvent]:::inject end %% 注回 Native Injector -- \"JNI: injectInputEvent(..., FLAG_FILTERED)\" --\u003e Dispatcher[InputDispatcher\n继续正常分发给 App Window]:::sysjava ","wordCount":"1479","inLanguage":"en","datePublished":"2025-05-15T10:00:00+08:00","dateModified":"2025-05-15T10:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
 <svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/>WindowManager</a></div><h1 class="post-title entry-hint-parent">Android AccessibilityService 架构与原理深度剖析</h1><div class=post-meta><span title='2025-05-15 10:00:00 +0800 CST'>May 15, 2025</span>&nbsp;·&nbsp;7 min&nbsp;·&nbsp;1311 words</div></header><div class=post-content><h1 id=android-accessibilityservice-架构与原理深度剖析>Android AccessibilityService 架构与原理深度剖析<a hidden class=anchor aria-hidden=true href=#android-accessibilityservice-架构与原理深度剖析>#</a></h1><p><code>AccessibilityService</code>（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。</p><p>本文将深入 Android Framework 底层，解析 <code>AccessibilityService</code> 的架构拓扑，并重点推演它截获全局 <code>onMotionEvent</code> 与 <code>onKeyEvent</code> 的完整调用时序。</p><h2 id=1-系统级架构拓扑-architecture>1. 系统级架构拓扑 (Architecture)<a hidden class=anchor aria-hidden=true href=#1-系统级架构拓扑-architecture>#</a></h2><p>无障碍服务的核心架构横跨了 <strong>App 进程</strong>、<strong>System Server (Java 层)</strong> 以及 <strong>InputFlinger (Native C++ 层)</strong>。</p><div class=mermaid>flowchart TD
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/>WindowManager</a></div><h1 class="post-title entry-hint-parent">Android AccessibilityService 架构与原理深度剖析-1</h1><div class=post-meta><span title='2025-05-15 10:00:00 +0800 CST'>May 15, 2025</span>&nbsp;·&nbsp;7 min&nbsp;·&nbsp;1479 words</div></header><div class=post-content><p><code>AccessibilityService</code>（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。</p><p>本文将深入 Android Framework 底层，解析 <code>AccessibilityService</code> 的架构拓扑，并重点推演它截获全局 <code>onMotionEvent</code> 与 <code>onKeyEvent</code> 的完整调用时序。</p><h2 id=架构一览>架构一览<a hidden class=anchor aria-hidden=true href=#架构一览>#</a></h2><h3 id=系统架构>系统架构<a hidden class=anchor aria-hidden=true href=#系统架构>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+skinparam componentStyle rectangle
+top to bottom direction
+
+frame &#34;Accessibility App Process (辅助服务进程)&#34; {
+    [AccessibilityService\n(无障碍服务基类)] as A11yService #e1d5e7
+}
+
+frame &#34;Target App Process (目标应用进程)&#34; {
+    [ViewRootImpl\n(目标应用视图根节点)] as ViewRoot #d5e8d4
+    [AccessibilityNodeInfo\n(无障碍节点信息 / Parcelable 节点快照)] as A11yNode #d5e8d4
+}
+
+frame &#34;Binder IPC 接口&#34; {
+    interface &#34;IAccessibilityServiceClient&#34; as IA11yClient #fff2cc
+    interface &#34;IAccessibilityServiceConnection&#34; as IA11yConn #fff2cc
+    interface &#34;IAccessibilityManager&#34; as IA11yManager #fff2cc
+    interface &#34;IAccessibilityInteractionConnection&#34; as IA11yInteract #fff2cc
+}
+
+frame &#34;System Server (Java Framework)&#34; {
+    [AccessibilityManagerService\n(AMS 大管家)] as AMS #ffe6cc
+    [AccessibilityServiceConnection\n(AMS 内的 Per-Service 连接)] as Conn #ffe6cc
+    [UiAutomationManager\n(自动化测试代理)] as UiTest #ffe6cc
+    [AccessibilityInputFilter\n(事件过滤器)] as InputFilter #ffe6cc
+    [WindowManagerService\n(WMS 窗口管理)] as WMS #ffe6cc
+    [InputManagerService] as InputManagerService #ffe6cc
+}
+
+frame &#34;Native C++ 层&#34; {
+    [InputDispatcher(输入分发器)] as InputDispatcher #dae8fc
+    [NativeInputManager\n(JNI Bridge)] as NativeInputManager #dae8fc
+    [SurfaceFlinger(图层合成)] as SurfaceFlinger #dae8fc
+}
+
+&#39; ==========================================
+&#39;  关系连线 (强制 Top to Bottom 布局)
+&#39; ==========================================
+
+&#39; 1. App &lt;--&gt; Binder 接口
+IA11yClient -up-&gt; A11yService : 持有/调用\n(onAccessibilityEvent 等)
+A11yService -down-&gt; IA11yConn : 主动查询节点树 / 执行动作\n(via AccessibilityInteractionClient)
+IA11yInteract -up-&gt; ViewRoot : 跨进程查询节点
+
+&#39; 2. App 内部视图树流转
+ViewRoot .right.&gt; A11yNode : 生成并返回
+A11yNode .right.&gt; A11yService : 跨进程序列化传递
+
+&#39; 3. Binder 接口 &lt;--&gt; System Server
+Conn -up-&gt; IA11yClient : 持有/调用
+IA11yConn -down-&gt; Conn
+IA11yManager -down-&gt; AMS
+AMS -up-&gt; IA11yInteract 
+
+&#39; 4. System Server 内部交互
+AMS -right-&gt; Conn : 管理与绑定
+AMS -left-&gt; UiTest : 测试注入
+InputFilter -up-&gt; AMS : 传递过滤事件
+InputFilter -left-&gt; InputManagerService : sendInputEvent\n(via super.sendInputEvent / IInputFilterHost)
+WMS -up-&gt; AMS : 同步窗口状态/焦点\n(via WindowManagerInternal)
+AMS -down-&gt; WMS : magnification / window transform
+
+&#39; 5. System Server &lt;--&gt; Native
+InputDispatcher -up-&gt; NativeInputManager : filterInputEvent
+NativeInputManager -up-&gt; InputManagerService : filterInputEvent (JNI)
+InputManagerService -up-&gt; InputFilter : filterInputEvent\nInputFilter内部异步处理Touch事件
+
+InputManagerService --&gt; NativeInputManager : injectInputEvent\n(via mNative/InputFilterHost)
+NativeInputManager --&gt; InputDispatcher : injectInputEvent
+WMS -down-&gt; SurfaceFlinger : SurfaceControl\n图层变换
+@enduml
+</code></pre><h3 id=系统流程图>系统流程图<a hidden class=anchor aria-hidden=true href=#系统流程图>#</a></h3><div class=mermaid>flowchart TD
 %% 样式定义
 classDef native fill:#dae8fc,stroke:#333,stroke-width:1px;
 classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px;
@@ -103,9 +305,9 @@ classDef app fill:#e1d5e7,stroke:#333,stroke-width:1px;
 classDef binder fill:#d5e8d4,stroke:#333,stroke-width:1px;
 subgraph NativeSpace [Native 层 System Server]
 Dispatcher[InputDispatcher]:::native
+NativeIMS[NativeInputManager<br>JNI Bridge]:::native
 end
 subgraph SysJavaSpace [System Server Java 层]
-NativeIMS[NativeInputManager]:::sysjava
 IMS[InputManagerService]:::sysjava
 AMS[AccessibilityManagerService]:::sysjava
 A11yFilter[AccessibilityInputFilter\n事件加工责任链]:::sysjava
@@ -116,13 +318,13 @@ A11yService[AccessibilityService]:::app
 Wrapper[AccessibilityServiceClientWrapper\nIAccessibilityServiceClient.Stub]:::app
 end
 %% 连接关系
-Dispatcher -- "1. 拦截底层物理事件\nJNI filterInputEvent" --> NativeIMS
-NativeIMS --> IMS
+Dispatcher -- "1. 拦截底层物理事件\nfilterInputEvent" --> NativeIMS
+NativeIMS -- "JNI 回调 Java 层" --> IMS
 IMS -- "2. 交给无障碍流水线处理" --> A11yFilter
 A11yFilter -- "3. 提取特征并广播" --> AMS
 AMS --> A11yConn
 A11yConn -- "4. Binder IPC" --> Wrapper
-Wrapper -- "5. Handler 切主线程" --> A11yService</div><h3 id=核心组件职责>核心组件职责：<a hidden class=anchor aria-hidden=true href=#核心组件职责>#</a></h3><ol><li><strong><code>AccessibilityManagerService</code> (AMS)：</strong> 系统中所有无障碍服务的中央大管家。它负责解析应用的 <code>AndroidManifest.xml</code> 中声明的 <code>&lt;accessibility-flags></code>，并在条件满足时，强行切断底层 <code>InputDispatcher</code> 的原生分发流，挂载全局的 <code>InputFilter</code>。</li><li><strong><code>AccessibilityInputFilter</code>：</strong> 挂载在系统底层的事件加工流水线（<code>EventStreamTransformation</code>）。它负责实时监听和过滤用户的屏幕触摸轨迹与物理按键。</li><li><strong><code>AccessibilityServiceConnection</code>：</strong> System Server 中用于维护与具体第三方 App (无障碍服务) Binder 连接的代理对象。</li><li><strong><code>IAccessibilityServiceClient</code>：</strong> 跨进程通信的 Binder 接口，供 System Server 将事件推送到 App 进程。</li></ol><hr><h2 id=2-关键时序全局按键与触摸事件的监听闭环>2. 关键时序：全局按键与触摸事件的监听闭环<a hidden class=anchor aria-hidden=true href=#2-关键时序全局按键与触摸事件的监听闭环>#</a></h2><p>许多车机应用会在继承 <code>AccessibilityService</code> 的类中重写 <code>onKeyEvent</code>，或是通过配置 <code>FLAG_REQUEST_TOUCH_EXPLORATION_MODE</code> 来重写 <code>onMotionEvent</code>（或 <code>onGesture</code>）。</p><p>下面这幅时序图，精准还原了当用户按下音量键或在屏幕上滑动时，事件是如何穿透重重系统屏障，最终回调到你的 App 中的：</p><div class=mermaid>sequenceDiagram
+Wrapper -- "5. Handler 切主线程" --> A11yService</div><hr><h2 id=关键时序全局按键与触摸事件的监听闭环>关键时序：全局按键与触摸事件的监听闭环<a hidden class=anchor aria-hidden=true href=#关键时序全局按键与触摸事件的监听闭环>#</a></h2><p>许多车机应用会在继承 <code>AccessibilityService</code> 的类中重写 <code>onKeyEvent</code>，或是通过配置 <code>FLAG_REQUEST_TOUCH_EXPLORATION_MODE</code> 来重写 <code>onMotionEvent</code>（或 <code>onGesture</code>）。</p><p>下面这幅时序图，精准还原了当用户按下音量键或在屏幕上滑动时，事件是如何穿透重重系统屏障，最终回调到你的 App 中的：</p><div class=mermaid>sequenceDiagram
 autonumber
 box LightCyan System Server (Native)
 participant Disp as InputDispatcher
@@ -171,80 +373,7 @@ Service ->> Service: 执行车机实体按键映射 / 全局手势检测
 end
 Service -->> Wrapper: boolean 消费结果
 Wrapper -->> Conn: Binder Reply: 是否已被 App 消费
-end</div><h3 id=源码级深度剖析>源码级深度剖析<a hidden class=anchor aria-hidden=true href=#源码级深度剖析>#</a></h3><h4 id=1-为什么你的-app-能收到事件>1. 为什么你的 App 能收到事件？<a hidden class=anchor aria-hidden=true href=#1-为什么你的-app-能收到事件>#</a></h4><p>并不是所有的 <code>AccessibilityService</code> 都能收到底层的键盘或滑动事件。在 <code>AccessibilityManagerService.java</code> 的派发逻辑中（即图中的第 2 步到第 3 步）：</p><ul><li><strong>按键事件 (<code>onKeyEvent</code>)：</strong> 只有当你的服务在 <code>accessibility-service</code> 配置文件中声明了 <code>android:canRequestFilterKeyEvents="true"</code>，并且激活了 <code>FLAG_REQUEST_FILTER_KEY_EVENTS</code> 标志位时，<code>KeyboardInterceptor</code> 才会将按键跨进程发给你。</li><li><strong>触摸事件 (<code>onMotionEvent</code>)：</strong> 对于触摸事件，原生的 <code>AccessibilityService</code> 并没有直接暴露出公共的 <code>onMotionEvent</code> 回调给开发者（官方更希望你通过 <code>AccessibilityNodeInfo</code> 节点操作）。但系统内部的服务（或者通过特殊反射/定制源码的服务）是通过 <code>TouchExplorer</code> 责任链节点，调用 <code>sendMotionEventToListeningServices</code>，经由 <code>IAccessibilityServiceClient</code> 接口的 <code>onMotionEvent</code> 方法接收原始物理坐标的。</li></ul><h4 id=2-app-的布尔返回值去哪了同步阻塞与超时>2. App 的布尔返回值去哪了？(同步阻塞与超时)<a hidden class=anchor aria-hidden=true href=#2-app-的布尔返回值去哪了同步阻塞与超时>#</a></h4><p>注意到时序图的最后一步，当你的 App 在 <code>onKeyEvent</code> 中 <code>return true;</code> 时，这个布尔值是通过 Binder 同步返回给 System Server 的 <code>AccessibilityServiceConnection</code> 的。</p><p>如果你的 App 返回了 <code>true</code>，系统就会认为这个按键动作<strong>已经被你的无障碍服务接管（消费）了</strong>，底层的 <code>KeyboardInterceptor</code> 就会将这个按键抛弃，不再将其发送给前台拥有焦点的 App。这就是车机厂商实现“方向盘按键强制重映射”的底层闭环原理。</p><blockquote><p><strong>⚠️ 性能警告：</strong>
-正是因为需要等待第三方 App 的布尔返回值来决定事件生死，无障碍服务的 Binder 调用往往是<strong>同步阻塞的 (Synchronous)</strong>。如果你的 <code>onKeyEvent</code> 中执行了耗时操作（例如读写数据库、发起网络请求），它将直接堵死系统 <code>System Server</code> 的分发线程池，导致严重的系统级卡顿。
-因此，在无障碍服务中处理物理事件时，务必保持极致的轻量化，或者在极短时间内直接返回结果，将繁重的业务交由子线程异步处理。</p></blockquote><h2 id=3-核心组件交互图-component-diagram>3. 核心组件交互图 (Component Diagram)<a hidden class=anchor aria-hidden=true href=#3-核心组件交互图-component-diagram>#</a></h2><p>为了更宏观地理解 <code>AccessibilityService</code> 体系内各个模块的静态依赖与动态交互关系，并且为了保证<strong>从上到下 (App -> Binder -> System Server -> Native)</strong> 的严谨层级排版，我们使用了 PlantUML 绘制了如下的组件图：</p><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
-!theme plain
-skinparam componentStyle rectangle
-top to bottom direction
-
-frame &#34;Accessibility App Process (辅助服务进程)&#34; {
-    [AccessibilityService\n(无障碍服务基类)] as A11yService #e1d5e7
-}
-
-frame &#34;Target App Process (目标应用进程)&#34; {
-    [ViewRootImpl\n(目标应用视图根节点)] as ViewRoot #d5e8d4
-    [AccessibilityNodeInfo\n(虚拟节点树)] as A11yNode #d5e8d4
-}
-
-frame &#34;Binder IPC 接口&#34; {
-    interface &#34;IAccessibilityServiceClient&#34; as IA11yClient #fff2cc
-    interface &#34;IAccessibilityServiceConnection&#34; as IA11yConn #fff2cc
-    interface &#34;IAccessibilityManager&#34; as IA11yManager #fff2cc
-    interface &#34;IAccessibilityInteractionConnection&#34; as IWindow #fff2cc
-}
-
-frame &#34;System Server (Java Framework)&#34; {
-    [AccessibilityManagerService\n(AMS 大管家)] as AMS #ffe6cc
-    [AccessibilityServiceConnection\n(服务连接代理)] as Conn #ffe6cc
-    [UiAutomationManager\n(自动化测试代理)] as UiTest #ffe6cc
-    [AccessibilityInputFilter\n(事件过滤器)] as InputFilter #ffe6cc
-    [WindowManagerService\n(WMS 窗口管理)] as WMS #ffe6cc
-    [InputManagerService] as InputManagerService #ffe6cc
-    [InputFilterHost] as InputFilterHost #ffe6cc
-}
-
-frame &#34;Native C++ 层&#34; {
-    [InputDispatcher(输入分发器)] as InputDispatcher #dae8fc
-    [SurfaceFlinger(图层合成)] as SurfaceFlinger #dae8fc
-}
-
-&#39; ==========================================
-&#39;  关系连线 (强制 Top to Bottom 布局)
-&#39; ==========================================
-
-&#39; 1. App &lt;--&gt; Binder 接口
-IA11yClient -up-&gt; A11yService : 推送事件\n(onAccessibilityEvent)
-A11yService -down-&gt; IA11yConn : 请求执行动作\n(performGlobalAction)
-A11yService -down-&gt; IA11yManager : 主动抓取视图树
-IWindow -up-&gt; ViewRoot : 跨进程查询节点
-
-&#39; 2. App 内部视图树流转
-ViewRoot .right.&gt; A11yNode : 生成并返回
-A11yNode .right.&gt; A11yService : 跨进程序列化传递
-
-&#39; 3. Binder 接口 &lt;--&gt; System Server
-Conn -up-&gt; IA11yClient 
-IA11yConn -down-&gt; Conn
-IA11yManager -down-&gt; AMS
-AMS -up-&gt; IWindow 
-
-&#39; 4. System Server 内部交互
-AMS -right-&gt; Conn : 管理与绑定
-AMS -left-&gt; UiTest : 测试注入
-InputFilter -up-&gt; AMS : 传递过滤事件
-InputFilter -left-&gt; InputFilterHost:sendInputEvent
-WMS -up-&gt; AMS : 同步窗口状态/焦点
-AMS -down-&gt; WMS : 请求屏幕放大/缩放
-
-&#39; 5. System Server &lt;--&gt; Native
-InputDispatcher -up-&gt; InputManagerService:filterInputEvent
-InputManagerService -up-&gt; InputFilter:filterInputEvent\nInputFilter内部异步处理Touch事件
-
-InputFilterHost --&gt; InputDispatcher:injectInputEvent
-WMS -down-&gt; SurfaceFlinger : SurfaceControl\n图层变换
-@enduml
-</code></pre><h3 id=组件交互深度解析>组件交互深度解析：<a hidden class=anchor aria-hidden=true href=#组件交互深度解析>#</a></h3><ol><li><strong><code>AccessibilityManagerService</code> (AMS)：</strong> 作为核心控制中枢，它不仅要接收 <code>AccessibilityInputFilter</code> 传来的物理按键和触摸手势，还要接收 <code>WindowManagerService</code> 传来的窗口焦点变化、屏幕旋转等全局状态，甚至控制 <code>SurfaceFlinger</code> 实现屏幕放大镜效果。</li><li><strong>三组关键的 Binder 接口：</strong><ul><li><strong><code>IAccessibilityServiceClient</code>：</strong> System Server <strong>主动呼叫</strong> App 的通道。用于推送 <code>onAccessibilityEvent</code>（如窗口变化、按钮点击）和 <code>onKeyEvent</code>。</li><li><strong><code>IAccessibilityServiceConnection</code>：</strong> App <strong>主动呼叫</strong> System Server 的通道。无障碍服务通过它执行全局动作（如 <code>performGlobalAction</code> 模拟返回键、回到桌面），或者请求注入手势（<code>dispatchGesture</code>）。</li><li><strong><code>IAccessibilityInteractionConnection</code>：</strong> 这是实现“可见”的核心。当无障碍服务请求获取当前屏幕文字时，AMS 会通过这个接口跨进程调用目标应用（如微信、车机 Launcher）的 <code>ViewRootImpl</code>，由目标应用在自己的主线程遍历 View 树，打包成 <code>AccessibilityNodeInfo</code> 节点发回给无障碍服务。</li></ul></li><li><strong><code>UiAutomationManager</code> 的特殊角色：</strong> Android 的 UI 自动化测试框架（如 UiAutomator, Espresso）在底层完全复用了无障碍架构。它通过实例化一个特殊的虚拟无障碍服务来获取屏幕节点并注入点击事件，其在 AMS 内部的地位与第三方车机辅助应用几乎等同。</li></ol><h2 id=4-inputfilter-的挂载与状态同步机制-动态下发>4. InputFilter 的挂载与状态同步机制 (动态下发)<a hidden class=anchor aria-hidden=true href=#4-inputfilter-的挂载与状态同步机制-动态下发>#</a></h2><p>前文剖析了底层物理事件是如何自下而上回传至 AccessibilityService 的。本节将自上而下地推演：当系统或应用层启用某个无障碍服务（以调用
+end</div><h3 id=源码级深度剖析>源码级深度剖析<a hidden class=anchor aria-hidden=true href=#源码级深度剖析>#</a></h3><h4 id=1-为什么-accessibilityservice-app-能收到事件>1. 为什么 AccessibilityService App 能收到事件？<a hidden class=anchor aria-hidden=true href=#1-为什么-accessibilityservice-app-能收到事件>#</a></h4><p>并不是所有的 <code>AccessibilityService</code> 都能收到底层的键盘或滑动事件。在 <code>AccessibilityManagerService.java</code> 的派发逻辑中（即图中的第 2 步到第 3 步）：</p><ul><li><strong>按键事件 (<code>onKeyEvent</code>)：</strong> 只有当你的服务在 <code>accessibility-service</code> 配置文件中声明了 <code>android:canRequestFilterKeyEvents="true"</code>，并且激活了 <code>FLAG_REQUEST_FILTER_KEY_EVENTS</code> 标志位时，<code>KeyboardInterceptor</code> 才会将按键跨进程发给你。</li><li><strong>触摸事件 (<code>onMotionEvent</code>)：</strong> 对于触摸事件，原生的 <code>AccessibilityService</code> 并没有直接暴露出公共的 <code>onMotionEvent</code> 回调给开发者（官方更希望你通过 <code>AccessibilityNodeInfo</code> 节点操作）。但系统内部的服务（或者通过特殊反射/定制源码的服务）是通过 <code>TouchExplorer</code> 责任链节点，调用 <code>sendMotionEventToListeningServices</code>，经由 <code>IAccessibilityServiceClient</code> 接口的 <code>onMotionEvent</code> 方法接收原始物理坐标的。</li></ul><h4 id=2-app-的布尔返回值去哪了同步阻塞与超时>2. App 的布尔返回值去哪了？(同步阻塞与超时)<a hidden class=anchor aria-hidden=true href=#2-app-的布尔返回值去哪了同步阻塞与超时>#</a></h4><p>注意到时序图的最后一步，当你的 App 在 <code>onKeyEvent</code> 中 <code>return true;</code> 时，这个布尔值是通过 Binder 同步返回给 System Server 的 <code>AccessibilityServiceConnection</code> 的。</p><p>如果你的 App 返回了 <code>true</code>，系统就会认为这个按键动作<strong>已经被你的无障碍服务接管（消费）了</strong>，底层的 <code>KeyboardInterceptor</code> 就会将这个按键抛弃，不再将其发送给前台拥有焦点的 App。这就是车机厂商实现“方向盘按键强制重映射”的底层闭环原理。</p><h2 id=4-inputfilter-的挂载与状态同步机制-动态下发>4. InputFilter 的挂载与状态同步机制 (动态下发)<a hidden class=anchor aria-hidden=true href=#4-inputfilter-的挂载与状态同步机制-动态下发>#</a></h2><p>前文剖析了底层物理事件是如何自下而上回传至 AccessibilityService 的。本节将自上而下地推演：当系统或应用层启用某个无障碍服务（以调用
 AccessibilityManager.enableTrustedAccessibilityService API 为例）时，系统是如何重新评估事件拦截状态，并将 AccessibilityInputFilter 最终挂载至 InputManagerService 的。</p><div class=mermaid>sequenceDiagram
 autonumber
 box LightCyan App / System Process
@@ -328,8 +457,42 @@ end
 AMS ->> WMS: setInputFilter(AccessibilityInputFilter)
 WMS ->> IMS: setInputFilter(IInputFilter)
 Note right of IMS: Native 层清空旧规则，挂载新拦截器</div><h3 id=核心源码与交互机理深度剖析>核心源码与交互机理深度剖析<a hidden class=anchor aria-hidden=true href=#核心源码与交互机理深度剖析>#</a></h3><p>在这段时序中，<strong><code>AccessibilityManagerService</code> 扮演了“破与立”的架构枢纽</strong>，它必须妥善处理与应用层 <code>AccessibilityService</code> 之间的进程绑定关系，才能推导出正确的底层拦截规则：</p><h4 id=1-破旧服务的强制退场-onswitchtoanotheruserlocked>1. 破：旧服务的强制退场 (<code>onSwitchToAnotherUserLocked</code>)<a hidden class=anchor aria-hidden=true href=#1-破旧服务的强制退场-onswitchtoanotheruserlocked>#</a></h4><p>在多用户架构下，Android 严格禁止后台用户的辅助服务继续窃听物理事件。当 <code>switchUser</code> 被触发时，AMS 会首先拿出旧用户的状态树 <code>OldUserState</code>，调用其 <code>onSwitchToAnotherUserLocked()</code>。</p><ul><li><strong>与 Service 的交互：</strong> 该方法内部会暴烈地调用 <code>unbindAllServicesLocked()</code>，直接对旧用户下所有已绑定的 <code>AccessibilityServiceConnection</code> 执行 <code>Context.unbindService()</code>。旧用户的 <code>AccessibilityService</code> 会随之收到 <code>onUnbind</code> 与 <code>onDestroy</code> 回调，彻底失去与 System Server 的 IPC 连接。</li></ul><h4 id=2-立新服务的配置读取与拉起-readconfigurationforuserstatelocked>2. 立：新服务的配置读取与拉起 (<code>readConfigurationForUserStateLocked</code>)<a hidden class=anchor aria-hidden=true href=#2-立新服务的配置读取与拉起-readconfigurationforuserstatelocked>#</a></h4><p>用户切换完毕或用户刚解锁 (<code>unlockUser</code>) 时，存储在凭据加密存储 (CE) 中的数据方可被正常访问（注意：部分辅助服务可能不支持 Direct Boot，只有在 <code>unlockUser</code> 后才能启动）。</p><ul><li><strong>与 Service 的交互：</strong> AMS 会根据 <code>Settings.Secure</code> 中记录的启用列表，为当前活动用户重新执行 <code>bindServiceAsUser</code>。一旦新用户的辅助服务进程被唤起并返回 Binder 代理 (<code>onServiceConnected</code>)，AMS 就完成了新环境的重建。</li></ul><h4 id=3-融inputfilter-的重新挂载-updateinputfilter>3. 融：InputFilter 的重新挂载 (<code>updateInputFilter</code>)<a hidden class=anchor aria-hidden=true href=#3-融inputfilter-的重新挂载-updateinputfilter>#</a></h4><p>无论是 <code>switchUser</code> 还是 <code>unlockUser</code>，最终都会汇流到 <code>onUserStateChangedLocked(userState)</code> 方法。
-如前文所述，AMS 不会同步阻塞地去修改底层，而是通过 <code>scheduleUpdateInputFilter</code> 切到主线程。主线程的 <code>updateInputFilter</code> 会重新巡检当前用户下<strong>所有已绑定且活着的 <code>AccessibilityService</code></strong>。</p><ul><li>如果新用户<strong>没有</strong>开启任何需要拦截底层事件的辅助服务（例如只开启了屏幕文字读取，没开启按键精灵或 TalkBack），<code>flags</code> 掩码计算结果为 0，AMS 会向下传递一个 <code>null</code> 或者置空的 Filter，从而<strong>释放</strong> <code>InputDispatcher</code> 的拦截屏障。</li><li>如果新用户开启了特定的拦截特性，AMS 就会生成全新的 <code>AccessibilityInputFilter</code> 透传给 <code>InputManagerService.setInputFilter</code>。</li></ul><p><strong>一句话总结：</strong> <code>switchUser</code> 和 <code>unlockUser</code> 是一次系统级大换血。AMS 会先斩断与旧 <code>AccessibilityService</code> 的 Binder 连接，拉起新用户的 Service，再根据新 Service 的配置要求，重新合成一份 <code>InputFilter</code> 下发给 <code>InputManagerService</code>。这就是为什么切换用户时，车机方向盘重映射或全局手势可能会出现一两秒“失效”的根本原因。</p></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/><span class=title>« Prev</span><br><span>WindowManagerService 解析</span>
-</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/><span class=title>Next »</span><br><span>Android Native Crash 处理机制深度解析</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+如前文所述，AMS 不会同步阻塞地去修改底层，而是通过 <code>scheduleUpdateInputFilter</code> 切到主线程。主线程的 <code>updateInputFilter</code> 会重新巡检当前用户下<strong>所有已绑定且活着的 <code>AccessibilityService</code></strong>。</p><ul><li>如果新用户<strong>没有</strong>开启任何需要拦截底层事件的辅助服务（例如只开启了屏幕文字读取，没开启按键精灵或 TalkBack），<code>flags</code> 掩码计算结果为 0，AMS 会向下传递一个 <code>null</code> 或者置空的 Filter，从而<strong>释放</strong> <code>InputDispatcher</code> 的拦截屏障。</li><li>如果新用户开启了特定的拦截特性，AMS 就会生成全新的 <code>AccessibilityInputFilter</code> 透传给 <code>InputManagerService.setInputFilter</code>。</li></ul><p><strong>一句话总结：</strong> <code>switchUser</code> 和 <code>unlockUser</code> 是一次系统级大换血。AMS 会先斩断与旧 <code>AccessibilityService</code> 的 Binder 连接，拉起新用户的 Service，再根据新 Service 的配置要求，重新合成一份 <code>InputFilter</code> 下发给 <code>InputManagerService</code>。这就是为什么切换用户时，车机方向盘重映射或全局手势可能会出现一两秒“失效”的根本原因。</p><h2 id=6-深入-accessibilityinputfilter-与责任链机制>6. 深入 AccessibilityInputFilter 与责任链机制<a hidden class=anchor aria-hidden=true href=#6-深入-accessibilityinputfilter-与责任链机制>#</a></h2><p>在无障碍体系中，<code>AccessibilityInputFilter</code> 是物理输入事件（按键、触摸）进入 Java 层后的第一道关卡。它不仅是一个简单的过滤器，更是复杂无障碍手势（如屏幕放大镜、触摸浏览 TalkBack、自动点击等）的分发与加工中枢。</p><p>本节将结合 Android AOSP 源码，深入剖析当一个 <code>InputEvent</code> 到达 <code>AccessibilityInputFilter</code> 时，系统是如何判断“是否需要处理”以及“如何处理”的。</p><h3 id=61-事件的准入判断逻辑>6.1 事件的准入判断逻辑<a hidden class=anchor aria-hidden=true href=#61-事件的准入判断逻辑>#</a></h3><p>当底层 <code>InputDispatcher</code> 拦截到事件后，会通过 JNI 回调 Java 层的 <code>InputManagerService</code>，最终调用到 <code>AccessibilityInputFilter.onInputEvent(InputEvent event, int policyFlags)</code>。在这个方法及其内部调用的 <code>onInputEventInternal</code> 中，系统会执行严密的<strong>准入判断</strong>：</p><ol><li><strong>多设备互斥校验 (<code>Flags.handleMultiDeviceInput</code>)</strong>
+如果系统支持并开启了多设备输入逻辑，<code>shouldProcessMultiDeviceEvent</code> 方法会确保同一时间只有一个物理设备的连续手势被处理。如果当前正在处理设备 A 的滑动轨迹，设备 B 突然发来的 <code>MOVE</code> 事件将被直接抛弃（拦截并 <code>return</code>）。</li><li><strong>处理链与特性开关检查</strong>
+如果当前系统没有开启任何需要拦截底层事件的无障碍特性（即 <code>mEventHandler.size() == 0</code>，责任链为空），或者没有开启影响运动事件的特性标志（<code>mEnabledFeatures & FEATURES_AFFECTING_MOTION_EVENTS == 0</code> 且事件为 MotionEvent），则事件无需特殊处理，直接调用 <code>super.onInputEvent(event, policyFlags)</code>，<strong>放行</strong>回系统进行原生分发。</li><li><strong>事件流状态机匹配 (<code>getEventStreamState</code>)</strong>
+系统为不同类型的输入（触摸屏、鼠标、键盘）维护了独立的“事件流状态机”（<code>EventStreamState</code>）。如果当前事件不属于受管辖的类型，或者该状态机判定当前不该处理该事件（例如不处理悬停事件或特殊注入事件），则调用 <code>super.onInputEvent</code> 放行。</li><li><strong>PolicyFlags 过滤</strong>
+如果底层发来的事件标记位 <code>policyFlags</code> 中<strong>不包含</strong> <code>WindowManagerPolicy.FLAG_PASS_TO_USER</code>（意味着这个事件在底层已被判定为不可传递给用户空间的无效事件），则直接放行，不做无障碍加工。</li></ol><p>只有成功通过上述所有校验的事件，才会正式进入特征流水线（调用 <code>processMotionEvent</code> 或 <code>processKeyEvent</code>）。</p><h3 id=62-责任链的分发与加工-eventstreamtransformation>6.2 责任链的分发与加工 (EventStreamTransformation)<a hidden class=anchor aria-hidden=true href=#62-责任链的分发与加工-eventstreamtransformation>#</a></h3><p>一旦事件进入加工阶段（例如 <code>handleMotionEvent</code>），系统会通过 <code>MotionEvent.obtain(event)</code> 克隆一份原始事件，并将其丢进名为 <code>EventStreamTransformation</code> 的事件转换责任链中。</p><p><strong>处理机制与责任链节点：</strong>
+<code>AccessibilityInputFilter</code> 在启用特性时，会根据配置动态组装出一条针对特定 Display 的处理链。典型的责任链组合如下：
+<code>屏幕放大镜 (MagnificationGestureHandler)</code> -> <code>触摸浏览 (TouchExplorer)</code> -> <code>自动点击 (AutoclickController)</code></p><p>在链条中，每个节点都通过 <code>onMotionEvent(MotionEvent event, MotionEvent rawEvent, int policyFlags)</code> 接收事件，并可能做出以下三种决策之一：</p><ol><li><strong>吞没/消费 (Swallow/Consume)</strong>：
+例如 <code>TouchExplorer</code> 识别出用户正在进行“单指在屏幕上滑动探索控件”的手势。此时，它会向无障碍服务发送 <code>hover</code> 的反馈事件，并直接将原始的物理触摸事件<strong>吞没</strong>（不调用 <code>super.onMotionEvent</code> 传给下一节点）。事件在这一环中止，底层目标 App 完全不知情。</li><li><strong>修改/转化 (Transform)</strong>：
+如果 <code>MagnificationGestureHandler</code> 发现当前屏幕正处于放大状态，它会对事件坐标进行矩阵变换，按照放大比例将原始的物理屏幕坐标<strong>换算</strong>为逻辑坐标，然后将<strong>修改后的事件</strong>传递给链条的下一个节点。<em>（注：这也是在某些车机或特定设备上，调试时发现原本整数的坐标在 inject 阶段变成浮点数的原因之一。）</em></li><li><strong>放行 (Pass-through)</strong>：
+如果节点认为当前操作属于普通触摸（例如单指快速点击，或者不在手势识别状态），它会调用 <code>super.onMotionEvent</code>，将事件原封不动地传递给下一个节点。</li></ol><p><strong>事件注回系统 (Injection)：</strong>
+责任链的最末端是一个默认处理器。当事件顺利走完所有节点（或者被某个节点转换为普通事件后主动发出），末端处理器会调用父类 <code>InputFilter.sendInputEvent(event, policyFlags)</code>，经由 <code>InputManagerService</code> 内部的 <code>IInputFilterHost</code> 发送 <code>injectInputEvent</code> 指令。这个历经加工的事件便重新回到 <code>InputDispatcher</code>，继续向真正的 App Window 分发。</p><h3 id=63-责任链工作流图解>6.3 责任链工作流图解<a hidden class=anchor aria-hidden=true href=#63-责任链工作流图解>#</a></h3><div class=mermaid>flowchart TD
+%% 样式定义
+classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px;
+classDef ams fill:#d5e8d4,stroke:#333,stroke-width:1px;
+classDef handler fill:#dae8fc,stroke:#333,stroke-width:1px;
+classDef inject fill:#ffcccc,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5;
+classDef check fill:#f9f2f4,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5;
+subgraph FilterBase [AccessibilityInputFilter 准入判断阶段]
+direction TB
+Input[JNI: filterInputEvent]:::sysjava --> Check1{多设备互斥校验}:::check
+Check1 -- 冲突 --> Drop((抛弃事件))
+Check1 -- 正常 --> Check2{处理链与状态机校验<br>getEventStreamState}:::check
+Check2 -- 无需处理 / 放行 --> Super[super.onInputEvent<br>放行回系统原生分发]:::sysjava
+Check2 -- 需处理 --> Clone[MotionEvent.obtain<br>克隆事件]:::ams
+end
+subgraph FilterChain [EventStreamTransformation 责任链加工阶段]
+direction TB
+Clone --> Interceptor_Mag[MagnificationGestureHandler<br>屏幕放大镜]:::handler
+Interceptor_Mag -- "若放大: 矩阵变换重算坐标" --> Interceptor_Exp[TouchExplorer<br>触摸浏览 / TalkBack]:::handler
+Interceptor_Exp -- "命中无障碍手势" --> Swallow((消费/吞没事件))
+Interceptor_Exp -- "普通触摸放行" --> Interceptor_Auto[AutoclickController<br>自动点击]:::handler
+Interceptor_Auto -- "放行/加工结束" --> Injector[InputManagerService.IInputFilterHost<br>sendInputEvent]:::inject
+end
+%% 注回 Native
+Injector -- "JNI: injectInputEvent(..., FLAG_FILTERED)" --> Dispatcher[InputDispatcher<br>继续正常分发给 App Window]:::sysjava</div></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/><span class=title>« Prev</span><br><span>WindowManagerService 解析</span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibilityservice/><span class=title>Next »</span><br><span>Android AccessibilityService 架构与原理深度剖析-2</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
 <span>Powered by
 <a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
 <a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
