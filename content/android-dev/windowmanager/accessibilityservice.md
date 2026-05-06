@@ -1,8 +1,4 @@
-+++
-date = '2025-05-15T10:00:00+08:00'
-draft = false
-title = 'Android AccessibilityService 架构与原理深度剖析-2'
-+++
+## 简介
 
 ## 架构
 
@@ -79,95 +75,89 @@ graph TD
 
 ## AccessibilityService实现详解
 
-### 类关系图
-
-下图按 **三个进程域**（目标 App 进程、SystemServer 进程、无障碍服务进程）梳理无障碍体系中关键类的所属、持有关系与跨进程调用闭环。线条形状对应语义：`..|>` 表示 Stub 实现、`*--` 表示组合/持有、`-->` 表示进程内强引用、`..>` 表示弱依赖或跨进程 IPC 调用。
+以下类图深入展示了这三个架构域内部核心类之间的组合、接口实现以及基于 Binder 的跨进程交互关系，它精准还原了事件查询与回调的底层闭环：
 
 ```mermaid
 classDiagram
-    direction TD
 
-    namespace SystemServerProcess {
-        class AccessibilityManagerService {
-            +bindLocked()
-        }
-        class AccessibilityWindowManager
-        class RemoteAccessibilityConnection {
-            -IBinder mLeashToken
-            -int mWindowId
-        }
-        class AccessibilityServiceConnection {
-            +onMotionEvent()
-        }
-        class IAccessibilityServiceConnection {
-            <<interface>>
-        }
+    %% ==========================================
+    %% 1. Target App (Client) Domain
+    %% ==========================================
+    class ViewRootImpl {
+        +AccessibilityInteractionConnectionManager
+        +ensureConnection()
+    }
+    class AccessibilityInteractionConnection {
+        +findAccessibilityNodeInfosByXXX()
+        +findFocus()
+    }
+    class IAccessibilityInteractionConnection {
+        <<interface>>
     }
 
-    namespace A11yServiceProcess {
-        class AccessibilityService
-        class IAccessibilityServiceClientWrapper
-        class IAccessibilityServiceClient {
-            <<interface>>
-        }
-        class AccessibilityInteractionClient {
-            <<Singleton>>
-            -SparseArray sConnectionCache
-            +getInstance()
-        }
-        class IAccessibilityInteractionConnectionCallback {
-            <<interface>>
-            +setFindAccessibilityNodeInfosResult()
-        }
+    ViewRootImpl *-- AccessibilityInteractionConnection : 内部实例化与持有
+    AccessibilityInteractionConnection ..|> IAccessibilityInteractionConnection : 实现 (Stub)
+
+    %% ==========================================
+    %% 2. System Server Domain
+    %% ==========================================
+    class AccessibilityManager {
+        <<proxy>>
+        +addAccessibilityInteractionConnection()
+    }
+    class AccessibilityManagerService {
+        +bindLocked()
+    }
+    class AccessibilityWindowManager
+    class RemoteAccessibilityConnection {
+        -IBinder mLeashToken
+        -int mWindowId
+    }
+    class AccessibilityServiceConnection {
+        +onMotionEvent()
+    }
+    class IAccessibilityServiceConnection {
+        <<interface>>
     }
 
-    namespace TargetAppProcess {
-        class ViewRootImpl {
-            +ensureConnection()
-        }
-        class AccessibilityInteractionConnection {
-            +findAccessibilityNodeInfosByXXX()
-            +findFocus()
-        }
-        class IAccessibilityInteractionConnection {
-            <<interface>>
-        }
-        class AccessibilityManager {
-            <<client proxy>>
-            +addAccessibilityInteractionConnection()
-        }
+    ViewRootImpl ..> AccessibilityManager : 调用跨进程注册
+    AccessibilityManager ..> AccessibilityManagerService : IPC (Binder Call)
+    AccessibilityManagerService --> AccessibilityWindowManager : 委托管理 Window 连接
+    AccessibilityWindowManager *-- RemoteAccessibilityConnection : 包装并分配 windowId
+    RemoteAccessibilityConnection --> IAccessibilityInteractionConnection : 持有TargetApp的查询代理
+    AccessibilityManagerService *-- AccessibilityServiceConnection : 绑定时创建并持有
+    AccessibilityServiceConnection ..|> IAccessibilityServiceConnection : 实现 (Stub)
+
+    %% ==========================================
+    %% 3. Accessibility Service Domain
+    %% ==========================================
+    class AccessibilityService
+    class AccessibilityInteractionClient {
+        <<Singleton>>
+        -SparseArray sConnectionCache
+        +getInstance()
+        +addConnection()
+    }
+    class IAccessibilityServiceClientWrapper
+    class IAccessibilityServiceClient {
+        <<interface>>
+    }
+    class IAccessibilityInteractionConnectionCallback {
+        <<interface>>
+        +setFindAccessibilityNodeInfosResult()
     }
 
-    %% —— 实现关系 (Stub) ——
-    AccessibilityInteractionConnection      ..|> IAccessibilityInteractionConnection
-    AccessibilityServiceConnection          ..|> IAccessibilityServiceConnection
-    IAccessibilityServiceClientWrapper      ..|> IAccessibilityServiceClient
-
-    %% —— 组合 / 持有 ——
-    ViewRootImpl                  *-- AccessibilityInteractionConnection
-    AccessibilityWindowManager    *-- RemoteAccessibilityConnection
-    AccessibilityManagerService   *-- AccessibilityServiceConnection
-    AccessibilityService          *-- IAccessibilityServiceClientWrapper
-
-    %% —— 进程内引用 ——
-    AccessibilityManagerService    --> AccessibilityWindowManager       : delegate
-    RemoteAccessibilityConnection  --> IAccessibilityInteractionConnection : app 端代理
-    AccessibilityServiceConnection --> IAccessibilityServiceClient        : 下行回调代理
-
-    %% —— 跨进程调用 (Binder) ——
-    ViewRootImpl                  ..> AccessibilityManager                : 注册
-    AccessibilityManager          ..> AccessibilityManagerService         : Binder
-    AccessibilityService          ..> AccessibilityInteractionClient      : API
-    AccessibilityInteractionClient ..> IAccessibilityServiceConnection    : 上行查询
-    AccessibilityInteractionClient ..> IAccessibilityInteractionConnectionCallback : 携带 callback
-    AccessibilityInteractionConnection ..> IAccessibilityInteractionConnectionCallback : 返回结果
+    AccessibilityService *-- IAccessibilityServiceClientWrapper : onBind 时创建
+    IAccessibilityServiceClientWrapper ..|> IAccessibilityServiceClient : 实现 (Stub)
+    AccessibilityServiceConnection --> IAccessibilityServiceClient : 持有服务的回调代理 (下行)
+    
+    AccessibilityService ..> AccessibilityInteractionClient : 主动请求 API
+    AccessibilityInteractionClient --> IAccessibilityServiceConnection : 从缓存提取并调用 (上行)
+    
+    %% --- 跨进程查询与回调闭环 ---
+    AccessibilityInteractionClient ..> IAccessibilityInteractionConnectionCallback : 查询时附带 Callback 实体
+    AccessibilityInteractionConnection ..> IAccessibilityInteractionConnectionCallback : 遍历完成 IPC 返回结果
 ```
-
-读图要点：
-
-- **目标 App 进程**：`ViewRootImpl` 在无障碍开关开启时通过本进程的 `AccessibilityManager` 代理向 AMS 注册 `AccessibilityInteractionConnection`（实现 `IAccessibilityInteractionConnection.Stub`），作为该窗口被远端查询的入口。
-- **SystemServer 进程**：`AccessibilityManagerService` 是中枢，把窗口注册委托给 `AccessibilityWindowManager`，由后者用 `RemoteAccessibilityConnection` 包装 App 端代理并分配 `windowId`；同时为每个绑定的无障碍服务持有一个 `AccessibilityServiceConnection`（实现 `IAccessibilityServiceConnection.Stub`），既向下持有指向服务进程的 `IAccessibilityServiceClient` 代理，也向上承接服务发来的查询请求。
-- **无障碍服务进程**：`AccessibilityService` 在 `onBind` 时返回 `IAccessibilityServiceClientWrapper`（实现 `IAccessibilityServiceClient.Stub`），承接系统下行的事件/手势推送；开发者侧的查询 API 走单例 `AccessibilityInteractionClient`，从 `sConnectionCache` 取出 `IAccessibilityServiceConnection` 代理发起上行查询，并携带 `IAccessibilityInteractionConnectionCallback`，由 App 端遍历完节点后异步回调，构成查询闭环。
 
 ## 关键流程
 
@@ -492,5 +482,76 @@ sequenceDiagram
    - 它会在自己的 UI 线程（或者专门的无障碍处理线程）中遍历自己的 View 树，将真实的 View 对象转换、拷贝成一个个扁平的、跨进程安全的数据结构：`AccessibilityNodeInfo`。
    - 打包完成后，目标应用利用第 2 步中一路传过来的 Callback 句柄，调用 `callback.setFindAccessibilityNodeInfosResult(infos)`。
    - 由于这个 Callback Binder 是在 `AccessibilityService` 进程中创建的，这一步的数据会跨进程直接或经 AMS 路由返回给 `AccessibilityService` 的 `AccessibilityInteractionClient`。
+
+### 5. onAccessibilityEvent的生成与下发流程
+
+当目标应用的 UI 发生变化（例如窗口切换、控件点击、列表滚动）时，它是如何将这些状态变化通知给无障碍服务的？这个过程与主动查询（Hub-and-Spoke 模型）方向相反，是目标应用主动“上报”，System Server 再“广播下发”给各无障碍服务的过程。
+
+#### 5.1 事件流转时序图
+
+以下展示了从目标 App 发生点击事件，直到 `AccessibilityService.onAccessibilityEvent()` 被回调的完整跨进程链路：
+
+```mermaid
+sequenceDiagram
+    participant View as View / ViewRootImpl<br>(Target App)
+    participant AM as AccessibilityManager<br>(Target App)
+    participant AMS as AccessibilityManagerService<br>(System Server)
+    participant ASC as AccessibilityServiceConnection<br>(System Server)
+    participant AS as AccessibilityService<br>(Service Process)
+
+    %% 1. 事件生成与上报阶段
+    rect rgb(240, 248, 255)
+    Note over View, AMS: 1. 目标应用主动上报事件
+    View->>View: 发生交互 (如 performClick)
+    View->>View: sendAccessibilityEvent()
+    View->>AM: 构建 AccessibilityEvent 并发送
+    AM->>AMS: IPC: sendAccessibilityEvent(event, userId)
+    end
+
+    %% 2. 系统校验与广播阶段
+    rect rgb(255, 250, 240)
+    Note over AMS, ASC: 2. AMS 校验过滤与广播
+    AMS->>AMS: 检查无障碍总开关与用户状态
+    AMS->>AMS: 遍历当前活动的所有 ASC
+    AMS->>ASC: notifyAccessibilityEvent(event)
+    Note right of ASC: 每个已连接的服务（如TalkBack、语音助手）<br/>都有一个对应的 ASC 代理
+    end
+
+    %% 3. IPC 下发与服务接收阶段
+    rect rgb(245, 255, 245)
+    Note over ASC, AS: 3. 下行推送与业务分发
+    ASC->>ASC: 检查服务配置 (EventTypes, PackageNames)
+    Note right of ASC: 根据你在 xml 中配置的过滤条件决定是否放行
+    ASC->>AS: IPC: onAccessibilityEvent(event)<br>via IAccessibilityServiceClient
+    AS->>AS: Handler 切回主线程
+    AS->>AS: 回调开发者覆写的 onAccessibilityEvent()
+    end
+```
+
+#### 5.2 流程与配置解析
+
+1. **事件的源头 (App -> AMS)**：
+   Android 框架中的原生 UI 组件（如 `Button`, `TextView`, `RecyclerView`）在它们的核心状态发生改变时（如点击、内容变化、滑动），内部都会调用 `sendAccessibilityEvent()`。该方法会实例化一个 `AccessibilityEvent` 对象，装载包名、类名、文本内容等快照信息，并通过进程内的 `AccessibilityManager` (单例) 跨进程发送给 System Server 的 `AMS`。
+
+2. **按需下发 (AMS 的过滤机制)**：
+   System Server 并不是把所有事件都无脑广播给每一个 `AccessibilityService`。在 `AccessibilityServiceConnection.notifyAccessibilityEvent` 中，系统会严格比对该服务在 `accessibility-service.xml` 中声明的过滤配置：
+   - **`accessibilityEventTypes`**：服务只关心配置中声明的事件（如只关心 `typeWindowContentChanged` 或 `typeViewClicked`）。
+   - **`packageNames`**：如果配置了特定的包名，只有来自这些包的事件才会被放行；如果不配置，则接收全局事件。
+
+3. **下行通道推送 (AMS -> Service)**：
+   过滤通过后，AMS 使用建立连接时保存的下行通道（`IAccessibilityServiceClient`），单向且异步地将事件推送到无障碍服务进程，最终回调到开发者熟悉的 `onAccessibilityEvent(AccessibilityEvent event)` 方法中。
+
+#### 5.3 常见 AccessibilityEvent 类型解析
+
+在 `onAccessibilityEvent` 的回调中，包含了一个巨大的数据包 `AccessibilityEvent`。根据 `event.getEventType()`，开发者可以截获并分析不同维度的全局状态：
+
+| 常用的 Event Type | 触发场景与业务意义 |
+| :--- | :--- |
+| **`TYPE_WINDOW_STATE_CHANGED`** | **最常用于判断前台应用切换或弹窗出现**。当 Activity 切换、Dialog 弹出、PopupWindow 显示时触发。它代表了宏观视窗焦点的绝对转移。 |
+| **`TYPE_WINDOWS_CHANGED`** | 系统中全局 Window 集合发生变化（增加、移除、层级变化）。这比 state changed 更底层，常用于监控悬浮窗或系统级 UI 变动。 |
+| **`TYPE_VIEW_CLICKED` / `TYPE_VIEW_LONG_CLICKED`** | 用户在屏幕上**点击/长按**了某个具体的 View（不仅是本应用，也包括其他应用的控件）。常用于自动化埋点或劫持特定操作。 |
+| **`TYPE_VIEW_FOCUSED`** | 某个 UI 控件获取了焦点。对于非触摸设备（如车机旋钮、外接键盘）的交互逻辑适配至关重要。 |
+| **`TYPE_WINDOW_CONTENT_CHANGED`** | **高频事件**。当界面上的 View 发生添加、移除、文本改变、可见性变化时高频触发。由于触发太频繁，通常需要在 xml 中谨慎配置，并在代码中配合 `DELAY_MILLISECONDS` 进行限流或消抖（Debounce）处理。 |
+| **`TYPE_VIEW_SCROLLED`** | 列表（如 RecyclerView、ScrollView）发生滚动时触发。常用于“可见即可说”功能中判断当前列表是否已翻页，从而触发新的屏幕控件树抓取。 |
 
 
