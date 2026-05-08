@@ -554,4 +554,66 @@ sequenceDiagram
 | **`TYPE_WINDOW_CONTENT_CHANGED`** | **高频事件**。当界面上的 View 发生添加、移除、文本改变、可见性变化时高频触发。由于触发太频繁，通常需要在 xml 中谨慎配置，并在代码中配合 `DELAY_MILLISECONDS` 进行限流或消抖（Debounce）处理。 |
 | **`TYPE_VIEW_SCROLLED`** | 列表（如 RecyclerView、ScrollView）发生滚动时触发。常用于“可见即可说”功能中判断当前列表是否已翻页，从而触发新的屏幕控件树抓取。 |
 
+### 6. 深入 AccessibilityInputFilter 与手势责任链
+
+`AccessibilityInputFilter` 是无障碍框架在 Java 层拦截物理输入事件（按键、触摸）的核心枢纽。它不仅负责过滤事件，更通过一条动态组装的责任链（`EventStreamTransformation`）来识别复杂手势并触发系统级操作。
+
+#### 6.1 责任链节点的装载与处理逻辑
+
+在 `AccessibilityInputFilter.updateInputFilter()` （由 AMS 调度）中，系统会根据当前用户启用的无障碍特性标志位（`mEnabledFeatures`），按特定的优先级顺序实例化并串联起各个 Handler。一条完整的处理流水线通常包含以下几个核心节点：
+
+1. **`MagnificationGestureHandler` (屏幕放大镜)**
+   - **装载条件**：启用了屏幕放大相关特性（如 `FLAG_FEATURE_CONTROL_SCREEN_MAGNIFIER`，`FLAG_FEATURE_MAGNIFICATION_SINGLE_FINGER_TRIPLE_TAP` 等）。具体实例化为 `FullScreenMagnificationGestureHandler` 或 `WindowMagnificationGestureHandler`。
+   - **处理逻辑**：处于流水线的最前端。在 `onMotionEvent` 中，它维护了复杂的状态机（如 `DetectingState`, `PanningScalingState`）。如果检测到单指三击或双指捏合（Pinch），它会 **吞没（Swallow）** 这些物理事件，直接操作 `SurfaceControl` 进行画布缩放。如果判定为普通操作，它会根据当前的放大比例计算偏移，对坐标进行逆向矩阵变换（这也是底层日志中整数坐标变成浮点坐标的原因），然后调用 `super.onMotionEvent` 放行给下一环节。
+
+2. **`TouchExplorer` (触摸浏览 / 盲人模式)**
+   - **装载条件**：启用了 `FLAG_FEATURE_TOUCH_EXPLORATION`。
+   - **处理逻辑**：它是生成各种反馈和识别语义手势的绝对主力。当用户单指在屏幕上移动时，`TouchExplorer` 会拦截真实的 `ACTION_MOVE`，并调用 `sendAccessibilityEvent(TYPE_TOUCH_EXPLORATION_GESTURE_START)` 通知 AMS。同时，它内部包含一个底层的识别器（`AccessibilityGestureDetector`）。如果识别到特定的滑动轨迹，它会触发手势派发逻辑；否则，如果是快速双击，它会进行“动作转化”（Action Translation），将双击模拟为一次普通的 `DOWN` 和 `UP` 注入回系统。
+
+3. **`AutoclickController` (自动点击 / 悬停点击)**
+   - **装载条件**：启用了 `FLAG_FEATURE_AUTOCLICK`。
+   - **处理逻辑**：主要服务于使用鼠标或轨迹球但无法完成点击动作的用户。当鼠标光标（Hover 事件）在同一位置停留超过设定的阈值时间后，它会自动模拟发送一次点击事件。
+
+4. **`KeyboardInterceptor` (按键拦截)**
+   - **装载条件**：启用了 `FLAG_FEATURE_FILTER_KEY_EVENTS`。
+   - **处理逻辑**：它不在 MotionEvent 责任链中，而是专门处理 `KeyEvent`。在 `AccessibilityInputFilter.processKeyEvent` 中，事件被分发给它。它跨进程调用 `AMS.notifyKeyEvent` 将按键发送给所有请求了按键过滤的 `AccessibilityService`。如果在一定时间（通常是 500ms）内服务返回了 `true`，该按键被**吞没**；否则，放行。
+
+5. **`MotionEventInjector` (事件注入器)**
+   - **装载条件**：启用了 `FLAG_FEATURE_INJECT_MOTION_EVENTS`（即服务配置了 `canPerformGestures="true"`）。
+   - **处理逻辑**：它用于接收并执行来自 `AccessibilityService.dispatchGesture()` 的指令，将 `GestureDescription` 解析为底层的 `MotionEvent` 序列，并在流水线中生成虚假的物理坐标往下游分发。
+
+#### 6.2 预定义无障碍手势清单
+
+底层的 `TouchExplorer` 及后续版本引入的多指手势识别器（位于 `frameworks/base/services/accessibility/` 目录下）能够识别数十种标准轨迹。一旦轨迹匹配成功，系统会生成对应的 `GESTURE_ID`。
+
+根据 `AccessibilityService.java` 中的常量定义，这些手势主要分为以下几类：
+
+*   **单指基础滑动**：`GESTURE_SWIPE_UP` (1), `GESTURE_SWIPE_DOWN` (2), `GESTURE_SWIPE_LEFT` (3), `GESTURE_SWIPE_RIGHT` (4)。
+*   **单指折角滑动 (L型手势)**：如 `GESTURE_SWIPE_DOWN_AND_RIGHT` (16) (常用于 TalkBack 打开全局上下文菜单)，`GESTURE_SWIPE_UP_AND_LEFT` (13) (返回主界面) 等 12 种组合。
+*   **多指滑动 (Android 11+)**：双指、三指、四指的上/下/左/右滑动（如 `GESTURE_3_FINGER_SWIPE_DOWN` (30)）。
+*   **多指敲击与长按**：
+    *   单指双击：`GESTURE_DOUBLE_TAP` (17), `GESTURE_DOUBLE_TAP_AND_HOLD` (18)。
+    *   多指敲击：双指/三指/四指的单次、双次、三次敲击（如 `GESTURE_3_FINGER_TRIPLE_TAP` (24)）。
+    *   多指长按：如 `GESTURE_2_FINGER_DOUBLE_TAP_AND_HOLD` (40)。
+
+**注意**：像“屏幕放大”（连续三击或双指捏合）这种手势由于在 `MagnificationGestureHandler` 阶段就被系统内部消费了，因此**不属于**对暴露的 `AccessibilityGestureEvent`，也没有对应的 `GESTURE_` 常量。
+
+#### 6.3 手势派发给 AccessibilityService 的条件与链路
+
+即使系统底层识别出了上述手势，也并非总是会派发给 App 层的 `AccessibilityService`。手势派发必须满足极为严苛的条件：
+
+**触发与派发条件：**
+1.  **配置必须夺权**：服务必须在 `accessibility_service_config.xml` 中配置 `flagRequestTouchExplorationMode`。如果不夺取屏幕触控的完整控制权，底层的 `TouchExplorer` 根本不会被挂载，手势识别引擎自然无从谈起。
+2.  **轨迹匹配阈值**：用户的滑动行为必须符合系统预设的角度（通常是正交的 4 个方向或 90 度折角）和最小滑动距离（`ViewConfiguration.getScaledTouchSlop()`）。
+3.  **未被前置 Handler 消费**：该行为不能是放大镜等前置处理器关心的行为。
+
+**派发调用链路 (源码追溯)：**
+当 `TouchExplorer` 中的 `AccessibilityGestureDetector` 判定手势完成时：
+1.  调用 `TouchExplorer.onGestureStarted()` 和 `TouchExplorer.onGestureCompleted(AccessibilityGestureEvent gestureEvent)`。
+2.  `TouchExplorer` 将事件上报给核心枢纽：`mAms.onGesture(gestureEvent)`。
+3.  `AccessibilityManagerService` 遍历当前绑定且具有手势处理权限的 `AccessibilityServiceConnection`。
+4.  调用 `AccessibilityServiceConnection.notifyGesture(AccessibilityGestureEvent gestureEvent)`。
+5.  通过 Binder IPC，调用目标应用进程中的 `IAccessibilityServiceClientWrapper.onGesture(gestureEvent)`。
+6.  最终在 App 的主线程中回调开发者覆写的 **`AccessibilityService.onGesture(AccessibilityGestureEvent gestureEvent)`** 方法。开发者可以在此方法中根据传入的 `gestureEvent.getGestureId()` 来执行相应的业务逻辑（如切歌、返回桌面等），并返回 `true` 表示消费了该手势。
+
 
