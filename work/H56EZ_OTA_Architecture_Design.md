@@ -30,7 +30,7 @@
 |------|------|-----------|
 | U盘升级 | `UsbUpdateActivity` → `VoyahOtaUpdateManager.triggerUpgrade()` | `/ota/usb/update.zip` |
 | DOIP 诊断 | `DoipOtaManager` | `/ota/doip/update.zip` |
-| Recovery 模式 | `icupdater` (native C++) | 通过 ZeroMQ 直连 updater 服务 |
+| Recovery 模式 | native recovery 客户端（`icupdater`，路径以实际仓库为准） | 通过 ZeroMQ 直连 updater 服务（与 JMQClient 协议一致） |
 
 ### 1.4 升级顺序与权重
 
@@ -202,27 +202,71 @@ switch (cmd) { case REQ_START_UPDATE_IPC: ... }
 
 #### 3.1.2 命令码全集
 
+> 常量名以 `bsp/vendor/voyah_base/updater/include/updater.h` 为准。
+> 历史原因：QNX 分区相关命令在代码中使用 `IPC` 前缀（含义为 Instrument Cluster），与文档中“QNX 升级”是同一对象。
+
+**QNX 分区升级（IPC）：**
+
 | 请求码 | 常量 | 响应码 | 含义 |
 |--------|------|--------|------|
-| `0xA0` | REQ_SYSTEM_UPGRADE_STATUS | `0xB0` | 查询系统升级状态 |
-| `0xA1` | REQ_START_UPDATE_QNX | `0xB1` | 启动 QNX 分区全量升级 |
-| `0xE3` | REQ_START_UPDATE_DIFF_QNX | `0xF3` | 启动 QNX 分区差分升级 |
-| `0xA2` | REQ_STOP_UPDATE_QNX | `0xB2` | 停止 QNX 升级 |
-| `0xA3` | REQ_GET_QNX_UPDATE_PROGRESS | `0xB3` | 获取 QNX 升级进度 |
-| `0xA4` | REQ_GET_QNX_UPDATE_RESULT | `0xB4` | 获取 QNX 升级结果 |
-| `0xA5` | REQ_QNX_CUT_PLANE | `0xB5` | QNX Bank 切换 |
-| `0xA6` | REQ_QNX_REBOOT | `0xB6` | 重启 QNX |
+| `0xA0` | REQ_STATUS | `0xB0` | 查询系统升级状态 |
+| `0xA1` | REQ_START_UPDATE_IPC | `0xB1` | 启动 QNX 分区全量升级 |
+| `0xE3` | REQ_START_UPDATE_IPC_DIFF | `0xF3` | 启动 QNX 分区差分升级 |
+| `0xA2` | REQ_STOP_UPDATE_IPC | `0xB2` | 停止 QNX 升级 |
+| `0xA3` | REQ_QUERY_PROGRESS_IPC | `0xB3` | 查询 QNX 升级进度 |
+| `0xA4` | REQ_UPDATE_RESULT_IPC | `0xB4` | 查询 QNX 升级结果 |
+| `0xA5` | REQ_SWITCH_SLOT | `0xB5` | QNX Bank 切换 |
+| `0xA6` | REQ_REBOOT_IPC | `0xB6` | 重启 QNX |
+
+**MCU 升级：**
+
+| 请求码 | 常量 | 响应码 | 含义 |
+|--------|------|--------|------|
 | `0xC1` | REQ_START_UPDATE_MCU | `0xD1` | 启动 MCU 升级 |
 | `0xC2` | REQ_STOP_UPDATE_MCU | `0xD2` | 停止 MCU 升级 |
-| `0xC3` | REQ_GET_MCU_UPDATE_PROGRESS | `0xD3` | 获取 MCU 升级进度 |
-| `0xC4` | REQ_GET_MCU_UPDATE_RESULT | `0xD4` | 获取 MCU 升级结果 |
-| `0xC6` | REQ_MCU_REBOOT | `0xD6` | 重启 MCU |
-| `0xE1` | REQ_AGREE_START_UPDATE_ANDROID | `0xF1` | 请求 QNX 允许 Android 升级 |
-| `0xE2` | REQ_NOTIFY_ANDROID_UPDATE_END | `0xF2` | 通知 Android 升级结束 |
-| `0xAA` | REQ_START_UPDATE_IPC_SCREEN | `0xBA` | 启动仪表屏升级 |
-| `0xEA` | REQ_START_UPDATE_CENTRE_SCREEN | `0xFA` | 启动中控屏升级 |
+| `0xC3` | REQ_QUERY_PROGRESS_MCU | `0xD3` | 查询 MCU 升级进度 |
+| `0xC4` | REQ_UPDATE_RESULT_MCU | `0xD4` | 查询 MCU 升级结果 |
+| `0xC6` | REQ_REBOOT_MCU | `0xD6` | 重启 MCU |
+
+**Android 协调：**
+
+| 请求码 | 常量 | 响应码 | 含义 |
+|--------|------|--------|------|
+| `0xE1` | REQ_AGREE_UPDATE_ANDROID | `0xF1` | 请求 QNX 允许 Android 升级 |
+| `0xE2` | REQ_NOTIFY_UPDATE_ANDROID_OVER | `0xF2` | 通知 Android 升级结束 |
+
+**仪表屏（IPC LCD）：**
+
+| 请求码 | 常量 | 响应码 | 含义 |
+|--------|------|--------|------|
+| `0xAA` | REQ_START_UPDATE_IPC_LCD | `0xBA` | 启动仪表屏升级 |
+| `0xAB` | REQ_STOP_UPDATE_IPC_LCD | `0xBB` | 停止仪表屏升级 |
+| `0xAC` | REQ_QUERY_PROGRESS_IPC_LCD | `0xBC` | 查询仪表屏升级进度 |
+| `0xAD` | REQ_UPDATE_RESULT_IPC_LCD | `0xBD` | 查询仪表屏升级结果 |
+
+**中控屏（IVI LCD）：**
+
+| 请求码 | 常量 | 响应码 | 含义 |
+|--------|------|--------|------|
+| `0xEA` | REQ_START_UPDATE_IVI_LCD | `0xFA` | 启动中控屏升级 |
+| `0xEB` | REQ_STOP_UPDATE_IVI_LCD | `0xFB` | 停止中控屏升级 |
+| `0xEC` | REQ_QUERY_PROGRESS_IVI_LCD | `0xFC` | 查询中控屏升级进度 |
+| `0xED` | REQ_UPDATE_RESULT_IVI_LCD | `0xFD` | 查询中控屏升级结果 |
+
+**HUD：**
+
+| 请求码 | 常量 | 响应码 | 含义 |
+|--------|------|--------|------|
 | `0xE5` | REQ_START_UPDATE_HUD | `0xF5` | 启动 HUD 升级 |
+
+**IVI TP（中控触摸屏）：**
+
+| 请求码 | 常量 | 响应码 | 含义 |
+|--------|------|--------|------|
 | `0x11` | REQ_START_UPDATE_IVI_TP | `0x21` | 启动触摸屏升级 |
+| `0x12` | REQ_STOP_UPDATE_IVI_TP | `0x22` | 停止触摸屏升级 |
+| `0x13` | REQ_QUERY_PROGRESS_IVI_TP | `0x23` | 查询触摸屏升级进度 |
+| `0x14` | REQ_UPDATE_RESULT_IVI_TP | `0x24` | 查询触摸屏升级结果 |
 
 响应字节取值：
 
@@ -959,7 +1003,7 @@ resend:
 rpcif_update_clusterstate(1, CMD_XXX, len, data);
 while (true) {
     Event event;
-    if (eventQueue.pop(event, 1000)) {    // 等待 1000ms
+    if (eventQueue.pop(event, 3000)) {    // 等待 3000ms
         if (event.frame_id == EXPECTED_INFO_XXX && state == 0) break;  // 成功
         else {
             if (--resend_count) goto resend;  // 重试
@@ -1185,14 +1229,14 @@ sequenceDiagram
         main ->> ga: get_mcu_sub_area()
         activate ga
         ga ->> ga: resend_count = 3
-        loop max 3 retries (1000ms timeout each)
+        loop max 3 retries (3000ms timeout each)
             ga ->> rpcif: rpcif_update_clusterstate(1, 0x4F06, 0, NULL)
             rpcif ->> rpcd: bus=1, frame=0x4F06
             rpcd ->> MCU: msg block (ch=0x1, id=0x4F06)
             MCU -->> rpcd: msg block (id=0x8F06, state)
             rpcd -->> rpcif: frame=0x8F06
             rpcif -->> eq: MsgCallback() → push Event
-            ga ->> eq: pop(event, 1000)
+            ga ->> eq: pop(event, 3000)
             eq -->> ga: Event{franme_id=0x8F06, bytes=[state]}
             alt state != -1
                 ga ->> ga: break (success)
@@ -1217,14 +1261,14 @@ sequenceDiagram
         main ->> fs: send_mcu_flash_start()
         activate fs
         fs ->> fs: resend_count = 3
-        loop max 3 retries (1000ms timeout each)
+        loop max 3 retries (3000ms timeout each)
             fs ->> rpcif: rpcif_update_clusterstate(1, 0x4F02, 0, NULL)
             rpcif ->> rpcd: bus=1, frame=0x4F02
             rpcd ->> MCU: msg block (ch=0x1, id=0x4F02)
             MCU -->> rpcd: msg block (id=0x8F02, state)
             rpcd -->> rpcif: frame=0x8F02
             rpcif -->> eq: MsgCallback() → push Event
-            fs ->> eq: pop(event, 1000)
+            fs ->> eq: pop(event, 3000)
             eq -->> fs: Event{franme_id=0x8F02, bytes=[state]}
             alt state == 0
                 fs ->> fs: break (success)
@@ -1255,14 +1299,14 @@ sequenceDiagram
             Note over sd: resend label — CRC already added!
             sd ->> sd: printf("send_len, send_addr, package_crc")
             sd ->> sd: resend_count = 3
-            loop max 3 retries (1000ms timeout each)
+            loop max 3 retries (3000ms timeout each)
                 sd ->> rpcif: rpcif_update_clusterstate(1, 0x4F01, 516, send_buf)
                 rpcif ->> rpcd: bus=1, frame=0x4F01
                 rpcd ->> MCU: msg block (ch=0x1, id=0x4F01, 4B LE addr + 512B data)
                 MCU -->> rpcd: msg block (id=0x8F01, state)
                 rpcd -->> rpcif: frame=0x8F01
                 rpcif -->> eq: MsgCallback() → push Event
-                sd ->> eq: pop(event, 1000)
+                sd ->> eq: pop(event, 3000)
                 eq -->> sd: Event{franme_id=0x8F01, bytes=[state]}
                 alt state == 0
                     sd ->> sd: break (success → next chunk)
@@ -1297,14 +1341,14 @@ sequenceDiagram
         activate hc
         hc ->> hc: crc_data[0..1] = package_crc (LE)
         hc ->> hc: resend_count = 3
-        loop max 3 retries (1000ms timeout each)
+        loop max 3 retries (3000ms timeout each)
             hc ->> rpcif: rpcif_update_clusterstate(1, 0x4F0A, 2, crc_data)
             rpcif ->> rpcd: bus=1, frame=0x4F0A
             rpcd ->> MCU: msg block (ch=0x1, id=0x4F0A, crc16 LE)
             MCU -->> rpcd: msg block (id=0x8F0A, state)
             rpcd -->> rpcif: frame=0x8F0A
             rpcif -->> eq: MsgCallback() → push Event
-            hc ->> eq: pop(event, 1000)
+            hc ->> eq: pop(event, 3000)
             eq -->> hc: Event{franme_id=0x8F0A, bytes=[state]}
             alt state == 0
                 hc ->> hc: break (success)
@@ -1326,14 +1370,14 @@ sequenceDiagram
         activate ra
         Note over ra: sub_area==2(SUB_A) → area=0x03(SUB_B)<br/>sub_area==3(SUB_B) → area=0x02(SUB_A)
         ra ->> ra: resend_count = 3
-        loop max 3 retries (1000ms timeout each)
+        loop max 3 retries (3000ms timeout each)
             ra ->> rpcif: rpcif_update_clusterstate(1, 0x4F09, 1, &area)
             rpcif ->> rpcd: bus=1, frame=0x4F09
             rpcd ->> MCU: msg block (ch=0x1, id=0x4F09, area)
             MCU -->> rpcd: msg block (id=0x8F09, state)
             rpcd -->> rpcif: frame=0x8F09
             rpcif -->> eq: MsgCallback() → push Event
-            ra ->> eq: pop(event, 1000)
+            ra ->> eq: pop(event, 3000)
             eq -->> ra: Event{franme_id=0x8F09, bytes=[state]}
             alt state == 0
                 ra ->> ra: break (success)
@@ -1501,7 +1545,7 @@ else { update_status = QNX_UPDATING; result.result = 2; }
 |------|------|---------|---------|
 | JMQClient (Android→QNX) | 500ms send/recv | 10 次 | 指数退避（1s→2s→4s→...） |
 | updater ZMQ recv (QNX) | 200ms | 无（轮询模式） | — |
-| upgrademcu ↔ MCU | 1000ms per cmd | 3 次 | 无退避（立即重试） |
+| upgrademcu ↔ MCU | 3000ms per cmd | 3 次 | 无退避（立即重试） |
 | QNX progress poll | 1000ms | 无（循环轮询直到 100 或失败） | — |
 | MCU result poll (IVI LCD) | 500ms | 20 次 | — |
 
@@ -1539,7 +1583,7 @@ QNX 侧无持久化状态——升级结果在 `update_ic.sh` 完成后通过 `t
 | UpdateImpl | `android/.../update/impl/UpdateImpl.java` |
 | BaseUpdateImpl | `android/.../update/impl/BaseUpdateImpl.java` |
 | 命令码定义 (Java) | `android/.../update/util/Const.java` |
-| 命令码定义 (C++) | `android/bootable/recovery/icupdater/icupdater.h` |
+| 命令码定义 (C++) | `bsp/vendor/voyah_base/updater/include/updater.h`（QNX 侧权威定义） |
 | QNX updater | `bsp/vendor/voyah_base/updater/src/updater.cpp` |
 | updater 头文件 | `bsp/vendor/voyah_base/updater/include/updater.h` |
 | update_ic.sh | `build/scripts/tools/update-script/update_ic.sh` |
