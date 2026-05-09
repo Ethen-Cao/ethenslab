@@ -91,17 +91,17 @@ rectangle "LRR_F\n前向毫米波雷达" as LRR #ECEFF1
 rectangle "PBox\n动力域盒" as PBOX #ECEFF1
 rectangle "FLL\n前视感知" as FLL #ECEFF1
 
-VIUML <--> VCM : Ethernet6\n100BASE-T1
+VIUML <-right-> VCM : Ethernet6\n100BASE-T1
 TBOX <--> VCM : Ethernet7\n1000BASE-T1
 IVI <--> VCM : IVI_ETH\n1000BASE-T1
-VCM <--> VIUMR : VIU-MR_ETH\n100BASE-T1
+VCM <-right-> VIUMR : VIU-MR_ETH\n100BASE-T1
 VCM <--> ADCU : Ethernet5\n1000/100 BASE-T1
 
 ADCU <--> LRR : Ethernet8\n100BASE-T1
 ADCU <--> PBOX : Ethernet9\n100BASE-T1
 ADCU <--> FLL : Ethernet10\n1000BASE-T1
 
-ADCU <..> IVI : ETH 1000BASE-RTSP FWC\n（视频流专线）
+ADCU <.right.> IVI : ETH 1000BASE-RTSP FWC\n（视频流专线）
 @enduml
 ```
 
