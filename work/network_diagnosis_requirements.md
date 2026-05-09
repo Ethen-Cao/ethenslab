@@ -156,7 +156,7 @@
 | NET-DIAG-IP-001 | 系统应检查 PVM 各 VLAN IP 是否符合基线。 | P0 | 任一 PVM IP 缺失或与基线不一致输出 FAIL。 |
 | NET-DIAG-IP-002 | 系统应检查 GVM 各 VLAN IP 是否符合基线。 | P0 | 任一 GVM IP 缺失或与基线不一致输出 FAIL。 |
 | NET-DIAG-IP-003 | 系统应检查 PVM `net.ipv4.ip_forward` 是否为 1。 | P0 | 值不为 1 输出 FAIL，判定 GVM 到外部转发不可用。 |
-| NET-DIAG-IP-004 | 系统应检查 PVM 转发相关内核参数。 | P0 | `net.ipv4.conf.all.forwarding` 应为 1；`rp_filter` 应检查 `all/default/eth1.3/4/6/7/8/10/11/12/13/14/eth0.15/eth0.19/vmtap1.3/4/6/7/8/vmtap0`。对 NAT/策略路由路径，`rp_filter=1` strict 模式应输出 FAIL 或高危 WARN，`0` 或 `2` 可接受。 |
+| NET-DIAG-IP-004 | 系统应检查 PVM 转发相关内核参数。 | P0 | `net.ipv4.conf.all.forwarding` 应为 1，且 PVM 转发路径所涉接口的 per-interface `forwarding` 也应为 1，至少包括 `eth1.3/4/6/7/8` 与 `vmtap1.3/4/6/7/8`，缺一项即输出 FAIL。`rp_filter` 应检查 `all/default/eth1.3/4/6/7/8/10/11/12/13/14/eth0.15/eth0.19/vmtap1.3/4/6/7/8/vmtap0`。对 NAT/策略路由路径，`rp_filter=1` strict 模式应输出 FAIL 或高危 WARN，`0` 或 `2` 可接受。 |
 | NET-DIAG-IP-005 | 系统应采集 `proxy_arp` 等非强制内核网络参数用于漂移分析。 | P1 | `proxy_arp` 不作为当前 L3 NAT 架构的 P0 前提；若与基线不一致，输出 INFO/WARN，并说明需结合项目网络脚本确认。 |
 | NET-DIAG-ROUTE-001 | 系统应检查 PVM main 路由表。 | P0 | 必须存在 `default via 172.16.103.20 dev eth1.3` 及各 connected route。 |
 | NET-DIAG-ROUTE-002 | 系统应检查 PVM 策略路由表 106/107/108。 | P0 | `iif vmtap1.6/7/8` 必须分别查表 106/107/108，并指向对应 `172.16.106/107/108.20` 网关。 |
@@ -176,6 +176,8 @@
 | NET-DIAG-FW-001 | 系统应检查 FORWARD 链默认策略和规则。 | P0 | 若默认 ACCEPT，应输出安全 WARN，并列出当前入站新建连接暴露风险。 |
 | NET-DIAG-FW-002 | 系统应检测 DNAT 端口全透传风险。 | P0 | VLAN 3/4/6/7/8 若对 GVM 全端口 DNAT，应在安全章节列出暴露面和建议白名单。 |
 | NET-DIAG-FW-003 | 系统应检查 conntrack 状态。 | P1 | conntrack 表使用率超过 80%、大量 UNREPLIED 或 INVALID 连接时输出 WARN/FAIL。 |
+| NET-DIAG-FW-004 | 系统应检查 conntrack 表满证据。 | P0 | 采集 `dmesg` 中 `nf_conntrack: table full` 记录、`/proc/net/stat/nf_conntrack` 中 `insert_failed`、`drop`、`search_restart` 计数；任一非零或 `dmesg` 出现 table full，输出 FAIL，并提示老连接可用但新连接被丢弃的典型现象。 |
+| NET-DIAG-FW-005 | 系统应采集 conntrack 容量与超时配置。 | P1 | 采集 `nf_conntrack_buckets`、`nf_conntrack_tcp_timeout_established`、`nf_conntrack_udp_timeout`、`nf_conntrack_udp_timeout_stream` 等参数；与项目基线偏离时输出 INFO/WARN，便于分析 SOME/IP UDP 表项膨胀风险。 |
 
 ### 5.7 PVM-GVM 虚拟化链路诊断需求
 
@@ -335,6 +337,24 @@
 | 判定逻辑 | 若 ping 外部 IP 正常但域名解析失败，定位 DNS 配置、DNS 服务器可达性或上游 DNS；若 GVM 未发出 53 端口请求，定位 Android DNS/netd；若 vmtap1.3 有 DNS 请求但 eth1.3 无请求，定位 PVM NAT/路由；若 eth1.3 有请求无响应，定位 TBOX/上游 DNS |
 | 输出建议 | 同时输出 `ip route get <外部IP> mark 0x10066`、`dumpsys connectivity` 中 DNS server、`getprop` DNS 相关属性、`tcpdump -ni vmtap1.3 port 53`、`tcpdump -ni eth1.3 port 53` 的验证建议 |
 
+### 6.11 场景 K：conntrack 表满 / 新连接失败
+
+| 项目 | 内容 |
+| --- | --- |
+| 涉及路径 | PVM netfilter conntrack 表 + 所有经 NAT/状态防火墙的连接 |
+| 必查项 | `nf_conntrack_count` / `nf_conntrack_max` 使用率、`/proc/net/stat/nf_conntrack` 中 `insert_failed`/`drop`/`search_restart`、`dmesg` 中 `nf_conntrack: table full`、UDP/TCP timeout 参数、`nf_conntrack_buckets`、是否对 SOME/IP 高频 UDP 配置 `NOTRACK` |
+| 判定逻辑 | 现象：老连接（已 ESTABLISHED）正常，新连接全部失败、`tcpdump` 可见 SYN 出去但无 SYN-ACK；若 `dmesg` 出现 table full 或 `insert_failed > 0`，直接输出 FAIL，根因为 conntrack 满；若使用率 > 80% 且仍在增长，输出 WARN，提示扩容 `nf_conntrack_max` 或缩短 UDP timeout |
+| 输出建议 | 同时给出扩容命令、`NOTRACK` 配置示例（VLAN 10-14 SOME/IP UDP），并记录是否存在外部扫描/广播风暴造成连接暴涨 |
+
+### 6.12 场景 L：PVM 默认网关可达但 GVM 上不了公网
+
+| 项目 | 内容 |
+| --- | --- |
+| 涉及路径 | PVM `eth1.3`(SNAT) <-> TBOX 上游公网；PVM forward path: `vmtap1.3` -> `eth1.3` |
+| 必查项 | PVM 自身 `ping -I eth1.3 8.8.8.8` 是否通；`ip_forward`、`conf.all.forwarding`、`conf.eth1.3/vmtap1.3.forwarding`；POSTROUTING SNAT 命中计数；FORWARD 链命中/DROP 计数；conntrack 使用率与 `insert_failed`；GVM `ping 10.10.103.1`、`ping 172.16.103.20`、`ping 8.8.8.8`、`ping www.example.com` 的分级结果 |
+| 判定逻辑 | (1) PVM `ping -I eth1.3 8.8.8.8` 不通 → 定位 TBOX 上游/SIM/鉴权，与 IVI 无关；(2) PVM 通但 GVM 不通 → 排查 `forwarding`、SNAT、FORWARD、conntrack；(3) GVM ping 公网 IP 通但域名不通 → 进入场景 J（DNS）；(4) GVM 到 `10.10.103.1` 不通 → 定位 vmtap/virtio |
+| 输出建议 | 报告中明确标注每一级 ping 结果，避免笼统判定“GVM 上不了网”；若属于 TBOX 上游问题，应在结论中标注“非座舱网络故障” |
+
 ---
 
 ## 7. 采集数据要求
@@ -362,6 +382,15 @@ iptables -L -nv
 ss -ltnp
 ss -lunp
 cat /proc/net/nf_conntrack
+cat /proc/net/stat/nf_conntrack
+sysctl net.netfilter.nf_conntrack_count
+sysctl net.netfilter.nf_conntrack_buckets
+sysctl net.netfilter.nf_conntrack_tcp_timeout_established
+sysctl net.netfilter.nf_conntrack_udp_timeout
+sysctl net.netfilter.nf_conntrack_udp_timeout_stream
+dmesg | grep -i nf_conntrack | tail -n 50
+for i in eth1.3 eth1.4 eth1.6 eth1.7 eth1.8 vmtap1.3 vmtap1.4 vmtap1.6 vmtap1.7 vmtap1.8; do printf "%s forwarding=" "$i"; cat /proc/sys/net/ipv4/conf/$i/forwarding 2>/dev/null; done
+ping -c 3 -I eth1.3 8.8.8.8 || true
 cat /proc/net/dev
 for i in eth0 eth1 vmtap0 vmtap1; do cat /sys/class/net/$i/carrier_changes 2>/dev/null; done
 ```
@@ -644,6 +673,9 @@ for i in eth0 eth1; do cat /sys/class/net/$i/carrier_changes 2>/dev/null; done
 | TC-NET-018 | `rp_filter` strict 导致丢包 | PVM `vmtap1.6` 或 `eth1.6` 等策略路由路径 `rp_filter=1` | 转发内核参数 FAIL/WARN，提示反向路径过滤可能丢弃 GVM 回程包 |
 | TC-NET-019 | PVM MAC 基线异常 | `eth0` 或 `eth1` MAC 与固定基线/白名单不一致 | MAC 基线 FAIL，提示可能影响 RTL9071/VCM/ADCU FDB 学习 |
 | TC-NET-020 | TBOX 默认网关不可达 | VLAN 3 网关 ARP 正常但 PVM 无法 ICMP 或等价 L3 探测 `172.16.103.20` | VLAN 3 默认互联网通道 FAIL，定位 TBOX/L3 网关异常 |
+| TC-NET-021 | conntrack 表满 | `dmesg` 出现 `nf_conntrack: table full` 或 `insert_failed > 0`，老连接可用但新连接 SYN 无应答 | conntrack 诊断 FAIL，定位为 conntrack 表满，建议扩容 `nf_conntrack_max` 并对 VLAN 10-14 SOME/IP UDP 配置 `NOTRACK` |
+| TC-NET-022 | PVM 转发关闭 / per-if forwarding=0 | 任意一项 `ip_forward`、`conf.all.forwarding`、`conf.eth1.3/vmtap1.3.forwarding` 为 0 | GVM 互联网/业务全部 FAIL，PVM 自身仍可 ping 网关，定位 PVM 转发未启用 |
+| TC-NET-023 | TBOX 上游公网不可达 | PVM `ping -I eth1.3 8.8.8.8` 不通，但 PVM 到 TBOX `172.16.103.20` 网关可达 | 报告标注“非座舱网络故障”，定位 TBOX 上游/SIM/鉴权 |
 
 ---
 
