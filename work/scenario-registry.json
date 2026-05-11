@@ -1,0 +1,652 @@
+// Scenario Registry（业务场景 → check 集合 + SHU + probe 映射）
+// 配套：network_diagnosis_detailed_design.md v1.1
+// 上游：network_diagnosis_requirements.md §6 场景 A-L
+// 部署：双端共享 `/etc/polaris/scenario-registry.json` + GVM `/system/etc/polaris/scenario-registry.json`
+// 用途：
+//   - MODE-002 (按 VLAN 专项诊断)：通过 scope_filter 取 scenario.checks 子集
+//   - MODE-003 (按业务场景诊断)：直接按 scenario.id 取
+//   - MODE-004 (故障触发)：watchdog 信号 → scenario.id 触发动作集
+{
+  "$schema":              "1.1",
+  "doc":                  "Scenario registry mapping business scenarios A-L to checks/SHUs/probes/evidence",
+  "registry_version":     "1.1",
+  "depends_on_dict_version": "1.1",
+  "depends_on_baseline_version": "v1.0-2026-05-09",
+  "_generated":           "2026-05-11",
+
+  // ============================================================
+  // 业务场景（按需求 §6 12 个场景 A-L 完整展开）
+  // ============================================================
+  "scenarios": [
+
+    // ─────── 场景 A: GVM 无法访问互联网 ───────
+    {
+      "id":                "A_GVM_INTERNET_DOWN",
+      "name_chinese":      "GVM 无法访问互联网",
+      "name":              "GVM cannot access internet",
+      "requirement_ref":   "§6.1",
+      "shu":               ["SHU_VLAN3_INTERNET", "SHU_DNS"],
+
+      "path": {
+        "logical":         "GVM App → Android eth1.3 → PVM vmtap1.3 → PVM eth1.3 → TBOX 172.16.103.20 → Internet",
+        "vlan":            3,
+        "involves":        ["GVM Android socket", "GVM netd / resolver", "virtio-net",
+                            "PVM vmtap1.3", "PVM iptables (SNAT)", "PVM eth1.3 → VCM → TBOX → Internet"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L1-LINK-001",       // eth0/eth1 link
+          "L2-VLAN-001",       // PVM eth1.3 exists
+          "L2-VLAN-002",       // PVM vmtap1.3 exists
+          "L2-VLAN-003",       // GVM eth1.3 exists
+          "L2-VLAN-007",       // gateway ARP
+          "L3-IP-001",         // PVM IP baseline
+          "L3-IP-002",         // GVM IP baseline
+          "L3-IP-003",         // ip_forward=1
+          "L3-IP-004",         // per-iface forwarding/rp_filter
+          "L3-ROUTE-001",      // PVM default route
+          "L3-ROUTE-005",      // GVM NetId→VLAN dynamic
+          "L3-ROUTE-006",      // ip route get
+          "L4-NAT-001",        // PVM NAT VLAN3 rules
+          "L4-NAT-002",        // SNAT
+          "L4-FW-003",         // conntrack pressure
+          "L4-FW-006",         // conntrack UNREPLIED (v1.1)
+          "L4-NAT-005",        // NAT 对称性 (v1.1)
+          "VM-002",            // host-guest ping
+          "VM-003",            // GVM VLAN ping
+          "SVC-001",           // default internet
+          "SVC-011",           // DNS
+          "SVC-012"            // TBOX gateway
+        ],
+        "should_run_on_alert": [
+          "L4-FW-007",         // PVM SYN_SENT
+          "L5-PORT-006"        // GVM SYN_SENT
+        ]
+      },
+
+      "probes": [
+        "SHU_VLAN3_INTERNET.icmp_tbox",
+        "SHU_VLAN3_INTERNET.icmp_tbox_pmtu",
+        "SHU_VLAN3_INTERNET.icmp_uplink",
+        "SHU_VLAN3_INTERNET.dns_uplink",
+        "SHU_VLAN3_INTERNET.icmp_gvm_perspective"
+      ],
+
+      "evidence_packs": [
+        "pvm/ip_addr.txt", "pvm/ip_route_all.txt", "pvm/ip_rule.txt", "pvm/ip_neigh.txt",
+        "pvm/iptables_nat_S.txt", "pvm/sysctl_net.txt", "pvm/conntrack_state_breakdown.txt",
+        "gvm/ip_addr.txt", "gvm/ip_route_all.txt", "gvm/dumpsys_connectivity.txt",
+        "gvm/ndc.txt", "gvm/ss_listen.txt"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "GATEWAY_UNREACHABLE(VLAN3_TBOX)", "DNS_FAILURE(VLAN3_default)",
+        "FORWARDING_DISABLED", "DOWNSTREAM_PACKET_LOSS(VLAN3_TBOX)",
+        "NAT_RULE_DRIFT", "TBOX_UPLINK_DOWN"
+      ],
+
+      "test_cases":       ["TC-NET-001", "TC-NET-005", "TC-NET-017", "TC-NET-020", "TC-NET-022", "TC-NET-023", "TC-NET-024"]
+    },
+
+    // ─────── 场景 B: 诊断仪无法连接 DoIP ───────
+    {
+      "id":                "B_DIAG_DOIP_UNREACHABLE",
+      "name_chinese":      "诊断仪无法连接 DoIP",
+      "requirement_ref":   "§6.2",
+      "shu":               ["SHU_VLAN4_DOIP"],
+
+      "path": {
+        "logical":         "诊断仪 → VLAN4 172.16.104.40:13400 → PVM eth1.4 DNAT → GVM 10.10.104.40:13400 (doip_server)",
+        "vlan":            4,
+        "involves":        ["PVM eth1.4", "PVM iptables PREROUTING DNAT (VLAN4 含 IDPS 例外)",
+                            "vmtap1.4", "GVM eth1.4", "GVM doip_server / vlm-agent / gftpd"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L1-LINK-001",
+          "L2-VLAN-001", "L2-VLAN-002", "L2-VLAN-003",
+          "L3-IP-001", "L3-IP-002",
+          "L4-NAT-001",        // 含 VLAN4 IDPS 例外顺序
+          "L4-FW-002",
+          "PORT-002",          // GVM listening ports
+          "PORT-003",          // bind address correctness
+          "SVC-002"            // DoIP chain
+        ],
+        "passive_only": true,
+        "_note":           "需要外部诊断仪发起流量；车机内部无法构造完整外到内流量；模式：external-assisted"
+      },
+
+      "probes": [],
+      "passive_evidence_capture": [
+        "tcpdump -ni eth1.4 -c 50 port 13400 (during external test)",
+        "tcpdump -ni vmtap1.4 -c 50 port 13400"
+      ],
+
+      "evidence_packs": [
+        "pvm/iptables_nat_S.txt", "pvm/iptables_nat_Lnv.txt",
+        "pvm/ip_neigh.txt",
+        "gvm/ss_listen.txt", "gvm/proc_net_dev.txt"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "NAT_RULE_DRIFT(VLAN4)", "VLAN_MISSING(eth1.4|vmtap1.4|gvm:eth1.4)",
+        "SERVICE_DOWN(doip_server)", "IDPS_BYPASS_FAIL"
+      ],
+
+      "test_cases":       ["TC-NET-002", "TC-NET-003", "TC-NET-014"]
+    },
+
+    // ─────── 场景 C: IDPS 无法访问或旁路失效 ───────
+    {
+      "id":                "C_IDPS_BYPASS_FAIL",
+      "name_chinese":      "IDPS 无法访问或旁路失效",
+      "requirement_ref":   "§6.3",
+      "shu":               ["SHU_VLAN4_DOIP"],
+
+      "path": {
+        "logical":         "外部 → 172.16.104.40:30006 → PVM xdja_idps（绝不能被 DNAT 到 GVM）",
+        "vlan":            4,
+        "involves":        ["PVM iptables PREROUTING TCP/30006 例外", "PVM xdja_idps process + listen"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L4-NAT-001",        // must_contain + rule_order check
+          "SVC-003",           // IDPS bypass full check
+          "SEC-004"            // SEC IDPS
+        ]
+      },
+
+      "probes": [],
+      "passive_evidence_capture": [
+        "tcpdump -ni eth1.4 -c 20 port 30006"
+      ],
+
+      "evidence_packs": [
+        "pvm/iptables_nat_S.txt", "pvm/iptables_nat_Lnv.txt",
+        "pvm/ss_listen.txt"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "IDPS_BYPASS_FAIL", "SERVICE_DOWN(xdja_idps)",
+        "NAT_RULE_DRIFT(VLAN4_IDPS_EXCEPT)"
+      ],
+
+      "test_cases":       ["TC-NET-004"]
+    },
+
+    // ─────── 场景 D: ADCU 泊车网络不可达 ───────
+    {
+      "id":                "D_ADCU_PARK_UNREACHABLE",
+      "name_chinese":      "ADCU 泊车网络不可达",
+      "requirement_ref":   "§6.4",
+      "shu":               ["SHU_VLAN6_ADCU_PARK"],
+
+      "path": {
+        "logical":         "GVM App (NetId=adcu_park) → eth1.6 → vmtap1.6 → PVM table 106 → eth1.6 → ADCU 172.16.106.20",
+        "vlan":            6,
+        "involves":        ["GVM Android NetId 选路", "GVM eth1.6 → vmtap1.6",
+                            "PVM table 106 default via 172.16.106.20",
+                            "10.82.13.0/24 + 10.92.89.8 extra routes"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L1-LINK-001", "L2-VLAN-001", "L2-VLAN-007",
+          "L3-IP-001", "L3-IP-003", "L3-IP-004",
+          "L3-ROUTE-002",      // PVM table 106
+          "L3-ROUTE-005",      // GVM NetId→eth1.6
+          "L3-ROUTE-006",      // ip route get to 172.16.106.x / 10.82.13.x / 10.92.89.8
+          "L4-NAT-001",        // VLAN6 DNAT
+          "L4-NAT-002",        // VLAN6 SNAT
+          "VM-003",
+          "SVC-004"
+        ]
+      },
+
+      "probes": [
+        "SHU_VLAN6_ADCU_PARK.icmp_gateway"
+      ],
+
+      "evidence_packs": [
+        "pvm/ip_route_all.txt (含 table 106)", "pvm/iptables_nat_S.txt",
+        "gvm/ip_route_all.txt (含 eth1.6 table)", "gvm/ip_rule.txt"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "GATEWAY_UNREACHABLE(VLAN6_ADCU)", "POLICY_ROUTE_DRIFT(table:106)",
+        "ANDROID_NETID_MISMATCH(adcu_park)"
+      ],
+
+      "test_cases":       ["TC-NET-005", "TC-NET-006"]
+    },
+
+    // ─────── 场景 E: OTA / 远程诊断通道异常 ───────
+    {
+      "id":                "E_OTA_CHANNEL_FAIL",
+      "name_chinese":      "OTA / 远程诊断通道异常",
+      "requirement_ref":   "§6.5",
+      "shu":               ["SHU_VLAN7_OTA"],
+
+      "path": {
+        "logical":         "GVM/PVM → VLAN7 → 172.16.107.20 网关",
+        "vlan":            7,
+        "involves":        ["GVM NetId=ota → eth1.7", "PVM table 107 → eth1.7 → 172.16.107.20"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L1-LINK-001", "L2-VLAN-001", "L2-VLAN-007",
+          "L3-ROUTE-002",      // PVM table 107
+          "L3-ROUTE-005",      // GVM NetId→eth1.7
+          "L4-NAT-001", "L4-NAT-002",
+          "VM-003",
+          "SVC-005"
+        ],
+        "_note": "OTA 服务按需启动，进程不在不算 FAIL"
+      },
+
+      "probes": [
+        "SHU_VLAN7_OTA.icmp_gateway"
+      ],
+
+      "evidence_packs": [
+        "pvm/ip_route_all.txt (含 table 107)", "pvm/ip_neigh.txt",
+        "gvm/ip_route_all.txt (含 eth1.7 table)"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "GATEWAY_UNREACHABLE(VLAN7_OTA)", "POLICY_ROUTE_DRIFT(table:107)"
+      ]
+    },
+
+    // ─────── 场景 F: ADAS Internet 异常 ───────
+    {
+      "id":                "F_ADAS_INTERNET_FAIL",
+      "name_chinese":      "ADAS Internet 异常",
+      "requirement_ref":   "§6.6",
+      "shu":               ["SHU_VLAN8_ADAS"],
+
+      "path": {
+        "logical":         "GVM/PVM → VLAN8 → 172.16.108.20 → 上游",
+        "vlan":            8,
+        "involves":        ["GVM NetId=adas → eth1.8", "PVM table 108 → eth1.8 → 172.16.108.20"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L1-LINK-001", "L2-VLAN-001", "L2-VLAN-007",
+          "L3-ROUTE-002",
+          "L3-ROUTE-005",
+          "L4-NAT-001", "L4-NAT-002",
+          "VM-003",
+          "SVC-006"
+        ]
+      },
+
+      "probes": [
+        "SHU_VLAN8_ADAS.icmp_gateway"
+      ],
+
+      "evidence_packs": [
+        "pvm/ip_route_all.txt (含 table 108)", "pvm/ip_neigh.txt"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "GATEWAY_UNREACHABLE(VLAN8_ADAS)", "POLICY_ROUTE_DRIFT(table:108)"
+      ]
+    },
+
+    // ─────── 场景 G: SOME/IP 服务异常 ───────
+    {
+      "id":                "G_SOMEIP_SERVICE_FAIL",
+      "name_chinese":      "SOME/IP 服务异常",
+      "requirement_ref":   "§6.7",
+      "shu":               ["SHU_SOMEIP_BUS"],
+
+      "path": {
+        "logical":         "PVM eth1.10-14 / eth0.19 ↔ SOME/IP ECU 集群（PVM-only，不入 GVM）",
+        "vlan":            [10, 11, 12, 13, 14, 19],
+        "involves":        ["PVM eth1.10/.11/.12/.13/.14, eth0.19",
+                            "PVM someipd × 13 instances",
+                            "multicast 239.5.1.2:30490"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L1-LINK-001",
+          "L2-VLAN-001",       // eth1.10-14, eth0.19 must exist
+          "L3-IP-001",
+          "SVC-007",           // someipd listening
+          "SVC-009",           // VLAN 19 big data
+          "VM-005",            // PVM-only isolation
+          "SEC-003",           // PVM-only DNAT prohibition
+          "BASE-005",          // PVM-only strict isolation
+          "PORT-005"           // PVM private not exposed to GVM
+        ],
+        "_note": "GVM 不应参与，问题仅在 GVM 侧观察到则提示业务设计错误"
+      },
+
+      "probes": [
+        "broadcast_storm_check (multicast pps on eth1.10-14)"
+      ],
+
+      "passive_evidence_capture": [
+        "tcpdump -ni eth1.10 -c 50 udp port 30490",
+        "tcpdump -ni eth1.10 -c 50 host 239.5.1.2"
+      ],
+
+      "evidence_packs": [
+        "pvm/ip_addr.txt", "pvm/ss_listen.txt",
+        "pvm/proc_net_dev.txt", "pvm/proc_softirqs.txt"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "SERVICE_DOWN(someipd_VLAN*)", "VLAN_MISSING(eth1.X)",
+        "PVM_ONLY_LEAK(if GVM has these VLANs)"
+      ],
+
+      "test_cases":       ["TC-NET-007"]
+    },
+
+    // ─────── 场景 H: 摄像头视频无画面 ───────
+    {
+      "id":                "H_CAMERA_NO_VIDEO",
+      "name_chinese":      "摄像头视频无画面",
+      "requirement_ref":   "§6.8",
+      "shu":               ["SHU_VLAN15_RTSP"],
+
+      "path": {
+        "logical":         "ADCU 172.16.115.98 → PVM eth0.15 RTSP → Camera Server → mmhab → GVM Camera Client → 渲染",
+        "vlan":            15,
+        "involves":        ["PVM eth0.15", "ADCU 邻居 172.16.115.98",
+                            "PVM Camera Server (RTSP receive)",
+                            "mmhab 共享内存（非 IP，超本模块范围）",
+                            "GVM Camera Client（仅检查存在）"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L1-LINK-001",       // eth0 link
+          "L2-VLAN-001",       // eth0.15 exists
+          "L3-IP-001",         // eth0.15 IP
+          "L2-VLAN-007",       // ADCU neighbor
+          "SVC-008"            // RTSP input chain
+        ],
+        "out_of_scope":      "mmhab 内部 buffer / Camera Client 帧健康（由 Camera 团队接口验证）",
+        "_note":             "本模块仅验证到 Camera Server 进程存活 + RTSP 输入侧链路"
+      },
+
+      "probes": [
+        "icmp eth0.15 → 172.16.115.98"
+      ],
+
+      "passive_evidence_capture": [
+        "tcpdump -ni eth0.15 host 172.16.115.98 -c 100"
+      ],
+
+      "evidence_packs": [
+        "pvm/ip_addr.txt", "pvm/ip_neigh.txt (eth0.15)",
+        "pvm/ss_listen.txt (camera_server)"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "LINK_DOWN(eth0)", "VLAN_MISSING(eth0.15)",
+        "GATEWAY_UNREACHABLE(ADCU_RTSP)", "SERVICE_DOWN(camera_server)"
+      ],
+
+      "test_cases":       ["TC-NET-008", "TC-NET-012"]
+    },
+
+    // ─────── 场景 I: PVM 与 GVM 互通异常 ───────
+    {
+      "id":                "I_HOST_GUEST_BROKEN",
+      "name_chinese":      "PVM 与 GVM 互通异常",
+      "requirement_ref":   "§6.9",
+      "shu":               ["SHU_HOST_GUEST"],
+
+      "path": {
+        "logical":         "PVM vmtap0 ↔ GVM eth0 (10.10.200.0/24)",
+        "vlan":            null,
+        "involves":        ["qcrosvm hypervisor process", "vmtap0 / vmtap1.X",
+                            "virtio-net DMA + vring", "GVM eth0 / eth1.X"]
+      },
+
+      "checks": {
+        "must_run": [
+          "VM-001",            // qcrosvm
+          "VM-002",            // host-guest 10.10.200.x bidir
+          "VM-003",            // each VLAN GVM ping
+          "VM-004",            // unidirectional check
+          "VM-006",            // host-guest baseline
+          "VM-007"             // trunk parent eth1/vmtap1
+        ]
+      },
+
+      "probes": [
+        "SHU_HOST_GUEST.icmp_bidir"
+      ],
+
+      "evidence_packs": [
+        "pvm/ip_addr.txt", "pvm/proc_net_dev.txt (vmtap counters)",
+        "pvm/qcrosvm_status.txt (pidof)",
+        "gvm/ip_addr.txt", "gvm/proc_net_dev.txt (eth0/eth1 counters)"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "HYPERVISOR_DOWN", "VM_LINK_BROKEN(vmtap*)",
+        "PVM_ONLY_LEAK(if VLAN10-14 in GVM)"
+      ],
+
+      "test_cases":       ["TC-NET-013", "TC-NET-016"]
+    },
+
+    // ─────── 场景 J: DNS 解析失败 ───────
+    {
+      "id":                "J_DNS_FAILURE",
+      "name_chinese":      "DNS 解析失败",
+      "requirement_ref":   "§6.10",
+      "shu":               ["SHU_DNS", "SHU_VLAN3_INTERNET"],
+
+      "path": {
+        "logical":         "GVM App → netd/resolver → UDP/53 → 默认网络 eth1.3 → vmtap1.3 → PVM eth1.3 → TBOX → 上游 DNS",
+        "vlan":            3,
+        "involves":        ["GVM Android resolver / netd",
+                            "GVM eth1.3 → vmtap1.3", "PVM NAT VLAN3",
+                            "TBOX 转发 DNS 查询", "上游 DNS 服务器"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L1-LINK-001", "L2-VLAN-001..003", "L2-VLAN-007",
+          "L3-ROUTE-001",
+          "L4-NAT-001", "L4-NAT-002",
+          "SVC-001",
+          "SVC-011",           // DNS chain
+          "SVC-012"            // TBOX gateway
+        ]
+      },
+
+      "probes": [
+        "SHU_DNS.dns_direct_udp53",   // direct UDP/53
+        "SHU_VLAN3_INTERNET.icmp_tbox" // verify IP path is OK
+      ],
+
+      "passive_evidence_capture": [
+        "tcpdump -ni vmtap1.3 port 53 -c 50",
+        "tcpdump -ni eth1.3 port 53 -c 50"
+      ],
+
+      "evidence_packs": [
+        "gvm/dumpsys_connectivity.txt (默认网络 DNS server)",
+        "gvm/getprop_dns.txt",
+        "pvm/ip_neigh.txt"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "DNS_FAILURE(VLAN3_default)",
+        "SERVICE_DOWN(netd|resolver)",
+        "GATEWAY_UNREACHABLE(VLAN3_TBOX)"
+      ],
+
+      "test_cases":       ["TC-NET-017"]
+    },
+
+    // ─────── 场景 K: conntrack 表满 / 新连接失败 ───────
+    {
+      "id":                "K_CONNTRACK_FULL",
+      "name_chinese":      "conntrack 表满 / 新连接失败",
+      "requirement_ref":   "§6.11",
+      "shu":               ["SHU_VLAN3_INTERNET", "SHU_DNS"],
+
+      "path": {
+        "logical":         "PVM netfilter conntrack 表 + 所有经 NAT/状态防火墙的连接",
+        "vlan":            null,
+        "involves":        ["PVM kernel conntrack table",
+                            "nf_conntrack_count / _max / _buckets",
+                            "kernel msg 'nf_conntrack: table full'"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L4-FW-003",         // count/max pct
+          "L4-FW-004",         // table full evidence
+          "L4-FW-005",         // buckets/timeouts
+          "L4-FW-006"          // UNREPLIED pct (v1.1)
+        ]
+      },
+
+      "probes": [],
+
+      "evidence_packs": [
+        "pvm/conntrack_count_max.txt",
+        "pvm/conntrack_buckets_timeouts.txt",
+        "pvm/conntrack_state_breakdown.txt",
+        "pvm/dmesg_conntrack.txt"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "CONNTRACK_PRESSURE", "DOWNSTREAM_PACKET_LOSS(*)"
+      ],
+
+      "test_cases":       ["TC-NET-021"]
+    },
+
+    // ─────── 场景 L: PVM 默认网关可达但 GVM 上不了公网 ───────
+    {
+      "id":                "L_PVM_OK_GVM_NO_INTERNET",
+      "name_chinese":      "PVM 默认网关可达但 GVM 不能上公网",
+      "requirement_ref":   "§6.12",
+      "shu":               ["SHU_VLAN3_INTERNET"],
+
+      "path": {
+        "logical":         "PVM eth1.3 ↔ TBOX 上游公网（PVM 自身可达）；PVM forward path: vmtap1.3 → eth1.3 (GVM 不可达)",
+        "vlan":            3,
+        "involves":        ["PVM eth1.3 → TBOX (OK)",
+                            "PVM forwarding / NAT (suspect)",
+                            "conntrack (suspect)",
+                            "GVM eth1.3 / virtio (suspect)"]
+      },
+
+      "checks": {
+        "must_run": [
+          "L3-IP-003",         // ip_forward
+          "L3-IP-004",         // per-iface forwarding / rp_filter
+          "L4-NAT-001", "L4-NAT-002", "L4-NAT-003",
+          "L4-NAT-005",        // 入向 vs 出向计数对称性 (v1.1)
+          "L4-FW-003", "L4-FW-006",
+          "VM-002", "VM-003",
+          "SVC-012"
+        ],
+        "decision_logic": [
+          "1. PVM ping -I eth1.3 8.8.8.8 不通 → TBOX 上游问题 (非座舱故障)",
+          "2. PVM 通但 GVM 不通 → forwarding / SNAT / conntrack / virtio",
+          "3. GVM ping 公网 IP 通但 DNS 失败 → 进入场景 J",
+          "4. GVM 到 10.10.103.1 不通 → vmtap / virtio"
+        ]
+      },
+
+      "probes": [
+        "SHU_VLAN3_INTERNET.icmp_tbox",
+        "SHU_VLAN3_INTERNET.icmp_uplink",
+        "SHU_VLAN3_INTERNET.icmp_gvm_perspective"
+      ],
+
+      "evidence_packs": [
+        "pvm/sysctl_net.txt (forwarding/rp_filter)",
+        "pvm/iptables_nat_Lnv.txt (counters)",
+        "pvm/conntrack_count_max.txt",
+        "pvm/conntrack_state_breakdown.txt",
+        "pvm/nat_symmetry_history.jsonl",
+        "gvm/ip_route_all.txt"
+      ],
+
+      "expected_fault_classes_on_failure": [
+        "FORWARDING_DISABLED", "DOWNSTREAM_PACKET_LOSS",
+        "NAT_RULE_DRIFT", "VM_LINK_BROKEN", "TBOX_UPLINK_DOWN"
+      ],
+
+      "test_cases":       ["TC-NET-022", "TC-NET-023", "TC-NET-024"]
+    }
+  ],
+
+  // ============================================================
+  // VLAN 维度的诊断 scope（MODE-002 按 VLAN 专项）
+  // 把上面的 scenarios 反向映射到 VLAN，便于"按 VLAN 跑诊断"
+  // ============================================================
+  "vlan_scope_filter": {
+    "VLAN_3":  {"scenarios":["A_GVM_INTERNET_DOWN","J_DNS_FAILURE","L_PVM_OK_GVM_NO_INTERNET"],
+                "extra_checks":["SVC-012"]},
+    "VLAN_4":  {"scenarios":["B_DIAG_DOIP_UNREACHABLE","C_IDPS_BYPASS_FAIL"]},
+    "VLAN_6":  {"scenarios":["D_ADCU_PARK_UNREACHABLE"]},
+    "VLAN_7":  {"scenarios":["E_OTA_CHANNEL_FAIL"]},
+    "VLAN_8":  {"scenarios":["F_ADAS_INTERNET_FAIL"]},
+    "VLAN_10": {"scenarios":["G_SOMEIP_SERVICE_FAIL"], "pvm_only":true},
+    "VLAN_11": {"scenarios":["G_SOMEIP_SERVICE_FAIL"], "pvm_only":true},
+    "VLAN_12": {"scenarios":["G_SOMEIP_SERVICE_FAIL"], "pvm_only":true},
+    "VLAN_13": {"scenarios":["G_SOMEIP_SERVICE_FAIL"], "pvm_only":true},
+    "VLAN_14": {"scenarios":["G_SOMEIP_SERVICE_FAIL"], "pvm_only":true},
+    "VLAN_15": {"scenarios":["H_CAMERA_NO_VIDEO"], "pvm_only":true,
+                "out_of_scope_hint":"mmhab 后段超出范围"},
+    "VLAN_19": {"scenarios":["G_SOMEIP_SERVICE_FAIL"], "pvm_only":true,
+                "_note":"ADCU 大数据 SOME/IP"},
+    "HOST_GUEST": {"scenarios":["I_HOST_GUEST_BROKEN"]}
+  },
+
+  // ============================================================
+  // 故障触发模式 (MODE-004) — watchdog 信号到 scenario 的映射
+  // ============================================================
+  "watchdog_trigger_to_scenarios": {
+    "WD_PVM_LINK(eth1)":            ["A_GVM_INTERNET_DOWN","B_DIAG_DOIP_UNREACHABLE",
+                                     "D_ADCU_PARK_UNREACHABLE","E_OTA_CHANNEL_FAIL",
+                                     "F_ADAS_INTERNET_FAIL","G_SOMEIP_SERVICE_FAIL"],
+    "WD_PVM_LINK(eth0)":            ["H_CAMERA_NO_VIDEO","G_SOMEIP_SERVICE_FAIL"],
+    "WD_PVM_VMTAP_OPER":            ["I_HOST_GUEST_BROKEN"],
+    "WD_PVM_FORWARDING":            ["L_PVM_OK_GVM_NO_INTERNET","A_GVM_INTERNET_DOWN"],
+    "WD_PVM_CONNTRACK_PCT":         ["K_CONNTRACK_FULL","A_GVM_INTERNET_DOWN"],
+    "WD_PVM_CONNTRACK_FULL":        ["K_CONNTRACK_FULL"],
+    "WD_PVM_CONNTRACK_UNREPLIED":   ["L_PVM_OK_GVM_NO_INTERNET","K_CONNTRACK_FULL"],
+    "WD_PVM_NAT_RULES":             ["B_DIAG_DOIP_UNREACHABLE","C_IDPS_BYPASS_FAIL","A_GVM_INTERNET_DOWN"],
+    "WD_PVM_NAT_ASYMMETRY":         ["L_PVM_OK_GVM_NO_INTERNET","A_GVM_INTERNET_DOWN"],
+    "WD_PVM_HYPERVISOR":            ["I_HOST_GUEST_BROKEN"],
+    "WD_PVM_SERVICE(xdja_idps)":    ["C_IDPS_BYPASS_FAIL"],
+    "WD_PVM_SERVICE(someipd_*)":    ["G_SOMEIP_SERVICE_FAIL"],
+    "WD_PVM_SERVICE(camera_server)":["H_CAMERA_NO_VIDEO"],
+    "WD_GVM_NETD":                  ["J_DNS_FAILURE","A_GVM_INTERNET_DOWN"],
+    "WD_GVM_CONNECTIVITY":          ["A_GVM_INTERNET_DOWN"]
+  },
+
+  // ============================================================
+  // 实现注意事项
+  // ============================================================
+  "implementation_notes": [
+    "scenarios.checks.must_run 列出 MODE-003 时必跑的 check_id",
+    "scenarios.probes 引用 SHU.probes 的具体 probe_id",
+    "scenarios.evidence_packs 列出 incident_dir 需保留的关键证据文件路径",
+    "vlan_scope_filter 支持 MODE-002 (按 VLAN 专项)：scope=VLAN_3 → 跑这些 scenarios 的 must_run 检查",
+    "watchdog_trigger_to_scenarios 支持 MODE-004：watchdog 信号触发后自动跑对应 scenarios.checks.must_run",
+    "passive_only=true 表示需外部流量配合（如诊断仪），不能内部主动构造；若无流量到达，scene 检查输出 BLOCKED-L1_env"
+  ]
+}

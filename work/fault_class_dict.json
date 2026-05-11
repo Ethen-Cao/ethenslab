@@ -1,0 +1,453 @@
+// Fault Class 字典（B1 R1 fault_id 计算的核心字典）
+// 配套：network_diagnosis_detailed_design.md v1.1 §25.1 / §27
+// 部署：PVM `/etc/polaris/fault_class_dict.json` + GVM `/system/etc/polaris/fault_class_dict.json`
+// 双端启动时各自加载 + sha256 互校（NDGA hello 阶段）
+{
+  "$schema":              "1.1",
+  "doc":                  "Fault class dictionary; provides fault_class enum + target_key extraction rules",
+  "dict_version":         "1.1",
+  "compatible_diag_versions": ["1.0", "1.1"],
+  "_generated":           "2026-05-11",
+
+  // ============================================================
+  // target_key 抽取规则（被 classes 引用）
+  // 端侧 fault_id 计算：fault_id = hash(pvm_boot_id, fault_class, target_key)
+  // target_key 必须确定性，PVM/GVM 各自算出一致
+  // ============================================================
+  "target_key_rules": {
+    "iface_name": {
+      "doc":      "Linux interface name as-is",
+      "examples": ["eth0", "eth1", "eth1.3", "vmtap1.3", "vmtap0"]
+    },
+    "vlan_role": {
+      "doc":      "VLAN role label (defined in baseline.vlan_ifaces.role)",
+      "examples": ["VLAN3_TBOX", "VLAN4_DOIP", "VLAN6_ADCU", "VLAN7_OTA",
+                   "VLAN8_ADAS", "VLAN10_SOMEIP", "VLAN15_RTSP", "VLAN19_BIGDATA"],
+      "_note":    "用 role 而非数字 VLAN id 是为了语义清晰"
+    },
+    "vlan_id_string": {
+      "doc":      "VLAN id as decimal string",
+      "examples": ["3", "4", "6"]
+    },
+    "service_name": {
+      "doc":      "Service name from baseline.services.required.name",
+      "examples": ["xdja_idps", "doip_server", "someipd_VLAN10_TCP_51000", "qcrosvm"]
+    },
+    "shu_id": {
+      "doc":      "SHU identifier",
+      "examples": ["SHU_VLAN3_INTERNET", "SHU_DNS", "SHU_HOST_GUEST"]
+    },
+    "global": {
+      "doc":      "Whole-system fault, no specific target",
+      "constant_value": "global"
+    },
+    "package_name": {
+      "doc":      "Android package name (App-reported faults)",
+      "examples": ["com.mega.map", "cockpit.qqmusic"]
+    },
+    "config_path": {
+      "doc":      "Dotted path into baseline config",
+      "examples": ["iptables.filter.policy", "kernel_params.ip_forward",
+                   "sysctl.conf.eth1.3.rp_filter"]
+    },
+    "iface_subnet": {
+      "doc":      "iface + subnet, joined by ':'",
+      "examples": ["eth1.3:172.16.103.0/24"]
+    },
+    "bind_addr_port": {
+      "doc":      "0.0.0.0:port or specific bind, for port exposure",
+      "examples": ["*:23", "*:5555", "0.0.0.0:18795"]
+    },
+    "ksoftirqd_cpu": {
+      "doc":      "ksoftirqd thread per CPU",
+      "examples": ["cpu0", "cpu1", "cpu7"]
+    },
+    "broadcast_proto_iface": {
+      "doc":      "broadcast protocol + iface",
+      "examples": ["ARP@eth1.3", "mDNS@eth1.3", "SOMEIP_SD@eth1.10"]
+    }
+  },
+
+  // ============================================================
+  // Fault Class 枚举（35 + 1 兜底 = 36 项）
+  // ============================================================
+  "classes": [
+    // -------- 物理层 / L1 (4) --------
+    {
+      "class":              "LINK_DOWN",
+      "category":           "L1_physical",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0002",
+      "target_key_rule":    "iface_name",
+      "boot_warmup_exempt": true,
+      "modify_action":      "Check physical cable, PHY status, switch port",
+      "watchdog_signals":   ["WD_PVM_LINK", "WD_GVM_LINK"]
+    },
+    {
+      "class":              "LINK_FLAPPING",
+      "category":           "L1_physical",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0003",
+      "target_key_rule":    "iface_name",
+      "modify_action":      "Investigate PHY oscillation, temperature, power",
+      "watchdog_signals":   ["WD_PVM_LINK"]
+    },
+    {
+      "class":              "LINK_QUALITY_DEGRADED",
+      "category":           "L1_physical",
+      "default_severity":   "WARN",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E0011",
+      "target_key_rule":    "iface_name",
+      "modify_action":      "Check cable quality, connector, PHY negotiation",
+      "_note":              "RX/TX errors / CRC / dropped / overrun 累计"
+    },
+    {
+      "class":              "MAC_BASELINE_VIOLATION",
+      "category":           "L1_physical",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0012",
+      "target_key_rule":    "iface_name",
+      "modify_action":      "Verify hardware MAC programming; check NIC replacement"
+    },
+
+    // -------- 二层 / L2 (2) --------
+    {
+      "class":              "VLAN_MISSING",
+      "category":           "L2_vlan",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0004",
+      "target_key_rule":    "iface_name",
+      "_note":              "target_key 形式：side:iface，例如 pvm:eth1.3"
+    },
+    {
+      "class":              "VLAN_TAG_MISMATCH",
+      "category":           "L2_vlan",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0013",
+      "target_key_rule":    "vlan_id_string",
+      "_note":              "PVM/vmtap/GVM 三侧 VLAN id 不一致"
+    },
+
+    // -------- 三层 / L3 (6) --------
+    {
+      "class":              "IP_BASELINE_DRIFT",
+      "category":           "L3_ip",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0014",
+      "target_key_rule":    "iface_name"
+    },
+    {
+      "class":              "ROUTE_BASELINE_DRIFT",
+      "category":           "L3_route",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0015",
+      "target_key_rule":    "config_path",
+      "_note":              "target_key 形式: 'main:default' / 'table:106' 等"
+    },
+    {
+      "class":              "POLICY_ROUTE_DRIFT",
+      "category":           "L3_route",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0016",
+      "target_key_rule":    "config_path",
+      "_note":              "target_key 形式: 'rule:prio_217' / 'table:108_default'"
+    },
+    {
+      "class":              "FORWARDING_DISABLED",
+      "category":           "L3_route",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0006",
+      "target_key_rule":    "config_path",
+      "_note":              "target_key 形式: 'global' / 'iface:eth1.3'"
+    },
+    {
+      "class":              "RPF_STRICT_ON_NAT",
+      "category":           "L3_route",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0017",
+      "target_key_rule":    "iface_name",
+      "_note":              "rp_filter=1 在 NAT 路径接口"
+    },
+    {
+      "class":              "ANDROID_NETID_MISMATCH",
+      "category":           "L3_route",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E0018",
+      "target_key_rule":    "vlan_role",
+      "_note":              "Android NetId↔VLAN 角色映射不符模板"
+    },
+
+    // -------- 四层 / netfilter (4) --------
+    {
+      "class":              "NAT_RULE_DRIFT",
+      "category":           "L4_netfilter",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0005",
+      "target_key_rule":    "config_path",
+      "_note":              "target_key 形式: 'VLAN3_DNAT' / 'VLAN4_IDPS_EXCEPT' 见 baseline iptables_nat rule_id"
+    },
+    {
+      "class":              "IDPS_BYPASS_FAIL",
+      "category":           "L4_netfilter",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0019",
+      "target_key_rule":    "global",
+      "target_key_value":   "VLAN4_30006",
+      "_note":              "IDPS 旁路失效，target_key 固定"
+    },
+    {
+      "class":              "CONNTRACK_PRESSURE",
+      "category":           "L4_netfilter",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E0007",
+      "target_key_rule":    "global",
+      "boot_warmup_exempt": true
+    },
+    {
+      "class":              "DOWNSTREAM_PACKET_LOSS",
+      "category":           "L4_netfilter",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E0010",
+      "target_key_rule":    "vlan_role",
+      "_note":              "v1.1 新增 — 上行通下行不通故障；target_key 形式: 'VLAN3_TBOX' / 'global'",
+      "added_in_version":   "1.1"
+    },
+
+    // -------- 业务 / L5 (4) --------
+    {
+      "class":              "GATEWAY_UNREACHABLE",
+      "category":           "L5_service",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E0008",
+      "target_key_rule":    "vlan_role"
+    },
+    {
+      "class":              "DNS_FAILURE",
+      "category":           "L5_service",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E000D",
+      "target_key_rule":    "vlan_role",
+      "target_key_default": "VLAN3_default"
+    },
+    {
+      "class":              "SERVICE_DOWN",
+      "category":           "L5_service",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E000B",
+      "target_key_rule":    "service_name"
+    },
+    {
+      "class":              "TBOX_UPLINK_DOWN",
+      "category":           "L5_service",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E001A",
+      "target_key_rule":    "global",
+      "target_key_value":   "VLAN3_internet",
+      "_note":              "TBOX 网关可达但上游公网不通"
+    },
+
+    // -------- 虚拟化 (3) --------
+    {
+      "class":              "HYPERVISOR_DOWN",
+      "category":           "virtualization",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E000A",
+      "target_key_rule":    "global",
+      "boot_warmup_exempt": true,
+      "rank_in_aggregation": 0,
+      "_note":              "qcrosvm 退出，最高优先级根事件"
+    },
+    {
+      "class":              "VM_LINK_BROKEN",
+      "category":           "virtualization",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E0009",
+      "target_key_rule":    "iface_name",
+      "_note":              "vmtap operstate / 单向不通"
+    },
+    {
+      "class":              "PVM_ONLY_LEAK",
+      "category":           "virtualization",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E001B",
+      "target_key_rule":    "vlan_id_string",
+      "_note":              "PVM-only VLAN 出现在 GVM 或被 DNAT"
+    },
+
+    // -------- 性能 (7) --------
+    {
+      "class":              "PACKET_LOSS_HIGH",
+      "category":           "performance",
+      "default_severity":   "WARN",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E001C",
+      "target_key_rule":    "shu_id"
+    },
+    {
+      "class":              "RTT_HIGH",
+      "category":           "performance",
+      "default_severity":   "WARN",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E001D",
+      "target_key_rule":    "shu_id"
+    },
+    {
+      "class":              "THROUGHPUT_ANOMALY",
+      "category":           "performance",
+      "default_severity":   "INFO",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E001E",
+      "target_key_rule":    "iface_name",
+      "_note":              "突发流量监测，仅 INFO 级"
+    },
+    {
+      "class":              "MTU_INCONSISTENT",
+      "category":           "performance",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L2_anomaly",
+      "event_id":           "0x4E5E001F",
+      "target_key_rule":    "iface_name"
+    },
+    {
+      "class":              "PMTU_BLACKHOLE",
+      "category":           "performance",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E000E",
+      "target_key_rule":    "shu_id",
+      "_note":              "大包不通小包通"
+    },
+    {
+      "class":              "SOFTIRQ_OVERLOAD",
+      "category":           "performance",
+      "default_severity":   "WARN",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E0020",
+      "target_key_rule":    "ksoftirqd_cpu"
+    },
+    {
+      "class":              "BROADCAST_STORM",
+      "category":           "performance",
+      "default_severity":   "WARN",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E0021",
+      "target_key_rule":    "broadcast_proto_iface"
+    },
+
+    // -------- 安全 (2) --------
+    {
+      "class":              "PORT_EXPOSURE_NEW",
+      "category":           "security",
+      "default_severity":   "WARN",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E000C",
+      "target_key_rule":    "bind_addr_port"
+    },
+    {
+      "class":              "EXPOSURE_RISK",
+      "category":           "security",
+      "default_severity":   "WARN",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E0022",
+      "target_key_rule":    "config_path",
+      "_note":              "target_key 形式: 'FORWARD_DEFAULT_ACCEPT' / 'DNAT_FULL_TRANSPARENT'"
+    },
+
+    // -------- 端到端 / 跨层 (3) --------
+    {
+      "class":              "APP_NETWORK_TROUBLE",
+      "category":           "cross_layer",
+      "default_severity":   "INFO",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E00F1",
+      "target_key_rule":    "package_name",
+      "_note":              "App 主动报障；severity 由 SHU verdict 决定"
+    },
+    {
+      "class":              "BASELINE_DRIFT",
+      "category":           "cross_layer",
+      "default_severity":   "WARN",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E0001",
+      "target_key_rule":    "config_path",
+      "_note":              "未归类于具体 fault_class 的基线偏离"
+    },
+    {
+      "class":              "TIME_SKEW",
+      "category":           "cross_layer",
+      "default_severity":   "WARN",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E000F",
+      "target_key_rule":    "global",
+      "target_key_value":   "pvm_vs_gvm"
+    },
+
+    // -------- 兜底 (1) --------
+    {
+      "class":              "UNKNOWN_FAULT",
+      "category":           "fallback",
+      "default_severity":   "WARN",
+      "blocked_severity":   "L3_intermittent",
+      "event_id":           "0x4E5E00FF",
+      "target_key_rule":    "config_path",
+      "_note":              "无法归类的信号兜底；target_key 形式: '<class_hint>:<signal_source>'"
+    }
+  ],
+
+  // ============================================================
+  // 派生事件聚合优先级（rank 0 最高，越小越是根事件）
+  // 用于 §8.3 事件因果聚合
+  // ============================================================
+  "aggregation_ranks": {
+    "0": ["HYPERVISOR_DOWN"],
+    "1": ["LINK_DOWN"],
+    "2": ["VLAN_MISSING", "VM_LINK_BROKEN", "MAC_BASELINE_VIOLATION"],
+    "3": ["NAT_RULE_DRIFT", "FORWARDING_DISABLED", "RPF_STRICT_ON_NAT",
+          "POLICY_ROUTE_DRIFT", "ROUTE_BASELINE_DRIFT"],
+    "4": ["GATEWAY_UNREACHABLE", "CONNTRACK_PRESSURE", "DOWNSTREAM_PACKET_LOSS",
+          "VLAN_TAG_MISMATCH", "PVM_ONLY_LEAK"],
+    "5": ["SERVICE_DOWN", "DNS_FAILURE", "PMTU_BLACKHOLE", "TBOX_UPLINK_DOWN",
+          "IDPS_BYPASS_FAIL", "ANDROID_NETID_MISMATCH"],
+    "6": ["BASELINE_DRIFT", "EXPOSURE_RISK", "PORT_EXPOSURE_NEW",
+          "IP_BASELINE_DRIFT", "MTU_INCONSISTENT",
+          "PACKET_LOSS_HIGH", "RTT_HIGH", "LINK_QUALITY_DEGRADED",
+          "SOFTIRQ_OVERLOAD", "BROADCAST_STORM"],
+    "7": ["THROUGHPUT_ANOMALY", "APP_NETWORK_TROUBLE", "TIME_SKEW",
+          "UNKNOWN_FAULT", "LINK_FLAPPING"]
+  },
+
+  // ============================================================
+  // hash 算法（fault_id / correlation_id 计算）
+  // ============================================================
+  "hash_algorithm": {
+    "primary":           "murmur3_64",
+    "fallback":          "siphash_1_3_64",
+    "fault_id_format":   "16 hex chars (64-bit truncated)",
+    "correlation_id_format": "8 hex chars (32-bit truncated, no boot_id)",
+    "compute_rule":      "fault_id = hash(pvm_boot_id_short || ':' || correlation_id)[0..16]",
+    "correlation_compute": "correlation_id = hash(fault_class || ':' || target_key)[0..8]"
+  }
+}

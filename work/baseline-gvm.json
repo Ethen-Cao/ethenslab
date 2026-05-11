@@ -1,0 +1,268 @@
+// GVM 拓扑基线（jsonc 格式，jsoncpp allowComments=true 解析）
+// 配套文档：network_diagnosis_detailed_design.md v1.1
+// 平台：SA8397 智能座舱 GVM Android（qcrosvm Hypervisor）
+// 实测来源：2026-05-09 调研 (progress doc §3.2)
+{
+  "$schema":            "1.1",
+  "doc":                "GVM (Android) network baseline; full enumeration",
+  "config_version":     "v1.0-2026-05-09",
+  "baseline_version":   "v1.0-2026-05-09",
+  "platform":           "SA8397",
+  "side":               "gvm",
+  "android_build":      "SA8397_Cockpit",
+
+  // ============================================================
+  // 1. MAC 策略（不固定值，仅做"非全零 + 子接口一致"校验）
+  //    实测每次启动 virtio MAC 都不同（VMM 动态生成），不应硬编码
+  // ============================================================
+  "mac_policy": {
+    "kind":              "check_nonzero_and_consistent_across_subifaces",
+    "rules": [
+      "eth0.mac != 00:00:00:00:00:00 (非全零)",
+      "eth1.mac != 00:00:00:00:00:00",
+      "eth1.{3,4,6,7,8}.mac == eth1.mac (子接口必须共享父接口 MAC)",
+      "eth1.mac 在同一 boot_id 内稳定不变 (不允许运行时变更)"
+    ],
+    "_note":"v1 不固定具体 MAC 值；observable example: 实测 eth0=36:78:cf:a1:5f:0e, eth1=2a:30:c0:d8:d6:b9（仅作记录，不参与判定）"
+  },
+
+  // ============================================================
+  // 2. VLAN 子接口
+  //    eth0 是 Host-Guest 控制接口（vmtap0 对端）
+  //    eth1 是 trunk 父接口，子接口对应 PVM VLAN 3/4/6/7/8
+  // ============================================================
+  "vlan_ifaces": [
+    {"name":"eth0",   "ip":"10.10.200.40/24", "vlan":null, "parent":null, "mtu":1500,
+     "role":"host_guest_control", "pvm_peer_iface":"vmtap0",
+     "pvm_peer_ip":"10.10.200.1", "shu":"SHU_HOST_GUEST"},
+    {"name":"eth1",   "ip":null,              "vlan":null, "parent":null, "mtu":1500,
+     "role":"trunk_parent",       "pvm_peer_iface":"vmtap1",
+     "_note":"无 IP；子接口承载 VLAN 标签"},
+    {"name":"eth1.3", "ip":"10.10.103.40/24", "vlan":3, "parent":"eth1", "mtu":1500,
+     "role":"default_internet",
+     "pvm_peer_iface":"vmtap1.3", "pvm_gateway":"10.10.103.1",
+     "external_gateway":"172.16.103.20",
+     "shu":"SHU_VLAN3_INTERNET"},
+    {"name":"eth1.4", "ip":"10.10.104.40/24", "vlan":4, "parent":"eth1", "mtu":1500,
+     "role":"diag",
+     "pvm_peer_iface":"vmtap1.4", "pvm_gateway":"10.10.104.1",
+     "external_gateway":null,
+     "shu":"SHU_VLAN4_DOIP"},
+    {"name":"eth1.6", "ip":"10.10.106.40/24", "vlan":6, "parent":"eth1", "mtu":1500,
+     "role":"adcu_park",
+     "pvm_peer_iface":"vmtap1.6", "pvm_gateway":"10.10.106.1",
+     "external_gateway":"172.16.106.20",
+     "shu":"SHU_VLAN6_ADCU_PARK"},
+    {"name":"eth1.7", "ip":"10.10.107.40/24", "vlan":7, "parent":"eth1", "mtu":1500,
+     "role":"ota",
+     "pvm_peer_iface":"vmtap1.7", "pvm_gateway":"10.10.107.1",
+     "external_gateway":"172.16.107.20",
+     "shu":"SHU_VLAN7_OTA"},
+    {"name":"eth1.8", "ip":"10.10.108.40/24", "vlan":8, "parent":"eth1", "mtu":1500,
+     "role":"adas_internet",
+     "pvm_peer_iface":"vmtap1.8", "pvm_gateway":"10.10.108.1",
+     "external_gateway":"172.16.108.20",
+     "shu":"SHU_VLAN8_ADAS"}
+  ],
+
+  // ============================================================
+  // 3. Android 路由策略（multinetwork）
+  // ============================================================
+  "main_table": {
+    "no_default_route_expected": true,
+    "_note":"Android main 表无 default route，default 全部下沉到 per-network 策略表"
+  },
+
+  "dummy0_fallback": {
+    "exclude_from_default_check": true,
+    "_note":"Android 16 内置 `default dev dummy0 table dummy0` 是 fallback 网络，不算 default route 漂移"
+  },
+
+  "default_route_strategy": {
+    "table":   "eth1.3",
+    "prio":    31000,
+    "fwmark":  "0x0/0xffff",
+    "_note":"未标记流量（fwmark=0x0）默认走 eth1.3 (VLAN 3) 出口"
+  },
+
+  // ============================================================
+  // 4. NetId↔VLAN 模板（角色映射）
+  //    实测 NetId 数字按 Android Connectivity 注册顺序分配，每次启动可变
+  //    诊断模块从 dumpsys connectivity + ip rule 动态推断
+  // ============================================================
+  "netid_template": {
+    "default":   {"iface":"eth1.3", "role_chinese":"默认互联网/TBOX",
+                  "pvm_external_gateway":"172.16.103.20"},
+    "adcu_park": {"iface":"eth1.6", "role_chinese":"ADCU 泊车/APA",
+                  "pvm_external_gateway":"172.16.106.20",
+                  "extra_routes":["10.82.13.0/24","10.92.89.8/32"],
+                  "_note":"ADCU 泊车业务后端地址，强制走 eth1.6"},
+    "ota":       {"iface":"eth1.7", "role_chinese":"OTA/远程诊断",
+                  "pvm_external_gateway":"172.16.107.20"},
+    "adas":      {"iface":"eth1.8", "role_chinese":"ADAS Internet",
+                  "pvm_external_gateway":"172.16.108.20"}
+  },
+
+  // ============================================================
+  // 5. 策略路由规则（结构期望，不硬编码 NetId 数字）
+  // ============================================================
+  "ip_rule_expected": {
+    "priority_0_to_rules": [
+      {"to":"10.10.200.0/24",   "lookup":"1100",   "_note":"Host-Guest"},
+      {"from":"10.10.200.0/24", "lookup":"1100"},
+      {"to":"172.16.104.0/24",  "lookup":"1400",   "_note":"VLAN4 诊断"},
+      {"to":"172.16.103.0/24",  "lookup_role":"default"},
+      {"to":"172.16.106.0/24",  "lookup_role":"adcu_park"},
+      {"to":"10.82.13.0/24",    "lookup_role":"adcu_park"},
+      {"to":"10.92.89.8/32",    "lookup_role":"adcu_park"},
+      {"to":"172.16.107.0/24",  "lookup_role":"ota"},
+      {"to":"172.16.108.0/24",  "lookup_role":"adas"}
+    ],
+    "priority_16000_fwmark_rules": [
+      {"fwmark_match":"0x10064/0x1ffff", "lookup_role":"_dynamic_netid",
+       "_note":"NetId=100 时；role 由 dumpsys 动态推断"},
+      {"fwmark_match":"0x10065/0x1ffff", "lookup_role":"_dynamic_netid"},
+      {"fwmark_match":"0x10066/0x1ffff", "lookup_role":"_dynamic_netid"},
+      {"fwmark_match":"0x10067/0x1ffff", "lookup_role":"_dynamic_netid"}
+    ],
+    "priority_31000_default": {
+      "fwmark":"0x0/0xffff", "iif":"lo", "lookup_role":"default",
+      "_note":"未标记流量兜底走 default (eth1.3)"
+    }
+  },
+
+  // ============================================================
+  // 6. placeholder 接口（GVM 内核默认 DOWN 设备，过滤掉）
+  // ============================================================
+  "placeholder_ifaces_filter": [
+    "dummy0", "ifb0", "ifb1",
+    "tunl0", "gre0", "gretap0", "erspan0",
+    "ip_vti0", "ip6_vti0",
+    "sit0", "ip6tnl0", "ip6gre0"
+  ],
+
+  // ============================================================
+  // 7. 内核参数（GVM 自身 conntrack 等）
+  // ============================================================
+  "kernel_params": {
+    "_note":"GVM Android 内核参数受 system_server 配置；不强校验数值，仅采集记录"
+  },
+
+  // ============================================================
+  // 8. GVM 关键服务
+  // ============================================================
+  "services": {
+    "required": [
+      {
+        "name":          "doip_server",
+        "comm_match":    "binder:*_doip_server",
+        "bind_tcp":      "10.10.104.40:13400",
+        "bind_udp":      "10.10.104.40:13400",
+        "impacts_shu":   ["SHU_VLAN4_DOIP"],
+        "fault_class_on_down": "SERVICE_DOWN",
+        "_note":"DoIP (ISO 13400)"
+      },
+      {
+        "name":          "vlm-agent-tcp",
+        "comm":          "vlm-agent",
+        "bind":          "10.10.104.40:5062",
+        "proto":         "tcp",
+        "impacts_shu":   ["SHU_VLAN4_DOIP"],
+        "fault_class_on_down": "SERVICE_DOWN"
+      },
+      {
+        "name":          "vlm-agent-udp",
+        "comm":          "vlm-agent",
+        "bind":          "10.10.104.40:5064",
+        "proto":         "udp",
+        "impacts_shu":   ["SHU_VLAN4_DOIP"],
+        "fault_class_on_down": "SERVICE_DOWN"
+      },
+      {
+        "name":          "gftpd",
+        "comm":          "gftpd",
+        "bind":          "10.10.104.40:58046",
+        "proto":         "tcp",
+        "impacts_shu":   ["SHU_VLAN4_DOIP"],
+        "fault_class_on_down": "SERVICE_DOWN",
+        "_note":"诊断/刷写文件传输"
+      }
+    ],
+    "documented_bind_any": [
+      {"bind":"0.0.0.0:5555",  "comm":"adbd",            "userdebug_action":"document","prod_action":"close"},
+      {"bind":"0.0.0.0:58050", "comm":"hpp_transfer_da", "userdebug_action":"document","prod_action":"document"},
+      {"bind":"0.0.0.0:8099",  "comm":"ah.shortcut.key", "userdebug_action":"document","prod_action":"document"},
+      {"bind":"0.0.0.0:5353",  "comm":"mdnsd",           "userdebug_action":"document","prod_action":"document"},
+      {"bind":"0.0.0.0:18795", "comm":"qqlive.audiobox", "userdebug_action":"document","prod_action":"close",
+       "_note":"媒体应用监听全网卡，开发版残留嫌疑"},
+      {"bind":"0.0.0.0:8753",  "comm":"qqlive.audiobox", "userdebug_action":"document","prod_action":"close"},
+      {"bind":"0.0.0.0:1888",  "comm":"qqlive.audiobox", "userdebug_action":"document","prod_action":"close"}
+    ],
+    "dhcpv6_clients": [
+      {"comm":"rkstack.process","bind_iface":"eth1.3","port":546,"proto":"udp"},
+      {"comm":"rkstack.process","bind_iface":"eth1.6","port":546,"proto":"udp"},
+      {"comm":"rkstack.process","bind_iface":"eth1.7","port":546,"proto":"udp"},
+      {"comm":"rkstack.process","bind_iface":"eth1.8","port":546,"proto":"udp",
+       "_note":"DHCPv6 client 仅在 eth1.{3,6,7,8}，不含 eth1.4，与文档一致"}
+    ]
+  },
+
+  // ============================================================
+  // 9. Android 网络框架视角（dumpsys connectivity 验证目标）
+  // ============================================================
+  "android_connectivity_expected": {
+    "default_network_role":         "default",
+    "default_dns_should_be_nonempty": true,
+    "_note":"诊断时通过 dumpsys connectivity 输出与角色映射对账"
+  },
+
+  // ============================================================
+  // 10. 差异策略
+  // ============================================================
+  "diff_policy": {
+    "ignore_fields": [
+      "phys_mac",                      // virtio MAC 启动可变 (G6/B1 确认)
+      "netid_runtime",                 // NetId 动态分配
+      "dummy0_fallback_route",         // Android 16 内置 fallback
+      "placeholder_ifaces"             // 过滤
+    ],
+    "info_if_changed": [
+      "documented_bind_any_observed",
+      "android_connectivity_default_dns"
+    ],
+    "warn_if_changed": [
+      "default_route_strategy.table",
+      "netid_template"
+    ],
+    "fail_if_changed": [
+      "vlan_ifaces[*].ip",
+      "ip_rule_expected.priority_0_to_rules",
+      "ip_rule_expected.priority_31000_default",
+      "services.required"
+    ],
+    "fail_if_missing": [
+      "vlan_ifaces.eth0",
+      "vlan_ifaces.eth1.3",
+      "vlan_ifaces.eth1.4",
+      "vlan_ifaces.eth1.6",
+      "vlan_ifaces.eth1.7",
+      "vlan_ifaces.eth1.8"
+    ]
+  },
+
+  // ============================================================
+  // 11. GVM 必须不可见的 PVM-only VLAN（隔离一致性 BASE-005/VM-005）
+  // ============================================================
+  "pvm_only_must_not_appear": {
+    "ifaces":     ["eth1.10","eth1.11","eth1.12","eth1.13","eth1.14","eth0.15","eth0.19"],
+    "ip_subnets": ["172.16.110.0/24","172.16.111.0/24","172.16.112.0/24",
+                   "172.16.113.0/24","172.16.114.0/24",
+                   "172.16.115.0/24","172.16.119.0/24"],
+    "_note_check_targets": [
+      "GVM `ip addr` 不应出现这些 iface 或 IP",
+      "GVM `ip route show table all` 不应出现这些 subnet",
+      "GVM `ip rule` 不应指向 PVM-only VLAN 路由表",
+      "PVM iptables 不应有这些 VLAN 到 GVM 的 DNAT/SNAT"
+    ]
+  }
+}

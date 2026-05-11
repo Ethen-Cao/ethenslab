@@ -1,0 +1,578 @@
+// PVM 拓扑基线（jsonc 格式，jsoncpp allowComments=true 解析）
+// 配套文档：network_diagnosis_detailed_design.md v1.1
+// 平台：SA8397 智能座舱 PVM Linux 6.6.110-rt61 PREEMPT_RT
+// 实测来源：2026-05-09 调研 (progress doc §3.1)
+{
+  "$schema":            "1.1",
+  "doc":                "PVM network baseline; full enumeration (no ellipsis)",
+  "config_version":     "v1.0-2026-05-09",
+  "baseline_version":   "v1.0-2026-05-09",
+  "platform":           "SA8397",
+  "side":               "pvm",
+  "linux_kernel":       "6.6.110-rt61-debug",
+
+  // ============================================================
+  // 1. 物理接口（SoC MAC controllers + BASE-T1 PHY）
+  // ============================================================
+  "phys_ifaces": [
+    {
+      "name":            "eth0",
+      "expected_mac":    "02:df:53:00:00:09",
+      "expected_speed":  "1000",
+      "expected_duplex": "full",
+      "mtu":             1500,
+      "soc_mac":         "emac0",
+      "serdes":          "PCIE",
+      "switch_port":     "P11",
+      "downlink_port":   "P6",
+      "uplink_to":       "ADCU_FWC_RTSP",
+      "carries_vlans":   [15, 19]
+    },
+    {
+      "name":            "eth1",
+      "expected_mac":    "02:df:53:00:00:04",
+      "expected_speed":  "1000",
+      "expected_duplex": "full",
+      "mtu":             1500,
+      "soc_mac":         "emac1",
+      "serdes":          "USXGMII",
+      "switch_port":     "P9",
+      "downlink_port":   "P5",
+      "uplink_to":       "VCM_trunk",
+      "carries_vlans":   [3, 4, 6, 7, 8, 10, 11, 12, 13, 14]
+    }
+  ],
+
+  // ============================================================
+  // 2. VLAN 子接口（12 条，全展开）
+  // ============================================================
+  "vlan_ifaces": [
+    {"name":"eth1.3",  "ip":"172.16.103.40/24", "vlan":3,  "parent":"eth1", "mtu":1500,
+     "role":"default_internet",   "gateway":"172.16.103.20", "shu":"SHU_VLAN3_INTERNET"},
+    {"name":"eth1.4",  "ip":"172.16.104.40/24", "vlan":4,  "parent":"eth1", "mtu":1500,
+     "role":"diag_idps",          "gateway":null,            "shu":"SHU_VLAN4_DOIP"},
+    {"name":"eth1.6",  "ip":"172.16.106.40/24", "vlan":6,  "parent":"eth1", "mtu":1500,
+     "role":"adcu_park",          "gateway":"172.16.106.20", "shu":"SHU_VLAN6_ADCU_PARK"},
+    {"name":"eth1.7",  "ip":"172.16.107.40/24", "vlan":7,  "parent":"eth1", "mtu":1500,
+     "role":"ota",                "gateway":"172.16.107.20", "shu":"SHU_VLAN7_OTA"},
+    {"name":"eth1.8",  "ip":"172.16.108.40/24", "vlan":8,  "parent":"eth1", "mtu":1500,
+     "role":"adas_internet",      "gateway":"172.16.108.20", "shu":"SHU_VLAN8_ADAS"},
+    {"name":"eth1.10", "ip":"172.16.110.40/24", "vlan":10, "parent":"eth1", "mtu":1500,
+     "role":"someip_bus",         "gateway":null,            "shu":"SHU_SOMEIP_BUS",
+     "pvm_only":true},
+    {"name":"eth1.11", "ip":"172.16.111.40/24", "vlan":11, "parent":"eth1", "mtu":1500,
+     "role":"someip_bus",         "gateway":null,            "shu":"SHU_SOMEIP_BUS",
+     "pvm_only":true},
+    {"name":"eth1.12", "ip":"172.16.112.40/24", "vlan":12, "parent":"eth1", "mtu":1500,
+     "role":"someip_bus",         "gateway":null,            "shu":"SHU_SOMEIP_BUS",
+     "pvm_only":true},
+    {"name":"eth1.13", "ip":"172.16.113.40/24", "vlan":13, "parent":"eth1", "mtu":1500,
+     "role":"someip_bus",         "gateway":null,            "shu":"SHU_SOMEIP_BUS",
+     "pvm_only":true},
+    {"name":"eth1.14", "ip":"172.16.114.40/24", "vlan":14, "parent":"eth1", "mtu":1500,
+     "role":"someip_ntp",         "gateway":null,            "shu":"SHU_SOMEIP_BUS",
+     "pvm_only":true},
+    {"name":"eth0.15", "ip":"172.16.115.41/24", "vlan":15, "parent":"eth0", "mtu":1500,
+     "role":"adcu_rtsp_video",    "gateway":null,            "shu":"SHU_VLAN15_RTSP",
+     "pvm_only":true, "peer_ip":"172.16.115.98", "peer_role":"ADCU_A2"},
+    {"name":"eth0.19", "ip":"172.16.119.41/24", "vlan":19, "parent":"eth0", "mtu":1500,
+     "role":"adcu_someip_bigdata","gateway":null,            "shu":"SHU_SOMEIP_BUS",
+     "pvm_only":true, "peer_ip":"172.16.119.98", "peer_role":"ADCU_A2"}
+  ],
+
+  // ============================================================
+  // 3. vmtap（virtio-net 后端 + trunk）
+  // ============================================================
+  "vmtap": [
+    {"name":"vmtap0", "ip":"10.10.200.1/24", "vlan":null, "parent":null, "mtu":1500,
+     "role":"host_guest_control",
+     "shu":"SHU_HOST_GUEST",
+     "peer_gvm_iface":"eth0",
+     "operstate_unknown_ok":true,
+     "_note":"TAP 设备 state 字段始终 UNKNOWN，诊断时使用 operstate/carrier"},
+    {"name":"vmtap1", "ip":null, "vlan":null, "parent":null, "mtu":1500,
+     "role":"trunk_parent",
+     "peer_gvm_iface":"eth1",
+     "operstate_unknown_ok":true,
+     "_note":"trunk 父接口无 IP"},
+    {"name":"vmtap1.3", "ip":"10.10.103.1/24", "vlan":3, "parent":"vmtap1", "mtu":1500,
+     "role":"gvm_default_gateway", "peer_gvm_iface":"eth1.3"},
+    {"name":"vmtap1.4", "ip":"10.10.104.1/24", "vlan":4, "parent":"vmtap1", "mtu":1500,
+     "role":"gvm_diag_gateway",    "peer_gvm_iface":"eth1.4"},
+    {"name":"vmtap1.6", "ip":"10.10.106.1/24", "vlan":6, "parent":"vmtap1", "mtu":1500,
+     "role":"gvm_adcu_gateway",    "peer_gvm_iface":"eth1.6"},
+    {"name":"vmtap1.7", "ip":"10.10.107.1/24", "vlan":7, "parent":"vmtap1", "mtu":1500,
+     "role":"gvm_ota_gateway",     "peer_gvm_iface":"eth1.7"},
+    {"name":"vmtap1.8", "ip":"10.10.108.1/24", "vlan":8, "parent":"vmtap1", "mtu":1500,
+     "role":"gvm_adas_gateway",    "peer_gvm_iface":"eth1.8"}
+  ],
+
+  // ============================================================
+  // 4. 路由表
+  // ============================================================
+  "main_table": {
+    "default": {"via":"172.16.103.20", "dev":"eth1.3",
+                "_note":"PVM 自身默认网关 → TBOX"},
+    "connected_routes": [
+      {"prefix":"10.10.103.0/24",  "dev":"vmtap1.3"},
+      {"prefix":"10.10.104.0/24",  "dev":"vmtap1.4"},
+      {"prefix":"10.10.106.0/24",  "dev":"vmtap1.6"},
+      {"prefix":"10.10.107.0/24",  "dev":"vmtap1.7"},
+      {"prefix":"10.10.108.0/24",  "dev":"vmtap1.8"},
+      {"prefix":"10.10.200.0/24",  "dev":"vmtap0"},
+      {"prefix":"172.16.103.0/24", "dev":"eth1.3"},
+      {"prefix":"172.16.104.0/24", "dev":"eth1.4"},
+      {"prefix":"172.16.106.0/24", "dev":"eth1.6"},
+      {"prefix":"172.16.107.0/24", "dev":"eth1.7"},
+      {"prefix":"172.16.108.0/24", "dev":"eth1.8"},
+      {"prefix":"172.16.110.0/24", "dev":"eth1.10"},
+      {"prefix":"172.16.111.0/24", "dev":"eth1.11"},
+      {"prefix":"172.16.112.0/24", "dev":"eth1.12"},
+      {"prefix":"172.16.113.0/24", "dev":"eth1.13"},
+      {"prefix":"172.16.114.0/24", "dev":"eth1.14"},
+      {"prefix":"172.16.115.0/24", "dev":"eth0.15"},
+      {"prefix":"172.16.119.0/24", "dev":"eth0.19"}
+    ]
+  },
+
+  // ============================================================
+  // 5. 策略路由（ip rule + tables 106/107/108）
+  // ============================================================
+  "policy_route": [
+    {"prio":217, "iif":"vmtap1.8", "table":108,
+     "table_content":{"default":{"via":"172.16.108.20","dev":"eth1.8"}}},
+    {"prio":218, "iif":"vmtap1.7", "table":107,
+     "table_content":{"default":{"via":"172.16.107.20","dev":"eth1.7"}}},
+    {"prio":219, "iif":"vmtap1.6", "table":106,
+     "table_content":{"default":{"via":"172.16.106.20","dev":"eth1.6"}}}
+  ],
+  "table_220": {
+    "rule_exists":         true,
+    "table_expected_empty":true,
+    "_note":"prio 220 lookup 220，表实际为空（FIB does not exist），历史脚本残留"
+  },
+
+  // ============================================================
+  // 6. 关键网关（按 VLAN 角色）
+  // ============================================================
+  "gateways": {
+    "VLAN3_TBOX":  {"ip":"172.16.103.20", "via_iface":"eth1.3",
+                    "expected_neigh":["REACHABLE","STALE","PERMANENT"],
+                    "role":"TBOX (Telematics Box) / 默认互联网网关"},
+    "VLAN6_ADCU":  {"ip":"172.16.106.20", "via_iface":"eth1.6",
+                    "expected_neigh":["REACHABLE","STALE","PERMANENT"],
+                    "role":"ADCU 泊车业务网关"},
+    "VLAN7_OTA":   {"ip":"172.16.107.20", "via_iface":"eth1.7",
+                    "expected_neigh":["REACHABLE","STALE","PERMANENT"],
+                    "role":"OTA / 远程诊断网关"},
+    "VLAN8_ADAS":  {"ip":"172.16.108.20", "via_iface":"eth1.8",
+                    "expected_neigh":["REACHABLE","STALE","PERMANENT"],
+                    "role":"ADAS Internet 网关"}
+  },
+
+  // ============================================================
+  // 7. 内核参数
+  // ============================================================
+  "kernel_params": {
+    "net.ipv4.ip_forward":          1,
+    "net.ipv4.conf.all.forwarding": 1,
+    "net.ipv4.conf.all.rp_filter":  0,
+    "net.ipv4.conf.all.proxy_arp":  0,
+    "net.ipv4.conf.default.rp_filter": 0
+  },
+
+  // ============================================================
+  // 8. per-interface 内核参数（全展开 18 接口）
+  // ============================================================
+  "per_iface_params": {
+    "eth0":     {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1":     {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1.3":   {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1.4":   {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1.6":   {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1.7":   {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1.8":   {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1.10":  {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1.11":  {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1.12":  {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1.13":  {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth1.14":  {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth0.15":  {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "eth0.19":  {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "vmtap0":   {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "vmtap1":   {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "vmtap1.3": {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "vmtap1.4": {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "vmtap1.6": {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "vmtap1.7": {"forwarding":1, "rp_filter":2, "proxy_arp":0},
+    "vmtap1.8": {"forwarding":1, "rp_filter":2, "proxy_arp":0}
+  },
+
+  // ============================================================
+  // 9. conntrack 参数
+  // ============================================================
+  "conntrack_params": {
+    "nf_conntrack_max":              262144,
+    "nf_conntrack_buckets":          262144,
+    "_record_only_fields": [
+      "nf_conntrack_tcp_timeout_established",
+      "nf_conntrack_udp_timeout",
+      "nf_conntrack_udp_timeout_stream"
+    ],
+    "_note":"timeout 类不强校验数值，仅采集用于事后分析"
+  },
+
+  // ============================================================
+  // 10. iptables NAT 规则（PREROUTING + POSTROUTING）
+  //    格式：把每条规则结构化，方便 NetfilterCollector 抽象层比对
+  // ============================================================
+  "iptables_nat": {
+    "prerouting": [
+      {
+        "rule_id":     "VLAN3_DNAT",
+        "must_contain":"-A PREROUTING -d 172.16.103.40/32 -i eth1.3 -j DNAT --to-destination 10.10.103.40",
+        "in_iface":    "eth1.3",
+        "dst_ip":      "172.16.103.40/32",
+        "target":      "DNAT",
+        "to":          "10.10.103.40"
+      },
+      {
+        "rule_id":     "VLAN4_IDPS_EXCEPT_DNAT_TCP",
+        "must_contain":"-A PREROUTING -d 172.16.104.40/32 -i eth1.4 -p tcp -m tcp ! --dport 30006 -j DNAT --to-destination 10.10.104.40",
+        "in_iface":    "eth1.4",
+        "dst_ip":      "172.16.104.40/32",
+        "proto":       "tcp",
+        "dport_not":   30006,
+        "target":      "DNAT",
+        "to":          "10.10.104.40",
+        "order_constraint":{"before":"VLAN4_IDPS_EXCEPT_DNAT_NONTCP",
+                            "_note":"IDPS 旁路必须先排除 TCP/30006"}
+      },
+      {
+        "rule_id":     "VLAN4_IDPS_EXCEPT_DNAT_NONTCP",
+        "must_contain":"-A PREROUTING -d 172.16.104.40/32 -i eth1.4 ! -p tcp -j DNAT --to-destination 10.10.104.40",
+        "in_iface":    "eth1.4",
+        "dst_ip":      "172.16.104.40/32",
+        "proto_not":   "tcp",
+        "target":      "DNAT",
+        "to":          "10.10.104.40"
+      },
+      {
+        "rule_id":     "VLAN6_DNAT",
+        "must_contain":"-A PREROUTING -d 172.16.106.40/32 -i eth1.6 -j DNAT --to-destination 10.10.106.40",
+        "in_iface":    "eth1.6",
+        "dst_ip":      "172.16.106.40/32",
+        "target":      "DNAT",
+        "to":          "10.10.106.40"
+      },
+      {
+        "rule_id":     "VLAN7_DNAT",
+        "must_contain":"-A PREROUTING -d 172.16.107.40/32 -i eth1.7 -j DNAT --to-destination 10.10.107.40",
+        "in_iface":    "eth1.7",
+        "dst_ip":      "172.16.107.40/32",
+        "target":      "DNAT",
+        "to":          "10.10.107.40"
+      },
+      {
+        "rule_id":     "VLAN8_DNAT",
+        "must_contain":"-A PREROUTING -d 172.16.108.40/32 -i eth1.8 -j DNAT --to-destination 10.10.108.40",
+        "in_iface":    "eth1.8",
+        "dst_ip":      "172.16.108.40/32",
+        "target":      "DNAT",
+        "to":          "10.10.108.40"
+      }
+    ],
+    "postrouting": [
+      {
+        "rule_id":     "VLAN3_RETURN_SNAT",
+        "must_contain":"-A POSTROUTING -d 10.10.103.40/32 -o vmtap1.3 -j SNAT --to-source 10.10.103.1",
+        "dst_ip":      "10.10.103.40/32", "out_iface":"vmtap1.3", "target":"SNAT", "to":"10.10.103.1"
+      },
+      {
+        "rule_id":     "VLAN3_OUT_SNAT",
+        "must_contain":"-A POSTROUTING -s 10.10.103.0/24 -o eth1.3 -j SNAT --to-source 172.16.103.40",
+        "src_ip":      "10.10.103.0/24", "out_iface":"eth1.3", "target":"SNAT", "to":"172.16.103.40"
+      },
+      {
+        "rule_id":     "VLAN4_RETURN_SNAT",
+        "must_contain":"-A POSTROUTING -d 10.10.104.40/32 -o vmtap1.4 -j SNAT --to-source 10.10.104.1",
+        "dst_ip":      "10.10.104.40/32", "out_iface":"vmtap1.4", "target":"SNAT", "to":"10.10.104.1"
+      },
+      {
+        "rule_id":     "VLAN4_OUT_SNAT",
+        "must_contain":"-A POSTROUTING -s 10.10.104.0/24 -o eth1.4 -j SNAT --to-source 172.16.104.40",
+        "src_ip":      "10.10.104.0/24", "out_iface":"eth1.4", "target":"SNAT", "to":"172.16.104.40"
+      },
+      {
+        "rule_id":     "VLAN6_RETURN_SNAT",
+        "must_contain":"-A POSTROUTING -d 10.10.106.40/32 -o vmtap1.6 -j SNAT --to-source 10.10.106.1",
+        "dst_ip":      "10.10.106.40/32", "out_iface":"vmtap1.6", "target":"SNAT", "to":"10.10.106.1"
+      },
+      {
+        "rule_id":     "VLAN6_OUT_SNAT",
+        "must_contain":"-A POSTROUTING -s 10.10.106.0/24 -o eth1.6 -j SNAT --to-source 172.16.106.40",
+        "src_ip":      "10.10.106.0/24", "out_iface":"eth1.6", "target":"SNAT", "to":"172.16.106.40"
+      },
+      {
+        "rule_id":     "VLAN7_RETURN_SNAT",
+        "must_contain":"-A POSTROUTING -d 10.10.107.40/32 -o vmtap1.7 -j SNAT --to-source 10.10.107.1",
+        "dst_ip":      "10.10.107.40/32", "out_iface":"vmtap1.7", "target":"SNAT", "to":"10.10.107.1"
+      },
+      {
+        "rule_id":     "VLAN7_OUT_SNAT",
+        "must_contain":"-A POSTROUTING -s 10.10.107.0/24 -o eth1.7 -j SNAT --to-source 172.16.107.40",
+        "src_ip":      "10.10.107.0/24", "out_iface":"eth1.7", "target":"SNAT", "to":"172.16.107.40"
+      },
+      {
+        "rule_id":     "VLAN8_RETURN_SNAT",
+        "must_contain":"-A POSTROUTING -d 10.10.108.40/32 -o vmtap1.8 -j SNAT --to-source 10.10.108.1",
+        "dst_ip":      "10.10.108.40/32", "out_iface":"vmtap1.8", "target":"SNAT", "to":"10.10.108.1"
+      },
+      {
+        "rule_id":     "VLAN8_OUT_SNAT",
+        "must_contain":"-A POSTROUTING -s 10.10.108.0/24 -o eth1.8 -j SNAT --to-source 172.16.108.40",
+        "src_ip":      "10.10.108.0/24", "out_iface":"eth1.8", "target":"SNAT", "to":"172.16.108.40"
+      }
+    ]
+  },
+
+  // ============================================================
+  // 11. iptables filter 规则（FORWARD 链）
+  // ============================================================
+  "iptables_filter": {
+    "default_policies": {
+      "INPUT":   {"current":"ACCEPT", "expected":"ACCEPT", "severity_if_changed":"INFO"},
+      "FORWARD": {"current":"ACCEPT", "expected":"ACCEPT",
+                  "severity_if_changed":"WARN",
+                  "_note":"FORWARD 默认 ACCEPT 是已知安全 WARN，依赖 DNAT 隐式过滤"},
+      "OUTPUT":  {"current":"ACCEPT", "expected":"ACCEPT", "severity_if_changed":"INFO"}
+    },
+    "forward_rules": [
+      {"rule_id":"FWD_VLAN3_OUT",
+       "must_contain":"-A FORWARD -i vmtap1.3 -o eth1.3 -j ACCEPT",
+       "in":"vmtap1.3", "out":"eth1.3", "target":"ACCEPT"},
+      {"rule_id":"FWD_VLAN3_IN_STATEFUL",
+       "must_contain":"-A FORWARD -i eth1.3 -o vmtap1.3 -m state --state RELATED,ESTABLISHED -j ACCEPT",
+       "in":"eth1.3", "out":"vmtap1.3", "state":"RELATED,ESTABLISHED", "target":"ACCEPT"},
+      {"rule_id":"FWD_VLAN4_OUT",
+       "must_contain":"-A FORWARD -i vmtap1.4 -o eth1.4 -j ACCEPT",
+       "in":"vmtap1.4", "out":"eth1.4", "target":"ACCEPT"},
+      {"rule_id":"FWD_VLAN4_IN_STATEFUL",
+       "must_contain":"-A FORWARD -i eth1.4 -o vmtap1.4 -m state --state RELATED,ESTABLISHED -j ACCEPT",
+       "in":"eth1.4", "out":"vmtap1.4", "state":"RELATED,ESTABLISHED", "target":"ACCEPT"},
+      {"rule_id":"FWD_VLAN6_OUT",
+       "must_contain":"-A FORWARD -i vmtap1.6 -o eth1.6 -j ACCEPT",
+       "in":"vmtap1.6", "out":"eth1.6", "target":"ACCEPT"},
+      {"rule_id":"FWD_VLAN6_IN_STATEFUL",
+       "must_contain":"-A FORWARD -i eth1.6 -o vmtap1.6 -m state --state RELATED,ESTABLISHED -j ACCEPT",
+       "in":"eth1.6", "out":"vmtap1.6", "state":"RELATED,ESTABLISHED", "target":"ACCEPT"},
+      {"rule_id":"FWD_VLAN7_OUT",
+       "must_contain":"-A FORWARD -i vmtap1.7 -o eth1.7 -j ACCEPT",
+       "in":"vmtap1.7", "out":"eth1.7", "target":"ACCEPT"},
+      {"rule_id":"FWD_VLAN7_IN_STATEFUL",
+       "must_contain":"-A FORWARD -i eth1.7 -o vmtap1.7 -m state --state RELATED,ESTABLISHED -j ACCEPT",
+       "in":"eth1.7", "out":"vmtap1.7", "state":"RELATED,ESTABLISHED", "target":"ACCEPT"},
+      {"rule_id":"FWD_VLAN8_OUT",
+       "must_contain":"-A FORWARD -i vmtap1.8 -o eth1.8 -j ACCEPT",
+       "in":"vmtap1.8", "out":"eth1.8", "target":"ACCEPT"},
+      {"rule_id":"FWD_VLAN8_IN_STATEFUL",
+       "must_contain":"-A FORWARD -i eth1.8 -o vmtap1.8 -m state --state RELATED,ESTABLISHED -j ACCEPT",
+       "in":"eth1.8", "out":"vmtap1.8", "state":"RELATED,ESTABLISHED", "target":"ACCEPT"}
+    ]
+  },
+
+  // ============================================================
+  // 12. PVM-only VLAN（不应在 GVM 出现，不应被 DNAT 暴露）
+  // ============================================================
+  "pvm_only_vlans": [10, 11, 12, 13, 14, 15, 19],
+
+  // ============================================================
+  // 13. 期望不存在的硬件组件
+  // ============================================================
+  "expected_absent_components": [
+    {"id":"SAIL_HSGMII_P10",
+     "kind":"SoC_MAC_uplink",
+     "_note":"第三 MAC 千兆预留位，未启用；不应有对应 net_device"}
+  ],
+
+  // ============================================================
+  // 14. PVM 关键服务（必须监听 + 进程实例期望）
+  // ============================================================
+  "services": {
+    "required": [
+      {
+        "name":          "xdja_idps",
+        "comm":          "xdja_idps",
+        "bind":          "172.16.104.40:30006",
+        "proto":         "tcp",
+        "impacts_shu":   ["SHU_VLAN4_DOIP"],
+        "fault_class_on_down": "IDPS_BYPASS_FAIL",
+        "systemd_unit":  "xdja_idps.service"
+      },
+      {
+        "name":          "someipd_VLAN10_UDP_30490",
+        "comm":          "someipd",
+        "bind":          "172.16.110.40:30490",
+        "proto":         "udp",
+        "mcast":         "239.5.1.2",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"],
+        "fault_class_on_down": "SERVICE_DOWN"
+      },
+      {
+        "name":          "someipd_VLAN10_TCP_51000",
+        "comm":          "someipd",
+        "bind":          "172.16.110.40:51000",
+        "proto":         "tcp",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "someipd_VLAN10_TCP_57001",
+        "comm":          "someipd",
+        "bind":          "172.16.110.40:57001",
+        "proto":         "tcp",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "someipd_VLAN11_TCP_51001",
+        "comm":          "someipd",
+        "bind":          "172.16.111.40:51001",
+        "proto":         "tcp",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "someipd_VLAN11_UDP_30490",
+        "comm":          "someipd",
+        "bind":          "172.16.111.40:30490",
+        "proto":         "udp",
+        "mcast":         "239.5.1.2",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "someipd_VLAN12_UDP_30490",
+        "comm":          "someipd",
+        "bind":          "172.16.112.40:30490",
+        "proto":         "udp",
+        "mcast":         "239.5.1.2",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "someipd_VLAN13_TCP_30505",
+        "comm":          "someipd",
+        "bind":          "172.16.113.40:30505",
+        "proto":         "tcp",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "someipd_VLAN13_UDP_30490",
+        "comm":          "someipd",
+        "bind":          "172.16.113.40:30490",
+        "proto":         "udp",
+        "mcast":         "239.5.1.2",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "someipd_VLAN14_TCP_57001",
+        "comm":          "someipd",
+        "bind":          "172.16.114.40:57001",
+        "proto":         "tcp",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "someipd_VLAN14_UDP_30490",
+        "comm":          "someipd",
+        "bind":          "172.16.114.40:30490",
+        "proto":         "udp",
+        "mcast":         "239.5.1.2",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "someipd_VLAN19_UDP_30490",
+        "comm":          "someipd",
+        "bind":          "172.16.119.41:30490",
+        "proto":         "udp",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "someipd_VLAN19_TCP_55005",
+        "comm":          "someipd",
+        "bind":          "172.16.119.41:55005",
+        "proto":         "tcp",
+        "impacts_shu":   ["SHU_SOMEIP_BUS"]
+      },
+      {
+        "name":          "amblightserver",
+        "comm":          "amblightserver",
+        "bind":          "10.10.200.1:55498",
+        "proto":         "udp",
+        "impacts_shu":   ["SHU_HOST_GUEST"],
+        "_note":"Host-Guest 灯光控制 IPC"
+      },
+      {
+        "name":          "qcrosvm",
+        "comm":          "qcrosvm",
+        "kind":          "hypervisor_process",
+        "fault_class_on_down": "HYPERVISOR_DOWN",
+        "_note":"qcrosvm 不监听端口，仅检查进程存在"
+      }
+    ],
+    "documented_bind_any": [
+      {"bind":"0.0.0.0:22",   "comm":"sshd",          "userdebug_action":"document", "prod_action":"close"},
+      {"bind":"0.0.0.0:23",   "comm":"busybox",       "userdebug_action":"document", "prod_action":"close",
+       "_note":"telnetd by busybox"},
+      {"bind":"0.0.0.0:21",   "comm":"proftpd",       "userdebug_action":"document", "prod_action":"document"},
+      {"bind":"0.0.0.0:80",   "comm":"ivcd_main",     "userdebug_action":"document", "prod_action":"document"},
+      {"bind":"0.0.0.0:111",  "comm":"rpcbind",       "userdebug_action":"document", "prod_action":"document"},
+      {"bind":"0.0.0.0:500",  "comm":"charon-systemd","userdebug_action":"document", "prod_action":"document",
+       "_note":"IPSec/IKE"},
+      {"bind":"0.0.0.0:4500", "comm":"charon-systemd","userdebug_action":"document", "prod_action":"document"},
+      {"bind":"0.0.0.0:2049", "comm":"nfs",           "userdebug_action":"document", "prod_action":"document"},
+      {"bind":"0.0.0.0:3490", "comm":"dlt-daemon",    "userdebug_action":"document", "prod_action":"document"},
+      {"bind":"0.0.0.0:5037", "comm":"adbd",          "userdebug_action":"document", "prod_action":"close",
+       "_note":"adbd 控制端口"},
+      {"bind":"0.0.0.0:5555", "comm":"adbd",          "userdebug_action":"document", "prod_action":"close",
+       "_note":"adbd over TCP"},
+      {"bind":"0.0.0.0:15002","comm":"awe_linuxproxy","userdebug_action":"document", "prod_action":"document"}
+    ]
+  },
+
+  // ============================================================
+  // 15. 差异策略（diff_policy）
+  // ============================================================
+  "diff_policy": {
+    "ignore_fields": [
+      "iptables_counters",
+      "carrier_changes_total",
+      "conntrack_count",
+      "neigh_state_transient_states"
+    ],
+    "info_if_changed": [
+      "documented_bind_any_observed"
+    ],
+    "warn_if_changed": [
+      "iptables_filter.default_policies",
+      "kernel_params.net.ipv4.ip_forward",
+      "kernel_params.net.ipv4.conf.all.rp_filter"
+    ],
+    "fail_if_changed": [
+      "phys_ifaces[*].expected_mac",
+      "vlan_ifaces[*].ip",
+      "vmtap[*].ip",
+      "main_table.default",
+      "policy_route",
+      "iptables_nat.prerouting",
+      "iptables_nat.postrouting",
+      "per_iface_params[*].forwarding",
+      "per_iface_params[*].rp_filter",
+      "pvm_only_vlans",
+      "gateways[*].ip"
+    ],
+    "fail_if_missing": [
+      "phys_ifaces",
+      "vlan_ifaces",
+      "vmtap",
+      "iptables_nat.prerouting.VLAN3_DNAT",
+      "iptables_nat.prerouting.VLAN4_IDPS_EXCEPT_DNAT_TCP",
+      "iptables_nat.prerouting.VLAN4_IDPS_EXCEPT_DNAT_NONTCP"
+    ]
+  }
+}

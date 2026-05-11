@@ -1,0 +1,242 @@
+// Fault Causation Graph（B4.③ 派生 fault 因果识别）
+// 配套：network_diagnosis_detailed_design.md v1.1 §27.4
+// 部署：双端共享 `/etc/polaris/fault_causation_graph.json`
+//      启动时双端 sha256 互校（同 fault_class_dict.json 机制）
+// 用途：watchdog 检测到新 fault 时，端侧 infer_caused_by() 按本图查询
+//      最近活跃的潜在上游 fault，附加到事件 payload 的 `cb` 字段
+{
+  "$schema":               "1.0",
+  "doc":                   "Fault causation graph for derivative fault tracking (B4.③)",
+  "graph_version":         "1.0",
+  "depends_on_dict_version": "1.1",
+  "_generated":            "2026-05-11",
+
+  // ============================================================
+  // 因果边：upstream → downstream 列表
+  // 端侧识别逻辑：
+  //   for each edge in edges:
+  //     if new_fault 命中某 edge 的 downstream
+  //        且 active_faults 中存在该 edge 的 upstream
+  //        且 (new_fault.first_seen - upstream.first_seen) < max_lag_sec
+  //     → new_fault.cb = upstream.fault_id
+  // ============================================================
+  "edges": [
+
+    // ─────── eth1 物理链路故障 → 下游影响 ───────
+    {
+      "edge_id":    "E001_link_eth1_to_vlan_gateways",
+      "upstream":   {"class":"LINK_DOWN", "iface_match":"eth1"},
+      "downstream": [
+        {"class":"GATEWAY_UNREACHABLE", "target_key_match":["VLAN3_TBOX","VLAN4_DOIP","VLAN6_ADCU","VLAN7_OTA","VLAN8_ADAS"],
+         "max_lag_sec":30,
+         "_note":"eth1 是 VCM trunk，其断会导致所有 VLAN 3-8 网关失联"},
+        {"class":"VM_LINK_BROKEN", "iface_match":"vmtap1.[3-8]",
+         "max_lag_sec":10,
+         "_note":"vmtap1.X 单向不通信号被 link 影响"},
+        {"class":"SERVICE_DOWN", "service_match":"someipd_VLAN1[0-4]_*",
+         "max_lag_sec":60,
+         "_note":"VLAN 10-14 SOME/IP 服务因网络断而心跳超时退出"},
+        {"class":"DOWNSTREAM_PACKET_LOSS", "target_key_match":["VLAN3_TBOX","VLAN6_ADCU"],
+         "max_lag_sec":30},
+        {"class":"DNS_FAILURE", "target_key_match":"VLAN3_default",
+         "max_lag_sec":30}
+      ]
+    },
+
+    // ─────── eth0 物理链路故障 → ADCU 视频专线 ───────
+    {
+      "edge_id":    "E002_link_eth0_to_adcu_streams",
+      "upstream":   {"class":"LINK_DOWN", "iface_match":"eth0"},
+      "downstream": [
+        {"class":"SERVICE_DOWN", "service_match":"camera_server",
+         "max_lag_sec":30,
+         "_note":"eth0 断 → ADCU RTSP 输入丢 → Camera Server 输入断"},
+        {"class":"SERVICE_DOWN", "service_match":"someipd_VLAN19_*",
+         "max_lag_sec":60}
+      ]
+    },
+
+    // ─────── hypervisor 死 → 全 GVM 链路 ───────
+    {
+      "edge_id":    "E003_hypervisor_death",
+      "upstream":   {"class":"HYPERVISOR_DOWN"},
+      "downstream": [
+        {"class":"VM_LINK_BROKEN", "iface_match":"vmtap*",
+         "max_lag_sec":5,
+         "_note":"qcrosvm 死 → 所有 vmtap 异常"},
+        {"class":"GATEWAY_UNREACHABLE", "target_key_match":"*",
+         "max_lag_sec":15,
+         "_note":"GVM 整体网络不可用"},
+        {"class":"DNS_FAILURE", "target_key_match":"*",
+         "max_lag_sec":15}
+      ]
+    },
+
+    // ─────── PVM 转发关闭 → GVM 跨网段访问失败 ───────
+    {
+      "edge_id":    "E004_forwarding_disabled",
+      "upstream":   {"class":"FORWARDING_DISABLED"},
+      "downstream": [
+        {"class":"GATEWAY_UNREACHABLE", "target_key_match":"*",
+         "max_lag_sec":30},
+        {"class":"DOWNSTREAM_PACKET_LOSS", "target_key_match":"*",
+         "max_lag_sec":30}
+      ]
+    },
+
+    // ─────── conntrack 表满 → 新连接失败 ───────
+    {
+      "edge_id":    "E005_conntrack_full",
+      "upstream":   {"class":"CONNTRACK_PRESSURE"},
+      "downstream": [
+        {"class":"DOWNSTREAM_PACKET_LOSS", "target_key_match":"*",
+         "max_lag_sec":60,
+         "_note":"conntrack LRU 淘汰旧表项 → 回包匹配不到 NAT → UNREPLIED 累积"}
+      ]
+    },
+
+    // ─────── NAT 规则漂移 → 业务可达性 ───────
+    {
+      "edge_id":    "E006_nat_drift",
+      "upstream":   {"class":"NAT_RULE_DRIFT"},
+      "downstream": [
+        {"class":"GATEWAY_UNREACHABLE", "target_key_match":"*",
+         "max_lag_sec":30},
+        {"class":"SERVICE_DOWN", "service_match":"doip_server",
+         "max_lag_sec":30,
+         "_note":"VLAN4 DNAT 缺失 → 上位机连不上 GVM DoIP"},
+        {"class":"IDPS_BYPASS_FAIL",
+         "max_lag_sec":30,
+         "_note":"VLAN4 30006 例外规则错位 → IDPS 旁路失效"}
+      ]
+    },
+
+    // ─────── rp_filter strict → 反向丢包 ───────
+    {
+      "edge_id":    "E007_rpf_strict",
+      "upstream":   {"class":"RPF_STRICT_ON_NAT"},
+      "downstream": [
+        {"class":"DOWNSTREAM_PACKET_LOSS", "target_key_match":"*",
+         "max_lag_sec":30,
+         "_note":"严格模式下反向路径不一致包被丢"},
+        {"class":"GATEWAY_UNREACHABLE", "target_key_match":"*",
+         "max_lag_sec":30}
+      ]
+    },
+
+    // ─────── VLAN 子接口缺失 → 该 VLAN 业务全断 ───────
+    {
+      "edge_id":    "E008_vlan_missing",
+      "upstream":   {"class":"VLAN_MISSING"},
+      "downstream": [
+        {"class":"GATEWAY_UNREACHABLE", "target_key_match":"*",
+         "max_lag_sec":15,
+         "_note":"target_key 通过 baseline.vlan_ifaces 映射推断"},
+        {"class":"SERVICE_DOWN", "service_match":"*",
+         "max_lag_sec":30}
+      ]
+    },
+
+    // ─────── 网关 ARP FAILED → 业务通道 ───────
+    {
+      "edge_id":    "E009_gateway_arp_failed",
+      "upstream":   {"class":"GATEWAY_UNREACHABLE"},
+      "downstream": [
+        {"class":"DNS_FAILURE", "target_key_match_upstream_vlan":"VLAN3_TBOX",
+         "max_lag_sec":15,
+         "_note":"VLAN3 网关不通 → DNS 走 VLAN3 失败"},
+        {"class":"TBOX_UPLINK_DOWN", "target_key_match_upstream_vlan":"VLAN3_TBOX",
+         "max_lag_sec":15}
+      ]
+    },
+
+    // ─────── netd / resolver 死 → DNS 失败 ───────
+    {
+      "edge_id":    "E010_resolver_dead",
+      "upstream":   {"class":"SERVICE_DOWN", "service_match":"netd|resolver"},
+      "downstream": [
+        {"class":"DNS_FAILURE", "target_key_match":"*",
+         "max_lag_sec":30}
+      ]
+    },
+
+    // ─────── MTU 不一致 → PMTU 黑洞 ───────
+    {
+      "edge_id":    "E011_mtu_to_pmtu",
+      "upstream":   {"class":"MTU_INCONSISTENT"},
+      "downstream": [
+        {"class":"PMTU_BLACKHOLE", "target_key_match":"*",
+         "max_lag_sec":30}
+      ]
+    },
+
+    // ─────── vmtap 断 → 该 VLAN GVM 失联 ───────
+    {
+      "edge_id":    "E012_vmtap_broken",
+      "upstream":   {"class":"VM_LINK_BROKEN"},
+      "downstream": [
+        {"class":"GATEWAY_UNREACHABLE", "target_key_match_upstream_vlan":"vlan_from_vmtap_name",
+         "max_lag_sec":15,
+         "_note":"vmtap1.3 断 → VLAN3 网关从 GVM 不可达"},
+        {"class":"DNS_FAILURE", "target_key_match":"VLAN3_default",
+         "max_lag_sec":15,
+         "_note":"如果是 vmtap1.3"}
+      ]
+    },
+
+    // ─────── ADCU 视频专线 PHY → Camera Server ───────
+    {
+      "edge_id":    "E013_eth0_15_to_camera",
+      "upstream":   {"class":"LINK_QUALITY_DEGRADED", "iface_match":"eth0|eth0.15"},
+      "downstream": [
+        {"class":"SERVICE_DOWN", "service_match":"camera_server",
+         "max_lag_sec":60}
+      ]
+    },
+
+    // ─────── 软中断风暴 → 丢包 ───────
+    {
+      "edge_id":    "E014_softirq_to_loss",
+      "upstream":   {"class":"SOFTIRQ_OVERLOAD"},
+      "downstream": [
+        {"class":"PACKET_LOSS_HIGH", "target_key_match":"*",
+         "max_lag_sec":60},
+        {"class":"RTT_HIGH", "target_key_match":"*",
+         "max_lag_sec":60}
+      ]
+    },
+
+    // ─────── 广播风暴 → 软中断 ───────
+    {
+      "edge_id":    "E015_broadcast_to_softirq",
+      "upstream":   {"class":"BROADCAST_STORM"},
+      "downstream": [
+        {"class":"SOFTIRQ_OVERLOAD", "target_key_match":"*",
+         "max_lag_sec":120,
+         "_note":"广播风暴持续会拉高 ksoftirqd"}
+      ]
+    }
+  ],
+
+  // ============================================================
+  // 实现注意事项
+  // ============================================================
+  "implementation_notes": [
+    "target_key_match 可用通配 '*' 表示任意 target_key；具体匹配语义见 §27.4.3 infer_caused_by()",
+    "target_key_match_upstream_vlan 表示派生 fault 的 target_key 取自上游 fault 的 VLAN 信息",
+    "service_match 支持简单正则；端侧实现时建议预编译",
+    "同一 fault 可能被多条 edge 命中；端侧仅记录最近一条 upstream (按 first_seen 排序最近)",
+    "云端可对 cb 字段做二次验证：例如 LINK_DOWN(eth1) → GATEWAY_UNREACHABLE(VLAN3) 的因果应当时间窗 <30s 且 upstream 仍活跃",
+    "未来扩展：cause graph 可由云端机器学习反向更新（v2 候选 V2-014）"
+  ],
+
+  // ============================================================
+  // 性能预算
+  // ============================================================
+  "performance": {
+    "edges_count":              15,
+    "active_faults_typical":    "< 5",
+    "infer_caused_by_p95_ms":   5,
+    "memory_overhead_kb":       "< 8"
+  }
+}
