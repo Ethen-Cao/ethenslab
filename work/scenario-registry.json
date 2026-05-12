@@ -9,7 +9,8 @@
 {
   "$schema":              "1.1",
   "doc":                  "Scenario registry mapping business scenarios A-L to checks/SHUs/probes/evidence",
-  "registry_version":     "1.1",
+  "registry_version":     "1.1+",
+  "_v11plus_changes":     "场景 A/J/L 增加 HTTP probe + L7_PAYLOAD_STALL 期望故障类；VLAN 6/7/8 主探测改 GVM 原生",
   "depends_on_dict_version": "1.1",
   "depends_on_baseline_version": "v1.0-2026-05-09",
   "_generated":           "2026-05-11",
@@ -28,10 +29,11 @@
       "shu":               ["SHU_VLAN3_INTERNET", "SHU_DNS"],
 
       "path": {
-        "logical":         "GVM App → Android eth1.3 → PVM vmtap1.3 → PVM eth1.3 → TBOX 172.16.103.20 → Internet",
+        "logical":         "GVM App → Android eth1.3 → PVM vmtap1.3 → PVM eth1.3 → TBOX 172.16.103.20 → ISP → Internet",
         "vlan":            3,
         "involves":        ["GVM Android socket", "GVM netd / resolver", "virtio-net",
-                            "PVM vmtap1.3", "PVM iptables (SNAT)", "PVM eth1.3 → VCM → TBOX → Internet"]
+                            "PVM vmtap1.3", "PVM iptables (SNAT)", "PVM eth1.3 → VCM → TBOX → Internet",
+                            "运营商 / 上游 DPI / HTTPS payload 过滤 (L7)"]
       },
 
       "checks": {
@@ -61,7 +63,9 @@
         ],
         "should_run_on_alert": [
           "L4-FW-007",         // PVM SYN_SENT
-          "L5-PORT-006"        // GVM SYN_SENT
+          "L5-PORT-006",       // GVM SYN_SENT
+          "L5-HTTP-001",       // HTTP probe 失败率 (v1.1+)
+          "L5-TCP-001"         // TCP bytes_unacked 滚动比对 (v1.1+)
         ]
       },
 
@@ -70,23 +74,42 @@
         "SHU_VLAN3_INTERNET.icmp_tbox_pmtu",
         "SHU_VLAN3_INTERNET.icmp_uplink",
         "SHU_VLAN3_INTERNET.dns_uplink",
-        "SHU_VLAN3_INTERNET.icmp_gvm_perspective"
+        "SHU_VLAN3_INTERNET.pvm_perspective_snat",         // v1.1+ 降级标注: 仅辅助验证 SNAT 段
+        "SHU_VLAN3_INTERNET.gvm_native_icmp_tbox",         // v1.1+ 新增主探测
+        "SHU_VLAN3_INTERNET.gvm_native_vmtap_gw",          // v1.1+ 新增 GVM 视角
+        "SHU_VLAN3_INTERNET.http_healthz"                  // v1.1+ HTTP L7 探针 (闭环 V2-001)
       ],
 
       "evidence_packs": [
         "pvm/ip_addr.txt", "pvm/ip_route_all.txt", "pvm/ip_rule.txt", "pvm/ip_neigh.txt",
         "pvm/iptables_nat_S.txt", "pvm/sysctl_net.txt", "pvm/conntrack_state_breakdown.txt",
         "gvm/ip_addr.txt", "gvm/ip_route_all.txt", "gvm/dumpsys_connectivity.txt",
-        "gvm/ndc.txt", "gvm/ss_listen.txt"
+        "gvm/ndc.txt", "gvm/ss_listen.txt",
+        "gvm/ss_tinp_l7stall.txt",                         // v1.1+ ss -tinp 扩展统计
+        "gvm/http_probe_history.jsonl"                     // v1.1+ HTTP probe 最近 10 次结果
       ],
 
       "expected_fault_classes_on_failure": [
-        "GATEWAY_UNREACHABLE(VLAN3_TBOX)", "DNS_FAILURE(VLAN3_default)",
-        "FORWARDING_DISABLED", "DOWNSTREAM_PACKET_LOSS(VLAN3_TBOX)",
-        "NAT_RULE_DRIFT", "TBOX_UPLINK_DOWN"
+        "GATEWAY_UNREACHABLE(VLAN3_TBOX)",
+        "DNS_FAILURE(VLAN3_default)",
+        "FORWARDING_DISABLED",
+        "DOWNSTREAM_PACKET_LOSS(VLAN3_TBOX)",
+        "NAT_RULE_DRIFT",
+        "TBOX_UPLINK_DOWN",
+        "L7_PAYLOAD_STALL(VLAN3_TBOX)"                     // v1.1+ L7 应用层阻塞
       ],
 
-      "test_cases":       ["TC-NET-001", "TC-NET-005", "TC-NET-017", "TC-NET-020", "TC-NET-022", "TC-NET-023", "TC-NET-024"]
+      "l7_stall_detection": {                              // v1.1+ L7 阻塞检测专项
+        "enable":               true,
+        "http_probe_endpoint":  "<voyah_healthcheck>",
+        "http_probe_interval_sec": 600,
+        "http_probe_burst_on_alert_sec": 120,
+        "tcp_state_watcher_interval_sec": 30,
+        "merge_rule":           "HTTP_FAIL && TCP_L7_STALL && ICMP_PASS && DNS_PASS → L7_PAYLOAD_STALL"
+      },
+
+      "test_cases":       ["TC-NET-001", "TC-NET-005", "TC-NET-017", "TC-NET-020",
+                           "TC-NET-022", "TC-NET-023", "TC-NET-024"]
     },
 
     // ─────── 场景 B: 诊断仪无法连接 DoIP ───────
@@ -466,12 +489,17 @@
           "SVC-001",
           "SVC-011",           // DNS chain
           "SVC-012"            // TBOX gateway
+        ],
+        "should_run_on_alert": [
+          "L5-HTTP-001"        // v1.1+ DNS OK 但 HTTP 仍失败 → 区分 DNS vs L7
         ]
       },
 
       "probes": [
-        "SHU_DNS.dns_direct_udp53",   // direct UDP/53
-        "SHU_VLAN3_INTERNET.icmp_tbox" // verify IP path is OK
+        "SHU_DNS.dns_direct_udp53",                       // direct UDP/53
+        "SHU_VLAN3_INTERNET.icmp_tbox",                   // verify IP path is OK
+        "SHU_VLAN3_INTERNET.gvm_native_icmp_tbox",        // v1.1+ GVM 视角验证
+        "SHU_VLAN3_INTERNET.http_healthz"                 // v1.1+ 排除 L7 阻塞
       ],
 
       "passive_evidence_capture": [
@@ -560,18 +588,26 @@
           "VM-002", "VM-003",
           "SVC-012"
         ],
+        "should_run_on_alert": [
+          "L5-HTTP-001",       // v1.1+ HTTP probe (排查 L7 阻塞)
+          "L5-TCP-001"         // v1.1+ TCP bytes_unacked
+        ],
         "decision_logic": [
           "1. PVM ping -I eth1.3 8.8.8.8 不通 → TBOX 上游问题 (非座舱故障)",
           "2. PVM 通但 GVM 不通 → forwarding / SNAT / conntrack / virtio",
           "3. GVM ping 公网 IP 通但 DNS 失败 → 进入场景 J",
-          "4. GVM 到 10.10.103.1 不通 → vmtap / virtio"
+          "4. GVM 到 10.10.103.1 不通 → vmtap / virtio",
+          "5. GVM 全部 L4 以下 PASS 但 App 不通 → 进入 L7_PAYLOAD_STALL 检测 (v1.1+)"
         ]
       },
 
       "probes": [
         "SHU_VLAN3_INTERNET.icmp_tbox",
         "SHU_VLAN3_INTERNET.icmp_uplink",
-        "SHU_VLAN3_INTERNET.icmp_gvm_perspective"
+        "SHU_VLAN3_INTERNET.pvm_perspective_snat",       // v1.1+ 仅辅助 (VLAN3 SNAT 验证)
+        "SHU_VLAN3_INTERNET.gvm_native_vmtap_gw",        // v1.1+ GVM 视角主探测
+        "SHU_VLAN3_INTERNET.gvm_native_icmp_tbox",       // v1.1+ GVM 视角到 TBOX
+        "SHU_VLAN3_INTERNET.http_healthz"                // v1.1+ HTTP L7
       ],
 
       "evidence_packs": [
@@ -580,12 +616,18 @@
         "pvm/conntrack_count_max.txt",
         "pvm/conntrack_state_breakdown.txt",
         "pvm/nat_symmetry_history.jsonl",
-        "gvm/ip_route_all.txt"
+        "gvm/ip_route_all.txt",
+        "gvm/ss_tinp_l7stall.txt",                       // v1.1+ TCP 扩展状态
+        "gvm/http_probe_history.jsonl"                   // v1.1+ HTTP probe 历史
       ],
 
       "expected_fault_classes_on_failure": [
-        "FORWARDING_DISABLED", "DOWNSTREAM_PACKET_LOSS",
-        "NAT_RULE_DRIFT", "VM_LINK_BROKEN", "TBOX_UPLINK_DOWN"
+        "FORWARDING_DISABLED",
+        "DOWNSTREAM_PACKET_LOSS",
+        "NAT_RULE_DRIFT",
+        "VM_LINK_BROKEN",
+        "TBOX_UPLINK_DOWN",
+        "L7_PAYLOAD_STALL(VLAN3_TBOX)"                   // v1.1+ L7 阻塞
       ],
 
       "test_cases":       ["TC-NET-022", "TC-NET-023", "TC-NET-024"]

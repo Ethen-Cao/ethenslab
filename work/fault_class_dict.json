@@ -5,9 +5,10 @@
 {
   "$schema":              "1.1",
   "doc":                  "Fault class dictionary; provides fault_class enum + target_key extraction rules",
-  "dict_version":         "1.1",
-  "compatible_diag_versions": ["1.0", "1.1"],
+  "dict_version":         "1.1+",
+  "compatible_diag_versions": ["1.0", "1.1", "1.1+"],
   "_generated":           "2026-05-11",
+  "_v11plus_changes":     "新增 L7_PAYLOAD_STALL (闭环 V2-001 HTTP probe + L7 应用层盲区)",
 
   // ============================================================
   // target_key 抽取规则（被 classes 引用）
@@ -265,6 +266,19 @@
       "target_key_value":   "VLAN3_internet",
       "_note":              "TBOX 网关可达但上游公网不通"
     },
+    {
+      "class":              "L7_PAYLOAD_STALL",
+      "category":           "L5_service",
+      "default_severity":   "FAIL",
+      "blocked_severity":   "L1_env",
+      "event_id":           "0x4E5E0023",
+      "target_key_rule":    "vlan_role",
+      "modify_action":      "Check upstream firewall/DPI, ISP HTTP filtering, TLS handshake parameters, server availability",
+      "added_in_version":   "1.1+",
+      "_note":              "L7 应用层阻塞：底层 ICMP/DNS/TCP SYN 全通但 HTTP payload 被拦截；由 HttpProbe + TcpStateWatcher 双信号合并判定",
+      "_signal_sources":    ["WD_GVM_HTTP_PROBE_FAIL", "WD_GVM_TCP_L7_STALL"],
+      "_detection_fingerprint": "TCP ESTABLISHED + bytes_unacked>0 + 0 ack increase + retrans++ + HTTP recv timeout"
+    },
 
     // -------- 虚拟化 (3) --------
     {
@@ -430,6 +444,7 @@
     "4": ["GATEWAY_UNREACHABLE", "CONNTRACK_PRESSURE", "DOWNSTREAM_PACKET_LOSS",
           "VLAN_TAG_MISMATCH", "PVM_ONLY_LEAK"],
     "5": ["SERVICE_DOWN", "DNS_FAILURE", "PMTU_BLACKHOLE", "TBOX_UPLINK_DOWN",
+          "L7_PAYLOAD_STALL",
           "IDPS_BYPASS_FAIL", "ANDROID_NETID_MISMATCH"],
     "6": ["BASELINE_DRIFT", "EXPOSURE_RISK", "PORT_EXPOSURE_NEW",
           "IP_BASELINE_DRIFT", "MTU_INCONSISTENT",

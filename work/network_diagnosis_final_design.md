@@ -302,7 +302,7 @@ flowchart TB
 
     subgraph TRANSPORT["transport/"]
         VsockServer["VsockServer\nNDGA 9101 listen"]
-        PolarisdClient["PolarisdClient\nUDS persistent"]
+        PolarisDispatcher["PolarisDispatcher\nlibpolaris_client SDK"]
         Ndga["NdgaProtocol\n帧编解码 + fetch_log"]
     end
 
@@ -360,8 +360,8 @@ flowchart TB
     ShuEval --> Correlator
     Correlator --> Dedup --> Cause --> EventComp
     EventComp --> IncidentW
-    EventComp --> PolarisdClient
-    PolarisdClient -. report_event .-> External_polarisd
+    EventComp --> PolarisDispatcher
+    PolarisDispatcher -. polaris_report_raw .-> External_polarisd
     VsockServer <-- NDGA RPC --> GVM
 ```
 
@@ -458,14 +458,14 @@ flowchart LR
 |---|---|---|---|---|
 | **A** | VSOCK | `android_net_diagd` ↔ `linux_net_diagd` | 诊断 RPC + GVM push + 补归因 | 双向 |
 | **B** | VSOCK | `android_native_polarisd` ↔ `linux_polarisd` | 云命令下发（GVM→PVM）+ polaris 事件传输（PVM→GVM）| 不对称双向 |
-| **C** | UDS | `linux_polarisd` ↔ `linux_net_diagd` | 本机事件上报 | 单向（diag→polarisd） |
+| **C** | UDS | `linux_net_diagd` → `linux_polarisd` | 本机事件上报 | **单向**（diag→polarisd，**仅 report event，无反向命令**）|
 | **A-fallback** | UDS + VSOCK | `android_net_diagd` → `android_native_polarisd` | NDGA 断开时 GVM 兜底上报 | 单向 |
 
 | 端口/路径 | 用途 |
 |---|---|
 | `VMADDR_CID_HOST(2):9101` | 通道 A — NDGA 协议端口 |
 | `VMADDR_CID_HOST(2):9001` | 通道 B — polaris PLP 协议端口（现成） |
-| `/run/polaris/network-diag.sock` | 通道 C — PVM polarisd UDS |
+| `/run/polaris/polaris_bridge.sock` | 通道 C — polaris client SDK 内部 UDS（PVM；GVM 用 `/dev/socket/polaris_report`） |
 | `/dev/socket/polaris_report` | GVM polaris client SDK UDS |
 | `/log/perf/network_diag/` | PVM 取证根目录 |
 | `/mnt/vendor/log/perf/network_diag/` | GVM 通过共享挂载访问 PVM 取证目录 |
@@ -482,7 +482,7 @@ flowchart LR
 |---|---|---|
 | 跨 VM 诊断协调通道 | **专用 VSOCK 9101（NDGA）** | 复用 polaris 命令通道 |
 | 事件出云路径 | **PVM polarisd → VSOCK → GVM polarisd → PolarisAgent → Cloud** | GVM polarisd 直接出云（架构不变，但端侧出口统一为 PVM）|
-| PVM diag ↔ polarisd | **单向 report event（通道 C）** | 双向 RPC + IAction（已舍弃）|
+| PVM diag → polarisd | **单向 report event（通道 C）** | 双向 RPC + IAction（已舍弃）|
 | 跨 VM 大文件传输 | **共享挂载 + manifest 引用**（PVM 写完 GVM 读）| VSOCK 分块（fetch_log 协议仅作 fallback）|
 | baseline 部署 | **独立 JSONC 附件 + 双端 sha256 互校** | 内联主配置 |
 
@@ -551,7 +551,7 @@ linux_net_diagd/
 │   └── EventBus.{h,cpp}             lock-free MPSC queue
 ├── transport/
 │   ├── VsockServer.{h,cpp}          NDGA 9101 listen
-│   ├── PolarisdClient.{h,cpp}       通道 C 持久连接
+│   ├── PolarisDispatcher.{h,cpp}    通道 C：调用 polaris_report_raw（libpolaris_client）
 │   ├── NdgaProtocol.{h,cpp}         帧编解码 + chunk 协议
 │   └── NdgaSession.{h,cpp}          单 peer session 管理
 ├── watchdog/
@@ -622,7 +622,7 @@ linux_net_diagd/
 | `JournalReactor` | 1 | sd-journal blocking poll（独立线程）| nice=10 |
 | `ProbeScheduler` | 1 | timerfd 驱动 probe 调度 | nice=10 |
 | `VsockServer` | 1 | NDGA 9101 accept/read/write | nice=10 |
-| `PolarisdClient` | 1 | UDS connect + 重连 + 事件发送 | nice=10 |
+| `PolarisDispatcher` | 0（无独立线程）| 调用 polaris_report_raw，SDK 自带 AsyncQueue + Worker | — |
 | `WorkerPool` | 4 | 命令并行执行、取证打包、抓包 | nice=10 |
 
 线程间通信全部通过 `EventBus`（lock-free MPSC queue, capacity 4096）。
@@ -662,9 +662,10 @@ T+2..5s   Bootstrap::phase2() - capability probe
           - sd-journal availability
           - cache to Capability::instance()
 T+5..10s  Bootstrap::phase3() - channels
-          - VsockServer::start() listen on 9101
-          - PolarisdClient::connect() to /run/polaris/network-diag.sock
-            (退避重试最多 30 次；失败仍继续 fallback)
+          - VsockServer::start() listen on VSOCK 9101 (通道 A)
+          - PolarisDispatcher::init(): lazy init polaris client SDK
+            (内部连 /run/polaris/polaris_bridge.sock; SDK 自管理重连;
+             失败仍继续, 调用层按 -EAGAIN/-ENOTCONN 退化为本地缓存)
 T+10s     Bootstrap::phase4() - 进入 Boot Warmup (120s)
           - WatchdogReactor::start(suppress=true)
           - ProbeScheduler::start(warmup=true)
@@ -727,7 +728,7 @@ MemoryMax=128M
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
 NoNewPrivileges=true
 ReadWritePaths=/log/perf/network_diag /run/polaris/network-diag
-RuntimeDirectory=polaris/network-diag
+RuntimeDirectory=polaris/network-diag           # 仅本地缓存（polaris_pending.jsonl 等），不放 socket
 RuntimeDirectoryMode=0750
 ProtectSystem=strict
 ProtectHome=true
@@ -1160,32 +1161,97 @@ GVM 发出 root cause incident 后通知 PVM 取消 fallback timer：
 1. **事件出口**：调 `polaris_event_create(...)` → polaris_event_commit；PVM polarisd 自动经 VSOCK B 推到 GVM polarisd → PolarisAgent → Cloud。
 2. **接收云命令（仅观察）**：云命令通过 `CommandRequest{target=HOST}` 到达 PVM polarisd 后，**v1 不接收**（无 `NetdiagBridgeAction` IAction）。云命令实际走 PolarisAgent → GVM polarisd → IAction(`netdiag.run`) → GVM net_diagd → 通过 NDGA 拉 PVM。
 
-### 6.3 通道 C — UDS PVM polarisd ↔ PVM_diag
+### 6.3 通道 C — PVM_diag → PVM polarisd（**单向**，via polaris client SDK）
 
-#### 6.3.1 传输
+> **设计原则**：本模块**不自建任何 UDS 协议**，统一调用 polaris client SDK 公开 API。
+> 路径、协议、断线重连、AsyncQueue、本地缓存等全部由 polaris SDK 内部处理；
+> 本模块只关心调用接口与返回值。
 
-- 路径：`/run/polaris/network-diag.sock`（systemd RuntimeDirectory 创建）
-- 类型：`SOCK_SEQPACKET`，非阻塞
-- 协议：复用 polarisd LSP Codec（12-byte header + JSON payload）
-- 连接：linux_net_diagd 启动后 connect；断线指数退避（1s/3s/5s/10s/30s 封顶）
+#### 6.3.1 传输实现
 
-#### 6.3.2 消息
+| 项 | 说明 |
+|---|---|
+| 实现 | polaris client SDK（`libpolaris_client.so`）|
+| SDK 头 | `<polaris/polaris_api.h>`（PVM 与 GVM 完全相同）|
+| 调用入口 | `polaris_report_raw(...)`（详见 §6.3.2）|
+| 内部协议 | polaris SDK 自管理，本模块不感知 |
+| 内部路径 | PVM：SDK 内部连接 `/run/polaris/polaris_bridge.sock`；GVM：`/dev/socket/polaris_report` |
+| 断线重连 | SDK Transport 自管理（参 `client_sdk/src/core/Transport.cpp`）|
+| 异步队列 | SDK 自带 AsyncQueue + 后台 WorkerThread；调用方不阻塞 |
+| polarisd 离线缓存 | polarisd 自身 `mOfflineCache`（容量 500 条）兜底 |
 
-仅一个方向：`diag → polarisd` 上报事件（替代直接调 `polaris_event_create`）。
+#### 6.3.2 唯一调用接口
 
-```jsonc
-// netdiag → polarisd (msgType=POLARIS_EVENT_REPORT 0x0030)
-{
-  "event_id":     "0x4E5E0008",
-  "json_body":    "{\"v\":1,\"src\":\"pvm\",...}",  // ≤ 726 字节 polaris event payload
-  "log_path":     "/log/perf/network_diag/incidents/incident_xxx",
-  "ts_unix":      1747764000,
-  "ts_boot":      18234567,
-  "boot_id":      "f0b8c3a5e1d27a89"
+```cpp
+// 摘自 polaris/polaris_api.h（v0.2）
+int polaris_report_raw(uint64_t    event_id,
+                       const char* process_name,
+                       const char* process_ver,
+                       const char* json_body,
+                       const char* log_path);
+```
+
+调用约定：
+
+| 参数 | 本模块取值 | 说明 |
+|---|---|---|
+| `event_id` | `0x4E5E_0001 .. 0x4E5E_00FF` | 本模块申请的事件 ID 段位（详见附录 C）|
+| `process_name` | `"network-diag"` | 固定值；polaris 后端按此聚合事件 |
+| `process_ver` | `"1.0.0"` 或本模块当前版本 | 跟 §1.5 文档版本一致 |
+| `json_body` | ≤ **726 字节** 紧凑 JSON | §9.2 payload schema，必须先做大小校验 |
+| `log_path` | incident_dir 绝对路径（PVM 视角）| 例 `/log/perf/network_diag/incidents/20260511/a1b2/`；为空时传 `nullptr` |
+
+返回值（沿用 polaris_api.h v0.2 约定）：
+
+| rc | 含义 | 本模块响应 |
+|---|---|---|
+| `0` | enqueue 成功 | 计 `ok_count++` |
+| `-EAGAIN` | polaris AsyncQueue 满 → 已 drop | 计 `drop_count++`，**本地缓存重发**（见 §6.3.4）|
+| `-E2BIG` | payload 超 polaris 内部上限 | 计 `e2big_count++`，是设计 bug，记 ERROR；事件丢失 |
+| `-EINVAL` | 参数非法 | 计 `inval_count++`，记 ERROR；事件丢失 |
+| `-ENOMEM` | 分配失败 | 计 `fail_count++`，1s 后重试一次 |
+| 其他 `<0` | SDK 内部失败 | 计 `fail_count++` |
+
+异步语义：`polaris_report_raw` 返回 0 仅表示**入 polaris AsyncQueue 成功**，不代表事件已到 polarisd / GVM polarisd / Cloud。后续传输由 polaris SDK + polarisd 自行保证。
+
+#### 6.3.3 大小校验（强制）
+
+```cpp
+// 调用 polaris_report_raw 前必须做的检查
+constexpr size_t kMaxPayloadBytes = 726;   // PolarisAgent 上云硬约束
+
+if (jsonBody.size() > kMaxPayloadBytes) {
+    LOGE("event payload exceeds %zu bytes: actual=%zu event_id=0x%llx",
+         kMaxPayloadBytes, jsonBody.size(), (unsigned long long)eventId);
+    metrics_.payload_too_large_count.fetch_add(1);
+    return false;   // 不调 polaris_report_raw，直接丢
 }
 ```
 
-polarisd 异步 fire-and-forget；不返回 ACK（v1 简化）。
+超 726 字节直接丢弃（不截断 JSON），由 `EventComposer::compose()` 保证不超限（§9.2.4）。
+
+#### 6.3.4 -EAGAIN 本地缓存重发
+
+polaris AsyncQueue 满（极端情况）时 `-EAGAIN`。本模块策略：
+
+| 情况 | 处理 |
+|---|---|
+| 单次失败 | 30s 后重发；最多 3 次 |
+| 连续 3 次 -EAGAIN | 进入 `service_degraded` 模式；本地只写 incident_dir，不再尝试 polaris；标记 ResourceGuard-F |
+| ResourceGuard-F 触发后 | 暂停事件发送 30s；30s 后探测一次 polaris 是否恢复（发心跳 event INFO 级）；恢复则退出 degraded |
+
+本地缓存文件：`/log/perf/network_diag/state/polaris_pending.jsonl`，每行一条待重发事件（含 event_id / json_body / log_path / first_attempt_ts），retention 与 incident_dir 一致。
+
+#### 6.3.5 不依赖任何自建 UDS
+
+**显式声明**：
+
+- 本模块**不创建** `/run/polaris/network-diag.sock`（之前文档曾错误描述自建 UDS，**已废弃**）
+- 本模块**不实现** LSP Codec 客户端
+- 不存在反向（polarisd → diag）命令通道
+- 云命令下发链：Cloud → PolarisAgent → GVM polarisd → VSOCK 9001 → IAction（注：当前 v1 不接收云命令到 PVM，参 §6.2）→ 实际通过 GVM net_diagd → NDGA 9101 → PVM net_diagd
+
+systemd unit 中的 `RuntimeDirectory=polaris/network-diag` 仅用于本模块自有的本地缓存目录（如 `polaris_pending.jsonl`），不再用于 socket 监听。
 
 ---
 
@@ -1951,7 +2017,7 @@ public:
             scheduleFallbackTimer(fault.faultId);
         } else {
             // GVM 离线：PVM 兜底发 side
-            PolarisdClient::instance().reportEvent(payload, fault.manifestPath);
+            PolarisDispatcher::instance().reportEvent(payload, fault.manifestPath);
         }
     }
 
@@ -4059,7 +4125,7 @@ namespace netdiag {
     class VsockServer;         // PVM 实现
     class VsockClient;         // GVM 实现
     class NdgaSession;
-    class PolarisdClient;      // PVM only - UDS to polarisd
+    class PolarisDispatcher;   // 调用 polaris client SDK polaris_report_raw（无独立 UDS）
     class PolarisFallback;     // GVM only - libpolaris_client 兜底
   }
   
@@ -4273,40 +4339,141 @@ constexpr int IN_MAINTENANCE  = -8;
 
 ### 22.1 polaris client SDK 对接
 
-仅使用现有 SDK，不要求 polaris 扩展：
+仅使用 polaris client SDK 公开 API `polaris_report_raw`，**不依赖任何 polaris 内部头**，不要求 SDK 扩展。
 
 ```cpp
-// PVM 侧通过 polaris client SDK 上报事件
-#include <polaris/PolarisClient.h>
-#include <polaris/PolarisEventBuilder.h>
+// netdiag/report/PolarisDispatcher.h
+#pragma once
+
+#include "core/IPolarisChannel.h"
+#include <atomic>
+#include <string>
 
 namespace netdiag::report {
 
 class PolarisDispatcher : public IPolarisChannel {
 public:
-    bool reportEvent(uint64_t eventId,
-                     const std::string& jsonBody,
-                     const std::string& logPath) override {
-        auto& client = polaris::PolarisClient::getInstance();
-        client.init();      // 幂等
-        
-        // 构造事件
-        polaris::PolarisEventBuilder builder(eventId);
-        builder.setRawBody(jsonBody);
-        if (!logPath.empty()) builder.setLogPath(logPath);
-        
-        return client.enqueue(builder.build()) == 0;
-    }
+    PolarisDispatcher() = default;
+    ~PolarisDispatcher() override = default;
     
-    bool isReady() const override {
-        return polaris::PolarisClient::getInstance().isInitialized();
-    }
+    bool reportEvent(uint64_t           eventId,
+                     const std::string& jsonBody,
+                     const std::string& logPath) override;
+    
+    bool isReady() const override { return true; }   // polaris SDK lazy init
+    
+    struct Metrics {
+        uint64_t ok;
+        uint64_t drop_eagain;
+        uint64_t e2big;
+        uint64_t inval;
+        uint64_t fail_other;
+        uint64_t payload_too_large;
+    };
+    Metrics getMetrics() const;
+
+private:
+    static constexpr size_t kMaxPayloadBytes = 726;
+    
+    std::atomic<uint64_t>  okCount_{0};
+    std::atomic<uint64_t>  dropEagainCount_{0};
+    std::atomic<uint64_t>  e2bigCount_{0};
+    std::atomic<uint64_t>  invalCount_{0};
+    std::atomic<uint64_t>  failOtherCount_{0};
+    std::atomic<uint64_t>  payloadTooLargeCount_{0};
 };
 
 } // namespace netdiag::report
 ```
 
-GVM 端通过 `libpolaris_client` 同样接口。
+```cpp
+// netdiag/report/PolarisDispatcher.cpp
+#include "report/PolarisDispatcher.h"
+#include "util/Log.h"
+
+#include <polaris/polaris_api.h>     // PVM 与 GVM 完全相同的 C API
+#include <cerrno>
+
+namespace netdiag::report {
+
+bool PolarisDispatcher::reportEvent(uint64_t           eventId,
+                                    const std::string& jsonBody,
+                                    const std::string& logPath) {
+    // 强制大小校验：超 726 字节直接丢，不调 SDK
+    if (jsonBody.size() > kMaxPayloadBytes) {
+        LOGE("PolarisDispatcher: payload too large: %zu > %zu, event_id=0x%llx",
+             jsonBody.size(), kMaxPayloadBytes, (unsigned long long)eventId);
+        payloadTooLargeCount_.fetch_add(1, std::memory_order_relaxed);
+        return false;
+    }
+    
+    // 调用 polaris client SDK 公开 C API
+    const int rc = polaris_report_raw(
+        eventId,
+        "network-diag",
+        "1.0.0",
+        jsonBody.c_str(),
+        logPath.empty() ? nullptr : logPath.c_str()
+    );
+    
+    if (rc == 0) {
+        okCount_.fetch_add(1, std::memory_order_relaxed);
+        return true;
+    }
+    
+    // 按 polaris_api.h v0.2 错误码处理
+    switch (rc) {
+        case -EAGAIN:
+            // AsyncQueue 满，进入本地缓存重发（§6.3.4）
+            dropEagainCount_.fetch_add(1, std::memory_order_relaxed);
+            LocalRetryQueue::instance().enqueue(eventId, jsonBody, logPath);
+            return false;
+        case -E2BIG:
+            // payload 超 SDK 内部上限（设计 bug）
+            e2bigCount_.fetch_add(1, std::memory_order_relaxed);
+            LOGE("polaris_report_raw -E2BIG (design bug?), event_id=0x%llx",
+                 (unsigned long long)eventId);
+            return false;
+        case -EINVAL:
+            invalCount_.fetch_add(1, std::memory_order_relaxed);
+            LOGE("polaris_report_raw -EINVAL, event_id=0x%llx",
+                 (unsigned long long)eventId);
+            return false;
+        default:
+            failOtherCount_.fetch_add(1, std::memory_order_relaxed);
+            LOGW("polaris_report_raw failed rc=%d, event_id=0x%llx",
+                 rc, (unsigned long long)eventId);
+            return false;
+    }
+}
+
+PolarisDispatcher::Metrics PolarisDispatcher::getMetrics() const {
+    return Metrics{
+        .ok               = okCount_.load(std::memory_order_relaxed),
+        .drop_eagain      = dropEagainCount_.load(std::memory_order_relaxed),
+        .e2big            = e2bigCount_.load(std::memory_order_relaxed),
+        .inval            = invalCount_.load(std::memory_order_relaxed),
+        .fail_other       = failOtherCount_.load(std::memory_order_relaxed),
+        .payload_too_large= payloadTooLargeCount_.load(std::memory_order_relaxed),
+    };
+}
+
+} // namespace netdiag::report
+```
+
+**关键设计点**：
+
+| 项 | 说明 |
+|---|---|
+| 唯一接入点 | `<polaris/polaris_api.h>` C API（`polaris_report_raw`）|
+| 不依赖 polaris 内部头 | 不 `#include <polaris/PolarisClient.h>` 等内部 C++ 类 |
+| Process name 固定 | `"network-diag"`，便于 polaris 后端聚合 |
+| 大小校验前置 | 在调 SDK 前严格 ≤726 字节 |
+| 异步非阻塞 | `polaris_report_raw` 内部 enqueue 到 AsyncQueue，立即返回 |
+| 错误分类 | 6 类计数器，便于运维诊断 polaris 链路状态 |
+| -EAGAIN 本地缓存 | `LocalRetryQueue` 实现见 §22.3 |
+
+GVM 端 (`android_net_diagd/transport/PolarisFallback`) 复用完全相同的 C API，仅 init order 不同（Boot Warmup 内 lazy init）。
 
 ### 22.2 NDGA 协议 IDL
 
@@ -5993,22 +6160,22 @@ UNKNOWN_FAULT            0x4E5E00FF    fallback                              —
 
 ### 27.2 v2 候选清单
 
-| ID | 内容 | 评审依据 |
-|---|---|---|
-| V2-001 | HTTP probe 全 VLAN 覆盖 | sys_design review §7.2 |
-| V2-002 | softirq/ksoftirqd 轻量采样阈值优化 | sys_design review §7.2 |
-| V2-003 | 配置热重载 + PVM/GVM 双端版本协同 | sys_design review §4.2 + G19 |
-| V2-004 | virtio queue 卡顿统计学阈值 | sys_design §11.1 注 |
-| V2-005 | ARP probe（强制邻居解析） | sys_design §12.1 |
-| V2-006 | 自适应 probe 频率 | sys_design §10 v2 |
-| V2-007 | 反向命令通道（PVM→GVM 同步 RPC） | polaris 团队评估 |
-| V2-008 | nfqueue 注入式 GVM perspective probe | §14 |
-| V2-009 | mmhab 跨域接口（与 Camera 团队） | G19 |
-| V2-010 | 间歇故障 long-running probe 全 SHU 覆盖 | G3 |
-| V2-011 | conntrack 解析周期 60s→15-20s（保 30s SLA） | §19.3 注 |
-| V2-012 | 取证脱敏机制（on-write redaction） | G18 |
-| V2-013 | conntrack INVALID 状态细分采集 | §10.3.4 |
-| V2-014 | fault_causation_graph 云端反推扩展 | §8.5 |
+| ID | 内容 | 评审依据 | 状态 |
+|---|---|---|---|
+| ~~V2-001~~ | ~~HTTP probe 全 VLAN 覆盖~~ | ~~sys_design review §7.2~~ | **已升级到 v1.1+（见 §28.2.3）** |
+| V2-002 | softirq/ksoftirqd 轻量采样阈值优化 | sys_design review §7.2 | 候选 |
+| V2-003 | 配置热重载 + PVM/GVM 双端版本协同 | sys_design review §4.2 + G19 | 候选 |
+| V2-004 | virtio queue 卡顿统计学阈值 | sys_design §11.1 注 | 候选 |
+| V2-005 | ARP probe（强制邻居解析） | sys_design §12.1 | 候选 |
+| V2-006 | 自适应 probe 频率 | sys_design §10 v2 | 候选 |
+| V2-007 | 反向命令通道（PVM→GVM 同步 RPC） | polaris 团队评估 | 候选 |
+| ~~V2-008~~ | ~~nfqueue 注入式 GVM perspective probe~~ | ~~§14~~ | **撤销**（违反 C1 readonly；改用 v1.1+ GVM 原生 probe，见 §28.2.2） |
+| V2-009 | mmhab 跨域接口（与 Camera 团队） | G19 | 候选 |
+| V2-010 | 间歇故障 long-running probe 全 SHU 覆盖 | G3 | 候选 |
+| V2-011 | conntrack 解析周期 60s→15-20s（保 30s SLA） | §19.3 注 | 候选 |
+| V2-012 | 取证脱敏机制（on-write redaction） | G18 | 候选 |
+| V2-013 | conntrack INVALID 状态细分采集 | §10.3.4 | 候选 |
+| V2-014 | fault_causation_graph 云端反推扩展 | §8.5 | 候选 |
 
 ### 27.3 推进路线图
 
@@ -6033,6 +6200,632 @@ M9 上线：
   └ 全量上线
   └ v2 候选评估
 ```
+
+---
+
+## 28. v1.1+ 增强：GVM 原生 Probe + L7 应用层探针
+
+> 本章对 §10 / §11 / §12 / §13 / §14 的关键修订，解决两个真实盲区：
+> 1. **GvmPerspectiveProbe（PVM 端 raw socket）局限**：内核不为本机生成的包打 `iif=vmtap1.X` 标签，无法命中策略路由（table 106/107/108）和 `iptables -i vmtap1.X` 入向规则，因此**在依赖策略路由的 VLAN 6/7/8 上实际失效**。
+> 2. **L7 应用层阻塞盲区**：底层链路全通（ICMP/DNS/TCP SYN 全 PASS），但运营商 / 防火墙拦截 HTTP payload，导致应用假死，四层及以下探针返回 PASS。
+
+### 28.1 修订背景
+
+**问题 1 详细分析**：
+
+| VLAN 场景 | 真实 GVM 流量路径 | 旧 GvmPerspectiveProbe 实际路径 | 有效性 |
+|---|---|---|---|
+| VLAN 3 默认互联网 | vmtap1.3 → main 表 default → eth1.3 → SNAT | 直接命中 main 表 connected → eth1.3 → SNAT | ⚠️ **部分有效**（能验 SNAT 段）|
+| VLAN 6/7/8 (策略路由依赖) | vmtap1.X → **iif=vmtap1.X 触发 table 106/107/108** → eth1.X | 直接命中 main 表 connected 路由 → 完全绕过 table 106/107/108 | ❌ **几乎无效** |
+| VLAN 4 诊断（入向）| 外部 → eth1.4 → PREROUTING DNAT → vmtap1.4 → GVM | 出向 raw socket 无法模拟入向 | ❌ **不适用** |
+| Host-Guest | 本机回环 | 本机回环 | ❌ **无意义** |
+
+**为什么不能用 nfqueue 路径 B**：需要 `iptables -t mangle -A PREROUTING -i vmtap1.3 -j NFQUEUE` 注入规则——违反 **C1 只读约束**，本模块绝不修改 iptables 规则。
+
+**问题 2 详细分析**：
+
+```
+ICMP probe → 网关 PASS                  → 内核认为 IP 层通
+DNS probe  → 解析 OK                     → DNS 层通
+TCP SYN    → SYN-ACK 收到 (probe 显示 PASS)  → TCP 三次握手通
+但实际：
+  应用发 HTTP request → 上行包出去到运营商 → payload 被 DPI 拦截
+  ↓
+  TCP 连接保持 ESTABLISHED，但下行无数据
+  ↓
+  应用层假死（读超时 / 重传）
+```
+
+四层及以下全 PASS，但用户感知"网络坏了"。
+
+### 28.2 修订方案
+
+#### 28.2.1 GvmPerspectiveProbe 角色降级（§14 修订）
+
+**新定位**：仅作为 **VLAN 3 默认互联网通道 SNAT 段的辅助验证**，不作为 VLAN 6/7/8 的主探测。
+
+| SHU | 旧 GvmPerspectiveProbe 用途 | v1.1+ 修订 |
+|---|---|---|
+| SHU_VLAN3_INTERNET | 主探测之一 | 保留为辅助（标 `confidence=medium`） |
+| SHU_VLAN6_ADCU_PARK | 主探测 | **移除**，替换为 GVM 原生 IcmpProbe |
+| SHU_VLAN7_OTA | 主探测 | **移除**，替换为 GVM 原生 IcmpProbe |
+| SHU_VLAN8_ADAS | 主探测 | **移除**，替换为 GVM 原生 IcmpProbe |
+| SHU_VLAN4_DOIP | — | N/A（入向被动）|
+| SHU_HOST_GUEST | — | 用 PVM IcmpProbe（vmtap0 是本地通路）|
+
+GvmPerspectiveProbe 在事件 payload 中标注路径限制：
+
+```cpp
+ProbeResult GvmPerspectiveProbe::run(const ProbeTarget& t) {
+    // 仅对 VLAN3 调用，其他 VLAN 直接返回 BLOCKED
+    if (t.shuId != "SHU_VLAN3_INTERNET") {
+        return ProbeResult::blocked("GvmPerspectiveProbe limited to VLAN3 only "
+                                    "(raw socket bypasses iif=vmtap1.X policy routing)",
+                                    BlockedSeverity::L1_env);
+    }
+    // ... 原有 raw socket 实现
+}
+```
+
+#### 28.2.2 GVM 原生 Probe 子系统（review F1 完整落地）
+
+GVM 端 `android_net_diagd` 新增 `probe/` 子模块（之前 §3.3 仅列出，本节落实）：
+
+```
+android_net_diagd/
+└── probe/                              # v1.1+ 新增
+    ├── GvmProbeScheduler.{h,cpp}
+    ├── GvmIcmpProbe.{h,cpp}            # 真实 GVM 视角 (经 vmtap → iif=eth1.X)
+    ├── GvmIcmpPmtuProbe.{h,cpp}
+    ├── GvmDnsProbe.{h,cpp}             # 双模式：resolver / direct UDP/53
+    ├── GvmTcpConnectProbe.{h,cpp}      # TCP 三次握手验证 (v1.1+)
+    ├── GvmHttpProbe.{h,cpp}            # L7 探针 (v1.1+, 见 §28.2.3)
+    ├── ProbeRecorder.{h,cpp}
+    └── TokenBucket.{h,cpp}
+```
+
+**关键属性**：
+
+- 完全在 GVM 内核协议栈中运行，**真实经过 vmtap1.X → PVM kernel forwarding 路径**
+- 自动经过 PVM 端 `iif=vmtap1.X` 策略路由 + iptables 入向规则
+- 完全等价于真实 App 流量路径
+
+**最小探测集**（每个 GVM VLAN 子接口都做）：
+
+| Probe | 目的 | 频率 | 资源 |
+|---|---|---|---|
+| `eth0 → 10.10.200.1` ICMP | Host-Guest 控制通道 | 30s | 极轻 |
+| `eth1.X → 10.10.X.1` ICMP × 4 | 每条 Android VLAN 到 PVM vmtap 网关 | 60s | 轻 |
+| `eth1.3 → 172.16.103.20` ICMP | 默认互联网/TBOX 网关 | 60s | 轻 |
+| `eth1.6/7/8 → 172.16.106/107/108.20` ICMP | ADCU/OTA/ADAS 网关 | 60s | 轻 |
+| DNS resolver query | Android resolver/netd 视角 | 仅 alert 时 | 中 |
+| DNS direct UDP/53 query | 排除 resolver cache | 60s | 轻 |
+| TCP connect probe | DoIP/VLM/OTA 端口握手验证（按需） | 仅云命令触发 | 中 |
+| HTTP GET probe | L7 应用层验证（§28.2.3） | 300-600s | 中 |
+
+资源约束：
+
+```cpp
+namespace netdiag::probe {
+
+class GvmProbeScheduler {
+public:
+    void start();
+    void stop();
+
+private:
+    TokenBucket  globalBucket_{20};      // GVM 独立 20 pps
+    TokenBucket  dnsBucket_{5, 60};       // DNS ≤5 次/分钟
+    TokenBucket  httpBucket_{2, 300};     // HTTP ≤2 次/5min
+    ThreadPool   pool_{2};
+};
+
+} // namespace netdiag::probe
+```
+
+**GVM 与 PVM probe 预算独立**（不共享 pps 配额）：PVM ≤100 pps + GVM ≤20 pps。
+
+#### 28.2.3 HttpProbe — L7 应用层探针（闭环 V2-001）
+
+**核心机制**：低频主动 HTTP GET 探测车企官方高可用 health check API。
+
+```cpp
+namespace netdiag::probe {
+
+class GvmHttpProbe : public IProbe {
+public:
+    ProbeResult run(const ProbeTarget& t) override;
+
+private:
+    // 严苛超时控制：connect+read 整体 3s 强制断开
+    static constexpr int  kConnectTimeoutMs = 1500;
+    static constexpr int  kReadTimeoutMs    = 1500;
+    static constexpr int  kTotalTimeoutMs   = 3000;
+    static constexpr int  kMaxBodyBytes     = 4096;   // body 只读前 4 KiB
+    
+    // 并发限制：单次仅一个 HTTP probe in flight
+    static std::atomic<int>  inFlight_;
+    static constexpr int     kMaxConcurrent = 1;
+};
+
+ProbeResult GvmHttpProbe::run(const ProbeTarget& t) {
+    // 并发限制
+    if (inFlight_.fetch_add(1) >= kMaxConcurrent) {
+        inFlight_.fetch_sub(1);
+        return ProbeResult::blocked("HTTP probe already in flight",
+                                    BlockedSeverity::L3_intermittent);
+    }
+    auto guard = util::makeScopeGuard([]{ inFlight_.fetch_sub(1); });
+    
+    // 创建独立线程 + 总超时强制 cancel
+    std::promise<ProbeResult> prom;
+    auto fut = prom.get_future();
+    
+    std::thread worker([this, t, &prom]{
+        prom.set_value(doHttpGet(t));
+    });
+    worker.detach();    // 由 timeout 兜底回收
+    
+    auto status = fut.wait_for(std::chrono::milliseconds(kTotalTimeoutMs));
+    if (status == std::future_status::timeout) {
+        // 强制超时，标 FAIL（连接卡死可能是 L7 阻塞）
+        return ProbeResult{
+            .status = ProbeStatus::FAIL,
+            .note = "HTTP probe hard timeout (suspect L7 stall)",
+        };
+    }
+    return fut.get();
+}
+
+ProbeResult GvmHttpProbe::doHttpGet(const ProbeTarget& t) {
+    // 1. connect with timeout
+    int s = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+    setSocketTimeout(s, kConnectTimeoutMs);
+    if (!connectWithDeadline(s, t.targetIp, t.targetPort, kConnectTimeoutMs)) {
+        return ProbeResult::fail("HTTP connect failed (L4 layer)");
+    }
+    
+    // 2. send GET request
+    auto req = makeHttpGet(t.targetHost, t.targetPath);
+    if (::send(s, req.data(), req.size(), 0) < (ssize_t)req.size()) {
+        return ProbeResult::fail("HTTP send failed");
+    }
+    
+    // 3. read response with timeout
+    setSocketTimeout(s, kReadTimeoutMs);
+    char buf[kMaxBodyBytes];
+    ssize_t n = ::recv(s, buf, sizeof(buf), 0);
+    ::close(s);
+    
+    if (n <= 0) {
+        // 连接建立成功但读不到响应 = L7 阻塞强烈指纹
+        return ProbeResult{
+            .status = ProbeStatus::FAIL,
+            .note = "TCP ESTABLISHED but no HTTP response (L7 stall fingerprint)",
+            .l7HinttFlag = true,    // 给 analyzer 用
+        };
+    }
+    
+    // 4. 解析 status code
+    int statusCode = parseHttpStatusCode(buf, n);
+    if (statusCode < 200 || statusCode >= 600) {
+        return ProbeResult::fail("malformed HTTP response");
+    }
+    if (statusCode >= 500) {
+        return ProbeResult{
+            .status = ProbeStatus::WARN,
+            .note = util::fmt("HTTP %d (upstream server error)", statusCode),
+        };
+    }
+    
+    return ProbeResult::pass();
+}
+
+} // namespace netdiag::probe
+```
+
+**配置 schema**：
+
+```jsonc
+"http_probe": {
+  "enable":           true,
+  "shu":              "SHU_VLAN3_INTERNET",
+  "via_netid":        102,
+  "interval_sec":     600,                  // 默认 10 分钟一次
+  "burst_on_alert":   {"interval_sec":120, "count":3},
+  "endpoints": [
+    {"host":"<voyah_healthcheck_api>",
+     "path":"/healthz",
+     "port":443,
+     "scheme":"https",
+     "expected_status":[200,204],
+     "_note":"车企官方高可用端点"},
+    {"host":"<voyah_healthcheck_backup>",
+     "path":"/healthz",
+     "port":443,
+     "scheme":"https",
+     "expected_status":[200,204]}
+  ],
+  "limits": {
+    "connect_timeout_ms":  1500,
+    "read_timeout_ms":     1500,
+    "total_timeout_ms":    3000,
+    "max_body_bytes":      4096,
+    "max_concurrent":      1
+  }
+}
+```
+
+**为什么严格限流**：
+
+- 单次硬上限 3 秒（避免 worker thread 长期占用）
+- 单实例并发 = 1（避免堆积）
+- 不直接共享 GVM workerPool 主 worker（独立 detached thread + future timeout）
+- 频率 ≤ 2 次 / 5 分钟（HttpBucket）
+- 失败不重试（避免雪崩）
+
+**L7 阻塞指纹判定**：
+- `connect OK + recv timeout/empty` → L7 stall（FAIL）
+- `connect OK + HTTP 5xx (持续 3 次)` → 上游服务问题（WARN，不归网络层）
+- `connect timeout` → L4 问题（FAIL，归现有 TBOX_UPLINK_DOWN）
+- `HTTP 200 + ICMP/DNS 都正常` → SHU PASS
+
+#### 28.2.4 TCP `bytes_unacked` 被动观测（增强 WD_GVM_TCP_SYN_STUCK）
+
+不增加主动流量，**被动观察**应用层连接状态：
+
+```cpp
+namespace netdiag::watchdog {
+
+struct TcpConnObservation {
+    std::string  src;
+    std::string  dst;
+    std::string  state;          // ESTABLISHED / SYN_SENT / ...
+    uint64_t     bytesUnacked;   // ss -ti 提供
+    uint64_t     bytesAcked;
+    uint64_t     rtt;            // smoothed RTT
+    int          retrans;
+    uint64_t     observedBootMs;
+};
+
+class TcpStateWatcher {
+public:
+    void tick();   // 每 30s 调一次
+
+private:
+    void parseSsExtended();
+    bool detectL7Stall(const TcpConnObservation& curr,
+                       const TcpConnObservation& prev) const;
+
+    std::unordered_map<std::string, TcpConnObservation>  history_;
+};
+
+bool TcpStateWatcher::detectL7Stall(const TcpConnObservation& curr,
+                                    const TcpConnObservation& prev) const {
+    // L7 stall 强指纹：
+    //  ESTABLISHED + bytes_unacked 持续 >0 + 30s 无 bytes_acked 增长 + retrans 增加
+    if (curr.state != "ESTABLISHED")           return false;
+    if (curr.bytesUnacked < kUnackedThreshold) return false;
+    if (curr.bytesAcked != prev.bytesAcked)    return false;    // 有进展不算
+    if (curr.retrans <= prev.retrans)          return false;    // 必须有重传
+    
+    return true;
+}
+
+void TcpStateWatcher::tick() {
+    auto conns = parseSsExtended();   // ss -tinp 解析
+    
+    int stallCount = 0;
+    for (const auto& c : conns) {
+        auto prev = history_.find(c.connKey());
+        if (prev != history_.end() && detectL7Stall(c, prev->second)) {
+            stallCount++;
+        }
+        history_[c.connKey()] = c;
+    }
+    
+    if (stallCount >= kL7StallCountThreshold) {  // 默认 3
+        EventBus::instance().tryPost(InternalEvent{
+            .type = EventType::WD_TCP_L7_STALL,
+            .source = "tcp_state_watcher",
+        });
+    }
+}
+
+} // namespace netdiag::watchdog
+```
+
+`ss -tinp` 输出中包含 `bytes_acked` / `bytes_received` / `unacked` / `retrans` 等扩展字段（`-i` 选项），是被动观察 L7 阻塞的成本最低方式。
+
+#### 28.2.5 新增 fault_class
+
+```jsonc
+{
+  "class":              "L7_PAYLOAD_STALL",
+  "category":           "L5_service",
+  "default_severity":   "FAIL",
+  "blocked_severity":   "L1_env",
+  "event_id":           "0x4E5E0023",
+  "target_key_rule":    "vlan_role",
+  "modify_action":      "Check upstream firewall/DPI, ISP HTTP filtering, TLS handshake parameters",
+  "added_in_version":   "1.1+"
+}
+```
+
+字典总数：36 → **37 项**。
+
+#### 28.2.6 新增 Watchdog 信号
+
+| 信号 ID | 数据源 | 触发条件 | 关联事件 |
+|---|---|---|---|
+| `WD_GVM_TCP_L7_STALL` | `ss -tinp` 30s 滚动比对 | ≥3 个 ESTABLISHED 连接 bytes_unacked 持续 + 0 ack 增长 + retrans 增加 | `L7_PAYLOAD_STALL` |
+| `WD_GVM_HTTP_PROBE_FAIL` | HttpProbe 结果 | connect OK + read 失败 / 持续 3 次 | `L7_PAYLOAD_STALL` |
+
+合并判定：上述两信号任一命中 + 同 VLAN ICMP/DNS PASS → 确认 L7_PAYLOAD_STALL。
+
+#### 28.2.7 新增检查项
+
+| Check ID | 数据源 | expect | 关联需求 |
+|---|---|---|---|
+| `L5-HTTP-001` | GvmHttpProbe 结果（最近 10 次） | 失败率 ≥50% + ICMP/DNS PASS → FAIL | (新增, 闭环 V2-001) |
+| `L5-TCP-001` | `ss -tinp` 30s 滚动 | bytes_unacked 持续 + 0 ack 增长 + retrans 增 → WARN/FAIL | FW-003 增强 |
+
+### 28.3 SHU 配置修订
+
+```jsonc
+// SHU_VLAN3_INTERNET 修订（增加 HTTP probe + 降级 GvmPerspectiveProbe）
+{
+  "id": "SHU_VLAN3_INTERNET",
+  "probes": [
+    {"id":"icmp_tbox","type":"icmp", ...},
+    {"id":"icmp_tbox_pmtu","type":"icmp_pmtu", ...},
+    {"id":"dns_uplink","type":"dns", ...},
+
+    // 修订：仅作辅助验证 SNAT 段
+    {"id":"pvm_perspective_snat","type":"icmp_gvm_perspective",
+     "iface":"vmtap1.3","src_ip":"10.10.103.40","target":"172.16.103.20",
+     "interval_sec":300, "count":3,
+     "confidence":"medium",
+     "_note":"仅 VLAN3 默认通道；不命中策略路由，仅验证 SNAT 段"},
+
+    // v1.1+ 新增：GVM 原生 probe (主探测)
+    {"id":"gvm_native_icmp_tbox","type":"icmp", "side":"gvm",
+     "iface":"eth1.3","target":"172.16.103.20",
+     "interval_sec":60, "count":3,
+     "confidence":"high",
+     "_note":"真实 GVM 视角，经 vmtap1.3 + iif 策略路由"},
+
+    // v1.1+ 新增：HTTP L7 探针
+    {"id":"http_healthz","type":"http", "side":"gvm",
+     "via_netid":102,
+     "interval_sec":600,
+     "burst_on_alert":{"interval_sec":120, "count":3},
+     "endpoints":[
+       {"host":"<voyah_healthcheck>", "path":"/healthz", "port":443, "scheme":"https"}
+     ]}
+  ]
+}
+
+// SHU_VLAN6_ADCU_PARK 修订（移除 GvmPerspectiveProbe，改用 GVM 原生）
+{
+  "id": "SHU_VLAN6_ADCU_PARK",
+  "probes": [
+    {"id":"pvm_icmp_adcu_gw","type":"icmp", "side":"pvm",
+     "iface":"eth1.6","target":"172.16.106.20",
+     "interval_sec":60, "count":3,
+     "_note":"PVM 视角，验证 eth1.6 上游可达"},
+
+    // v1.1+ 新增：GVM 原生主探测
+    {"id":"gvm_native_vmtap_gw","type":"icmp", "side":"gvm",
+     "iface":"eth1.6","target":"10.10.106.1",
+     "interval_sec":60, "count":3,
+     "_note":"GVM 视角到 vmtap 网关，验证 virtio 段"},
+    {"id":"gvm_native_adcu_gw","type":"icmp", "side":"gvm",
+     "iface":"eth1.6","target":"172.16.106.20",
+     "interval_sec":60, "count":3,
+     "_note":"GVM 视角到 ADCU 网关，验证完整 vmtap → table 106 → eth1.6 路径"}
+  ]
+  // SHU_VLAN7_OTA / SHU_VLAN8_ADAS 同样调整
+}
+```
+
+### 28.4 NDGA 协议扩展
+
+GVM probe 结果通过现有 NDGA `push gvm_alert` 上报，type 字段扩展：
+
+```jsonc
+{
+  "msg":  "push",
+  "type": "gvm_probe_result",          // 新 type
+  "payload": {
+    "shu":          "SHU_VLAN3_INTERNET",
+    "probe_id":     "gvm_native_icmp_tbox",
+    "probe_type":   "icmp",
+    "iface":        "eth1.3",
+    "src_ip":       "10.10.103.40",
+    "target":       "172.16.103.20",
+    "rtt_p95_ms":   2.3,
+    "loss_pct":     0,
+    "verdict":      "PASS",
+    "ndga_runtime_netid":   102,
+    "ndga_fwmark":          "0x10066",
+    "_note":"含 NetId/fwmark/iface 4 元组方便云端排查"
+  }
+}
+```
+
+```jsonc
+{
+  "msg":  "push",
+  "type": "gvm_http_probe_result",
+  "payload": {
+    "shu":          "SHU_VLAN3_INTERNET",
+    "endpoint":     "https://<host>/healthz",
+    "status_code":  200,
+    "connect_ms":   180,
+    "ttfb_ms":      234,
+    "body_bytes":   2,
+    "verdict":      "PASS"
+  }
+}
+```
+
+```jsonc
+{
+  "msg":  "push",
+  "type": "gvm_tcp_l7_stall",
+  "payload": {
+    "stall_conn_count":     5,
+    "via_iface":            "eth1.3",
+    "sample_conns": [
+      {"src":"10.10.103.40:53212", "dst":"203.0.113.10:443",
+       "state":"ESTABLISHED",
+       "bytes_unacked":4096, "bytes_acked":0,
+       "retrans":3, "rtt_us":120000}
+    ],
+    "verdict":              "FAIL_L7_PAYLOAD_STALL"
+  }
+}
+```
+
+### 28.5 检查项 / fault_class / 事件 ID 数量更新
+
+| 项 | 旧 | v1.1+ |
+|---|---|---|
+| check 总数 | 78 | **80** （+ L5-HTTP-001, L5-TCP-001） |
+| fault_class | 36 | **37** （+ L7_PAYLOAD_STALL） |
+| polaris event ID | 19 | **20** （+ NETDIAG_L7_STALL = 0x4E5E0023） |
+| PVM watchdog 信号 | 13 | **13**（不变） |
+| GVM watchdog 信号 | 7 | **9** （+ WD_GVM_TCP_L7_STALL, WD_GVM_HTTP_PROBE_FAIL） |
+| GVM 端 probe 类型 | 0（review F1 仅提及）| **6** 实现：IcmpProbe / IcmpPmtuProbe / DnsProbe / TcpConnectProbe / HttpProbe + Scheduler |
+
+### 28.6 性能影响
+
+| 操作 | 频率 | CPU P95 | 网络 | 备注 |
+|---|---|---|---|---|
+| GVM IcmpProbe × 5 SHU | 60s | 30 ms | ~3 pps | 替代 PVM GvmPerspective 部分 |
+| GVM DnsProbe (direct UDP/53) | 60s | 20 ms | <1 pps | 不算 resolver cache |
+| GVM HttpProbe | 600s | 100-500 ms（含 TLS 握手）| 2 KiB upstream + 4 KiB downstream | 严格 3s 上限 |
+| TcpStateWatcher (ss -tinp) | 30s | 30 ms | 0 | 被动观测 |
+
+**GVM 新增稳态 CPU**：~200 ms/min ≈ **0.33%（单核）**。
+
+**HTTP probe 突发开销**：单次 ≤500 ms，10 分钟一次，平均仅 0.08%。
+
+合计 GVM 总稳态 CPU 占用：约 **0.5%（单核）**，仍远低于 §19.1 中 GVM 端预算。
+
+### 28.7 v1.1+ 时序图增量
+
+#### SEQ-25 — L7 阻塞检测（GVM HttpProbe + TcpStateWatcher）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Probe as GvmProbeScheduler
+    participant Http as GvmHttpProbe
+    participant TcpW as TcpStateWatcher
+    participant Bus as GVM EventBus
+    participant NDGA as NDGA
+    participant Pol as polaris/Cloud
+    
+    Note over Probe: T+0 触发 ICMP probe to TBOX
+    Probe->>Probe: IcmpProbe PASS (rtt 2ms)
+    Note over Probe: T+0 DNS probe
+    Probe->>Probe: DnsProbe PASS
+    
+    Note over Probe: T+0 HTTP probe (600s 一次)
+    Probe->>Http: GvmHttpProbe.run(<voyah_healthcheck>)
+    Http->>Http: connect OK (180ms)
+    Http->>Http: send HTTP GET (5ms)
+    Http->>Http: recv() timeout 1500ms (no response)
+    Http-->>Probe: FAIL "L7 stall fingerprint"
+    
+    Note over TcpW: T+30s 周期 ss -tinp
+    TcpW->>TcpW: 检测到 5 个 ESTABLISHED 连接<br/>bytes_unacked >0, ack 无增长, retrans+
+    TcpW->>Bus: WD_GVM_TCP_L7_STALL
+    
+    Bus->>Bus: 信号合并：HTTP FAIL + TCP_L7_STALL<br/>+ ICMP/DNS PASS
+    Bus->>Bus: 判定 L7_PAYLOAD_STALL FAIL
+    Bus->>NDGA: push gvm_tcp_l7_stall + gvm_http_probe_result
+    NDGA-->>Pol: NETDIAG_L7_STALL (root, src=and)
+    
+    Note over Pol: 云端展示：<br/>"ICMP/DNS 全 PASS 但 HTTP 阻塞，<br/>建议排查上游 DPI / HTTPS payload 过滤"
+```
+
+#### SEQ-26 — GVM 原生 probe 替代 PVM raw socket 路径
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant PVM as PVM net_diag
+    participant GVM as GVM net_diag
+    participant Kernel as PVM Kernel
+    participant Wire as ADCU/外部 ECU
+    
+    Note over PVM,Wire: 旧 GvmPerspectiveProbe (VLAN6 场景)
+    PVM->>PVM: raw socket + IP_HDRINCL<br/>src=10.10.106.40, dst=172.16.106.20
+    PVM->>Kernel: sendto()
+    Kernel->>Kernel: 路由查 main 表<br/>172.16.106.0/24 dev eth1.6
+    Kernel-->>Kernel: ⚠️ 绕过 table 106 (没有 iif 标签)
+    Kernel-->>Wire: 出 eth1.6（SNAT 命中）
+    Note over PVM,Wire: ⚠️ 测试路径 ≠ 真实 GVM 路径<br/>无法验 table 106 策略路由
+    
+    Note over PVM,Wire: v1.1+ GVM 原生 probe
+    GVM->>GVM: SOCK_DGRAM ICMP<br/>SO_BINDTODEVICE=eth1.6
+    GVM->>Kernel: sendto via virtio
+    Kernel->>Kernel: vmtap1.6 收包，iif=vmtap1.6
+    Kernel->>Kernel: ip rule 命中 iif=vmtap1.6<br/>查 table 106
+    Kernel->>Kernel: table 106 default via 172.16.106.20<br/>dev eth1.6
+    Kernel->>Kernel: POSTROUTING SNAT<br/>src→172.16.106.40
+    Kernel->>Wire: 出 eth1.6 (完整真实路径)
+    Wire-->>Kernel: 回包
+    Kernel-->>GVM: recv reply (rtt)
+    GVM-->>PVM: NDGA push gvm_probe_result
+    Note over GVM,Kernel: ✅ 完整覆盖 vmtap + iif 策略路由 + iptables
+```
+
+### 28.8 配置附件 / 文档章节交叉修订点
+
+| 章节 | 修订说明 |
+|---|---|
+| §3.3 GVM 组件架构图 | 新增 `probe/` 子模块块（实施时画进图） |
+| §10.3.4 L4 NAT/防火墙 | 新增 L5-TCP-001 行（TCP bytes_unacked 监测） |
+| §10.3.6 L5 业务 | 新增 L5-HTTP-001 行（HTTP probe SHU） |
+| §11.2 SHU schema | VLAN6/7/8 SHU 移除 GvmPerspectiveProbe；VLAN3 加 GVM 原生 + HttpProbe |
+| §12.2 GVM Watchdog | 新增 WD_GVM_TCP_L7_STALL + WD_GVM_HTTP_PROBE_FAIL |
+| §13.2.4 GvmPerspectiveProbe | 标 "VLAN3 only"；其他 VLAN 直接返回 BLOCKED-L1_env |
+| §13 新增子节 | GVM 原生 ProbeScheduler + HttpProbe 完整实现 |
+| §22.3 EventBus | 新增 EventType::WD_TCP_L7_STALL / WD_HTTP_FAIL |
+| §27 v2 候选 | **V2-001 移出**（HTTP probe 已在 v1.1+ 实现）；剩 13 项 |
+| `fault_class_dict.json` | 加 L7_PAYLOAD_STALL（37 项）|
+| `fault_causation_graph.json` | 加 1 条边：GATEWAY_UNREACHABLE → L7_PAYLOAD_STALL（不会触发；L7 反向独立） |
+| `scenario-registry.json` | 场景 A（GVM 互联网）加 HTTP probe + L7_PAYLOAD_STALL 期望故障类 |
+
+### 28.9 v1.1+ 启用前置项
+
+| 项 | 工作量 | 负责方 | 优先级 |
+|---|---|---|---|
+| 申请新 event_id `0x4E5E0023` (NETDIAG_L7_STALL) | — | polaris 团队 | P0 |
+| 车企云端高可用 health check 端点（HTTPS） | 中 | 云端团队 | P0 |
+| HTTPS 端点的证书白名单管理 | 中 | 安全团队 | P1 |
+| 不同 SKU / 区域的健康端点配置 | 小 | 车企发布团队 | P1 |
+| GVM `ss -tinp` 扩展字段权限审核（部分 Android 受限）| 小 | GVM SELinux | P0 |
+
+### 28.10 修订小结
+
+| 修订点 | 旧设计 | v1.1+ 修订 |
+|---|---|---|
+| VLAN 6/7/8 主探测手段 | PVM GvmPerspectiveProbe（**实际失效**）| **GVM 原生 IcmpProbe**（完整路径覆盖） |
+| L7 应用层盲区 | 无探测，全靠 App 主动报障 | **HttpProbe（5-10min 主动）+ TcpStateWatcher（被动）双信号合并** |
+| nfqueue 路径 B | v2 候选 | **不做**（违反 C1 readonly 约束） |
+| GvmPerspectiveProbe | 主探测之一 | 降级为辅助（仅 VLAN3 SNAT 段验证） |
+| GVM 端 probe 子系统 | review F1 提及未落地 | **完整实现**（6 个 probe 类型 + scheduler + bucket）|
+
+**核心收益**：
+- 闭环 V2-001（HTTP probe）
+- 覆盖 L7 应用层盲区（运营商 / DPI / HTTPS payload 过滤）
+- 解决 PVM raw socket 在 VLAN 6/7/8 上的失效问题
+- 完全在 C1 readonly 约束下实现（不改 iptables）
 
 ---
 
@@ -6231,7 +7024,21 @@ Mermaid 时序图：参与方颜色编码：
 
 **文档结束**
 
-> 文档总计 27 章 + 4 附录，~4900 行；含 16 张架构/时序图（Mermaid）+ 84 项 NET-DIAG-* 完整映射 + 78 项 check 详细定义 + 5 个配置附件引用 + 完整 C++ 接口契约。
+> **文档统计**：
+> - 27 章 + 4 附录 + 目录 = **6200+ 行**
+> - **Mermaid 图 27+ 张**：
+>   - 部署架构图 1 张（§3.1）
+>   - PVM 组件架构图 1 张（§3.2）
+>   - GVM 组件架构图 1 张（§3.3）
+>   - 数据流视图 1 张（§3.4）
+>   - 时序图 24 张（SEQ-01..24，§24）
+> - **84 项 NET-DIAG-* 完整映射**到 Check ID + 实现组件 + 测试用例 + 时序图（§26）
+> - **78 项 check** 详细定义（§10）+ 性能预算
+> - **5 个配置附件**完整 schema（baseline-pvm/gvm + fault_class_dict + fault_causation_graph + scenario-registry）
+> - **完整 C++ 接口契约**（§21 / §22），代码风格对齐 polaris 现有代码（namespace + member_ + IXxx + std::shared_ptr）
+> - **25 个验收 TC** + 5 个性能压力 TC + 故障注入接口（§25）
+
+**与旧版 `network_diagnosis_detailed_design.md` 的关系**：旧版保留作为"决策推导版"，含 B1-B4 / G1-G20 / review F1-F18 完整讨论历史；本文档是最终交付正本，仅描述最终设计状态。
 
 
 

@@ -7,7 +7,8 @@
 {
   "$schema":               "1.0",
   "doc":                   "Fault causation graph for derivative fault tracking (B4.③)",
-  "graph_version":         "1.0",
+  "graph_version":         "1.0+",
+  "_v11plus_changes":      "新增 E016 L7 阻塞因果链 (闭环 V2-001)",
   "depends_on_dict_version": "1.1",
   "_generated":            "2026-05-11",
 
@@ -215,6 +216,25 @@
          "max_lag_sec":120,
          "_note":"广播风暴持续会拉高 ksoftirqd"}
       ]
+    },
+
+    // ─────── L7 阻塞的关键属性：独立 fault（v1.1+ 闭环 V2-001）───────
+    // L7_PAYLOAD_STALL 是 "底层全 PASS 但应用层 payload 被拦截" 的独立故障
+    // 不能简单归到 GATEWAY_UNREACHABLE 或 TBOX_UPLINK_DOWN 之下
+    // 但有几条合理的关联：
+    {
+      "edge_id":    "E016_l7_stall_correlations",
+      "upstream":   {"class":"TBOX_UPLINK_DOWN"},
+      "downstream": [
+        {"class":"L7_PAYLOAD_STALL", "target_key_match":"VLAN3_TBOX",
+         "max_lag_sec":300,
+         "_note":"TBOX 上游断 → L7 探针也会失败（次要因果，二者通常同时出现）"}
+      ]
+    },
+    {
+      "edge_id":    "E017_l7_stall_excludes",
+      "_anti_edge": true,
+      "_note":      "明确反向：L7_PAYLOAD_STALL 不应作为 GATEWAY_UNREACHABLE / DNS_FAILURE 的派生事件；若 ICMP/DNS 都 PASS 而 L7 FAIL，则 L7 是独立根因，应单独上报"
     }
   ],
 
