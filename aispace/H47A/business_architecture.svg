@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <linearGradient id="pltplGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="aiosGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eef2ff"/>
+      <stop offset="100%" stop-color="#fafafe"/>
+    </linearGradient>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000010"/>
+    </filter>
+    <style>
+      text { font-family: 'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif; }
+      .box-title { font-size: 15px; font-weight: bold; fill: #1e293b; }
+      .box-subtitle { font-size: 11px; fill: #64748b; }
+      .box-text { font-size: 12px; fill: #475569; }
+      .tag-text { font-size: 12px; font-weight: 500; fill: #065f46; }
+      .pltpl-title { font-size: 24px; font-weight: bold; fill: #ffffff; letter-spacing: 6px; }
+      .mcu-title { font-size: 20px; font-weight: bold; fill: #64748b; letter-spacing: 16px; }
+      .aios-title { font-size: 24px; font-weight: bold; fill: #6366f1; letter-spacing: 4px; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="720" fill="#f1f5f9" rx="4"/>
+
+  <!-- ===== Layout constants ===== -->
+  <!-- Padding: 24 top, 28 left/right -->
+  <!-- Content area: x=28 to 1252 (width 1224), y=24 to 696 (height 672) -->
+  <!-- Gap: 10 -->
+  <!-- Cols: 72+10+310+10+220+10+150+10+148 = 940 fr units / 1224px -->
+  <!--   col1: 28..122, col2: 132..536, col3: 546..832, col4: 842..1037, col5: 1047..1252 -->
+  <!-- Rows: 54+10+132+10+146+10+118 = 480 fr units / 672px -->
+  <!--   row1: 24..100, row2: 110..282, row3: 292..486, row4: 496..670 -->
+
+  <!-- Row 1: Top Banner (platform delivery) -->
+  <rect x="28" y="24" width="1224" height="76" rx="8" fill="url(#pltplGrad)" filter="url(#shadow)"/>
+  <text x="640" y="74" text-anchor="middle" class="pltpl-title">平台交付</text>
+
+  <!-- MCU Sidebar (left, spans rows 2-4) -->
+  <rect x="28" y="110" width="94" height="560" rx="8" fill="#fffbeb" filter="url(#shadow)"/>
+  <rect x="28" y="110" width="94" height="560" rx="8" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <!-- top accent bar for MCU -->
+  <rect x="28" y="110" width="94" height="4" rx="2" fill="#64748b"/>
+  <text x="75" y="380" text-anchor="middle" class="mcu-title">M</text>
+  <text x="75" y="410" text-anchor="middle" class="mcu-title">C</text>
+  <text x="75" y="440" text-anchor="middle" class="mcu-title">U</text>
+
+  <!-- Row 2, Col 2: Vehicle Services -->
+  <rect x="132" y="110" width="404" height="162" rx="8" fill="#dbeafe" filter="url(#shadow)"/>
+  <rect x="132" y="110" width="404" height="162" rx="8" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <rect x="132" y="110" width="404" height="4" rx="2" fill="#2563eb"/>
+  <text x="148" y="140" class="box-title">车辆服务</text>
+  <line x1="148" y1="148" x2="520" y2="148" stroke="#e2e8f0" stroke-width="1"/>
+  <circle cx="152" cy="168" r="2" fill="#2563eb"/>
+  <text x="160" y="172" class="box-text">诊断/通信/数据</text>
+  <circle cx="152" cy="192" r="2" fill="#2563eb"/>
+  <text x="160" y="196" class="box-text">SOME/IP服务</text>
+  <circle cx="152" cy="216" r="2" fill="#2563eb"/>
+  <text x="160" y="220" class="box-text">诊断/DTC/ECU信息</text>
+  <circle cx="152" cy="240" r="2" fill="#2563eb"/>
+  <text x="160" y="244" class="box-text">OTA</text>
+  <circle cx="152" cy="258" r="2" fill="#2563eb"/>
+  <text x="160" y="262" class="box-text">车辆电源策略管理</text>
+
+  <!-- Row 2, Col 3: Vehicle Multimedia -->
+  <rect x="546" y="110" width="286" height="162" rx="8" fill="#e0f2fe" filter="url(#shadow)"/>
+  <rect x="546" y="110" width="286" height="162" rx="8" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <rect x="546" y="110" width="286" height="4" rx="2" fill="#0284c7"/>
+  <text x="562" y="140" class="box-title">车辆多媒体</text>
+  <line x1="562" y1="148" x2="816" y2="148" stroke="#e2e8f0" stroke-width="1"/>
+  <circle cx="566" cy="168" r="2" fill="#0284c7"/>
+  <text x="572" y="172" class="box-text">Audio</text>
+  <circle cx="566" cy="192" r="2" fill="#0284c7"/>
+  <text x="572" y="196" class="box-text">ADAS Camera</text>
+  <circle cx="566" cy="216" r="2" fill="#0284c7"/>
+  <text x="572" y="220" class="box-text">OMS/DMS</text>
+
+  <!-- Row 2-3, Col 4: AIOS -->
+  <rect x="842" y="110" width="195" height="366" rx="8" fill="url(#aiosGrad)" filter="url(#shadow)"/>
+  <rect x="842" y="110" width="195" height="366" rx="8" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <rect x="842" y="110" width="195" height="4" rx="2" fill="#6366f1"/>
+  <text x="940" y="305" text-anchor="middle" class="aios-title">AIOS</text>
+
+  <!-- Row 2-4, Col 5: Performance &amp; Stability -->
+  <rect x="1047" y="110" width="205" height="560" rx="8" fill="#fff1f2" filter="url(#shadow)"/>
+  <rect x="1047" y="110" width="205" height="560" rx="8" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <rect x="1047" y="110" width="205" height="4" rx="2" fill="#e11d48"/>
+  <text x="1063" y="140" class="box-title">性能与稳定性</text>
+  <line x1="1063" y1="148" x2="1236" y2="148" stroke="#e2e8f0" stroke-width="1"/>
+  <circle cx="1067" cy="168" r="2" fill="#e11d48"/>
+  <text x="1073" y="172" class="box-text">性能工具开发</text>
+  <circle cx="1067" cy="198" r="2" fill="#e11d48"/>
+  <text x="1073" y="202" class="box-text">自动化测试问题初次解析</text>
+  <circle cx="1067" cy="228" r="2" fill="#e11d48"/>
+  <text x="1073" y="232" class="box-text">市场、实车问题初次解析</text>
+  <circle cx="1067" cy="258" r="2" fill="#e11d48"/>
+  <text x="1073" y="262" class="box-text">业务资源监控、资源划分</text>
+  <circle cx="1067" cy="288" r="2" fill="#e11d48"/>
+  <text x="1073" y="292" class="box-text">质量评估、汇总、跟踪</text>
+
+  <!-- Row 3, Col 2-3: OS Infrastructure -->
+  <rect x="132" y="282" width="700" height="204" rx="8" fill="#f0fdfa" filter="url(#shadow)"/>
+  <rect x="132" y="282" width="700" height="204" rx="8" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <rect x="132" y="282" width="700" height="4" rx="2" fill="#0d9488"/>
+  <text x="148" y="312" class="box-title">OS基础设施</text>
+  <text x="242" y="312" class="box-subtitle">（QNX、Linux、Android）</text>
+  <line x1="148" y1="320" x2="816" y2="320" stroke="#e2e8f0" stroke-width="1"/>
+  <!-- Col 1 -->
+  <circle cx="152" cy="344" r="2" fill="#0d9488"/>
+  <text x="160" y="348" class="box-text">启动/服务管理</text>
+  <circle cx="152" cy="374" r="2" fill="#0d9488"/>
+  <text x="160" y="378" class="box-text">日志/文件/故障转储</text>
+  <circle cx="152" cy="404" r="2" fill="#0d9488"/>
+  <text x="160" y="408" class="box-text">调试接入/登录/远程访问</text>
+  <!-- Col 2 -->
+  <circle cx="370" cy="344" r="2" fill="#0d9488"/>
+  <text x="378" y="348" class="box-text">安全/审计</text>
+  <circle cx="370" cy="374" r="2" fill="#0d9488"/>
+  <text x="378" y="378" class="box-text">显示</text>
+  <circle cx="370" cy="404" r="2" fill="#0d9488"/>
+  <text x="378" y="408" class="box-text">平台电源管理</text>
+  <!-- Col 3 -->
+  <circle cx="588" cy="344" r="2" fill="#0d9488"/>
+  <text x="596" y="348" class="box-text">AOSP基础服务，定制裁剪</text>
+  <circle cx="588" cy="374" r="2" fill="#0d9488"/>
+  <text x="596" y="378" class="box-text">BT/WIFI 服务</text>
+  <circle cx="588" cy="404" r="2" fill="#0d9488"/>
+  <text x="596" y="408" class="box-text">CarService中非信号部分</text>
+
+  <!-- Row 4, Col 2-4: BSP -->
+  <rect x="132" y="496" width="700" height="174" rx="8" fill="#ecfdf5" filter="url(#shadow)"/>
+  <rect x="132" y="496" width="700" height="174" rx="8" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <rect x="132" y="496" width="700" height="4" rx="2" fill="#059669"/>
+  <text x="148" y="526" class="box-title">BSP</text>
+  <text x="178" y="526" class="box-subtitle">（QNX、Linux、Android）</text>
+  <line x1="148" y1="534" x2="816" y2="534" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- BSP Tags - Row 1 -->
+  <rect x="148" y="548" rx="16" width="92" height="26" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+  <text x="194" y="566" text-anchor="middle" class="tag-text">硬件资源划分</text>
+  <rect x="250" y="548" rx="16" width="44" height="26" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+  <text x="272" y="566" text-anchor="middle" class="tag-text">驱动</text>
+  <rect x="304" y="548" rx="16" width="120" height="26" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+  <text x="364" y="566" text-anchor="middle" class="tag-text">GVM &amp; hypervisor</text>
+  <rect x="434" y="548" rx="16" width="62" height="26" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+  <text x="465" y="566" text-anchor="middle" class="tag-text">ramdump</text>
+  <!-- BSP Tags - Row 2 -->
+  <rect x="148" y="582" rx="16" width="92" height="26" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+  <text x="194" y="600" text-anchor="middle" class="tag-text">thermal-engine</text>
+  <rect x="250" y="582" rx="16" width="62" height="26" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+  <text x="281" y="600" text-anchor="middle" class="tag-text">powermgr</text>
+  <rect x="322" y="582" rx="16" width="68" height="26" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+  <text x="356" y="600" text-anchor="middle" class="tag-text">基线管理</text>
+  <rect x="400" y="582" rx="16" width="68" height="26" fill="#ffffff" stroke="#a7f3d0" stroke-width="1"/>
+  <text x="434" y="600" text-anchor="middle" class="tag-text">编译配置</text>
+</svg>

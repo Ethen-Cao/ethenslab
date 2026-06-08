@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Android 16 多屏多刷新率适配方案 — 90Hz主屏 + 60Hz副屏</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --orange: #db6d28;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto;
+  }
+  h1 { color: #fff; font-size: 1.8rem; margin-bottom: 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.4rem; margin: 3rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  h3 { color: var(--text); font-size: 1.1rem; margin: 1.5rem 0 0.6rem; }
+  h4 { color: var(--text-muted); font-size: 1rem; margin: 1rem 0 0.5rem; }
+  .subtitle { color: var(--text-muted); margin-bottom: 2rem; font-size: 0.95rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 1.2rem 1.5rem; margin: 1rem 0;
+  }
+  .card.warn { border-color: var(--yellow); background: rgba(210,153,34,0.04); }
+  .card.risk { border-color: var(--red); background: rgba(248,81,73,0.04); }
+  .card.good { border-color: var(--green); background: rgba(63,185,80,0.04); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { padding: 0.6rem 0.8rem; border: 1px solid var(--border); text-align: left; }
+  th { background: rgba(88,166,255,0.08); color: var(--accent); font-weight: 600; }
+  td { color: var(--text-muted); }
+
+  .tag {
+    display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px;
+    font-size: 0.75rem; font-weight: 600; margin-right: 0.3rem;
+  }
+  .tag-red { background: rgba(248,81,73,0.2); color: var(--red); border: 1px solid rgba(248,81,73,0.4); }
+  .tag-green { background: rgba(63,185,80,0.2); color: var(--green); border: 1px solid rgba(63,185,80,0.4); }
+  .tag-yellow { background: rgba(210,153,34,0.2); color: var(--yellow); border: 1px solid rgba(210,153,34,0.4); }
+  .tag-blue { background: rgba(88,166,255,0.2); color: var(--accent); border: 1px solid rgba(88,166,255,0.4); }
+
+  .risk-list { list-style: none; padding: 0; }
+  .risk-list li { padding: 0.8rem 1rem; margin: 0.5rem 0; border-radius: 6px; border-left: 3px solid; }
+  .risk-list .critical { border-color: var(--red); background: rgba(248,81,73,0.06); }
+  .risk-list .high { border-color: var(--orange); background: rgba(219,109,40,0.06); }
+  .risk-list .medium { border-color: var(--yellow); background: rgba(210,153,34,0.06); }
+  .risk-list .low { border-color: var(--green); background: rgba(63,185,80,0.06); }
+  .risk-title { font-weight: 600; color: var(--text); margin-bottom: 0.3rem; }
+  .risk-desc { font-size: 0.85rem; color: var(--text-muted); }
+
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    background: rgba(110,118,129,0.15); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85rem;
+  }
+  .src { color: var(--text-muted); font-size: 0.8rem; font-style: italic; }
+
+  .svg-container { margin: 1.5rem 0; overflow-x: auto; }
+  .svg-container svg { display: block; margin: 0 auto; }
+  svg text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+
+  .toc { margin: 1.5rem 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc ul { list-style: none; padding-left: 1rem; }
+  .toc > ul { padding-left: 0; }
+  .toc li { padding: 0.2rem 0; font-size: 0.9rem; }
+
+  .comparison-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin: 1rem 0;
+  }
+  .comparison-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem;
+  }
+  .comparison-card.best { border-color: var(--green); border-width: 2px; }
+
+  @media (max-width: 768px) { body { padding: 1rem; } .comparison-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Android 16 多屏多刷新率适配方案</h1>
+<p class="subtitle">
+  目标组合: 主屏 90Hz + 副屏 60Hz &nbsp;|&nbsp;
+  平台: 高通 8397 (SM8750) &nbsp;|&nbsp;
+  基线: AOSP 16 (Baklava) &nbsp;|&nbsp;
+  2026-05-18
+</p>
+
+<nav class="toc card">
+  <strong>目录</strong>
+  <ul>
+    <li><a href="#req">一、需求分析</a></li>
+    <li><a href="#problem">二、当前架构的问题根因</a></li>
+    <li><a href="#scheme1">三、方案一：彻底解耦机制（上策）</a></li>
+    <li><a href="#scheme2">四、方案二：算法改良（中策）</a></li>
+    <li><a href="#scheme3">五、方案三：频率规避（下策）</a></li>
+    <li><a href="#compare">六、三方案对比</a></li>
+    <li><a href="#risks">七、全局风险矩阵与外部依赖</a></li>
+    <li><a href="#recommend">八、推荐路径</a></li>
+  </ul>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="req">一、需求分析</h2>
+
+<div class="card">
+  <h3>用户感知需求</h3>
+  <table>
+    <tr><th>场景</th><th>用户期望</th><th>当前表现</th><th>根因</th></tr>
+    <tr>
+      <td>副屏滚动（列表/网页）</td>
+      <td>与 60Hz 独立显示器一致的流畅度</td>
+      <td style="color:var(--red);">周期性卡顿，帧停留时间不均（16.6ms/33.3ms 交替）</td>
+      <td>TPT 重复导致中间帧被覆盖；App VSync 间隔振荡</td>
+    </tr>
+    <tr>
+      <td>副屏动画（过渡/共享元素）</td>
+      <td>平滑过渡</td>
+      <td style="color:var(--red);">"跳跃"式而非平滑式动画</td>
+      <td>同一 TPT 的重复 commit 覆盖前一帧</td>
+    </tr>
+    <tr>
+      <td>副屏触控交互</td>
+      <td>延迟稳定、可预测</td>
+      <td style="color:var(--yellow);">延迟在 11.1ms–33.3ms 之间抖动，时快时慢</td>
+      <td>App VSync 在 11.1/22.2ms 交替到达</td>
+    </tr>
+    <tr>
+      <td>全屏视频（副屏）</td>
+      <td>无可见抖动</td>
+      <td style="color:var(--yellow);">每约 3-5 秒轻微卡顿</td>
+      <td>被覆盖帧恰好包含关键帧时出现</td>
+    </tr>
+    <tr>
+      <td>双屏同时使用</td>
+      <td>功耗可控</td>
+      <td style="color:var(--yellow);">功耗偏高</td>
+      <td>SF 约 33% 的 commit 对副屏无效，白消耗 CPU/GPU</td>
+    </tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>技术指标需求</h3>
+  <table>
+    <tr><th>指标</th><th>当前值</th><th>目标值</th></tr>
+    <tr><td>副屏物理刷新率</td><td>60Hz (16.67ms)</td><td>60Hz — 不应被 pacesetter 覆盖</td></tr>
+    <tr><td>60fps App 的 VSync 接收间隔（连接副屏 EventThread）</td><td>交替 11.1ms / 22.2ms</td><td>均匀 16.67ms</td></tr>
+    <tr><td>副屏有效上屏帧数（去 TPT 重复后）</td><td>~30 有效帧/秒</td><td>60 帧/秒，每帧不同内容</td></tr>
+    <tr><td>SF 无效 commit 占比（副屏）</td><td>~33% (90→60)</td><td>0</td></tr>
+    <tr><td>触控→显示延迟（副屏，P95）</td><td>不可预测（33.3ms+）</td><td>≤ 2 帧 (33.3ms)，可预测</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="problem">二、当前架构的问题根因</h2>
+
+<h3>2.1 架构缺陷全景</h3>
+
+<div class="svg-container">
+<svg width="1050" height="380" viewBox="0 0 1050 380">
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#8b949e"/>
+    </marker>
+    <marker id="ahr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#f85149"/>
+    </marker>
+  </defs>
+
+  <!-- Displays -->
+  <rect x="30" y="30" width="160" height="60" rx="8" fill="#1a2e1a" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="110" y="55" text-anchor="middle" font-size="11" font-weight="600" fill="#3fb950">Display 0: 90Hz</text>
+  <text x="110" y="72" text-anchor="middle" font-size="9" fill="#8b949e">HW VSYNC 每 11.1ms</text>
+
+  <rect x="30" y="110" width="160" height="60" rx="8" fill="#1a2e1a" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="110" y="135" text-anchor="middle" font-size="11" font-weight="600" fill="#3fb950">Display 1: 60Hz</text>
+  <text x="110" y="152" text-anchor="middle" font-size="9" fill="#8b949e">HW VSYNC 每 16.7ms</text>
+
+  <!-- Per-display VsyncSchedules (OK) -->
+  <rect x="230" y="30" width="190" height="60" rx="8" fill="rgba(63,185,80,0.06)" stroke="rgba(63,185,80,0.3)" stroke-width="1"/>
+  <text x="325" y="55" text-anchor="middle" font-size="10" fill="#3fb950">VsyncSchedule-D0 ✓</text>
+  <text x="325" y="70" text-anchor="middle" font-size="9" fill="#8b949e">独立 Reactor+Predictor</text>
+
+  <rect x="230" y="110" width="190" height="60" rx="8" fill="rgba(63,185,80,0.06)" stroke="rgba(63,185,80,0.3)" stroke-width="1"/>
+  <text x="325" y="135" text-anchor="middle" font-size="10" fill="#3fb950">VsyncSchedule-D1 ✓</text>
+  <text x="325" y="150" text-anchor="middle" font-size="9" fill="#8b949e">独立 Reactor+Predictor</text>
+
+  <!-- Arrows to dispatch -->
+  <line x1="420" y1="60" x2="470" y2="60" stroke="#f85149" stroke-width="2" marker-end="url(#ahr)"/>
+  <line x1="420" y1="140" x2="470" y2="132" stroke="#8b949e" stroke-width="1" stroke-dasharray="4,3"/>
+
+  <!-- BLOCKER 1: Single EventThread -->
+  <rect x="470" y="25" width="250" height="155" rx="12" fill="rgba(248,81,73,0.06)" stroke="#f85149" stroke-width="2"/>
+  <text x="595" y="48" text-anchor="middle" font-size="11" font-weight="700" fill="#f85149">卡点一：Pacesetter 统一分发</text>
+
+  <rect x="490" y="60" width="210" height="50" rx="6" fill="#2a1010" stroke="rgba(248,81,73,0.4)" stroke-width="1"/>
+  <text x="595" y="80" text-anchor="middle" font-size="10" font-weight="600" fill="#f85149">EventThread ("app")</text>
+  <text x="595" y="95" text-anchor="middle" font-size="9" fill="#8b949e">→ 仅绑定 D0 (Pacesetter) VsyncSchedule</text>
+
+  <line x1="595" y1="110" x2="595" y2="130" stroke="#f85149" stroke-width="1.5" marker-end="url(#ahr)"/>
+
+  <rect x="490" y="130" width="210" height="35" rx="6" fill="#2a1010" stroke="rgba(248,81,73,0.4)" stroke-width="1"/>
+  <text x="595" y="152" text-anchor="middle" font-size="10" fill="#f85149">Choreographer 忽略 displayId</text>
+
+  <!-- BLOCKER 2: Single onFrameSignal -->
+  <rect x="750" y="25" width="270" height="155" rx="12" fill="rgba(248,81,73,0.06)" stroke="#f85149" stroke-width="2"/>
+  <text x="885" y="48" text-anchor="middle" font-size="11" font-weight="700" fill="#f85149">卡点二：Pacesetter 统一合成</text>
+
+  <rect x="770" y="60" width="230" height="50" rx="6" fill="#2a1010" stroke="rgba(248,81,73,0.4)" stroke-width="1"/>
+  <text x="885" y="80" text-anchor="middle" font-size="10" font-weight="600" fill="#f85149">MessageQueue::vsyncCallback()</text>
+  <text x="885" y="95" text-anchor="middle" font-size="9" fill="#8b949e">→ 仅注册在 D0 的 VSyncDispatch</text>
+
+  <line x1="885" y1="110" x2="885" y2="130" stroke="#f85149" stroke-width="1.5" marker-end="url(#ahr)"/>
+
+  <rect x="770" y="130" width="230" height="35" rx="6" fill="#2a1010" stroke="rgba(248,81,73,0.4)" stroke-width="1"/>
+  <text x="885" y="152" text-anchor="middle" font-size="10" fill="#f85149">Scheduler::onFrameSignal() 统一处理</text>
+
+  <!-- Effects -->
+  <rect x="490" y="210" width="530" height="155" rx="10" fill="rgba(248,81,73,0.03)" stroke="rgba(248,81,73,0.15)" stroke-width="1.5"/>
+  <text x="755" y="238" text-anchor="middle" font-size="12" font-weight="600" fill="#f85149">后果</text>
+
+  <text x="520" y="265" font-size="10" fill="var(--text-muted)">◆ 60fps App 收到 90Hz 全部 VSync（间隔 11.1ms）</text>
+  <text x="520" y="285" font-size="10" fill="var(--text-muted)">◆ getFrameRateDivisor(90Hz, 60Hz) = 0 → isVSyncInPhase 始终 true</text>
+  <text x="520" y="305" font-size="10" fill="var(--text-muted)">◆ TPT 重复：相邻 SF 心跳指向同一副屏 VSync 边界 → 前一帧被静默覆盖</text>
+  <text x="520" y="325" font-size="10" fill="var(--text-muted)">◆ ~33% SF commit 工作对副屏无效 → 功耗浪费</text>
+  <text x="520" y="345" font-size="10" fill="var(--text-muted)">◆ FrameTimeline Jank 仅追踪 Pacesetter，副屏卡顿无指标暴露</text>
+</svg>
+</div>
+
+<h3>2.2 getFrameRateDivisor 的 90/60 bug</h3>
+
+<div class="card warn">
+  <p>这是方案二拟修复的核心 bug。源码（<code>RefreshRateSelector.cpp:1791–1805</code>）：</p>
+  <p style="font-family:monospace; font-size:0.85rem; margin-top:0.5rem;">
+    numPeriods = 90.0 / 60.0 = <strong>1.5</strong><br/>
+    numPeriodsRounded = std::round(1.5) = <strong>2.0</strong><br/>
+    abs(1.5 − 2.0) = <strong>0.5 &gt; 0.0009 (kThreshold) → return 0</strong><br/><br/>
+    → isVSyncInPhase: divisor (0) ≤ 1 → <strong>始终返回 true → 无节流</strong>
+  </p>
+</div>
+
+<h3>2.3 TPT 重复机制（默认行为：follower_display_backpressure=OFF）</h3>
+
+<div class="svg-container">
+<svg width="1000" height="280" viewBox="0 0 1000 280">
+  <defs>
+    <marker id="ah2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#8b949e"/>
+    </marker>
+    <marker id="ahr2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#f85149"/>
+    </marker>
+  </defs>
+
+  <!-- Pacesetter 90Hz heartbeat -->
+  <text x="30" y="30" font-size="12" font-weight="600" fill="#58a6ff">Pacesetter (90Hz) 心跳</text>
+  <g transform="translate(30, 45)">
+    <rect width="50" height="30" rx="4" fill="#141e30" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="25" y="19" text-anchor="middle" font-size="9" fill="#58a6ff">T≈0</text>
+    <rect x="80" width="50" height="30" rx="4" fill="#141e30" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="105" y="19" text-anchor="middle" font-size="9" fill="#58a6ff">T≈11.1</text>
+    <rect x="160" width="50" height="30" rx="4" fill="#141e30" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="185" y="19" text-anchor="middle" font-size="9" fill="#58a6ff">T≈22.2</text>
+    <rect x="240" width="50" height="30" rx="4" fill="#141e30" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="265" y="19" text-anchor="middle" font-size="9" fill="#58a6ff">T≈33.3</text>
+    <rect x="320" width="50" height="30" rx="4" fill="#141e30" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="345" y="19" text-anchor="middle" font-size="9" fill="#58a6ff">T≈44.4</text>
+  </g>
+
+  <!-- SF commit for follower -->
+  <text x="30" y="110" font-size="12" font-weight="600" fill="#d29922">SF 对副屏 commit</text>
+  <g transform="translate(30, 125)">
+    <rect width="50" height="30" rx="4" fill="#2a2000" stroke="#d29922" stroke-width="1"/>
+    <text x="25" y="19" text-anchor="middle" font-size="9" fill="#d29922">commit</text>
+    <rect x="80" width="50" height="30" rx="4" fill="#2a2000" stroke="#d29922" stroke-width="1"/>
+    <text x="105" y="19" text-anchor="middle" font-size="9" fill="#d29922">commit</text>
+    <rect x="160" width="50" height="30" rx="4" fill="#2a2000" stroke="#d29922" stroke-width="1"/>
+    <text x="185" y="19" text-anchor="middle" font-size="9" fill="#d29922">commit</text>
+    <rect x="240" width="50" height="30" rx="4" fill="#2a2000" stroke="#d29922" stroke-width="1"/>
+    <text x="265" y="19" text-anchor="middle" font-size="9" fill="#d29922">commit</text>
+    <rect x="320" width="50" height="30" rx="4" fill="#2a2000" stroke="#d29922" stroke-width="1"/>
+    <text x="345" y="19" text-anchor="middle" font-size="9" fill="#d29922">commit</text>
+  </g>
+
+  <!-- TPT values -->
+  <text x="30" y="185" font-size="12" font-weight="600" fill="#3fb950">副屏 TPT</text>
+  <g transform="translate(30, 200)">
+    <rect width="50" height="30" rx="4" fill="#1a2e1a" stroke="#3fb950" stroke-width="1"/>
+    <text x="25" y="19" text-anchor="middle" font-size="9" fill="#3fb950">16.6</text>
+    <rect x="80" width="50" height="30" rx="4" fill="#1a2e1a" stroke="#3fb950" stroke-width="1"/>
+    <text x="105" y="19" text-anchor="middle" font-size="9" fill="#3fb950">33.3</text>
+    <rect x="160" width="50" height="30" rx="4" fill="#2a0000" stroke="#f85149" stroke-width="2"/>
+    <text x="185" y="19" text-anchor="middle" font-size="9" fill="#f85149">33.3</text>
+    <rect x="240" width="50" height="30" rx="4" fill="#1a2e1a" stroke="#3fb950" stroke-width="1"/>
+    <text x="265" y="19" text-anchor="middle" font-size="9" fill="#3fb950">50.0</text>
+    <rect x="320" width="50" height="30" rx="4" fill="#2a0000" stroke="#f85149" stroke-width="2"/>
+    <text x="345" y="19" text-anchor="middle" font-size="9" fill="#f85149">50.0</text>
+  </g>
+
+  <text x="565" y="90" font-size="11" font-weight="700" fill="#f85149">红色 TPT = 与前一帧重复 → 前一帧被覆盖</text>
+
+  <line x1="210" y1="145" x2="210" y2="195" stroke="#f85149" stroke-width="2"/>
+  <line x1="370" y1="145" x2="370" y2="195" stroke="#f85149" stroke-width="2"/>
+
+  <!-- HWC Hardware timing -->
+  <text x="30" y="258" font-size="12" font-weight="600" fill="#bc8cff">60Hz HW VSync</text>
+  <g transform="translate(30, 268)">
+    <rect width="30" height="10" rx="2" fill="#bc8cff"/>
+    <text x="100" y="9" text-anchor="middle" font-size="9" fill="#bc8cff">16.6ms ↑</text>
+    <rect x="165" y="0" width="30" height="10" rx="2" fill="#bc8cff"/>
+    <text x="235" y="9" text-anchor="middle" font-size="9" fill="#bc8cff">33.3ms ↑</text>
+    <rect x="320" y="0" width="30" height="10" rx="2" fill="#bc8cff"/>
+    <text x="390" y="9" text-anchor="middle" font-size="9" fill="#bc8cff">50.0ms ↑</text>
+  </g>
+</svg>
+</div>
+
+<p style="font-size:0.85rem; color:var(--text-muted); margin-top:0.5rem;">
+  <strong>关键洞察：</strong>默认路径（follower_display_backpressure=OFF）中，SF 不会"跳过"副屏——它每帧都执行 commit。
+  问题是两个连续的 SF 心跳可能指向 <strong>相同的副屏 VSync 边界</strong>（均为 33.3ms，均为 50.0ms）。
+  第二个 commit 覆盖 HWC 队列中第一个 commit 的帧。只有 <strong>一半的 commit 帧能真正上屏</strong>（按 HWC 的 60Hz 节拍），被覆盖的帧则是无效工作。
+</p>
+
+<!-- ============================================================ -->
+<h2 id="scheme1">三、方案一：彻底解耦机制（上策）</h2>
+
+<div class="card good">
+  <strong>目标：</strong>主屏和副屏以各自独立的 VSync 节奏完全自主运行，架构上互不干扰。
+  <br/><strong>适用对象：</strong>具备深度 AOSP 定制能力的车机/多屏设备团队。
+  <br/><strong>效果：</strong>每个 App 接收到所附着显示器对应的 VSync；每个显示器独立控制 commit/composite 时序。
+</div>
+
+<h3>3.1 改造一：Per-Display EventThread — App 侧解耦</h3>
+
+<div class="svg-container">
+<svg width="1000" height="330" viewBox="0 0 1000 330">
+  <defs>
+    <marker id="ah3" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#8b949e"/>
+    </marker>
+    <marker id="ag3" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#3fb950"/>
+    </marker>
+  </defs>
+
+  <!-- Before -->
+  <text x="250" y="25" text-anchor="middle" font-size="13" font-weight="600" fill="#f85149">改造前</text>
+
+  <rect x="30" y="40" width="180" height="50" rx="8" fill="#141e30" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="120" y="62" text-anchor="middle" font-size="10" fill="#58a6ff">VsyncSchedule-D0 (90Hz)</text>
+  <text x="120" y="77" text-anchor="middle" font-size="9" fill="#8b949e">Pacesetter</text>
+
+  <rect x="30" y="110" width="180" height="50" rx="8" fill="#141e30" stroke="#58a6ff" stroke-width="0.8" stroke-dasharray="4,3"/>
+  <text x="120" y="132" text-anchor="middle" font-size="10" fill="var(--text-muted)">VsyncSchedule-D1 (60Hz)</text>
+  <text x="120" y="147" text-anchor="middle" font-size="9" fill="var(--text-muted)">未使用</text>
+
+  <line x1="210" y1="65" x2="260" y2="65" stroke="#f85149" stroke-width="2" marker-end="url(#ah3)"/>
+  <text x="235" y="58" text-anchor="middle" font-size="8" fill="#f85149">唯一绑定</text>
+
+  <rect x="260" y="40" width="230" height="50" rx="8" fill="#2a1010" stroke="#f85149" stroke-width="1.5"/>
+  <text x="375" y="60" text-anchor="middle" font-size="10" font-weight="600" fill="#f85149">全局唯一 EventThread</text>
+  <text x="375" y="75" text-anchor="middle" font-size="9" fill="#8b949e">mVsyncSchedule = D0's</text>
+
+  <text x="375" y="112" text-anchor="middle" font-size="10" fill="#f85149">⇩ 所有 App, 无论连到哪个屏幕, 均收到 90Hz VSync ⇩</text>
+
+  <rect x="260" y="125" width="110" height="35" rx="6" fill="#1e1430" stroke="#bc8cff" stroke-width="1"/>
+  <text x="315" y="147" text-anchor="middle" font-size="9" fill="#bc8cff">App-D0 (90fps)</text>
+  <rect x="380" y="125" width="110" height="35" rx="6" fill="#1e1430" stroke="#bc8cff" stroke-width="1"/>
+  <text x="435" y="147" text-anchor="middle" font-size="9" fill="#bc8cff">App-D1 (60fps)</text>
+
+  <!-- After -->
+  <text x="750" y="25" text-anchor="middle" font-size="13" font-weight="600" fill="#3fb950">改造后</text>
+
+  <rect x="530" y="40" width="180" height="50" rx="8" fill="#141e30" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="620" y="62" text-anchor="middle" font-size="10" fill="#58a6ff">VsyncSchedule-D0 (90Hz)</text>
+
+  <rect x="530" y="110" width="180" height="50" rx="8" fill="#141e30" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="620" y="132" text-anchor="middle" font-size="10" fill="#58a6ff">VsyncSchedule-D1 (60Hz)</text>
+
+  <line x1="710" y1="65" x2="760" y2="65" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ag3)"/>
+  <line x1="710" y1="135" x2="760" y2="135" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ag3)"/>
+
+  <rect x="760" y="35" width="210" height="45" rx="8" fill="#1a2e1a" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="865" y="55" text-anchor="middle" font-size="10" font-weight="600" fill="#3fb950">EventThread-D0 (app)</text>
+  <text x="865" y="70" text-anchor="middle" font-size="9" fill="#8b949e">mVsyncSchedule = D0's</text>
+
+  <rect x="760" y="125" width="210" height="45" rx="8" fill="#1a2e1a" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="865" y="145" text-anchor="middle" font-size="10" font-weight="600" fill="#3fb950">EventThread-D1 (app)</text>
+  <text x="865" y="160" text-anchor="middle" font-size="9" fill="#8b949e">mVsyncSchedule = D1's</text>
+
+  <line x1="865" y1="80" x2="760" y2="195" stroke="#3fb950" stroke-width="1" marker-end="url(#ag3)"/>
+  <line x1="865" y1="170" x2="865" y2="195" stroke="#3fb950" stroke-width="1" marker-end="url(#ag3)"/>
+
+  <rect x="720" y="195" width="110" height="35" rx="6" fill="#1e1430" stroke="#3fb950" stroke-width="1"/>
+  <text x="775" y="217" text-anchor="middle" font-size="9" fill="#bc8cff">App-D0 (90fps)</text>
+  <rect x="840" y="195" width="110" height="35" rx="6" fill="#1e1430" stroke="#3fb950" stroke-width="1"/>
+  <text x="895" y="217" text-anchor="middle" font-size="9" fill="#bc8cff">App-D1 (60fps)</text>
+
+  <!-- VSync timing comparison -->
+  <rect x="30" y="210" width="940" height="110" rx="8" fill="rgba(63,185,80,0.03)" stroke="rgba(63,185,80,0.1)" stroke-width="1"/>
+  <text x="500" y="235" text-anchor="middle" font-size="11" fill="#3fb950">改造后: App-D1 收到均匀 16.67ms VSync</text>
+
+  <g transform="translate(80, 250)">
+    <text x="0" y="12" font-size="9" fill="#8b949e">App-D0:</text>
+    <rect x="60" y="0" width="12" height="12" rx="2" fill="#58a6ff"/>
+    <rect x="80" y="0" width="12" height="12" rx="2" fill="#58a6ff"/>
+    <rect x="100" y="0" width="12" height="12" rx="2" fill="#58a6ff"/>
+    <rect x="120" y="0" width="12" height="12" rx="2" fill="#58a6ff"/>
+    <text x="150" y="12" font-size="9" fill="#8b949e">11.1ms 均匀间隔</text>
+  </g>
+  <g transform="translate(80, 275)">
+    <text x="0" y="12" font-size="9" fill="#8b949e">App-D1:</text>
+    <rect x="60" y="0" width="18" height="12" rx="2" fill="#3fb950"/>
+    <rect x="86" y="0" width="18" height="12" rx="2" fill="#3fb950"/>
+    <rect x="112" y="0" width="18" height="12" rx="2" fill="#3fb950"/>
+    <text x="148" y="12" font-size="9" fill="#3fb950">16.67ms 均匀间隔</text>
+  </g>
+</svg>
+</div>
+
+<h4>涉及的源码改动</h4>
+
+<table>
+  <tr><th>模块</th><th>文件</th><th>改动内容</th></tr>
+  <tr>
+    <td>AIDL 接口</td>
+    <td><code>ISurfaceComposer.aidl</code></td>
+    <td><code>createDisplayEventConnection</code> 新增 <code>long physicalDisplayId</code> 参数</td>
+  </tr>
+  <tr>
+    <td>SF 路由</td>
+    <td><code>Scheduler.cpp:createEventThread</code></td>
+    <td>为每个注册的显示器创建 EventThread 对（app + appSf），绑定该显示器自己的 VsyncSchedule</td>
+  </tr>
+  <tr>
+    <td>SF 连接路由</td>
+    <td><code>Scheduler.cpp:createDisplayEventConnection</code></td>
+    <td>根据 displayId 将连接路由到对应显示器的 EventThread</td>
+  </tr>
+  <tr>
+    <td>EventThread 存储</td>
+    <td><code>Scheduler.h:Display</code> 结构</td>
+    <td>新增 <code>appEventThread</code>、<code>appSfEventThread</code> 成员</td>
+  </tr>
+  <tr>
+    <td>App 框架</td>
+    <td><code>Choreographer.java</code></td>
+    <td>移除"忽略 physicalDisplayId"的逻辑；为每个显示器维护独立的帧回调队列</td>
+  </tr>
+  <tr>
+    <td>App 框架</td>
+    <td><code>ViewRootImpl.java</code></td>
+    <td>在初始化时获取当前 Window 所在的 Display ID，创建对应显示器的 Choreographer 连接</td>
+  </tr>
+  <tr>
+    <td>客户端 IPC</td>
+    <td><code>DisplayEventReceiver.cpp</code></td>
+    <td>构造函数新增 displayId 参数，传递给 <code>createDisplayEventConnection</code></td>
+  </tr>
+</table>
+
+<h3>3.2 改造二：Per-Display 合成调度 — SF 侧解耦</h3>
+
+<div class="svg-container">
+<svg width="1000" height="280" viewBox="0 0 1000 280">
+  <defs>
+    <marker id="ag4" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#3fb950"/>
+    </marker>
+  </defs>
+
+  <!-- Before -->
+  <text x="250" y="25" text-anchor="middle" font-size="13" font-weight="600" fill="#f85149">改造前: 单一合成心跳</text>
+
+  <rect x="40" y="45" width="420" height="40" rx="6" fill="#2a1010" stroke="rgba(248,81,73,0.4)"/>
+  <text x="250" y="70" text-anchor="middle" font-size="10" fill="#f85149">MessageQueue::vsyncCallback() — 仅注册在 D0 的 VSyncDispatch</text>
+
+  <line x1="250" y1="85" x2="250" y2="105" stroke="#8b949e" stroke-width="1.5" marker-end="url(#ah3)"/>
+
+  <rect x="40" y="105" width="420" height="50" rx="6" fill="#2a1010" stroke="rgba(248,81,73,0.4)"/>
+  <text x="250" y="125" text-anchor="middle" font-size="10" font-weight="600" fill="#f85149">onFrameSignal(D0+D1 统一处理)</text>
+  <text x="250" y="142" text-anchor="middle" font-size="9" fill="#8b949e">D0 beginFrame → D0 commit → D1 beginFrame → D1 commit → unified composite</text>
+
+  <!-- After -->
+  <text x="750" y="25" text-anchor="middle" font-size="13" font-weight="600" fill="#3fb950">改造后: Per-Display 独立合成</text>
+
+  <rect x="540" y="45" width="210" height="40" rx="6" fill="#1a2e1a" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="645" y="65" text-anchor="middle" font-size="10" font-weight="600" fill="#3fb950">D0 VSyncDispatch → SF</text>
+  <text x="645" y="78" text-anchor="middle" font-size="9" fill="#8b949e">每 11.1ms</text>
+
+  <rect x="770" y="45" width="210" height="40" rx="6" fill="#1a2e1a" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="875" y="65" text-anchor="middle" font-size="10" font-weight="600" fill="#3fb950">D1 VSyncDispatch → SF</text>
+  <text x="875" y="78" text-anchor="middle" font-size="9" fill="#8b949e">每 16.7ms</text>
+
+  <line x1="645" y1="85" x2="645" y2="110" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ag4)"/>
+  <line x1="875" y1="85" x2="875" y2="110" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ag4)"/>
+
+  <rect x="540" y="110" width="210" height="40" rx="6" fill="#1a2e1a" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="645" y="130" text-anchor="middle" font-size="10" fill="#3fb950">onFrameSignalForDisplay(D0)</text>
+  <text x="645" y="143" text-anchor="middle" font-size="9" fill="#8b949e">only D0 beginFrame+commit+composite</text>
+
+  <rect x="770" y="110" width="210" height="40" rx="6" fill="#1a2e1a" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="875" y="130" text-anchor="middle" font-size="10" fill="#3fb950">onFrameSignalForDisplay(D1)</text>
+  <text x="875" y="143" text-anchor="middle" font-size="9" fill="#8b949e">only D1 beginFrame+commit+composite</text>
+
+  <!-- Timeline comparison -->
+  <rect x="40" y="180" width="940" height="90" rx="8" fill="rgba(63,185,80,0.03)" stroke="rgba(63,185,80,0.1)"/>
+  <text x="510" y="200" text-anchor="middle" font-size="10" fill="#3fb950">D0 合成: 11.1ms 均匀节奏</text>
+  <rect x="80" y="210" width="10" height="10" fill="#58a6ff"/><rect x="97" y="210" width="10" height="10" fill="#58a6ff"/><rect x="114" y="210" width="10" height="10" fill="#58a6ff"/><rect x="131" y="210" width="10" height="10" fill="#58a6ff"/><rect x="148" y="210" width="10" height="10" fill="#58a6ff"/><rect x="165" y="210" width="10" height="10" fill="#58a6ff"/>
+
+  <text x="510" y="240" text-anchor="middle" font-size="10" fill="#3fb950">D1 合成: 16.7ms 均匀节奏, 与 D0 完全独立</text>
+  <rect x="80" y="250" width="15" height="10" fill="#3fb950"/><rect x="103" y="250" width="15" height="10" fill="#3fb950"/><rect x="126" y="250" width="15" height="10" fill="#3fb950"/><rect x="149" y="250" width="15" height="10" fill="#3fb950"/>
+</svg>
+</div>
+
+<h4>涉及的源码改动</h4>
+
+<table>
+  <tr><th>模块</th><th>文件</th><th>改动内容</th></tr>
+  <tr>
+    <td>合成回调注册</td>
+    <td><code>MessageQueue.cpp:initVsyncInternal</code></td>
+    <td>变更为按显示器注册回调；每个显示器各自关联 VSyncDispatch → MessageQueue 事件</td>
+  </tr>
+  <tr>
+    <td>按显示器合成</td>
+    <td><code>Scheduler.cpp:onFrameSignal</code></td>
+    <td>拆分为 per-display 方法，仅对触发的显示器执行 beginFrame → commit → composite</td>
+  </tr>
+  <tr>
+    <td>MessageQueue 扩展</td>
+    <td><code>MessageQueue.h/cpp</code></td>
+    <td>支持多个显示器的并发 vsyncCallback；每个回调携带触发显示器的 ID</td>
+  </tr>
+  <tr>
+    <td>CompositionEngine 锁保护</td>
+    <td><code>CompositionEngine</code> 及其 <code>Output</code> 类</td>
+    <td>添加互斥锁，确保两个显示器不并发访问 shared composition state</td>
+  </tr>
+</table>
+
+<h3>3.3 方案一的可行性分析</h3>
+
+<div class="card good">
+  <strong style="color:var(--green);">✓ 可行部分</strong>
+  <ul style="margin:0.5rem 0 0 1.2rem; font-size:0.9rem;">
+    <li>AOSP 已具备完整的基础设施：每显示器独立的 <strong>VsyncSchedule</strong>（含 Reactor+Predictor+TimerQueue）、独立的 <strong>RefreshRateSelector</strong>、独立的 HWC present</li>
+    <li>源码中的 TODO (<code>EventThread.h:267</code>) 表明 per-display EventThread 是已知的计划方向，架构预留了扩展点</li>
+    <li>AIDL 接口扩展（新增 displayId 参数）是 Android 框架层改造的标准模式，版本兼容可管理</li>
+    <li><code>CompositionEngine</code> 已经以 displayId 为 key 进行分片，天然支持按显示器操作</li>
+  </ul>
+</div>
+
+<div class="card risk">
+  <strong style="color:var(--red);">✗ 风险与不确定性</strong>
+  <ul style="margin:0.5rem 0 0 1.2rem; font-size:0.9rem;">
+    <li><strong>(严重) 高通 HWC HAL 并发能力未知：</strong>闭源 HAL 的 <code>validate</code>/<code>present</code> 方法是否支持两个显示器并发调用？如果 HAL 内部有全局互斥锁，per-display 合成仍会被串行化——等于白改</li>
+    <li><strong>(严重) GPU 驱动多队列支持：</strong>两个显示器并发走 GPU 合成路径时需要 GPU 驱动支持多 command queue；高通 Adreno 驱动需确认</li>
+    <li><strong>(中等) SF 唤醒频率：</strong>单个 SF 线程同时服务两个独立的 VSync 回调时，Looper 唤醒频率可能从 90Hz 变为 ~150Hz（90+60 事件交叉），需确认功耗是否可接受</li>
+    <li><strong>(中等) App 框架改造面广：</strong>Choreographer、ViewRootImpl、DisplayEventReceiver 的改造涉及 Java 框架层，需全面的回归测试（尤其影响 WindowManager、Insets、Popups 等跨显示器场景）</li>
+    <li><strong>(低) 跨显示器 Surface 迁移：</strong>当 Layer 从一个显示器拖拽到另一个显示器时，Choreographer 的 VSync 连接需要切换——这是边缘情况但必须处理</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="scheme2">四、方案二：基于 AOSP 原生逻辑的算法改良（中策）</h2>
+
+<div class="card warn">
+  <strong>目标：</strong>在 Pacesetter 统一心跳架构内，修复 App 侧节流 bug 并启用 Follower 背压保护。
+  <br/><strong>适用对象：</strong>改动窗口有限，无法进行大规模架构改造的项目。
+  <br/><strong>效果：</strong>App VSync 从"完全无节流"改善为"交替间隔（11.1/22.2ms）"；副屏通过背压机制减少无效 commit。
+</div>
+
+<h3>4.1 改造一：修复 getFrameRateDivisor — App 侧节流</h3>
+
+<div class="card">
+  <h4>Bug 根因</h4>
+  <p style="font-family:monospace; font-size:0.85rem;">
+    <code>RefreshRateSelector::getFrameRateDivisor(90_Hz, 60_Hz)</code><br/>
+    → numPeriods = 90/60 = <strong>1.5</strong><br/>
+    → std::round(1.5) = <strong>2.0</strong> (C++ rounds halfway away from zero)<br/>
+    → abs(1.5 − 2.0) = <strong>0.5 > 0.0009</strong> → <strong>return 0</strong><br/><br/>
+    下游 <code>isVSyncInPhase</code>：<code>if (divisor == 0) return true</code> → <strong>全部放行</strong>
+  </p>
+</div>
+
+<div class="svg-container">
+<svg width="1000" height="250" viewBox="0 0 1000 250">
+  <defs>
+    <marker id="ar5" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#f85149"/>
+    </marker>
+    <marker id="ag5" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#3fb950"/>
+    </marker>
+  </defs>
+
+  <!-- Before -->
+  <text x="250" y="25" text-anchor="middle" font-size="13" font-weight="600" fill="#f85149">修复前: divisor=0, 60fps App 收到全部 90 个 VSync</text>
+
+  <g transform="translate(40, 45)">
+    <text y="14" font-size="9" fill="#8b949e">90Hz VSync:</text>
+    <rect x="100" y="2" width="10" height="10" rx="1" fill="#f85149"/>
+    <rect x="116" y="2" width="10" height="10" rx="1" fill="#f85149"/>
+    <rect x="132" y="2" width="10" height="10" rx="1" fill="#f85149"/>
+    <rect x="148" y="2" width="10" height="10" rx="1" fill="#f85149"/>
+    <rect x="164" y="2" width="10" height="10" rx="1" fill="#f85149"/>
+    <rect x="180" y="2" width="10" height="10" rx="1" fill="#f85149"/>
+    <rect x="196" y="2" width="10" height="10" rx="1" fill="#f85149"/>
+    <rect x="212" y="2" width="10" height="10" rx="1" fill="#f85149"/>
+    <text x="240" y="13" font-size="9" fill="#f85149">...  每个都发 → 90fps 实际运行</text>
+  </g>
+
+  <!-- After -->
+  <text x="250" y="115" text-anchor="middle" font-size="13" font-weight="600" fill="#3fb950">修复后: Bresenham 相位累加器, 60fps App 收到规律的 60 个 VSync/秒</text>
+
+  <g transform="translate(40, 135)">
+    <text y="14" font-size="9" fill="#8b949e">90Hz VSync:</text>
+    <rect x="100" y="2" width="10" height="10" rx="1" fill="#3fb950"/><!-- 发 -->
+    <rect x="116" y="2" width="10" height="10" rx="1" fill="#3fb950"/><!-- 发 -->
+    <rect x="132" y="2" width="10" height="10" rx="1" fill="#660000"/><!-- 拦 -->
+    <rect x="148" y="2" width="10" height="10" rx="1" fill="#3fb950"/><!-- 发 -->
+    <rect x="164" y="2" width="10" height="10" rx="1" fill="#3fb950"/><!-- 发 -->
+    <rect x="180" y="2" width="10" height="10" rx="1" fill="#660000"/><!-- 拦 -->
+    <rect x="196" y="2" width="10" height="10" rx="1" fill="#3fb950"/><!-- 发 -->
+    <rect x="212" y="2" width="10" height="10" rx="1" fill="#3fb950"/><!-- 发 -->
+    <rect x="228" y="2" width="10" height="10" rx="1" fill="#660000"/><!-- 拦 -->
+  </g>
+
+  <text x="310" y="163" font-size="10" fill="#3fb950">[发, 发, 拦, 发, 发, 拦]  — 交替 11.1ms / 22.2ms</text>
+
+  <g transform="translate(450, 135)">
+    <text y="14" font-size="9" fill="#8b949e">实际 App VSync 间隔:</text>
+    <rect x="160" y="4" width="25" height="10" rx="1" fill="#3fb950"/>
+    <rect x="195" y="4" width="40" height="10" rx="1" fill="#d29922"/>
+    <rect x="245" y="4" width="25" height="10" rx="1" fill="#3fb950"/>
+    <rect x="280" y="4" width="40" height="10" rx="1" fill="#d29922"/>
+    <text x="330" y="14" font-size="9" fill="#8b949e">~11.1ms / ~22.2ms 交替, 平均 16.6ms</text>
+  </g>
+
+  <!-- Algorithm -->
+  <rect x="40" y="195" width="920" height="45" rx="6" fill="rgba(88,166,255,0.04)" stroke="rgba(88,166,255,0.12)"/>
+  <text x="500" y="215" text-anchor="middle" font-size="10" fill="#58a6ff">Bresenham 累加器算法: 每收到一个 VSync, phase_acc += 60; if (phase_acc >= 90) { dispatch; phase_acc -= 90; } else { skip; }</text>
+  <text x="500" y="232" text-anchor="middle" font-size="9" fill="#8b949e">效果: 90 个 VSync 中恰好 dispatch 60 次 → 每秒 60 帧, 间隔交替为 11.1ms / 22.2ms</text>
+</svg>
+</div>
+
+<h4>涉及的源码改动</h4>
+
+<table>
+  <tr><th>文件</th><th>改动内容</th></tr>
+  <tr>
+    <td><code>RefreshRateSelector.cpp:getFrameRateDivisor</code></td>
+    <td>返回值 0 改为 -1；或新增 <code>getFrameRatePhaseDivisor</code> 单独处理非整数倍情况</td>
+  </tr>
+  <tr>
+    <td><code>VSyncPredictor.cpp:isVSyncInPhase</code></td>
+    <td>当 divisor 为 -1 时，走 Bresenham 相位累加器分支而非直接返回 true</td>
+  </tr>
+  <tr>
+    <td><code>EventThread.h</code>（或新增 per-connection 状态）</td>
+    <td>每个 EventThreadConnection 维护 <code>phaseAccumulator</code> 和 <code>appFrameRate</code></td>
+  </tr>
+</table>
+
+<h3>4.2 改造二：强制启用 follower_display_backpressure</h3>
+
+<div class="card">
+  <h4>工作原理（<code>Scheduler.cpp:437–468</code>）</h4>
+
+  <p style="margin-top:0.5rem;">当 <code>follower_display_backpressure = true</code> 时，Follower 的参与条件由无条件 commit 变为<strong>条件性跳过</strong>：</p>
+
+  <pre style="background:rgba(110,118,129,0.08); padding:0.8rem; border-radius:6px; font-size:0.8rem; margin-top:0.5rem; overflow-x:auto;">
+pendingFenceCount = targeter.countPresentFencesPendingAt(frameBeginTime);
+nextFollowerVsync  = display.schedulePtr->vsyncDeadlineAfter(frameBeginTime);
+
+if (pendingFenceCount > 0 &&
+    !(pendingFenceCount == 1 && nextFollowerVsync < expectedVsyncTime)) {
+    <strong>continue;</strong>  // 跳过此 Follower 在此心跳中的 commit
+}
+  </pre>
+
+  <p style="margin-top:0.8rem;"><strong>关键约束：</strong>跳帧不是固定节拍（非"每 3 跳 1"），而是取决于 Present Fence 的实际 signal 时机。在高通 HWC 的具体硬件行为上，模式会趋于</p>
+  <strong>规律</strong>，但无法从源码中给出保证。
+
+  <p style="margin-top:0.5rem;">典型 90Hz+60Hz 下 fence 时序可能的模式：</p>
+  <table>
+    <tr><th>心跳</th><th>pendingFenceCount</th><th>nextFollowerVsync < expectedVsync?</th><th>决策</th></tr>
+    <tr><td>1 (T≈0)</td><td>0（初帧无先例）</td><td>—（跳过低条件为 pendingFenceCount=0）</td><td style="color:var(--green);">参与</td></tr>
+    <tr><td>2 (T≈11.1)</td><td>1（16.6ms 的 fence 仍在 pending）</td><td>16.6 < 22.2 → 是</td><td style="color:var(--green);">参与（容忍单个）</td></tr>
+    <tr><td>3 (T≈22.2)</td><td>1 或 2（取决于 33.3ms 的 fence）</td><td>取决于 fence</td><td style="color:var(--yellow);">可能跳过</td></tr>
+  </table>
+</div>
+
+<h3>4.3 方案二的可行性分析</h3>
+
+<div class="card good">
+  <strong style="color:var(--green);">✓ 可行部分</strong>
+  <ul style="margin:0.5rem 0 0 1.2rem; font-size:0.9rem;">
+    <li>Bresenham 累加器在数学上是可靠的——对 90/60 比完美产生 [发,发,拦] 模式</li>
+    <li>改动范围小（~3 个文件），回归风险可控</li>
+    <li><code>follower_display_backpressure</code> flag 已存在且经过单元测试（<code>SchedulerTest.cpp</code> 有覆盖），仅需在 <code>.aconfig</code> 中默认启用</li>
+    <li>不依赖高通 HAL 的任何并发支持——不改变 compositor 调用模式</li>
+  </ul>
+</div>
+
+<div class="card risk">
+  <strong style="color:var(--red);">✗ 局限性与残余风险</strong>
+  <ul style="margin:0.5rem 0 0 1.2rem; font-size:0.9rem;">
+    <li><strong>(严重) App VSync 仍然不均匀：</strong>11.1ms/22.2ms 交替间隔，App 在 11.1ms 短间隔内需要比均匀 16.67ms 更快的渲染时间。如果 App 渲染时间接近 16.6ms，短间隔必丢帧</li>
+    <li><strong>(严重) SF 仍然做无效工作：</strong>Follower 在参与帧中仍可能产生 TPT 重复——backpressure 只减少 commit 次数，不能消除 TPT 对齐问题</li>
+    <li><strong>(中等) 跳帧模式依赖硬件时序：</strong>实际跳帧率不仅取决于 90/60 的数学关系，还取决于 HWC 的 fence signal 延迟——两台不同的 8397 设备可能表现不同</li>
+    <li><strong>(中等) 功耗改善不完整：</strong>SF 仍以 90Hz 周期性被唤醒，只是偶尔跳过副屏的 commit——主唤醒频率未改变</li>
+    <li><strong>(低) 优化残余：</strong>Bresenham 累加器需要 per-connection 状态维护；需要考虑连接数量增加时的内存开销</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="scheme3">五、方案三：频率规避方案（下策）</h2>
+
+<div class="card">
+  <strong>目标：</strong>完全避免非整数刷新率比的场景。当检测到副屏激活时，将主屏刷新率从 90Hz 切换为 60Hz 或 120Hz——二者均为 60Hz 的整数倍。
+  <br/><strong>适用对象：</strong>无法改动 AOSP 渲染管线的快速适配。
+  <br/><strong>效果：</strong>App 侧节流完全正确；TPT 重复仍然存在但更规律；牺牲 90Hz 主屏体验。
+</div>
+
+<h3>5.1 工作原理</h3>
+
+<div class="svg-container">
+<svg width="1000" height="240" viewBox="0 0 1000 240">
+  <defs>
+    <marker id="ag6" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#3fb950"/>
+    </marker>
+  </defs>
+
+  <!-- 90Hz (bad) -->
+  <rect x="30" y="20" width="290" height="200" rx="8" fill="rgba(248,81,73,0.04)" stroke="rgba(248,81,73,0.15)"/>
+  <text x="175" y="45" text-anchor="middle" font-size="12" font-weight="600" fill="#f85149">90Hz + 60Hz — 不可公约</text>
+  <text x="175" y="65" text-anchor="middle" font-size="10" fill="#8b949e">90/60 = 1.5 — getFrameRateDivisor = 0</text>
+  <text x="175" y="85" text-anchor="middle" font-size="10" fill="#8b949e">App 全收 90fps — 节流失效</text>
+  <text x="175" y="105" text-anchor="middle" font-size="10" fill="#8b949e">TPT 每两帧重复一次</text>
+
+  <!-- 120Hz (good) -->
+  <rect x="350" y="20" width="290" height="200" rx="8" fill="rgba(63,185,80,0.04)" stroke="rgba(63,185,80,0.2)"/>
+  <text x="495" y="45" text-anchor="middle" font-size="12" font-weight="600" fill="#3fb950">120Hz + 60Hz — 整数倍</text>
+  <text x="495" y="65" text-anchor="middle" font-size="10" fill="#3fb950">120/60 = 2 — getFrameRateDivisor = 2</text>
+  <text x="495" y="85" text-anchor="middle" font-size="10" fill="#3fb950">App 每隔 2 个 VSync 收一次 → 均匀 16.67ms</text>
+  <text x="495" y="105" text-anchor="middle" font-size="10" fill="#8b949e">TPT: 16.67, 33.33, 33.33 (重复), 50.0, ...</text>
+
+  <!-- 60Hz (equal) -->
+  <rect x="670" y="20" width="290" height="200" rx="8" fill="rgba(63,185,80,0.04)" stroke="rgba(63,185,80,0.2)"/>
+  <text x="815" y="45" text-anchor="middle" font-size="12" font-weight="600" fill="#3fb950">60Hz + 60Hz — 同频</text>
+  <text x="815" y="65" text-anchor="middle" font-size="10" fill="#3fb950">60/60 = 1 — getFrameRateDivisor = 1</text>
+  <text x="815" y="85" text-anchor="middle" font-size="10" fill="#3fb950">App 每个 VSync 收一次 → 均匀 16.67ms</text>
+  <text x="815" y="105" text-anchor="middle" font-size="10" fill="#3fb950">TPT 完全对齐, 无重复</text>
+
+  <!-- Divider lines -->
+  <line x1="340" y1="30" x2="340" y2="210" stroke="var(--border)" stroke-dasharray="4,4"/>
+  <line x1="660" y1="30" x2="660" y2="210" stroke="var(--border)" stroke-dasharray="4,4"/>
+
+  <!-- comparison at bottom -->
+  <text x="175" y="145" text-anchor="middle" font-size="11" fill="#f85149">✗ 副屏卡顿</text>
+  <text x="175" y="165" text-anchor="middle" font-size="11" fill="#f85149">✗ App 丢帧</text>
+  <text x="175" y="185" text-anchor="middle" font-size="11" fill="#f85149">✓ 主屏 90Hz</text>
+  <text x="175" y="205" text-anchor="middle" font-size="11" fill="#8b949e">主屏代价: 无</text>
+
+  <text x="495" y="145" text-anchor="middle" font-size="11" fill="#d29922">⚠ 副屏改善</text>
+  <text x="495" y="165" text-anchor="middle" font-size="11" fill="#3fb950">✓ App VSync 均匀</text>
+  <text x="495" y="185" text-anchor="middle" font-size="11" fill="#d29922">⚠ TPT 仍有重复</text>
+  <text x="495" y="205" text-anchor="middle" font-size="11" fill="#8b949e">主屏代价: 失去 90Hz</text>
+
+  <text x="815" y="145" text-anchor="middle" font-size="11" fill="#3fb950">✓ 副屏完美</text>
+  <text x="815" y="165" text-anchor="middle" font-size="11" fill="#3fb950">✓ App VSync 均匀</text>
+  <text x="815" y="185" text-anchor="middle" font-size="11" fill="#3fb950">✓ TPT 对齐</text>
+  <text x="815" y="205" text-anchor="middle" font-size="11" fill="#8b949e">主屏代价: 失去 90Hz, 降至 60Hz</text>
+</svg>
+</div>
+
+<h3>5.2 TPT 重复：即使 120Hz+60Hz 也仍然存在</h3>
+
+<div class="card warn">
+  <h4>关键澄清：整数比并 <strong>不</strong> 消除 TPT 重复</h4>
+
+  <p style="margin-top:0.5rem;">以 120Hz Pacesetter + 60Hz Follower 追踪 TPT：</p>
+
+  <table>
+    <tr><th>SF 心跳 (T=)</th><th>Pacesetter expectedPresent</th><th>副屏 vsyncDeadlineAfter</th><th>副屏 TPT</th><th>与前一帧重复？</th></tr>
+    <tr><td>0</td><td>8.33</td><td>snap(8.33)</td><td>16.67</td><td>—</td></tr>
+    <tr><td>8.33</td><td>16.67</td><td>snap(16.67)</td><td>33.33</td><td>否</td></tr>
+    <tr><td>16.67</td><td>25.0</td><td>snap(25.0)</td><td style="color:var(--red);"><strong>33.33</strong></td><td style="color:var(--red);"><strong>是!</strong></td></tr>
+    <tr><td>25.0</td><td>33.33</td><td>snap(33.33)</td><td>50.0</td><td>否</td></tr>
+    <tr><td>33.33</td><td>41.67</td><td>snap(41.67)</td><td style="color:var(--red);"><strong>50.0</strong></td><td style="color:var(--red);"><strong>是!</strong></td></tr>
+  </table>
+
+  <p style="margin-top:0.8rem;">
+    120Hz+60Hz 的组合下副屏 <strong>TPT 每两帧重复一次</strong>——50% 的 commit 产生无效帧，与 90Hz+60Hz 的情况完全相同。
+    区别仅在于 App VSync 现在是均匀的 16.67ms（因为 getFrameRateDivisor 正确返回 2），<strong>只有 App 侧的体验真正改善了，副屏的 TPT 覆盖问题只解决了一半。</strong>
+  </p>
+</div>
+
+<h3>5.3 方案三的可行性分析</h3>
+
+<div class="card good">
+  <strong style="color:var(--green);">✓ 可行部分</strong>
+  <ul style="margin:0.5rem 0 0 1.2rem; font-size:0.9rem;">
+    <li>无需改动渲染管线（VSync / EventThread / Scheduler / Compositor 均保持原生）</li>
+    <li>App 侧节流完美工作——整数比下 getFrameRateDivisor 返回正确值</li>
+    <li>实施成本最低——仅涉及 DisplayMode 策略层代码</li>
+  </ul>
+</div>
+
+<div class="card risk">
+  <strong style="color:var(--red);">✗ 核心牺牲与残余风险</strong>
+  <ul style="margin:0.5rem 0 0 1.2rem; font-size:0.9rem;">
+    <li><strong>(严重) 主屏体验降级：</strong>切换到 120Hz 意味着 90Hz 从此不可用——这是用户可感知的主屏流畅度退化（如视频匹配 90fps 内容的场景）；如果降为 60Hz，则主屏完全失去高刷优势</li>
+    <li><strong>(严重) TPT 重复问题未解决：</strong>即使整数比下，副屏仍有约 50% 的 commit 帧因 TPT 重复被静默覆盖。功耗浪费未改善</li>
+    <li><strong>(中等) 动态切换延迟：</strong>副屏冷插拔、副屏上启动新 App 需要触发刷新率切换 + 等待新模式稳定——过渡期间可能出现闪烁</li>
+    <li><strong>(中等) 120Hz 不一定是可用模式：</strong>需确认 8397 平台的面板规格是否支持 120Hz——如果不支持，则唯一选择是降至 60Hz</li>
+    <li><strong>(低) 双屏中间状态：</strong>副屏插入/拔出时的切换时序需要精细管理，避免两个 Mode Change 同时进行导致冲突</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="compare">六、三方案对比</h2>
+
+<div class="comparison-grid">
+  <div class="comparison-card best">
+    <h3 style="color:var(--green); margin-bottom:0.5rem;">方案一：彻底解耦</h3>
+    <table style="font-size:0.8rem;">
+      <tr><td>App VSync 均匀性</td><td style="color:var(--green);">✓ 完美 16.67ms</td></tr>
+      <tr><td>TPT 重复消除</td><td style="color:var(--green);">✓ 完全消除</td></tr>
+      <tr><td>SF 无效 commit</td><td style="color:var(--green);">✓ 降为 0</td></tr>
+      <tr><td>主屏 90Hz 保留</td><td style="color:var(--green);">✓ 保留</td></tr>
+      <tr><td>改动量</td><td style="color:var(--red);">大（~10 文件）</td></tr>
+      <tr><td>高通 HAL 依赖</td><td style="color:var(--red);">严重——需 HAL 并发支持</td></tr>
+      <tr><td>App 框架改动</td><td style="color:var(--red);">是</td></tr>
+      <tr><td>AIDL 兼容性影响</td><td style="color:var(--yellow);">需扩展接口</td></tr>
+      <tr><td>功耗改善</td><td style="color:var(--green);">最佳</td></tr>
+    </table>
+  </div>
+
+  <div class="comparison-card">
+    <h3 style="color:var(--yellow); margin-bottom:0.5rem;">方案二：算法改良</h3>
+    <table style="font-size:0.8rem;">
+      <tr><td>App VSync 均匀性</td><td style="color:var(--yellow);">⚠ 交替 11.1/22.2ms</td></tr>
+      <tr><td>TPT 重复消除</td><td style="color:var(--red);">✗ 仍存在</td></tr>
+      <tr><td>SF 无效 commit</td><td style="color:var(--yellow);">⚠ 减少但不归零</td></tr>
+      <tr><td>主屏 90Hz 保留</td><td style="color:var(--green);">✓ 保留</td></tr>
+      <tr><td>改动量</td><td style="color:var(--green);">小（~3 文件）</td></tr>
+      <tr><td>高通 HAL 依赖</td><td style="color:var(--green);">无</td></tr>
+      <tr><td>App 框架改动</td><td style="color:var(--green);">否</td></tr>
+      <tr><td>AIDL 兼容性影响</td><td style="color:var(--green);">无</td></tr>
+      <tr><td>功耗改善</td><td style="color:var(--yellow);">部分</td></tr>
+    </table>
+  </div>
+
+  <div class="comparison-card">
+    <h3 style="color:var(--text-muted); margin-bottom:0.5rem;">方案三：频率规避</h3>
+    <table style="font-size:0.8rem;">
+      <tr><td>App VSync 均匀性</td><td style="color:var(--green);">✓ 均匀 16.67ms</td></tr>
+      <tr><td>TPT 重复消除</td><td style="color:var(--red);">✗ 仍存在（～50%）</td></tr>
+      <tr><td>SF 无效 commit</td><td style="color:var(--yellow);">⚠ 50%</td></tr>
+      <tr><td>主屏 90Hz 保留</td><td style="color:var(--red);">✗ 丢失</td></tr>
+      <tr><td>改动量</td><td style="color:var(--green);">最小（仅策略层）</td></tr>
+      <tr><td>高通 HAL 依赖</td><td style="color:var(--green);">无</td></tr>
+      <tr><td>App 框架改动</td><td style="color:var(--green);">否</td></tr>
+      <tr><td>AIDL 兼容性影响</td><td style="color:var(--green);">无</td></tr>
+      <tr><td>功耗改善</td><td style="color:var(--red);">最差（主屏 120Hz 耗电更高）</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+  <h3>用户体验维度对比</h3>
+  <table>
+    <tr><th>用户感知</th><th>方案一</th><th>方案二</th><th>方案三 (120Hz)</th><th>方案三 (60Hz)</th></tr>
+    <tr><td>副屏滚动流畅度</td><td style="color:var(--green);">完美</td><td style="color:var(--yellow);">改善，偶尔卡</td><td style="color:var(--yellow);">中等</td><td style="color:var(--green);">良好</td></tr>
+    <tr><td>副屏动画平滑度</td><td style="color:var(--green);">完美</td><td style="color:var(--yellow);">改善，抖动</td><td style="color:var(--yellow);">改善</td><td style="color:var(--green);">良好</td></tr>
+    <tr><td>副屏触控响应</td><td style="color:var(--green);">稳定 16.7ms</td><td style="color:var(--yellow);">抖动</td><td style="color:var(--yellow);">抖动</td><td style="color:var(--green);">稳定</td></tr>
+    <tr><td>主屏体验</td><td style="color:var(--green);">90Hz 不变</td><td style="color:var(--green);">90Hz 不变</td><td style="color:var(--yellow);">120Hz→更流畅但功耗↑</td><td style="color:var(--red);">降至 60Hz</td></tr>
+    <tr><td>双屏功耗</td><td style="color:var(--green);">最优</td><td style="color:var(--yellow);">中等</td><td style="color:var(--red);">较高</td><td style="color:var(--yellow);">中等</td></tr>
+    <tr><td>视频播放 (副屏)</td><td style="color:var(--green);">完美</td><td style="color:var(--yellow);">偶尔卡</td><td style="color:var(--yellow);">偶尔卡</td><td style="color:var(--green);">无卡顿</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="risks">七、全局风险矩阵与外部依赖</h2>
+
+<h3>7.1 技术风险清单</h3>
+
+<ul class="risk-list">
+  <li class="critical">
+    <div class="risk-title"><span class="tag tag-red">P0</span> 高通 HWC HAL 并发能力</div>
+    <div class="risk-desc">
+      <strong>影响的方案：</strong>仅方案一<br/>
+      <strong>风险：</strong>HAL 的 <code>validate</code>/<code>present</code> 实现可能存在全局互斥锁。若 HAL 串行处理两显示器，per-display 合成改造无济于事——两个显示器仍将被串行化。<br/>
+      <strong>验证方式：</strong>联系高通获取 HAL 的线程安全文档；或编写测试代码从两个线程同时调用 <code>validate</code>/<code>present</code>，测量是否串行等待。
+    </div>
+  </li>
+  <li class="critical">
+    <div class="risk-title"><span class="tag tag-red">P0</span> GPU 驱动多队列支持</div>
+    <div class="risk-desc">
+      <strong>影响的方案：</strong>方案一、部分影响方案二（backpressure 路径需更多 GPU 合成）<br/>
+      <strong>风险：</strong>两个显示器并发走 GPU 合成时，Adreno GPU 驱动需支持并发 command submission。不支持则会导致 GPU 合成线程阻塞。<br/>
+      <strong>验证方式：</strong>高通文档 + 压力测试（两显示器同时渲染不同内容）
+    </div>
+  </li>
+  <li class="high">
+    <div class="risk-title"><span class="tag tag-red">P0</span> 120Hz 面板模式可用性</div>
+    <div class="risk-desc">
+      <strong>影响的方案：</strong>仅方案三<br/>
+      <strong>风险：</strong>8397 平台的主屏面板可能不支持 120Hz 模式。如果不支持，方案三只能降到 60Hz。<br/>
+      <strong>验证方式：</strong>检查 <code>/sys/class/drm/</code> 或 HWC 支持的显示器模式列表
+    </div>
+  </li>
+  <li class="high">
+    <div class="risk-title"><span class="tag tag-red">P0</span> 副屏 TPT 重复问题在方案二/三中仍未解决</div>
+    <div class="risk-desc">
+      <strong>影响的方案：</strong>方案二、方案三<br/>
+      <strong>风险：</strong>无论 90Hz 还是 120Hz，TPT 重复率约 50%。HWC 接收 2 帧但只能显示 1 帧。用户仍能感知到微观卡顿（尤其是在副屏高速滚动场景）。<br/>
+      <strong>缓解：</strong>方案一的 per-display 合成调度是唯一能根本消除 TPT 重复的方式。
+    </div>
+  </li>
+  <li class="medium">
+    <div class="risk-title"><span class="tag tag-yellow">P1</span> App 框架回归测试面广</div>
+    <div class="risk-desc">
+      <strong>影响的方案：</strong>仅方案一<br/>
+      <strong>风险：</strong>改动 Choreographer / ViewRootImpl 影响所有 App 的帧调度。跨显示器 Surface 迁移、Insets、Popups 场景需要全量测试。<br/>
+      <strong>缓解：</strong>分阶段灰度发布；先在副屏独占 App 上验证
+    </div>
+  </li>
+  <li class="medium">
+    <div class="risk-title"><span class="tag tag-yellow">P1</span> Bresenham 累加器状态管理</div>
+    <div class="risk-desc">
+      <strong>影响的方案：</strong>仅方案二<br/>
+      <strong>风险：</strong>每个 EventThreadConnection 需维护 phase accumulator。大量连接时的内存开销和跨线程同步需考虑。<br/>
+      <strong>缓解：</strong>使用 per-connection atomic accumulator；仅在 isVSyncInPhase 路径中初始化和更新
+    </div>
+  </li>
+  <li class="low">
+    <div class="risk-title"><span class="tag tag-green">P2</span> FrameTimeline Jank 监控扩展</div>
+    <div class="risk-desc">
+      <strong>影响的方案：</strong>所有方案<br/>
+      <strong>风险：</strong>当前 FrameTimeline 仅用 Pacesetter 的 present fence 做 Jank 分类。副屏帧的 Jank 独立追踪需要扩展 per-display。<br/>
+      <strong>缓解：</strong>方案一中可同步扩展；方案二/三可后续独立添加
+    </div>
+  </li>
+</ul>
+
+<h3>7.2 外部依赖矩阵</h3>
+
+<table>
+  <tr><th>依赖项</th><th>方案一</th><th>方案二</th><th>方案三</th><th>可控性</th></tr>
+  <tr>
+    <td>高通 HWC HAL 并发 <code>validate</code>/<code>present</code></td>
+    <td style="color:var(--red);">强制依赖</td>
+    <td style="color:var(--green);">不依赖</td>
+    <td style="color:var(--green);">不依赖</td>
+    <td style="color:var(--yellow);">低 — 需高通确认</td>
+  </tr>
+  <tr>
+    <td>Adreno GPU 驱动多队列</td>
+    <td style="color:var(--red);">强制依赖</td>
+    <td style="color:var(--yellow);">部分依赖</td>
+    <td style="color:var(--green);">不依赖</td>
+    <td style="color:var(--yellow);">低 — 需高通确认</td>
+  </tr>
+  <tr>
+    <td>120Hz 面板模式支持</td>
+    <td style="color:var(--green);">不依赖</td>
+    <td style="color:var(--green);">不依赖</td>
+    <td style="color:var(--red);">强制依赖</td>
+    <td style="color:var(--green);">高 — 可通过 sysfs 验证</td>
+  </tr>
+  <tr>
+    <td>AIDL 接口版本兼容</td>
+    <td style="color:var(--yellow);">需扩展</td>
+    <td style="color:var(--green);">不受影响</td>
+    <td style="color:var(--green);">不受影响</td>
+    <td style="color:var(--green);">高</td>
+  </tr>
+  <tr>
+    <td>现有 App 兼容性</td>
+    <td style="color:var(--yellow);">需适配</td>
+    <td style="color:var(--green);">透明</td>
+    <td style="color:var(--green);">透明</td>
+    <td style="color:var(--green);">高</td>
+  </tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="recommend">八、推荐路径</h2>
+
+<div class="card" style="border-color: var(--accent); border-width: 2px;">
+  <h3 style="color:var(--accent);">分阶段渐进策略</h3>
+
+  <div class="svg-container">
+  <svg width="950" height="140" viewBox="0 0 950 140">
+    <defs>
+      <marker id="ar7" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/>
+      </marker>
+    </defs>
+
+    <!-- Phase 0 -->
+    <rect x="10" y="20" width="240" height="55" rx="10" fill="#1a2e1a" stroke="#3fb950" stroke-width="2"/>
+    <text x="130" y="42" text-anchor="middle" font-size="11" font-weight="600" fill="#3fb950">Phase 0: 验证与确认</text>
+    <text x="130" y="58" text-anchor="middle" font-size="9" fill="#8b949e">确认 HAL 并发能力 + 120Hz 模式</text>
+    <text x="130" y="70" text-anchor="middle" font-size="9" fill="#8b949e">预计: 1-2 周</text>
+
+    <line x1="250" y1="47" x2="290" y2="47" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar7)"/>
+
+    <!-- Phase 1 -->
+    <rect x="300" y="20" width="290" height="55" rx="10" fill="#141e30" stroke="#58a6ff" stroke-width="2"/>
+    <text x="445" y="42" text-anchor="middle" font-size="11" font-weight="600" fill="#58a6ff">Phase 1: 快速改善 (方案二)</text>
+    <text x="445" y="58" text-anchor="middle" font-size="9" fill="#8b949e">修复 getFrameRateDivisor + 启用 backpressure</text>
+    <text x="445" y="70" text-anchor="middle" font-size="9" fill="#8b949e">预计: 2-3 周</text>
+
+    <line x1="590" y1="47" x2="630" y2="47" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar7)"/>
+
+    <!-- Phase 2 (conditional) -->
+    <rect x="640" y="20" width="290" height="55" rx="10" fill="rgba(210,153,34,0.06)" stroke="#d29922" stroke-width="2" stroke-dasharray="6,3"/>
+    <text x="785" y="42" text-anchor="middle" font-size="11" font-weight="600" fill="#d29922">Phase 2: 深度解耦 (方案一)</text>
+    <text x="785" y="58" text-anchor="middle" font-size="9" fill="#8b949e">Per-Display EventThread + 合成调度</text>
+    <text x="785" y="70" text-anchor="middle" font-size="9" fill="#8b949e">预计: 2-4 月 | 取决于 Phase 0 结果</text>
+
+    <!-- Divergence -->
+    <text x="130" y="115" text-anchor="middle" font-size="10" fill="#3fb950">→ HAL 不支持并发: 方案一不可行, 终止于 Phase 1 + 方案三</text>
+    <text x="625" y="115" text-anchor="middle" font-size="10" fill="#d29922">→ HAL 支持并发: 推进至 Phase 2, 实现最终目标</text>
+  </svg>
+  </div>
+
+  <h4 style="margin-top:1rem;">Phase 0 — 必须首先完成的验证</h4>
+  <ol style="margin:0.5rem 0 0 1.2rem; font-size:0.9rem; color:var(--text-muted);">
+    <li><strong>高通 HWC HAL 并发测试：</strong>编写简易测试程序，从两个线程同时调用 <code>IComposer::validate</code>/<code>present</code>（不同显示器），测量是否有串行化延迟</li>
+    <li><strong>120Hz 面板模式确认：</strong>检查 <code>dumpsys SurfaceFlinger</code> 中支持的显示模式列表，确认是否存在 120Hz 模式</li>
+    <li><strong>GPU 合成压力测试：</strong>两显示器同时播放视频，监测 GPU 利用率、合成延迟、是否有 fence timeout</li>
+  </ol>
+
+  <h4 style="margin-top:1rem;">Phase 1 — 快速改善（无论 Phase 0 的结果如何，均可推进）</h4>
+  <ol style="margin:0.5rem 0 0 1.2rem; font-size:0.9rem; color:var(--text-muted);">
+    <li>修复 <code>getFrameRateDivisor</code>：对 90/60 等非整数比引入 Bresenham 相位累加器</li>
+    <li>在 <code>.aconfig</code> 中将 <code>follower_display_backpressure</code> 默认值为 <code>true</code></li>
+    <li>添加 systrace 埋点：监测 Follower TPT 重复率、App VSync 间隔分布</li>
+  </ol>
+
+  <h4 style="margin-top:1rem;">Phase 2 — 如需根本解决则推进至方案一</h4>
+  <p style="font-size:0.9rem; margin-top:0.5rem;">
+    仅当 Phase 0 确认了 HAL+GPU 并发能力，且产品对副屏体验要求极高时，才推进至此阶段。
+    这是目前多屏车机领域领先方案的做法——主流 OEM 大多已完成类似的 per-display 改造。
+  </p>
+
+  <h4>若不推进至方案一，采用方案三作为后备</h4>
+  <p style="font-size:0.9rem; margin-top:0.5rem;">
+    若 Phase 0 发现 HAL 无法并发，且 Phase 1 的改善后副屏体验仍不达标，
+    则启用方案三：动态将主屏从 90Hz 切换为 60Hz 或 120Hz（取决于面板能力）。
+    实施时需注意切换过渡期间的 Display Mode 稳定性。
+  </p>
+</div>
+
+<p style="color:var(--text-muted); font-size:0.8rem; margin-top:3rem; text-align:center;">
+  基于 AOSP 16 (Baklava) 8397 分支源码分析 &nbsp;|&nbsp; 2026-05-18
+</p>
+
+</body>
+</html>

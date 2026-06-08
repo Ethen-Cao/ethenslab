@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>业务架构图 (Business Architecture)</title>
+    <style>
+        :root {
+            --bg-color: #f1f5f9;
+            --box-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #475569;
+            --border-color: #cbd5e1;
+            
+            /* Accents */
+            --accent-pltpl: #1e3a8a;
+            --accent-mcu: #64748b;
+            --accent-perf: #e11d48;
+            --accent-vsvc: #2563eb;
+            --accent-os: #0d9488;
+            --accent-aios: #6366f1;
+            --accent-bsp: #059669;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #e2e8f0;
+            font-family: 'Segoe UI', 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+
+        #scale-wrapper {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .ppt-container {
+            width: 1280px;
+            height: 720px;
+            background-color: var(--bg-color);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 24px 28px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            transform-origin: center center;
+            flex-shrink: 0;
+        }
+
+        .architecture-grid {
+            display: grid;
+            grid-template-columns: 72fr 310fr 220fr 150fr 148fr;
+            grid-template-rows: 54fr 132fr 146fr 118fr;
+            gap: 10px;
+            flex-grow: 1;
+        }
+
+        .box {
+            background-color: var(--box-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02), 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 12px 14px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+        }
+
+        .box-title {
+            font-size: 15px;
+            font-weight: bold;
+            color: var(--text-main);
+            margin-bottom: 6px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid transparent;
+            flex-shrink: 0;
+        }
+        .box-title .subtitle {
+            font-size: 11px;
+            font-weight: normal;
+            color: var(--text-muted);
+            letter-spacing: 0;
+        }
+
+        .box-content {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.45;
+            flex-grow: 1;
+        }
+
+        .box-content ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .box-content li {
+            position: relative;
+            padding-left: 12px;
+            margin-bottom: 4px;
+        }
+
+        .box-content li::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 6px;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background-color: currentColor;
+        }
+
+        /* --- Specific Box Styles and Grid Placement --- */
+
+        .box.pltpl {
+            grid-area: 1 / 1 / 2 / 6;
+            background: linear-gradient(135deg, var(--accent-pltpl), #2563eb);
+            color: white;
+            justify-content: center;
+            align-items: center;
+            border: none;
+            padding: 0;
+        }
+        .box.pltpl .box-title {
+            color: white;
+            margin: 0;
+            padding: 0;
+            font-size: 24px;
+            letter-spacing: 6px;
+            border: none;
+        }
+
+        .box.mcu {
+            grid-area: 2 / 1 / 5 / 2;
+            background-color: #fffbeb;
+            border-top: 4px solid var(--accent-mcu);
+            justify-content: center;
+            align-items: center;
+        }
+        .box.mcu .box-title {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            letter-spacing: 16px;
+            margin: 0;
+            padding: 0;
+            border: none;
+            font-size: 20px;
+            color: var(--accent-mcu);
+        }
+
+        .box.v-svc {
+            grid-area: 2 / 2 / 3 / 3;
+            background-color: #dbeafe;
+            border-top: 4px solid var(--accent-vsvc);
+        }
+        .box.v-svc .box-content li::before { background-color: var(--accent-vsvc); }
+
+        .box.v-mm {
+            grid-area: 2 / 3 / 3 / 4;
+            background-color: #e0f2fe;
+            border-top: 4px solid #0284c7;
+        }
+        .box.v-mm .box-content li::before { background-color: #0284c7; }
+
+        .box.aios {
+            grid-area: 2 / 4 / 4 / 5;
+            background: linear-gradient(180deg, #eef2ff, #fafafe);
+            border-top: 4px solid var(--accent-aios);
+            justify-content: center;
+            align-items: center;
+        }
+        .box.aios .box-title {
+            font-size: 24px;
+            color: var(--accent-aios);
+            border: none;
+            margin: 0;
+            padding: 0;
+            letter-spacing: 4px;
+        }
+
+        .box.perf {
+            grid-area: 2 / 5 / 5 / 6;
+            background-color: #fff1f2;
+            border-top: 4px solid var(--accent-perf);
+        }
+        .box.perf .box-content li::before { background-color: var(--accent-perf); }
+
+        .box.os {
+            grid-area: 3 / 2 / 4 / 4;
+            background-color: #f0fdfa;
+            border-top: 4px solid var(--accent-os);
+        }
+        .box.os .box-content {
+            display: flex;
+            gap: 12px;
+        }
+        .box.os .col {
+            flex: 1;
+        }
+        .box.os .box-content li::before { background-color: var(--accent-os); }
+
+        .box.bsp {
+            grid-area: 4 / 2 / 5 / 5;
+            background-color: #ecfdf5;
+            border-top: 4px solid var(--accent-bsp);
+        }
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            padding-top: 2px;
+        }
+        .tag {
+            background-color: #ffffff;
+            color: #065f46;
+            padding: 3px 10px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid #a7f3d0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="scale-wrapper">
+        <div class="ppt-container">
+            <div class="architecture-grid">
+                
+                <!-- Top Banner -->
+                <div class="box pltpl">
+                    <div class="box-title">平台交付</div>
+                </div>
+
+                <!-- Left Sidebar -->
+                <div class="box mcu">
+                    <div class="box-title">MCU</div>
+                </div>
+
+                <!-- Vehicle Services -->
+                <div class="box v-svc">
+                    <div class="box-title">车辆服务</div>
+                    <div class="box-content">
+                        <ul>
+                            <li>诊断/通信/数据</li>
+                            <li>SOME/IP服务</li>
+                            <li>诊断/DTC/ECU信息</li>
+                            <li>OTA</li>
+                            <li>车辆电源策略管理</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Vehicle Multimedia -->
+                <div class="box v-mm">
+                    <div class="box-title">车辆多媒体</div>
+                    <div class="box-content">
+                        <ul>
+                            <li>Audio</li>
+                            <li>ADAS Camera</li>
+                            <li>OMS/DMS</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- AIOS -->
+                <div class="box aios">
+                    <div class="box-title">AIOS</div>
+                </div>
+
+                <!-- Performance and Stability (Right Sidebar) -->
+                <div class="box perf">
+                    <div class="box-title">性能与稳定性</div>
+                    <div class="box-content">
+                        <ul>
+                            <li>性能工具开发</li>
+                            <li>自动化测试问题初次解析</li>
+                            <li>市场、实车问题初次解析</li>
+                            <li>业务资源监控、资源划分</li>
+                            <li>质量评估、汇总、跟踪</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- OS Infrastructure -->
+                <div class="box os">
+                    <div class="box-title">OS基础设施<span class="subtitle">（QNX、Linux、Android）</span></div>
+                    <div class="box-content">
+                        <div class="col">
+                            <ul>
+                                <li>启动/服务管理</li>
+                                <li>日志/文件/故障转储</li>
+                                <li>调试接入/登录/远程访问</li>
+                            </ul>
+                        </div>
+                        <div class="col">
+                            <ul>
+                                <li>安全/审计</li>
+                                <li>显示</li>
+                                <li>平台电源管理</li>
+                            </ul>
+                        </div>
+                        <div class="col">
+                            <ul>
+                                <li>AOSP基础服务，定制裁剪</li>
+                                <li>BT/WIFI 服务</li>
+                                <li>CarService中非信号部分</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BSP -->
+                <div class="box bsp">
+                    <div class="box-title">BSP<span class="subtitle">（QNX、Linux、Android）</span></div>
+                    <div class="box-content tags">
+                        <span class="tag">硬件资源划分</span>
+                        <span class="tag">驱动</span>
+                        <span class="tag">GVM &amp; hypervisor</span>
+                        <span class="tag">ramdump</span>
+                        <span class="tag">thermal-engine</span>
+                        <span class="tag">powermgr</span>
+                        <span class="tag">基线管理</span>
+                        <span class="tag">编译配置</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 自动缩放脚本，确保 1280x720 的画布完美适配当前浏览器窗口大小
+        function adjustScale() {
+            const wrapper = document.getElementById('scale-wrapper');
+            const container = document.querySelector('.ppt-container');
+            
+            const targetWidth = 1280;
+            const targetHeight = 720;
+            
+            const wrapperWidth = wrapper.clientWidth;
+            const wrapperHeight = wrapper.clientHeight;
+            
+            // 留出 4% 的边距防止贴边
+            const scaleX = (wrapperWidth * 0.96) / targetWidth;
+            const scaleY = (wrapperHeight * 0.96) / targetHeight;
+            
+            // 取最小缩放比例以保持 16:9 并完整显示
+            const scale = Math.min(scaleX, scaleY);
+            
+            container.style.transform = `scale(${scale})`;
+        }
+
+        // 初始化缩放并监听窗口调整
+        window.addEventListener('resize', adjustScale);
+        adjustScale();
+    </script>
+</body>
+</html>
