@@ -28,7 +28,7 @@ tags = ["Android", "Linux", "Virtualization", "Gunyah", "Qualcomm", "HAB", "IPC"
 
 **让 `PVM side` 和 `GVM side` 像使用一条“跨 VM socket”那样通信；如果消息不够，还可以继续用同一套框架共享大块 buffer，或者触发 doorbell/virq。**
 
-在本文里，`GVM side` 专指 Android Guest 代码基线 `/home/ethen/workspace/voyah/projects/8397/code/vendor`，`PVM side` 专指 Linux Host 代码基线 `/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc`。两侧都各自带有 HAB 用户态库和 HAB 内核驱动，所以后文凡是引用具体实现，都会显式标出来自哪一侧。
+在本文里，`GVM side` 专指 Android Guest 代码基线 `/home/ethen/workspace/company/projects/8397/code/vendor`，`PVM side` 专指 Linux Host 代码基线 `/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc`。两侧都各自带有 HAB 用户态库和 HAB 内核驱动，所以后文凡是引用具体实现，都会显式标出来自哪一侧。
 
 本文基于当前机器可见源码整理，重点解释 HAB 的**分层、对象模型、建链机制、消息机制、共享内存机制以及 VIRQ 原理**。显示链路只是 HAB 的一个具体业务实例，不是本文主体。
 
@@ -177,8 +177,8 @@ display 链路里你会看到：
 
 这篇文档涉及两套彼此独立的 HAB 代码基线：
 
-- `GVM side`：Android Guest 代码树 `/home/ethen/workspace/voyah/projects/8397/code/vendor`
-- `PVM side`：Linux Host 代码树 `/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc`
+- `GVM side`：Android Guest 代码树 `/home/ethen/workspace/company/projects/8397/code/vendor`
+- `PVM side`：Linux Host 代码树 `/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc`
 
 后文如果只谈 `MMID / pchan / vchan / session_id / export_id` 这些概念，表示它们是两侧 HAB 共同使用的抽象；一旦落到具体文件路径，就会显式标注 `PVM side` 或 `GVM side`。
 

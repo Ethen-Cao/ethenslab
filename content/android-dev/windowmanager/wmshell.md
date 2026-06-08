@@ -239,7 +239,7 @@ classDiagram
     DisplayContent *-- AppTransitionController
 ```
 
-从当前源码看，`ActivityTaskManagerService` 持有 `mWindowOrganizerController`。当前项目树虽然通过 `VoyahServicePolicyManager.makeNewWindowOrganizerController(this)` 包了一层初始化，但最终暴露出来的仍然是同一套 `WindowOrganizerController` 结构。
+从当前源码看，`ActivityTaskManagerService` 持有 `mWindowOrganizerController`。当前项目树虽然通过 `CompanyServicePolicyManager.makeNewWindowOrganizerController(this)` 包了一层初始化，但最终暴露出来的仍然是同一套 `WindowOrganizerController` 结构。
 
 `WindowOrganizerController` 自身实现了 `IWindowOrganizerController.Stub`，因此 Shell 侧常见的这些 API：
 

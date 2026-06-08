@@ -1184,7 +1184,7 @@ EventStore 是 PolarisAgent 的**唯一数据持久化层**。所有事件先写
 #### 7.5.2 ContentProvider URI
 
 ```
-content://com.voyah.polaris.agent.provider/events
+content://com.company.polaris.agent.provider/events
 ```
 
 | URI 路径 | 操作 | 说明 |
@@ -1215,7 +1215,7 @@ CREATE INDEX idx_created_at ON events(created_at);
 ```java
 public class EventStore {
     private static final Uri CONTENT_URI =
-        Uri.parse("content://com.voyah.polaris.agent.provider/events");
+        Uri.parse("content://com.company.polaris.agent.provider/events");
 
     // 写入 (写入后自动 notifyChange)
     void insert(PolarisEvent event);
@@ -1564,7 +1564,7 @@ service polarisd /system/bin/polarisd
 ## 11. 部署目录结构
 
 ```txt
-vendor/voyah/system/polaris/
+vendor/company/system/polaris/
 ├── README.md
 │
 ├── native/
@@ -1656,10 +1656,10 @@ vendor/voyah/system/polaris/
     ├── polaris-sdk/                             # Java 客户端 SDK
     │   ├── Android.bp
     │   └── src/main/
-    │       ├── aidl/com/voyah/polaris/
+    │       ├── aidl/com/company/polaris/
     │       │   ├── IPolarisAgentService.aidl
     │       │   └── event/PolarisEvent.aidl
-    │       └── java/com/voyah/polaris/
+    │       └── java/com/company/polaris/
     │           ├── PolarisAgentManager.java
     │           ├── PolarisConstant.java
     │           ├── event/
@@ -1671,7 +1671,7 @@ vendor/voyah/system/polaris/
     ├── PolarisAgent/                            # 系统特权 APK
     │   ├── Android.bp
     │   ├── AndroidManifest.xml
-    │   └── src/main/java/com/voyah/polaris/agent/
+    │   └── src/main/java/com/company/polaris/agent/
     │       ├── PolarisAgentApplication.java
     │       ├── PolarisAgentService.java         #   Service 入口, 三来源事件入队
     │       ├── transport/

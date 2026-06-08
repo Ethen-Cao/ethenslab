@@ -3,7 +3,7 @@ date = '2025-09-29T10:22:54+08:00'
 draft = true
 title = 'Android Window Brightness Override 技术实现细节深度解析'
 +++
-本文将深入剖析 Android 系统中 **Window Brightness Override**（窗口亮度覆盖）机制的实现原理。基于提供的系统源码文件（`RootWindowContainer.java`、`DisplayPowerController.java` 等），我们将详细还原从应用层发起请求到底层硬件执行的全链路流程，特别是针对包含 **Voyah Porting** 定制逻辑的实现进行重点分析。
+本文将深入剖析 Android 系统中 **Window Brightness Override**（窗口亮度覆盖）机制的实现原理。基于提供的系统源码文件（`RootWindowContainer.java`、`DisplayPowerController.java` 等），我们将详细还原从应用层发起请求到底层硬件执行的全链路流程，特别是针对包含 **Company Porting** 定制逻辑的实现进行重点分析。
 
 ## 架构
 
@@ -117,7 +117,7 @@ DPC 内部逻辑会发现 PMS 的请求无效，转而使用从 WMS 接收并缓
 
 ### 第四阶段：执行与双通道下发 (定制逻辑)
 
-在标准的 AOSP 实现中，这里会启动一个 `RampAnimator` 进行平滑的亮度渐变。但在提供的代码中，我们观察到了显著的 **Voyah Porting** 定制修改。
+在标准的 AOSP 实现中，这里会启动一个 `RampAnimator` 进行平滑的亮度渐变。但在提供的代码中，我们观察到了显著的 **Company Porting** 定制修改。
 
 代码调用了 `animateScreenBrightness`，但内部逻辑被修改为直接调用 `directSetScreenBrightness`。
 
@@ -259,7 +259,7 @@ activate DPCHandler
             DPC -> DPC: animateScreenBrightness(target=0.8, ...)
             
             note right of DPC
-                <color:red><b>定制逻辑 (Voyah Porting):</b></color>
+                <color:red><b>定制逻辑 (Company Porting):</b></color>
                 原生 RampAnimator 被移除
                 改为直接调用 directSetScreenBrightness
             end note

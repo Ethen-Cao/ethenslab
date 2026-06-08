@@ -33,12 +33,12 @@ title = '高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码
 3.  **项目级覆盖 (Overlay) (`.dtso`)**:
 
       * **`sa8797p-overlay.dtso`**: 通用的 Overlay入口。
-      * **`sa8797p-voyah-common-overlay.dtso`**: **特定项目（Voyah）的扩展配置**。
+      * **`sa8797p-company-common-overlay.dtso`**: **特定项目（Company）的扩展配置**。
       * *最佳实践*：当需要添加新设备（如 `virtio-fs`）时，推荐修改此文件，以利用其覆盖机制，避免破坏基础平台定义。
 
 4.  **板级顶层定义 (`.dts`)**:
 
-      * **`sa8797p-voyah-v20.dts`**: 针对具体硬件板卡的顶层描述文件。
+      * **`sa8797p-company-v20.dts`**: 针对具体硬件板卡的顶层描述文件。
 
 ## 2. 编译配置 (Bitbake Recipe)
 
@@ -76,8 +76,8 @@ $(MAKE) -C $(KDIR) ... dtbs
 
 1.  **预处理**: 处理 `#include` 指令。
 2.  **编译**:
-      * 将 `.dts` (如 `sa8797p-voyah-v20.dts`) 编译为 **基础 Blob (`.dtb`)**。
-      * 将 `.dtso` (如 `sa8797p-voyah-common-overlay.dtso`) 编译为 **Overlay Blob (`.dtbo`)**。
+      * 将 `.dts` (如 `sa8797p-company-v20.dts`) 编译为 **基础 Blob (`.dtb`)**。
+      * 将 `.dtso` (如 `sa8797p-company-common-overlay.dtso`) 编译为 **Overlay Blob (`.dtbo`)**。
 
 ### 第三阶段：合并 (Merge)
 
@@ -141,7 +141,7 @@ fdtoverlay -i base.dtb -o final_merged.dtb -v overlay1.dtbo overlay2.dtbo ...
 
 ## 总结
 
-1.  **修改**: 您在 `sa8797p-voyah-common-overlay.dtso` 中添加了 `virtio-fs` 的 `label` 和 `ring-buffer`。
+1.  **修改**: 您在 `sa8797p-company-common-overlay.dtso` 中添加了 `virtio-fs` 的 `label` 和 `ring-buffer`。
 2.  **编译**: Bitbake 调用 Wrapper Makefile，进而调用 Kernel DTC，生成 `.dtb` 和 `.dtbo`。
 3.  **合并**: `merge_dtbs.sh` 将 Overlay 合并入 Base DTB。
 4.  **打包**: 合并后的 DTB 被 `mkbootimg` 打包进 `boot.img`。
@@ -157,14 +157,14 @@ package "Base / SoC Definitions" {
     component "sa8x97p-non-safe.dtsi" as nonsafe_dtsi
 }
 
-package "Voyah Project (Base DTB)" {
-    component "sa8797p-voyah-v20.dts" as voyah_v20_dts #LightBlue
-    component "sa8797p-voyah-common.dtsi" as voyah_common_dtsi
+package "Company Project (Base DTB)" {
+    component "sa8797p-company-v20.dts" as company_v20_dts #LightBlue
+    component "sa8797p-company-common.dtsi" as company_common_dtsi
     
-    voyah_v20_dts -down-> voyah_common_dtsi : includes 
-    voyah_common_dtsi -down-> sa8x97p_dtsi : includes 
-    voyah_common_dtsi -down-> sa8797p_dtsi : includes 
-    voyah_common_dtsi -down-> nonsafe_dtsi : includes 
+    company_v20_dts -down-> company_common_dtsi : includes 
+    company_common_dtsi -down-> sa8x97p_dtsi : includes 
+    company_common_dtsi -down-> sa8797p_dtsi : includes 
+    company_common_dtsi -down-> nonsafe_dtsi : includes 
 }
 
 package "Feature Definitions (DTSI)" {
@@ -185,15 +185,15 @@ package "Generic Overlay (DTBO)" {
     overlay_dtso -down-> heaps_dtsi : includes 
 }
 
-package "Voyah Project Overlay (DTBO)" {
-    component "sa8797p-voyah-v20-overlay.dtso" as voyah_v20_overlay #LightBlue
-    component "sa8797p-voyah-common-overlay.dtso" as voyah_common_overlay
+package "Company Project Overlay (DTBO)" {
+    component "sa8797p-company-v20-overlay.dtso" as company_v20_overlay #LightBlue
+    component "sa8797p-company-common-overlay.dtso" as company_common_overlay
     
-    voyah_v20_overlay -down-> voyah_common_overlay : includes 
-    voyah_common_overlay -down-> overlay_dtso : includes 
+    company_v20_overlay -down-> company_common_overlay : includes 
+    company_common_overlay -down-> overlay_dtso : includes 
 }
 
-note bottom of voyah_common_overlay
+note bottom of company_common_overlay
   **关键修改点**:
   这里引用了 &auto_vm 和 &auto_vm_0
   并追加了更多 label (0x53-0x5B) 

@@ -387,9 +387,9 @@ user=_app domain=untrusted_app type=app_data_file
 <policy>
     <!-- 我们假定该应用使用的是系统平台签名，在此基础上进行包名细化 -->
     <signer signature="@PLATFORM" >
-      <package name="com.voyah.diagnostic.service">
-        <!-- 分配一个独有的 seinfo 叫做 "voyah_diag" -->
-        <seinfo value="voyah_diag" />
+      <package name="com.company.diagnostic.service">
+        <!-- 分配一个独有的 seinfo 叫做 "company_diag" -->
+        <seinfo value="company_diag" />
       </package>
     </signer>
 </policy>
@@ -398,24 +398,24 @@ user=_app domain=untrusted_app type=app_data_file
 **步骤 2：在 `seapp_contexts` 中建立匹配规则**
 编辑 `device/<vendor>/<board>/sepolicy/vendor/seapp_contexts`：
 ```text
-# 当匹配到属于普通 app (_app) 且 seinfo 为 voyah_diag 且位于系统 priv-app 时，
-# 为其进程分配 voyah_diag_app 域，为其数据目录分配 voyah_diag_app_data_file。
-user=_app seinfo=voyah_diag isPrivApp=true domain=voyah_diag_app type=voyah_diag_app_data_file levelFrom=all
+# 当匹配到属于普通 app (_app) 且 seinfo 为 company_diag 且位于系统 priv-app 时，
+# 为其进程分配 company_diag_app 域，为其数据目录分配 company_diag_app_data_file。
+user=_app seinfo=company_diag isPrivApp=true domain=company_diag_app type=company_diag_app_data_file levelFrom=all
 ```
 
 **步骤 3：在 `.te` 文件中定义该自定义域并赋予权限**
-新建一个 `voyah_diag_app.te` 文件：
+新建一个 `company_diag_app.te` 文件：
 ```te
 # 定义 Type，并声明它属于 appdomain 域
-type voyah_diag_app, domain;
-type voyah_diag_app_data_file, file_type, data_file_type;
+type company_diag_app, domain;
+type company_diag_app_data_file, file_type, data_file_type;
 
 # 应用标准的 app 模板（包含基础访问权限）
-app_domain(voyah_diag_app)
+app_domain(company_diag_app)
 
 # --- 下面可以开始为这个特定的应用开放只有它能访问的高权限操作 ---
-allow voyah_diag_app vendor_hal_diagnostic_hwservice:hwservice_manager find;
-allow voyah_diag_app rootfs:file r_file_perms;
+allow company_diag_app vendor_hal_diagnostic_hwservice:hwservice_manager find;
+allow company_diag_app rootfs:file r_file_perms;
 # ... (按需添加其它 allow 规则) ...
 ```
 

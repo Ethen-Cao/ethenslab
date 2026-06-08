@@ -12,7 +12,7 @@ title = ' '
 polaris_api.h
 ```cpp
 /*
- * Copyright (C) 2024 Voyah Polaris Project
+ * Copyright (C) 2024 Company Polaris Project
  *
  * Polaris Event Reporting SDK (C API)
  * Thread-safe, Lazy-initialized, Opaque Handle based design.

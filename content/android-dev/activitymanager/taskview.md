@@ -1,4 +1,9 @@
-# Android 13 TaskView 实现机制
++++
+date = '2025-08-27T11:36:11+08:00'
+draft = false
+title = 'Android 13 TaskView 实现机制'
++++
+
 
 `TaskView` 是 WM Shell 提供的通用嵌入式任务容器，定义在 `frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/TaskView.java`。它继承自 `SurfaceView`，核心能力是把一个独立的 Task（及其内部的 Activity）嵌入到宿主应用的 View 树中显示。
 

@@ -191,27 +191,27 @@ end</div><h4 id=523-seapp_contexts-匹配实战案例>5.2.3 <code>seapp_contexts
 </span></span><span style=display:flex><span><span style=color:#f92672>&lt;policy&gt;</span>
 </span></span><span style=display:flex><span>    <span style=color:#75715e>&lt;!-- 我们假定该应用使用的是系统平台签名，在此基础上进行包名细化 --&gt;</span>
 </span></span><span style=display:flex><span>    <span style=color:#f92672>&lt;signer</span> <span style=color:#a6e22e>signature=</span><span style=color:#e6db74>&#34;@PLATFORM&#34;</span> <span style=color:#f92672>&gt;</span>
-</span></span><span style=display:flex><span>      <span style=color:#f92672>&lt;package</span> <span style=color:#a6e22e>name=</span><span style=color:#e6db74>&#34;com.voyah.diagnostic.service&#34;</span><span style=color:#f92672>&gt;</span>
-</span></span><span style=display:flex><span>        <span style=color:#75715e>&lt;!-- 分配一个独有的 seinfo 叫做 &#34;voyah_diag&#34; --&gt;</span>
-</span></span><span style=display:flex><span>        <span style=color:#f92672>&lt;seinfo</span> <span style=color:#a6e22e>value=</span><span style=color:#e6db74>&#34;voyah_diag&#34;</span> <span style=color:#f92672>/&gt;</span>
+</span></span><span style=display:flex><span>      <span style=color:#f92672>&lt;package</span> <span style=color:#a6e22e>name=</span><span style=color:#e6db74>&#34;com.company.diagnostic.service&#34;</span><span style=color:#f92672>&gt;</span>
+</span></span><span style=display:flex><span>        <span style=color:#75715e>&lt;!-- 分配一个独有的 seinfo 叫做 &#34;company_diag&#34; --&gt;</span>
+</span></span><span style=display:flex><span>        <span style=color:#f92672>&lt;seinfo</span> <span style=color:#a6e22e>value=</span><span style=color:#e6db74>&#34;company_diag&#34;</span> <span style=color:#f92672>/&gt;</span>
 </span></span><span style=display:flex><span>      <span style=color:#f92672>&lt;/package&gt;</span>
 </span></span><span style=display:flex><span>    <span style=color:#f92672>&lt;/signer&gt;</span>
 </span></span><span style=display:flex><span><span style=color:#f92672>&lt;/policy&gt;</span>
 </span></span></code></pre></div><p><strong>步骤 2：在 <code>seapp_contexts</code> 中建立匹配规则</strong>
-编辑 <code>device/&lt;vendor>/&lt;board>/sepolicy/vendor/seapp_contexts</code>：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span># 当匹配到属于普通 app (_app) 且 seinfo 为 voyah_diag 且位于系统 priv-app 时，
-</span></span><span style=display:flex><span># 为其进程分配 voyah_diag_app 域，为其数据目录分配 voyah_diag_app_data_file。
-</span></span><span style=display:flex><span>user=_app seinfo=voyah_diag isPrivApp=true domain=voyah_diag_app type=voyah_diag_app_data_file levelFrom=all
+编辑 <code>device/&lt;vendor>/&lt;board>/sepolicy/vendor/seapp_contexts</code>：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span># 当匹配到属于普通 app (_app) 且 seinfo 为 company_diag 且位于系统 priv-app 时，
+</span></span><span style=display:flex><span># 为其进程分配 company_diag_app 域，为其数据目录分配 company_diag_app_data_file。
+</span></span><span style=display:flex><span>user=_app seinfo=company_diag isPrivApp=true domain=company_diag_app type=company_diag_app_data_file levelFrom=all
 </span></span></code></pre></div><p><strong>步骤 3：在 <code>.te</code> 文件中定义该自定义域并赋予权限</strong>
-新建一个 <code>voyah_diag_app.te</code> 文件：</p><pre tabindex=0><code class=language-te data-lang=te># 定义 Type，并声明它属于 appdomain 域
-type voyah_diag_app, domain;
-type voyah_diag_app_data_file, file_type, data_file_type;
+新建一个 <code>company_diag_app.te</code> 文件：</p><pre tabindex=0><code class=language-te data-lang=te># 定义 Type，并声明它属于 appdomain 域
+type company_diag_app, domain;
+type company_diag_app_data_file, file_type, data_file_type;
 
 # 应用标准的 app 模板（包含基础访问权限）
-app_domain(voyah_diag_app)
+app_domain(company_diag_app)
 
 # --- 下面可以开始为这个特定的应用开放只有它能访问的高权限操作 ---
-allow voyah_diag_app vendor_hal_diagnostic_hwservice:hwservice_manager find;
-allow voyah_diag_app rootfs:file r_file_perms;
+allow company_diag_app vendor_hal_diagnostic_hwservice:hwservice_manager find;
+allow company_diag_app rootfs:file r_file_perms;
 # ... (按需添加其它 allow 规则) ...
 </code></pre><p>通过这 3 个步骤，你就完美地利用了 <code>mac_permissions.xml</code> 的解耦机制，为特定包名的 App 实现了安全、干净的 SELinux 域级别隔离。</p></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/debug/log/><span class=title>« Prev</span><br><span>Android log机制</span>
 </a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/><span class=title>Next »</span><br><span>Protocol Buffers (Protobuf) 技术指南</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·

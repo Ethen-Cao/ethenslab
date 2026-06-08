@@ -1,6 +1,7 @@
 +++
 title = "AOSP 16 VSync 实现机制"
 date = 2026-05-16
+draft = false
 +++
 
 本文档基于 AOSP 16（Baklava）源码，自底向上详细剖析 VSync 的完整实现机制。

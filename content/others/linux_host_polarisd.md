@@ -236,7 +236,7 @@ struct HostManagerEvent {
 
 ```c
 /*
- * Copyright (C) 2024 Voyah Polaris Project
+ * Copyright (C) 2024 Company Polaris Project
  *
  * Polaris Event Reporting SDK (C API)
  * Thread-safe, Lazy-initialized, Opaque Handle based design.
@@ -561,7 +561,7 @@ sequenceDiagram
 
 ### 8.1 目录结构
 ```txt
-voyah-cluster/polarisd/
+company-cluster/polarisd/
 ├── CMakeLists.txt
 ├── polarisd.service
 ├── README.md

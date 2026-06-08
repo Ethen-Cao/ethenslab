@@ -21,7 +21,7 @@ title = 'OTA 后系统应用 sharedUserId 变更，/data 数据是否保留？'
 
 ## 实测证据（先验证再分析）
 
-写了一个测试 APK `com.voyah.polaris.test`：
+写了一个测试 APK `com.company.polaris.test`：
 - 第一版：无 `sharedUserId`（普通 UID），安装并写入数据。
 - 第二版：加上 `android:sharedUserId="android.uid.system"`。
 - OTA / 开机后观察数据目录。
@@ -29,15 +29,15 @@ title = 'OTA 后系统应用 sharedUserId 变更，/data 数据是否保留？'
 关键日志：
 
 ```
-PackageManager: Package com.voyah.polaris.test shared user changed from <nothing>
+PackageManager: Package com.company.polaris.test shared user changed from <nothing>
                 to android.uid.system; replacing with new
-PackageManager: Adding duplicate shared id: 1000 name=com.voyah.polaris.test
+PackageManager: Adding duplicate shared id: 1000 name=com.company.polaris.test
 ```
 
-同时观察到 `/data/user/0/com.voyah.polaris.test/` 中原先写入的数据**不存在了**。
+同时观察到 `/data/user/0/com.company.polaris.test/` 中原先写入的数据**不存在了**。
 
 - 第一条 WARN 正是下文 `ScanPackageUtils.java:168-177` 的输出。
-- 第二条 WARN 来自 `AppIdSettingMap.registerExistingAppId()`（`AppIdSettingMap.java:80`）：PMS 尝试把 com.voyah.polaris.test 以 appId 1000 再次登记为 system 条目时，发现该 appId 已被 SharedUserSetting("android.uid.system") 占用，因此拒绝注册。
+- 第二条 WARN 来自 `AppIdSettingMap.registerExistingAppId()`（`AppIdSettingMap.java:80`）：PMS 尝试把 com.company.polaris.test 以 appId 1000 再次登记为 system 条目时，发现该 appId 已被 SharedUserSetting("android.uid.system") 占用，因此拒绝注册。
 - 方向上虽与"OTA"场景相反（普通 → system），但核心路径一致（下文"对称性"一节）。结论：**任一方向上 sharedUserId 变更，数据目录都不保留。**
 
 ## 代码执行流程
@@ -266,7 +266,7 @@ return batch.createAppData(args).whenComplete((ceDataInode, e) -> {
 
 → 数据被销毁并以新 appId 重建一个空目录。
 
-这就是为什么实测中 `com.voyah.polaris.test` 的数据"没有迁移"。Google 在 `b/221088088` 中主动关闭了 chown 式迁移路径，**sharedUserId 变更场景的数据保留只能靠应用自己做备份。**
+这就是为什么实测中 `com.company.polaris.test` 的数据"没有迁移"。Google 在 `b/221088088` 中主动关闭了 chown 式迁移路径，**sharedUserId 变更场景的数据保留只能靠应用自己做备份。**
 
 ### 旁注：`prepareAppDataLeaf` 返回的 `CompletableFuture` 到底什么时候执行？
 
@@ -534,7 +534,7 @@ installd::createAppData：
 实测日志中除了"shared user changed"之外，还看到：
 
 ```
-PackageManager: Adding duplicate shared id: 1000 name=com.voyah.polaris.test
+PackageManager: Adding duplicate shared id: 1000 name=com.company.polaris.test
 ```
 
 这来自 `AppIdSettingMap.registerExistingAppId()`：

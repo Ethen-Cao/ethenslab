@@ -1,4 +1,9 @@
-# Android Low Memory Killer Daemon (LMKD) 源码机制与策略分析
++++
+date = '2026-06-07T22:30:00+08:00'
+draft = false
+title = 'Android Low Memory Killer Daemon (LMKD) 源码机制与策略分析'
++++
+
 
 ## 简介
 Android 系统的 Low Memory Killer Daemon (lmkd) 是一个运行在用户空间的守护进程，主要负责监控 Android 系统的内存状态。当系统内存压力较高时，lmkd 会根据一定的策略杀死最不重要的进程，以保证系统能够维持在可接受的性能水平。

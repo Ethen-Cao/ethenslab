@@ -34,7 +34,7 @@ draft = true
 
 对应代码在：
 
-- [`updatemgr/src_script/updatemgr_script_local.c`](/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/voyah-cluster/updatemgr/src_script/updatemgr_script_local.c)
+- [`updatemgr/src_script/updatemgr_script_local.c`](/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc/company-cluster/updatemgr/src_script/updatemgr_script_local.c)
 
 关键常量：
 
@@ -56,8 +56,8 @@ draft = true
 
 对应代码在：
 
-- [`updatemgr/src/updatemgr_inner_common.c`](/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/voyah-cluster/updatemgr/src/updatemgr_inner_common.c)
-- [`updatemgr/src/updatemgr_mtx_event.c`](/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/voyah-cluster/updatemgr/src/updatemgr_mtx_event.c)
+- [`updatemgr/src/updatemgr_inner_common.c`](/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc/company-cluster/updatemgr/src/updatemgr_inner_common.c)
+- [`updatemgr/src/updatemgr_mtx_event.c`](/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc/company-cluster/updatemgr/src/updatemgr_mtx_event.c)
 
 因此 server 侧的 script 超时判定阈值约为：
 
@@ -142,8 +142,8 @@ sequenceDiagram
 
 `updatemgr` 和 `updatemgr_script` 用的都是同一个库：
 
-- [`libinnertimer/inc/inner_timer.h`](/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/voyah-cluster/libinnertimer/inc/inner_timer.h)
-- [`libinnertimer/src/inner_timer.c`](/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/voyah-cluster/libinnertimer/src/inner_timer.c)
+- [`libinnertimer/inc/inner_timer.h`](/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc/company-cluster/libinnertimer/inc/inner_timer.h)
+- [`libinnertimer/src/inner_timer.c`](/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc/company-cluster/libinnertimer/src/inner_timer.c)
 
 ### 4.1 初始化模型
 
@@ -266,7 +266,7 @@ sequenceDiagram
 
 ## 7. innerTimer 的实现原理与风险点
 
-这一节不再只从 `updatemgr` 的使用方视角描述，而是直接按 [`libinnertimer/src/inner_timer.c`](/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/voyah-cluster/libinnertimer/src/inner_timer.c) 的实现拆开看。
+这一节不再只从 `updatemgr` 的使用方视角描述，而是直接按 [`libinnertimer/src/inner_timer.c`](/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc/company-cluster/libinnertimer/src/inner_timer.c) 的实现拆开看。
 
 ### 7.1 全局模型
 
@@ -324,7 +324,7 @@ sequenceDiagram
 
 ### 7.4 时间基准和周期精度
 
-它的时间基准是 [`getTickCount()`](/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/voyah-cluster/libinnertimer/src/inner_timer.c#L76) 里的 `CLOCK_MONOTONIC`，单位是毫秒。
+它的时间基准是 [`getTickCount()`](/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc/company-cluster/libinnertimer/src/inner_timer.c#L76) 里的 `CLOCK_MONOTONIC`，单位是毫秒。
 
 优点是：
 
@@ -341,7 +341,7 @@ sequenceDiagram
 
 ### 7.5 `mseconds_sleep()` 为什么会明显超时
 
-[`mseconds_sleep()`](/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/voyah-cluster/libinnertimer/src/inner_timer.c#L57) 用的是：
+[`mseconds_sleep()`](/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc/company-cluster/libinnertimer/src/inner_timer.c#L57) 用的是：
 
 ```c
 select(0, NULL, NULL, NULL, &tv)

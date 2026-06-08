@@ -8,11 +8,11 @@ title = '如何分析 dumpsys gfxinfo 卡顿数据'
 
 ## 1. 样本数据
 
-以下是 `dumpsys gfxinfo com.voyah.cockpit.launcher` 的一段实测输出（节选）：
+以下是 `dumpsys gfxinfo com.company.cockpit.launcher` 的一段实测输出（节选）：
 
 ```
 UID: 1000
-Package: com.voyah.cockpit.launcher
+Package: com.company.cockpit.launcher
 Total frames rendered: 29205
 Janky frames: 28441 (97.38%)
 50th percentile: 15ms

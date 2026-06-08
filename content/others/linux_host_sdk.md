@@ -263,7 +263,7 @@ SDK 内部至少维护以下计数器（原子/无锁）并限频输出日志：
 
 ```cpp
 /*
- * Copyright (C) 2024 Voyah Polaris Project
+ * Copyright (C) 2024 Company Polaris Project
  *
  * Polaris Event Reporting SDK (C API)
  * Thread-safe, Lazy-initialized, Opaque Handle based design.

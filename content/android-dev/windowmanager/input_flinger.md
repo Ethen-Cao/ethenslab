@@ -873,7 +873,7 @@ if (setInputFilter) {
    ```bash
    adb shell settings get secure enabled_accessibility_services
    ```
-   *输出示例：`com.crystal.h37.arservice/.MyA11yService:com.voyah.cockpit/.CockpitService`*
+   *输出示例：`com.crystal.h37.arservice/.MyA11yService:com.company.cockpit/.CockpitService`*
    （冒号分隔的即为当前处于激活状态的无障碍服务包名与类名组合）。
 
 2. **查看当前绑定的无障碍服务及其权限详情：**
@@ -1085,11 +1085,11 @@ sequenceDiagram
 在 dumpsys 输出中，找到 `User state` 节点下的 `Enabled services` 和 `Bound services` 字段：
 
 ```text
-Enabled services:{ {com.voyah.ai.voice/com.voyah.ai.business.viewcmd.accessibility.VoiceAccessibilityService} }
+Enabled services:{ {com.company.ai.voice/com.company.ai.business.viewcmd.accessibility.VoiceAccessibilityService} }
 Bound services:{ Service[label=智能助手, feedbackType[FEEDBACK_GENERIC], capabilities=33, ...] }
 ```
 **解析：** 
-这就是导致整个 InputFlinger C++ 底层测速瘫痪的“元凶”！车机上的 **智能助手（语音助手）应用 `com.voyah.ai.voice`**，长期在后台静默注册并绑定了一个名为 `VoiceAccessibilityService` 的无障碍服务。
+这就是导致整个 InputFlinger C++ 底层测速瘫痪的“元凶”！车机上的 **智能助手（语音助手）应用 `com.company.ai.voice`**，长期在后台静默注册并绑定了一个名为 `VoiceAccessibilityService` 的无障碍服务。
 
 #### 罪证确凿：它到底申请了什么特权？
 我们继续看 `Bound services` 里面的 `capabilities` 字段：
