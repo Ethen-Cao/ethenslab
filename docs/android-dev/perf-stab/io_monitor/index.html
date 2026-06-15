@@ -1,18 +1,9 @@
-<!DOCTYPE html>
-<html lang="en" dir="auto">
-
-<head><meta charset="utf-8">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<meta name="robots" content="index, follow">
-<title>IO 监控参数小记 | Ethen 的实验室</title>
-<meta name="keywords" content="">
-<meta name="description" content="在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>IO 监控参数小记 | Ethen 的实验室</title><meta name=keywords content><meta name=description content="在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：
 对存储子系统（block layer）中所有块设备进行读写操作的统计和观测，包括物理设备层面和逻辑分区层面。
 1. 核心概念：什么是“IO”
 
 IO = Input/Output，这里特指块设备（block device）的 I/O 操作，即数据从内存到存储设备（或反之）的读写请求。
-UFS 本身是物理硬件（闪存控制器 &#43; NAND 颗粒），它被分区后：
+UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后：
 
 整个 UFS 设备对应 /dev/sda（或类似）。
 每个分区对应 /dev/sda1、/dev/sda2……（逻辑块设备）。
@@ -34,7 +25,7 @@ Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分�
 	
 			
 					tps / IOPS
-					每秒完成的 IO 操作次数（read &#43; write）
+					每秒完成的 IO 操作次数（read + write）
 					可选整个 UFS 或单个分区
 					反映随机读写能力
 			
@@ -48,7 +39,7 @@ Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分�
 					%util
 					设备繁忙时间百分比（队列非空时间占比）
 					通常看整个 UFS
-					最重要：&gt;80% 就接近 IO 饱和
+					最重要：>80% 就接近 IO 饱和
 			
 			
 					await / r_await / w_await
@@ -70,75 +61,16 @@ Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分�
 			
 	
 
-关键点：">
-<meta name="author" content="map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]">
-<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/">
-<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css" integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as="style">
-<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
-<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
-<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
-<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
-<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
-<meta name="theme-color" content="#2e2e33">
-<meta name="msapplication-TileColor" content="#2e2e33">
-<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/">
-<noscript>
-    <style>
-        #theme-toggle,
-        .top-link {
-            display: none;
-        }
-
-    </style>
-    <style>
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --theme: rgb(29, 30, 32);
-                --entry: rgb(46, 46, 51);
-                --primary: rgb(218, 218, 219);
-                --secondary: rgb(155, 156, 157);
-                --tertiary: rgb(65, 66, 68);
-                --content: rgb(196, 196, 197);
-                --code-block-bg: rgb(46, 46, 51);
-                --code-bg: rgb(55, 56, 62);
-                --border: rgb(51, 51, 51);
-            }
-
-            .list {
-                background: var(--theme);
-            }
-
-            .list:not(.dark)::-webkit-scrollbar-track {
-                background: 0 0;
-            }
-
-            .list:not(.dark)::-webkit-scrollbar-thumb {
-                border-color: var(--theme);
-            }
-        }
-
-    </style>
-</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/">
-  <meta property="og:site_name" content="Ethen 的实验室">
-  <meta property="og:title" content="IO 监控参数小记">
-  <meta property="og:description" content="在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：
+关键点："><meta name=author content="map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]"><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="IO 监控参数小记"><meta property="og:description" content="在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：
 对存储子系统（block layer）中所有块设备进行读写操作的统计和观测，包括物理设备层面和逻辑分区层面。
-1. 核心概念：什么是“IO” IO = Input/Output，这里特指块设备（block device）的 I/O 操作，即数据从内存到存储设备（或反之）的读写请求。 UFS 本身是物理硬件（闪存控制器 &#43; NAND 颗粒），它被分区后： 整个 UFS 设备对应 /dev/sda（或类似）。 每个分区对应 /dev/sda1、/dev/sda2……（逻辑块设备）。 所有分区共享同一套物理硬件资源（相同的控制器、相同的闪存通道、相同的队列），因此物理层面只有一个真实的 IO 通道。 2. “监测系统的 IO” 到底监测什么 Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分区）都维护独立的统计信息。你监测的“系统 IO”通常包含以下指标（常用工具 iostat -x、iotop、sar -d、fio、blktrace 等都可以看到）：
-监测维度 具体含义 对应哪个设备？ 实际意义 tps / IOPS 每秒完成的 IO 操作次数（read &#43; write） 可选整个 UFS 或单个分区 反映随机读写能力 kB_read/s
-kB_wrtn/s 每秒读取/写入的数据量（吞吐量） 可选整个 UFS 或单个分区 反映顺序读写带宽 %util 设备繁忙时间百分比（队列非空时间占比） 通常看整个 UFS 最重要：&gt;80% 就接近 IO 饱和 await / r_await / w_await 每个 IO 请求的平均等待时间（ms） 可选整个 UFS 或单个分区 反映延迟 avgqu-sz 平均 IO 队列长度 可选整个 UFS 或单个分区 队列越长，IO 压力越大 svctm 设备自身服务每个 IO 的平均时间 整个 UFS 硬件本身处理能力 关键点：">
-  <meta property="og:locale" content="en">
-  <meta property="og:type" content="article">
-    <meta property="article:section" content="android-dev">
-    <meta property="article:published_time" content="2025-09-29T11:36:11+08:00">
-    <meta property="article:modified_time" content="2025-09-29T11:36:11+08:00">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="IO 监控参数小记">
-<meta name="twitter:description" content="在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：
+1. 核心概念：什么是“IO” IO = Input/Output，这里特指块设备（block device）的 I/O 操作，即数据从内存到存储设备（或反之）的读写请求。 UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后： 整个 UFS 设备对应 /dev/sda（或类似）。 每个分区对应 /dev/sda1、/dev/sda2……（逻辑块设备）。 所有分区共享同一套物理硬件资源（相同的控制器、相同的闪存通道、相同的队列），因此物理层面只有一个真实的 IO 通道。 2. “监测系统的 IO” 到底监测什么 Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分区）都维护独立的统计信息。你监测的“系统 IO”通常包含以下指标（常用工具 iostat -x、iotop、sar -d、fio、blktrace 等都可以看到）：
+监测维度 具体含义 对应哪个设备？ 实际意义 tps / IOPS 每秒完成的 IO 操作次数（read + write） 可选整个 UFS 或单个分区 反映随机读写能力 kB_read/s
+kB_wrtn/s 每秒读取/写入的数据量（吞吐量） 可选整个 UFS 或单个分区 反映顺序读写带宽 %util 设备繁忙时间百分比（队列非空时间占比） 通常看整个 UFS 最重要：>80% 就接近 IO 饱和 await / r_await / w_await 每个 IO 请求的平均等待时间（ms） 可选整个 UFS 或单个分区 反映延迟 avgqu-sz 平均 IO 队列长度 可选整个 UFS 或单个分区 队列越长，IO 压力越大 svctm 设备自身服务每个 IO 的平均时间 整个 UFS 硬件本身处理能力 关键点："><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-09-29T11:36:11+08:00"><meta property="article:modified_time" content="2025-09-29T11:36:11+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="IO 监控参数小记"><meta name=twitter:description content="在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：
 对存储子系统（block layer）中所有块设备进行读写操作的统计和观测，包括物理设备层面和逻辑分区层面。
 1. 核心概念：什么是“IO”
 
 IO = Input/Output，这里特指块设备（block device）的 I/O 操作，即数据从内存到存储设备（或反之）的读写请求。
-UFS 本身是物理硬件（闪存控制器 &#43; NAND 颗粒），它被分区后：
+UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后：
 
 整个 UFS 设备对应 /dev/sda（或类似）。
 每个分区对应 /dev/sda1、/dev/sda2……（逻辑块设备）。
@@ -160,7 +92,7 @@ Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分�
 	
 			
 					tps / IOPS
-					每秒完成的 IO 操作次数（read &#43; write）
+					每秒完成的 IO 操作次数（read + write）
 					可选整个 UFS 或单个分区
 					反映随机读写能力
 			
@@ -174,7 +106,7 @@ Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分�
 					%util
 					设备繁忙时间百分比（队列非空时间占比）
 					通常看整个 UFS
-					最重要：&gt;80% 就接近 IO 饱和
+					最重要：>80% 就接近 IO 饱和
 			
 			
 					await / r_await / w_await
@@ -196,347 +128,11 @@ Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分�
 			
 	
 
-关键点：">
-
-
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {
-      "@type": "ListItem",
-      "position":  1 ,
-      "name": "Android系统开发",
-      "item": "https://ethen-cao.github.io/ethenslab/android-dev/"
-    }, 
-    {
-      "@type": "ListItem",
-      "position":  2 ,
-      "name": "Android 性能与稳定专项",
-      "item": "https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/"
-    }, 
-    {
-      "@type": "ListItem",
-      "position":  3 ,
-      "name": "IO 监控参数小记",
-      "item": "https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/"
-    }
-  ]
-}
-</script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BlogPosting",
-  "headline": "IO 监控参数小记",
-  "name": "IO 监控参数小记",
-  "description": "在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：\n对存储子系统（block layer）中所有块设备进行读写操作的统计和观测，包括物理设备层面和逻辑分区层面。\n1. 核心概念：什么是“IO” IO = Input/Output，这里特指块设备（block device）的 I/O 操作，即数据从内存到存储设备（或反之）的读写请求。 UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后： 整个 UFS 设备对应 /dev/sda（或类似）。 每个分区对应 /dev/sda1、/dev/sda2……（逻辑块设备）。 所有分区共享同一套物理硬件资源（相同的控制器、相同的闪存通道、相同的队列），因此物理层面只有一个真实的 IO 通道。 2. “监测系统的 IO” 到底监测什么 Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分区）都维护独立的统计信息。你监测的“系统 IO”通常包含以下指标（常用工具 iostat -x、iotop、sar -d、fio、blktrace 等都可以看到）：\n监测维度 具体含义 对应哪个设备？ 实际意义 tps / IOPS 每秒完成的 IO 操作次数（read + write） 可选整个 UFS 或单个分区 反映随机读写能力 kB_read/s\nkB_wrtn/s 每秒读取/写入的数据量（吞吐量） 可选整个 UFS 或单个分区 反映顺序读写带宽 %util 设备繁忙时间百分比（队列非空时间占比） 通常看整个 UFS 最重要：\u0026gt;80% 就接近 IO 饱和 await / r_await / w_await 每个 IO 请求的平均等待时间（ms） 可选整个 UFS 或单个分区 反映延迟 avgqu-sz 平均 IO 队列长度 可选整个 UFS 或单个分区 队列越长，IO 压力越大 svctm 设备自身服务每个 IO 的平均时间 整个 UFS 硬件本身处理能力 关键点：\n",
-  "keywords": [
-    
-  ],
-  "articleBody": "在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：\n对存储子系统（block layer）中所有块设备进行读写操作的统计和观测，包括物理设备层面和逻辑分区层面。\n1. 核心概念：什么是“IO” IO = Input/Output，这里特指块设备（block device）的 I/O 操作，即数据从内存到存储设备（或反之）的读写请求。 UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后： 整个 UFS 设备对应 /dev/sda（或类似）。 每个分区对应 /dev/sda1、/dev/sda2……（逻辑块设备）。 所有分区共享同一套物理硬件资源（相同的控制器、相同的闪存通道、相同的队列），因此物理层面只有一个真实的 IO 通道。 2. “监测系统的 IO” 到底监测什么 Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分区）都维护独立的统计信息。你监测的“系统 IO”通常包含以下指标（常用工具 iostat -x、iotop、sar -d、fio、blktrace 等都可以看到）：\n监测维度 具体含义 对应哪个设备？ 实际意义 tps / IOPS 每秒完成的 IO 操作次数（read + write） 可选整个 UFS 或单个分区 反映随机读写能力 kB_read/s\nkB_wrtn/s 每秒读取/写入的数据量（吞吐量） 可选整个 UFS 或单个分区 反映顺序读写带宽 %util 设备繁忙时间百分比（队列非空时间占比） 通常看整个 UFS 最重要：\u003e80% 就接近 IO 饱和 await / r_await / w_await 每个 IO 请求的平均等待时间（ms） 可选整个 UFS 或单个分区 反映延迟 avgqu-sz 平均 IO 队列长度 可选整个 UFS 或单个分区 队列越长，IO 压力越大 svctm 设备自身服务每个 IO 的平均时间 整个 UFS 硬件本身处理能力 关键点：\n当你用 iostat -x 1 看 /dev/sda 时，显示的是整个 UFS 的总 IO（所有分区 IO 之和 + 内核元数据 IO）。 当你指定看 /dev/sda1 时，显示的是该分区单独的 IO。 但物理瓶颈永远在整个 UFS 设备上：即使某个分区 IO 很低，只要总 IO 把 %util 打满，整个系统（包括其他分区）都会变慢。 3. 为什么分区后“系统 IO”还是以物理设备为主？ 因为 Linux 的 IO 路径是： 应用程序 → 文件系统（ext4/xfs/btrfs 等） → 块层（bio） → UFS 驱动 → 硬件。\n分区只是逻辑划分，所有 bio 请求最终都会汇集到同一个物理队列（mq-deadline / bfq / none 等）。所以“系统 IO”最核心的指标永远是整个 UFS 设备的 %util 和 await，而不是某个分区的数值。\n4. 实际监测时的推荐做法 日常监控系统 IO：iostat -x 1 或 iotop -o 或 sar -d 1，重点看整个 UFS 设备（sda/nvme0n1）的 %util 和 await。 定位哪个分区占 IO：iotop（按进程/分区看）或 blktrace + btt 分析。 压力测试：用 fio 指定不同分区或整个设备，观察总 IO 是否达到 UFS 的规格（例如 UFS 3.1 典型 800MB/s 顺序读、几十万 IOPS）。 总结一句话：\n“监测系统的 IO” 就是监测这块 UFS 物理设备（以及其上所有分区）在 Linux 块设备层面的真实读写压力。分区只是逻辑概念，物理 IO 永远是共享的，总 IO 才是判断系统是否有 IO 瓶颈的根本依据。\n",
-  "wordCount" : "225",
-  "inLanguage": "en",
-  "datePublished": "2025-09-29T11:36:11+08:00",
-  "dateModified": "2025-09-29T11:36:11+08:00",
-  "author":{
-    "@type": "Person",
-    "name": {"defaulttheme":"auto","name":"Ethen","showbreadcrumbs":true,"showcodecopybuttons":true,"showpostnavlinks":true,"showreadingtime":true,"showwordcount":true}
-  },
-  "mainEntityOfPage": {
-    "@type": "WebPage",
-    "@id": "https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/"
-  },
-  "publisher": {
-    "@type": "Organization",
-    "name": "Ethen 的实验室",
-    "logo": {
-      "@type": "ImageObject",
-      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
-    }
-  }
-}
-</script>
-</head>
-
-<body class="" id="top">
-<script>
-    if (localStorage.getItem("pref-theme") === "dark") {
-        document.body.classList.add('dark');
-    } else if (localStorage.getItem("pref-theme") === "light") {
-        document.body.classList.remove('dark')
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.body.classList.add('dark');
-    }
-
-</script>
-
-<header class="header">
-    <nav class="nav">
-        <div class="logo">
-            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
-            <div class="logo-switches">
-                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
-                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                    </svg>
-                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="5"></circle>
-                        <line x1="12" y1="1" x2="12" y2="3"></line>
-                        <line x1="12" y1="21" x2="12" y2="23"></line>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                        <line x1="1" y1="12" x2="3" y2="12"></line>
-                        <line x1="21" y1="12" x2="23" y2="12"></line>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
-                </button>
-            </div>
-        </div>
-        <ul id="menu">
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
-                    <span>Android系统开发</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
-                    <span>Android Automotive</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
-                    <span>QNX开发</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/gunyah/" title="Gunyah">
-                    <span>Gunyah</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
-                    <span>智能座舱方案</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
-                    <span>Explore AI</span>
-                </a>
-            </li>
-        </ul>
-    </nav>
-</header>
-<main class="main">
-
-<article class="post-single">
-  <header class="post-header">
-    
-    <h1 class="post-title entry-hint-parent">
-      IO 监控参数小记
-    </h1>
-    <div class="post-meta"><span title='2025-09-29 11:36:11 +0800 CST'>September 29, 2025</span>&nbsp;·&nbsp;map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]
-
-</div>
-  </header> 
-  <div class="post-content"><p>在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 <code>/dev/sda</code> 或 <code>/dev/nvme0n1</code>）被分区成多个分区后，<strong>监测系统的 IO</strong> 的含义是：</p>
-<p><strong>对存储子系统（block layer）中所有块设备进行读写操作的统计和观测</strong>，包括物理设备层面和逻辑分区层面。</p>
-<h3 id="1-核心概念什么是io">1. 核心概念：什么是“IO”<a hidden class="anchor" aria-hidden="true" href="#1-核心概念什么是io">#</a></h3>
-<ul>
-<li><strong>IO = Input/Output</strong>，这里特指<strong>块设备（block device）的 I/O 操作</strong>，即数据从内存到存储设备（或反之）的读写请求。</li>
-<li>UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后：
-<ul>
-<li>整个 UFS 设备对应 <code>/dev/sda</code>（或类似）。</li>
-<li>每个分区对应 <code>/dev/sda1</code>、<code>/dev/sda2</code>……（逻辑块设备）。</li>
-</ul>
-</li>
-<li>所有分区共享<strong>同一套物理硬件资源</strong>（相同的控制器、相同的闪存通道、相同的队列），因此物理层面只有一个真实的 IO 通道。</li>
-</ul>
-<h3 id="2-监测系统的-io-到底监测什么">2. “监测系统的 IO” 到底监测什么<a hidden class="anchor" aria-hidden="true" href="#2-监测系统的-io-到底监测什么">#</a></h3>
-<p>Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分区）都维护独立的统计信息。你监测的“系统 IO”通常包含以下指标（常用工具 <code>iostat -x</code>、<code>iotop</code>、<code>sar -d</code>、<code>fio</code>、<code>blktrace</code> 等都可以看到）：</p>
-<table>
-	<thead>
-			<tr>
-					<th>监测维度</th>
-					<th>具体含义</th>
-					<th>对应哪个设备？</th>
-					<th>实际意义</th>
-			</tr>
-	</thead>
-	<tbody>
-			<tr>
-					<td><strong>tps / IOPS</strong></td>
-					<td>每秒完成的 IO 操作次数（read + write）</td>
-					<td>可选整个 UFS 或单个分区</td>
-					<td>反映随机读写能力</td>
-			</tr>
-			<tr>
-					<td><strong>kB_read/s</strong><br><strong>kB_wrtn/s</strong></td>
-					<td>每秒读取/写入的数据量（吞吐量）</td>
-					<td>可选整个 UFS 或单个分区</td>
-					<td>反映顺序读写带宽</td>
-			</tr>
-			<tr>
-					<td><strong>%util</strong></td>
-					<td>设备繁忙时间百分比（队列非空时间占比）</td>
-					<td><strong>通常看整个 UFS</strong></td>
-					<td><strong>最重要</strong>：&gt;80% 就接近 IO 饱和</td>
-			</tr>
-			<tr>
-					<td><strong>await / r_await / w_await</strong></td>
-					<td>每个 IO 请求的平均等待时间（ms）</td>
-					<td>可选整个 UFS 或单个分区</td>
-					<td>反映延迟</td>
-			</tr>
-			<tr>
-					<td><strong>avgqu-sz</strong></td>
-					<td>平均 IO 队列长度</td>
-					<td>可选整个 UFS 或单个分区</td>
-					<td>队列越长，IO 压力越大</td>
-			</tr>
-			<tr>
-					<td><strong>svctm</strong></td>
-					<td>设备自身服务每个 IO 的平均时间</td>
-					<td>整个 UFS</td>
-					<td>硬件本身处理能力</td>
-			</tr>
-	</tbody>
-</table>
-<p><strong>关键点</strong>：</p>
-<ul>
-<li>当你用 <code>iostat -x 1</code> 看 <code>/dev/sda</code> 时，显示的是<strong>整个 UFS 的总 IO</strong>（所有分区 IO 之和 + 内核元数据 IO）。</li>
-<li>当你指定看 <code>/dev/sda1</code> 时，显示的是<strong>该分区单独的 IO</strong>。</li>
-<li>但<strong>物理瓶颈永远在整个 UFS 设备</strong>上：即使某个分区 IO 很低，只要总 IO 把 <code>%util</code> 打满，整个系统（包括其他分区）都会变慢。</li>
-</ul>
-<h3 id="3-为什么分区后系统-io还是以物理设备为主">3. 为什么分区后“系统 IO”还是以物理设备为主？<a hidden class="anchor" aria-hidden="true" href="#3-为什么分区后系统-io还是以物理设备为主">#</a></h3>
-<p>因为 Linux 的 IO 路径是：
-应用程序 → 文件系统（ext4/xfs/btrfs 等） → 块层（bio） → <strong>UFS 驱动</strong> → 硬件。</p>
-<p>分区只是<strong>逻辑划分</strong>，所有 bio 请求最终都会汇集到同一个物理队列（mq-deadline / bfq / none 等）。所以“系统 IO”最核心的指标永远是<strong>整个 UFS 设备的 %util 和 await</strong>，而不是某个分区的数值。</p>
-<h3 id="4-实际监测时的推荐做法">4. 实际监测时的推荐做法<a hidden class="anchor" aria-hidden="true" href="#4-实际监测时的推荐做法">#</a></h3>
-<ul>
-<li><strong>日常监控系统 IO</strong>：<code>iostat -x 1</code> 或 <code>iotop -o</code> 或 <code>sar -d 1</code>，<strong>重点看整个 UFS 设备</strong>（sda/nvme0n1）的 <code>%util</code> 和 <code>await</code>。</li>
-<li><strong>定位哪个分区占 IO</strong>：<code>iotop</code>（按进程/分区看）或 <code>blktrace</code> + <code>btt</code> 分析。</li>
-<li><strong>压力测试</strong>：用 <code>fio</code> 指定不同分区或整个设备，观察总 IO 是否达到 UFS 的规格（例如 UFS 3.1 典型 800MB/s 顺序读、几十万 IOPS）。</li>
-</ul>
-<p>总结一句话：<br>
-<strong>“监测系统的 IO” 就是监测这块 UFS 物理设备（以及其上所有分区）在 Linux 块设备层面的真实读写压力</strong>。分区只是逻辑概念，物理 IO 永远是共享的，总 IO 才是判断系统是否有 IO 瓶颈的根本依据。</p>
-
-
-  </div>
-
-  <footer class="post-footer">
-    <ul class="post-tags">
-    </ul>
-  </footer>
-</article>
-    </main>
-    
-<footer class="footer">
-        <span>&copy; 2026 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
-
-    <span>
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
-    </span>
-</footer>
-<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
-        <path d="M12 6H0l6-6z" />
-    </svg>
-</a><script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>
-    
-    mermaid.initialize({ startOnLoad: true, theme: 'default' });
-</script>
-
-<script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
-<script>
-    (function(){
-        
-        
-        const plantumlBlocks = document.querySelectorAll('pre > code.language-plantuml, pre > code.language-planuml');
-        
-        plantumlBlocks.forEach(codeBlock => {
-            const plantumlCode = codeBlock.innerText;
-            
-            const encoded = plantumlEncoder.encode(plantumlCode);
-            
-            const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
-            
-            
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.alt = "PlantUML Diagram";
-            img.style.maxWidth = "100%"; 
-            
-            
-            const preBlock = codeBlock.parentNode;
-            preBlock.parentNode.replaceChild(img, preBlock);
-        });
-    })();
-</script>
-
-<script>
-    let menu = document.getElementById('menu')
-    if (menu) {
-        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
-        menu.onscroll = function () {
-            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
-        }
-    }
-
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener("click", function (e) {
-            e.preventDefault();
-            var id = this.getAttribute("href").substr(1);
-            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
-                    behavior: "smooth"
-                });
-            } else {
-                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
-            }
-            if (id === "top") {
-                history.replaceState(null, null, " ");
-            } else {
-                history.pushState(null, null, `#${id}`);
-            }
-        });
-    });
-
-</script>
-<script>
-    var mybutton = document.getElementById("top-link");
-    window.onscroll = function () {
-        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
-            mybutton.style.visibility = "visible";
-            mybutton.style.opacity = "1";
-        } else {
-            mybutton.style.visibility = "hidden";
-            mybutton.style.opacity = "0";
-        }
-    };
-
-</script>
-<script>
-    document.getElementById("theme-toggle").addEventListener("click", () => {
-        if (document.body.className.includes("dark")) {
-            document.body.classList.remove('dark');
-            localStorage.setItem("pref-theme", 'light');
-        } else {
-            document.body.classList.add('dark');
-            localStorage.setItem("pref-theme", 'dark');
-        }
-    })
-
-</script>
-</body>
-
-</html>
+关键点："><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Android 性能与稳定专项","item":"https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/"},{"@type":"ListItem","position":3,"name":"IO 监控参数小记","item":"https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"IO 监控参数小记","name":"IO 监控参数小记","description":"在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：\n对存储子系统（block layer）中所有块设备进行读写操作的统计和观测，包括物理设备层面和逻辑分区层面。\n1. 核心概念：什么是“IO” IO = Input/Output，这里特指块设备（block device）的 I/O 操作，即数据从内存到存储设备（或反之）的读写请求。 UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后： 整个 UFS 设备对应 /dev/sda（或类似）。 每个分区对应 /dev/sda1、/dev/sda2……（逻辑块设备）。 所有分区共享同一套物理硬件资源（相同的控制器、相同的闪存通道、相同的队列），因此物理层面只有一个真实的 IO 通道。 2. “监测系统的 IO” 到底监测什么 Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分区）都维护独立的统计信息。你监测的“系统 IO”通常包含以下指标（常用工具 iostat -x、iotop、sar -d、fio、blktrace 等都可以看到）：\n监测维度 具体含义 对应哪个设备？ 实际意义 tps / IOPS 每秒完成的 IO 操作次数（read + write） 可选整个 UFS 或单个分区 反映随机读写能力 kB_read/s\nkB_wrtn/s 每秒读取/写入的数据量（吞吐量） 可选整个 UFS 或单个分区 反映顺序读写带宽 %util 设备繁忙时间百分比（队列非空时间占比） 通常看整个 UFS 最重要：\u0026gt;80% 就接近 IO 饱和 await / r_await / w_await 每个 IO 请求的平均等待时间（ms） 可选整个 UFS 或单个分区 反映延迟 avgqu-sz 平均 IO 队列长度 可选整个 UFS 或单个分区 队列越长，IO 压力越大 svctm 设备自身服务每个 IO 的平均时间 整个 UFS 硬件本身处理能力 关键点：\n","keywords":[],"articleBody":"在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：\n对存储子系统（block layer）中所有块设备进行读写操作的统计和观测，包括物理设备层面和逻辑分区层面。\n1. 核心概念：什么是“IO” IO = Input/Output，这里特指块设备（block device）的 I/O 操作，即数据从内存到存储设备（或反之）的读写请求。 UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后： 整个 UFS 设备对应 /dev/sda（或类似）。 每个分区对应 /dev/sda1、/dev/sda2……（逻辑块设备）。 所有分区共享同一套物理硬件资源（相同的控制器、相同的闪存通道、相同的队列），因此物理层面只有一个真实的 IO 通道。 2. “监测系统的 IO” 到底监测什么 Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分区）都维护独立的统计信息。你监测的“系统 IO”通常包含以下指标（常用工具 iostat -x、iotop、sar -d、fio、blktrace 等都可以看到）：\n监测维度 具体含义 对应哪个设备？ 实际意义 tps / IOPS 每秒完成的 IO 操作次数（read + write） 可选整个 UFS 或单个分区 反映随机读写能力 kB_read/s\nkB_wrtn/s 每秒读取/写入的数据量（吞吐量） 可选整个 UFS 或单个分区 反映顺序读写带宽 %util 设备繁忙时间百分比（队列非空时间占比） 通常看整个 UFS 最重要：\u003e80% 就接近 IO 饱和 await / r_await / w_await 每个 IO 请求的平均等待时间（ms） 可选整个 UFS 或单个分区 反映延迟 avgqu-sz 平均 IO 队列长度 可选整个 UFS 或单个分区 队列越长，IO 压力越大 svctm 设备自身服务每个 IO 的平均时间 整个 UFS 硬件本身处理能力 关键点：\n当你用 iostat -x 1 看 /dev/sda 时，显示的是整个 UFS 的总 IO（所有分区 IO 之和 + 内核元数据 IO）。 当你指定看 /dev/sda1 时，显示的是该分区单独的 IO。 但物理瓶颈永远在整个 UFS 设备上：即使某个分区 IO 很低，只要总 IO 把 %util 打满，整个系统（包括其他分区）都会变慢。 3. 为什么分区后“系统 IO”还是以物理设备为主？ 因为 Linux 的 IO 路径是： 应用程序 → 文件系统（ext4/xfs/btrfs 等） → 块层（bio） → UFS 驱动 → 硬件。\n分区只是逻辑划分，所有 bio 请求最终都会汇集到同一个物理队列（mq-deadline / bfq / none 等）。所以“系统 IO”最核心的指标永远是整个 UFS 设备的 %util 和 await，而不是某个分区的数值。\n4. 实际监测时的推荐做法 日常监控系统 IO：iostat -x 1 或 iotop -o 或 sar -d 1，重点看整个 UFS 设备（sda/nvme0n1）的 %util 和 await。 定位哪个分区占 IO：iotop（按进程/分区看）或 blktrace + btt 分析。 压力测试：用 fio 指定不同分区或整个设备，观察总 IO 是否达到 UFS 的规格（例如 UFS 3.1 典型 800MB/s 顺序读、几十万 IOPS）。 总结一句话：\n“监测系统的 IO” 就是监测这块 UFS 物理设备（以及其上所有分区）在 Linux 块设备层面的真实读写压力。分区只是逻辑概念，物理 IO 永远是共享的，总 IO 才是判断系统是否有 IO 瓶颈的根本依据。\n","wordCount":"225","inLanguage":"en","datePublished":"2025-09-29T11:36:11+08:00","dateModified":"2025-09-29T11:36:11+08:00","author":{"@type":"Person","name":{"defaulttheme":"auto","name":"Ethen","showbreadcrumbs":true,"showcodecopybuttons":true,"showpostnavlinks":true,"showreadingtime":true,"showwordcount":true}},"mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><h1 class="post-title entry-hint-parent">IO 监控参数小记</h1><div class=post-meta><span title='2025-09-29 11:36:11 +0800 CST'>September 29, 2025</span>&nbsp;·&nbsp;map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]</div></header><div class=post-content><p>在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 <code>/dev/sda</code> 或 <code>/dev/nvme0n1</code>）被分区成多个分区后，<strong>监测系统的 IO</strong> 的含义是：</p><p><strong>对存储子系统（block layer）中所有块设备进行读写操作的统计和观测</strong>，包括物理设备层面和逻辑分区层面。</p><h3 id=1-核心概念什么是io>1. 核心概念：什么是“IO”<a hidden class=anchor aria-hidden=true href=#1-核心概念什么是io>#</a></h3><ul><li><strong>IO = Input/Output</strong>，这里特指<strong>块设备（block device）的 I/O 操作</strong>，即数据从内存到存储设备（或反之）的读写请求。</li><li>UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后：<ul><li>整个 UFS 设备对应 <code>/dev/sda</code>（或类似）。</li><li>每个分区对应 <code>/dev/sda1</code>、<code>/dev/sda2</code>……（逻辑块设备）。</li></ul></li><li>所有分区共享<strong>同一套物理硬件资源</strong>（相同的控制器、相同的闪存通道、相同的队列），因此物理层面只有一个真实的 IO 通道。</li></ul><h3 id=2-监测系统的-io-到底监测什么>2. “监测系统的 IO” 到底监测什么<a hidden class=anchor aria-hidden=true href=#2-监测系统的-io-到底监测什么>#</a></h3><p>Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分区）都维护独立的统计信息。你监测的“系统 IO”通常包含以下指标（常用工具 <code>iostat -x</code>、<code>iotop</code>、<code>sar -d</code>、<code>fio</code>、<code>blktrace</code> 等都可以看到）：</p><table><thead><tr><th>监测维度</th><th>具体含义</th><th>对应哪个设备？</th><th>实际意义</th></tr></thead><tbody><tr><td><strong>tps / IOPS</strong></td><td>每秒完成的 IO 操作次数（read + write）</td><td>可选整个 UFS 或单个分区</td><td>反映随机读写能力</td></tr><tr><td><strong>kB_read/s</strong><br><strong>kB_wrtn/s</strong></td><td>每秒读取/写入的数据量（吞吐量）</td><td>可选整个 UFS 或单个分区</td><td>反映顺序读写带宽</td></tr><tr><td><strong>%util</strong></td><td>设备繁忙时间百分比（队列非空时间占比）</td><td><strong>通常看整个 UFS</strong></td><td><strong>最重要</strong>：>80% 就接近 IO 饱和</td></tr><tr><td><strong>await / r_await / w_await</strong></td><td>每个 IO 请求的平均等待时间（ms）</td><td>可选整个 UFS 或单个分区</td><td>反映延迟</td></tr><tr><td><strong>avgqu-sz</strong></td><td>平均 IO 队列长度</td><td>可选整个 UFS 或单个分区</td><td>队列越长，IO 压力越大</td></tr><tr><td><strong>svctm</strong></td><td>设备自身服务每个 IO 的平均时间</td><td>整个 UFS</td><td>硬件本身处理能力</td></tr></tbody></table><p><strong>关键点</strong>：</p><ul><li>当你用 <code>iostat -x 1</code> 看 <code>/dev/sda</code> 时，显示的是<strong>整个 UFS 的总 IO</strong>（所有分区 IO 之和 + 内核元数据 IO）。</li><li>当你指定看 <code>/dev/sda1</code> 时，显示的是<strong>该分区单独的 IO</strong>。</li><li>但<strong>物理瓶颈永远在整个 UFS 设备</strong>上：即使某个分区 IO 很低，只要总 IO 把 <code>%util</code> 打满，整个系统（包括其他分区）都会变慢。</li></ul><h3 id=3-为什么分区后系统-io还是以物理设备为主>3. 为什么分区后“系统 IO”还是以物理设备为主？<a hidden class=anchor aria-hidden=true href=#3-为什么分区后系统-io还是以物理设备为主>#</a></h3><p>因为 Linux 的 IO 路径是：
+应用程序 → 文件系统（ext4/xfs/btrfs 等） → 块层（bio） → <strong>UFS 驱动</strong> → 硬件。</p><p>分区只是<strong>逻辑划分</strong>，所有 bio 请求最终都会汇集到同一个物理队列（mq-deadline / bfq / none 等）。所以“系统 IO”最核心的指标永远是<strong>整个 UFS 设备的 %util 和 await</strong>，而不是某个分区的数值。</p><h3 id=4-实际监测时的推荐做法>4. 实际监测时的推荐做法<a hidden class=anchor aria-hidden=true href=#4-实际监测时的推荐做法>#</a></h3><ul><li><strong>日常监控系统 IO</strong>：<code>iostat -x 1</code> 或 <code>iotop -o</code> 或 <code>sar -d 1</code>，<strong>重点看整个 UFS 设备</strong>（sda/nvme0n1）的 <code>%util</code> 和 <code>await</code>。</li><li><strong>定位哪个分区占 IO</strong>：<code>iotop</code>（按进程/分区看）或 <code>blktrace</code> + <code>btt</code> 分析。</li><li><strong>压力测试</strong>：用 <code>fio</code> 指定不同分区或整个设备，观察总 IO 是否达到 UFS 的规格（例如 UFS 3.1 典型 800MB/s 顺序读、几十万 IOPS）。</li></ul><p>总结一句话：<br><strong>“监测系统的 IO” 就是监测这块 UFS 物理设备（以及其上所有分区）在 Linux 块设备层面的真实读写压力</strong>。分区只是逻辑概念，物理 IO 永远是共享的，总 IO 才是判断系统是否有 IO 瓶颈的根本依据。</p></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script></body></html>
