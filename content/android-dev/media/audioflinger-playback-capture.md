@@ -4,7 +4,6 @@ draft = false
 title = 'Android 13 AudioPlaybackCapture 技术原理与实现
 +++
 
-
 ## 1. 概述
 
 **AudioPlaybackCapture** 是 Android 10 (API 29) 引入的 API,允许 App 捕获其他 App 正在播放的音频。典型场景包括:

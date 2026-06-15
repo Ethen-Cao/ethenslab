@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>audio_capture_service 架构 & 音频数据流</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI','PingFang SC',system-ui,sans-serif;background:#0d1117;color:#c9d1d9;line-height:1.6}
+  .page{max-width:1240px;margin:0 auto;padding:32px 24px 64px}
+  h1{font-size:1.9em;color:#58a6ff;margin-bottom:6px}
+  .sub{color:#8b949e;font-size:.95em;margin-bottom:24px}
+  .sub code{background:#161b22;border:1px solid #30363d;border-radius:5px;padding:1px 6px;color:#d2a8ff;font-size:.92em}
+
+  /* legend */
+  .legend{display:flex;flex-wrap:wrap;gap:18px;margin:18px 0 22px;padding:14px 18px;background:#161b22;border:1px solid #30363d;border-radius:10px}
+  .leg{display:flex;align-items:center;gap:8px;font-size:.82em;color:#c9d1d9}
+  .swatch{width:26px;height:6px;border-radius:3px;flex-shrink:0}
+  .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+  /* diagram canvas */
+  .wrap{overflow-x:auto;background:#0a0d12;border:1px solid #30363d;border-radius:14px;padding:8px}
+  .canvas{position:relative;width:1160px;height:1020px;margin:0 auto}
+
+  /* layer bands */
+  .band{position:absolute;left:0;width:1160px;border-radius:10px;z-index:1;
+        border:1px dashed #21262d;background:rgba(255,255,255,.012)}
+  .band .blabel{position:absolute;left:12px;top:8px;font-size:11px;letter-spacing:.12em;
+        text-transform:uppercase;color:#6e7681;font-weight:700}
+  .band .bnum{position:absolute;right:14px;top:6px;font-size:30px;font-weight:800;color:#1b2230}
+
+  /* AudioFlinger container (a big box that holds the threads) */
+  .flinger-box{position:absolute;z-index:2;border:1.5px solid #2d6a4f;border-radius:14px;
+        background:linear-gradient(180deg,rgba(45,106,79,.12),rgba(16,26,21,.06))}
+  .flinger-box .fhdr{position:absolute;left:16px;top:9px;font-weight:800;font-size:14px;color:#56d364;letter-spacing:.03em}
+  .flinger-box .fsub{position:absolute;left:118px;top:12px;font-size:11px;color:#6e8c79}
+
+  /* nodes */
+  .node{position:absolute;border-radius:12px;padding:10px 13px;z-index:4;
+        background:linear-gradient(180deg,#1d2533,#161b22);border:1.5px solid #30363d;
+        box-shadow:0 5px 16px rgba(0,0,0,.45);display:flex;flex-direction:column;justify-content:center}
+  .node .t{font-weight:700;font-size:13.5px;color:#e6edf3;line-height:1.25}
+  .node .s{font-size:11px;color:#8b949e;margin-top:4px;line-height:1.45}
+  .node .s b{color:#adbac7;font-weight:600}
+  .pill{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.04em;
+        padding:1px 7px;border-radius:20px;margin-top:6px;width:fit-content}
+
+  .app{border-color:#1f6feb;background:linear-gradient(180deg,#16263f,#121a26)}
+  .app .pill{background:rgba(88,166,255,.16);color:#79c0ff}
+  .client{border-color:#30404f}
+  .policy{border-color:#7d5bbe;background:linear-gradient(180deg,#1f1a2e,#161320)}
+  .mixer{border-color:#3fb950;background:linear-gradient(180deg,#15281d,#101a15)}
+  .rsub{border-color:#9e6a1f;background:linear-gradient(180deg,#241a10,#1a130b)}
+  .hal{border-color:#39424d;background:linear-gradient(180deg,#1a1f27,#13171d)}
+  .speaker{border-color:#3fb950;background:linear-gradient(180deg,#13261a,#0f1d14);align-items:center;text-align:center}
+  .speaker .t{font-size:15px}
+
+  /* the star: audio_capture_service */
+  .daemon{border:2px solid #d2a8ff;background:linear-gradient(180deg,#241d33,#171323);
+          justify-content:flex-start;padding-top:18px;
+          box-shadow:0 0 0 1px rgba(210,168,255,.25),0 0 28px rgba(210,168,255,.20);
+          animation:pulse 2.6s ease-in-out infinite}
+  .daemon .t{color:#e6d4ff}
+  .daemon .badge{position:absolute;top:-12px;left:16px;font-size:10px;font-weight:800;
+          background:#d2a8ff;color:#1a1023;padding:2px 9px;border-radius:20px;letter-spacing:.03em}
+  .daemon .sub-box{border:1px solid #4a3a66;border-radius:7px;padding:5px 8px;margin-top:7px;
+          background:rgba(210,168,255,.05);font-size:11px;color:#cbb8e6;line-height:1.35}
+  .daemon .sub-box b{color:#e6d4ff}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 1px rgba(210,168,255,.25),0 0 22px rgba(210,168,255,.16)}
+                   50%{box-shadow:0 0 0 1px rgba(210,168,255,.45),0 0 34px rgba(210,168,255,.34)}}
+
+  /* svg flow labels */
+  .flbl{font:600 12px 'Segoe UI',sans-serif;paint-order:stroke;stroke:#0a0d12;stroke-width:4px;stroke-linejoin:round}
+
+  /* steps */
+  .steps{margin-top:30px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+  .step{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 16px}
+  .step .h{font-weight:700;color:#e6edf3;font-size:.92em;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .step .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+           border-radius:50%;font-size:12px;font-weight:800;flex-shrink:0}
+  .step p{font-size:.82em;color:#9aa4af;line-height:1.55}
+  .step code{background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:0 5px;color:#79c0ff;font-size:.92em}
+  .foot{margin-top:26px;font-size:.8em;color:#6e7681;border-top:1px solid #21262d;padding-top:14px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>audio_capture_service — 架构与音频数据流</h1>
+  <p class="sub">
+    原生系统守护进程，经 <code>REMOTE_SUBMIX</code> 环回路径捕获系统播放音频，<b>不经过 MediaProjection</b>。
+    分层从上到下：应用层 → 原生框架层 → audioserver → HAL。下方动画展示应用多媒体声音如何被复制并流向 <code>audio_capture_service</code>。
+  </p>
+
+  <div class="legend">
+    <div class="leg"><span class="swatch" style="background:#58a6ff"></span>应用播放音频 (AudioTrack)</div>
+    <div class="leg"><span class="swatch" style="background:#3fb950"></span>RENDER 分支：照常送扬声器</div>
+    <div class="leg"><span class="swatch" style="background:#ffa657"></span>LOOP_BACK 分支：复制流 → 被捕获</div>
+    <div class="leg"><span class="swatch" style="background:#6e7681;height:0;border-top:2px dashed #6e7681"></span>控制面 (注册 / 配置)</div>
+    <div class="leg"><span class="dot" style="background:#ffa657;box-shadow:0 0 8px #ffa657"></span>动画粒子 = 流动的 PCM 数据</div>
+  </div>
+
+  <div class="wrap">
+  <div class="canvas">
+
+    <!-- ===================== layer bands ===================== -->
+    <div class="band" style="top:40px;height:132px">
+      <span class="blabel">应用层 · Application</span><span class="bnum">APP</span></div>
+    <div class="band" style="top:196px;height:184px">
+      <span class="blabel">原生框架层 · Native Framework / Service (libaudioclient · 绕过 Java SDK)</span></div>
+    <div class="band" style="top:402px;height:320px">
+      <span class="blabel">系统音频服务 · audioserver</span></div>
+    <div class="band" style="top:746px;height:116px">
+      <span class="blabel">硬件抽象层 · Audio HAL</span></div>
+    <div class="band" style="top:888px;height:122px">
+      <span class="blabel">输出 · Output</span><span class="bnum">HAL↓</span></div>
+
+    <!-- AudioFlinger big container box -->
+    <div class="flinger-box" style="left:360px;top:428px;width:470px;height:290px">
+      <span class="fhdr">AudioFlinger</span>
+      <span class="fsub">audioserver 进程内的音频混音/路由引擎</span>
+    </div>
+
+    <!-- ===================== SVG flow layer ===================== -->
+    <svg width="1160" height="1020" viewBox="0 0 1160 1020"
+         xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+         style="position:absolute;top:0;left:0;z-index:3;pointer-events:none">
+      <defs>
+        <marker id="ah-blue"  markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#58a6ff"/></marker>
+        <marker id="ah-green" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3fb950"/></marker>
+        <marker id="ah-amber" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ffa657"/></marker>
+        <marker id="ah-gray"  markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6e7681"/></marker>
+        <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <style>
+          .wire{fill:none;stroke-width:3;stroke-dasharray:8 8}
+          .w-blue{stroke:#58a6ff}.w-green{stroke:#3fb950}.w-amber{stroke:#ffa657}
+          .w-ctrl{fill:none;stroke:#6e7681;stroke-width:1.6;stroke-dasharray:5 5}
+          .flow{animation:dash .6s linear infinite}
+          @keyframes dash{to{stroke-dashoffset:-16}}
+        </style>
+      </defs>
+
+      <!-- ---- control plane (static dashed) ---- -->
+      <path class="w-ctrl" d="M980,366 L980,468" marker-end="url(#ah-gray)"/>
+      <path class="w-ctrl" d="M858,505 L834,505" marker-end="url(#ah-gray)"/>
+      <text class="flbl" fill="#8b949e" x="612" y="402">① registerPolicyMixes(LOOP_BACK | RENDER)</text>
+      <text class="flbl" fill="#8b949e" x="836" y="456">配置复制路由 → AudioFlinger</text>
+
+      <!-- ============ PLAYBACK (blue): app -> client -> mixer ============ -->
+      <path id="p_app1" class="wire w-blue flow" d="M145,148 L145,234" marker-end="url(#ah-blue)"/>
+      <path id="p_app2" class="wire w-blue flow" d="M325,148 L325,234" marker-end="url(#ah-blue)"/>
+      <path id="p_app3" class="wire w-blue flow" d="M505,148 L505,234" marker-end="url(#ah-blue)"/>
+      <path id="p_c2m"  class="wire w-blue flow" d="M325,300 C325,400 595,388 595,458" marker-end="url(#ah-blue)"/>
+      <text class="flbl" fill="#79c0ff" x="350" y="350">应用播放流</text>
+
+      <!-- ============ RENDER (green): mixer -> primary HAL -> speaker ============ -->
+      <path id="p_rndA" class="wire w-green flow" d="M420,530 L420,768" marker-end="url(#ah-green)"/>
+      <path id="p_rndB" class="wire w-green flow" d="M420,846 L420,904" marker-end="url(#ah-green)"/>
+      <text class="flbl" fill="#56d364" x="300" y="730">RENDER 照常出声</text>
+
+      <!-- ============ LOOP_BACK + CAPTURE (amber) ============ -->
+      <path id="p_lp1" class="wire w-amber flow" d="M550,530 L550,604" marker-end="url(#ah-amber)"/>
+      <path id="p_lp2" class="wire w-amber flow" d="M550,700 L550,768" marker-end="url(#ah-amber)"/>
+      <path id="p_lp3" class="wire w-amber flow" d="M550,770 C550,838 728,838 728,772" marker-end="url(#ah-amber)"/>
+      <path id="p_lp4" class="wire w-amber flow" d="M728,768 L728,704" marker-end="url(#ah-amber)"/>
+      <path id="p_cap" class="wire w-amber flow" d="M728,606 L728,568 L838,568 L838,368" marker-end="url(#ah-amber)"/>
+      <text class="flbl" fill="#ffa657" x="556" y="572">② LOOP_BACK 复制一份</text>
+      <text class="flbl" fill="#ffa657" x="582" y="864">环回 loopback</text>
+      <text class="flbl" fill="#ffa657" x="846" y="430">③ AudioRecord.read() PCM</text>
+
+      <!-- ============ animated particles (PCM data) ============ -->
+      <!-- app -> client -->
+      <circle r="4.5" fill="#58a6ff" filter="url(#glow)"><animateMotion dur="1.5s" repeatCount="indefinite"><mpath xlink:href="#p_app1"/></animateMotion></circle>
+      <circle r="4.5" fill="#58a6ff" filter="url(#glow)"><animateMotion dur="1.5s" begin="0.7s" repeatCount="indefinite"><mpath xlink:href="#p_app2"/></animateMotion></circle>
+      <circle r="4.5" fill="#58a6ff" filter="url(#glow)"><animateMotion dur="1.5s" begin="0.3s" repeatCount="indefinite"><mpath xlink:href="#p_app3"/></animateMotion></circle>
+      <!-- client -> mixer -->
+      <circle r="5" fill="#58a6ff" filter="url(#glow)"><animateMotion dur="1.9s" repeatCount="indefinite"><mpath xlink:href="#p_c2m"/></animateMotion></circle>
+      <circle r="5" fill="#58a6ff" filter="url(#glow)"><animateMotion dur="1.9s" begin="0.95s" repeatCount="indefinite"><mpath xlink:href="#p_c2m"/></animateMotion></circle>
+      <!-- render branch -->
+      <circle r="5" fill="#3fb950" filter="url(#glow)"><animateMotion dur="1.7s" repeatCount="indefinite"><mpath xlink:href="#p_rndA"/></animateMotion></circle>
+      <circle r="5" fill="#3fb950" filter="url(#glow)"><animateMotion dur="1.7s" begin="0.85s" repeatCount="indefinite"><mpath xlink:href="#p_rndA"/></animateMotion></circle>
+      <circle r="5" fill="#3fb950" filter="url(#glow)"><animateMotion dur="1.2s" repeatCount="indefinite"><mpath xlink:href="#p_rndB"/></animateMotion></circle>
+      <!-- loopback + capture (amber, denser = the highlighted path) -->
+      <circle r="5.5" fill="#ffa657" filter="url(#glow)"><animateMotion dur="1.1s" repeatCount="indefinite"><mpath xlink:href="#p_lp1"/></animateMotion></circle>
+      <circle r="5.5" fill="#ffa657" filter="url(#glow)"><animateMotion dur="1.3s" repeatCount="indefinite"><mpath xlink:href="#p_lp2"/></animateMotion></circle>
+      <circle r="5.5" fill="#ffa657" filter="url(#glow)"><animateMotion dur="1.3s" begin="0.65s" repeatCount="indefinite"><mpath xlink:href="#p_lp2"/></animateMotion></circle>
+      <circle r="5.5" fill="#ffa657" filter="url(#glow)"><animateMotion dur="1.7s" repeatCount="indefinite"><mpath xlink:href="#p_lp3"/></animateMotion></circle>
+      <circle r="5.5" fill="#ffa657" filter="url(#glow)"><animateMotion dur="1.7s" begin="0.85s" repeatCount="indefinite"><mpath xlink:href="#p_lp3"/></animateMotion></circle>
+      <circle r="5.5" fill="#ffa657" filter="url(#glow)"><animateMotion dur="1.3s" repeatCount="indefinite"><mpath xlink:href="#p_lp4"/></animateMotion></circle>
+      <circle r="5.5" fill="#ffa657" filter="url(#glow)"><animateMotion dur="1.3s" begin="0.65s" repeatCount="indefinite"><mpath xlink:href="#p_lp4"/></animateMotion></circle>
+      <circle r="6"   fill="#ffd285" filter="url(#glow)"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath xlink:href="#p_cap"/></animateMotion></circle>
+      <circle r="6"   fill="#ffd285" filter="url(#glow)"><animateMotion dur="1.6s" begin="0.8s" repeatCount="indefinite"><mpath xlink:href="#p_cap"/></animateMotion></circle>
+    </svg>
+
+    <!-- ===================== nodes ===================== -->
+    <!-- App layer -->
+    <div class="node app" style="left:70px;top:78px;width:150px;height:70px">
+      <div class="t">🎵 音乐 App</div><div class="s">AudioTrack</div><span class="pill">usage=MEDIA</span></div>
+    <div class="node app" style="left:250px;top:78px;width:150px;height:70px">
+      <div class="t">🎮 游戏 App</div><div class="s">AudioTrack</div><span class="pill">usage=GAME</span></div>
+    <div class="node app" style="left:430px;top:78px;width:150px;height:70px">
+      <div class="t">🎬 视频 App</div><div class="s">AudioTrack</div><span class="pill">usage=UNKNOWN</span></div>
+
+    <!-- Native framework layer -->
+    <div class="node client" style="left:70px;top:236px;width:510px;height:64px">
+      <div class="t">libaudioclient · AudioTrack（客户端）</div>
+      <div class="s">应用 PCM 经共享内存写入 audioserver 的 PlaybackThread</div></div>
+
+    <div class="node daemon" style="left:736px;top:214px;width:356px;height:152px">
+      <span class="badge">本服务 · native daemon</span>
+      <div class="t">audio_capture_service</div>
+      <div class="s">独立 SELinux 域 · 直接调用原生 binder，<b>不经 MediaProjection</b></div>
+      <div class="sub-box"><b>AudioRecord</b>(REMOTE_SUBMIX, addr=…_mix)</div>
+      <div class="sub-box">read() PCM → <b>rhythm_analyzer</b></div></div>
+
+    <!-- audioserver layer: AudioPolicyManager to the RIGHT of AudioFlinger -->
+    <div class="node policy" style="left:860px;top:472px;width:240px;height:90px">
+      <div class="t">AudioPolicyManager</div>
+      <div class="s">持有已注册 AudioMix<br><b>LOOP_BACK_AND_RENDER</b><br>→ 指挥 AudioFlinger 复制匹配流</div></div>
+
+    <!-- AudioFlinger inner threads (inside the green container) -->
+    <div class="node mixer" style="left:380px;top:462px;width:430px;height:68px">
+      <div class="t">PlaybackThread (Mixer)</div>
+      <div class="s">匹配 usage 的播放流在此 <b>分叉</b>：① RENDER 原输出　② LOOP_BACK 副本</div></div>
+
+    <div class="node rsub" style="left:470px;top:606px;width:160px;height:94px">
+      <div class="t">REMOTE_SUBMIX<br>Output Thread</div>
+      <div class="s"><b>被捕获流的副本</b><br>addr=…_mix · STEREO</div></div>
+
+    <div class="node rsub" style="left:648px;top:606px;width:160px;height:94px">
+      <div class="t">REMOTE_SUBMIX<br>Input / Record</div>
+      <div class="s">从环回设备读取，<br>供 AudioRecord 取走</div></div>
+
+    <!-- HAL layer -->
+    <div class="node hal" style="left:330px;top:770px;width:180px;height:76px">
+      <div class="t">Primary Audio HAL</div>
+      <div class="s">主输出（扬声器 / BUS）</div></div>
+    <div class="node hal" style="left:540px;top:770px;width:380px;height:76px">
+      <div class="t">Remote Submix HAL — loopback 环回</div>
+      <div class="s">虚拟设备：Output 写入的数据原样环回给 Input（无真实硬件）</div></div>
+
+    <!-- Output -->
+    <div class="node speaker" style="left:334px;top:906px;width:172px;height:70px">
+      <div class="t">🔊 扬声器</div><div class="s">正常播放（RENDER 保证不静音）</div></div>
+
+  </div>
+  </div>
+
+  <!-- ===================== step explanation ===================== -->
+  <div class="steps">
+    <div class="step">
+      <div class="h"><span class="n" style="background:rgba(110,118,129,.25);color:#adbac7">①</span>注册环回 Mix（控制面）</div>
+      <p>守护进程启动后调用 <code>AudioSystem::registerPolicyMixes()</code> 注册一个 <code>LOOP_BACK | RENDER</code> 的 AudioMix（匹配 usage = MEDIA/GAME/UNKNOWN）。因 <code>is_mix_loopback_render()==true</code>，跳过 <code>MODIFY_AUDIO_ROUTING</code> 权限校验。</p>
+    </div>
+    <div class="step">
+      <div class="h"><span class="n" style="background:rgba(88,166,255,.2);color:#79c0ff">②</span>应用播放音频</div>
+      <p>各 App 通过 AudioTrack 把 PCM 写入 AudioFlinger 的 PlaybackThread/Mixer（蓝色流）。这是普通的播放路径，与本服务无关。</p>
+    </div>
+    <div class="step">
+      <div class="h"><span class="n" style="background:rgba(255,166,87,.2);color:#ffa657">③</span>分叉 = 复制一份</div>
+      <p>AudioPolicy 已把 Mixer 配置为：匹配的播放流<b>同时</b>走两条路 —— <span style="color:#56d364">RENDER 照常进主 HAL 出扬声器</span>，<span style="color:#ffa657">LOOP_BACK 复制到 REMOTE_SUBMIX 输出线程</span>。播放不中断。</p>
+    </div>
+    <div class="step">
+      <div class="h"><span class="n" style="background:rgba(255,166,87,.2);color:#ffa657">④</span>环回 → 捕获</div>
+      <p>副本经 Remote Submix HAL 环回到 REMOTE_SUBMIX 输入线程；<code>audio_capture_service</code> 的 <code>AudioRecord.read()</code> 取走 PCM（橙色流），喂给 <code>rhythm_analyzer</code> 做节奏可视化。</p>
+    </div>
+  </div>
+
+  <p class="foot">
+    依据：<code>audio_capture_service.cpp</code>（buildMix / createRecord / captureLoop）、<code>README.md</code>（绕过 MediaProjection 的 5 处源码证据）、<code>DEBUG.md</code>（Output→REMOTE_SUBMIX 复制 track 的 dumpsys 验证）。
+    注：未声明 <code>allowAudioPlaybackCapture="true"</code> 的 App，在 <code>kCapturePrivileged=false</code> 下不会被复制到 REMOTE_SUBMIX。
+  </p>
+</div>
+</body>
+</html>
