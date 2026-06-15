@@ -1,7 +1,7 @@
 +++
 date = '2026-06-07T10:22:54+08:00'
 draft = false
-title = 'Android 13 AudioPlaybackCapture 技术原理与实现
+title = 'Android 13 AudioPlaybackCapture 技术原理与实现'
 +++
 
 ## 1. 概述
@@ -51,6 +51,12 @@ title = 'Android 13 AudioPlaybackCapture 技术原理与实现
 │    StreamOut ──→ StreamIn (进程内软件 pipe)           │
 └──────────────────────────────────────────────────────┘
 ```
+
+> 下面是同一条链路的**交互式动画版**（分层 App → HAL，动画粒子表示流动的 PCM 数据）。若未显示，请直接打开 [架构图](/ethenslab/diagrams/audioflinger-playback-capture-arch.html)。
+
+<iframe src="/ethenslab/diagrams/audioflinger-playback-capture-arch.html"
+        style="width:100%;height:1480px;border:1px solid #30363d;border-radius:12px"
+        loading="lazy" title="audio_capture_service 架构与音频数据流"></iframe>
 
 ---
 

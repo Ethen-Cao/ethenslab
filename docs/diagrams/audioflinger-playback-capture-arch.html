@@ -85,11 +85,7 @@
 </head>
 <body>
 <div class="page">
-  <h1>audio_capture_service — 架构与音频数据流</h1>
-  <p class="sub">
-    原生系统守护进程，经 <code>REMOTE_SUBMIX</code> 环回路径捕获系统播放音频，<b>不经过 MediaProjection</b>。
-    分层从上到下：应用层 → 原生框架层 → audioserver → HAL。下方动画展示应用多媒体声音如何被复制并流向 <code>audio_capture_service</code>。
-  </p>
+  <p class="sub" style="font-size:1.05em;margin-bottom:18px">📊 <b style="color:#58a6ff">audio_capture_service 架构与音频数据流</b> —— 分层（App → HAL），动画粒子表示流动的 PCM 数据。</p>
 
   <div class="legend">
     <div class="leg"><span class="swatch" style="background:#58a6ff"></span>应用播放音频 (AudioTrack)</div>

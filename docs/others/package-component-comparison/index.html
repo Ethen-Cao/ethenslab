@@ -1,54 +1,54 @@
 <!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>UML中package和component对比 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='一、概念本质对比
 
-  
-      
-          维度
-          package
-          component
-      
-  
-  
-      
-          UML 原义
-          逻辑分组 / 命名空间
-          可独立替换的模块 / 软件部件
-      
-      
-          主要用途
-          分组元素、子系统容器
-          表示系统的可部署模块或功能单元
-      
-      
-          内部可以包含
-          类、其他 package、component
-          组件接口、类、子模块
-      
-      
-          可独立部署
-          ❌（只是命名空间）
-          ✅（可以单独部署 / 替换）
-      
-      
-          是否表示具体功能
-          ❌（仅概念分组）
-          ✅（提供服务或功能）
-      
-      
-          可用在 Layer 图
-          不推荐
-          不推荐（除非强调模块）
-      
-      
-          可用在 Subsystem 图
-          ✅
-          ✅（子模块）
-      
-      
-          可显示接口 / 关系
-          部分可以
-          可以显示接口、依赖关系、提供/使用接口
-      
-  
+	
+			
+					维度
+					package
+					component
+			
+	
+	
+			
+					UML 原义
+					逻辑分组 / 命名空间
+					可独立替换的模块 / 软件部件
+			
+			
+					主要用途
+					分组元素、子系统容器
+					表示系统的可部署模块或功能单元
+			
+			
+					内部可以包含
+					类、其他 package、component
+					组件接口、类、子模块
+			
+			
+					可独立部署
+					❌（只是命名空间）
+					✅（可以单独部署 / 替换）
+			
+			
+					是否表示具体功能
+					❌（仅概念分组）
+					✅（提供服务或功能）
+			
+			
+					可用在 Layer 图
+					不推荐
+					不推荐（除非强调模块）
+			
+			
+					可用在 Subsystem 图
+					✅
+					✅（子模块）
+			
+			
+					可显示接口 / 关系
+					部分可以
+					可以显示接口、依赖关系、提供/使用接口
+			
+	
 
 
 二、工程实践对比
@@ -98,55 +98,55 @@ Android Framework Linux Kernel System Server 特点：
 显示子系统边界 不关心模块内部实现细节 PlantUML 使用：
 package "Android Framework" { component ActivityManager component WindowManager } 2️⃣ component 语义：软件的可独立模块，提供接口，可替换。'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="others"><meta property="article:published_time" content="2025-08-27T17:17:50+08:00"><meta property="article:modified_time" content="2025-08-27T17:17:50+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="UML中package和component对比"><meta name=twitter:description content='一、概念本质对比
 
-  
-      
-          维度
-          package
-          component
-      
-  
-  
-      
-          UML 原义
-          逻辑分组 / 命名空间
-          可独立替换的模块 / 软件部件
-      
-      
-          主要用途
-          分组元素、子系统容器
-          表示系统的可部署模块或功能单元
-      
-      
-          内部可以包含
-          类、其他 package、component
-          组件接口、类、子模块
-      
-      
-          可独立部署
-          ❌（只是命名空间）
-          ✅（可以单独部署 / 替换）
-      
-      
-          是否表示具体功能
-          ❌（仅概念分组）
-          ✅（提供服务或功能）
-      
-      
-          可用在 Layer 图
-          不推荐
-          不推荐（除非强调模块）
-      
-      
-          可用在 Subsystem 图
-          ✅
-          ✅（子模块）
-      
-      
-          可显示接口 / 关系
-          部分可以
-          可以显示接口、依赖关系、提供/使用接口
-      
-  
+	
+			
+					维度
+					package
+					component
+			
+	
+	
+			
+					UML 原义
+					逻辑分组 / 命名空间
+					可独立替换的模块 / 软件部件
+			
+			
+					主要用途
+					分组元素、子系统容器
+					表示系统的可部署模块或功能单元
+			
+			
+					内部可以包含
+					类、其他 package、component
+					组件接口、类、子模块
+			
+			
+					可独立部署
+					❌（只是命名空间）
+					✅（可以单独部署 / 替换）
+			
+			
+					是否表示具体功能
+					❌（仅概念分组）
+					✅（提供服务或功能）
+			
+			
+					可用在 Layer 图
+					不推荐
+					不推荐（除非强调模块）
+			
+			
+					可用在 Subsystem 图
+					✅
+					✅（子模块）
+			
+			
+					可显示接口 / 关系
+					部分可以
+					可以显示接口、依赖关系、提供/使用接口
+			
+	
 
 
 二、工程实践对比
