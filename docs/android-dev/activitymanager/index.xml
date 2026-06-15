@@ -1,8 +1,126 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>ActivityManager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/</link><description>Recent content in ActivityManager on Ethen 的实验室</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Wed, 27 Aug 2025 11:36:11 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/index.xml" rel="self" type="application/rss+xml"/><item><title>Android Internals: Activity Launch into PiP 流程深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/</guid><description>1. 概述 (Overview) 在 Android 系统中，Activity 进入画中画（PiP）并非简单的 UI 缩放，而是一次复杂的窗口层级重构 (Hierarchy Reparenting)。
-特别是当通过 Intent 标志 (isLaunchIntoPip) 触发时，系统实际上执行了一个“欺骗”操作：
-先按标准流程启动 Activity（Resume, Add to Task）。 在启动流程收尾阶段，拦截并立即将其移动到 Pinned Root Task。 利用 SurfaceFreezer 冻结画面，执行无缝的进入动画。 2. 核心流程图 (Architecture Flow) 下面的时序图展示了从 startActivity 到最终通过 SurfaceAnimator 执行动画的完整调用链。
-@startuml !theme plain skinparam dpi 120 skinparam wrapWidth 200 participant &amp;#34;ActivityStarter&amp;#34; as Starter participant &amp;#34;RootWindowContainer&amp;#34; as RWC participant &amp;#34;Task (Current)&amp;#34; as OldTask participant &amp;#34;Task (New PiP)&amp;#34; as NewTask participant &amp;#34;WindowContainer&amp;#34; as WC participant &amp;#34;TransitionController&amp;#34; as TC participant &amp;#34;SurfaceFreezer&amp;#34; as SF note over Starter 1.</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/taskview/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/taskview/</guid><description>Android 13 TaskView 实现机制 TaskView 是 WM Shell 提供的通用嵌入式任务容器，定义在 frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/TaskView.java。它继承自 SurfaceView，核心能力是把一个独立的 Task（及其内部的 Activity）嵌入到宿主应用的 View 树中显示。
-本文从两个维度展开：
-框架层：TaskView 本身如何加入 ViewRootImpl 的 View 树、如何分配 Surface、Activity 如何被启动并嵌入到 TaskView 中 应用层：以 CarLauncher（packages/apps/Car/Launcher/）的地图卡片为例，说明上层如何使用 TaskView 其中，”CarLauncher 示例”特指 CarLauncher#setUpTaskView() 这条地图卡片路径，不包含以下分支：
-CarLauncherUtils.isCustomDisplayPolicyDefined() 为 true 时，直接启动 ControlBarActivity 和地图应用，不走 TaskView CarLauncher 处于 multi-window 或 PiP 时，不创建地图卡片 headless system user 0 下，不创建地图卡片 1. 先给结论 如果只看默认 CarLauncher 的地图卡片，实际链路并不复杂：
-CarLauncher 在 maps_card 容器里创建一个 ControlledCarTaskView ControlledCarTaskView 底层继承自 TaskView，本质上是一个 SurfaceView + ShellTaskOrganizer.TaskListener 当 SurfaceView 的 surface 创建完成后，ControlledCarTaskView 自动调用 startActivity() TaskView.</description></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>ActivityManager on Ethen 的实验室</title>
+    <link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/</link>
+    <description>Recent content in ActivityManager on Ethen 的实验室</description>
+    <generator>Hugo -- 0.163.0</generator>
+    <language>en</language>
+    <lastBuildDate>Wed, 27 Aug 2025 11:36:11 +0800</lastBuildDate>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Android 13 TaskView 实现机制</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/taskview/</link>
+      <pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/taskview/</guid>
+      <description>&lt;p&gt;&lt;code&gt;TaskView&lt;/code&gt; 是 WM Shell 提供的通用嵌入式任务容器，定义在 &lt;code&gt;frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/TaskView.java&lt;/code&gt;。它继承自 &lt;code&gt;SurfaceView&lt;/code&gt;，核心能力是把一个独立的 Task（及其内部的 Activity）嵌入到宿主应用的 View 树中显示。&lt;/p&gt;
+&lt;p&gt;本文从两个维度展开：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;框架层&lt;/strong&gt;：&lt;code&gt;TaskView&lt;/code&gt; 本身如何加入 &lt;code&gt;ViewRootImpl&lt;/code&gt; 的 View 树、如何分配 Surface、Activity 如何被启动并嵌入到 &lt;code&gt;TaskView&lt;/code&gt; 中&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;应用层&lt;/strong&gt;：以 &lt;code&gt;CarLauncher&lt;/code&gt;（&lt;code&gt;packages/apps/Car/Launcher/&lt;/code&gt;）的地图卡片为例，说明上层如何使用 &lt;code&gt;TaskView&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;其中，”CarLauncher 示例”特指 &lt;code&gt;CarLauncher#setUpTaskView()&lt;/code&gt; 这条地图卡片路径，不包含以下分支：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;CarLauncherUtils.isCustomDisplayPolicyDefined()&lt;/code&gt; 为 &lt;code&gt;true&lt;/code&gt; 时，直接启动 &lt;code&gt;ControlBarActivity&lt;/code&gt; 和地图应用，不走 &lt;code&gt;TaskView&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;CarLauncher&lt;/code&gt; 处于 multi-window 或 PiP 时，不创建地图卡片&lt;/li&gt;
+&lt;li&gt;headless system user 0 下，不创建地图卡片&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;1-先给结论&#34;&gt;1. 先给结论&lt;/h2&gt;
+&lt;p&gt;如果只看默认 &lt;code&gt;CarLauncher&lt;/code&gt; 的地图卡片，实际链路并不复杂：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;CarLauncher&lt;/code&gt; 在 &lt;code&gt;maps_card&lt;/code&gt; 容器里创建一个 &lt;code&gt;ControlledCarTaskView&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;ControlledCarTaskView&lt;/code&gt; 底层继承自 &lt;code&gt;TaskView&lt;/code&gt;，本质上是一个 &lt;code&gt;SurfaceView&lt;/code&gt; + &lt;code&gt;ShellTaskOrganizer.TaskListener&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;当 &lt;code&gt;SurfaceView&lt;/code&gt; 的 surface 创建完成后，&lt;code&gt;ControlledCarTaskView&lt;/code&gt; 自动调用 &lt;code&gt;startActivity()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;TaskView.startActivity()&lt;/code&gt; 会把 &lt;code&gt;launchCookie&lt;/code&gt;、&lt;code&gt;launchBounds&lt;/code&gt;、&lt;code&gt;WINDOWING_MODE_MULTI_WINDOW&lt;/code&gt; 注入到启动参数里&lt;/li&gt;
+&lt;li&gt;目标任务真正创建出来后，&lt;code&gt;ShellTaskOrganizer&lt;/code&gt; 根据 &lt;code&gt;launchCookie&lt;/code&gt; 把 &lt;code&gt;onTaskAppeared()&lt;/code&gt; 回调给这个 &lt;code&gt;TaskView&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;TaskView&lt;/code&gt; 在 &lt;code&gt;onTaskAppeared()&lt;/code&gt; 里把目标 task 的 &lt;code&gt;leash&lt;/code&gt; reparent 到自己的 &lt;code&gt;SurfaceControl&lt;/code&gt;，嵌入显示完成&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;因此，理解 &lt;code&gt;TaskView&lt;/code&gt; 的关键不是“CarLauncher 自己管理任务栈”，而是：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android Internals: Activity Launch into PiP 流程深度解析</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/</link>
+      <pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/activity-pip/</guid>
+      <description>&lt;h2 id=&#34;1-概述-overview&#34;&gt;1. 概述 (Overview)&lt;/h2&gt;
+&lt;p&gt;在 Android 系统中，Activity 进入画中画（PiP）并非简单的 UI 缩放，而是一次复杂的&lt;strong&gt;窗口层级重构 (Hierarchy Reparenting)&lt;/strong&gt;。&lt;/p&gt;
+&lt;p&gt;特别是当通过 Intent 标志 (&lt;code&gt;isLaunchIntoPip&lt;/code&gt;) 触发时，系统实际上执行了一个“欺骗”操作：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;先按标准流程启动 Activity（Resume, Add to Task）。&lt;/li&gt;
+&lt;li&gt;在启动流程收尾阶段，拦截并立即将其移动到 &lt;strong&gt;Pinned Root Task&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;利用 &lt;code&gt;SurfaceFreezer&lt;/code&gt; 冻结画面，执行无缝的进入动画。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;2-核心流程图-architecture-flow&#34;&gt;2. 核心流程图 (Architecture Flow)&lt;/h2&gt;
+&lt;p&gt;下面的时序图展示了从 &lt;code&gt;startActivity&lt;/code&gt; 到最终通过 &lt;code&gt;SurfaceAnimator&lt;/code&gt; 执行动画的完整调用链。&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;@startuml
+!theme plain
+skinparam dpi 120
+skinparam wrapWidth 200
+
+participant &amp;#34;ActivityStarter&amp;#34; as Starter
+participant &amp;#34;RootWindowContainer&amp;#34; as RWC
+participant &amp;#34;Task (Current)&amp;#34; as OldTask
+participant &amp;#34;Task (New PiP)&amp;#34; as NewTask
+participant &amp;#34;WindowContainer&amp;#34; as WC
+participant &amp;#34;TransitionController&amp;#34; as TC
+participant &amp;#34;SurfaceFreezer&amp;#34; as SF
+
+note over Starter
+  1. 标准启动流程结束
+  (startActivityInner)
+end note
+
+Starter -&amp;gt; Starter: Check mOptions.isLaunchIntoPip()
+activate Starter
+    note right
+      代码最后一道防线：
+      若包含 PiP 标志，则触发移动
+    end note
+
+    Starter -&amp;gt; RWC: moveActivityToPinnedRootTask(r, source, ...)
+    activate RWC
+        
+        RWC -&amp;gt; OldTask: getNonFinishingActivityCount()
+        
+        alt Case A: 单个 Activity (独占 Task)
+            RWC -&amp;gt; RWC: rootTask = OldTask
+            note right: 直接将当前 Task\n变更为 Pinned 模式
+            
+        else Case B: 多个 Activities (共享 Task)
+            RWC -&amp;gt; NewTask: new Task.Builder().build()
+            activate NewTask
+            note right: 必须剥离：创建新 Task\n作为 PiP 容器
+            
+            RWC -&amp;gt; WC: r.reparent(NewTask, MAX, ...)
+            WC -&amp;gt; OldTask: Remove Child
+            WC -&amp;gt; NewTask: Add Child
+            note right: 将 ActivityRecord\n移动到新 Task
+        end
+
+        RWC -&amp;gt; NewTask: reparent(TaskDisplayArea, ON_TOP)
+        note right: 确保 PiP 窗口\n悬浮于所有 Task 之上
+
+        RWC -&amp;gt; NewTask: setWindowingMode(PINNED)
+        
+        RWC -&amp;gt; TC: requestStartTransition(TRANSIT_PIP)
+        activate TC
+        note left: 触发过渡动画
+        
+            TC -&amp;gt; SF: freeze()
+            activate SF
+            SF -&amp;gt; SF: captureLayers()
+            SF -&amp;gt; SF: createAnimationLeash()
+            note right: 截图并创建\n动画容器
+            deactivate SF
+            
+        deactivate TC
+        
+    deactivate RWC
+deactivate Starter
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;3-关键机制详解-implementation-details&#34;&gt;3. 关键机制详解 (Implementation Details)&lt;/h2&gt;
+&lt;h3 id=&#34;31-启动拦截-the-hook&#34;&gt;3.1 启动拦截 (The Hook)&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;文件&lt;/strong&gt;: &lt;code&gt;ActivityStarter.java&lt;/code&gt;&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

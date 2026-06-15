@@ -1,29 +1,322 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Gunyah开发笔记 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/gunyah/</link><description>Recent content in Gunyah开发笔记 on Ethen 的实验室</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Mon, 20 Apr 2026 14:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/gunyah/index.xml" rel="self" type="application/rss+xml"/><item><title>Android Guest DMA-buf 内存分配调查 (SA8397)</title><link>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</link><pubDate>Mon, 20 Apr 2026 14:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</guid><description>1. 背景与结论速览 本文回答一个问题：在 PVM (Yocto Linux) + GVM (qcrosvm + Android Guest) 架构的 SA8397 Cockpit 平台上，Android Guest 里的 audio / video / camera / graphics 子系统是否都使用 dma-buf，分别&amp;quot;分配了多大&amp;quot;。
-结论：
-是的，四大子系统在 GVM 内部都走 dma-buf 框架，用户态通过 /dev/dma_heap/* 申请，跨 VM 传递使用 HAB 或 virtio-mmio 通道。 大部分堆不是静态预分配——qcom,system / system 等 system heap 是按需从内核 page allocator 取，上限就是 Guest 剩余可用内存；只有 secure / QSEE / CMA 型的 carveout 才在 device-tree 里有固定大小。 本次取样（设备 d7df5883，处于运行中的座舱工况）GVM 内活跃 dma-buf 合计 ≈ 4.40 GB / 5922 个，主要由 GPU (KGSL/HGSL) 占用。 2.</description></item><item><title>SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配</title><link>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/</link><pubDate>Wed, 08 Apr 2026 21:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/</guid><description>本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：
-Android guest 明明只跑了 12 个 yes，为什么 top 头部还能看到 1600%cpu 和较高的 idle。 Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 steal 只有约 30% 出头。 当前平台上，Android guest 的 vCPU 数量、亲和性、优先级和时间片到底由哪一层决定。 这三个问题分别对应：
-guest 内部的 vCPU 拓扑与 top 展示口径 hypervisor 实际给 guest 的 wall-clock CPU 时间 Gunyah / Resource Manager 的静态配置与运行时调度属性 本文只保留已经通过源码和实机确认过的内容，不再使用旧现场里的过期假设。
-一、结论摘要 当前车机环境下，可以先记住下面 8 个结论：
-Linux host 当前可见 18 个 CPU，0-17 全部 online。 Android guest 当前 possible=0-15、present=0-15，但 online=0-11，也就是只启用了 12 个 vCPU。 maxcpus=12 来自 Android guest 的启动参数，因此 16 个 vCPU 节点里只有前 12 个在线。 当前 gvm.</description></item><item><title>HAB 通信机制与原理</title><link>https://ethen-cao.github.io/ethenslab/gunyah/hab-communication-mechanism/</link><pubDate>Sun, 05 Apr 2026 16:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/hab-communication-mechanism/</guid><description>1. 概述 在 Qualcomm 虚拟化平台里，HAB (Hypervisor Abstraction) 可以理解为一套面向跨 VM 通信的通用框架。它不是单纯的“发消息接口”，而是同时提供了三类能力：
-面向请求/响应的小消息通道，接口形式接近 socket。 面向大块数据的共享内存机制，通过 export/import 完成零拷贝或近零拷贝数据面。 面向低时延事件的虚拟中断/doorbell 机制，即 VIRQ。 对上层客户端来说，HAB 的 API 主要体现为：
-habmm_socket_open/close habmm_socket_send/recv habmm_export/import habmm_virq_register habmm_send_virq habmm_virq_unregister 对底层传输来说，HAB 并不强绑定某一种 hypervisor transport。当前 SA8797 这套系统的运行形态是 GVM side (Android Guest) 对接 PVM side (Linux Host)，常见 transport 是 virtio + vhost；但从 HAB 核心代码结构看，它本身是把“协议层”和“传输层”拆开的。
-如果只保留一句最短定义，那么可以把 HAB 理解成：
-让 PVM side 和 GVM side 像使用一条“跨 VM socket”那样通信；如果消息不够，还可以继续用同一套框架共享大块 buffer，或者触发 doorbell/virq。
-在本文里，GVM side 专指 Android Guest 代码基线 /home/ethen/workspace/voyah/projects/8397/code/vendor，PVM side 专指 Linux Host 代码基线 /home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc。两侧都各自带有 HAB 用户态库和 HAB 内核驱动，所以后文凡是引用具体实现，都会显式标出来自哪一侧。</description></item><item><title>PREEMPT_RT 下 AF_UNIX close() 与定时器超时的底层原理</title><link>https://ethen-cao.github.io/ethenslab/gunyah/preempt-rt-af-unix-watchdog-timeout/</link><pubDate>Sat, 28 Mar 2026 18:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/preempt-rt-af-unix-watchdog-timeout/</guid><description>一、问题模型 1.1 现象 在 PREEMPT_RT 内核 + 密集块设备 I/O 的系统上，可能同时观察到以下症状：
-多个 watchdog 几乎同一时刻报 timeout select() / poll() / pthread_cond_timedwait() 超时不准，偏差达数秒 业务主线程、watchdog 管理端本身调度正常，不存在 CPU 饥饿 表面上像是上层 timeout 逻辑有 bug，实际根因在内核锁语义变化。
-1.2 同一根因的两种表现 这类问题的根因是 per-CPU BH 锁饥饿（BH 锁：PREEMPT_RT 下 local_bh_disable() 获取的 per-CPU sleeping lock，详见第二节）。它通过两条路径表现为上层 timeout：
-路径一：socket close 阻塞 路径二：soft hrtimer 延迟 受害者 用户线程的 close() → write_lock_bh() 内核 softirq 线程（ktimers/N 或 ksoftirqd） 直接阻塞点 sock_orphan() → write_lock_bh() → local_bh_disable() → rt_spin_lock（BH 锁） softirq 线程处理定时器时的 local_bh_disable() → rt_spin_lock（同一把 BH 锁） 上层表现 心跳发送线程卡在 close() 上，无法发出新心跳 futex_wait / select / poll 超时不准（偏差达数秒） 线程状态 D（不可中断睡眠） softirq 线程 D 状态；用户线程 S 状态（等待 hrtimer 到期） 影响范围 所有经过 write_lock_bh() / local_bh_disable() 的线程 所有 SCHED_NORMAL 线程的超时定时器 共同根因 IRQ handler 在 irq_forced_thread_fn() 中持有 BH 锁，被内层 folio/writeback 锁阻塞，BH 锁长时间不释放 两条路径已分别通过 ftrace 验证：路径一确认了用户线程 D 状态的完整等待链和锁持有时序；路径二确认了 softirq 线程（ktimers/5）进入 D 状态 1.</description></item><item><title>Android 图形渲染架构详解 (Gunyah Hypervisor)</title><link>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</link><pubDate>Tue, 13 Jan 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</guid><description>1. 概述 本文档详细描述了在基于 Qualcomm SA8295/SA8255 (Gen5) 智能座舱平台中，Android Guest VM 的图形渲染软件架构。
-在该平台中，Android 运行在 Gunyah Hypervisor 之上作为客户机（Guest VM）。图形系统采用前后端分离的虚拟化架构 (Split-Rendering Architecture)。Android 侧（Guest）负责生成渲染指令，通过 HGSL (Hypervisor Graphics Service Layer) 驱动栈穿透虚拟机边界，最终由 Host 端的物理驱动操控 Adreno GPU 硬件执行渲染。
-本文档涵盖了从应用层 View 系统、Native 渲染管线、到内核虚拟化驱动的全链路技术细节。
-2. 整体架构图 下图展示了从应用层 ViewRootImpl 到底层内核驱动 gh_dbl 的完整调用链路。架构清晰地展示了 BLASTBufferQueue 的引入、OpenGL ES / Vulkan 的双链路支持，以及内核态的快慢通道分离设计。
-3. 应用层：从 UI 到渲染线程 (Application UI Layer) 在 Android 16+ 架构中，应用层不仅负责 UI 逻辑，还直接参与图形缓冲区的管理。
-ViewRootImpl &amp;amp; BLASTBufferQueue ViewRootImpl：它是 View 树的管理者。在现代架构中，它直接持有并管理 BLASTBufferQueue 实例。 BLASTBufferQueue (BBQ)： 这是 Android 图形架构的重大变革。BufferQueue 的生产者逻辑现在运行在应用进程内部。 它负责将应用绘制的内容与窗口属性（位置、大小）打包成原子化的 Transaction 提交给 SurfaceFlinger，从而彻底解决了画面与窗口不同步（Tearing/Desync）的问题。 本地 Surface：应用使用的 ANativeWindow (Surface) 直接连接到进程内的 BBQ，因此申请缓冲区 (dequeueBuffer) 是极快的进程内操作，不再频繁依赖 IPC 请求 SurfaceFlinger。 录制与同步 (Record &amp;amp; Sync) View / Canvas (RecordingCanvas)：</description></item><item><title>高通 Gunyah Virtio-blk实现机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>1. 概述 本图展示了在 Android 虚拟化场景下，Guest OS（Android 虚拟机）如何通过 Virtio-blk 协议高效地访问 Host 侧的物理存储设备。该架构采用 Userspace Backend 模式，即虚拟磁盘的后端处理逻辑集成在 VMM（此处为 qcrosvm）的用户态进程中。
-@startuml !theme plain skinparam componentStyle rectangle skinparam shadowing false top to bottom direction legend right &amp;lt;color:#1F77B4&amp;gt;━━ Shared Memory / Data Plane（共享内存，非数据流）&amp;lt;/color&amp;gt; &amp;lt;color:#FF7F0E&amp;gt;━━ Control Plane（kick / irq / 状态推进）&amp;lt;/color&amp;gt; endlegend &amp;#39; ======================= &amp;#39; Guest &amp;#39; ======================= frame &amp;#34;Android Guest (VM)&amp;#34; as G #E3F2FD { component &amp;#34;Android App&amp;#34; as App component &amp;#34;VFS / FS&amp;#34; as FS component &amp;#34;Block Layer&amp;#34; as BL component &amp;#34;virtio-blk\n(frontend driver)&amp;#34; as FE App --&amp;gt; FS FS --&amp;gt; BL BL --&amp;gt; FE : submit block request } &amp;#39; ======================= &amp;#39; Shared Memory (Guest-owned, Host-mapped) &amp;#39; ======================= frame &amp;#34;Guest RAM (Shared Memory)&amp;#34; as RAM #ECEFF1 { component &amp;#34;Virtqueue\n- Descriptor Table\n- Avail Ring\n- Used Ring&amp;#34; as VQ component &amp;#34;Guest Data Buffers\n(Block I/O payload)&amp;#34; as BUF } &amp;#39; ======================= &amp;#39; Host &amp;#39; ======================= frame &amp;#34;Linux Host&amp;#34; as H #E8F5E9 { frame &amp;#34;User Space&amp;#34; as USER { component &amp;#34;qcrosvm\n(VMM + virtio-blk backend)&amp;#34; as BE } frame &amp;#34;Linux Kernel&amp;#34; as KERNEL { component &amp;#34;Host Block Layer / FS&amp;#34; as HBLK } } &amp;#39; ======================= &amp;#39; Hardware &amp;#39; ======================= frame &amp;#34;Hardware&amp;#34; as HW { component &amp;#34;Physical Block Device\n(eMMC / UFS / NVMe)&amp;#34; as DISK } &amp;#39; ======================= &amp;#39; Hypervisor (mechanism only) &amp;#39; ======================= rectangle &amp;#34;Gunyah Hypervisor\n(Memory Mapping, eventfd, irqfd)&amp;#34; as HV #F5F5F5 &amp;#39; ======================= &amp;#39; Data Plane (shared memory access, NOT data flow) &amp;#39; ======================= FE .</description></item><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。
-本文将深入解析其文件结构、编译配置、构建流程以及打包机制。
-1. 源码结构与文件路径 在 Yocto 项目中，设备树源码通常独立于内核源码管理，位于 vendor/qcom/opensource/base-devicetree 目录下。
-关键文件类型与路径 所有核心文件位于 arch/arm64/boot/dts/qcom/ 目录下：
-SoC 基础定义 (.dtsi):
-sa8797p.dtsi: 定义了芯片级的硬件，如 CPU、中断控制器 (GIC)、总线、时钟等。 sa8x97p.dtsi: 系列通用的定义。 虚拟机资源定义 (&amp;ldquo;The Contract&amp;rdquo;):
-sa8797p-vms.dtsi: 这是配置虚拟设备的核心文件。 它定义了 auto_vm (Android Guest) 的资源，包括： reserved-memory: 为 Virtio 环形缓冲区（Ring Buffers）预留的物理内存（带有 gunyah-label）。 virtio-backends: 定义 Host 内核可见的后端逻辑设备（带有 qcom,label）。 gh-secure-vm-loader: 将上述资源绑定到特定的 VMID。 项目级覆盖 (Overlay) (.dtso):
-sa8797p-overlay.dtso: 通用的 Overlay入口。 sa8797p-voyah-common-overlay.dtso: 特定项目（Voyah）的扩展配置。 最佳实践：当需要添加新设备（如 virtio-fs）时，推荐修改此文件，以利用其覆盖机制，避免破坏基础平台定义。 板级顶层定义 (.dts):
-sa8797p-voyah-v20.dts: 针对具体硬件板卡的顶层描述文件。 2.</description></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Gunyah开发笔记 on Ethen 的实验室</title>
+    <link>https://ethen-cao.github.io/ethenslab/gunyah/</link>
+    <description>Recent content in Gunyah开发笔记 on Ethen 的实验室</description>
+    <generator>Hugo -- 0.163.0</generator>
+    <language>en</language>
+    <lastBuildDate>Mon, 20 Apr 2026 14:00:00 +0800</lastBuildDate>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/gunyah/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Android Guest DMA-buf 内存分配调查 (SA8397)</title>
+      <link>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</link>
+      <pubDate>Mon, 20 Apr 2026 14:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</guid>
+      <description>&lt;h2 id=&#34;1-背景与结论速览&#34;&gt;1. 背景与结论速览&lt;/h2&gt;
+&lt;p&gt;本文回答一个问题：在 &lt;strong&gt;PVM (Yocto Linux) + GVM (qcrosvm + Android Guest)&lt;/strong&gt; 架构的 SA8397 Cockpit 平台上，Android Guest 里的 &lt;strong&gt;audio / video / camera / graphics&lt;/strong&gt; 子系统是否都使用 dma-buf，分别&amp;quot;分配了多大&amp;quot;。&lt;/p&gt;
+&lt;p&gt;结论：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;是的，四大子系统在 GVM 内部都走 &lt;strong&gt;dma-buf&lt;/strong&gt; 框架，用户态通过 &lt;code&gt;/dev/dma_heap/*&lt;/code&gt; 申请，跨 VM 传递使用 &lt;strong&gt;HAB&lt;/strong&gt; 或 &lt;strong&gt;virtio-mmio&lt;/strong&gt; 通道。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;大部分堆不是静态预分配&lt;/strong&gt;——&lt;code&gt;qcom,system&lt;/code&gt; / &lt;code&gt;system&lt;/code&gt; 等 system heap 是按需从内核 page allocator 取，上限就是 Guest 剩余可用内存；只有 &lt;strong&gt;secure / QSEE / CMA&lt;/strong&gt; 型的 carveout 才在 device-tree 里有固定大小。&lt;/li&gt;
+&lt;li&gt;本次取样（设备 &lt;code&gt;d7df5883&lt;/code&gt;，处于运行中的座舱工况）GVM 内活跃 dma-buf 合计 &lt;strong&gt;≈ 4.40 GB / 5922 个&lt;/strong&gt;，主要由 GPU (KGSL/HGSL) 占用。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;2-gvm-中可用的-dma-heap&#34;&gt;2. GVM 中可用的 DMA Heap&lt;/h2&gt;
+&lt;p&gt;GVM 的 Android 内核只暴露标准 &lt;code&gt;dma_heap&lt;/code&gt; 接口（&lt;strong&gt;没有&lt;/strong&gt; legacy ION，也&lt;strong&gt;没有&lt;/strong&gt; &lt;code&gt;debugfs/dma_heap&lt;/code&gt;）：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配</title>
+      <link>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/</link>
+      <pubDate>Wed, 08 Apr 2026 21:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/</guid>
+      <description>&lt;p&gt;本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Android guest 明明只跑了 &lt;code&gt;12&lt;/code&gt; 个 &lt;code&gt;yes&lt;/code&gt;，为什么 &lt;code&gt;top&lt;/code&gt; 头部还能看到 &lt;code&gt;1600%cpu&lt;/code&gt; 和较高的 &lt;code&gt;idle&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 &lt;code&gt;steal&lt;/code&gt; 只有约 &lt;code&gt;30%&lt;/code&gt; 出头。&lt;/li&gt;
+&lt;li&gt;当前平台上，Android guest 的 vCPU 数量、亲和性、优先级和时间片到底由哪一层决定。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;这三个问题分别对应：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;guest 内部的 vCPU 拓扑与 &lt;code&gt;top&lt;/code&gt; 展示口径&lt;/li&gt;
+&lt;li&gt;hypervisor 实际给 guest 的 wall-clock CPU 时间&lt;/li&gt;
+&lt;li&gt;Gunyah / Resource Manager 的静态配置与运行时调度属性&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;本文只保留已经通过源码和实机确认过的内容，不再使用旧现场里的过期假设。&lt;/p&gt;
+&lt;h2 id=&#34;一结论摘要&#34;&gt;一、结论摘要&lt;/h2&gt;
+&lt;p&gt;当前车机环境下，可以先记住下面 8 个结论：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Linux host 当前可见 &lt;code&gt;18&lt;/code&gt; 个 CPU，&lt;code&gt;0-17&lt;/code&gt; 全部 online。&lt;/li&gt;
+&lt;li&gt;Android guest 当前 &lt;code&gt;possible=0-15&lt;/code&gt;、&lt;code&gt;present=0-15&lt;/code&gt;，但 &lt;code&gt;online=0-11&lt;/code&gt;，也就是只启用了 &lt;code&gt;12&lt;/code&gt; 个 vCPU。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;maxcpus=12&lt;/code&gt; 来自 Android guest 的启动参数，因此 &lt;code&gt;16&lt;/code&gt; 个 vCPU 节点里只有前 &lt;code&gt;12&lt;/code&gt; 个在线。&lt;/li&gt;
+&lt;li&gt;当前 &lt;code&gt;gvm.slice&lt;/code&gt; 的生效 CPU 集合是 &lt;code&gt;0-17&lt;/code&gt;；Linux cgroup 没有表现出把 guest 固定在 &lt;code&gt;12&lt;/code&gt; 个 host CPU 上的行为。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;gvm.slice/cpu.max = max 100000&lt;/code&gt;，&lt;code&gt;cpu.stat&lt;/code&gt; 中 &lt;code&gt;nr_throttled = 0&lt;/code&gt;，因此 Linux cgroup 没有 CPU quota throttle。&lt;/li&gt;
+&lt;li&gt;Android guest 的 vCPU 调度属性来自 &lt;code&gt;autoghgvm&lt;/code&gt; 镜像里的 VM 配置：&lt;code&gt;affinity=&amp;quot;pinned&amp;quot;&lt;/code&gt;、&lt;code&gt;sched-priority=0&lt;/code&gt;、&lt;code&gt;sched-timeslice=5000us&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;upstream Gunyah RM 的调度模型里，guest 的 &lt;code&gt;sched-priority&lt;/code&gt; 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 &lt;code&gt;5ms&lt;/code&gt; 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 &lt;code&gt;32&lt;/code&gt;，当前场景下可将 guest 的有效优先级理解为 &lt;code&gt;32&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 &lt;code&gt;cpu6-17&lt;/code&gt; 上，&lt;code&gt;steal&lt;/code&gt; 约 &lt;code&gt;33.31%&lt;/code&gt;，折算为约 &lt;code&gt;6&lt;/code&gt; 个 host-core 的 wall-clock。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;换句话说，现场现象不是一个问题，而是两个问题叠加：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>HAB 通信机制与原理</title>
+      <link>https://ethen-cao.github.io/ethenslab/gunyah/hab-communication-mechanism/</link>
+      <pubDate>Sun, 05 Apr 2026 16:30:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/gunyah/hab-communication-mechanism/</guid>
+      <description>&lt;h2 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;在 Qualcomm 虚拟化平台里，&lt;strong&gt;HAB (Hypervisor Abstraction)&lt;/strong&gt; 可以理解为一套面向跨 VM 通信的通用框架。它不是单纯的“发消息接口”，而是同时提供了三类能力：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;面向请求/响应的小消息通道&lt;/strong&gt;，接口形式接近 socket。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;面向大块数据的共享内存机制&lt;/strong&gt;，通过 &lt;code&gt;export/import&lt;/code&gt; 完成零拷贝或近零拷贝数据面。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;面向低时延事件的虚拟中断/doorbell 机制&lt;/strong&gt;，即 &lt;code&gt;VIRQ&lt;/code&gt;。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;对上层客户端来说，HAB 的 API 主要体现为：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;habmm_socket_open/close&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;habmm_socket_send/recv&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;habmm_export/import&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;habmm_virq_register&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;habmm_send_virq&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;habmm_virq_unregister&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;对底层传输来说，HAB 并不强绑定某一种 hypervisor transport。当前 SA8797 这套系统的运行形态是 &lt;code&gt;GVM side (Android Guest)&lt;/code&gt; 对接 &lt;code&gt;PVM side (Linux Host)&lt;/code&gt;，常见 transport 是 &lt;strong&gt;virtio + vhost&lt;/strong&gt;；但从 HAB 核心代码结构看，它本身是把“协议层”和“传输层”拆开的。&lt;/p&gt;
+&lt;p&gt;如果只保留一句最短定义，那么可以把 HAB 理解成：&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;让 &lt;code&gt;PVM side&lt;/code&gt; 和 &lt;code&gt;GVM side&lt;/code&gt; 像使用一条“跨 VM socket”那样通信；如果消息不够，还可以继续用同一套框架共享大块 buffer，或者触发 doorbell/virq。&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;在本文里，&lt;code&gt;GVM side&lt;/code&gt; 专指 Android Guest 代码基线 &lt;code&gt;/home/ethen/workspace/company/projects/8397/code/vendor&lt;/code&gt;，&lt;code&gt;PVM side&lt;/code&gt; 专指 Linux Host 代码基线 &lt;code&gt;/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc&lt;/code&gt;。两侧都各自带有 HAB 用户态库和 HAB 内核驱动，所以后文凡是引用具体实现，都会显式标出来自哪一侧。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>PREEMPT_RT 下 AF_UNIX close() 与定时器超时的底层原理</title>
+      <link>https://ethen-cao.github.io/ethenslab/gunyah/preempt-rt-af-unix-watchdog-timeout/</link>
+      <pubDate>Sat, 28 Mar 2026 18:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/gunyah/preempt-rt-af-unix-watchdog-timeout/</guid>
+      <description>&lt;h2 id=&#34;一问题模型&#34;&gt;一、问题模型&lt;/h2&gt;
+&lt;h3 id=&#34;11-现象&#34;&gt;1.1 现象&lt;/h3&gt;
+&lt;p&gt;在 PREEMPT_RT 内核 + 密集块设备 I/O 的系统上，可能同时观察到以下症状：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;多个 watchdog 几乎同一时刻报 timeout&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;select()&lt;/code&gt; / &lt;code&gt;poll()&lt;/code&gt; / &lt;code&gt;pthread_cond_timedwait()&lt;/code&gt; 超时不准，偏差达数秒&lt;/li&gt;
+&lt;li&gt;业务主线程、watchdog 管理端本身调度正常，不存在 CPU 饥饿&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;表面上像是上层 timeout 逻辑有 bug，实际根因在内核锁语义变化。&lt;/p&gt;
+&lt;h3 id=&#34;12-同一根因的两种表现&#34;&gt;1.2 同一根因的两种表现&lt;/h3&gt;
+&lt;p&gt;这类问题的根因是 &lt;strong&gt;per-CPU BH 锁饥饿&lt;/strong&gt;（BH 锁：PREEMPT_RT 下 &lt;code&gt;local_bh_disable()&lt;/code&gt; 获取的 per-CPU sleeping lock，详见第二节）。它通过两条路径表现为上层 timeout：&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;&lt;/th&gt;
+					&lt;th&gt;路径一：socket close 阻塞&lt;/th&gt;
+					&lt;th&gt;路径二：soft hrtimer 延迟&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;受害者&lt;/td&gt;
+					&lt;td&gt;用户线程的 &lt;code&gt;close()&lt;/code&gt; → &lt;code&gt;write_lock_bh()&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;内核 softirq 线程（&lt;code&gt;ktimers/N&lt;/code&gt; 或 &lt;code&gt;ksoftirqd&lt;/code&gt;）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;直接阻塞点&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;sock_orphan()&lt;/code&gt; → &lt;code&gt;write_lock_bh()&lt;/code&gt; → &lt;code&gt;local_bh_disable()&lt;/code&gt; → &lt;code&gt;rt_spin_lock&lt;/code&gt;（BH 锁）&lt;/td&gt;
+					&lt;td&gt;softirq 线程处理定时器时的 &lt;code&gt;local_bh_disable()&lt;/code&gt; → &lt;code&gt;rt_spin_lock&lt;/code&gt;（同一把 BH 锁）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;上层表现&lt;/td&gt;
+					&lt;td&gt;心跳发送线程卡在 &lt;code&gt;close()&lt;/code&gt; 上，无法发出新心跳&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;futex_wait&lt;/code&gt; / &lt;code&gt;select&lt;/code&gt; / &lt;code&gt;poll&lt;/code&gt; 超时不准（偏差达数秒）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;线程状态&lt;/td&gt;
+					&lt;td&gt;D（不可中断睡眠）&lt;/td&gt;
+					&lt;td&gt;softirq 线程 D 状态；用户线程 S 状态（等待 hrtimer 到期）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;影响范围&lt;/td&gt;
+					&lt;td&gt;所有经过 &lt;code&gt;write_lock_bh()&lt;/code&gt; / &lt;code&gt;local_bh_disable()&lt;/code&gt; 的线程&lt;/td&gt;
+					&lt;td&gt;所有 SCHED_NORMAL 线程的超时定时器&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;共同根因&lt;/td&gt;
+					&lt;td&gt;IRQ handler 在 &lt;code&gt;irq_forced_thread_fn()&lt;/code&gt; 中持有 BH 锁，被内层 folio/writeback 锁阻塞，BH 锁长时间不释放&lt;/td&gt;
+					&lt;td&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;两条路径已分别通过 ftrace 验证：路径一确认了用户线程 D 状态的完整等待链和锁持有时序；路径二确认了 softirq 线程（&lt;code&gt;ktimers/5&lt;/code&gt;）进入 D 状态 1.4 秒，期间无法处理 soft hrtimer，导致 500ms 定时器延迟到 1803ms。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android 图形渲染架构详解 (Gunyah Hypervisor)</title>
+      <link>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</link>
+      <pubDate>Tue, 13 Jan 2026 10:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</guid>
+      <description>&lt;h2 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;本文档详细描述了在基于 &lt;strong&gt;Qualcomm SA8295/SA8255 (Gen5)&lt;/strong&gt; 智能座舱平台中，Android Guest VM 的图形渲染软件架构。&lt;/p&gt;
+&lt;p&gt;在该平台中，Android 运行在 &lt;strong&gt;Gunyah Hypervisor&lt;/strong&gt; 之上作为客户机（Guest VM）。图形系统采用&lt;strong&gt;前后端分离的虚拟化架构 (Split-Rendering Architecture)&lt;/strong&gt;。Android 侧（Guest）负责生成渲染指令，通过 &lt;strong&gt;HGSL (Hypervisor Graphics Service Layer)&lt;/strong&gt; 驱动栈穿透虚拟机边界，最终由 Host 端的物理驱动操控 Adreno GPU 硬件执行渲染。&lt;/p&gt;
+&lt;p&gt;本文档涵盖了从应用层 View 系统、Native 渲染管线、到内核虚拟化驱动的全链路技术细节。&lt;/p&gt;
+&lt;h2 id=&#34;2-整体架构图&#34;&gt;2. 整体架构图&lt;/h2&gt;
+&lt;p&gt;下图展示了从应用层 &lt;code&gt;ViewRootImpl&lt;/code&gt; 到底层内核驱动 &lt;code&gt;gh_dbl&lt;/code&gt; 的完整调用链路。架构清晰地展示了 &lt;strong&gt;BLASTBufferQueue&lt;/strong&gt; 的引入、&lt;strong&gt;OpenGL ES / Vulkan&lt;/strong&gt; 的双链路支持，以及内核态的&lt;strong&gt;快慢通道分离&lt;/strong&gt;设计。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/gunyah-graphics.png&#34; alt=&#34;&#34;  /&gt;&lt;/p&gt;
+&lt;h2 id=&#34;3-应用层从-ui-到渲染线程-application-ui-layer&#34;&gt;3. 应用层：从 UI 到渲染线程 (Application UI Layer)&lt;/h2&gt;
+&lt;p&gt;在 Android 16+ 架构中，应用层不仅负责 UI 逻辑，还直接参与图形缓冲区的管理。&lt;/p&gt;
+&lt;h3 id=&#34;viewrootimpl--blastbufferqueue&#34;&gt;&lt;strong&gt;ViewRootImpl &amp;amp; BLASTBufferQueue&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;ViewRootImpl&lt;/strong&gt;：它是 View 树的管理者。在现代架构中，它直接持有并管理 &lt;strong&gt;&lt;code&gt;BLASTBufferQueue&lt;/code&gt;&lt;/strong&gt; 实例。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;BLASTBufferQueue (BBQ)&lt;/strong&gt;：
+&lt;ul&gt;
+&lt;li&gt;这是 Android 图形架构的重大变革。BufferQueue 的生产者逻辑现在运行在&lt;strong&gt;应用进程内部&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;它负责将应用绘制的内容与窗口属性（位置、大小）打包成原子化的 &lt;strong&gt;Transaction&lt;/strong&gt; 提交给 SurfaceFlinger，从而彻底解决了画面与窗口不同步（Tearing/Desync）的问题。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;本地 Surface&lt;/strong&gt;：应用使用的 &lt;code&gt;ANativeWindow&lt;/code&gt; (Surface) 直接连接到进程内的 BBQ，因此申请缓冲区 (&lt;code&gt;dequeueBuffer&lt;/code&gt;) 是极快的&lt;strong&gt;进程内操作&lt;/strong&gt;，不再频繁依赖 IPC 请求 SurfaceFlinger。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;录制与同步-record--sync&#34;&gt;&lt;strong&gt;录制与同步 (Record &amp;amp; Sync)&lt;/strong&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;View / Canvas (RecordingCanvas)&lt;/strong&gt;：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>高通 Gunyah Virtio-blk实现机制</title>
+      <link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link>
+      <pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid>
+      <description>&lt;h4 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h4&gt;
+&lt;p&gt;本图展示了在 Android 虚拟化场景下，Guest OS（Android 虚拟机）如何通过 &lt;strong&gt;Virtio-blk&lt;/strong&gt; 协议高效地访问 Host 侧的物理存储设备。该架构采用 &lt;strong&gt;Userspace Backend&lt;/strong&gt; 模式，即虚拟磁盘的后端处理逻辑集成在 VMM（此处为 &lt;code&gt;qcrosvm&lt;/code&gt;）的用户态进程中。&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+top to bottom direction
+
+legend right
+&amp;lt;color:#1F77B4&amp;gt;━━ Shared Memory / Data Plane（共享内存，非数据流）&amp;lt;/color&amp;gt;
+&amp;lt;color:#FF7F0E&amp;gt;━━ Control Plane（kick / irq / 状态推进）&amp;lt;/color&amp;gt;
+endlegend
+
+&amp;#39; =======================
+&amp;#39; Guest
+&amp;#39; =======================
+frame &amp;#34;Android Guest (VM)&amp;#34; as G #E3F2FD {
+  component &amp;#34;Android App&amp;#34; as App
+  component &amp;#34;VFS / FS&amp;#34; as FS
+  component &amp;#34;Block Layer&amp;#34; as BL
+  component &amp;#34;virtio-blk\n(frontend driver)&amp;#34; as FE
+
+  App --&amp;gt; FS
+  FS --&amp;gt; BL
+  BL --&amp;gt; FE : submit block request
+}
+
+&amp;#39; =======================
+&amp;#39; Shared Memory (Guest-owned, Host-mapped)
+&amp;#39; =======================
+frame &amp;#34;Guest RAM (Shared Memory)&amp;#34; as RAM #ECEFF1 {
+  component &amp;#34;Virtqueue\n- Descriptor Table\n- Avail Ring\n- Used Ring&amp;#34; as VQ
+  component &amp;#34;Guest Data Buffers\n(Block I/O payload)&amp;#34; as BUF
+}
+
+&amp;#39; =======================
+&amp;#39; Host
+&amp;#39; =======================
+frame &amp;#34;Linux Host&amp;#34; as H #E8F5E9 {
+
+  frame &amp;#34;User Space&amp;#34; as USER {
+    component &amp;#34;qcrosvm\n(VMM + virtio-blk backend)&amp;#34; as BE
+  }
+
+  frame &amp;#34;Linux Kernel&amp;#34; as KERNEL {
+    component &amp;#34;Host Block Layer / FS&amp;#34; as HBLK
+  }
+}
+
+&amp;#39; =======================
+&amp;#39; Hardware
+&amp;#39; =======================
+frame &amp;#34;Hardware&amp;#34; as HW {
+  component &amp;#34;Physical Block Device\n(eMMC / UFS / NVMe)&amp;#34; as DISK
+}
+
+&amp;#39; =======================
+&amp;#39; Hypervisor (mechanism only)
+&amp;#39; =======================
+rectangle &amp;#34;Gunyah Hypervisor\n(Memory Mapping, eventfd, irqfd)&amp;#34; as HV #F5F5F5
+
+&amp;#39; =======================
+&amp;#39; Data Plane (shared memory access, NOT data flow)
+&amp;#39; =======================
+FE ..[#1F77B4]..&amp;gt; VQ  : access
+FE ..[#1F77B4]..&amp;gt; BUF : access
+
+BE ..[#1F77B4]..&amp;gt; VQ  : access
+BE ..[#1F77B4]..&amp;gt; BUF : access
+
+&amp;#39; =======================
+&amp;#39; Control Plane
+&amp;#39; =======================
+FE -[#FF7F0E]-&amp;gt; HV : QueueNotify (kick)
+HV -[#FF7F0E]-&amp;gt; BE : eventfd wakeup
+
+BE -[#FF7F0E]-&amp;gt; HV : inject IRQ (irqfd)
+HV -[#FF7F0E]-&amp;gt; FE : virtual interrupt
+
+&amp;#39; =======================
+&amp;#39; Backend I/O Path
+&amp;#39; =======================
+BE --&amp;gt; HBLK : read / write
+HBLK --&amp;gt; DISK
+
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h4 id=&#34;2-核心组件与角色&#34;&gt;2. 核心组件与角色&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Guest (Android VM):&lt;/strong&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title>
+      <link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link>
+      <pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid>
+      <description>&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
+&lt;p&gt;本文将深入解析其文件结构、编译配置、构建流程以及打包机制。&lt;/p&gt;
+&lt;h2 id=&#34;1-源码结构与文件路径&#34;&gt;1. 源码结构与文件路径&lt;/h2&gt;
+&lt;p&gt;在 Yocto 项目中，设备树源码通常独立于内核源码管理，位于 &lt;code&gt;vendor/qcom/opensource/base-devicetree&lt;/code&gt; 目录下。&lt;/p&gt;
+&lt;h3 id=&#34;关键文件类型与路径&#34;&gt;关键文件类型与路径&lt;/h3&gt;
+&lt;p&gt;所有核心文件位于 &lt;code&gt;arch/arm64/boot/dts/qcom/&lt;/code&gt; 目录下：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;SoC 基础定义 (&lt;code&gt;.dtsi&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p.dtsi&lt;/code&gt;&lt;/strong&gt;: 定义了芯片级的硬件，如 CPU、中断控制器 (GIC)、总线、时钟等。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8x97p.dtsi&lt;/code&gt;&lt;/strong&gt;: 系列通用的定义。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;虚拟机资源定义 (&amp;ldquo;The Contract&amp;rdquo;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-vms.dtsi&lt;/code&gt;&lt;/strong&gt;: &lt;strong&gt;这是配置虚拟设备的核心文件&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;它定义了 &lt;code&gt;auto_vm&lt;/code&gt; (Android Guest) 的资源，包括：
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;reserved-memory&lt;/code&gt;&lt;/strong&gt;: 为 Virtio 环形缓冲区（Ring Buffers）预留的物理内存（带有 &lt;code&gt;gunyah-label&lt;/code&gt;）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;virtio-backends&lt;/code&gt;&lt;/strong&gt;: 定义 Host 内核可见的后端逻辑设备（带有 &lt;code&gt;qcom,label&lt;/code&gt;）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;gh-secure-vm-loader&lt;/code&gt;&lt;/strong&gt;: 将上述资源绑定到特定的 VMID。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;项目级覆盖 (Overlay) (&lt;code&gt;.dtso&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-overlay.dtso&lt;/code&gt;&lt;/strong&gt;: 通用的 Overlay入口。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-company-common-overlay.dtso&lt;/code&gt;&lt;/strong&gt;: &lt;strong&gt;特定项目（Company）的扩展配置&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;最佳实践&lt;/em&gt;：当需要添加新设备（如 &lt;code&gt;virtio-fs&lt;/code&gt;）时，推荐修改此文件，以利用其覆盖机制，避免破坏基础平台定义。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;板级顶层定义 (&lt;code&gt;.dts&lt;/code&gt;)&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;sa8797p-company-v20.dts&lt;/code&gt;&lt;/strong&gt;: 针对具体硬件板卡的顶层描述文件。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;2-编译配置-bitbake-recipe&#34;&gt;2. 编译配置 (Bitbake Recipe)&lt;/h2&gt;
+&lt;p&gt;Yocto 构建系统通过 Recipe 来管理编译过程。&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

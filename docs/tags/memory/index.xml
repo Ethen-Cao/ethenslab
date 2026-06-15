@@ -1,3 +1,28 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Memory on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/tags/memory/</link><description>Recent content in Memory on Ethen 的实验室</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Mon, 20 Apr 2026 14:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/tags/memory/index.xml" rel="self" type="application/rss+xml"/><item><title>Android Guest DMA-buf 内存分配调查 (SA8397)</title><link>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</link><pubDate>Mon, 20 Apr 2026 14:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</guid><description>1. 背景与结论速览 本文回答一个问题：在 PVM (Yocto Linux) + GVM (qcrosvm + Android Guest) 架构的 SA8397 Cockpit 平台上，Android Guest 里的 audio / video / camera / graphics 子系统是否都使用 dma-buf，分别&amp;quot;分配了多大&amp;quot;。
-结论：
-是的，四大子系统在 GVM 内部都走 dma-buf 框架，用户态通过 /dev/dma_heap/* 申请，跨 VM 传递使用 HAB 或 virtio-mmio 通道。 大部分堆不是静态预分配——qcom,system / system 等 system heap 是按需从内核 page allocator 取，上限就是 Guest 剩余可用内存；只有 secure / QSEE / CMA 型的 carveout 才在 device-tree 里有固定大小。 本次取样（设备 d7df5883，处于运行中的座舱工况）GVM 内活跃 dma-buf 合计 ≈ 4.40 GB / 5922 个，主要由 GPU (KGSL/HGSL) 占用。 2.</description></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Memory on Ethen 的实验室</title>
+    <link>https://ethen-cao.github.io/ethenslab/tags/memory/</link>
+    <description>Recent content in Memory on Ethen 的实验室</description>
+    <generator>Hugo -- 0.163.0</generator>
+    <language>en</language>
+    <lastBuildDate>Mon, 20 Apr 2026 14:00:00 +0800</lastBuildDate>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/tags/memory/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Android Guest DMA-buf 内存分配调查 (SA8397)</title>
+      <link>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</link>
+      <pubDate>Mon, 20 Apr 2026 14:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</guid>
+      <description>&lt;h2 id=&#34;1-背景与结论速览&#34;&gt;1. 背景与结论速览&lt;/h2&gt;
+&lt;p&gt;本文回答一个问题：在 &lt;strong&gt;PVM (Yocto Linux) + GVM (qcrosvm + Android Guest)&lt;/strong&gt; 架构的 SA8397 Cockpit 平台上，Android Guest 里的 &lt;strong&gt;audio / video / camera / graphics&lt;/strong&gt; 子系统是否都使用 dma-buf，分别&amp;quot;分配了多大&amp;quot;。&lt;/p&gt;
+&lt;p&gt;结论：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;是的，四大子系统在 GVM 内部都走 &lt;strong&gt;dma-buf&lt;/strong&gt; 框架，用户态通过 &lt;code&gt;/dev/dma_heap/*&lt;/code&gt; 申请，跨 VM 传递使用 &lt;strong&gt;HAB&lt;/strong&gt; 或 &lt;strong&gt;virtio-mmio&lt;/strong&gt; 通道。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;大部分堆不是静态预分配&lt;/strong&gt;——&lt;code&gt;qcom,system&lt;/code&gt; / &lt;code&gt;system&lt;/code&gt; 等 system heap 是按需从内核 page allocator 取，上限就是 Guest 剩余可用内存；只有 &lt;strong&gt;secure / QSEE / CMA&lt;/strong&gt; 型的 carveout 才在 device-tree 里有固定大小。&lt;/li&gt;
+&lt;li&gt;本次取样（设备 &lt;code&gt;d7df5883&lt;/code&gt;，处于运行中的座舱工况）GVM 内活跃 dma-buf 合计 &lt;strong&gt;≈ 4.40 GB / 5922 个&lt;/strong&gt;，主要由 GPU (KGSL/HGSL) 占用。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;2-gvm-中可用的-dma-heap&#34;&gt;2. GVM 中可用的 DMA Heap&lt;/h2&gt;
+&lt;p&gt;GVM 的 Android 内核只暴露标准 &lt;code&gt;dma_heap&lt;/code&gt; 接口（&lt;strong&gt;没有&lt;/strong&gt; legacy ION，也&lt;strong&gt;没有&lt;/strong&gt; &lt;code&gt;debugfs/dma_heap&lt;/code&gt;）：&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

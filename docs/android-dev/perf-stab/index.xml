@@ -1,47 +1,746 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Android 性能与稳定专项 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/</link><description>Recent content in Android 性能与稳定专项 on Ethen 的实验室</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Tue, 14 Apr 2026 11:08:03 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/index.xml" rel="self" type="application/rss+xml"/><item><title>SA8397 CPU 子系统实机核对</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/soc8397_cpu_cluster/</link><pubDate>Tue, 14 Apr 2026 11:08:03 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/soc8397_cpu_cluster/</guid><description>1. 结论摘要 2026-04-14 在台架上分别登录 Linux host 与 Android guest 后，可得到下面的结论：
-条目 实机结论 状态 3 clusters x 6 QCC 可确认。SoC 总计暴露 18 个 CPU，当前被切分为 Android guest 12 核 + Linux host 6 核。 已确认 L1 cache 为每核私有 可确认。cache/index0 和 cache/index1 的 shared_cpu_list 仅包含当前 CPU。 已确认 128K I-cache + 64K D-cache 当前 bench 的 sysfs / device tree 未导出容量字段，无法仅靠运行时接口直接读出。 未直读确认 12 MB L2 per cluster “cluster 共享一组 Unified cache”可部分确认，但 12 MB 容量值当前无法在运行时接口中直读。 部分确认 当前最重要的修正点有两个：</description></item><item><title>Linux trace-cmd 原理与分析技巧</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/trace-cmd/</link><pubDate>Sun, 15 Mar 2026 22:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/trace-cmd/</guid><description>1. 为什么要学 trace-cmd trace-cmd 是 Linux 内核 ftrace 能力的一层用户态封装。它最适合回答这类问题：
-某个线程为什么长时间没有运行 某个进程为什么进入 D 状态 某段时间 CPU 在跑谁 哪个锁、哪个等待链把系统拖慢了 某次 watchdog timeout 前后，系统到底发生了什么 如果说日志更像“应用自己说了什么”，那么 trace-cmd 更像“内核真实记录了什么”。
-2. trace-cmd 的基本原理 2.1 本质上它是 ftrace 的采集器 Linux 内核里有一套 ftrace/tracepoint 机制。内核在调度、锁、中断、块设备、文件系统、电源等关键路径上埋了很多事件点，例如：
-sched:sched_switch sched:sched_wakeup irq:* block:* syscalls:* workqueue:* trace-cmd record 的工作就是：
-打开内核 trace buffer 选择要采集的 tracepoint 持续把事件写入 trace buffer 结束后把数据导出成 trace.dat 随后再用：
-trace-cmd report trace-cmd extract kernelshark 去消费这些数据。
-2.2 它记录的不是“进程快照”，而是“事件流” 这点很重要。
-trace-cmd 不是在某个时间点拍一张系统照片，而是记录“什么时候发生了什么事件”。因此分析时要建立时间线，而不是只盯某一条日志。
-例如：
-1719.423841：sched_waking 1719.423845：sched_wakeup 1719.423852：sched_switch 进入 D 1724.</description></item><item><title>Linux 内核 Hrtimer 机制解析：Hard 与 Soft 定时器的差异与应用层调度</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/hrtimer_mechanism/</link><pubDate>Sun, 15 Mar 2026 22:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/hrtimer_mechanism/</guid><description>在 Linux 内核中，高精度定时器（High-Resolution Timer, Hrtimer）是提供微秒/纳秒级时间精度的核心子系统。在引入实时内核补丁（PREEMPT_RT）后，为了解决硬中断执行时间过长破坏系统实时性的问题，内核对 Hrtimer 进行了严格的区分：Hard Hrtimer（硬高精度定时器）与 Soft Hrtimer（软高精度定时器）。
-本文将严格基于 Linux 内核源码，解析这两者的实现机制、关键时序，以及上层应用定时器是如何被调度和唤醒的。
-1. Hrtimer 核心机制区分 Hrtimer 的底层依赖于每 CPU 的红黑树（Red-Black Tree）来组织定时器节点。所有的 Hrtimer 在物理时间上都是通过对硬件定时器（如 ARM Generic Timer，x86 APIC Timer）进行编程，使其在红黑树中最左侧（最近到期）的时间点触发硬件中断。
-区别在于 硬件中断触发后，回调函数的执行上下文。
-1.1 Hard Hrtimer（硬高精度定时器） 执行上下文：直接在硬中断处理函数（hrtimer_interrupt）中执行。 精度：极高（微秒/纳秒级），因为一旦硬件时钟中断触发，无论当前 CPU 在执行什么任务，都会立刻被打断，当场执行定时器回调。 适用场景：内核关键实时操作，或调度类为实时调度类（SCHED_FIFO / SCHED_RR）的任务。 限制：回调函数内部绝对不能包含任何可能导致睡眠或长耗时的操作。 1.2 Soft Hrtimer（软高精度定时器） 执行上下文：被下放（Deferred）到软中断上下文。在 PREEMPT_RT 内核下，软中断由特定优先级的内核线程（如 ktimers/N 或 ksoftirqd/N，默认优先级 98）专门处理。 精度：受限于系统调度。虽然硬件中断准时触发，但回调的实际执行需要等待 ktimers/N 线程被调度上 CPU。在 I/O 密集或高优先级任务抢占的情况下，可能出现毫秒乃至秒级的延迟。 适用场景：普通调度类（SCHED_NORMAL / SCHED_OTHER）任务的阻塞超时控制，如应用层的 select、futex、epoll_wait 超时。 2. 内核源码实现剖析 2.1 软硬定时器的分类决策 当任务调用可能超时的系统调用时，内核会通过 __hrtimer_init_sleeper() 初始化一个休眠定时器。在 kernel/time/hrtimer.c 中，内核明确定义了分类逻辑：</description></item><item><title>Linux 存储栈全景解析：从用户空间到 UFS 的数据路径</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/zstdext_write_path/</link><pubDate>Sun, 15 Mar 2026 22:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/zstdext_write_path/</guid><description>在 Android 与嵌入式 Linux 系统中，应用对块设备的写入通常不会直接到达存储介质，而是先进入内核 Page Cache，再由回写路径异步下沉到块层和 UFS。理解这一数据路径，是分析 OTA 刷写性能与稳定性问题的前提。
-本文结合 zstdext OTA 刷写案例与 kernel trace 数据，分析 --seg-size=256（即 256MB）配置下单个写回窗口在 VFS、Page Cache、blk-mq 与 UFS 路径上的行为。当前工程已将 seg-size 下调为 64MB，其工程目的在于降低单次 fsync() 所驱动的写回批量；本文重点说明 256MB 配置为何更容易形成高密度的块层写回与完成回调。
-1. 架构总览：从用户缓冲到完成回调 zstdext 对目标块设备执行的是典型的 Buffered I/O 路径。应用写入首先进入 VFS 和 Page Cache，随后由回写机制将脏页转换为块层 I/O，再由 UFS 控制器完成 DMA 传输，最终通过中断完成路径清理写回状态。
-graph TD A[zstdext User Buffer] B[VFS 与块设备文件接口] C[Page Cache 与 address_space] D[write_cache_pages 与 writeback] E[LBA 区间] F[blk mq BIO 队列] G[blk mq Request 队列] H[UFS Host Controller] I[UFS Device] J[IRQ 线程] A --> B B --> C C --> D D --> E E --> F F --> G G --> H H --> I I --> J J --> C A1[64KiB 预填零 128KiB 解压输出 256MiB seg size 窗口] B1[write 或 fwrite] C1[copy_from_user dirty folio] D1[fsync 或脏页阈值触发] E1[LBA 由 start sector 与 nr_sectors 表示] F1[trace 为 block_bio_queue 主峰 8 sectors 等于 4KiB] G1[trace 为 block_rq_issue 主峰 1024 sectors 等于 512KiB] J1[trace 为 block_rq_complete] J2[bio_endio 与 folio_end_writeback] A -.</description></item><item><title>Android App Java Crash 捕捉流程分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/android-exception-handler/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/android-exception-handler/</guid><description>在 Android 系统中，Java 层的崩溃（Crash）捕捉并不是一个简单的进程内行为，而是一套从 App 进程 到 System Server 进程 跨进程协作的复杂机制。理解这一流程对于定位稳定性问题至关重要，下面是详细的时序图：
-@startuml skinparam theme plain skinparam shadowing false skinparam DefaultFontName &amp;#34;SansSerif&amp;#34; skinparam DefaultFontSize 12 skinparam ActivityIconSize 42 &amp;#39; 强制黑字以提高可见性 skinparam sequence { ParticipantPadding 30 MessageAlign center ArrowColor #263238 ActorBorderColor #263238 LifeLineBorderColor #263238 ParticipantBorderColor #263238 ParticipantBackgroundColor #ECEFF1 ParticipantFontColor #000000 GroupBorderColor #263238 GroupFontColor #000000 } participant &amp;#34;App Process\n(JVM)&amp;#34; as App participant &amp;#34;RuntimeInit&amp;#34; as RI participant &amp;#34;ActivityManagerService\n(AMS)&amp;#34; as AMS participant &amp;#34;AppErrors&amp;#34; as AE participant &amp;#34;DropBoxManagerService&amp;#34; as DBMS participant &amp;#34;Statsd\n(Native Daemon)&amp;#34; as Statsd == 阶段 1: 异常捕获与堆栈提取 (App 进程) == App -&amp;gt; App : 抛出 Exception note right: JVM 自动填充 Throwable 对象的 backtrace (Native 栈帧) App -&amp;gt; RI : dispatchUncaughtException(e) activate RI RI -&amp;gt; RI : LoggingHandler.</description></item><item><title>Android Binder Proxy 限制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/android_binderproxy_detection/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/android_binderproxy_detection/</guid><description>本图描述了 Android 系统中 Binder Proxy 数量限制（BinderProxy Limit） 的实现流程，涉及 ActivityManagerService、BinderInternal、JNI 层、BpBinder 等关键组件。
-1. 关键模块 1.1 Java 层 ActivityManagerService (AMS) 系统服务的核心，负责启用 Binder Proxy 限制，并设置回调。
-BinderInternal 桥接 AMS 与 Native 层的接口类，提供
-nSetBinderProxyCountEnabled setBinderProxyCountCallback 等方法。 BinderProxyLimitListener / Delegate 当达到 Binder Proxy 数量上限时被触发，执行对应的回调逻辑。
-1.2 Native 层 (JNI) libandroid_runtime JNI 桥接库，实现了 android_os_BinderInternal_setBinderProxyCountEnabled 与回调代理 android_os_BinderInternal_proxyLimitcallback。
-libbinder Binder 内核通信库，负责 Binder 代理对象的创建与管理。 其中 BpBinder::create 在生成 Binder 代理对象时进行计数与节流。
-2. 调用流程 AMS 启动限制
-ActivityManagerService 调用 BinderInternal.nSetBinderProxyCountEnabled(true) 以启用 Binder Proxy 限制。 设置回调</description></item><item><title>Android Perfetto "飞行记录仪" (Flight Recorder) 实施方案</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</guid><description>1. 需求概述 本方案旨在实现一套基于 Android Perfetto 的系统级自动追踪机制，模拟飞机的“黑匣子”功能：
-开机自启：系统启动后，自动启动 Perfetto 追踪服务。 内存循环录制：采用 Ring Buffer（环形缓冲区）模式在内存中循环录制，始终保留最近 15 秒的数据，不占用磁盘 I/O。 事件触发落盘：当特定事件发生时（通过 Property 信号触发），立即停止录制并将内存中的数据写入磁盘文件。 自动复位：数据落盘完成后，自动重新开始新一轮的内存循环录制，等待下一次触发。 2. 核心架构与流程 本方案利用 Android init 进程的服务管理机制来实现“自动复位”，利用 Perfetto 的 trigger 机制来实现“按需落盘”。
-工作流程图 @startuml !theme plain autonumber &amp;#34;&amp;lt;b&amp;gt;[00]&amp;#34; skinparam defaultFontName Arial skinparam ParticipantPadding 10 skinparam BoxPadding 10 title Android Perfetto 飞行记录仪 (Flight Recorder) 精确时序图 box &amp;#34;Android System&amp;#34; #F5F5F5 participant &amp;#34;Init 进程&amp;#34; as Init participant &amp;#34;Trigger 触发器\n(exec_background)&amp;#34; as TriggerProc end box box &amp;#34;Polaris Service&amp;#34; #E1F5FE participant &amp;#34;Shell 脚本\n(polaris_runner.</description></item><item><title>BinderCallsStatsService 技术详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/bindercallsstatsservice/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/bindercallsstatsservice/</guid><description>1. 简介 BinderCallsStatsService 是 Android System Server 进程中的一个系统服务，用于收集和统计发往 system_server 的 Binder 调用信息。它是分析系统级卡顿、高 CPU 占用以及排查 ANR（Application Not Responding）问题的核心工具。
-它能够回答以下关键问题：
-哪个 App 在疯狂调用系统服务？ 哪个系统 API（如 startActivity）是当前的性能瓶颈？ 系统服务的卡顿是因为 CPU 耗时过长，还是因为锁竞争导致的排队？ 2. 实现原理 2.1 核心机制 BinderCallsStatsService 的实现基于 Android Binder 框架提供的 Observer（观察者）模式。它并不依赖底层的 Linux Kernel Trace，而是通过 Hook Java 层的 Binder 分发入口实现的。
-注入 (Injection): 服务启动时，通过 Binder.setObserver() 将自身注册为全局 Binder 监听器。 拦截 (Interception): 所有发往当前进程（system_server）的 Binder 请求，在执行具体的 Service 方法（如 AMS.startActivity）之前，都会先经过 Binder.execTransact。 统计 (Measurement): Call Started: 记录开始时的 CPU 时间（Thread Time）和墙上时间（Realtime）。 Call Ended: 记录结束时间，计算差值，并统计数据包大小。 聚合 (Aggregation): 数据存储在内存中的哈希表中，按 UID 和方法名聚合，避免无限增长。 2.</description></item><item><title>IO 监控参数小记</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/</guid><description>在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 /dev/sda 或 /dev/nvme0n1）被分区成多个分区后，监测系统的 IO 的含义是：
-对存储子系统（block layer）中所有块设备进行读写操作的统计和观测，包括物理设备层面和逻辑分区层面。
-1. 核心概念：什么是“IO” IO = Input/Output，这里特指块设备（block device）的 I/O 操作，即数据从内存到存储设备（或反之）的读写请求。 UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后： 整个 UFS 设备对应 /dev/sda（或类似）。 每个分区对应 /dev/sda1、/dev/sda2……（逻辑块设备）。 所有分区共享同一套物理硬件资源（相同的控制器、相同的闪存通道、相同的队列），因此物理层面只有一个真实的 IO 通道。 2. “监测系统的 IO” 到底监测什么 Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分区）都维护独立的统计信息。你监测的“系统 IO”通常包含以下指标（常用工具 iostat -x、iotop、sar -d、fio、blktrace 等都可以看到）：
-监测维度 具体含义 对应哪个设备？ 实际意义 tps / IOPS 每秒完成的 IO 操作次数（read + write） 可选整个 UFS 或单个分区 反映随机读写能力 kB_read/s</description></item><item><title>如何分析 dumpsys gfxinfo 卡顿数据</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/gfxinfo_jank_analysis/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/gfxinfo_jank_analysis/</guid><description>adb shell dumpsys gfxinfo &amp;lt;package&amp;gt; 是 Android 分析 UI 卡顿的第一手数据来源。它输出的统计看起来简单，但里面埋了不少反直觉的坑 —— 最典型的就是「P50=15ms 明明在 16.67ms 帧预算之内，为什么 Janky frames 却高达 97%」。本文用一个真实 Launcher 样本，把这些字段逐一拆开。
-1. 样本数据 以下是 dumpsys gfxinfo com.voyah.cockpit.launcher 的一段实测输出（节选）：
-UID: 1000 Package: com.voyah.cockpit.launcher Total frames rendered: 29205 Janky frames: 28441 (97.38%) 50th percentile: 15ms 90th percentile: 16ms 95th percentile: 17ms 99th percentile: 18ms Number Missed Vsync: 2 Number High input latency: 17 Number Slow UI thread: 2 Number Slow bitmap uploads: 0 Number Slow issue draw commands: 28355 Number Frame deadline missed: 28441 HISTOGRAM: .</description></item><item><title>Binder spam detection原理</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/spamming-oneway/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/spamming-oneway/</guid><description>Binder spam detection原理 当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:
-IPCThreadState: Process seems to be sending too many oneway calls. 核心原因 这个日志的根本原因在于 Kernel 层的 Binder 驱动程序 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 异步缓冲区空间 (async space) 严重不足。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。
-整个检测和通知流程可以概括为：
-客户端发起 Oneway 调用：进程通过 transact() 发起一个带有 TF_ONE_WAY 标志的 Binder 调用。 内核分配缓冲区：Binder 驱动在内核空间为这个 oneway 事务分配内存。 内核进行垃圾邮件检测 (Spam Detection)：在分配内存时，内核会检查剩余的异步缓冲区空间。如果空间低于某个阈值（总空间的 10%），驱动就会开始怀疑有进程在“滥发” oneway 调用。 标记可疑事务：如果异步空间过低，驱动会进一步检查当前发起调用的这个进程，是否占用了过多的 oneway 缓冲区（例如，超过 50 个缓冲区或总大小超过总空间的 25%）。如果满足条件，内核就会给这个事务的缓冲区打上 oneway_spam_suspect 的标记。 内核返回特殊指令：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 oneway_spam_suspect 标记，内核就不会返回常规的 BR_TRANSACTION_COMPLETE，而是返回一个特殊的 BR_ONEWAY_SPAM_SUSPECT 指令。 用户空间打印日志：客户端的 IPCThreadState 在 waitForResponse() 中接收并解析来自内核的指令。当它收到 BR_ONEWAY_SPAM_SUSPECT 时，就会打印出这条我们看到的错误日志。 代码分析 用户空间日志打印点 (IPCThreadState.</description></item><item><title>Android Native Crash 处理机制深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/</guid><description>在 Android 系统中，Native Crash 的处理是一个高度解耦且极其鲁棒的多进程协作闭环。其核心哲学是：在损坏的现场外（Out-of-Process）进行安全重建。
-1. 系统组件架构 (Architectural Overview) 下图展示了参与 Crash 处理的关键组件及其静态拓扑关系：
-graph LR subgraph "Native Process (Crasher)" SC[libsigchain.so] DH[libdebuggerd_handler.so] PT[Pseudothread] VM[VM Process / Snapshot] end subgraph "Debuggerd Daemon System" CD[crash_dump64/32] T[tombstoned] end subgraph "System Services" LOG[logd / kmsg] AMS[ActivityManagerService] end DH -- "linker_debuggerd_init" --> L[Linker] SC -- "special_handler" --> DH DH -- "clone(no CLONE_FILES)" --> PT PT -- "exec" --> CD CD -- "ptrace(SEIZE/INTERRUPT)" --> Crasher PT -- "double-fork" --> VM CD -- "</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/fd_leak_monitor_final_design/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/fd_leak_monitor_final_design/</guid><description>Polaris Monitor — FD 泄漏检测方案（最终设计） 项目 内容 模块归属 polaris-monitor（Android Guest / GVM 侧 vendor 进程） 新增 plugin src/monitors/fdleak/ 平台 Qualcomm SA8397 Cockpit / Gunyah GVM (Android) 状态 Final Design 日期 2026-04-23 本方案是 dma-buf 单一类型 fd 泄漏方案（旧档 DMABUF_MONITOR_FINAL_DESIGN.md）的泛化升级：dma-buf 不再独立成模块，而是作为本方案的一个 fd class。其它 class（socket、regular_file、anon_inode、pipe）使用同一套白名单 / identity / 滑动窗口 / 触发判定 / 取证调度框架，仅在 classifier 规则、去重维度、forensic 命令集上各自专属。
-方案评估与备选路径见 DMABUF_MONITOR_DESIGN.md（历史档）。本文只保留最终选定的实施设计。
-1. 需求 1.1 要监测的泄漏类型 座舱域 Android Guest 上常见的 OOM / 资源耗尽 / 卡顿 / 帧丢失 / 网络异常，绝大多数可归因为用户态 fd 未及时释放。本方案统一监控指定进程的 fd 泄漏，按 fd 类型（class）分别配置阈值与取证手段：</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/lmkd/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/lmkd/</guid><description>Android Low Memory Killer Daemon (LMKD) 源码机制与策略分析 简介 Android 系统的 Low Memory Killer Daemon (lmkd) 是一个运行在用户空间的守护进程，主要负责监控 Android 系统的内存状态。当系统内存压力较高时，lmkd 会根据一定的策略杀死最不重要的进程，以保证系统能够维持在可接受的性能水平。
-在 Linux Kernel 4.12 之前，该工作通常由内核态的 lowmemorykiller 驱动完成。随着内核的发展，该内核驱动被移除，相关的逻辑被完全迁移到了用户空间的 lmkd 守护进程中。
-AOSP 源码路径：system/memory/lmkd
-核心机制与架构 lmkd 的工作流程可以分为以下几个核心环节：初始化与配置解析、内存压力监控、受害者选择策略以及进程击杀执行。
-graph TD subgraph Initialization ["1. 初始化与配置"] A[解析 lmkd.rc 属性配置] --> B[建立 AMS 通信 Socket] B --> C[设置 SCHED_FIFO 实时优先级] C --> D[初始化 epoll 与 Reaper 线程池] end subgraph Monitoring ["2. 内存压力监控"] D --> E{内核支持 PSI?} E -- Yes --> F[注册 PSI 压力事件监听] E -- No --> G[注册 vmpressure 压力事件监听] F --> H((epoll_wait 等待唤醒)) G --> H end subgraph Strategy ["</description></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Android 性能与稳定专项 on Ethen 的实验室</title>
+    <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/</link>
+    <description>Recent content in Android 性能与稳定专项 on Ethen 的实验室</description>
+    <generator>Hugo -- 0.163.0</generator>
+    <language>en</language>
+    <lastBuildDate>Sun, 07 Jun 2026 22:30:00 +0800</lastBuildDate>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Android Low Memory Killer Daemon (LMKD) 源码机制与策略分析</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/lmkd/</link>
+      <pubDate>Sun, 07 Jun 2026 22:30:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/lmkd/</guid>
+      <description>&lt;h2 id=&#34;简介&#34;&gt;简介&lt;/h2&gt;
+&lt;p&gt;Android 系统的 Low Memory Killer Daemon (lmkd) 是一个运行在用户空间的守护进程，主要负责监控 Android 系统的内存状态。当系统内存压力较高时，lmkd 会根据一定的策略杀死最不重要的进程，以保证系统能够维持在可接受的性能水平。&lt;/p&gt;
+&lt;p&gt;在 Linux Kernel 4.12 之前，该工作通常由内核态的 &lt;code&gt;lowmemorykiller&lt;/code&gt; 驱动完成。随着内核的发展，该内核驱动被移除，相关的逻辑被完全迁移到了用户空间的 &lt;code&gt;lmkd&lt;/code&gt; 守护进程中。&lt;/p&gt;
+&lt;p&gt;AOSP 源码路径：&lt;code&gt;system/memory/lmkd&lt;/code&gt;&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;核心机制与架构&#34;&gt;核心机制与架构&lt;/h2&gt;
+&lt;p&gt;lmkd 的工作流程可以分为以下几个核心环节：&lt;strong&gt;初始化与配置解析&lt;/strong&gt;、&lt;strong&gt;内存压力监控&lt;/strong&gt;、&lt;strong&gt;受害者选择策略&lt;/strong&gt;以及&lt;strong&gt;进程击杀执行&lt;/strong&gt;。&lt;/p&gt;
+&lt;div class=&#34;mermaid&#34;&gt;graph TD
+    subgraph Initialization [&#34;1. 初始化与配置&#34;]
+        A[解析 lmkd.rc 属性配置] --&gt; B[建立 AMS 通信 Socket]
+        B --&gt; C[设置 SCHED_FIFO 实时优先级]
+        C --&gt; D[初始化 epoll 与 Reaper 线程池]
+    end
+
+    subgraph Monitoring [&#34;2. 内存压力监控&#34;]
+        D --&gt; E{内核支持 PSI?}
+        E -- Yes --&gt; F[注册 PSI 压力事件监听]
+        E -- No --&gt; G[注册 vmpressure 压力事件监听]
+        F --&gt; H((epoll_wait 等待唤醒))
+        G --&gt; H
+    end
+
+    subgraph Strategy [&#34;3. 杀进程策略与决策&#34;]
+        H -- 触发内存压力事件 --&gt; I[评估可用内存 / Swap / Thrashing]
+        I --&gt; J[从 OOM_SCORE_ADJ_MAX 向下遍历 procadjslot_list]
+        J --&gt; K{开启 kill_heaviest_task &lt;br&gt; 或 为感知级进程?}
+        K -- Yes --&gt; L[选择当前 score 下占用内存最多的进程]
+        K -- No --&gt; M[选择链表尾部最旧的进程]
+    end
+
+    subgraph Execution [&#34;4. 击杀执行与清理&#34;]
+        L --&gt; N[防 PID 复用: 获取 pidfd]
+        M --&gt; N
+        N --&gt; O[将击杀任务投递给 Reaper 异步线程池]
+        O --&gt; P[调用 pidfd_send_signal / kill]
+        P --&gt; Q[更新状态、记录日志并上报 statsd]
+        Q --&gt; H
+    end
+&lt;/div&gt;&lt;h3 id=&#34;1-初始化与配置-initialization&#34;&gt;1. 初始化与配置 (Initialization)&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;启动方式&lt;/strong&gt;: lmkd 通过 &lt;code&gt;lmkd.rc&lt;/code&gt; 配置文件被 &lt;code&gt;init&lt;/code&gt; 进程启动，具有较高的权限（例如 &lt;code&gt;CAP_KILL&lt;/code&gt;、&lt;code&gt;CAP_IPC_LOCK&lt;/code&gt;、&lt;code&gt;CAP_SYS_NICE&lt;/code&gt;），并设置为了 &lt;code&gt;critical&lt;/code&gt; 服务。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;调度优先级&lt;/strong&gt;: 为了保证即使在系统极度卡顿、资源耗尽时也能优先响应并进行杀进程释放内存，lmkd 在 &lt;code&gt;main()&lt;/code&gt; 函数中会将自身调度策略设为 &lt;code&gt;SCHED_FIFO&lt;/code&gt; 实时优先级。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;通信套接字&lt;/strong&gt;: 初始化期间通过 &lt;code&gt;android_get_control_socket(&amp;quot;lmkd&amp;quot;)&lt;/code&gt; 获取到 &lt;code&gt;ActivityManagerService&lt;/code&gt; (AMS) 用来与其通信的 Unix Domain Socket (&lt;code&gt;/dev/socket/lmkd&lt;/code&gt;)。AMS 会通过此套接字更新各个进程的 &lt;code&gt;oom_score_adj&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;2-内存压力监控-memory-pressure-monitoring&#34;&gt;2. 内存压力监控 (Memory Pressure Monitoring)&lt;/h3&gt;
+&lt;p&gt;lmkd 使用 &lt;code&gt;epoll&lt;/code&gt; 来监听内存压力事件。当前 lmkd 支持两种主要的内存压力监测方式：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Binder 监控方案 — 基于 AOSP 源码分析</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/binder-monitoring/</link>
+      <pubDate>Sat, 09 May 2026 00:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/binder-monitoring/</guid>
+      <description>&lt;h2 id=&#34;1-binder-空间耗尽时打印明细&#34;&gt;1. Binder 空间耗尽时打印明细&lt;/h2&gt;
+&lt;h3 id=&#34;现状&#34;&gt;现状&lt;/h3&gt;
+&lt;p&gt;内核 binder 驱动在 buffer 满时打印 &lt;code&gt;cannot allocate buffer: no space left&lt;/code&gt;，但不打印是谁占用了空间。用户态只能通过 &lt;code&gt;BINDER_GET_EXTENDED_ERROR&lt;/code&gt; ioctl 拿到错误码。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;关键代码位置：&lt;/strong&gt;&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th style=&#34;text-align: left&#34;&gt;文件&lt;/th&gt;
+					&lt;th style=&#34;text-align: left&#34;&gt;行号&lt;/th&gt;
+					&lt;th style=&#34;text-align: left&#34;&gt;说明&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;frameworks/native/libs/binder/IPCThreadState.cpp&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;1789-1805&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;logExtendedError()&lt;/code&gt; 方法，已有错误日志：&lt;code&gt;Binder transaction failure. id: %d, cmd: %s, error: %d (%s)&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;frameworks/native/libs/binder/ProcessState.cpp&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;48&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;buffer 大小 &lt;code&gt;BINDER_VM_SIZE = 1MB - 2*PAGE_SIZE&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;建议添加的监控位置&#34;&gt;建议添加的监控位置&lt;/h3&gt;
+&lt;h4 id=&#34;内核侧&#34;&gt;内核侧&lt;/h4&gt;
+&lt;p&gt;&lt;code&gt;drivers/android/binder_alloc.c&lt;/code&gt; 中 &lt;code&gt;binder_alloc_new_buf()&lt;/code&gt; 失败时，dump 该进程所有 pending transaction 的来源（&lt;code&gt;from_proc&lt;/code&gt;/&lt;code&gt;from_thread&lt;/code&gt;）和大小。可以遍历 &lt;code&gt;binder_alloc.buffers&lt;/code&gt; 链表输出每个 buffer 的 &lt;code&gt;data_size&lt;/code&gt;、&lt;code&gt;offsets_size&lt;/code&gt;、目标 node 信息。&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// binder_alloc.c — binder_alloc_new_buf() 失败时新增 dump 逻辑
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// 遍历 alloc-&amp;gt;buffers 链表，输出每个已分配 buffer 的：
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//   - data_size / offsets_size
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//   - 目标进程 pid / 目标 node 的 ptr/cookie
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//   - is_async 标记（区分同步/异步 buffer）
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h4 id=&#34;用户态补充&#34;&gt;用户态补充&lt;/h4&gt;
+&lt;p&gt;在 &lt;code&gt;IPCThreadState::logExtendedError()&lt;/code&gt; 中，当错误码为 &lt;code&gt;-28 (ENOSPC)&lt;/code&gt; 时，额外读取 &lt;code&gt;/proc/self/fd/&amp;lt;binder_fd&amp;gt;&lt;/code&gt; 或通过 debugfs &lt;code&gt;/sys/kernel/debug/binder/proc/&amp;lt;pid&amp;gt;&lt;/code&gt; dump buffer 使用明细。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>SA8397 CPU 子系统实机核对</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/soc8397_cpu_cluster/</link>
+      <pubDate>Tue, 14 Apr 2026 11:08:03 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/soc8397_cpu_cluster/</guid>
+      <description>&lt;h2 id=&#34;1-结论摘要&#34;&gt;1. 结论摘要&lt;/h2&gt;
+&lt;p&gt;2026-04-14 在台架上分别登录 Linux host 与 Android guest 后，可得到下面的结论：&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;条目&lt;/th&gt;
+					&lt;th&gt;实机结论&lt;/th&gt;
+					&lt;th&gt;状态&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;3 clusters x 6 QCC&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;可确认。SoC 总计暴露 &lt;code&gt;18&lt;/code&gt; 个 CPU，当前被切分为 &lt;code&gt;Android guest 12 核 + Linux host 6 核&lt;/code&gt;。&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;已确认&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;L1 cache 为每核私有&lt;/td&gt;
+					&lt;td&gt;可确认。&lt;code&gt;cache/index0&lt;/code&gt; 和 &lt;code&gt;cache/index1&lt;/code&gt; 的 &lt;code&gt;shared_cpu_list&lt;/code&gt; 仅包含当前 CPU。&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;已确认&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;128K I-cache + 64K D-cache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;当前 bench 的 &lt;code&gt;sysfs&lt;/code&gt; / &lt;code&gt;device tree&lt;/code&gt; 未导出容量字段，无法仅靠运行时接口直接读出。&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;未直读确认&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;12 MB L2 per cluster&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;“cluster 共享一组 Unified cache”可部分确认，但 &lt;code&gt;12 MB&lt;/code&gt; 容量值当前无法在运行时接口中直读。&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;部分确认&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;当前最重要的修正点有两个：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Linux trace-cmd 原理与分析技巧</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/trace-cmd/</link>
+      <pubDate>Sun, 15 Mar 2026 22:30:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/trace-cmd/</guid>
+      <description>&lt;h2 id=&#34;1-为什么要学-trace-cmd&#34;&gt;1. 为什么要学 trace-cmd&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;trace-cmd&lt;/code&gt; 是 Linux 内核 &lt;code&gt;ftrace&lt;/code&gt; 能力的一层用户态封装。它最适合回答这类问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;某个线程为什么长时间没有运行&lt;/li&gt;
+&lt;li&gt;某个进程为什么进入 &lt;code&gt;D&lt;/code&gt; 状态&lt;/li&gt;
+&lt;li&gt;某段时间 CPU 在跑谁&lt;/li&gt;
+&lt;li&gt;哪个锁、哪个等待链把系统拖慢了&lt;/li&gt;
+&lt;li&gt;某次 watchdog timeout 前后，系统到底发生了什么&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;如果说日志更像“应用自己说了什么”，那么 &lt;code&gt;trace-cmd&lt;/code&gt; 更像“内核真实记录了什么”。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;2-trace-cmd-的基本原理&#34;&gt;2. trace-cmd 的基本原理&lt;/h2&gt;
+&lt;h3 id=&#34;21-本质上它是-ftrace-的采集器&#34;&gt;2.1 本质上它是 ftrace 的采集器&lt;/h3&gt;
+&lt;p&gt;Linux 内核里有一套 &lt;code&gt;ftrace&lt;/code&gt;/tracepoint 机制。内核在调度、锁、中断、块设备、文件系统、电源等关键路径上埋了很多事件点，例如：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;sched:sched_switch&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;sched:sched_wakeup&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;irq:*&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;block:*&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;syscalls:*&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;workqueue:*&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;trace-cmd record&lt;/code&gt; 的工作就是：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;打开内核 trace buffer&lt;/li&gt;
+&lt;li&gt;选择要采集的 tracepoint&lt;/li&gt;
+&lt;li&gt;持续把事件写入 trace buffer&lt;/li&gt;
+&lt;li&gt;结束后把数据导出成 &lt;code&gt;trace.dat&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;随后再用：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;trace-cmd report&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;trace-cmd extract&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;kernelshark&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;去消费这些数据。&lt;/p&gt;
+&lt;h3 id=&#34;22-它记录的不是进程快照而是事件流&#34;&gt;2.2 它记录的不是“进程快照”，而是“事件流”&lt;/h3&gt;
+&lt;p&gt;这点很重要。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;trace-cmd&lt;/code&gt; 不是在某个时间点拍一张系统照片，而是记录“什么时候发生了什么事件”。因此分析时要建立时间线，而不是只盯某一条日志。&lt;/p&gt;
+&lt;p&gt;例如：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;1719.423841&lt;/code&gt;：&lt;code&gt;sched_waking&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;1719.423845&lt;/code&gt;：&lt;code&gt;sched_wakeup&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;1719.423852&lt;/code&gt;：&lt;code&gt;sched_switch&lt;/code&gt; 进入 &lt;code&gt;D&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;1724.132573&lt;/code&gt;：被唤醒&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;把这些连起来，才能知道一个线程是“被调度慢”还是“卡在不可中断睡眠里”。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Linux 内核 Hrtimer 机制解析：Hard 与 Soft 定时器的差异与应用层调度</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/hrtimer_mechanism/</link>
+      <pubDate>Sun, 15 Mar 2026 22:30:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/hrtimer_mechanism/</guid>
+      <description>&lt;p&gt;在 Linux 内核中，高精度定时器（High-Resolution Timer, Hrtimer）是提供微秒/纳秒级时间精度的核心子系统。在引入实时内核补丁（PREEMPT_RT）后，为了解决硬中断执行时间过长破坏系统实时性的问题，内核对 Hrtimer 进行了严格的区分：&lt;strong&gt;Hard Hrtimer&lt;/strong&gt;（硬高精度定时器）与 &lt;strong&gt;Soft Hrtimer&lt;/strong&gt;（软高精度定时器）。&lt;/p&gt;
+&lt;p&gt;本文将严格基于 Linux 内核源码，解析这两者的实现机制、关键时序，以及上层应用定时器是如何被调度和唤醒的。&lt;/p&gt;
+&lt;h2 id=&#34;1-hrtimer-核心机制区分&#34;&gt;1. Hrtimer 核心机制区分&lt;/h2&gt;
+&lt;p&gt;Hrtimer 的底层依赖于每 CPU 的红黑树（Red-Black Tree）来组织定时器节点。所有的 Hrtimer 在物理时间上都是通过对硬件定时器（如 ARM Generic Timer，x86 APIC Timer）进行编程，使其在红黑树中最左侧（最近到期）的时间点触发硬件中断。&lt;/p&gt;
+&lt;p&gt;区别在于 &lt;strong&gt;硬件中断触发后，回调函数的执行上下文&lt;/strong&gt;。&lt;/p&gt;
+&lt;h3 id=&#34;11-hard-hrtimer硬高精度定时器&#34;&gt;1.1 Hard Hrtimer（硬高精度定时器）&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;执行上下文&lt;/strong&gt;：直接在&lt;strong&gt;硬中断处理函数&lt;/strong&gt;（&lt;code&gt;hrtimer_interrupt&lt;/code&gt;）中执行。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;精度&lt;/strong&gt;：极高（微秒/纳秒级），因为一旦硬件时钟中断触发，无论当前 CPU 在执行什么任务，都会立刻被打断，当场执行定时器回调。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;适用场景&lt;/strong&gt;：内核关键实时操作，或调度类为实时调度类（&lt;code&gt;SCHED_FIFO&lt;/code&gt; / &lt;code&gt;SCHED_RR&lt;/code&gt;）的任务。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;限制&lt;/strong&gt;：回调函数内部绝对不能包含任何可能导致睡眠或长耗时的操作。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;12-soft-hrtimer软高精度定时器&#34;&gt;1.2 Soft Hrtimer（软高精度定时器）&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;执行上下文&lt;/strong&gt;：被下放（Deferred）到&lt;strong&gt;软中断上下文&lt;/strong&gt;。在 PREEMPT_RT 内核下，软中断由特定优先级的内核线程（如 &lt;code&gt;ktimers/N&lt;/code&gt; 或 &lt;code&gt;ksoftirqd/N&lt;/code&gt;，默认优先级 98）专门处理。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;精度&lt;/strong&gt;：受限于系统调度。虽然硬件中断准时触发，但回调的实际执行需要等待 &lt;code&gt;ktimers/N&lt;/code&gt; 线程被调度上 CPU。在 I/O 密集或高优先级任务抢占的情况下，可能出现毫秒乃至秒级的延迟。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;适用场景&lt;/strong&gt;：普通调度类（&lt;code&gt;SCHED_NORMAL&lt;/code&gt; / &lt;code&gt;SCHED_OTHER&lt;/code&gt;）任务的阻塞超时控制，如应用层的 &lt;code&gt;select&lt;/code&gt;、&lt;code&gt;futex&lt;/code&gt;、&lt;code&gt;epoll_wait&lt;/code&gt; 超时。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;2-内核源码实现剖析&#34;&gt;2. 内核源码实现剖析&lt;/h2&gt;
+&lt;h3 id=&#34;21-软硬定时器的分类决策&#34;&gt;2.1 软硬定时器的分类决策&lt;/h3&gt;
+&lt;p&gt;当任务调用可能超时的系统调用时，内核会通过 &lt;code&gt;__hrtimer_init_sleeper()&lt;/code&gt; 初始化一个休眠定时器。在 &lt;code&gt;kernel/time/hrtimer.c&lt;/code&gt; 中，内核明确定义了分类逻辑：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Linux 存储栈全景解析：从用户空间到 UFS 的数据路径</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/zstdext_write_path/</link>
+      <pubDate>Sun, 15 Mar 2026 22:30:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/zstdext_write_path/</guid>
+      <description>&lt;p&gt;在 Android 与嵌入式 Linux 系统中，应用对块设备的写入通常不会直接到达存储介质，而是先进入内核 Page Cache，再由回写路径异步下沉到块层和 UFS。理解这一数据路径，是分析 OTA 刷写性能与稳定性问题的前提。&lt;/p&gt;
+&lt;p&gt;本文结合 &lt;code&gt;zstdext&lt;/code&gt; OTA 刷写案例与 kernel trace 数据，分析 &lt;code&gt;--seg-size=256&lt;/code&gt;（即 256MB）配置下单个写回窗口在 VFS、Page Cache、blk-mq 与 UFS 路径上的行为。当前工程已将 &lt;code&gt;seg-size&lt;/code&gt; 下调为 &lt;code&gt;64MB&lt;/code&gt;，其工程目的在于降低单次 &lt;code&gt;fsync()&lt;/code&gt; 所驱动的写回批量；本文重点说明 &lt;code&gt;256MB&lt;/code&gt; 配置为何更容易形成高密度的块层写回与完成回调。&lt;/p&gt;
+&lt;h2 id=&#34;1-架构总览从用户缓冲到完成回调&#34;&gt;1. 架构总览：从用户缓冲到完成回调&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;zstdext&lt;/code&gt; 对目标块设备执行的是典型的 Buffered I/O 路径。应用写入首先进入 VFS 和 Page Cache，随后由回写机制将脏页转换为块层 I/O，再由 UFS 控制器完成 DMA 传输，最终通过中断完成路径清理写回状态。&lt;/p&gt;
+&lt;div class=&#34;mermaid&#34;&gt;graph TD
+    A[zstdext User Buffer]
+    B[VFS 与块设备文件接口]
+    C[Page Cache 与 address_space]
+    D[write_cache_pages 与 writeback]
+    E[LBA 区间]
+    F[blk mq BIO 队列]
+    G[blk mq Request 队列]
+    H[UFS Host Controller]
+    I[UFS Device]
+    J[IRQ 线程]
+
+    A --&gt; B
+    B --&gt; C
+    C --&gt; D
+    D --&gt; E
+    E --&gt; F
+    F --&gt; G
+    G --&gt; H
+    H --&gt; I
+    I --&gt; J
+    J --&gt; C
+
+    A1[64KiB 预填零 128KiB 解压输出 256MiB seg size 窗口]
+    B1[write 或 fwrite]
+    C1[copy_from_user dirty folio]
+    D1[fsync 或脏页阈值触发]
+    E1[LBA 由 start sector 与 nr_sectors 表示]
+    F1[trace 为 block_bio_queue 主峰 8 sectors 等于 4KiB]
+    G1[trace 为 block_rq_issue 主峰 1024 sectors 等于 512KiB]
+    J1[trace 为 block_rq_complete]
+    J2[bio_endio 与 folio_end_writeback]
+
+    A -.-&gt; A1
+    B -.-&gt; B1
+    C -.-&gt; C1
+    D -.-&gt; D1
+    E -.-&gt; E1
+    F -.-&gt; F1
+    G -.-&gt; G1
+    J -.-&gt; J1
+    J -.-&gt; J2
+&lt;/div&gt;&lt;p&gt;图中的三个关键 trace 观测点分别位于块层提交、驱动下发和完成回调阶段：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android App Java Crash 捕捉流程分析</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/android-exception-handler/</link>
+      <pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/android-exception-handler/</guid>
+      <description>&lt;p&gt;在 Android 系统中，Java 层的崩溃（Crash）捕捉并不是一个简单的进程内行为，而是一套从 &lt;strong&gt;App 进程&lt;/strong&gt; 到 &lt;strong&gt;System Server 进程&lt;/strong&gt; 跨进程协作的复杂机制。理解这一流程对于定位稳定性问题至关重要，下面是详细的时序图：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;@startuml
+skinparam theme plain
+skinparam shadowing false
+skinparam DefaultFontName &amp;#34;SansSerif&amp;#34;
+skinparam DefaultFontSize 12
+skinparam ActivityIconSize 42
+
+&amp;#39; 强制黑字以提高可见性
+skinparam sequence {
+    ParticipantPadding 30
+    MessageAlign center
+    ArrowColor #263238
+    ActorBorderColor #263238
+    LifeLineBorderColor #263238
+    ParticipantBorderColor #263238
+    ParticipantBackgroundColor #ECEFF1
+    ParticipantFontColor #000000
+    GroupBorderColor #263238
+    GroupFontColor #000000
+}
+
+participant &amp;#34;App Process\n(JVM)&amp;#34; as App
+participant &amp;#34;RuntimeInit&amp;#34; as RI
+participant &amp;#34;ActivityManagerService\n(AMS)&amp;#34; as AMS
+participant &amp;#34;AppErrors&amp;#34; as AE
+participant &amp;#34;DropBoxManagerService&amp;#34; as DBMS
+participant &amp;#34;Statsd\n(Native Daemon)&amp;#34; as Statsd
+
+== 阶段 1: 异常捕获与堆栈提取 (App 进程) ==
+
+App -&amp;gt; App : 抛出 Exception
+note right: JVM 自动填充 Throwable 对象的 backtrace (Native 栈帧)
+
+App -&amp;gt; RI : dispatchUncaughtException(e)
+activate RI
+
+RI -&amp;gt; RI : LoggingHandler.uncaughtException(e)
+RI -&amp;gt; RI : logUncaught(..., e)
+note right: **首次提取堆栈**：调用 e.printStackTrace() \n将内存堆栈转换为 String 输出至 Logcat
+
+RI -&amp;gt; RI : new ParcelableCrashInfo(e)
+note right: **堆栈封装**：将 Throwable 序列化为 \nCrashInfo 字符串，准备跨进程传输
+
+RI -&amp;gt; AMS : handleApplicationCrash(token, crashInfo)
+activate AMS
+
+== 阶段 2: 系统级状态记录与统计 (system_server) ==
+
+AMS -&amp;gt; AMS : handleApplicationCrashInner()
+
+group 增量统计 (Incremental Metrics)
+    AMS -&amp;gt; AMS : 检查是否为 Incremental package
+end
+
+group 与 Statsd 交互 (FrameworkStatsLog)
+    AMS -&amp;gt; Statsd : FrameworkStatsLog.write(APP_CRASH_OCCURRED, ...)
+    note right: 包含 crashInfo 中的 Exception Name
+end
+
+group 持久化记录 (DropBox)
+    AMS -&amp;gt; DBMS : addErrorToDropBox(..., crashInfo)
+    activate DBMS
+    DBMS -&amp;gt; DBMS : 异步启动 Worker Thread
+    DBMS -&amp;gt; DBMS : **堆栈落盘**：将 crashInfo.stackTrace \n与其他 Header 信息拼接并写入 \n/data/system/dropbox/ 压缩文件
+    DBMS --&amp;gt; AMS : 返回
+    deactivate DBMS
+end
+
+== 阶段 3: 策略决策与 UI 处理 (AppErrors) ==
+
+AMS -&amp;gt; AE : crashApplication(r, crashInfo)
+activate AE
+
+AE -&amp;gt; AE : noteAppKill() 
+note right: 将堆栈摘要存入 AppExitInfoManager
+
+AE -&amp;gt; AE : handleAppCrashLSPB()
+
+alt 达到崩溃上限 (Bad Process)
+    AE -&amp;gt; AE : markBadProcess(..., stackTrace)
+    note right: **持久化 Bad 状态**：将堆栈存入 mBadProcesses 内存映射
+    AE -&amp;gt; AMS : removeProcessLocked()
+else 允许显示 UI
+    AE -&amp;gt; AMS : 发送 SHOW_ERROR_UI_MSG
+    AMS -&amp;gt; AE : AppErrorDialog.show(data)
+    note right: 对话框中的“显示详情”即展示 crashInfo.stackTrace
+end
+
+AE --&amp;gt; AMS : 返回结果
+deactivate AE
+
+== 阶段 4: 最终清理与自杀 (App 进程) ==
+
+AMS --&amp;gt; RI : 处理完毕 (Binder 返回)
+deactivate AMS
+
+RI -&amp;gt; RI : Process.killProcess(myPid)
+RI -&amp;gt; RI : System.exit(10)
+deactivate RI
+
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
+&lt;h2 id=&#34;1-流程概览&#34;&gt;1. 流程概览&lt;/h2&gt;
+&lt;p&gt;当 Java 异常未被捕获时，虚拟机将控制权交给 &lt;code&gt;Thread.UncaughtExceptionHandler&lt;/code&gt;。Android 默认通过 &lt;code&gt;RuntimeInit&lt;/code&gt; 类安装了自定义处理器，启动四个阶段的处理：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android Binder Proxy 限制机制</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/android_binderproxy_detection/</link>
+      <pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/android_binderproxy_detection/</guid>
+      <description>&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/binderproxy.drawio.png&#34; alt=&#34;&#34;  /&gt;
+本图描述了 Android 系统中 &lt;strong&gt;Binder Proxy 数量限制（BinderProxy Limit）&lt;/strong&gt; 的实现流程，涉及 &lt;code&gt;ActivityManagerService&lt;/code&gt;、&lt;code&gt;BinderInternal&lt;/code&gt;、JNI 层、&lt;code&gt;BpBinder&lt;/code&gt; 等关键组件。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;1-关键模块&#34;&gt;1. 关键模块&lt;/h2&gt;
+&lt;h3 id=&#34;11-java-层&#34;&gt;1.1 Java 层&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;ActivityManagerService (AMS)&lt;/strong&gt;
+系统服务的核心，负责启用 Binder Proxy 限制，并设置回调。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;BinderInternal&lt;/strong&gt;
+桥接 AMS 与 Native 层的接口类，提供&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;nSetBinderProxyCountEnabled&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;setBinderProxyCountCallback&lt;/code&gt;
+等方法。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;BinderProxyLimitListener / Delegate&lt;/strong&gt;
+当达到 Binder Proxy 数量上限时被触发，执行对应的回调逻辑。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h3 id=&#34;12-native-层-jni&#34;&gt;1.2 Native 层 (JNI)&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;libandroid_runtime&lt;/strong&gt;
+JNI 桥接库，实现了 &lt;code&gt;android_os_BinderInternal_setBinderProxyCountEnabled&lt;/code&gt; 与回调代理 &lt;code&gt;android_os_BinderInternal_proxyLimitcallback&lt;/code&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;libbinder&lt;/strong&gt;
+Binder 内核通信库，负责 Binder 代理对象的创建与管理。
+其中 &lt;code&gt;BpBinder::create&lt;/code&gt; 在生成 Binder 代理对象时进行计数与节流。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;2-调用流程&#34;&gt;2. 调用流程&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;AMS 启动限制&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;ActivityManagerService&lt;/code&gt; 调用
+&lt;code&gt;BinderInternal.nSetBinderProxyCountEnabled(true)&lt;/code&gt;
+以启用 Binder Proxy 限制。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android Perfetto &#34;飞行记录仪&#34; (Flight Recorder) 实施方案</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</link>
+      <pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</guid>
+      <description>&lt;h2 id=&#34;1-需求概述&#34;&gt;1. 需求概述&lt;/h2&gt;
+&lt;p&gt;本方案旨在实现一套基于 Android Perfetto 的系统级自动追踪机制，模拟飞机的“黑匣子”功能：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;开机自启&lt;/strong&gt;：系统启动后，自动启动 Perfetto 追踪服务。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内存循环录制&lt;/strong&gt;：采用 Ring Buffer（环形缓冲区）模式在内存中循环录制，始终保留&lt;strong&gt;最近 15 秒&lt;/strong&gt;的数据，不占用磁盘 I/O。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;事件触发落盘&lt;/strong&gt;：当特定事件发生时（通过 Property 信号触发），立即停止录制并将内存中的数据写入磁盘文件。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;自动复位&lt;/strong&gt;：数据落盘完成后，自动重新开始新一轮的内存循环录制，等待下一次触发。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&#34;2-核心架构与流程&#34;&gt;2. 核心架构与流程&lt;/h2&gt;
+&lt;p&gt;本方案利用 Android &lt;code&gt;init&lt;/code&gt; 进程的服务管理机制来实现“自动复位”，利用 Perfetto 的 &lt;code&gt;trigger&lt;/code&gt; 机制来实现“按需落盘”。&lt;/p&gt;
+&lt;h3 id=&#34;工作流程图&#34;&gt;工作流程图&lt;/h3&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;@startuml
+!theme plain
+autonumber &amp;#34;&amp;lt;b&amp;gt;[00]&amp;#34;
+skinparam defaultFontName Arial
+skinparam ParticipantPadding 10
+skinparam BoxPadding 10
+
+title Android Perfetto 飞行记录仪 (Flight Recorder) 精确时序图
+
+box &amp;#34;Android System&amp;#34; #F5F5F5
+    participant &amp;#34;Init 进程&amp;#34; as Init
+    participant &amp;#34;Trigger 触发器\n(exec_background)&amp;#34; as TriggerProc
+end box
+
+box &amp;#34;Polaris Service&amp;#34; #E1F5FE
+    participant &amp;#34;Shell 脚本\n(polaris_runner.sh)&amp;#34; as Script
+    participant &amp;#34;Perfetto 进程\n(Daemon)&amp;#34; as Perfetto
+end box
+
+participant &amp;#34;Disk Storage\n(/data/misc/...)&amp;#34; as Disk
+
+== 阶段 1: 启动与循环录制 ==
+
+Init -&amp;gt; Script: &amp;lt;b&amp;gt;start polaris_logger&amp;lt;/b&amp;gt;\n(Service Start)
+activate Script
+
+note right of Script: 脚本定义 TEMP_FILE\n(e.g., trace_buffer.tmp)
+
+Script -&amp;gt; Perfetto: &amp;lt;b&amp;gt;exec perfetto&amp;lt;/b&amp;gt;\n-c config.pbtxt --txt -o TEMP_FILE
+activate Perfetto
+
+note left of Perfetto #FFF9C4
+    &amp;lt;b&amp;gt;阻塞模式&amp;lt;/b&amp;gt;
+    脚本在此暂停执行
+    等待 Perfetto 退出
+end note
+
+Perfetto -&amp;gt; Perfetto: &amp;lt;b&amp;gt;Ring Buffer 录制&amp;lt;/b&amp;gt;\n(仅在 RAM 中循环覆盖)
+
+... 系统正常运行 (无 IO 操作) ...
+
+== 阶段 2: 事件触发与落盘 ==
+
+[-&amp;gt; Init: &amp;lt;b&amp;gt;setprop sys.polaris.dump 1&amp;lt;/b&amp;gt;\n(外部事件触发)
+
+Init -&amp;gt; TriggerProc: 监听属性 -&amp;gt; 启动命令\nperfetto --trigger polaris_event
+activate TriggerProc
+
+TriggerProc -&amp;gt; Perfetto: &amp;lt;b&amp;gt;IPC: 发送 Trigger 信号&amp;lt;/b&amp;gt;
+deactivate TriggerProc
+
+note right of Perfetto #FFCCBC
+    &amp;lt;b&amp;gt;收到 Trigger!&amp;lt;/b&amp;gt;
+    开始 Drain Buffer
+end note
+
+Perfetto -&amp;gt; Disk: &amp;lt;b&amp;gt;写入临时文件&amp;lt;/b&amp;gt;\n(trace_buffer.tmp)
+Perfetto -&amp;gt; Perfetto: 写入完成，清理资源
+Perfetto --&amp;gt; Script: &amp;lt;b&amp;gt;进程退出 (Exit 0)&amp;lt;/b&amp;gt;
+deactivate Perfetto
+
+== 阶段 3: 重命名与归档 ==
+
+note right of Script
+    &amp;lt;b&amp;gt;脚本恢复执行&amp;lt;/b&amp;gt;
+    (子进程已结束)
+end note
+
+Script -&amp;gt; Script: 获取当前时间戳\n(TIMESTAMP = date)
+Script -&amp;gt; Disk: &amp;lt;b&amp;gt;mv trace_buffer.tmp -&amp;gt; crash_dump_$TIMESTAMP.trace&amp;lt;/b&amp;gt;
+note right of Disk: 文件名时间 = 落盘时间\n便于事后排查
+
+Script --&amp;gt; Init: 脚本执行完毕 (Service Stopped)
+deactivate Script
+
+== 阶段 4: 自动复位 (Loop) ==
+
+Init -&amp;gt; Init: 检测服务退出
+note left of Init
+    非 oneshot 服务
+    等待 restart_period
+end note
+
+Init -&amp;gt; Script: &amp;lt;b&amp;gt;重启服务 (Restart)&amp;lt;/b&amp;gt;
+activate Script
+Script -&amp;gt; Perfetto: &amp;lt;b&amp;gt;再次启动 Perfetto&amp;lt;/b&amp;gt;
+activate Perfetto
+note right of Perfetto: 开始新一轮\n黑匣子录制
+
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;3-详细实施步骤&#34;&gt;3. 详细实施步骤&lt;/h2&gt;
+&lt;h3 id=&#34;步骤-1perfetto-配置文件-pbtxt&#34;&gt;步骤 1：Perfetto 配置文件 (&lt;code&gt;.pbtxt&lt;/code&gt;)&lt;/h3&gt;
+&lt;p&gt;此配置定义了“怎么录”。核心是使用 &lt;code&gt;RING_BUFFER&lt;/code&gt; 模式和 &lt;code&gt;trigger_config&lt;/code&gt;。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>BinderCallsStatsService 技术详解</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/bindercallsstatsservice/</link>
+      <pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/bindercallsstatsservice/</guid>
+      <description>&lt;h2 id=&#34;1-简介&#34;&gt;1. 简介&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;BinderCallsStatsService&lt;/code&gt; 是 Android System Server 进程中的一个系统服务，用于收集和统计发往 &lt;code&gt;system_server&lt;/code&gt; 的 Binder 调用信息。它是分析系统级卡顿、高 CPU 占用以及排查 ANR（Application Not Responding）问题的核心工具。&lt;/p&gt;
+&lt;p&gt;它能够回答以下关键问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;哪个 App 在疯狂调用系统服务？&lt;/li&gt;
+&lt;li&gt;哪个系统 API（如 &lt;code&gt;startActivity&lt;/code&gt;）是当前的性能瓶颈？&lt;/li&gt;
+&lt;li&gt;系统服务的卡顿是因为 CPU 耗时过长，还是因为锁竞争导致的排队？&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;2-实现原理&#34;&gt;2. 实现原理&lt;/h2&gt;
+&lt;h3 id=&#34;21-核心机制&#34;&gt;2.1 核心机制&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;BinderCallsStatsService&lt;/code&gt; 的实现基于 Android Binder 框架提供的 &lt;strong&gt;Observer（观察者）模式&lt;/strong&gt;。它并不依赖底层的 Linux Kernel Trace，而是通过 Hook Java 层的 Binder 分发入口实现的。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;注入 (Injection)&lt;/strong&gt;: 服务启动时，通过 &lt;code&gt;Binder.setObserver()&lt;/code&gt; 将自身注册为全局 Binder 监听器。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;拦截 (Interception)&lt;/strong&gt;: 所有发往当前进程（system_server）的 Binder 请求，在执行具体的 Service 方法（如 &lt;code&gt;AMS.startActivity&lt;/code&gt;）之前，都会先经过 &lt;code&gt;Binder.execTransact&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;统计 (Measurement)&lt;/strong&gt;:
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Call Started&lt;/strong&gt;: 记录开始时的 CPU 时间（Thread Time）和墙上时间（Realtime）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Call Ended&lt;/strong&gt;: 记录结束时间，计算差值，并统计数据包大小。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;聚合 (Aggregation)&lt;/strong&gt;: 数据存储在内存中的哈希表中，按 UID 和方法名聚合，避免无限增长。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id=&#34;22-架构时序图-plantuml&#34;&gt;2.2 架构时序图 (PlantUML)&lt;/h3&gt;
+&lt;p&gt;以下图表展示了 Binder 调用是如何被拦截和统计的：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>IO 监控参数小记</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/</link>
+      <pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/io_monitor/</guid>
+      <description>&lt;p&gt;在 Linux 系统中，“一块 UFS”（通常指 Universal Flash Storage 这种闪存存储设备，在 Linux 下表现为一个块设备，如 &lt;code&gt;/dev/sda&lt;/code&gt; 或 &lt;code&gt;/dev/nvme0n1&lt;/code&gt;）被分区成多个分区后，&lt;strong&gt;监测系统的 IO&lt;/strong&gt; 的含义是：&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;对存储子系统（block layer）中所有块设备进行读写操作的统计和观测&lt;/strong&gt;，包括物理设备层面和逻辑分区层面。&lt;/p&gt;
+&lt;h3 id=&#34;1-核心概念什么是io&#34;&gt;1. 核心概念：什么是“IO”&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;IO = Input/Output&lt;/strong&gt;，这里特指&lt;strong&gt;块设备（block device）的 I/O 操作&lt;/strong&gt;，即数据从内存到存储设备（或反之）的读写请求。&lt;/li&gt;
+&lt;li&gt;UFS 本身是物理硬件（闪存控制器 + NAND 颗粒），它被分区后：
+&lt;ul&gt;
+&lt;li&gt;整个 UFS 设备对应 &lt;code&gt;/dev/sda&lt;/code&gt;（或类似）。&lt;/li&gt;
+&lt;li&gt;每个分区对应 &lt;code&gt;/dev/sda1&lt;/code&gt;、&lt;code&gt;/dev/sda2&lt;/code&gt;……（逻辑块设备）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;所有分区共享&lt;strong&gt;同一套物理硬件资源&lt;/strong&gt;（相同的控制器、相同的闪存通道、相同的队列），因此物理层面只有一个真实的 IO 通道。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;2-监测系统的-io-到底监测什么&#34;&gt;2. “监测系统的 IO” 到底监测什么&lt;/h3&gt;
+&lt;p&gt;Linux 内核在 block layer 层面为每个块设备（无论物理盘还是分区）都维护独立的统计信息。你监测的“系统 IO”通常包含以下指标（常用工具 &lt;code&gt;iostat -x&lt;/code&gt;、&lt;code&gt;iotop&lt;/code&gt;、&lt;code&gt;sar -d&lt;/code&gt;、&lt;code&gt;fio&lt;/code&gt;、&lt;code&gt;blktrace&lt;/code&gt; 等都可以看到）：&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;监测维度&lt;/th&gt;
+					&lt;th&gt;具体含义&lt;/th&gt;
+					&lt;th&gt;对应哪个设备？&lt;/th&gt;
+					&lt;th&gt;实际意义&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;strong&gt;tps / IOPS&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;每秒完成的 IO 操作次数（read + write）&lt;/td&gt;
+					&lt;td&gt;可选整个 UFS 或单个分区&lt;/td&gt;
+					&lt;td&gt;反映随机读写能力&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;strong&gt;kB_read/s&lt;/strong&gt;&lt;br&gt;&lt;strong&gt;kB_wrtn/s&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;每秒读取/写入的数据量（吞吐量）&lt;/td&gt;
+					&lt;td&gt;可选整个 UFS 或单个分区&lt;/td&gt;
+					&lt;td&gt;反映顺序读写带宽&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;strong&gt;%util&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;设备繁忙时间百分比（队列非空时间占比）&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;通常看整个 UFS&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;最重要&lt;/strong&gt;：&amp;gt;80% 就接近 IO 饱和&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;strong&gt;await / r_await / w_await&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;每个 IO 请求的平均等待时间（ms）&lt;/td&gt;
+					&lt;td&gt;可选整个 UFS 或单个分区&lt;/td&gt;
+					&lt;td&gt;反映延迟&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;strong&gt;avgqu-sz&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;平均 IO 队列长度&lt;/td&gt;
+					&lt;td&gt;可选整个 UFS 或单个分区&lt;/td&gt;
+					&lt;td&gt;队列越长，IO 压力越大&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;strong&gt;svctm&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;设备自身服务每个 IO 的平均时间&lt;/td&gt;
+					&lt;td&gt;整个 UFS&lt;/td&gt;
+					&lt;td&gt;硬件本身处理能力&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;strong&gt;关键点&lt;/strong&gt;：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>如何分析 dumpsys gfxinfo 卡顿数据</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/gfxinfo_jank_analysis/</link>
+      <pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/gfxinfo_jank_analysis/</guid>
+      <description>&lt;p&gt;&lt;code&gt;adb shell dumpsys gfxinfo &amp;lt;package&amp;gt;&lt;/code&gt; 是 Android 分析 UI 卡顿的第一手数据来源。它输出的统计看起来简单，但里面埋了不少反直觉的坑 —— 最典型的就是「P50=15ms 明明在 16.67ms 帧预算之内，为什么 Janky frames 却高达 97%」。本文用一个真实 Launcher 样本，把这些字段逐一拆开。&lt;/p&gt;
+&lt;h2 id=&#34;1-样本数据&#34;&gt;1. 样本数据&lt;/h2&gt;
+&lt;p&gt;以下是 &lt;code&gt;dumpsys gfxinfo com.company.cockpit.launcher&lt;/code&gt; 的一段实测输出（节选）：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;UID: 1000
+Package: com.company.cockpit.launcher
+Total frames rendered: 29205
+Janky frames: 28441 (97.38%)
+50th percentile: 15ms
+90th percentile: 16ms
+95th percentile: 17ms
+99th percentile: 18ms
+Number Missed Vsync: 2
+Number High input latency: 17
+Number Slow UI thread: 2
+Number Slow bitmap uploads: 0
+Number Slow issue draw commands: 28355
+Number Frame deadline missed: 28441
+HISTOGRAM: ... 14ms=9672 15ms=10787 16ms=3795 17ms=1125 18ms=560 ...
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;从表面看：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Binder spam detection原理</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/spamming-oneway/</link>
+      <pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/spamming-oneway/</guid>
+      <description>&lt;h2 id=&#34;binder-spam-detection原理&#34;&gt;Binder spam detection原理&lt;/h2&gt;
+&lt;p&gt;当Binder异步通信消耗了过多的binder buffer的时候，会打印出如下log:&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;IPCThreadState: Process seems to be sending too many oneway calls.
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;核心原因&#34;&gt;核心原因&lt;/h3&gt;
+&lt;p&gt;这个日志的根本原因在于 &lt;strong&gt;Kernel 层的 Binder 驱动程序&lt;/strong&gt; 检测到某个进程发送了过多的 oneway（异步）调用，导致为 oneway 调用预留的 &lt;strong&gt;异步缓冲区空间 (async space) 严重不足&lt;/strong&gt;。这是一种保护机制，旨在防止某个进程因滥发 oneway 调用而耗尽 Binder 资源，影响系统其他进程的正常通信。&lt;/p&gt;
+&lt;p&gt;整个检测和通知流程可以概括为：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;客户端发起 Oneway 调用&lt;/strong&gt;：进程通过 &lt;code&gt;transact()&lt;/code&gt; 发起一个带有 &lt;code&gt;TF_ONE_WAY&lt;/code&gt; 标志的 Binder 调用。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内核分配缓冲区&lt;/strong&gt;：Binder 驱动在内核空间为这个 oneway 事务分配内存。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内核进行垃圾邮件检测 (Spam Detection)&lt;/strong&gt;：在分配内存时，内核会检查剩余的&lt;strong&gt;异步缓冲区空间&lt;/strong&gt;。如果空间低于某个阈值（总空间的 10%），驱动就会开始怀疑有进程在“滥发” oneway 调用。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;标记可疑事务&lt;/strong&gt;：如果异步空间过低，驱动会进一步检查当前发起调用的这个进程，是否占用了过多的 oneway 缓冲区（例如，超过 50 个缓冲区或总大小超过总空间的 25%）。如果满足条件，内核就会给这个事务的缓冲区打上 &lt;code&gt;oneway_spam_suspect&lt;/code&gt; 的标记。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内核返回特殊指令&lt;/strong&gt;：对于一个 oneway 调用，内核需要立即给客户端一个“完成”回执。此时，如果发现事务缓冲区有 &lt;code&gt;oneway_spam_suspect&lt;/code&gt; 标记，内核就不会返回常规的 &lt;code&gt;BR_TRANSACTION_COMPLETE&lt;/code&gt;，而是返回一个特殊的 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt; 指令。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;用户空间打印日志&lt;/strong&gt;：客户端的 &lt;code&gt;IPCThreadState&lt;/code&gt; 在 &lt;code&gt;waitForResponse()&lt;/code&gt; 中接收并解析来自内核的指令。当它收到 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt; 时，就会打印出这条我们看到的错误日志。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id=&#34;代码分析&#34;&gt;代码分析&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;用户空间日志打印点 (IPCThreadState.cpp)&lt;/strong&gt;
+在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android Native Crash 处理机制深度解析</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/</link>
+      <pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/</guid>
+      <description>&lt;p&gt;在 Android 系统中，Native Crash 的处理是一个高度解耦且极其鲁棒的多进程协作闭环。其核心哲学是：&lt;strong&gt;在损坏的现场外（Out-of-Process）进行安全重建&lt;/strong&gt;。&lt;/p&gt;
+&lt;h2 id=&#34;1-系统组件架构-architectural-overview&#34;&gt;1. 系统组件架构 (Architectural Overview)&lt;/h2&gt;
+&lt;p&gt;下图展示了参与 Crash 处理的关键组件及其静态拓扑关系：&lt;/p&gt;
+&lt;div class=&#34;mermaid&#34;&gt;graph LR
+    subgraph &#34;Native Process (Crasher)&#34;
+        SC[libsigchain.so]
+        DH[libdebuggerd_handler.so]
+        PT[Pseudothread]
+        VM[VM Process / Snapshot]
+    end
+
+    subgraph &#34;Debuggerd Daemon System&#34;
+        CD[crash_dump64/32]
+        T[tombstoned]
+    end
+
+    subgraph &#34;System Services&#34;
+        LOG[logd / kmsg]
+        AMS[ActivityManagerService]
+    end
+
+    DH -- &#34;linker_debuggerd_init&#34; --&gt; L[Linker]
+    SC -- &#34;special_handler&#34; --&gt; DH
+    DH -- &#34;clone(no CLONE_FILES)&#34; --&gt; PT
+    PT -- &#34;exec&#34; --&gt; CD
+    CD -- &#34;ptrace(SEIZE/INTERRUPT)&#34; --&gt; Crasher
+    PT -- &#34;double-fork&#34; --&gt; VM
+    CD -- &#34;ptrace(read memory)&#34; --&gt; VM
+    CD -- &#34;kDumpRequest&#34; --&gt; T
+    T -- &#34;InterceptCheck&#34; --&gt; CD
+    CD -- &#34;ndebugsocket&#34; --&gt; AMS
+&lt;/div&gt;&lt;hr&gt;
+&lt;h2 id=&#34;2-详细交互流程-sequence-diagram&#34;&gt;2. 详细交互流程 (Sequence Diagram)&lt;/h2&gt;
+&lt;p&gt;基于 &lt;code&gt;system/core/debuggerd&lt;/code&gt; 源码深度还原的交互细节，涵盖了信号劫持、双重握手及内存镜像逻辑：&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

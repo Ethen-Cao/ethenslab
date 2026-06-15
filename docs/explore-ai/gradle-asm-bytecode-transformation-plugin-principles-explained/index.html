@@ -1,4 +1,13 @@
-<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Gradle Asm Bytecode Transformation Plugin Principles Explained | Ethen 的实验室</title><meta name=keywords content><meta name=description content="Gradle ASM 字节码转换插件原理解析
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Gradle Asm Bytecode Transformation Plugin Principles Explained | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="Gradle ASM 字节码转换插件原理解析
 引言：问题与解决方案
 问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。
 解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。
@@ -10,12 +19,71 @@
 Java 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。
 
 
-Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。"><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Gradle Asm Bytecode Transformation Plugin Principles Explained"><meta property="og:description" content="Gradle ASM 字节码转换插件原理解析 引言：问题与解决方案 问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。
+Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。">
+<meta name="author" content="map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css" integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="Gradle Asm Bytecode Transformation Plugin Principles Explained">
+  <meta property="og:description" content="Gradle ASM 字节码转换插件原理解析 引言：问题与解决方案 问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。
 解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。
 我们采用的解决方案是创建一个自定义的 Gradle 插件，它利用 Android Gradle 插件 (AGP) 提供的转换 API 和 ASM 字节码操作框架，在编译期直接修改生成的 .class 文件，从根本上解决 API 的兼容性问题。
 核心概念 要理解这个插件，首先需要了解几个核心概念：
 Java 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。
-Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。"><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="explore-ai"><meta property="article:published_time" content="2025-08-03T17:17:50+08:00"><meta property="article:modified_time" content="2025-08-03T17:17:50+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Gradle Asm Bytecode Transformation Plugin Principles Explained"><meta name=twitter:description content="Gradle ASM 字节码转换插件原理解析
+Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="explore-ai">
+    <meta property="article:published_time" content="2025-08-03T17:17:50+08:00">
+    <meta property="article:modified_time" content="2025-08-03T17:17:50+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Gradle Asm Bytecode Transformation Plugin Principles Explained">
+<meta name="twitter:description" content="Gradle ASM 字节码转换插件原理解析
 引言：问题与解决方案
 问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。
 解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。
@@ -27,293 +95,656 @@ Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是�
 Java 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。
 
 
-Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。"><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Explore AI","item":"https://ethen-cao.github.io/ethenslab/explore-ai/"},{"@type":"ListItem","position":2,"name":"Gradle Asm Bytecode Transformation Plugin Principles Explained","item":"https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Gradle Asm Bytecode Transformation Plugin Principles Explained","name":"Gradle Asm Bytecode Transformation Plugin Principles Explained","description":"Gradle ASM 字节码转换插件原理解析 引言：问题与解决方案 问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。\n解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。\n我们采用的解决方案是创建一个自定义的 Gradle 插件，它利用 Android Gradle 插件 (AGP) 提供的转换 API 和 ASM 字节码操作框架，在编译期直接修改生成的 .class 文件，从根本上解决 API 的兼容性问题。\n核心概念 要理解这个插件，首先需要了解几个核心概念：\nJava 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。\nAndroid 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。\n","keywords":[],"articleBody":"Gradle ASM 字节码转换插件原理解析 引言：问题与解决方案 问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。\n解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。\n我们采用的解决方案是创建一个自定义的 Gradle 插件，它利用 Android Gradle 插件 (AGP) 提供的转换 API 和 ASM 字节码操作框架，在编译期直接修改生成的 .class 文件，从根本上解决 API 的兼容性问题。\n核心概念 要理解这个插件，首先需要了解几个核心概念：\nJava 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。\nAndroid 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。\nASM 框架：这是一个非常强大且高性能的 Java 字节码操作和分析框架。它允许我们以编程方式读取 .class 文件的内容，分析其结构（如类、方法、指令），甚至直接修改这些内容，然后再写回文件。这是我们实现字节码替换的核心工具。\n插件架构与工作流程 我们自定义的插件，精确地插入到 javac 编译之后、D8 DEX 化之前的构建环节中。\n详细步骤 插件加载与注册 (DesugarTransformPlugin)\n当 Gradle 构建开始时，它会加载我们在 build-logic 中定义的插件。 插件的 apply(Project) 方法是入口。在这里，我们通过 project.extensions.getByType(AndroidComponentsExtension::class.java) 获取到 AGP 的组件扩展。 我们调用 androidComponents.onVariants 来遍历项目的所有构建变体（如 debug, release）。 最关键的一步是调用 variant.instrumentation.transformClassesWith()。这个方法告诉 AGP：“对于这个变体的所有类，请使用我指定的工厂类 (ReadAllBytesClassVisitorFactory) 来创建一个转换器去处理它们。” 转换器工厂 (ReadAllBytesClassVisitorFactory)\n这是一个实现了 AsmClassVisitorFactory 接口的工厂类。 AGP 在处理每一个 .class 文件时，都会调用这个工厂的 createClassVisitor() 方法。 这个方法的作用是实例化一个我们自定义的 ClassVisitor (ReadAllBytesClassVisitor)，并将原始的 .class 文件内容作为输入流传递给它。 我们还在这里为 ClassVisitor 的构造函数传入了 Opcodes.ASM9，这是一个版本号，用于告诉 ASM 我们期望使用哪个版本的 API 来进行操作，确保了兼容性。 类访问器 (ReadAllBytesClassVisitor)\n这个类继承自 ASM 的 ClassVisitor。它的工作就像一个巡视员，负责“访问”一个类的各个组成部分，比如类名、父类、接口、字段以及最重要的方法。 当它“访问”到类中的每一个方法时，它会重写 visitMethod() 方法。 在 visitMethod() 中，它会创建一个专门负责处理方法内部指令的 MethodVisitor (ReadAllBytesMethodVisitor)。 方法访问器 (ReadAllBytesMethodVisitor)\n这是真正执行替换操作的地方。我们使用了 AdviceAdapter，它是 MethodVisitor 的一个方便的子类。 AdviceAdapter 会遍历一个方法中的每一条字节码指令。 我们重写了 visitMethodInsn() 方法。ASM 在遍历指令时，每当遇到一条方法调用指令（如 INVOKEVIRTUAL, INVOKESTATIC 等），就会自动回调这个方法。 核心逻辑：查找与替换 在 visitMethodInsn() 方法中，我们执行了精确的“查找-替换”逻辑：\n查找 我们检查传入的指令参数，判断它是否是我们想要替换的目标：\nopcode == Opcodes.INVOKEVIRTUAL: 检查这是否是一个普通的实例方法调用（非静态、非私有等）。\nowner == “java/io/InputStream”: 检查这个方法所属的类是否是 java.io.InputStream。\nname == “readAllBytes”: 检查方法名是否是 readAllBytes。\ndescriptor == “()[B”: 检查方法的签名（描述符）。() 表示没有参数，[B 表示返回值是 byte 数组 (byte[])。\n替换 如果以上所有条件都满足，我们就找到了目标。此时，我们不再调用 super.visitMethodInsn() 并传入原始的参数，而是用新的参数去调用它，从而实现指令的重写：\nopcode = Opcodes.INVOKESTATIC: 将指令从“实例方法调用”改为“静态方法调用”。 owner = “com/example/desugartransform/CompatInputStream”: 将方法所属的类改为我们自己编写的兼容性工具类。 descriptor = “(Ljava/io/InputStream;)[B”: 这是最关键的改变。我们将方法签名从“无参”改为“接收一个 InputStream 对象作为参数”。 为什么这样可行？—— 操作数栈的奥秘 在 JVM 字节码执行模型中，方法调用依赖于一个叫做“操作数栈”的结构。\n在执行原始的 input.readAllBytes()（即 INVOKEVIRTUAL）之前，JVM 会先把 input 这个 InputStream 实例的引用压入操作数栈的栈顶 当我们的插件将指令替换为 INVOKESTATIC 时，栈顶的那个 InputStream 实例引用依然存在。 我们新的静态方法 CompatInputStream.readAllBytes(InputStream) 正好需要一个 InputStream 类型的参数。INVOKESTATIC 指令会自动从操作数栈中弹出这个引用，并将其作为参数传递给我们的静态方法。 因此，整个替换过程对于操作数栈的状态来说是完全平衡和兼容的，确保了修改后的字节码依然合法有效。\n结论 通过 Gradle 插件机制，我们成功地将自己编写的、基于 ASM 的字节码转换逻辑注入到了 Android 的标准构建流程中。这个插件能够自动、精确地找到所有对不兼容 API (InputStream.readAllBytes()) 的调用，并将其无缝地替换为我们提供的、能在所有 Android 版本上运行的兼容实现 (CompatInputStream.readAllBytes())。\n这不仅从根本上解决了应用的运行时崩溃问题，而且对开发者是完全透明的——开发者可以继续编写现代化的代码，而兼容性问题则由构建工具在底层自动处理。\n代码实现 工程目录结构 DesugarTransform$ tree -L 2 . |-- app | |-- build | |-- build.gradle.kts | |-- proguard-rules.pro | `-- src |-- build-logic | |-- build | |-- build.gradle.kts | `-- src |-- build.gradle.kts |-- gradle | |-- libs.versions.toml | `-- wrapper |-- gradle.properties |-- gradlew |-- gradlew.bat |-- local.properties `-- settings.gradle.kts app/build.gradle.kts\nplugins { alias(libs.plugins.android.application) id(\"com.example.desugar-transform\") } android { namespace = \"com.example.desugartransform\" compileSdk = 36 defaultConfig { applicationId = \"com.example.desugartransform\" minSdk = 29 targetSdk = 36 versionCode = 1 versionName = \"1.0\" testInstrumentationRunner = \"androidx.test.runner.AndroidJUnitRunner\" } buildTypes { release { isMinifyEnabled = false proguardFiles( getDefaultProguardFile(\"proguard-android-optimize.txt\"), \"proguard-rules.pro\" ) } } compileOptions { sourceCompatibility = JavaVersion.VERSION_11 targetCompatibility = JavaVersion.VERSION_11 } } dependencies { implementation(libs.appcompat) implementation(libs.material) implementation(libs.activity) implementation(libs.constraintlayout) testImplementation(libs.junit) androidTestImplementation(libs.ext.junit) androidTestImplementation(libs.espresso.core) } DesugarTransform/build-logic/src/main/kotlin/com/example/gradle/plugin/DesugarTransformPlugin.kt\npackage com.example.gradle.plugin import com.android.build.api.instrumentation.AsmClassVisitorFactory import com.android.build.api.instrumentation.ClassContext import com.android.build.api.instrumentation.ClassData import com.android.build.api.instrumentation.InstrumentationParameters import com.android.build.api.instrumentation.InstrumentationScope import com.android.build.api.variant.AndroidComponentsExtension import org.gradle.api.Plugin import org.gradle.api.Project import org.objectweb.asm.ClassVisitor import org.objectweb.asm.MethodVisitor import org.objectweb.asm.Opcodes import org.objectweb.asm.commons.AdviceAdapter /** * 一个 Gradle 插件，用于应用字节码转换。 */ abstract class DesugarTransformPlugin : Plugin { override fun apply(project: Project) { val androidComponents = project.extensions.getByType(AndroidComponentsExtension::class.java) androidComponents.onVariants { variant -\u003e // **【错误修正】** // 简化插件注册，不再动态传递参数，以避免编译器解析错误。 variant.instrumentation.transformClassesWith( ReadAllBytesClassVisitorFactory::class.java, InstrumentationScope.PROJECT ) {} } } } /** * **【错误修正】** * 工厂类不再需要自定义参数。我们使用 InstrumentationParameters.None。 */ abstract class ReadAllBytesClassVisitorFactory : AsmClassVisitorFactory\u003cInstrumentationParameters.None\u003e { override fun createClassVisitor( classContext: ClassContext, nextClassVisitor: ClassVisitor ): ClassVisitor { // **【错误修正】** // 直接为 ASM 提供一个稳定、兼容的 API 版本，而不是动态获取。 // Opcodes.ASM9 是一个安全且现代的选择。 return ReadAllBytesClassVisitor(Opcodes.ASM9, nextClassVisitor) } override fun isInstrumentable(classData: ClassData): Boolean { return true } } /** * 这个 ClassVisitor 会遍历一个类的所有方法。 */ private class ReadAllBytesClassVisitor( api: Int, // 参数现在直接就是 ASM API level classVisitor: ClassVisitor ) : ClassVisitor(api, classVisitor) { // 直接用于初始化父类 override fun visitMethod( access: Int, name: String?, descriptor: String?, signature: String?, exceptions: Array\u003cout String\u003e? ): MethodVisitor { val originalMethodVisitor = super.visitMethod(access, name, descriptor, signature, exceptions) // 使用从父类继承的 'api' 字段 return ReadAllBytesMethodVisitor(this.api, originalMethodVisitor, access, name, descriptor) } } /** * 这个 MethodVisitor 检查方法体内的每一条指令，并替换目标方法调用。 */ private class ReadAllBytesMethodVisitor( api: Int, methodVisitor: MethodVisitor, access: Int, name: String?, descriptor: String? ) : AdviceAdapter(api, methodVisitor, access, name, descriptor) { override fun visitMethodInsn( opcode: Int, owner: String?, name: String?, descriptor: String?, isInterface: Boolean ) { if ( opcode == Opcodes.INVOKEVIRTUAL \u0026\u0026 owner == \"java/io/InputStream\" \u0026\u0026 name == \"readAllBytes\" \u0026\u0026 descriptor == \"()[B\" ) { println(\"ASM-Transform: Replacing 'InputStream.readAllBytes()' call in method '${this.name}'\") super.visitMethodInsn( Opcodes.INVOKESTATIC, \"com/example/desugartransform/CompatInputStream\", \"readAllBytes\", \"(Ljava/io/InputStream;)[B\", false ) } else { super.visitMethodInsn(opcode, owner, name, descriptor, isInterface) } } } DesugarTransform/build-logic/build.gradle.kts\n// 文件路径: build-logic/build.gradle.kts plugins { `kotlin-dsl` } // **【错误修正】** // 显式应用 'java' 插件，并配置 JVM toolchain。 // 这将强制所有编译任务（Java 和 Kotlin）使用统一的 JDK 版本， // 从而解决因环境不一致导致的 API 解析错误。 java { toolchain { languageVersion.set(JavaLanguageVersion.of(11)) } } repositories { google() mavenCentral() } // 从主项目的根目录直接读取版本号。 // 使用正确的相对路径来定位文件。 val agpVersion = file(\"../gradle/libs.versions.toml\").readLines() .first { it.trim().startsWith(\"agp =\") } .substringAfter(\"=\") .trim() .removeSurrounding(\"\\\"\") dependencies { // 依赖 Android Gradle Plugin 的 API implementation(\"com.android.tools.build:gradle:$agpVersion\") // 依赖 ASM 库用于字节码操作 implementation(\"org.ow2.asm:asm-commons:9.6\") } // 注册我们的插件，以便可以在 app 模块中通过 ID 使用它 gradlePlugin { plugins { register(\"desugarTransform\") { id = \"com.example.desugar-transform\" implementationClass = \"com.example.gradle.plugin.DesugarTransformPlugin\" } } } DesugarTransform/settings.gradle.kts\npluginManagement { repositories { google { content { includeGroupByRegex(\"com\\\\.android.*\") includeGroupByRegex(\"com\\\\.google.*\") includeGroupByRegex(\"androidx.*\") } } mavenCentral() gradlePluginPortal() } } dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS) repositories { google() mavenCentral() } } rootProject.name = \"DesugarTransform\" include(\":app\") includeBuild(\"build-logic\") DesugarTransform/app/src/main/java/com/example/desugartransform/CompatInputStream.java\n// 1. 在 app 模块中创建兼容性辅助类 // 文件路径: app/src/main/java/com/example/desugartransform/CompatInputStream.java package com.example.desugartransform; import android.util.Log; import java.io.ByteArrayOutputStream; import java.io.IOException; import java.io.InputStream; import java.util.Arrays; /** * 提供 InputStream.readAllBytes() 的向后兼容实现。 */ public final class CompatInputStream { private static final int DEFAULT_BUFFER_SIZE = 8192; // 私有构造函数，防止实例化 private CompatInputStream() {} /** * 从输入流中读取所有剩余的字节。 * @param is 要读取的输入流。 * @return 包含流中所有字节的字节数组。 * @throws IOException 如果发生 I/O 错误。 */ public static byte[] readAllBytes(InputStream is) throws IOException { Log.d(\"CompatInputStream\",\"CompatInputStream readAllBytes\"); ByteArrayOutputStream bos = new ByteArrayOutputStream(); byte[] buffer = new byte[DEFAULT_BUFFER_SIZE]; int n; while ((n = is.read(buffer)) != -1) { bos.write(buffer, 0, n); } return bos.toByteArray(); } } ","wordCount":"860","inLanguage":"en","datePublished":"2025-08-03T17:17:50+08:00","dateModified":"2025-08-03T17:17:50+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
-<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/explore-ai/>Explore AI</a></div><h1 class="post-title entry-hint-parent">Gradle Asm Bytecode Transformation Plugin Principles Explained</h1><div class=post-meta><span title='2025-08-03 17:17:50 +0800 CST'>August 3, 2025</span>&nbsp;·&nbsp;5 min&nbsp;·&nbsp;860 words</div></header><div class=post-content><h1 id=gradle-asm-字节码转换插件原理解析>Gradle ASM 字节码转换插件原理解析<a hidden class=anchor aria-hidden=true href=#gradle-asm-字节码转换插件原理解析>#</a></h1><h2 id=引言问题与解决方案>引言：问题与解决方案<a hidden class=anchor aria-hidden=true href=#引言问题与解决方案>#</a></h2><p>问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。</p><p>解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。</p><p>我们采用的解决方案是创建一个自定义的 Gradle 插件，它利用 Android Gradle 插件 (AGP) 提供的转换 API 和 ASM 字节码操作框架，在编译期直接修改生成的 .class 文件，从根本上解决 API 的兼容性问题。</p><h2 id=核心概念>核心概念<a hidden class=anchor aria-hidden=true href=#核心概念>#</a></h2><p>要理解这个插件，首先需要了解几个核心概念：</p><ul><li><p>Java 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。</p></li><li><p>Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。</p></li><li><p>ASM 框架：这是一个非常强大且高性能的 Java 字节码操作和分析框架。它允许我们以编程方式读取 .class 文件的内容，分析其结构（如类、方法、指令），甚至直接修改这些内容，然后再写回文件。这是我们实现字节码替换的核心工具。</p></li></ul><h2 id=插件架构与工作流程>插件架构与工作流程<a hidden class=anchor aria-hidden=true href=#插件架构与工作流程>#</a></h2><p>我们自定义的插件，精确地插入到 javac 编译之后、D8 DEX 化之前的构建环节中。</p><p><img src=/ethenslab/images/java-bytes-transform.png alt=字节码转换插件工作流程></p><h3 id=详细步骤>详细步骤<a hidden class=anchor aria-hidden=true href=#详细步骤>#</a></h3><ol><li><p>插件加载与注册 (DesugarTransformPlugin)</p><ul><li>当 Gradle 构建开始时，它会加载我们在 build-logic 中定义的插件。</li><li>插件的 apply(Project) 方法是入口。在这里，我们通过 project.extensions.getByType(AndroidComponentsExtension::class.java) 获取到 AGP 的组件扩展。</li><li>我们调用 androidComponents.onVariants 来遍历项目的所有构建变体（如 debug, release）。</li><li>最关键的一步是调用 variant.instrumentation.transformClassesWith()。这个方法告诉 AGP：“对于这个变体的所有类，请使用我指定的工厂类 (ReadAllBytesClassVisitorFactory) 来创建一个转换器去处理它们。”</li></ul></li><li><p>转换器工厂 (ReadAllBytesClassVisitorFactory)</p><ul><li>这是一个实现了 AsmClassVisitorFactory 接口的工厂类。</li><li>AGP 在处理每一个 .class 文件时，都会调用这个工厂的 createClassVisitor() 方法。</li><li>这个方法的作用是实例化一个我们自定义的 ClassVisitor (ReadAllBytesClassVisitor)，并将原始的 .class 文件内容作为输入流传递给它。</li><li>我们还在这里为 ClassVisitor 的构造函数传入了 Opcodes.ASM9，这是一个版本号，用于告诉 ASM 我们期望使用哪个版本的 API 来进行操作，确保了兼容性。</li></ul></li><li><p>类访问器 (ReadAllBytesClassVisitor)</p><ul><li>这个类继承自 ASM 的 ClassVisitor。它的工作就像一个巡视员，负责“访问”一个类的各个组成部分，比如类名、父类、接口、字段以及最重要的方法。</li><li>当它“访问”到类中的每一个方法时，它会重写 visitMethod() 方法。</li><li>在 visitMethod() 中，它会创建一个专门负责处理方法内部指令的 MethodVisitor (ReadAllBytesMethodVisitor)。</li></ul></li><li><p>方法访问器 (ReadAllBytesMethodVisitor)</p><ul><li>这是真正执行替换操作的地方。我们使用了 AdviceAdapter，它是 MethodVisitor 的一个方便的子类。</li><li>AdviceAdapter 会遍历一个方法中的每一条字节码指令。</li><li>我们重写了 visitMethodInsn() 方法。ASM 在遍历指令时，每当遇到一条方法调用指令（如 INVOKEVIRTUAL, INVOKESTATIC 等），就会自动回调这个方法。</li></ul></li></ol><h2 id=核心逻辑查找与替换>核心逻辑：查找与替换<a hidden class=anchor aria-hidden=true href=#核心逻辑查找与替换>#</a></h2><p>在 visitMethodInsn() 方法中，我们执行了精确的“查找-替换”逻辑：</p><h3 id=查找>查找<a hidden class=anchor aria-hidden=true href=#查找>#</a></h3><p>我们检查传入的指令参数，判断它是否是我们想要替换的目标：</p><ul><li><p>opcode == Opcodes.INVOKEVIRTUAL: 检查这是否是一个普通的实例方法调用（非静态、非私有等）。</p></li><li><p>owner == &ldquo;java/io/InputStream&rdquo;: 检查这个方法所属的类是否是 java.io.InputStream。</p></li><li><p>name == &ldquo;readAllBytes&rdquo;: 检查方法名是否是 readAllBytes。</p></li><li><p>descriptor == &ldquo;()[B&rdquo;: 检查方法的签名（描述符）。() 表示没有参数，[B 表示返回值是 byte 数组 (byte[])。</p></li></ul><h2 id=替换>替换<a hidden class=anchor aria-hidden=true href=#替换>#</a></h2><p>如果以上所有条件都满足，我们就找到了目标。此时，我们不再调用 super.visitMethodInsn() 并传入原始的参数，而是用新的参数去调用它，从而实现指令的重写：</p><ul><li>opcode = Opcodes.INVOKESTATIC: 将指令从“实例方法调用”改为“静态方法调用”。</li><li>owner = &ldquo;com/example/desugartransform/CompatInputStream&rdquo;: 将方法所属的类改为我们自己编写的兼容性工具类。</li><li>descriptor = &ldquo;(Ljava/io/InputStream;)[B&rdquo;: 这是最关键的改变。我们将方法签名从“无参”改为“接收一个 InputStream 对象作为参数”。</li></ul><h3 id=为什么这样可行-操作数栈的奥秘>为什么这样可行？—— 操作数栈的奥秘<a hidden class=anchor aria-hidden=true href=#为什么这样可行-操作数栈的奥秘>#</a></h3><p>在 JVM 字节码执行模型中，方法调用依赖于一个叫做“操作数栈”的结构。</p><ul><li>在执行原始的 input.readAllBytes()（即 INVOKEVIRTUAL）之前，JVM 会先把 input 这个 InputStream 实例的引用压入操作数栈的栈顶</li><li>当我们的插件将指令替换为 INVOKESTATIC 时，栈顶的那个 InputStream 实例引用依然存在。</li><li>我们新的静态方法 CompatInputStream.readAllBytes(InputStream) 正好需要一个 InputStream 类型的参数。INVOKESTATIC 指令会自动从操作数栈中弹出这个引用，并将其作为参数传递给我们的静态方法。</li></ul><p>因此，整个替换过程对于操作数栈的状态来说是完全平衡和兼容的，确保了修改后的字节码依然合法有效。</p><h2 id=结论>结论<a hidden class=anchor aria-hidden=true href=#结论>#</a></h2><p>通过 Gradle 插件机制，我们成功地将自己编写的、基于 ASM 的字节码转换逻辑注入到了 Android 的标准构建流程中。这个插件能够自动、精确地找到所有对不兼容 API (InputStream.readAllBytes()) 的调用，并将其无缝地替换为我们提供的、能在所有 Android 版本上运行的兼容实现 (CompatInputStream.readAllBytes())。</p><p>这不仅从根本上解决了应用的运行时崩溃问题，而且对开发者是完全透明的——开发者可以继续编写现代化的代码，而兼容性问题则由构建工具在底层自动处理。</p><h2 id=代码实现>代码实现<a hidden class=anchor aria-hidden=true href=#代码实现>#</a></h2><h3 id=工程目录结构>工程目录结构<a hidden class=anchor aria-hidden=true href=#工程目录结构>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-shell data-lang=shell><span style=display:flex><span>DesugarTransform$ tree -L <span style=color:#ae81ff>2</span>
-</span></span><span style=display:flex><span>.
-</span></span><span style=display:flex><span>|-- app
-</span></span><span style=display:flex><span>|   |-- build
-</span></span><span style=display:flex><span>|   |-- build.gradle.kts
-</span></span><span style=display:flex><span>|   |-- proguard-rules.pro
-</span></span><span style=display:flex><span>|   <span style=color:#e6db74>`</span>-- src
-</span></span><span style=display:flex><span>|-- build-logic
-</span></span><span style=display:flex><span>|   |-- build
-</span></span><span style=display:flex><span>|   |-- build.gradle.kts
-</span></span><span style=display:flex><span>|   <span style=color:#e6db74>`</span>-- src
-</span></span><span style=display:flex><span>|-- build.gradle.kts
-</span></span><span style=display:flex><span>|-- gradle
-</span></span><span style=display:flex><span>|   |-- libs.versions.toml
-</span></span><span style=display:flex><span>|   <span style=color:#e6db74>`</span>-- wrapper
-</span></span><span style=display:flex><span>|-- gradle.properties
-</span></span><span style=display:flex><span>|-- gradlew
-</span></span><span style=display:flex><span>|-- gradlew.bat
-</span></span><span style=display:flex><span>|-- local.properties
-</span></span><span style=display:flex><span><span style=color:#e6db74>`</span>-- settings.gradle.kts
-</span></span></code></pre></div><ul><li><p>app/build.gradle.kts</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-kotlin data-lang=kotlin><span style=display:flex><span>plugins {
-</span></span><span style=display:flex><span>    alias(libs.plugins.android.application)
-</span></span><span style=display:flex><span>    id(<span style=color:#e6db74>&#34;com.example.desugar-transform&#34;</span>)
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>android {
-</span></span><span style=display:flex><span>    namespace = <span style=color:#e6db74>&#34;com.example.desugartransform&#34;</span>
-</span></span><span style=display:flex><span>    compileSdk = <span style=color:#ae81ff>36</span>
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    defaultConfig {
-</span></span><span style=display:flex><span>        applicationId = <span style=color:#e6db74>&#34;com.example.desugartransform&#34;</span>
-</span></span><span style=display:flex><span>        minSdk = <span style=color:#ae81ff>29</span>
-</span></span><span style=display:flex><span>        targetSdk = <span style=color:#ae81ff>36</span>
-</span></span><span style=display:flex><span>        versionCode = <span style=color:#ae81ff>1</span>
-</span></span><span style=display:flex><span>        versionName = <span style=color:#e6db74>&#34;1.0&#34;</span>
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>        testInstrumentationRunner = <span style=color:#e6db74>&#34;androidx.test.runner.AndroidJUnitRunner&#34;</span>
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    buildTypes {
-</span></span><span style=display:flex><span>        release {
-</span></span><span style=display:flex><span>            isMinifyEnabled = <span style=color:#66d9ef>false</span>
-</span></span><span style=display:flex><span>            proguardFiles(
-</span></span><span style=display:flex><span>                getDefaultProguardFile(<span style=color:#e6db74>&#34;proguard-android-optimize.txt&#34;</span>),
-</span></span><span style=display:flex><span>                <span style=color:#e6db74>&#34;proguard-rules.pro&#34;</span>
-</span></span><span style=display:flex><span>            )
-</span></span><span style=display:flex><span>        }
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>    compileOptions {
-</span></span><span style=display:flex><span>        sourceCompatibility = <span style=color:#a6e22e>JavaVersion</span>.VERSION_11
-</span></span><span style=display:flex><span>        targetCompatibility = <span style=color:#a6e22e>JavaVersion</span>.VERSION_11
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>dependencies {
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    implementation(libs.appcompat)
-</span></span><span style=display:flex><span>    implementation(libs.material)
-</span></span><span style=display:flex><span>    implementation(libs.activity)
-</span></span><span style=display:flex><span>    implementation(libs.constraintlayout)
-</span></span><span style=display:flex><span>    testImplementation(libs.junit)
-</span></span><span style=display:flex><span>    androidTestImplementation(libs.ext.junit)
-</span></span><span style=display:flex><span>    androidTestImplementation(libs.espresso.core)
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div></li><li><p>DesugarTransform/build-logic/src/main/kotlin/com/example/gradle/plugin/DesugarTransformPlugin.kt</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-kotlin data-lang=kotlin><span style=display:flex><span><span style=color:#66d9ef>package</span> com.example.gradle.plugin
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> com.android.build.api.instrumentation.AsmClassVisitorFactory
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> com.android.build.api.instrumentation.ClassContext
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> com.android.build.api.instrumentation.ClassData
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> com.android.build.api.instrumentation.InstrumentationParameters
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> com.android.build.api.instrumentation.InstrumentationScope
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> com.android.build.api.variant.AndroidComponentsExtension
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> org.gradle.api.Plugin
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> org.gradle.api.Project
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> org.objectweb.asm.ClassVisitor
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> org.objectweb.asm.MethodVisitor
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> org.objectweb.asm.Opcodes
-</span></span><span style=display:flex><span><span style=color:#66d9ef>import</span> org.objectweb.asm.commons.AdviceAdapter
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>/**
-</span></span></span><span style=display:flex><span><span style=color:#75715e>* 一个 Gradle 插件，用于应用字节码转换。
-</span></span></span><span style=display:flex><span><span style=color:#75715e>*/</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>abstract</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>DesugarTransformPlugin</span> : Plugin&lt;Project&gt; {
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>override</span> <span style=color:#66d9ef>fun</span> <span style=color:#a6e22e>apply</span>(project: Project) {
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>val</span> androidComponents = project.extensions.getByType(AndroidComponentsExtension<span style=color:#f92672>::</span><span style=color:#66d9ef>class</span>.java)
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>        androidComponents.onVariants { variant <span style=color:#f92672>-&gt;</span>
-</span></span><span style=display:flex><span>            <span style=color:#75715e>// **【错误修正】**
-</span></span></span><span style=display:flex><span>            <span style=color:#75715e>// 简化插件注册，不再动态传递参数，以避免编译器解析错误。
-</span></span></span><span style=display:flex><span>            variant.instrumentation.transformClassesWith(
-</span></span><span style=display:flex><span>                ReadAllBytesClassVisitorFactory<span style=color:#f92672>::</span><span style=color:#66d9ef>class</span>.java,
-</span></span><span style=display:flex><span>                <span style=color:#a6e22e>InstrumentationScope</span>.PROJECT
-</span></span><span style=display:flex><span>            ) {}
-</span></span><span style=display:flex><span>        }
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>/**
-</span></span></span><span style=display:flex><span><span style=color:#75715e>* **【错误修正】**
-</span></span></span><span style=display:flex><span><span style=color:#75715e>* 工厂类不再需要自定义参数。我们使用 InstrumentationParameters.None。
-</span></span></span><span style=display:flex><span><span style=color:#75715e>*/</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>abstract</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>ReadAllBytesClassVisitorFactory</span> : AsmClassVisitorFactory&lt;<span style=color:#a6e22e>InstrumentationParameters</span>.None&gt; {
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>override</span> <span style=color:#66d9ef>fun</span> <span style=color:#a6e22e>createClassVisitor</span>(
-</span></span><span style=display:flex><span>        classContext: ClassContext,
-</span></span><span style=display:flex><span>        nextClassVisitor: ClassVisitor
-</span></span><span style=display:flex><span>    ): ClassVisitor {
-</span></span><span style=display:flex><span>        <span style=color:#75715e>// **【错误修正】**
-</span></span></span><span style=display:flex><span>        <span style=color:#75715e>// 直接为 ASM 提供一个稳定、兼容的 API 版本，而不是动态获取。
-</span></span></span><span style=display:flex><span>        <span style=color:#75715e>// Opcodes.ASM9 是一个安全且现代的选择。
-</span></span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span> ReadAllBytesClassVisitor(<span style=color:#a6e22e>Opcodes</span>.ASM9, nextClassVisitor)
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>override</span> <span style=color:#66d9ef>fun</span> <span style=color:#a6e22e>isInstrumentable</span>(classData: ClassData): Boolean {
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span> <span style=color:#66d9ef>true</span>
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>/**
-</span></span></span><span style=display:flex><span><span style=color:#75715e>* 这个 ClassVisitor 会遍历一个类的所有方法。
-</span></span></span><span style=display:flex><span><span style=color:#75715e>*/</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>private</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>ReadAllBytesClassVisitor</span>(
-</span></span><span style=display:flex><span>    api: Int, <span style=color:#75715e>// 参数现在直接就是 ASM API level
-</span></span></span><span style=display:flex><span>    classVisitor: ClassVisitor
-</span></span><span style=display:flex><span>) : ClassVisitor(api, classVisitor) { <span style=color:#75715e>// 直接用于初始化父类
-</span></span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>override</span> <span style=color:#66d9ef>fun</span> <span style=color:#a6e22e>visitMethod</span>(
-</span></span><span style=display:flex><span>        access: Int,
-</span></span><span style=display:flex><span>        name: String?,
-</span></span><span style=display:flex><span>        descriptor: String?,
-</span></span><span style=display:flex><span>        signature: String?,
-</span></span><span style=display:flex><span>        exceptions: Array&lt;<span style=color:#66d9ef>out</span> String&gt;?
-</span></span><span style=display:flex><span>    ): MethodVisitor {
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>val</span> originalMethodVisitor = <span style=color:#66d9ef>super</span>.visitMethod(access, name, descriptor, signature, exceptions)
-</span></span><span style=display:flex><span>        <span style=color:#75715e>// 使用从父类继承的 &#39;api&#39; 字段
-</span></span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span> ReadAllBytesMethodVisitor(<span style=color:#66d9ef>this</span>.api, originalMethodVisitor, access, name, descriptor)
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>/**
-</span></span></span><span style=display:flex><span><span style=color:#75715e>* 这个 MethodVisitor 检查方法体内的每一条指令，并替换目标方法调用。
-</span></span></span><span style=display:flex><span><span style=color:#75715e>*/</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>private</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>ReadAllBytesMethodVisitor</span>(
-</span></span><span style=display:flex><span>    api: Int,
-</span></span><span style=display:flex><span>    methodVisitor: MethodVisitor,
-</span></span><span style=display:flex><span>    access: Int,
-</span></span><span style=display:flex><span>    name: String?,
-</span></span><span style=display:flex><span>    descriptor: String?
-</span></span><span style=display:flex><span>) : AdviceAdapter(api, methodVisitor, access, name, descriptor) {
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>override</span> <span style=color:#66d9ef>fun</span> <span style=color:#a6e22e>visitMethodInsn</span>(
-</span></span><span style=display:flex><span>        opcode: Int,
-</span></span><span style=display:flex><span>        owner: String?,
-</span></span><span style=display:flex><span>        name: String?,
-</span></span><span style=display:flex><span>        descriptor: String?,
-</span></span><span style=display:flex><span>        isInterface: Boolean
-</span></span><span style=display:flex><span>    ) {
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>if</span> (
-</span></span><span style=display:flex><span>            opcode <span style=color:#f92672>==</span> <span style=color:#a6e22e>Opcodes</span>.INVOKEVIRTUAL <span style=color:#f92672>&amp;&amp;</span>
-</span></span><span style=display:flex><span>            owner <span style=color:#f92672>==</span> <span style=color:#e6db74>&#34;java/io/InputStream&#34;</span> <span style=color:#f92672>&amp;&amp;</span>
-</span></span><span style=display:flex><span>            name <span style=color:#f92672>==</span> <span style=color:#e6db74>&#34;readAllBytes&#34;</span> <span style=color:#f92672>&amp;&amp;</span>
-</span></span><span style=display:flex><span>            descriptor <span style=color:#f92672>==</span> <span style=color:#e6db74>&#34;()[B&#34;</span>
-</span></span><span style=display:flex><span>        ) {
-</span></span><span style=display:flex><span>            println(<span style=color:#e6db74>&#34;ASM-Transform: Replacing &#39;InputStream.readAllBytes()&#39; call in method &#39;</span><span style=color:#e6db74>${this.name}</span><span style=color:#e6db74>&#39;&#34;</span>)
-</span></span><span style=display:flex><span>            <span style=color:#66d9ef>super</span>.visitMethodInsn(
-</span></span><span style=display:flex><span>                <span style=color:#a6e22e>Opcodes</span>.INVOKESTATIC,
-</span></span><span style=display:flex><span>                <span style=color:#e6db74>&#34;com/example/desugartransform/CompatInputStream&#34;</span>,
-</span></span><span style=display:flex><span>                <span style=color:#e6db74>&#34;readAllBytes&#34;</span>,
-</span></span><span style=display:flex><span>                <span style=color:#e6db74>&#34;(Ljava/io/InputStream;)[B&#34;</span>,
-</span></span><span style=display:flex><span>                <span style=color:#66d9ef>false</span>
-</span></span><span style=display:flex><span>            )
-</span></span><span style=display:flex><span>        } <span style=color:#66d9ef>else</span> {
-</span></span><span style=display:flex><span>            <span style=color:#66d9ef>super</span>.visitMethodInsn(opcode, owner, name, descriptor, isInterface)
-</span></span><span style=display:flex><span>        }
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div></li><li><p>DesugarTransform/build-logic/build.gradle.kts</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-kotlin data-lang=kotlin><span style=display:flex><span><span style=color:#75715e>// 文件路径: build-logic/build.gradle.kts
-</span></span></span><span style=display:flex><span>plugins {
-</span></span><span style=display:flex><span>    <span style=color:#960050;background-color:#1e0010>`</span>kotlin-dsl<span style=color:#960050;background-color:#1e0010>`</span>
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>// **【错误修正】**
-</span></span></span><span style=display:flex><span><span style=color:#75715e>// 显式应用 &#39;java&#39; 插件，并配置 JVM toolchain。
-</span></span></span><span style=display:flex><span><span style=color:#75715e>// 这将强制所有编译任务（Java 和 Kotlin）使用统一的 JDK 版本，
-</span></span></span><span style=display:flex><span><span style=color:#75715e>// 从而解决因环境不一致导致的 API 解析错误。
-</span></span></span><span style=display:flex><span>java {
-</span></span><span style=display:flex><span>    toolchain {
-</span></span><span style=display:flex><span>        languageVersion.<span style=color:#66d9ef>set</span>(<span style=color:#a6e22e>JavaLanguageVersion</span>.of(<span style=color:#ae81ff>11</span>))
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>repositories {
-</span></span><span style=display:flex><span>    google()
-</span></span><span style=display:flex><span>    mavenCentral()
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>// 从主项目的根目录直接读取版本号。
-</span></span></span><span style=display:flex><span><span style=color:#75715e>// 使用正确的相对路径来定位文件。
-</span></span></span><span style=display:flex><span><span style=color:#66d9ef>val</span> agpVersion = <span style=color:#66d9ef>file</span>(<span style=color:#e6db74>&#34;../gradle/libs.versions.toml&#34;</span>).readLines()
-</span></span><span style=display:flex><span>    .first { <span style=color:#66d9ef>it</span>.trim().startsWith(<span style=color:#e6db74>&#34;agp =&#34;</span>) }
-</span></span><span style=display:flex><span>    .substringAfter(<span style=color:#e6db74>&#34;=&#34;</span>)
-</span></span><span style=display:flex><span>    .trim()
-</span></span><span style=display:flex><span>    .removeSurrounding(<span style=color:#e6db74>&#34;</span><span style=color:#ae81ff>\&#34;</span><span style=color:#e6db74>&#34;</span>)
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>dependencies {
-</span></span><span style=display:flex><span>    <span style=color:#75715e>// 依赖 Android Gradle Plugin 的 API
-</span></span></span><span style=display:flex><span>    implementation(<span style=color:#e6db74>&#34;com.android.tools.build:gradle:</span><span style=color:#e6db74>$agpVersion</span><span style=color:#e6db74>&#34;</span>)
-</span></span><span style=display:flex><span>    <span style=color:#75715e>// 依赖 ASM 库用于字节码操作
-</span></span></span><span style=display:flex><span>    implementation(<span style=color:#e6db74>&#34;org.ow2.asm:asm-commons:9.6&#34;</span>)
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>// 注册我们的插件，以便可以在 app 模块中通过 ID 使用它
-</span></span></span><span style=display:flex><span>gradlePlugin {
-</span></span><span style=display:flex><span>    plugins {
-</span></span><span style=display:flex><span>        register(<span style=color:#e6db74>&#34;desugarTransform&#34;</span>) {
-</span></span><span style=display:flex><span>            id = <span style=color:#e6db74>&#34;com.example.desugar-transform&#34;</span>
-</span></span><span style=display:flex><span>            implementationClass = <span style=color:#e6db74>&#34;com.example.gradle.plugin.DesugarTransformPlugin&#34;</span>
-</span></span><span style=display:flex><span>        }
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div></li><li><p>DesugarTransform/settings.gradle.kts</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-kotlin data-lang=kotlin><span style=display:flex><span>pluginManagement {
-</span></span><span style=display:flex><span>    repositories {
-</span></span><span style=display:flex><span>        google {
-</span></span><span style=display:flex><span>            content {
-</span></span><span style=display:flex><span>                includeGroupByRegex(<span style=color:#e6db74>&#34;com</span><span style=color:#ae81ff>\\</span><span style=color:#e6db74>.android.*&#34;</span>)
-</span></span><span style=display:flex><span>                includeGroupByRegex(<span style=color:#e6db74>&#34;com</span><span style=color:#ae81ff>\\</span><span style=color:#e6db74>.google.*&#34;</span>)
-</span></span><span style=display:flex><span>                includeGroupByRegex(<span style=color:#e6db74>&#34;androidx.*&#34;</span>)
-</span></span><span style=display:flex><span>            }
-</span></span><span style=display:flex><span>        }
-</span></span><span style=display:flex><span>        mavenCentral()
-</span></span><span style=display:flex><span>        gradlePluginPortal()
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>dependencyResolutionManagement {
-</span></span><span style=display:flex><span>    repositoriesMode.<span style=color:#66d9ef>set</span>(<span style=color:#a6e22e>RepositoriesMode</span>.FAIL_ON_PROJECT_REPOS)
-</span></span><span style=display:flex><span>    repositories {
-</span></span><span style=display:flex><span>        google()
-</span></span><span style=display:flex><span>        mavenCentral()
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>rootProject.name = <span style=color:#e6db74>&#34;DesugarTransform&#34;</span>
-</span></span><span style=display:flex><span>include(<span style=color:#e6db74>&#34;:app&#34;</span>)
-</span></span><span style=display:flex><span>includeBuild(<span style=color:#e6db74>&#34;build-logic&#34;</span>)
-</span></span></code></pre></div></li><li><p>DesugarTransform/app/src/main/java/com/example/desugartransform/CompatInputStream.java</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// 1. 在 app 模块中创建兼容性辅助类</span>
-</span></span><span style=display:flex><span><span style=color:#75715e>// 文件路径: app/src/main/java/com/example/desugartransform/CompatInputStream.java</span>
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#f92672>package</span> com.example.desugartransform;
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#f92672>import</span> android.util.Log;
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#f92672>import</span> java.io.ByteArrayOutputStream;
-</span></span><span style=display:flex><span><span style=color:#f92672>import</span> java.io.IOException;
-</span></span><span style=display:flex><span><span style=color:#f92672>import</span> java.io.InputStream;
-</span></span><span style=display:flex><span><span style=color:#f92672>import</span> java.util.Arrays;
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>/**
-</span></span></span><span style=display:flex><span><span style=color:#75715e> * 提供 InputStream.readAllBytes() 的向后兼容实现。
-</span></span></span><span style=display:flex><span><span style=color:#75715e> */</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>final</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>CompatInputStream</span> {
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>private</span> <span style=color:#66d9ef>static</span> <span style=color:#66d9ef>final</span> <span style=color:#66d9ef>int</span> DEFAULT_BUFFER_SIZE <span style=color:#f92672>=</span> 8192;
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    <span style=color:#75715e>// 私有构造函数，防止实例化</span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>private</span> <span style=color:#a6e22e>CompatInputStream</span>() {}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    <span style=color:#75715e>/**
-</span></span></span><span style=display:flex><span><span style=color:#75715e>     * 从输入流中读取所有剩余的字节。
-</span></span></span><span style=display:flex><span><span style=color:#75715e>     * @param is 要读取的输入流。
-</span></span></span><span style=display:flex><span><span style=color:#75715e>     * @return 包含流中所有字节的字节数组。
-</span></span></span><span style=display:flex><span><span style=color:#75715e>     * @throws IOException 如果发生 I/O 错误。
-</span></span></span><span style=display:flex><span><span style=color:#75715e>     */</span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>public</span> <span style=color:#66d9ef>static</span> <span style=color:#66d9ef>byte</span><span style=color:#f92672>[]</span> <span style=color:#a6e22e>readAllBytes</span>(InputStream is) <span style=color:#66d9ef>throws</span> IOException {
-</span></span><span style=display:flex><span>        Log.<span style=color:#a6e22e>d</span>(<span style=color:#e6db74>&#34;CompatInputStream&#34;</span>,<span style=color:#e6db74>&#34;CompatInputStream readAllBytes&#34;</span>);
-</span></span><span style=display:flex><span>        ByteArrayOutputStream bos <span style=color:#f92672>=</span> <span style=color:#66d9ef>new</span> ByteArrayOutputStream();
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>byte</span><span style=color:#f92672>[]</span> buffer <span style=color:#f92672>=</span> <span style=color:#66d9ef>new</span> <span style=color:#66d9ef>byte</span><span style=color:#f92672>[</span>DEFAULT_BUFFER_SIZE<span style=color:#f92672>]</span>;
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>int</span> n;
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>while</span> ((n <span style=color:#f92672>=</span> is.<span style=color:#a6e22e>read</span>(buffer)) <span style=color:#f92672>!=</span> <span style=color:#f92672>-</span>1) {
-</span></span><span style=display:flex><span>            bos.<span style=color:#a6e22e>write</span>(buffer, 0, n);
-</span></span><span style=display:flex><span>        }
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span> bos.<span style=color:#a6e22e>toByteArray</span>();
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div></li></ul></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
-<span>Powered by
-<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
-<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
-</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
+Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Explore AI",
+      "item": "https://ethen-cao.github.io/ethenslab/explore-ai/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Gradle Asm Bytecode Transformation Plugin Principles Explained",
+      "item": "https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Gradle Asm Bytecode Transformation Plugin Principles Explained",
+  "name": "Gradle Asm Bytecode Transformation Plugin Principles Explained",
+  "description": "Gradle ASM 字节码转换插件原理解析 引言：问题与解决方案 问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。\n解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。\n我们采用的解决方案是创建一个自定义的 Gradle 插件，它利用 Android Gradle 插件 (AGP) 提供的转换 API 和 ASM 字节码操作框架，在编译期直接修改生成的 .class 文件，从根本上解决 API 的兼容性问题。\n核心概念 要理解这个插件，首先需要了解几个核心概念：\nJava 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。\nAndroid 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "Gradle ASM 字节码转换插件原理解析 引言：问题与解决方案 问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。\n解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。\n我们采用的解决方案是创建一个自定义的 Gradle 插件，它利用 Android Gradle 插件 (AGP) 提供的转换 API 和 ASM 字节码操作框架，在编译期直接修改生成的 .class 文件，从根本上解决 API 的兼容性问题。\n核心概念 要理解这个插件，首先需要了解几个核心概念：\nJava 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。\nAndroid 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。\nASM 框架：这是一个非常强大且高性能的 Java 字节码操作和分析框架。它允许我们以编程方式读取 .class 文件的内容，分析其结构（如类、方法、指令），甚至直接修改这些内容，然后再写回文件。这是我们实现字节码替换的核心工具。\n插件架构与工作流程 我们自定义的插件，精确地插入到 javac 编译之后、D8 DEX 化之前的构建环节中。\n详细步骤 插件加载与注册 (DesugarTransformPlugin)\n当 Gradle 构建开始时，它会加载我们在 build-logic 中定义的插件。 插件的 apply(Project) 方法是入口。在这里，我们通过 project.extensions.getByType(AndroidComponentsExtension::class.java) 获取到 AGP 的组件扩展。 我们调用 androidComponents.onVariants 来遍历项目的所有构建变体（如 debug, release）。 最关键的一步是调用 variant.instrumentation.transformClassesWith()。这个方法告诉 AGP：“对于这个变体的所有类，请使用我指定的工厂类 (ReadAllBytesClassVisitorFactory) 来创建一个转换器去处理它们。” 转换器工厂 (ReadAllBytesClassVisitorFactory)\n这是一个实现了 AsmClassVisitorFactory 接口的工厂类。 AGP 在处理每一个 .class 文件时，都会调用这个工厂的 createClassVisitor() 方法。 这个方法的作用是实例化一个我们自定义的 ClassVisitor (ReadAllBytesClassVisitor)，并将原始的 .class 文件内容作为输入流传递给它。 我们还在这里为 ClassVisitor 的构造函数传入了 Opcodes.ASM9，这是一个版本号，用于告诉 ASM 我们期望使用哪个版本的 API 来进行操作，确保了兼容性。 类访问器 (ReadAllBytesClassVisitor)\n这个类继承自 ASM 的 ClassVisitor。它的工作就像一个巡视员，负责“访问”一个类的各个组成部分，比如类名、父类、接口、字段以及最重要的方法。 当它“访问”到类中的每一个方法时，它会重写 visitMethod() 方法。 在 visitMethod() 中，它会创建一个专门负责处理方法内部指令的 MethodVisitor (ReadAllBytesMethodVisitor)。 方法访问器 (ReadAllBytesMethodVisitor)\n这是真正执行替换操作的地方。我们使用了 AdviceAdapter，它是 MethodVisitor 的一个方便的子类。 AdviceAdapter 会遍历一个方法中的每一条字节码指令。 我们重写了 visitMethodInsn() 方法。ASM 在遍历指令时，每当遇到一条方法调用指令（如 INVOKEVIRTUAL, INVOKESTATIC 等），就会自动回调这个方法。 核心逻辑：查找与替换 在 visitMethodInsn() 方法中，我们执行了精确的“查找-替换”逻辑：\n查找 我们检查传入的指令参数，判断它是否是我们想要替换的目标：\nopcode == Opcodes.INVOKEVIRTUAL: 检查这是否是一个普通的实例方法调用（非静态、非私有等）。\nowner == “java/io/InputStream”: 检查这个方法所属的类是否是 java.io.InputStream。\nname == “readAllBytes”: 检查方法名是否是 readAllBytes。\ndescriptor == “()[B”: 检查方法的签名（描述符）。() 表示没有参数，[B 表示返回值是 byte 数组 (byte[])。\n替换 如果以上所有条件都满足，我们就找到了目标。此时，我们不再调用 super.visitMethodInsn() 并传入原始的参数，而是用新的参数去调用它，从而实现指令的重写：\nopcode = Opcodes.INVOKESTATIC: 将指令从“实例方法调用”改为“静态方法调用”。 owner = “com/example/desugartransform/CompatInputStream”: 将方法所属的类改为我们自己编写的兼容性工具类。 descriptor = “(Ljava/io/InputStream;)[B”: 这是最关键的改变。我们将方法签名从“无参”改为“接收一个 InputStream 对象作为参数”。 为什么这样可行？—— 操作数栈的奥秘 在 JVM 字节码执行模型中，方法调用依赖于一个叫做“操作数栈”的结构。\n在执行原始的 input.readAllBytes()（即 INVOKEVIRTUAL）之前，JVM 会先把 input 这个 InputStream 实例的引用压入操作数栈的栈顶 当我们的插件将指令替换为 INVOKESTATIC 时，栈顶的那个 InputStream 实例引用依然存在。 我们新的静态方法 CompatInputStream.readAllBytes(InputStream) 正好需要一个 InputStream 类型的参数。INVOKESTATIC 指令会自动从操作数栈中弹出这个引用，并将其作为参数传递给我们的静态方法。 因此，整个替换过程对于操作数栈的状态来说是完全平衡和兼容的，确保了修改后的字节码依然合法有效。\n结论 通过 Gradle 插件机制，我们成功地将自己编写的、基于 ASM 的字节码转换逻辑注入到了 Android 的标准构建流程中。这个插件能够自动、精确地找到所有对不兼容 API (InputStream.readAllBytes()) 的调用，并将其无缝地替换为我们提供的、能在所有 Android 版本上运行的兼容实现 (CompatInputStream.readAllBytes())。\n这不仅从根本上解决了应用的运行时崩溃问题，而且对开发者是完全透明的——开发者可以继续编写现代化的代码，而兼容性问题则由构建工具在底层自动处理。\n代码实现 工程目录结构 DesugarTransform$ tree -L 2 . |-- app | |-- build | |-- build.gradle.kts | |-- proguard-rules.pro | `-- src |-- build-logic | |-- build | |-- build.gradle.kts | `-- src |-- build.gradle.kts |-- gradle | |-- libs.versions.toml | `-- wrapper |-- gradle.properties |-- gradlew |-- gradlew.bat |-- local.properties `-- settings.gradle.kts app/build.gradle.kts\nplugins { alias(libs.plugins.android.application) id(\"com.example.desugar-transform\") } android { namespace = \"com.example.desugartransform\" compileSdk = 36 defaultConfig { applicationId = \"com.example.desugartransform\" minSdk = 29 targetSdk = 36 versionCode = 1 versionName = \"1.0\" testInstrumentationRunner = \"androidx.test.runner.AndroidJUnitRunner\" } buildTypes { release { isMinifyEnabled = false proguardFiles( getDefaultProguardFile(\"proguard-android-optimize.txt\"), \"proguard-rules.pro\" ) } } compileOptions { sourceCompatibility = JavaVersion.VERSION_11 targetCompatibility = JavaVersion.VERSION_11 } } dependencies { implementation(libs.appcompat) implementation(libs.material) implementation(libs.activity) implementation(libs.constraintlayout) testImplementation(libs.junit) androidTestImplementation(libs.ext.junit) androidTestImplementation(libs.espresso.core) } DesugarTransform/build-logic/src/main/kotlin/com/example/gradle/plugin/DesugarTransformPlugin.kt\npackage com.example.gradle.plugin import com.android.build.api.instrumentation.AsmClassVisitorFactory import com.android.build.api.instrumentation.ClassContext import com.android.build.api.instrumentation.ClassData import com.android.build.api.instrumentation.InstrumentationParameters import com.android.build.api.instrumentation.InstrumentationScope import com.android.build.api.variant.AndroidComponentsExtension import org.gradle.api.Plugin import org.gradle.api.Project import org.objectweb.asm.ClassVisitor import org.objectweb.asm.MethodVisitor import org.objectweb.asm.Opcodes import org.objectweb.asm.commons.AdviceAdapter /** * 一个 Gradle 插件，用于应用字节码转换。 */ abstract class DesugarTransformPlugin : Plugin { override fun apply(project: Project) { val androidComponents = project.extensions.getByType(AndroidComponentsExtension::class.java) androidComponents.onVariants { variant -\u003e // **【错误修正】** // 简化插件注册，不再动态传递参数，以避免编译器解析错误。 variant.instrumentation.transformClassesWith( ReadAllBytesClassVisitorFactory::class.java, InstrumentationScope.PROJECT ) {} } } } /** * **【错误修正】** * 工厂类不再需要自定义参数。我们使用 InstrumentationParameters.None。 */ abstract class ReadAllBytesClassVisitorFactory : AsmClassVisitorFactory\u003cInstrumentationParameters.None\u003e { override fun createClassVisitor( classContext: ClassContext, nextClassVisitor: ClassVisitor ): ClassVisitor { // **【错误修正】** // 直接为 ASM 提供一个稳定、兼容的 API 版本，而不是动态获取。 // Opcodes.ASM9 是一个安全且现代的选择。 return ReadAllBytesClassVisitor(Opcodes.ASM9, nextClassVisitor) } override fun isInstrumentable(classData: ClassData): Boolean { return true } } /** * 这个 ClassVisitor 会遍历一个类的所有方法。 */ private class ReadAllBytesClassVisitor( api: Int, // 参数现在直接就是 ASM API level classVisitor: ClassVisitor ) : ClassVisitor(api, classVisitor) { // 直接用于初始化父类 override fun visitMethod( access: Int, name: String?, descriptor: String?, signature: String?, exceptions: Array\u003cout String\u003e? ): MethodVisitor { val originalMethodVisitor = super.visitMethod(access, name, descriptor, signature, exceptions) // 使用从父类继承的 'api' 字段 return ReadAllBytesMethodVisitor(this.api, originalMethodVisitor, access, name, descriptor) } } /** * 这个 MethodVisitor 检查方法体内的每一条指令，并替换目标方法调用。 */ private class ReadAllBytesMethodVisitor( api: Int, methodVisitor: MethodVisitor, access: Int, name: String?, descriptor: String? ) : AdviceAdapter(api, methodVisitor, access, name, descriptor) { override fun visitMethodInsn( opcode: Int, owner: String?, name: String?, descriptor: String?, isInterface: Boolean ) { if ( opcode == Opcodes.INVOKEVIRTUAL \u0026\u0026 owner == \"java/io/InputStream\" \u0026\u0026 name == \"readAllBytes\" \u0026\u0026 descriptor == \"()[B\" ) { println(\"ASM-Transform: Replacing 'InputStream.readAllBytes()' call in method '${this.name}'\") super.visitMethodInsn( Opcodes.INVOKESTATIC, \"com/example/desugartransform/CompatInputStream\", \"readAllBytes\", \"(Ljava/io/InputStream;)[B\", false ) } else { super.visitMethodInsn(opcode, owner, name, descriptor, isInterface) } } } DesugarTransform/build-logic/build.gradle.kts\n// 文件路径: build-logic/build.gradle.kts plugins { `kotlin-dsl` } // **【错误修正】** // 显式应用 'java' 插件，并配置 JVM toolchain。 // 这将强制所有编译任务（Java 和 Kotlin）使用统一的 JDK 版本， // 从而解决因环境不一致导致的 API 解析错误。 java { toolchain { languageVersion.set(JavaLanguageVersion.of(11)) } } repositories { google() mavenCentral() } // 从主项目的根目录直接读取版本号。 // 使用正确的相对路径来定位文件。 val agpVersion = file(\"../gradle/libs.versions.toml\").readLines() .first { it.trim().startsWith(\"agp =\") } .substringAfter(\"=\") .trim() .removeSurrounding(\"\\\"\") dependencies { // 依赖 Android Gradle Plugin 的 API implementation(\"com.android.tools.build:gradle:$agpVersion\") // 依赖 ASM 库用于字节码操作 implementation(\"org.ow2.asm:asm-commons:9.6\") } // 注册我们的插件，以便可以在 app 模块中通过 ID 使用它 gradlePlugin { plugins { register(\"desugarTransform\") { id = \"com.example.desugar-transform\" implementationClass = \"com.example.gradle.plugin.DesugarTransformPlugin\" } } } DesugarTransform/settings.gradle.kts\npluginManagement { repositories { google { content { includeGroupByRegex(\"com\\\\.android.*\") includeGroupByRegex(\"com\\\\.google.*\") includeGroupByRegex(\"androidx.*\") } } mavenCentral() gradlePluginPortal() } } dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS) repositories { google() mavenCentral() } } rootProject.name = \"DesugarTransform\" include(\":app\") includeBuild(\"build-logic\") DesugarTransform/app/src/main/java/com/example/desugartransform/CompatInputStream.java\n// 1. 在 app 模块中创建兼容性辅助类 // 文件路径: app/src/main/java/com/example/desugartransform/CompatInputStream.java package com.example.desugartransform; import android.util.Log; import java.io.ByteArrayOutputStream; import java.io.IOException; import java.io.InputStream; import java.util.Arrays; /** * 提供 InputStream.readAllBytes() 的向后兼容实现。 */ public final class CompatInputStream { private static final int DEFAULT_BUFFER_SIZE = 8192; // 私有构造函数，防止实例化 private CompatInputStream() {} /** * 从输入流中读取所有剩余的字节。 * @param is 要读取的输入流。 * @return 包含流中所有字节的字节数组。 * @throws IOException 如果发生 I/O 错误。 */ public static byte[] readAllBytes(InputStream is) throws IOException { Log.d(\"CompatInputStream\",\"CompatInputStream readAllBytes\"); ByteArrayOutputStream bos = new ByteArrayOutputStream(); byte[] buffer = new byte[DEFAULT_BUFFER_SIZE]; int n; while ((n = is.read(buffer)) != -1) { bos.write(buffer, 0, n); } return bos.toByteArray(); } } ",
+  "wordCount" : "860",
+  "inLanguage": "en",
+  "datePublished": "2025-08-03T17:17:50+08:00",
+  "dateModified": "2025-08-03T17:17:50+08:00",
+  "author":{
+    "@type": "Person",
+    "name": {"defaulttheme":"auto","name":"Ethen","showbreadcrumbs":true,"showcodecopybuttons":true,"showpostnavlinks":true,"showreadingtime":true,"showwordcount":true}
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/gunyah/" title="Gunyah">
+                    <span>Gunyah</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      Gradle Asm Bytecode Transformation Plugin Principles Explained
+    </h1>
+    <div class="post-meta"><span title='2025-08-03 17:17:50 +0800 CST'>August 3, 2025</span>&nbsp;·&nbsp;map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]
+
+</div>
+  </header> 
+  <div class="post-content"><h1 id="gradle-asm-字节码转换插件原理解析">Gradle ASM 字节码转换插件原理解析<a hidden class="anchor" aria-hidden="true" href="#gradle-asm-字节码转换插件原理解析">#</a></h1>
+<h2 id="引言问题与解决方案">引言：问题与解决方案<a hidden class="anchor" aria-hidden="true" href="#引言问题与解决方案">#</a></h2>
+<p>问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。</p>
+<p>解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。</p>
+<p>我们采用的解决方案是创建一个自定义的 Gradle 插件，它利用 Android Gradle 插件 (AGP) 提供的转换 API 和 ASM 字节码操作框架，在编译期直接修改生成的 .class 文件，从根本上解决 API 的兼容性问题。</p>
+<h2 id="核心概念">核心概念<a hidden class="anchor" aria-hidden="true" href="#核心概念">#</a></h2>
+<p>要理解这个插件，首先需要了解几个核心概念：</p>
+<ul>
+<li>
+<p>Java 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。</p>
+</li>
+<li>
+<p>Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。</p>
+</li>
+<li>
+<p>ASM 框架：这是一个非常强大且高性能的 Java 字节码操作和分析框架。它允许我们以编程方式读取 .class 文件的内容，分析其结构（如类、方法、指令），甚至直接修改这些内容，然后再写回文件。这是我们实现字节码替换的核心工具。</p>
+</li>
+</ul>
+<h2 id="插件架构与工作流程">插件架构与工作流程<a hidden class="anchor" aria-hidden="true" href="#插件架构与工作流程">#</a></h2>
+<p>我们自定义的插件，精确地插入到 javac 编译之后、D8 DEX 化之前的构建环节中。</p>
+<p><img src="/ethenslab/images/java-bytes-transform.png" alt="字节码转换插件工作流程"  /></p>
+<h3 id="详细步骤">详细步骤<a hidden class="anchor" aria-hidden="true" href="#详细步骤">#</a></h3>
+<ol>
+<li>
+<p>插件加载与注册 (DesugarTransformPlugin)</p>
+<ul>
+<li>当 Gradle 构建开始时，它会加载我们在 build-logic 中定义的插件。</li>
+<li>插件的 apply(Project) 方法是入口。在这里，我们通过 project.extensions.getByType(AndroidComponentsExtension::class.java) 获取到 AGP 的组件扩展。</li>
+<li>我们调用 androidComponents.onVariants 来遍历项目的所有构建变体（如 debug, release）。</li>
+<li>最关键的一步是调用 variant.instrumentation.transformClassesWith()。这个方法告诉 AGP：“对于这个变体的所有类，请使用我指定的工厂类 (ReadAllBytesClassVisitorFactory) 来创建一个转换器去处理它们。”</li>
+</ul>
+</li>
+<li>
+<p>转换器工厂 (ReadAllBytesClassVisitorFactory)</p>
+<ul>
+<li>这是一个实现了 AsmClassVisitorFactory 接口的工厂类。</li>
+<li>AGP 在处理每一个 .class 文件时，都会调用这个工厂的 createClassVisitor() 方法。</li>
+<li>这个方法的作用是实例化一个我们自定义的 ClassVisitor (ReadAllBytesClassVisitor)，并将原始的 .class 文件内容作为输入流传递给它。</li>
+<li>我们还在这里为 ClassVisitor 的构造函数传入了 Opcodes.ASM9，这是一个版本号，用于告诉 ASM 我们期望使用哪个版本的 API 来进行操作，确保了兼容性。</li>
+</ul>
+</li>
+<li>
+<p>类访问器 (ReadAllBytesClassVisitor)</p>
+<ul>
+<li>这个类继承自 ASM 的 ClassVisitor。它的工作就像一个巡视员，负责“访问”一个类的各个组成部分，比如类名、父类、接口、字段以及最重要的方法。</li>
+<li>当它“访问”到类中的每一个方法时，它会重写 visitMethod() 方法。</li>
+<li>在 visitMethod() 中，它会创建一个专门负责处理方法内部指令的 MethodVisitor (ReadAllBytesMethodVisitor)。</li>
+</ul>
+</li>
+<li>
+<p>方法访问器 (ReadAllBytesMethodVisitor)</p>
+<ul>
+<li>这是真正执行替换操作的地方。我们使用了 AdviceAdapter，它是 MethodVisitor 的一个方便的子类。</li>
+<li>AdviceAdapter 会遍历一个方法中的每一条字节码指令。</li>
+<li>我们重写了 visitMethodInsn() 方法。ASM 在遍历指令时，每当遇到一条方法调用指令（如 INVOKEVIRTUAL, INVOKESTATIC 等），就会自动回调这个方法。</li>
+</ul>
+</li>
+</ol>
+<h2 id="核心逻辑查找与替换">核心逻辑：查找与替换<a hidden class="anchor" aria-hidden="true" href="#核心逻辑查找与替换">#</a></h2>
+<p>在 visitMethodInsn() 方法中，我们执行了精确的“查找-替换”逻辑：</p>
+<h3 id="查找">查找<a hidden class="anchor" aria-hidden="true" href="#查找">#</a></h3>
+<p>我们检查传入的指令参数，判断它是否是我们想要替换的目标：</p>
+<ul>
+<li>
+<p>opcode == Opcodes.INVOKEVIRTUAL: 检查这是否是一个普通的实例方法调用（非静态、非私有等）。</p>
+</li>
+<li>
+<p>owner == &ldquo;java/io/InputStream&rdquo;: 检查这个方法所属的类是否是 java.io.InputStream。</p>
+</li>
+<li>
+<p>name == &ldquo;readAllBytes&rdquo;: 检查方法名是否是 readAllBytes。</p>
+</li>
+<li>
+<p>descriptor == &ldquo;()[B&rdquo;: 检查方法的签名（描述符）。() 表示没有参数，[B 表示返回值是 byte 数组 (byte[])。</p>
+</li>
+</ul>
+<h2 id="替换">替换<a hidden class="anchor" aria-hidden="true" href="#替换">#</a></h2>
+<p>如果以上所有条件都满足，我们就找到了目标。此时，我们不再调用 super.visitMethodInsn() 并传入原始的参数，而是用新的参数去调用它，从而实现指令的重写：</p>
+<ul>
+<li>opcode = Opcodes.INVOKESTATIC: 将指令从“实例方法调用”改为“静态方法调用”。</li>
+<li>owner = &ldquo;com/example/desugartransform/CompatInputStream&rdquo;: 将方法所属的类改为我们自己编写的兼容性工具类。</li>
+<li>descriptor = &ldquo;(Ljava/io/InputStream;)[B&rdquo;: 这是最关键的改变。我们将方法签名从“无参”改为“接收一个 InputStream 对象作为参数”。</li>
+</ul>
+<h3 id="为什么这样可行-操作数栈的奥秘">为什么这样可行？—— 操作数栈的奥秘<a hidden class="anchor" aria-hidden="true" href="#为什么这样可行-操作数栈的奥秘">#</a></h3>
+<p>在 JVM 字节码执行模型中，方法调用依赖于一个叫做“操作数栈”的结构。</p>
+<ul>
+<li>在执行原始的 input.readAllBytes()（即 INVOKEVIRTUAL）之前，JVM 会先把 input 这个 InputStream 实例的引用压入操作数栈的栈顶</li>
+<li>当我们的插件将指令替换为 INVOKESTATIC 时，栈顶的那个 InputStream 实例引用依然存在。</li>
+<li>我们新的静态方法 CompatInputStream.readAllBytes(InputStream) 正好需要一个 InputStream 类型的参数。INVOKESTATIC 指令会自动从操作数栈中弹出这个引用，并将其作为参数传递给我们的静态方法。</li>
+</ul>
+<p>因此，整个替换过程对于操作数栈的状态来说是完全平衡和兼容的，确保了修改后的字节码依然合法有效。</p>
+<h2 id="结论">结论<a hidden class="anchor" aria-hidden="true" href="#结论">#</a></h2>
+<p>通过 Gradle 插件机制，我们成功地将自己编写的、基于 ASM 的字节码转换逻辑注入到了 Android 的标准构建流程中。这个插件能够自动、精确地找到所有对不兼容 API (InputStream.readAllBytes()) 的调用，并将其无缝地替换为我们提供的、能在所有 Android 版本上运行的兼容实现 (CompatInputStream.readAllBytes())。</p>
+<p>这不仅从根本上解决了应用的运行时崩溃问题，而且对开发者是完全透明的——开发者可以继续编写现代化的代码，而兼容性问题则由构建工具在底层自动处理。</p>
+<h2 id="代码实现">代码实现<a hidden class="anchor" aria-hidden="true" href="#代码实现">#</a></h2>
+<h3 id="工程目录结构">工程目录结构<a hidden class="anchor" aria-hidden="true" href="#工程目录结构">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-shell" data-lang="shell"><span style="display:flex;"><span>DesugarTransform$ tree -L <span style="color:#ae81ff">2</span>
+</span></span><span style="display:flex;"><span>.
+</span></span><span style="display:flex;"><span>|-- app
+</span></span><span style="display:flex;"><span>|   |-- build
+</span></span><span style="display:flex;"><span>|   |-- build.gradle.kts
+</span></span><span style="display:flex;"><span>|   |-- proguard-rules.pro
+</span></span><span style="display:flex;"><span>|   <span style="color:#e6db74">`</span>-- src
+</span></span><span style="display:flex;"><span>|-- build-logic
+</span></span><span style="display:flex;"><span>|   |-- build
+</span></span><span style="display:flex;"><span>|   |-- build.gradle.kts
+</span></span><span style="display:flex;"><span>|   <span style="color:#e6db74">`</span>-- src
+</span></span><span style="display:flex;"><span>|-- build.gradle.kts
+</span></span><span style="display:flex;"><span>|-- gradle
+</span></span><span style="display:flex;"><span>|   |-- libs.versions.toml
+</span></span><span style="display:flex;"><span>|   <span style="color:#e6db74">`</span>-- wrapper
+</span></span><span style="display:flex;"><span>|-- gradle.properties
+</span></span><span style="display:flex;"><span>|-- gradlew
+</span></span><span style="display:flex;"><span>|-- gradlew.bat
+</span></span><span style="display:flex;"><span>|-- local.properties
+</span></span><span style="display:flex;"><span><span style="color:#e6db74">`</span>-- settings.gradle.kts
+</span></span></code></pre></div><ul>
+<li>
+<p>app/build.gradle.kts</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-kotlin" data-lang="kotlin"><span style="display:flex;"><span>plugins {
+</span></span><span style="display:flex;"><span>    alias(libs.plugins.android.application)
+</span></span><span style="display:flex;"><span>    id(<span style="color:#e6db74">&#34;com.example.desugar-transform&#34;</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>android {
+</span></span><span style="display:flex;"><span>    namespace = <span style="color:#e6db74">&#34;com.example.desugartransform&#34;</span>
+</span></span><span style="display:flex;"><span>    compileSdk = <span style="color:#ae81ff">36</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    defaultConfig {
+</span></span><span style="display:flex;"><span>        applicationId = <span style="color:#e6db74">&#34;com.example.desugartransform&#34;</span>
+</span></span><span style="display:flex;"><span>        minSdk = <span style="color:#ae81ff">29</span>
+</span></span><span style="display:flex;"><span>        targetSdk = <span style="color:#ae81ff">36</span>
+</span></span><span style="display:flex;"><span>        versionCode = <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>        versionName = <span style="color:#e6db74">&#34;1.0&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        testInstrumentationRunner = <span style="color:#e6db74">&#34;androidx.test.runner.AndroidJUnitRunner&#34;</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    buildTypes {
+</span></span><span style="display:flex;"><span>        release {
+</span></span><span style="display:flex;"><span>            isMinifyEnabled = <span style="color:#66d9ef">false</span>
+</span></span><span style="display:flex;"><span>            proguardFiles(
+</span></span><span style="display:flex;"><span>                getDefaultProguardFile(<span style="color:#e6db74">&#34;proguard-android-optimize.txt&#34;</span>),
+</span></span><span style="display:flex;"><span>                <span style="color:#e6db74">&#34;proguard-rules.pro&#34;</span>
+</span></span><span style="display:flex;"><span>            )
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    compileOptions {
+</span></span><span style="display:flex;"><span>        sourceCompatibility = <span style="color:#a6e22e">JavaVersion</span>.VERSION_11
+</span></span><span style="display:flex;"><span>        targetCompatibility = <span style="color:#a6e22e">JavaVersion</span>.VERSION_11
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>dependencies {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    implementation(libs.appcompat)
+</span></span><span style="display:flex;"><span>    implementation(libs.material)
+</span></span><span style="display:flex;"><span>    implementation(libs.activity)
+</span></span><span style="display:flex;"><span>    implementation(libs.constraintlayout)
+</span></span><span style="display:flex;"><span>    testImplementation(libs.junit)
+</span></span><span style="display:flex;"><span>    androidTestImplementation(libs.ext.junit)
+</span></span><span style="display:flex;"><span>    androidTestImplementation(libs.espresso.core)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div></li>
+<li>
+<p>DesugarTransform/build-logic/src/main/kotlin/com/example/gradle/plugin/DesugarTransformPlugin.kt</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-kotlin" data-lang="kotlin"><span style="display:flex;"><span><span style="color:#66d9ef">package</span> com.example.gradle.plugin
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> com.android.build.api.instrumentation.AsmClassVisitorFactory
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> com.android.build.api.instrumentation.ClassContext
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> com.android.build.api.instrumentation.ClassData
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> com.android.build.api.instrumentation.InstrumentationParameters
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> com.android.build.api.instrumentation.InstrumentationScope
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> com.android.build.api.variant.AndroidComponentsExtension
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> org.gradle.api.Plugin
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> org.gradle.api.Project
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> org.objectweb.asm.ClassVisitor
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> org.objectweb.asm.MethodVisitor
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> org.objectweb.asm.Opcodes
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">import</span> org.objectweb.asm.commons.AdviceAdapter
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">* 一个 Gradle 插件，用于应用字节码转换。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">*/</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">DesugarTransformPlugin</span> : Plugin&lt;Project&gt; {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">fun</span> <span style="color:#a6e22e">apply</span>(project: Project) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">val</span> androidComponents = project.extensions.getByType(AndroidComponentsExtension<span style="color:#f92672">::</span><span style="color:#66d9ef">class</span>.java)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        androidComponents.onVariants { variant <span style="color:#f92672">-&gt;</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">// **【错误修正】**
+</span></span></span><span style="display:flex;"><span>            <span style="color:#75715e">// 简化插件注册，不再动态传递参数，以避免编译器解析错误。
+</span></span></span><span style="display:flex;"><span>            variant.instrumentation.transformClassesWith(
+</span></span><span style="display:flex;"><span>                ReadAllBytesClassVisitorFactory<span style="color:#f92672">::</span><span style="color:#66d9ef">class</span>.java,
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">InstrumentationScope</span>.PROJECT
+</span></span><span style="display:flex;"><span>            ) {}
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">* **【错误修正】**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">* 工厂类不再需要自定义参数。我们使用 InstrumentationParameters.None。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">*/</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ReadAllBytesClassVisitorFactory</span> : AsmClassVisitorFactory&lt;<span style="color:#a6e22e">InstrumentationParameters</span>.None&gt; {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">fun</span> <span style="color:#a6e22e">createClassVisitor</span>(
+</span></span><span style="display:flex;"><span>        classContext: ClassContext,
+</span></span><span style="display:flex;"><span>        nextClassVisitor: ClassVisitor
+</span></span><span style="display:flex;"><span>    ): ClassVisitor {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// **【错误修正】**
+</span></span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 直接为 ASM 提供一个稳定、兼容的 API 版本，而不是动态获取。
+</span></span></span><span style="display:flex;"><span>        <span style="color:#75715e">// Opcodes.ASM9 是一个安全且现代的选择。
+</span></span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> ReadAllBytesClassVisitor(<span style="color:#a6e22e">Opcodes</span>.ASM9, nextClassVisitor)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">fun</span> <span style="color:#a6e22e">isInstrumentable</span>(classData: ClassData): Boolean {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">true</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">* 这个 ClassVisitor 会遍历一个类的所有方法。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">*/</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ReadAllBytesClassVisitor</span>(
+</span></span><span style="display:flex;"><span>    api: Int, <span style="color:#75715e">// 参数现在直接就是 ASM API level
+</span></span></span><span style="display:flex;"><span>    classVisitor: ClassVisitor
+</span></span><span style="display:flex;"><span>) : ClassVisitor(api, classVisitor) { <span style="color:#75715e">// 直接用于初始化父类
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">fun</span> <span style="color:#a6e22e">visitMethod</span>(
+</span></span><span style="display:flex;"><span>        access: Int,
+</span></span><span style="display:flex;"><span>        name: String?,
+</span></span><span style="display:flex;"><span>        descriptor: String?,
+</span></span><span style="display:flex;"><span>        signature: String?,
+</span></span><span style="display:flex;"><span>        exceptions: Array&lt;<span style="color:#66d9ef">out</span> String&gt;?
+</span></span><span style="display:flex;"><span>    ): MethodVisitor {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">val</span> originalMethodVisitor = <span style="color:#66d9ef">super</span>.visitMethod(access, name, descriptor, signature, exceptions)
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 使用从父类继承的 &#39;api&#39; 字段
+</span></span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> ReadAllBytesMethodVisitor(<span style="color:#66d9ef">this</span>.api, originalMethodVisitor, access, name, descriptor)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">* 这个 MethodVisitor 检查方法体内的每一条指令，并替换目标方法调用。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">*/</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">ReadAllBytesMethodVisitor</span>(
+</span></span><span style="display:flex;"><span>    api: Int,
+</span></span><span style="display:flex;"><span>    methodVisitor: MethodVisitor,
+</span></span><span style="display:flex;"><span>    access: Int,
+</span></span><span style="display:flex;"><span>    name: String?,
+</span></span><span style="display:flex;"><span>    descriptor: String?
+</span></span><span style="display:flex;"><span>) : AdviceAdapter(api, methodVisitor, access, name, descriptor) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">override</span> <span style="color:#66d9ef">fun</span> <span style="color:#a6e22e">visitMethodInsn</span>(
+</span></span><span style="display:flex;"><span>        opcode: Int,
+</span></span><span style="display:flex;"><span>        owner: String?,
+</span></span><span style="display:flex;"><span>        name: String?,
+</span></span><span style="display:flex;"><span>        descriptor: String?,
+</span></span><span style="display:flex;"><span>        isInterface: Boolean
+</span></span><span style="display:flex;"><span>    ) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (
+</span></span><span style="display:flex;"><span>            opcode <span style="color:#f92672">==</span> <span style="color:#a6e22e">Opcodes</span>.INVOKEVIRTUAL <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>            owner <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;java/io/InputStream&#34;</span> <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>            name <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;readAllBytes&#34;</span> <span style="color:#f92672">&amp;&amp;</span>
+</span></span><span style="display:flex;"><span>            descriptor <span style="color:#f92672">==</span> <span style="color:#e6db74">&#34;()[B&#34;</span>
+</span></span><span style="display:flex;"><span>        ) {
+</span></span><span style="display:flex;"><span>            println(<span style="color:#e6db74">&#34;ASM-Transform: Replacing &#39;InputStream.readAllBytes()&#39; call in method &#39;</span><span style="color:#e6db74">${this.name}</span><span style="color:#e6db74">&#39;&#34;</span>)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">super</span>.visitMethodInsn(
+</span></span><span style="display:flex;"><span>                <span style="color:#a6e22e">Opcodes</span>.INVOKESTATIC,
+</span></span><span style="display:flex;"><span>                <span style="color:#e6db74">&#34;com/example/desugartransform/CompatInputStream&#34;</span>,
+</span></span><span style="display:flex;"><span>                <span style="color:#e6db74">&#34;readAllBytes&#34;</span>,
+</span></span><span style="display:flex;"><span>                <span style="color:#e6db74">&#34;(Ljava/io/InputStream;)[B&#34;</span>,
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">false</span>
+</span></span><span style="display:flex;"><span>            )
+</span></span><span style="display:flex;"><span>        } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">super</span>.visitMethodInsn(opcode, owner, name, descriptor, isInterface)
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div></li>
+<li>
+<p>DesugarTransform/build-logic/build.gradle.kts</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-kotlin" data-lang="kotlin"><span style="display:flex;"><span><span style="color:#75715e">// 文件路径: build-logic/build.gradle.kts
+</span></span></span><span style="display:flex;"><span>plugins {
+</span></span><span style="display:flex;"><span>    <span style="color:#960050;background-color:#1e0010">`</span>kotlin-dsl<span style="color:#960050;background-color:#1e0010">`</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// **【错误修正】**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 显式应用 &#39;java&#39; 插件，并配置 JVM toolchain。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 这将强制所有编译任务（Java 和 Kotlin）使用统一的 JDK 版本，
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 从而解决因环境不一致导致的 API 解析错误。
+</span></span></span><span style="display:flex;"><span>java {
+</span></span><span style="display:flex;"><span>    toolchain {
+</span></span><span style="display:flex;"><span>        languageVersion.<span style="color:#66d9ef">set</span>(<span style="color:#a6e22e">JavaLanguageVersion</span>.of(<span style="color:#ae81ff">11</span>))
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>repositories {
+</span></span><span style="display:flex;"><span>    google()
+</span></span><span style="display:flex;"><span>    mavenCentral()
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// 从主项目的根目录直接读取版本号。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 使用正确的相对路径来定位文件。
+</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">val</span> agpVersion = <span style="color:#66d9ef">file</span>(<span style="color:#e6db74">&#34;../gradle/libs.versions.toml&#34;</span>).readLines()
+</span></span><span style="display:flex;"><span>    .first { <span style="color:#66d9ef">it</span>.trim().startsWith(<span style="color:#e6db74">&#34;agp =&#34;</span>) }
+</span></span><span style="display:flex;"><span>    .substringAfter(<span style="color:#e6db74">&#34;=&#34;</span>)
+</span></span><span style="display:flex;"><span>    .trim()
+</span></span><span style="display:flex;"><span>    .removeSurrounding(<span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\&#34;</span><span style="color:#e6db74">&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>dependencies {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 依赖 Android Gradle Plugin 的 API
+</span></span></span><span style="display:flex;"><span>    implementation(<span style="color:#e6db74">&#34;com.android.tools.build:gradle:</span><span style="color:#e6db74">$agpVersion</span><span style="color:#e6db74">&#34;</span>)
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 依赖 ASM 库用于字节码操作
+</span></span></span><span style="display:flex;"><span>    implementation(<span style="color:#e6db74">&#34;org.ow2.asm:asm-commons:9.6&#34;</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// 注册我们的插件，以便可以在 app 模块中通过 ID 使用它
+</span></span></span><span style="display:flex;"><span>gradlePlugin {
+</span></span><span style="display:flex;"><span>    plugins {
+</span></span><span style="display:flex;"><span>        register(<span style="color:#e6db74">&#34;desugarTransform&#34;</span>) {
+</span></span><span style="display:flex;"><span>            id = <span style="color:#e6db74">&#34;com.example.desugar-transform&#34;</span>
+</span></span><span style="display:flex;"><span>            implementationClass = <span style="color:#e6db74">&#34;com.example.gradle.plugin.DesugarTransformPlugin&#34;</span>
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div></li>
+<li>
+<p>DesugarTransform/settings.gradle.kts</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-kotlin" data-lang="kotlin"><span style="display:flex;"><span>pluginManagement {
+</span></span><span style="display:flex;"><span>    repositories {
+</span></span><span style="display:flex;"><span>        google {
+</span></span><span style="display:flex;"><span>            content {
+</span></span><span style="display:flex;"><span>                includeGroupByRegex(<span style="color:#e6db74">&#34;com</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">.android.*&#34;</span>)
+</span></span><span style="display:flex;"><span>                includeGroupByRegex(<span style="color:#e6db74">&#34;com</span><span style="color:#ae81ff">\\</span><span style="color:#e6db74">.google.*&#34;</span>)
+</span></span><span style="display:flex;"><span>                includeGroupByRegex(<span style="color:#e6db74">&#34;androidx.*&#34;</span>)
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        mavenCentral()
+</span></span><span style="display:flex;"><span>        gradlePluginPortal()
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>dependencyResolutionManagement {
+</span></span><span style="display:flex;"><span>    repositoriesMode.<span style="color:#66d9ef">set</span>(<span style="color:#a6e22e">RepositoriesMode</span>.FAIL_ON_PROJECT_REPOS)
+</span></span><span style="display:flex;"><span>    repositories {
+</span></span><span style="display:flex;"><span>        google()
+</span></span><span style="display:flex;"><span>        mavenCentral()
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>rootProject.name = <span style="color:#e6db74">&#34;DesugarTransform&#34;</span>
+</span></span><span style="display:flex;"><span>include(<span style="color:#e6db74">&#34;:app&#34;</span>)
+</span></span><span style="display:flex;"><span>includeBuild(<span style="color:#e6db74">&#34;build-logic&#34;</span>)
+</span></span></code></pre></div></li>
+<li>
+<p>DesugarTransform/app/src/main/java/com/example/desugartransform/CompatInputStream.java</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-java" data-lang="java"><span style="display:flex;"><span><span style="color:#75715e">// 1. 在 app 模块中创建兼容性辅助类</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// 文件路径: app/src/main/java/com/example/desugartransform/CompatInputStream.java</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">package</span> com.example.desugartransform;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> android.util.Log;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> java.io.ByteArrayOutputStream;
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> java.io.IOException;
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> java.io.InputStream;
+</span></span><span style="display:flex;"><span><span style="color:#f92672">import</span> java.util.Arrays;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * 提供 InputStream.readAllBytes() 的向后兼容实现。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">final</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">CompatInputStream</span> {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">final</span> <span style="color:#66d9ef">int</span> DEFAULT_BUFFER_SIZE <span style="color:#f92672">=</span> 8192;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 私有构造函数，防止实例化</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">private</span> <span style="color:#a6e22e">CompatInputStream</span>() {}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/**
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * 从输入流中读取所有剩余的字节。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * @param is 要读取的输入流。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * @return 包含流中所有字节的字节数组。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     * @throws IOException 如果发生 I/O 错误。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">     */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">public</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">byte</span><span style="color:#f92672">[]</span> <span style="color:#a6e22e">readAllBytes</span>(InputStream is) <span style="color:#66d9ef">throws</span> IOException {
+</span></span><span style="display:flex;"><span>        Log.<span style="color:#a6e22e">d</span>(<span style="color:#e6db74">&#34;CompatInputStream&#34;</span>,<span style="color:#e6db74">&#34;CompatInputStream readAllBytes&#34;</span>);
+</span></span><span style="display:flex;"><span>        ByteArrayOutputStream bos <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> ByteArrayOutputStream();
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">byte</span><span style="color:#f92672">[]</span> buffer <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> <span style="color:#66d9ef">byte</span><span style="color:#f92672">[</span>DEFAULT_BUFFER_SIZE<span style="color:#f92672">]</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">int</span> n;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">while</span> ((n <span style="color:#f92672">=</span> is.<span style="color:#a6e22e">read</span>(buffer)) <span style="color:#f92672">!=</span> <span style="color:#f92672">-</span>1) {
+</span></span><span style="display:flex;"><span>            bos.<span style="color:#a6e22e">write</span>(buffer, 0, n);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> bos.<span style="color:#a6e22e">toByteArray</span>();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div></li>
+</ul>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a><script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
+<script>
+    (function(){
+        
+        
+        const plantumlBlocks = document.querySelectorAll('pre > code.language-plantuml, pre > code.language-planuml');
+        
+        plantumlBlocks.forEach(codeBlock => {
+            const plantumlCode = codeBlock.innerText;
+            
+            const encoded = plantumlEncoder.encode(plantumlCode);
+            
+            const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
+            
+            
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = "PlantUML Diagram";
+            img.style.maxWidth = "100%"; 
+            
+            
+            const preBlock = codeBlock.parentNode;
+            preBlock.parentNode.replaceChild(img, preBlock);
+        });
+    })();
+</script>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

@@ -1,4 +1,13 @@
-<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android InputChannel 原理与生命周期详解 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='概述
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Android InputChannel 原理与生命周期详解 | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="概述
 InputChannel 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 InputDispatcher（运行在 system_server）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。
 核心特性
 
@@ -13,13 +22,72 @@ InputChannel
 每个 InputChannel 实例持有三个关键成员：
 
 mFd：底层 Socket 文件描述符
-mToken：sp<IBinder> 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接
-mName：通道名称，用于调试，格式为 "窗口名 (server)" / "窗口名 (client)"
+mToken：sp&lt;IBinder&gt; 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接
+mName：通道名称，用于调试，格式为 &quot;窗口名 (server)&quot; / &quot;窗口名 (client)&quot;
 
-openInputChannelPair 创建一对通道时，会为两端的 Socket 设置 SO_SNDBUF / SO_RCVBUF 缓冲区大小（SOCKET_BUFFER_SIZE）：'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Android InputChannel 原理与生命周期详解"><meta property="og:description" content='概述 InputChannel 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 InputDispatcher（运行在 system_server）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。
+openInputChannelPair 创建一对通道时，会为两端的 Socket 设置 SO_SNDBUF / SO_RCVBUF 缓冲区大小（SOCKET_BUFFER_SIZE）：">
+<meta name="author" content="map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css" integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="Android InputChannel 原理与生命周期详解">
+  <meta property="og:description" content="概述 InputChannel 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 InputDispatcher（运行在 system_server）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。
 核心特性 基于 Socket Pair：底层通过 socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets) 创建，两端共享同一个 BBinder token 用于标识关联关系。 双向通信：Server 端写入事件、读取完成确认；Client 端读取事件、写回完成确认。不是单向投递，而是带有 ACK 机制的请求-响应模型。 高性能：通过 ::send() 系统调用直接写入 Socket 缓冲区，结合 epoll 监听，绕过 Binder 调用开销，适合高频 MotionEvent 场景。 跨进程传输：Client 端 InputChannel 通过 Binder 的 writeUniqueFileDescriptor / readUniqueFileDescriptor 将文件描述符传递给应用进程。 核心数据结构 InputChannel 定义在 frameworks/native/libs/input/InputTransport.cpp。
 每个 InputChannel 实例持有三个关键成员：
-mFd：底层 Socket 文件描述符 mToken：sp<IBinder> 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接 mName：通道名称，用于调试，格式为 "窗口名 (server)" / "窗口名 (client)" openInputChannelPair 创建一对通道时，会为两端的 Socket 设置 SO_SNDBUF / SO_RCVBUF 缓冲区大小（SOCKET_BUFFER_SIZE）：'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-09-29T10:22:54+08:00"><meta property="article:modified_time" content="2025-09-29T10:22:54+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android InputChannel 原理与生命周期详解"><meta name=twitter:description content='概述
+mFd：底层 Socket 文件描述符 mToken：sp&lt;IBinder&gt; 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接 mName：通道名称，用于调试，格式为 &#34;窗口名 (server)&#34; / &#34;窗口名 (client)&#34; openInputChannelPair 创建一对通道时，会为两端的 Socket 设置 SO_SNDBUF / SO_RCVBUF 缓冲区大小（SOCKET_BUFFER_SIZE）：">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="android-dev">
+    <meta property="article:published_time" content="2025-09-29T10:22:54+08:00">
+    <meta property="article:modified_time" content="2025-09-29T10:22:54+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Android InputChannel 原理与生命周期详解">
+<meta name="twitter:description" content="概述
 InputChannel 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 InputDispatcher（运行在 system_server）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。
 核心特性
 
@@ -34,85 +102,271 @@ InputChannel
 每个 InputChannel 实例持有三个关键成员：
 
 mFd：底层 Socket 文件描述符
-mToken：sp<IBinder> 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接
-mName：通道名称，用于调试，格式为 "窗口名 (server)" / "窗口名 (client)"
+mToken：sp&lt;IBinder&gt; 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接
+mName：通道名称，用于调试，格式为 &quot;窗口名 (server)&quot; / &quot;窗口名 (client)&quot;
 
-openInputChannelPair 创建一对通道时，会为两端的 Socket 设置 SO_SNDBUF / SO_RCVBUF 缓冲区大小（SOCKET_BUFFER_SIZE）：'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"WindowManager","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/"},{"@type":"ListItem","position":3,"name":"Android InputChannel 原理与生命周期详解","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android InputChannel 原理与生命周期详解","name":"Android InputChannel 原理与生命周期详解","description":"概述 InputChannel 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 InputDispatcher（运行在 system_server）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。\n核心特性 基于 Socket Pair：底层通过 socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets) 创建，两端共享同一个 BBinder token 用于标识关联关系。 双向通信：Server 端写入事件、读取完成确认；Client 端读取事件、写回完成确认。不是单向投递，而是带有 ACK 机制的请求-响应模型。 高性能：通过 ::send() 系统调用直接写入 Socket 缓冲区，结合 epoll 监听，绕过 Binder 调用开销，适合高频 MotionEvent 场景。 跨进程传输：Client 端 InputChannel 通过 Binder 的 writeUniqueFileDescriptor / readUniqueFileDescriptor 将文件描述符传递给应用进程。 核心数据结构 InputChannel 定义在 frameworks/native/libs/input/InputTransport.cpp。\n每个 InputChannel 实例持有三个关键成员：\nmFd：底层 Socket 文件描述符 mToken：sp\u0026lt;IBinder\u0026gt; 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接 mName：通道名称，用于调试，格式为 \u0026quot;窗口名 (server)\u0026quot; / \u0026quot;窗口名 (client)\u0026quot; openInputChannelPair 创建一对通道时，会为两端的 Socket 设置 SO_SNDBUF / SO_RCVBUF 缓冲区大小（SOCKET_BUFFER_SIZE）：\n","keywords":[],"articleBody":"概述 InputChannel 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 InputDispatcher（运行在 system_server）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。\n核心特性 基于 Socket Pair：底层通过 socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets) 创建，两端共享同一个 BBinder token 用于标识关联关系。 双向通信：Server 端写入事件、读取完成确认；Client 端读取事件、写回完成确认。不是单向投递，而是带有 ACK 机制的请求-响应模型。 高性能：通过 ::send() 系统调用直接写入 Socket 缓冲区，结合 epoll 监听，绕过 Binder 调用开销，适合高频 MotionEvent 场景。 跨进程传输：Client 端 InputChannel 通过 Binder 的 writeUniqueFileDescriptor / readUniqueFileDescriptor 将文件描述符传递给应用进程。 核心数据结构 InputChannel 定义在 frameworks/native/libs/input/InputTransport.cpp。\n每个 InputChannel 实例持有三个关键成员：\nmFd：底层 Socket 文件描述符 mToken：sp 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接 mName：通道名称，用于调试，格式为 \"窗口名 (server)\" / \"窗口名 (client)\" openInputChannelPair 创建一对通道时，会为两端的 Socket 设置 SO_SNDBUF / SO_RCVBUF 缓冲区大小（SOCKET_BUFFER_SIZE）：\n// InputTransport.cpp sp\u003cIBinder\u003e token = new BBinder(); std::string serverChannelName = name + \" (server)\"; android::base::unique_fd serverFd(sockets[0]); outServerChannel = InputChannel::create(serverChannelName, std::move(serverFd), token); std::string clientChannelName = name + \" (client)\"; android::base::unique_fd clientFd(sockets[1]); outClientChannel = InputChannel::create(clientChannelName, std::move(clientFd), token); Connection 定义在 frameworks/native/services/inputflinger/dispatcher/Connection.h。\nConnection 是 InputDispatcher 管理每条通道的控制块，包装 Server 端 InputChannel 并跟踪分发状态：\nclass Connection : public RefBase { public: enum class Status { NORMAL, // 正常工作 BROKEN, // 不可恢复的通信错误 ZOMBIE, // 通道已注销，等待引用释放 }; Status status; std::shared_ptr\u003cInputChannel\u003e inputChannel; // Server 端通道，不为 null bool monitor; // 是否为全局监控通道 InputPublisher inputPublisher; // 负责序列化并写入事件 InputState inputState; // 追踪输入状态（按键/触摸的 down/up 配对等） bool responsive = true; // 窗口是否仍在响应 std::deque\u003cDispatchEntry*\u003e outboundQueue; // 待发送给 App 的事件 std::deque\u003cDispatchEntry*\u003e waitQueue; // 已发送但未收到 ACK 的事件 }; outboundQueue 和 waitQueue 的配合是 ANR 检测的基础：事件从 outboundQueue 取出、通过 InputPublisher 写入 Socket 后，转移到 waitQueue；收到 App 的完成确认后，从 waitQueue 移除。如果 waitQueue 中的事件超时未收到确认，系统判定 ANR。\n生命周期 创建 InputChannel 的创建伴随窗口添加过程。按当前实现，窗口侧的完整调用链是：\nViewRootImpl.setView() → IWindowSession.addToDisplayAsUser(..., outInputChannel, ...) → Session.addToDisplayAsUser(...) → WMS.addWindow(...) → WindowState.openInputChannel(outInputChannel) → InputManagerService.createInputChannel(name) → [JNI] NativeInputManagerService.createInputChannel(name) → InputDispatcher::createInputChannel(name) WindowState.openInputChannel() 是 Java 层的入口：\n// WindowState.java void openInputChannel(InputChannel outInputChannel) { String name = getName(); mInputChannel = mWmService.mInputManager.createInputChannel(name); mInputChannelToken = mInputChannel.getToken(); mInputWindowHandle.setToken(mInputChannelToken); mWmService.mInputToWindowMap.put(mInputChannelToken, this); if (outInputChannel != null) { mInputChannel.copyTo(outInputChannel); } } 最终在 InputDispatcher::createInputChannel 中完成核心工作：\n// InputDispatcher.cpp Result\u003cstd::unique_ptr\u003cInputChannel\u003e\u003e InputDispatcher::createInputChannel(const std::string\u0026 name) { std::unique_ptr\u003cInputChannel\u003e serverChannel; std::unique_ptr\u003cInputChannel\u003e clientChannel; status_t result = InputChannel::openInputChannelPair(name, serverChannel, clientChannel); // ... error check ... { // acquire lock std::scoped_lock _l(mLock); const sp\u003cIBinder\u003e\u0026 token = serverChannel-\u003egetConnectionToken(); int fd = serverChannel-\u003egetFd(); sp\u003cConnection\u003e connection = new Connection(std::move(serverChannel), false /*monitor*/, mIdGenerator); mConnectionsByToken.emplace(token, connection); std::function\u003cint(int events)\u003e callback = std::bind( \u0026InputDispatcher::handleReceiveCallback, this, std::placeholders::_1, token); mLooper-\u003eaddFd(fd, 0, ALOOPER_EVENT_INPUT, new LooperEventCallback(callback), nullptr); } // release lock mLooper-\u003ewake(); return clientChannel; } 关键步骤：\nopenInputChannelPair 创建 Socket Pair，生成共享同一 token 的 server/client 两个 InputChannel 用 server 端创建 Connection 对象，存入 mConnectionsByToken 将 server 端 FD 注册到 Looper（epoll），监听 ALOOPER_EVENT_INPUT，回调函数为 handleReceiveCallback 唤醒 Looper，返回 client 端给调用方 这里最容易混淆的一点是：InputDispatcher::createInputChannel() 返回给 Java 的是 clientChannel；serverChannel 已经在 native 层被 Connection 接管并加入 mConnectionsByToken。因此，WindowState.mInputChannel 持有的是 SystemServer 进程中的 client 端代理，而不是 InputDispatcher 中用于分发事件的 server 端连接。\n返回的 clientChannel 经 JNI 包装为 Java InputChannel 对象，再通过 copyTo 写入 outInputChannel（Parcelable），最终由 Binder 传输 FD 到 App 进程。\nApp 进程收到后，在 ViewRootImpl 中创建 WindowInputEventReceiver（继承自 InputEventReceiver）。其底层 native InputEventReceiver 会把 client 端 FD 注册到 MessageQueue 绑定的 Looper 上，开始监听输入事件：\n// ViewRootImpl.java mInputEventReceiver = new WindowInputEventReceiver(inputChannel, Looper.myLooper()); 创建流程时序图 @startuml !theme plain title InputChannel 创建流程 participant \"App Process\\n(ViewRootImpl)\" as App participant \"IWindowSession\\n(Session)\" as IWS participant \"WindowManagerService\" as WMS participant \"WindowState\" as WS participant \"InputManagerService\" as IMS participant \"InputDispatcher\\n(C++)\" as ID autonumber App -\u003e IWS: addToDisplayAsUser(..., outInputChannel) activate IWS IWS -\u003e WMS: addWindow(..., outInputChannel) activate WMS WMS -\u003e WS: openInputChannel(outInputChannel) activate WS WS -\u003e IMS: createInputChannel(name) activate IMS IMS -\u003e ID: createInputChannel(name) activate ID ID -\u003e ID: openInputChannelPair()\\n→ socketpair(AF_UNIX, SOCK_SEQPACKET) ID -\u003e ID: 创建 Connection 接管 serverChannel\\n存入 mConnectionsByToken ID -\u003e ID: mLooper-\u003eaddFd(serverFd)\\n注册 Looper 监听 ID --\u003e IMS: clientChannel deactivate ID IMS --\u003e WS: Java InputChannel\\n(client 端代理) deactivate IMS WS -\u003e WS: mInputToWindowMap.put(token, this) WS -\u003e WS: mInputChannel.copyTo(outInputChannel) WS --\u003e WMS deactivate WS WMS --\u003e IWS: outInputChannel deactivate WMS IWS --\u003e App: outInputChannel\\n(Binder 传输 client FD) deactivate IWS App -\u003e App: new WindowInputEventReceiver(inputChannel, looper) App -\u003e App: NativeInputEventReceiver\\n通过 Looper.addFd(clientFd, ...) 监听 @enduml 事件分发 InputChannel 建立后，承担事件传输和状态同步两个职责。\nSystem -\u003e App：写入事件 InputDispatcher 决定将事件分发给某个窗口时，找到对应的 Connection，通过 InputPublisher 写入 Socket：\n// InputDispatcher.cpp — startDispatchCycleLocked while (connection-\u003estatus == Connection::Status::NORMAL \u0026\u0026 !connection-\u003eoutboundQueue.empty()) { DispatchEntry* dispatchEntry = connection-\u003eoutboundQueue.front(); // ... switch (eventEntry.type) { case EventEntry::Type::KEY: status = connection-\u003einputPublisher.publishKeyEvent(/* ... */); break; case EventEntry::Type::MOTION: status = connection-\u003einputPublisher.publishMotionEvent(/* ... */); break; case EventEntry::Type::DRAG: status = connection-\u003einputPublisher.publishDragEvent(/* ... */); break; // ... } // 发送成功后，从 outboundQueue 移到 waitQueue connection-\u003eoutboundQueue.erase(/* dispatchEntry */); connection-\u003ewaitQueue.push_back(dispatchEntry); if (connection-\u003eresponsive) { mAnrTracker.insert(dispatchEntry-\u003etimeoutTime, connection-\u003einputChannel-\u003egetConnectionToken()); } } 如果 Socket 缓冲区满（WOULD_BLOCK），InputDispatcher 不会丢弃事件，而是停止当前分发循环，等待 App 消费已有事件后腾出缓冲区空间再继续。\n底层写入通过 InputChannel::sendMessage 完成，调用 ::send() 系统调用，使用 MSG_DONTWAIT | MSG_NOSIGNAL 标志。\nApp -\u003e System：完成确认 App 处理完事件后，必须回复完成确认，否则 waitQueue 中事件超时将触发 ANR。\n流程如下：\nApp 侧 InputEventReceiver.finishInputEvent(event, handled) 通过 JNI 调用 nativeFinishInputEvent，向 Client 端 FD 写入 Finished 响应 InputDispatcher 的 Looper 收到 Server 端 FD 上的 ALOOPER_EVENT_INPUT 事件 触发 handleReceiveCallback，调用 inputPublisher.receiveConsumerResponse() 响应类型为 std::variant： Finished：携带 seq（序列号）、handled（是否消费）、consumeTime（消费时间），进入 finishDispatchCycleLocked Timeline：携带图形延迟数据，交给 mLatencyTracker 处理 finishDispatchCycleLocked 投递命令到 doDispatchCycleFinishedCommand，在其中完成 waitQueue 清理和后续分发 // InputDispatcher.cpp — handleReceiveCallback (核心循环) for (;;) { Result\u003cInputPublisher::ConsumerResponse\u003e result = connection-\u003einputPublisher.receiveConsumerResponse(); if (!result.ok()) break; if (std::holds_alternative\u003cInputPublisher::Finished\u003e(*result)) { const InputPublisher::Finished\u0026 finish = std::get\u003cInputPublisher::Finished\u003e(*result); finishDispatchCycleLocked(currentTime, connection, finish.seq, finish.handled, finish.consumeTime); } else if (std::holds_alternative\u003cInputPublisher::Timeline\u003e(*result)) { // 图形延迟追踪 mLatencyTracker.trackGraphicsLatency(/* ... */); } } 销毁 InputChannel 的销毁有两条路径：\n主动移除：窗口销毁时，WindowState.disposeInputChannel() 主动调用 InputManagerService.removeInputChannel(token) 被动检测：handleReceiveCallback 检测到 Socket 挂断（ALOOPER_EVENT_HANGUP）或错误（ALOOPER_EVENT_ERROR），直接调用 removeInputChannelLocked WindowState.disposeInputChannel() 的 Java 层实现：\n// WindowState.java void disposeInputChannel() { if (mInputChannelToken != null) { mWmService.mInputManager.removeInputChannel(mInputChannelToken); mWmService.mKeyInterceptionInfoForToken.remove(mInputChannelToken); mWmService.mInputToWindowMap.remove(mInputChannelToken); mInputChannelToken = null; } if (mInputChannel != null) { mInputChannel.dispose(); mInputChannel = null; } } Native 层 removeInputChannelLocked 的完整实现：\n// InputDispatcher.cpp status_t InputDispatcher::removeInputChannelLocked(const sp\u003cIBinder\u003e\u0026 connectionToken, bool notify) { sp\u003cConnection\u003e connection = getConnectionLocked(connectionToken); if (connection == nullptr) { return BAD_VALUE; } removeConnectionLocked(connection); // 从 mConnectionsByToken 移除，清理 AnrTracker if (connection-\u003emonitor) { removeMonitorChannelLocked(connectionToken); // 如果是监控通道，额外清理 } mLooper-\u003eremoveFd(connection-\u003einputChannel-\u003egetFd()); // 取消 epoll 监听 nsecs_t currentTime = now(); abortBrokenDispatchCycleLocked(currentTime, connection, notify); // 清空 outboundQueue/waitQueue connection-\u003estatus = Connection::Status::ZOMBIE; // 标记为僵尸，等待引用释放后析构 return OK; } abortBrokenDispatchCycleLocked 负责清空两个队列并释放其中的 DispatchEntry。如果连接原本处于 NORMAL 状态，会将其标记为 BROKEN 并通知系统策略层。\n外层 removeInputChannel 在调用 removeInputChannelLocked 后，还会调用 mLooper-\u003ewake() 唤醒 Looper，因为连接变化可能影响当前的同步状态。\n这里也需要和创建流程对应起来理解：removeInputChannelLocked() 处理的是 InputDispatcher 内部 Connection 持有的 server 端连接；WindowState.mInputChannel.dispose() 释放的则是 SystemServer 进程中持有的 client 端 Java 代理。两者不是同一个对象。\n销毁流程时序图 @startuml !theme plain title InputChannel 销毁流程 participant \"WindowState\" as WS participant \"InputManagerService\" as IMS participant \"InputDispatcher\\n(C++)\" as ID autonumber WS -\u003e IMS: removeInputChannel(token) activate IMS IMS -\u003e ID: removeInputChannel(token) activate ID ID -\u003e ID: scoped_lock(mLock) ID -\u003e ID: getConnectionLocked(token) ID -\u003e ID: removeConnectionLocked(connection)\\n→ mConnectionsByToken.erase + mAnrTracker.erase ID -\u003e ID: mLooper-\u003eremoveFd(serverFd)\\n停止 epoll 监听 ID -\u003e ID: abortBrokenDispatchCycleLocked()\\n清空 outboundQueue/waitQueue ID -\u003e ID: connection-\u003estatus = ZOMBIE ID --\u003e IMS: OK deactivate ID note over ID: 当 Connection 的最后一个引用释放后\\n其持有的 InputChannel 析构\\n底层 unique_fd 自动关闭 Server 端 FD IMS --\u003e WS deactivate IMS WS -\u003e WS: mInputChannel.dispose()\\n释放 SystemServer 持有的 Client 端代理 note over WS: 在普通窗口路径中，App 侧 Client FD 副本通常由\\nViewRootImpl 销毁时的 InputEventReceiver.dispose()\\n进一步触发 InputChannel.dispose() 释放 @enduml 关键设计考量 为什么不用 Binder 传输事件 Binder 调用涉及用户态-内核态切换和线程池调度，延迟在微秒到毫秒级。触摸事件的分发频率通常为 60-240Hz，使用 Socket + epoll 方案可以在纳秒级完成缓冲区读写，并且避免了 Binder 线程池的竞争。\nConnection 作为控制块的必要性 InputChannel 只是传输管道。Connection 在其之上维护分发状态：\noutboundQueue / waitQueue 实现了流控和超时检测 responsive 标记避免向无响应窗口继续发送事件 InputPublisher 封装了序列化和序列号管理 InputState 追踪按键/触摸的 down/up 配对，确保窗口切换时状态一致 mLock 的竞争风险 createInputChannel 和 removeInputChannelLocked 都需要持有 InputDispatcher 的全局锁 mLock。这个锁同时保护 mConnectionsByToken、mLooper 注册状态和事件分发路径（setInputWindows 也需要它）。如果窗口高频创建/销毁，会导致 mLock 被频繁竞争，从而阻塞负责分发事件的线程。\nMonitor Channel 除了普通窗口通道，InputDispatcher 还支持 Monitor Channel（通过 createInputMonitor），用于系统级的全局事件监控。Monitor Channel 的创建流程与普通通道类似，但会额外注册到 mGlobalMonitorsByDisplay，并且在 Socket 挂断时不会产生告警（因为 Monitor 不会被显式注销）。\n","wordCount":"1043","inLanguage":"en","datePublished":"2025-09-29T10:22:54+08:00","dateModified":"2025-09-29T10:22:54+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
-<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/>WindowManager</a></div><h1 class="post-title entry-hint-parent">Android InputChannel 原理与生命周期详解</h1><div class=post-meta><span title='2025-09-29 10:22:54 +0800 CST'>September 29, 2025</span>&nbsp;·&nbsp;5 min&nbsp;·&nbsp;1043 words</div></header><div class=post-content><h2 id=概述>概述<a hidden class=anchor aria-hidden=true href=#概述>#</a></h2><p><code>InputChannel</code> 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 <code>InputDispatcher</code>（运行在 <code>system_server</code>）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。</p><h3 id=核心特性>核心特性<a hidden class=anchor aria-hidden=true href=#核心特性>#</a></h3><ul><li><strong>基于 Socket Pair</strong>：底层通过 <code>socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets)</code> 创建，两端共享同一个 <code>BBinder</code> token 用于标识关联关系。</li><li><strong>双向通信</strong>：Server 端写入事件、读取完成确认；Client 端读取事件、写回完成确认。不是单向投递，而是带有 ACK 机制的请求-响应模型。</li><li><strong>高性能</strong>：通过 <code>::send()</code> 系统调用直接写入 Socket 缓冲区，结合 <code>epoll</code> 监听，绕过 Binder 调用开销，适合高频 <code>MotionEvent</code> 场景。</li><li><strong>跨进程传输</strong>：Client 端 <code>InputChannel</code> 通过 Binder 的 <code>writeUniqueFileDescriptor</code> / <code>readUniqueFileDescriptor</code> 将文件描述符传递给应用进程。</li></ul><h2 id=核心数据结构>核心数据结构<a hidden class=anchor aria-hidden=true href=#核心数据结构>#</a></h2><h3 id=inputchannel>InputChannel<a hidden class=anchor aria-hidden=true href=#inputchannel>#</a></h3><p>定义在 <code>frameworks/native/libs/input/InputTransport.cpp</code>。</p><p>每个 <code>InputChannel</code> 实例持有三个关键成员：</p><ul><li><code>mFd</code>：底层 Socket 文件描述符</li><li><code>mToken</code>：<code>sp&lt;IBinder></code> 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接</li><li><code>mName</code>：通道名称，用于调试，格式为 <code>"窗口名 (server)"</code> / <code>"窗口名 (client)"</code></li></ul><p><code>openInputChannelPair</code> 创建一对通道时，会为两端的 Socket 设置 <code>SO_SNDBUF</code> / <code>SO_RCVBUF</code> 缓冲区大小（<code>SOCKET_BUFFER_SIZE</code>）：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// InputTransport.cpp
-</span></span></span><span style=display:flex><span>sp<span style=color:#f92672>&lt;</span>IBinder<span style=color:#f92672>&gt;</span> token <span style=color:#f92672>=</span> <span style=color:#66d9ef>new</span> BBinder();
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>std<span style=color:#f92672>::</span>string serverChannelName <span style=color:#f92672>=</span> name <span style=color:#f92672>+</span> <span style=color:#e6db74>&#34; (server)&#34;</span>;
-</span></span><span style=display:flex><span>android<span style=color:#f92672>::</span>base<span style=color:#f92672>::</span>unique_fd serverFd(sockets[<span style=color:#ae81ff>0</span>]);
-</span></span><span style=display:flex><span>outServerChannel <span style=color:#f92672>=</span> InputChannel<span style=color:#f92672>::</span>create(serverChannelName, std<span style=color:#f92672>::</span>move(serverFd), token);
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>std<span style=color:#f92672>::</span>string clientChannelName <span style=color:#f92672>=</span> name <span style=color:#f92672>+</span> <span style=color:#e6db74>&#34; (client)&#34;</span>;
-</span></span><span style=display:flex><span>android<span style=color:#f92672>::</span>base<span style=color:#f92672>::</span>unique_fd clientFd(sockets[<span style=color:#ae81ff>1</span>]);
-</span></span><span style=display:flex><span>outClientChannel <span style=color:#f92672>=</span> InputChannel<span style=color:#f92672>::</span>create(clientChannelName, std<span style=color:#f92672>::</span>move(clientFd), token);
-</span></span></code></pre></div><h3 id=connection>Connection<a hidden class=anchor aria-hidden=true href=#connection>#</a></h3><p>定义在 <code>frameworks/native/services/inputflinger/dispatcher/Connection.h</code>。</p><p><code>Connection</code> 是 <code>InputDispatcher</code> 管理每条通道的控制块，包装 Server 端 <code>InputChannel</code> 并跟踪分发状态：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#66d9ef>class</span> <span style=color:#a6e22e>Connection</span> <span style=color:#f92672>:</span> <span style=color:#66d9ef>public</span> RefBase {
-</span></span><span style=display:flex><span><span style=color:#66d9ef>public</span><span style=color:#f92672>:</span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>enum</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>Status</span> {
-</span></span><span style=display:flex><span>        NORMAL,   <span style=color:#75715e>// 正常工作
-</span></span></span><span style=display:flex><span>        BROKEN,   <span style=color:#75715e>// 不可恢复的通信错误
-</span></span></span><span style=display:flex><span>        ZOMBIE,   <span style=color:#75715e>// 通道已注销，等待引用释放
-</span></span></span><span style=display:flex><span>    };
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    Status status;
-</span></span><span style=display:flex><span>    std<span style=color:#f92672>::</span>shared_ptr<span style=color:#f92672>&lt;</span>InputChannel<span style=color:#f92672>&gt;</span> inputChannel; <span style=color:#75715e>// Server 端通道，不为 null
-</span></span></span><span style=display:flex><span>    <span style=color:#66d9ef>bool</span> monitor;                               <span style=color:#75715e>// 是否为全局监控通道
-</span></span></span><span style=display:flex><span>    InputPublisher inputPublisher;              <span style=color:#75715e>// 负责序列化并写入事件
-</span></span></span><span style=display:flex><span>    InputState inputState;                      <span style=color:#75715e>// 追踪输入状态（按键/触摸的 down/up 配对等）
-</span></span></span><span style=display:flex><span>    <span style=color:#66d9ef>bool</span> responsive <span style=color:#f92672>=</span> true;                    <span style=color:#75715e>// 窗口是否仍在响应
-</span></span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    std<span style=color:#f92672>::</span>deque<span style=color:#f92672>&lt;</span>DispatchEntry<span style=color:#f92672>*&gt;</span> outboundQueue;  <span style=color:#75715e>// 待发送给 App 的事件
-</span></span></span><span style=display:flex><span>    std<span style=color:#f92672>::</span>deque<span style=color:#f92672>&lt;</span>DispatchEntry<span style=color:#f92672>*&gt;</span> waitQueue;      <span style=color:#75715e>// 已发送但未收到 ACK 的事件
-</span></span></span><span style=display:flex><span>};
-</span></span></code></pre></div><p><code>outboundQueue</code> 和 <code>waitQueue</code> 的配合是 ANR 检测的基础：事件从 <code>outboundQueue</code> 取出、通过 <code>InputPublisher</code> 写入 Socket 后，转移到 <code>waitQueue</code>；收到 App 的完成确认后，从 <code>waitQueue</code> 移除。如果 <code>waitQueue</code> 中的事件超时未收到确认，系统判定 ANR。</p><h2 id=生命周期>生命周期<a hidden class=anchor aria-hidden=true href=#生命周期>#</a></h2><h3 id=创建>创建<a hidden class=anchor aria-hidden=true href=#创建>#</a></h3><p>InputChannel 的创建伴随窗口添加过程。按当前实现，窗口侧的完整调用链是：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>ViewRootImpl.setView()
-</span></span><span style=display:flex><span>  → IWindowSession.addToDisplayAsUser(..., outInputChannel, ...)
-</span></span><span style=display:flex><span>    → Session.addToDisplayAsUser(...)
-</span></span><span style=display:flex><span>      → WMS.addWindow(...)
-</span></span><span style=display:flex><span>        → WindowState.openInputChannel(outInputChannel)
-</span></span><span style=display:flex><span>          → InputManagerService.createInputChannel(name)
-</span></span><span style=display:flex><span>            → [JNI] NativeInputManagerService.createInputChannel(name)
-</span></span><span style=display:flex><span>              → InputDispatcher::createInputChannel(name)
-</span></span></code></pre></div><p><code>WindowState.openInputChannel()</code> 是 Java 层的入口：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// WindowState.java</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>void</span> <span style=color:#a6e22e>openInputChannel</span>(InputChannel outInputChannel) {
-</span></span><span style=display:flex><span>    String name <span style=color:#f92672>=</span> getName();
-</span></span><span style=display:flex><span>    mInputChannel <span style=color:#f92672>=</span> mWmService.<span style=color:#a6e22e>mInputManager</span>.<span style=color:#a6e22e>createInputChannel</span>(name);
-</span></span><span style=display:flex><span>    mInputChannelToken <span style=color:#f92672>=</span> mInputChannel.<span style=color:#a6e22e>getToken</span>();
-</span></span><span style=display:flex><span>    mInputWindowHandle.<span style=color:#a6e22e>setToken</span>(mInputChannelToken);
-</span></span><span style=display:flex><span>    mWmService.<span style=color:#a6e22e>mInputToWindowMap</span>.<span style=color:#a6e22e>put</span>(mInputChannelToken, <span style=color:#66d9ef>this</span>);
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (outInputChannel <span style=color:#f92672>!=</span> <span style=color:#66d9ef>null</span>) {
-</span></span><span style=display:flex><span>        mInputChannel.<span style=color:#a6e22e>copyTo</span>(outInputChannel);
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div><p>最终在 <code>InputDispatcher::createInputChannel</code> 中完成核心工作：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// InputDispatcher.cpp
-</span></span></span><span style=display:flex><span>Result<span style=color:#f92672>&lt;</span>std<span style=color:#f92672>::</span>unique_ptr<span style=color:#f92672>&lt;</span>InputChannel<span style=color:#f92672>&gt;&gt;</span> InputDispatcher<span style=color:#f92672>::</span>createInputChannel(<span style=color:#66d9ef>const</span> std<span style=color:#f92672>::</span>string<span style=color:#f92672>&amp;</span> name) {
-</span></span><span style=display:flex><span>    std<span style=color:#f92672>::</span>unique_ptr<span style=color:#f92672>&lt;</span>InputChannel<span style=color:#f92672>&gt;</span> serverChannel;
-</span></span><span style=display:flex><span>    std<span style=color:#f92672>::</span>unique_ptr<span style=color:#f92672>&lt;</span>InputChannel<span style=color:#f92672>&gt;</span> clientChannel;
-</span></span><span style=display:flex><span>    status_t result <span style=color:#f92672>=</span> InputChannel<span style=color:#f92672>::</span>openInputChannelPair(name, serverChannel, clientChannel);
-</span></span><span style=display:flex><span>    <span style=color:#75715e>// ... error check ...
-</span></span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    { <span style=color:#75715e>// acquire lock
-</span></span></span><span style=display:flex><span>        std<span style=color:#f92672>::</span>scoped_lock _l(mLock);
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>const</span> sp<span style=color:#f92672>&lt;</span>IBinder<span style=color:#f92672>&gt;&amp;</span> token <span style=color:#f92672>=</span> serverChannel<span style=color:#f92672>-&gt;</span>getConnectionToken();
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>int</span> fd <span style=color:#f92672>=</span> serverChannel<span style=color:#f92672>-&gt;</span>getFd();
-</span></span><span style=display:flex><span>        sp<span style=color:#f92672>&lt;</span>Connection<span style=color:#f92672>&gt;</span> connection <span style=color:#f92672>=</span>
-</span></span><span style=display:flex><span>                <span style=color:#66d9ef>new</span> Connection(std<span style=color:#f92672>::</span>move(serverChannel), false <span style=color:#75715e>/*monitor*/</span>, mIdGenerator);
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>        mConnectionsByToken.emplace(token, connection);
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>        std<span style=color:#f92672>::</span>function<span style=color:#f92672>&lt;</span><span style=color:#66d9ef>int</span>(<span style=color:#66d9ef>int</span> events)<span style=color:#f92672>&gt;</span> callback <span style=color:#f92672>=</span> std<span style=color:#f92672>::</span>bind(
-</span></span><span style=display:flex><span>                <span style=color:#f92672>&amp;</span>InputDispatcher<span style=color:#f92672>::</span>handleReceiveCallback, <span style=color:#66d9ef>this</span>, std<span style=color:#f92672>::</span>placeholders<span style=color:#f92672>::</span>_1, token);
-</span></span><span style=display:flex><span>        mLooper<span style=color:#f92672>-&gt;</span>addFd(fd, <span style=color:#ae81ff>0</span>, ALOOPER_EVENT_INPUT, <span style=color:#66d9ef>new</span> LooperEventCallback(callback), <span style=color:#66d9ef>nullptr</span>);
-</span></span><span style=display:flex><span>    } <span style=color:#75715e>// release lock
-</span></span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    mLooper<span style=color:#f92672>-&gt;</span>wake();
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> clientChannel;
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div><p>关键步骤：</p><ol><li><code>openInputChannelPair</code> 创建 Socket Pair，生成共享同一 token 的 server/client 两个 <code>InputChannel</code></li><li>用 server 端创建 <code>Connection</code> 对象，存入 <code>mConnectionsByToken</code></li><li>将 server 端 FD 注册到 Looper（epoll），监听 <code>ALOOPER_EVENT_INPUT</code>，回调函数为 <code>handleReceiveCallback</code></li><li>唤醒 Looper，返回 client 端给调用方</li></ol><p>这里最容易混淆的一点是：<code>InputDispatcher::createInputChannel()</code> 返回给 Java 的是 <code>clientChannel</code>；<code>serverChannel</code> 已经在 native 层被 <code>Connection</code> 接管并加入 <code>mConnectionsByToken</code>。因此，<code>WindowState.mInputChannel</code> 持有的是 SystemServer 进程中的 client 端代理，而不是 <code>InputDispatcher</code> 中用于分发事件的 server 端连接。</p><p>返回的 <code>clientChannel</code> 经 JNI 包装为 Java <code>InputChannel</code> 对象，再通过 <code>copyTo</code> 写入 <code>outInputChannel</code>（Parcelable），最终由 Binder 传输 FD 到 App 进程。</p><p>App 进程收到后，在 <code>ViewRootImpl</code> 中创建 <code>WindowInputEventReceiver</code>（继承自 <code>InputEventReceiver</code>）。其底层 native <code>InputEventReceiver</code> 会把 client 端 FD 注册到 <code>MessageQueue</code> 绑定的 <code>Looper</code> 上，开始监听输入事件：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// ViewRootImpl.java</span>
-</span></span><span style=display:flex><span>mInputEventReceiver <span style=color:#f92672>=</span> <span style=color:#66d9ef>new</span> WindowInputEventReceiver(inputChannel, Looper.<span style=color:#a6e22e>myLooper</span>());
-</span></span></code></pre></div><h4 id=创建流程时序图>创建流程时序图<a hidden class=anchor aria-hidden=true href=#创建流程时序图>#</a></h4><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+openInputChannelPair 创建一对通道时，会为两端的 Socket 设置 SO_SNDBUF / SO_RCVBUF 缓冲区大小（SOCKET_BUFFER_SIZE）：">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Android系统开发",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "WindowManager",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  3 ,
+      "name": "Android InputChannel 原理与生命周期详解",
+      "item": "https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Android InputChannel 原理与生命周期详解",
+  "name": "Android InputChannel 原理与生命周期详解",
+  "description": "概述 InputChannel 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 InputDispatcher（运行在 system_server）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。\n核心特性 基于 Socket Pair：底层通过 socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets) 创建，两端共享同一个 BBinder token 用于标识关联关系。 双向通信：Server 端写入事件、读取完成确认；Client 端读取事件、写回完成确认。不是单向投递，而是带有 ACK 机制的请求-响应模型。 高性能：通过 ::send() 系统调用直接写入 Socket 缓冲区，结合 epoll 监听，绕过 Binder 调用开销，适合高频 MotionEvent 场景。 跨进程传输：Client 端 InputChannel 通过 Binder 的 writeUniqueFileDescriptor / readUniqueFileDescriptor 将文件描述符传递给应用进程。 核心数据结构 InputChannel 定义在 frameworks/native/libs/input/InputTransport.cpp。\n每个 InputChannel 实例持有三个关键成员：\nmFd：底层 Socket 文件描述符 mToken：sp\u0026lt;IBinder\u0026gt; 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接 mName：通道名称，用于调试，格式为 \u0026quot;窗口名 (server)\u0026quot; / \u0026quot;窗口名 (client)\u0026quot; openInputChannelPair 创建一对通道时，会为两端的 Socket 设置 SO_SNDBUF / SO_RCVBUF 缓冲区大小（SOCKET_BUFFER_SIZE）：\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "概述 InputChannel 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 InputDispatcher（运行在 system_server）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。\n核心特性 基于 Socket Pair：底层通过 socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets) 创建，两端共享同一个 BBinder token 用于标识关联关系。 双向通信：Server 端写入事件、读取完成确认；Client 端读取事件、写回完成确认。不是单向投递，而是带有 ACK 机制的请求-响应模型。 高性能：通过 ::send() 系统调用直接写入 Socket 缓冲区，结合 epoll 监听，绕过 Binder 调用开销，适合高频 MotionEvent 场景。 跨进程传输：Client 端 InputChannel 通过 Binder 的 writeUniqueFileDescriptor / readUniqueFileDescriptor 将文件描述符传递给应用进程。 核心数据结构 InputChannel 定义在 frameworks/native/libs/input/InputTransport.cpp。\n每个 InputChannel 实例持有三个关键成员：\nmFd：底层 Socket 文件描述符 mToken：sp 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接 mName：通道名称，用于调试，格式为 \"窗口名 (server)\" / \"窗口名 (client)\" openInputChannelPair 创建一对通道时，会为两端的 Socket 设置 SO_SNDBUF / SO_RCVBUF 缓冲区大小（SOCKET_BUFFER_SIZE）：\n// InputTransport.cpp sp\u003cIBinder\u003e token = new BBinder(); std::string serverChannelName = name + \" (server)\"; android::base::unique_fd serverFd(sockets[0]); outServerChannel = InputChannel::create(serverChannelName, std::move(serverFd), token); std::string clientChannelName = name + \" (client)\"; android::base::unique_fd clientFd(sockets[1]); outClientChannel = InputChannel::create(clientChannelName, std::move(clientFd), token); Connection 定义在 frameworks/native/services/inputflinger/dispatcher/Connection.h。\nConnection 是 InputDispatcher 管理每条通道的控制块，包装 Server 端 InputChannel 并跟踪分发状态：\nclass Connection : public RefBase { public: enum class Status { NORMAL, // 正常工作 BROKEN, // 不可恢复的通信错误 ZOMBIE, // 通道已注销，等待引用释放 }; Status status; std::shared_ptr\u003cInputChannel\u003e inputChannel; // Server 端通道，不为 null bool monitor; // 是否为全局监控通道 InputPublisher inputPublisher; // 负责序列化并写入事件 InputState inputState; // 追踪输入状态（按键/触摸的 down/up 配对等） bool responsive = true; // 窗口是否仍在响应 std::deque\u003cDispatchEntry*\u003e outboundQueue; // 待发送给 App 的事件 std::deque\u003cDispatchEntry*\u003e waitQueue; // 已发送但未收到 ACK 的事件 }; outboundQueue 和 waitQueue 的配合是 ANR 检测的基础：事件从 outboundQueue 取出、通过 InputPublisher 写入 Socket 后，转移到 waitQueue；收到 App 的完成确认后，从 waitQueue 移除。如果 waitQueue 中的事件超时未收到确认，系统判定 ANR。\n生命周期 创建 InputChannel 的创建伴随窗口添加过程。按当前实现，窗口侧的完整调用链是：\nViewRootImpl.setView() → IWindowSession.addToDisplayAsUser(..., outInputChannel, ...) → Session.addToDisplayAsUser(...) → WMS.addWindow(...) → WindowState.openInputChannel(outInputChannel) → InputManagerService.createInputChannel(name) → [JNI] NativeInputManagerService.createInputChannel(name) → InputDispatcher::createInputChannel(name) WindowState.openInputChannel() 是 Java 层的入口：\n// WindowState.java void openInputChannel(InputChannel outInputChannel) { String name = getName(); mInputChannel = mWmService.mInputManager.createInputChannel(name); mInputChannelToken = mInputChannel.getToken(); mInputWindowHandle.setToken(mInputChannelToken); mWmService.mInputToWindowMap.put(mInputChannelToken, this); if (outInputChannel != null) { mInputChannel.copyTo(outInputChannel); } } 最终在 InputDispatcher::createInputChannel 中完成核心工作：\n// InputDispatcher.cpp Result\u003cstd::unique_ptr\u003cInputChannel\u003e\u003e InputDispatcher::createInputChannel(const std::string\u0026 name) { std::unique_ptr\u003cInputChannel\u003e serverChannel; std::unique_ptr\u003cInputChannel\u003e clientChannel; status_t result = InputChannel::openInputChannelPair(name, serverChannel, clientChannel); // ... error check ... { // acquire lock std::scoped_lock _l(mLock); const sp\u003cIBinder\u003e\u0026 token = serverChannel-\u003egetConnectionToken(); int fd = serverChannel-\u003egetFd(); sp\u003cConnection\u003e connection = new Connection(std::move(serverChannel), false /*monitor*/, mIdGenerator); mConnectionsByToken.emplace(token, connection); std::function\u003cint(int events)\u003e callback = std::bind( \u0026InputDispatcher::handleReceiveCallback, this, std::placeholders::_1, token); mLooper-\u003eaddFd(fd, 0, ALOOPER_EVENT_INPUT, new LooperEventCallback(callback), nullptr); } // release lock mLooper-\u003ewake(); return clientChannel; } 关键步骤：\nopenInputChannelPair 创建 Socket Pair，生成共享同一 token 的 server/client 两个 InputChannel 用 server 端创建 Connection 对象，存入 mConnectionsByToken 将 server 端 FD 注册到 Looper（epoll），监听 ALOOPER_EVENT_INPUT，回调函数为 handleReceiveCallback 唤醒 Looper，返回 client 端给调用方 这里最容易混淆的一点是：InputDispatcher::createInputChannel() 返回给 Java 的是 clientChannel；serverChannel 已经在 native 层被 Connection 接管并加入 mConnectionsByToken。因此，WindowState.mInputChannel 持有的是 SystemServer 进程中的 client 端代理，而不是 InputDispatcher 中用于分发事件的 server 端连接。\n返回的 clientChannel 经 JNI 包装为 Java InputChannel 对象，再通过 copyTo 写入 outInputChannel（Parcelable），最终由 Binder 传输 FD 到 App 进程。\nApp 进程收到后，在 ViewRootImpl 中创建 WindowInputEventReceiver（继承自 InputEventReceiver）。其底层 native InputEventReceiver 会把 client 端 FD 注册到 MessageQueue 绑定的 Looper 上，开始监听输入事件：\n// ViewRootImpl.java mInputEventReceiver = new WindowInputEventReceiver(inputChannel, Looper.myLooper()); 创建流程时序图 @startuml !theme plain title InputChannel 创建流程 participant \"App Process\\n(ViewRootImpl)\" as App participant \"IWindowSession\\n(Session)\" as IWS participant \"WindowManagerService\" as WMS participant \"WindowState\" as WS participant \"InputManagerService\" as IMS participant \"InputDispatcher\\n(C++)\" as ID autonumber App -\u003e IWS: addToDisplayAsUser(..., outInputChannel) activate IWS IWS -\u003e WMS: addWindow(..., outInputChannel) activate WMS WMS -\u003e WS: openInputChannel(outInputChannel) activate WS WS -\u003e IMS: createInputChannel(name) activate IMS IMS -\u003e ID: createInputChannel(name) activate ID ID -\u003e ID: openInputChannelPair()\\n→ socketpair(AF_UNIX, SOCK_SEQPACKET) ID -\u003e ID: 创建 Connection 接管 serverChannel\\n存入 mConnectionsByToken ID -\u003e ID: mLooper-\u003eaddFd(serverFd)\\n注册 Looper 监听 ID --\u003e IMS: clientChannel deactivate ID IMS --\u003e WS: Java InputChannel\\n(client 端代理) deactivate IMS WS -\u003e WS: mInputToWindowMap.put(token, this) WS -\u003e WS: mInputChannel.copyTo(outInputChannel) WS --\u003e WMS deactivate WS WMS --\u003e IWS: outInputChannel deactivate WMS IWS --\u003e App: outInputChannel\\n(Binder 传输 client FD) deactivate IWS App -\u003e App: new WindowInputEventReceiver(inputChannel, looper) App -\u003e App: NativeInputEventReceiver\\n通过 Looper.addFd(clientFd, ...) 监听 @enduml 事件分发 InputChannel 建立后，承担事件传输和状态同步两个职责。\nSystem -\u003e App：写入事件 InputDispatcher 决定将事件分发给某个窗口时，找到对应的 Connection，通过 InputPublisher 写入 Socket：\n// InputDispatcher.cpp — startDispatchCycleLocked while (connection-\u003estatus == Connection::Status::NORMAL \u0026\u0026 !connection-\u003eoutboundQueue.empty()) { DispatchEntry* dispatchEntry = connection-\u003eoutboundQueue.front(); // ... switch (eventEntry.type) { case EventEntry::Type::KEY: status = connection-\u003einputPublisher.publishKeyEvent(/* ... */); break; case EventEntry::Type::MOTION: status = connection-\u003einputPublisher.publishMotionEvent(/* ... */); break; case EventEntry::Type::DRAG: status = connection-\u003einputPublisher.publishDragEvent(/* ... */); break; // ... } // 发送成功后，从 outboundQueue 移到 waitQueue connection-\u003eoutboundQueue.erase(/* dispatchEntry */); connection-\u003ewaitQueue.push_back(dispatchEntry); if (connection-\u003eresponsive) { mAnrTracker.insert(dispatchEntry-\u003etimeoutTime, connection-\u003einputChannel-\u003egetConnectionToken()); } } 如果 Socket 缓冲区满（WOULD_BLOCK），InputDispatcher 不会丢弃事件，而是停止当前分发循环，等待 App 消费已有事件后腾出缓冲区空间再继续。\n底层写入通过 InputChannel::sendMessage 完成，调用 ::send() 系统调用，使用 MSG_DONTWAIT | MSG_NOSIGNAL 标志。\nApp -\u003e System：完成确认 App 处理完事件后，必须回复完成确认，否则 waitQueue 中事件超时将触发 ANR。\n流程如下：\nApp 侧 InputEventReceiver.finishInputEvent(event, handled) 通过 JNI 调用 nativeFinishInputEvent，向 Client 端 FD 写入 Finished 响应 InputDispatcher 的 Looper 收到 Server 端 FD 上的 ALOOPER_EVENT_INPUT 事件 触发 handleReceiveCallback，调用 inputPublisher.receiveConsumerResponse() 响应类型为 std::variant： Finished：携带 seq（序列号）、handled（是否消费）、consumeTime（消费时间），进入 finishDispatchCycleLocked Timeline：携带图形延迟数据，交给 mLatencyTracker 处理 finishDispatchCycleLocked 投递命令到 doDispatchCycleFinishedCommand，在其中完成 waitQueue 清理和后续分发 // InputDispatcher.cpp — handleReceiveCallback (核心循环) for (;;) { Result\u003cInputPublisher::ConsumerResponse\u003e result = connection-\u003einputPublisher.receiveConsumerResponse(); if (!result.ok()) break; if (std::holds_alternative\u003cInputPublisher::Finished\u003e(*result)) { const InputPublisher::Finished\u0026 finish = std::get\u003cInputPublisher::Finished\u003e(*result); finishDispatchCycleLocked(currentTime, connection, finish.seq, finish.handled, finish.consumeTime); } else if (std::holds_alternative\u003cInputPublisher::Timeline\u003e(*result)) { // 图形延迟追踪 mLatencyTracker.trackGraphicsLatency(/* ... */); } } 销毁 InputChannel 的销毁有两条路径：\n主动移除：窗口销毁时，WindowState.disposeInputChannel() 主动调用 InputManagerService.removeInputChannel(token) 被动检测：handleReceiveCallback 检测到 Socket 挂断（ALOOPER_EVENT_HANGUP）或错误（ALOOPER_EVENT_ERROR），直接调用 removeInputChannelLocked WindowState.disposeInputChannel() 的 Java 层实现：\n// WindowState.java void disposeInputChannel() { if (mInputChannelToken != null) { mWmService.mInputManager.removeInputChannel(mInputChannelToken); mWmService.mKeyInterceptionInfoForToken.remove(mInputChannelToken); mWmService.mInputToWindowMap.remove(mInputChannelToken); mInputChannelToken = null; } if (mInputChannel != null) { mInputChannel.dispose(); mInputChannel = null; } } Native 层 removeInputChannelLocked 的完整实现：\n// InputDispatcher.cpp status_t InputDispatcher::removeInputChannelLocked(const sp\u003cIBinder\u003e\u0026 connectionToken, bool notify) { sp\u003cConnection\u003e connection = getConnectionLocked(connectionToken); if (connection == nullptr) { return BAD_VALUE; } removeConnectionLocked(connection); // 从 mConnectionsByToken 移除，清理 AnrTracker if (connection-\u003emonitor) { removeMonitorChannelLocked(connectionToken); // 如果是监控通道，额外清理 } mLooper-\u003eremoveFd(connection-\u003einputChannel-\u003egetFd()); // 取消 epoll 监听 nsecs_t currentTime = now(); abortBrokenDispatchCycleLocked(currentTime, connection, notify); // 清空 outboundQueue/waitQueue connection-\u003estatus = Connection::Status::ZOMBIE; // 标记为僵尸，等待引用释放后析构 return OK; } abortBrokenDispatchCycleLocked 负责清空两个队列并释放其中的 DispatchEntry。如果连接原本处于 NORMAL 状态，会将其标记为 BROKEN 并通知系统策略层。\n外层 removeInputChannel 在调用 removeInputChannelLocked 后，还会调用 mLooper-\u003ewake() 唤醒 Looper，因为连接变化可能影响当前的同步状态。\n这里也需要和创建流程对应起来理解：removeInputChannelLocked() 处理的是 InputDispatcher 内部 Connection 持有的 server 端连接；WindowState.mInputChannel.dispose() 释放的则是 SystemServer 进程中持有的 client 端 Java 代理。两者不是同一个对象。\n销毁流程时序图 @startuml !theme plain title InputChannel 销毁流程 participant \"WindowState\" as WS participant \"InputManagerService\" as IMS participant \"InputDispatcher\\n(C++)\" as ID autonumber WS -\u003e IMS: removeInputChannel(token) activate IMS IMS -\u003e ID: removeInputChannel(token) activate ID ID -\u003e ID: scoped_lock(mLock) ID -\u003e ID: getConnectionLocked(token) ID -\u003e ID: removeConnectionLocked(connection)\\n→ mConnectionsByToken.erase + mAnrTracker.erase ID -\u003e ID: mLooper-\u003eremoveFd(serverFd)\\n停止 epoll 监听 ID -\u003e ID: abortBrokenDispatchCycleLocked()\\n清空 outboundQueue/waitQueue ID -\u003e ID: connection-\u003estatus = ZOMBIE ID --\u003e IMS: OK deactivate ID note over ID: 当 Connection 的最后一个引用释放后\\n其持有的 InputChannel 析构\\n底层 unique_fd 自动关闭 Server 端 FD IMS --\u003e WS deactivate IMS WS -\u003e WS: mInputChannel.dispose()\\n释放 SystemServer 持有的 Client 端代理 note over WS: 在普通窗口路径中，App 侧 Client FD 副本通常由\\nViewRootImpl 销毁时的 InputEventReceiver.dispose()\\n进一步触发 InputChannel.dispose() 释放 @enduml 关键设计考量 为什么不用 Binder 传输事件 Binder 调用涉及用户态-内核态切换和线程池调度，延迟在微秒到毫秒级。触摸事件的分发频率通常为 60-240Hz，使用 Socket + epoll 方案可以在纳秒级完成缓冲区读写，并且避免了 Binder 线程池的竞争。\nConnection 作为控制块的必要性 InputChannel 只是传输管道。Connection 在其之上维护分发状态：\noutboundQueue / waitQueue 实现了流控和超时检测 responsive 标记避免向无响应窗口继续发送事件 InputPublisher 封装了序列化和序列号管理 InputState 追踪按键/触摸的 down/up 配对，确保窗口切换时状态一致 mLock 的竞争风险 createInputChannel 和 removeInputChannelLocked 都需要持有 InputDispatcher 的全局锁 mLock。这个锁同时保护 mConnectionsByToken、mLooper 注册状态和事件分发路径（setInputWindows 也需要它）。如果窗口高频创建/销毁，会导致 mLock 被频繁竞争，从而阻塞负责分发事件的线程。\nMonitor Channel 除了普通窗口通道，InputDispatcher 还支持 Monitor Channel（通过 createInputMonitor），用于系统级的全局事件监控。Monitor Channel 的创建流程与普通通道类似，但会额外注册到 mGlobalMonitorsByDisplay，并且在 Socket 挂断时不会产生告警（因为 Monitor 不会被显式注销）。\n",
+  "wordCount" : "1043",
+  "inLanguage": "en",
+  "datePublished": "2025-09-29T10:22:54+08:00",
+  "dateModified": "2025-09-29T10:22:54+08:00",
+  "author":{
+    "@type": "Person",
+    "name": {"defaulttheme":"auto","name":"Ethen","showbreadcrumbs":true,"showcodecopybuttons":true,"showpostnavlinks":true,"showreadingtime":true,"showwordcount":true}
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/gunyah/" title="Gunyah">
+                    <span>Gunyah</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      Android InputChannel 原理与生命周期详解
+    </h1>
+    <div class="post-meta"><span title='2025-09-29 10:22:54 +0800 CST'>September 29, 2025</span>&nbsp;·&nbsp;map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]
+
+</div>
+  </header> 
+  <div class="post-content"><h2 id="概述">概述<a hidden class="anchor" aria-hidden="true" href="#概述">#</a></h2>
+<p><code>InputChannel</code> 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 <code>InputDispatcher</code>（运行在 <code>system_server</code>）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。</p>
+<h3 id="核心特性">核心特性<a hidden class="anchor" aria-hidden="true" href="#核心特性">#</a></h3>
+<ul>
+<li><strong>基于 Socket Pair</strong>：底层通过 <code>socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets)</code> 创建，两端共享同一个 <code>BBinder</code> token 用于标识关联关系。</li>
+<li><strong>双向通信</strong>：Server 端写入事件、读取完成确认；Client 端读取事件、写回完成确认。不是单向投递，而是带有 ACK 机制的请求-响应模型。</li>
+<li><strong>高性能</strong>：通过 <code>::send()</code> 系统调用直接写入 Socket 缓冲区，结合 <code>epoll</code> 监听，绕过 Binder 调用开销，适合高频 <code>MotionEvent</code> 场景。</li>
+<li><strong>跨进程传输</strong>：Client 端 <code>InputChannel</code> 通过 Binder 的 <code>writeUniqueFileDescriptor</code> / <code>readUniqueFileDescriptor</code> 将文件描述符传递给应用进程。</li>
+</ul>
+<h2 id="核心数据结构">核心数据结构<a hidden class="anchor" aria-hidden="true" href="#核心数据结构">#</a></h2>
+<h3 id="inputchannel">InputChannel<a hidden class="anchor" aria-hidden="true" href="#inputchannel">#</a></h3>
+<p>定义在 <code>frameworks/native/libs/input/InputTransport.cpp</code>。</p>
+<p>每个 <code>InputChannel</code> 实例持有三个关键成员：</p>
+<ul>
+<li><code>mFd</code>：底层 Socket 文件描述符</li>
+<li><code>mToken</code>：<code>sp&lt;IBinder&gt;</code> 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接</li>
+<li><code>mName</code>：通道名称，用于调试，格式为 <code>&quot;窗口名 (server)&quot;</code> / <code>&quot;窗口名 (client)&quot;</code></li>
+</ul>
+<p><code>openInputChannelPair</code> 创建一对通道时，会为两端的 Socket 设置 <code>SO_SNDBUF</code> / <code>SO_RCVBUF</code> 缓冲区大小（<code>SOCKET_BUFFER_SIZE</code>）：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// InputTransport.cpp
+</span></span></span><span style="display:flex;"><span>sp<span style="color:#f92672">&lt;</span>IBinder<span style="color:#f92672">&gt;</span> token <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> BBinder();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>std<span style="color:#f92672">::</span>string serverChannelName <span style="color:#f92672">=</span> name <span style="color:#f92672">+</span> <span style="color:#e6db74">&#34; (server)&#34;</span>;
+</span></span><span style="display:flex;"><span>android<span style="color:#f92672">::</span>base<span style="color:#f92672">::</span>unique_fd serverFd(sockets[<span style="color:#ae81ff">0</span>]);
+</span></span><span style="display:flex;"><span>outServerChannel <span style="color:#f92672">=</span> InputChannel<span style="color:#f92672">::</span>create(serverChannelName, std<span style="color:#f92672">::</span>move(serverFd), token);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>std<span style="color:#f92672">::</span>string clientChannelName <span style="color:#f92672">=</span> name <span style="color:#f92672">+</span> <span style="color:#e6db74">&#34; (client)&#34;</span>;
+</span></span><span style="display:flex;"><span>android<span style="color:#f92672">::</span>base<span style="color:#f92672">::</span>unique_fd clientFd(sockets[<span style="color:#ae81ff">1</span>]);
+</span></span><span style="display:flex;"><span>outClientChannel <span style="color:#f92672">=</span> InputChannel<span style="color:#f92672">::</span>create(clientChannelName, std<span style="color:#f92672">::</span>move(clientFd), token);
+</span></span></code></pre></div><h3 id="connection">Connection<a hidden class="anchor" aria-hidden="true" href="#connection">#</a></h3>
+<p>定义在 <code>frameworks/native/services/inputflinger/dispatcher/Connection.h</code>。</p>
+<p><code>Connection</code> 是 <code>InputDispatcher</code> 管理每条通道的控制块，包装 Server 端 <code>InputChannel</code> 并跟踪分发状态：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Connection</span> <span style="color:#f92672">:</span> <span style="color:#66d9ef">public</span> RefBase {
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">enum</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Status</span> {
+</span></span><span style="display:flex;"><span>        NORMAL,   <span style="color:#75715e">// 正常工作
+</span></span></span><span style="display:flex;"><span>        BROKEN,   <span style="color:#75715e">// 不可恢复的通信错误
+</span></span></span><span style="display:flex;"><span>        ZOMBIE,   <span style="color:#75715e">// 通道已注销，等待引用释放
+</span></span></span><span style="display:flex;"><span>    };
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Status status;
+</span></span><span style="display:flex;"><span>    std<span style="color:#f92672">::</span>shared_ptr<span style="color:#f92672">&lt;</span>InputChannel<span style="color:#f92672">&gt;</span> inputChannel; <span style="color:#75715e">// Server 端通道，不为 null
+</span></span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">bool</span> monitor;                               <span style="color:#75715e">// 是否为全局监控通道
+</span></span></span><span style="display:flex;"><span>    InputPublisher inputPublisher;              <span style="color:#75715e">// 负责序列化并写入事件
+</span></span></span><span style="display:flex;"><span>    InputState inputState;                      <span style="color:#75715e">// 追踪输入状态（按键/触摸的 down/up 配对等）
+</span></span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">bool</span> responsive <span style="color:#f92672">=</span> true;                    <span style="color:#75715e">// 窗口是否仍在响应
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    std<span style="color:#f92672">::</span>deque<span style="color:#f92672">&lt;</span>DispatchEntry<span style="color:#f92672">*&gt;</span> outboundQueue;  <span style="color:#75715e">// 待发送给 App 的事件
+</span></span></span><span style="display:flex;"><span>    std<span style="color:#f92672">::</span>deque<span style="color:#f92672">&lt;</span>DispatchEntry<span style="color:#f92672">*&gt;</span> waitQueue;      <span style="color:#75715e">// 已发送但未收到 ACK 的事件
+</span></span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p><code>outboundQueue</code> 和 <code>waitQueue</code> 的配合是 ANR 检测的基础：事件从 <code>outboundQueue</code> 取出、通过 <code>InputPublisher</code> 写入 Socket 后，转移到 <code>waitQueue</code>；收到 App 的完成确认后，从 <code>waitQueue</code> 移除。如果 <code>waitQueue</code> 中的事件超时未收到确认，系统判定 ANR。</p>
+<h2 id="生命周期">生命周期<a hidden class="anchor" aria-hidden="true" href="#生命周期">#</a></h2>
+<h3 id="创建">创建<a hidden class="anchor" aria-hidden="true" href="#创建">#</a></h3>
+<p>InputChannel 的创建伴随窗口添加过程。按当前实现，窗口侧的完整调用链是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>ViewRootImpl.setView()
+</span></span><span style="display:flex;"><span>  → IWindowSession.addToDisplayAsUser(..., outInputChannel, ...)
+</span></span><span style="display:flex;"><span>    → Session.addToDisplayAsUser(...)
+</span></span><span style="display:flex;"><span>      → WMS.addWindow(...)
+</span></span><span style="display:flex;"><span>        → WindowState.openInputChannel(outInputChannel)
+</span></span><span style="display:flex;"><span>          → InputManagerService.createInputChannel(name)
+</span></span><span style="display:flex;"><span>            → [JNI] NativeInputManagerService.createInputChannel(name)
+</span></span><span style="display:flex;"><span>              → InputDispatcher::createInputChannel(name)
+</span></span></code></pre></div><p><code>WindowState.openInputChannel()</code> 是 Java 层的入口：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-java" data-lang="java"><span style="display:flex;"><span><span style="color:#75715e">// WindowState.java</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">openInputChannel</span>(InputChannel outInputChannel) {
+</span></span><span style="display:flex;"><span>    String name <span style="color:#f92672">=</span> getName();
+</span></span><span style="display:flex;"><span>    mInputChannel <span style="color:#f92672">=</span> mWmService.<span style="color:#a6e22e">mInputManager</span>.<span style="color:#a6e22e">createInputChannel</span>(name);
+</span></span><span style="display:flex;"><span>    mInputChannelToken <span style="color:#f92672">=</span> mInputChannel.<span style="color:#a6e22e">getToken</span>();
+</span></span><span style="display:flex;"><span>    mInputWindowHandle.<span style="color:#a6e22e">setToken</span>(mInputChannelToken);
+</span></span><span style="display:flex;"><span>    mWmService.<span style="color:#a6e22e">mInputToWindowMap</span>.<span style="color:#a6e22e">put</span>(mInputChannelToken, <span style="color:#66d9ef">this</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (outInputChannel <span style="color:#f92672">!=</span> <span style="color:#66d9ef">null</span>) {
+</span></span><span style="display:flex;"><span>        mInputChannel.<span style="color:#a6e22e">copyTo</span>(outInputChannel);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>最终在 <code>InputDispatcher::createInputChannel</code> 中完成核心工作：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// InputDispatcher.cpp
+</span></span></span><span style="display:flex;"><span>Result<span style="color:#f92672">&lt;</span>std<span style="color:#f92672">::</span>unique_ptr<span style="color:#f92672">&lt;</span>InputChannel<span style="color:#f92672">&gt;&gt;</span> InputDispatcher<span style="color:#f92672">::</span>createInputChannel(<span style="color:#66d9ef">const</span> std<span style="color:#f92672">::</span>string<span style="color:#f92672">&amp;</span> name) {
+</span></span><span style="display:flex;"><span>    std<span style="color:#f92672">::</span>unique_ptr<span style="color:#f92672">&lt;</span>InputChannel<span style="color:#f92672">&gt;</span> serverChannel;
+</span></span><span style="display:flex;"><span>    std<span style="color:#f92672">::</span>unique_ptr<span style="color:#f92672">&lt;</span>InputChannel<span style="color:#f92672">&gt;</span> clientChannel;
+</span></span><span style="display:flex;"><span>    status_t result <span style="color:#f92672">=</span> InputChannel<span style="color:#f92672">::</span>openInputChannelPair(name, serverChannel, clientChannel);
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ... error check ...
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    { <span style="color:#75715e">// acquire lock
+</span></span></span><span style="display:flex;"><span>        std<span style="color:#f92672">::</span>scoped_lock _l(mLock);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">const</span> sp<span style="color:#f92672">&lt;</span>IBinder<span style="color:#f92672">&gt;&amp;</span> token <span style="color:#f92672">=</span> serverChannel<span style="color:#f92672">-&gt;</span>getConnectionToken();
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> serverChannel<span style="color:#f92672">-&gt;</span>getFd();
+</span></span><span style="display:flex;"><span>        sp<span style="color:#f92672">&lt;</span>Connection<span style="color:#f92672">&gt;</span> connection <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">new</span> Connection(std<span style="color:#f92672">::</span>move(serverChannel), false <span style="color:#75715e">/*monitor*/</span>, mIdGenerator);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        mConnectionsByToken.emplace(token, connection);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        std<span style="color:#f92672">::</span>function<span style="color:#f92672">&lt;</span><span style="color:#66d9ef">int</span>(<span style="color:#66d9ef">int</span> events)<span style="color:#f92672">&gt;</span> callback <span style="color:#f92672">=</span> std<span style="color:#f92672">::</span>bind(
+</span></span><span style="display:flex;"><span>                <span style="color:#f92672">&amp;</span>InputDispatcher<span style="color:#f92672">::</span>handleReceiveCallback, <span style="color:#66d9ef">this</span>, std<span style="color:#f92672">::</span>placeholders<span style="color:#f92672">::</span>_1, token);
+</span></span><span style="display:flex;"><span>        mLooper<span style="color:#f92672">-&gt;</span>addFd(fd, <span style="color:#ae81ff">0</span>, ALOOPER_EVENT_INPUT, <span style="color:#66d9ef">new</span> LooperEventCallback(callback), <span style="color:#66d9ef">nullptr</span>);
+</span></span><span style="display:flex;"><span>    } <span style="color:#75715e">// release lock
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    mLooper<span style="color:#f92672">-&gt;</span>wake();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> clientChannel;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>关键步骤：</p>
+<ol>
+<li><code>openInputChannelPair</code> 创建 Socket Pair，生成共享同一 token 的 server/client 两个 <code>InputChannel</code></li>
+<li>用 server 端创建 <code>Connection</code> 对象，存入 <code>mConnectionsByToken</code></li>
+<li>将 server 端 FD 注册到 Looper（epoll），监听 <code>ALOOPER_EVENT_INPUT</code>，回调函数为 <code>handleReceiveCallback</code></li>
+<li>唤醒 Looper，返回 client 端给调用方</li>
+</ol>
+<p>这里最容易混淆的一点是：<code>InputDispatcher::createInputChannel()</code> 返回给 Java 的是 <code>clientChannel</code>；<code>serverChannel</code> 已经在 native 层被 <code>Connection</code> 接管并加入 <code>mConnectionsByToken</code>。因此，<code>WindowState.mInputChannel</code> 持有的是 SystemServer 进程中的 client 端代理，而不是 <code>InputDispatcher</code> 中用于分发事件的 server 端连接。</p>
+<p>返回的 <code>clientChannel</code> 经 JNI 包装为 Java <code>InputChannel</code> 对象，再通过 <code>copyTo</code> 写入 <code>outInputChannel</code>（Parcelable），最终由 Binder 传输 FD 到 App 进程。</p>
+<p>App 进程收到后，在 <code>ViewRootImpl</code> 中创建 <code>WindowInputEventReceiver</code>（继承自 <code>InputEventReceiver</code>）。其底层 native <code>InputEventReceiver</code> 会把 client 端 FD 注册到 <code>MessageQueue</code> 绑定的 <code>Looper</code> 上，开始监听输入事件：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-java" data-lang="java"><span style="display:flex;"><span><span style="color:#75715e">// ViewRootImpl.java</span>
+</span></span><span style="display:flex;"><span>mInputEventReceiver <span style="color:#f92672">=</span> <span style="color:#66d9ef">new</span> WindowInputEventReceiver(inputChannel, Looper.<span style="color:#a6e22e">myLooper</span>());
+</span></span></code></pre></div><h4 id="创建流程时序图">创建流程时序图<a hidden class="anchor" aria-hidden="true" href="#创建流程时序图">#</a></h4>
+<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml
 !theme plain
 title InputChannel 创建流程
 
@@ -166,82 +420,115 @@ App -&gt; App: new WindowInputEventReceiver(inputChannel, looper)
 App -&gt; App: NativeInputEventReceiver\n通过 Looper.addFd(clientFd, ...) 监听
 
 @enduml
-</code></pre><h3 id=事件分发>事件分发<a hidden class=anchor aria-hidden=true href=#事件分发>#</a></h3><p>InputChannel 建立后，承担事件传输和状态同步两个职责。</p><h4 id=system---app写入事件>System -> App：写入事件<a hidden class=anchor aria-hidden=true href=#system---app写入事件>#</a></h4><p><code>InputDispatcher</code> 决定将事件分发给某个窗口时，找到对应的 <code>Connection</code>，通过 <code>InputPublisher</code> 写入 Socket：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// InputDispatcher.cpp — startDispatchCycleLocked
-</span></span></span><span style=display:flex><span><span style=color:#66d9ef>while</span> (connection<span style=color:#f92672>-&gt;</span>status <span style=color:#f92672>==</span> Connection<span style=color:#f92672>::</span>Status<span style=color:#f92672>::</span>NORMAL <span style=color:#f92672>&amp;&amp;</span> <span style=color:#f92672>!</span>connection<span style=color:#f92672>-&gt;</span>outboundQueue.empty()) {
-</span></span><span style=display:flex><span>    DispatchEntry<span style=color:#f92672>*</span> dispatchEntry <span style=color:#f92672>=</span> connection<span style=color:#f92672>-&gt;</span>outboundQueue.front();
-</span></span><span style=display:flex><span>    <span style=color:#75715e>// ...
-</span></span></span><span style=display:flex><span>    <span style=color:#66d9ef>switch</span> (eventEntry.type) {
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>case</span> EventEntry<span style=color:#f92672>::</span>Type<span style=color:#f92672>::</span>KEY:
-</span></span><span style=display:flex><span>            status <span style=color:#f92672>=</span> connection<span style=color:#f92672>-&gt;</span>inputPublisher.publishKeyEvent(<span style=color:#75715e>/* ... */</span>);
-</span></span><span style=display:flex><span>            <span style=color:#66d9ef>break</span>;
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>case</span> EventEntry<span style=color:#f92672>::</span>Type<span style=color:#f92672>::</span>MOTION:
-</span></span><span style=display:flex><span>            status <span style=color:#f92672>=</span> connection<span style=color:#f92672>-&gt;</span>inputPublisher.publishMotionEvent(<span style=color:#75715e>/* ... */</span>);
-</span></span><span style=display:flex><span>            <span style=color:#66d9ef>break</span>;
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>case</span> EventEntry<span style=color:#f92672>::</span>Type<span style=color:#f92672>::</span>DRAG:
-</span></span><span style=display:flex><span>            status <span style=color:#f92672>=</span> connection<span style=color:#f92672>-&gt;</span>inputPublisher.publishDragEvent(<span style=color:#75715e>/* ... */</span>);
-</span></span><span style=display:flex><span>            <span style=color:#66d9ef>break</span>;
-</span></span><span style=display:flex><span>        <span style=color:#75715e>// ...
-</span></span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    <span style=color:#75715e>// 发送成功后，从 outboundQueue 移到 waitQueue
-</span></span></span><span style=display:flex><span>    connection<span style=color:#f92672>-&gt;</span>outboundQueue.erase(<span style=color:#75715e>/* dispatchEntry */</span>);
-</span></span><span style=display:flex><span>    connection<span style=color:#f92672>-&gt;</span>waitQueue.push_back(dispatchEntry);
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (connection<span style=color:#f92672>-&gt;</span>responsive) {
-</span></span><span style=display:flex><span>        mAnrTracker.insert(dispatchEntry<span style=color:#f92672>-&gt;</span>timeoutTime,
-</span></span><span style=display:flex><span>                           connection<span style=color:#f92672>-&gt;</span>inputChannel<span style=color:#f92672>-&gt;</span>getConnectionToken());
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div><p>如果 Socket 缓冲区满（<code>WOULD_BLOCK</code>），<code>InputDispatcher</code> 不会丢弃事件，而是停止当前分发循环，等待 App 消费已有事件后腾出缓冲区空间再继续。</p><p>底层写入通过 <code>InputChannel::sendMessage</code> 完成，调用 <code>::send()</code> 系统调用，使用 <code>MSG_DONTWAIT | MSG_NOSIGNAL</code> 标志。</p><h4 id=app---system完成确认>App -> System：完成确认<a hidden class=anchor aria-hidden=true href=#app---system完成确认>#</a></h4><p>App 处理完事件后，必须回复完成确认，否则 <code>waitQueue</code> 中事件超时将触发 ANR。</p><p>流程如下：</p><ol><li>App 侧 <code>InputEventReceiver.finishInputEvent(event, handled)</code> 通过 JNI 调用 <code>nativeFinishInputEvent</code>，向 Client 端 FD 写入 <code>Finished</code> 响应</li><li><code>InputDispatcher</code> 的 Looper 收到 Server 端 FD 上的 <code>ALOOPER_EVENT_INPUT</code> 事件</li><li>触发 <code>handleReceiveCallback</code>，调用 <code>inputPublisher.receiveConsumerResponse()</code></li><li>响应类型为 <code>std::variant&lt;Finished, Timeline></code>：<ul><li><code>Finished</code>：携带 <code>seq</code>（序列号）、<code>handled</code>（是否消费）、<code>consumeTime</code>（消费时间），进入 <code>finishDispatchCycleLocked</code></li><li><code>Timeline</code>：携带图形延迟数据，交给 <code>mLatencyTracker</code> 处理</li></ul></li><li><code>finishDispatchCycleLocked</code> 投递命令到 <code>doDispatchCycleFinishedCommand</code>，在其中完成 <code>waitQueue</code> 清理和后续分发</li></ol><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// InputDispatcher.cpp — handleReceiveCallback (核心循环)
-</span></span></span><span style=display:flex><span><span style=color:#66d9ef>for</span> (;;) {
-</span></span><span style=display:flex><span>    Result<span style=color:#f92672>&lt;</span>InputPublisher<span style=color:#f92672>::</span>ConsumerResponse<span style=color:#f92672>&gt;</span> result <span style=color:#f92672>=</span>
-</span></span><span style=display:flex><span>            connection<span style=color:#f92672>-&gt;</span>inputPublisher.receiveConsumerResponse();
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (<span style=color:#f92672>!</span>result.ok()) <span style=color:#66d9ef>break</span>;
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (std<span style=color:#f92672>::</span>holds_alternative<span style=color:#f92672>&lt;</span>InputPublisher<span style=color:#f92672>::</span>Finished<span style=color:#f92672>&gt;</span>(<span style=color:#f92672>*</span>result)) {
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>const</span> InputPublisher<span style=color:#f92672>::</span>Finished<span style=color:#f92672>&amp;</span> finish <span style=color:#f92672>=</span> std<span style=color:#f92672>::</span>get<span style=color:#f92672>&lt;</span>InputPublisher<span style=color:#f92672>::</span>Finished<span style=color:#f92672>&gt;</span>(<span style=color:#f92672>*</span>result);
-</span></span><span style=display:flex><span>        finishDispatchCycleLocked(currentTime, connection, finish.seq,
-</span></span><span style=display:flex><span>                                  finish.handled, finish.consumeTime);
-</span></span><span style=display:flex><span>    } <span style=color:#66d9ef>else</span> <span style=color:#a6e22e>if</span> (std<span style=color:#f92672>::</span>holds_alternative<span style=color:#f92672>&lt;</span>InputPublisher<span style=color:#f92672>::</span>Timeline<span style=color:#f92672>&gt;</span>(<span style=color:#f92672>*</span>result)) {
-</span></span><span style=display:flex><span>        <span style=color:#75715e>// 图形延迟追踪
-</span></span></span><span style=display:flex><span>        mLatencyTracker.trackGraphicsLatency(<span style=color:#75715e>/* ... */</span>);
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div><h3 id=销毁>销毁<a hidden class=anchor aria-hidden=true href=#销毁>#</a></h3><p>InputChannel 的销毁有两条路径：</p><ul><li><strong>主动移除</strong>：窗口销毁时，<code>WindowState.disposeInputChannel()</code> 主动调用 <code>InputManagerService.removeInputChannel(token)</code></li><li><strong>被动检测</strong>：<code>handleReceiveCallback</code> 检测到 Socket 挂断（<code>ALOOPER_EVENT_HANGUP</code>）或错误（<code>ALOOPER_EVENT_ERROR</code>），直接调用 <code>removeInputChannelLocked</code></li></ul><p><code>WindowState.disposeInputChannel()</code> 的 Java 层实现：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// WindowState.java</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>void</span> <span style=color:#a6e22e>disposeInputChannel</span>() {
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (mInputChannelToken <span style=color:#f92672>!=</span> <span style=color:#66d9ef>null</span>) {
-</span></span><span style=display:flex><span>        mWmService.<span style=color:#a6e22e>mInputManager</span>.<span style=color:#a6e22e>removeInputChannel</span>(mInputChannelToken);
-</span></span><span style=display:flex><span>        mWmService.<span style=color:#a6e22e>mKeyInterceptionInfoForToken</span>.<span style=color:#a6e22e>remove</span>(mInputChannelToken);
-</span></span><span style=display:flex><span>        mWmService.<span style=color:#a6e22e>mInputToWindowMap</span>.<span style=color:#a6e22e>remove</span>(mInputChannelToken);
-</span></span><span style=display:flex><span>        mInputChannelToken <span style=color:#f92672>=</span> <span style=color:#66d9ef>null</span>;
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (mInputChannel <span style=color:#f92672>!=</span> <span style=color:#66d9ef>null</span>) {
-</span></span><span style=display:flex><span>        mInputChannel.<span style=color:#a6e22e>dispose</span>();
-</span></span><span style=display:flex><span>        mInputChannel <span style=color:#f92672>=</span> <span style=color:#66d9ef>null</span>;
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div><p>Native 层 <code>removeInputChannelLocked</code> 的完整实现：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// InputDispatcher.cpp
-</span></span></span><span style=display:flex><span>status_t InputDispatcher<span style=color:#f92672>::</span>removeInputChannelLocked(<span style=color:#66d9ef>const</span> sp<span style=color:#f92672>&lt;</span>IBinder<span style=color:#f92672>&gt;&amp;</span> connectionToken,
-</span></span><span style=display:flex><span>                                                   <span style=color:#66d9ef>bool</span> notify) {
-</span></span><span style=display:flex><span>    sp<span style=color:#f92672>&lt;</span>Connection<span style=color:#f92672>&gt;</span> connection <span style=color:#f92672>=</span> getConnectionLocked(connectionToken);
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (connection <span style=color:#f92672>==</span> <span style=color:#66d9ef>nullptr</span>) {
-</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span> BAD_VALUE;
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    removeConnectionLocked(connection);          <span style=color:#75715e>// 从 mConnectionsByToken 移除，清理 AnrTracker
-</span></span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (connection<span style=color:#f92672>-&gt;</span>monitor) {
-</span></span><span style=display:flex><span>        removeMonitorChannelLocked(connectionToken);  <span style=color:#75715e>// 如果是监控通道，额外清理
-</span></span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    mLooper<span style=color:#f92672>-&gt;</span>removeFd(connection<span style=color:#f92672>-&gt;</span>inputChannel<span style=color:#f92672>-&gt;</span>getFd());  <span style=color:#75715e>// 取消 epoll 监听
-</span></span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    nsecs_t currentTime <span style=color:#f92672>=</span> now();
-</span></span><span style=display:flex><span>    abortBrokenDispatchCycleLocked(currentTime, connection, notify);  <span style=color:#75715e>// 清空 outboundQueue/waitQueue
-</span></span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>    connection<span style=color:#f92672>-&gt;</span>status <span style=color:#f92672>=</span> Connection<span style=color:#f92672>::</span>Status<span style=color:#f92672>::</span>ZOMBIE;  <span style=color:#75715e>// 标记为僵尸，等待引用释放后析构
-</span></span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> OK;
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div><p><code>abortBrokenDispatchCycleLocked</code> 负责清空两个队列并释放其中的 <code>DispatchEntry</code>。如果连接原本处于 <code>NORMAL</code> 状态，会将其标记为 <code>BROKEN</code> 并通知系统策略层。</p><p>外层 <code>removeInputChannel</code> 在调用 <code>removeInputChannelLocked</code> 后，还会调用 <code>mLooper->wake()</code> 唤醒 Looper，因为连接变化可能影响当前的同步状态。</p><p>这里也需要和创建流程对应起来理解：<code>removeInputChannelLocked()</code> 处理的是 <code>InputDispatcher</code> 内部 <code>Connection</code> 持有的 server 端连接；<code>WindowState.mInputChannel.dispose()</code> 释放的则是 SystemServer 进程中持有的 client 端 Java 代理。两者不是同一个对象。</p><h4 id=销毁流程时序图>销毁流程时序图<a hidden class=anchor aria-hidden=true href=#销毁流程时序图>#</a></h4><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+</code></pre><h3 id="事件分发">事件分发<a hidden class="anchor" aria-hidden="true" href="#事件分发">#</a></h3>
+<p>InputChannel 建立后，承担事件传输和状态同步两个职责。</p>
+<h4 id="system---app写入事件">System -&gt; App：写入事件<a hidden class="anchor" aria-hidden="true" href="#system---app写入事件">#</a></h4>
+<p><code>InputDispatcher</code> 决定将事件分发给某个窗口时，找到对应的 <code>Connection</code>，通过 <code>InputPublisher</code> 写入 Socket：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// InputDispatcher.cpp — startDispatchCycleLocked
+</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">while</span> (connection<span style="color:#f92672">-&gt;</span>status <span style="color:#f92672">==</span> Connection<span style="color:#f92672">::</span>Status<span style="color:#f92672">::</span>NORMAL <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>connection<span style="color:#f92672">-&gt;</span>outboundQueue.empty()) {
+</span></span><span style="display:flex;"><span>    DispatchEntry<span style="color:#f92672">*</span> dispatchEntry <span style="color:#f92672">=</span> connection<span style="color:#f92672">-&gt;</span>outboundQueue.front();
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">switch</span> (eventEntry.type) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> EventEntry<span style="color:#f92672">::</span>Type<span style="color:#f92672">::</span>KEY:
+</span></span><span style="display:flex;"><span>            status <span style="color:#f92672">=</span> connection<span style="color:#f92672">-&gt;</span>inputPublisher.publishKeyEvent(<span style="color:#75715e">/* ... */</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> EventEntry<span style="color:#f92672">::</span>Type<span style="color:#f92672">::</span>MOTION:
+</span></span><span style="display:flex;"><span>            status <span style="color:#f92672">=</span> connection<span style="color:#f92672">-&gt;</span>inputPublisher.publishMotionEvent(<span style="color:#75715e">/* ... */</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">case</span> EventEntry<span style="color:#f92672">::</span>Type<span style="color:#f92672">::</span>DRAG:
+</span></span><span style="display:flex;"><span>            status <span style="color:#f92672">=</span> connection<span style="color:#f92672">-&gt;</span>inputPublisher.publishDragEvent(<span style="color:#75715e">/* ... */</span>);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 发送成功后，从 outboundQueue 移到 waitQueue
+</span></span></span><span style="display:flex;"><span>    connection<span style="color:#f92672">-&gt;</span>outboundQueue.erase(<span style="color:#75715e">/* dispatchEntry */</span>);
+</span></span><span style="display:flex;"><span>    connection<span style="color:#f92672">-&gt;</span>waitQueue.push_back(dispatchEntry);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (connection<span style="color:#f92672">-&gt;</span>responsive) {
+</span></span><span style="display:flex;"><span>        mAnrTracker.insert(dispatchEntry<span style="color:#f92672">-&gt;</span>timeoutTime,
+</span></span><span style="display:flex;"><span>                           connection<span style="color:#f92672">-&gt;</span>inputChannel<span style="color:#f92672">-&gt;</span>getConnectionToken());
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>如果 Socket 缓冲区满（<code>WOULD_BLOCK</code>），<code>InputDispatcher</code> 不会丢弃事件，而是停止当前分发循环，等待 App 消费已有事件后腾出缓冲区空间再继续。</p>
+<p>底层写入通过 <code>InputChannel::sendMessage</code> 完成，调用 <code>::send()</code> 系统调用，使用 <code>MSG_DONTWAIT | MSG_NOSIGNAL</code> 标志。</p>
+<h4 id="app---system完成确认">App -&gt; System：完成确认<a hidden class="anchor" aria-hidden="true" href="#app---system完成确认">#</a></h4>
+<p>App 处理完事件后，必须回复完成确认，否则 <code>waitQueue</code> 中事件超时将触发 ANR。</p>
+<p>流程如下：</p>
+<ol>
+<li>App 侧 <code>InputEventReceiver.finishInputEvent(event, handled)</code> 通过 JNI 调用 <code>nativeFinishInputEvent</code>，向 Client 端 FD 写入 <code>Finished</code> 响应</li>
+<li><code>InputDispatcher</code> 的 Looper 收到 Server 端 FD 上的 <code>ALOOPER_EVENT_INPUT</code> 事件</li>
+<li>触发 <code>handleReceiveCallback</code>，调用 <code>inputPublisher.receiveConsumerResponse()</code></li>
+<li>响应类型为 <code>std::variant&lt;Finished, Timeline&gt;</code>：
+<ul>
+<li><code>Finished</code>：携带 <code>seq</code>（序列号）、<code>handled</code>（是否消费）、<code>consumeTime</code>（消费时间），进入 <code>finishDispatchCycleLocked</code></li>
+<li><code>Timeline</code>：携带图形延迟数据，交给 <code>mLatencyTracker</code> 处理</li>
+</ul>
+</li>
+<li><code>finishDispatchCycleLocked</code> 投递命令到 <code>doDispatchCycleFinishedCommand</code>，在其中完成 <code>waitQueue</code> 清理和后续分发</li>
+</ol>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// InputDispatcher.cpp — handleReceiveCallback (核心循环)
+</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> (;;) {
+</span></span><span style="display:flex;"><span>    Result<span style="color:#f92672">&lt;</span>InputPublisher<span style="color:#f92672">::</span>ConsumerResponse<span style="color:#f92672">&gt;</span> result <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>            connection<span style="color:#f92672">-&gt;</span>inputPublisher.receiveConsumerResponse();
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>result.ok()) <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (std<span style="color:#f92672">::</span>holds_alternative<span style="color:#f92672">&lt;</span>InputPublisher<span style="color:#f92672">::</span>Finished<span style="color:#f92672">&gt;</span>(<span style="color:#f92672">*</span>result)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">const</span> InputPublisher<span style="color:#f92672">::</span>Finished<span style="color:#f92672">&amp;</span> finish <span style="color:#f92672">=</span> std<span style="color:#f92672">::</span>get<span style="color:#f92672">&lt;</span>InputPublisher<span style="color:#f92672">::</span>Finished<span style="color:#f92672">&gt;</span>(<span style="color:#f92672">*</span>result);
+</span></span><span style="display:flex;"><span>        finishDispatchCycleLocked(currentTime, connection, finish.seq,
+</span></span><span style="display:flex;"><span>                                  finish.handled, finish.consumeTime);
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> <span style="color:#a6e22e">if</span> (std<span style="color:#f92672">::</span>holds_alternative<span style="color:#f92672">&lt;</span>InputPublisher<span style="color:#f92672">::</span>Timeline<span style="color:#f92672">&gt;</span>(<span style="color:#f92672">*</span>result)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// 图形延迟追踪
+</span></span></span><span style="display:flex;"><span>        mLatencyTracker.trackGraphicsLatency(<span style="color:#75715e">/* ... */</span>);
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h3 id="销毁">销毁<a hidden class="anchor" aria-hidden="true" href="#销毁">#</a></h3>
+<p>InputChannel 的销毁有两条路径：</p>
+<ul>
+<li><strong>主动移除</strong>：窗口销毁时，<code>WindowState.disposeInputChannel()</code> 主动调用 <code>InputManagerService.removeInputChannel(token)</code></li>
+<li><strong>被动检测</strong>：<code>handleReceiveCallback</code> 检测到 Socket 挂断（<code>ALOOPER_EVENT_HANGUP</code>）或错误（<code>ALOOPER_EVENT_ERROR</code>），直接调用 <code>removeInputChannelLocked</code></li>
+</ul>
+<p><code>WindowState.disposeInputChannel()</code> 的 Java 层实现：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-java" data-lang="java"><span style="display:flex;"><span><span style="color:#75715e">// WindowState.java</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">disposeInputChannel</span>() {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (mInputChannelToken <span style="color:#f92672">!=</span> <span style="color:#66d9ef">null</span>) {
+</span></span><span style="display:flex;"><span>        mWmService.<span style="color:#a6e22e">mInputManager</span>.<span style="color:#a6e22e">removeInputChannel</span>(mInputChannelToken);
+</span></span><span style="display:flex;"><span>        mWmService.<span style="color:#a6e22e">mKeyInterceptionInfoForToken</span>.<span style="color:#a6e22e">remove</span>(mInputChannelToken);
+</span></span><span style="display:flex;"><span>        mWmService.<span style="color:#a6e22e">mInputToWindowMap</span>.<span style="color:#a6e22e">remove</span>(mInputChannelToken);
+</span></span><span style="display:flex;"><span>        mInputChannelToken <span style="color:#f92672">=</span> <span style="color:#66d9ef">null</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (mInputChannel <span style="color:#f92672">!=</span> <span style="color:#66d9ef">null</span>) {
+</span></span><span style="display:flex;"><span>        mInputChannel.<span style="color:#a6e22e">dispose</span>();
+</span></span><span style="display:flex;"><span>        mInputChannel <span style="color:#f92672">=</span> <span style="color:#66d9ef">null</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Native 层 <code>removeInputChannelLocked</code> 的完整实现：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// InputDispatcher.cpp
+</span></span></span><span style="display:flex;"><span>status_t InputDispatcher<span style="color:#f92672">::</span>removeInputChannelLocked(<span style="color:#66d9ef">const</span> sp<span style="color:#f92672">&lt;</span>IBinder<span style="color:#f92672">&gt;&amp;</span> connectionToken,
+</span></span><span style="display:flex;"><span>                                                   <span style="color:#66d9ef">bool</span> notify) {
+</span></span><span style="display:flex;"><span>    sp<span style="color:#f92672">&lt;</span>Connection<span style="color:#f92672">&gt;</span> connection <span style="color:#f92672">=</span> getConnectionLocked(connectionToken);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (connection <span style="color:#f92672">==</span> <span style="color:#66d9ef">nullptr</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> BAD_VALUE;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    removeConnectionLocked(connection);          <span style="color:#75715e">// 从 mConnectionsByToken 移除，清理 AnrTracker
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (connection<span style="color:#f92672">-&gt;</span>monitor) {
+</span></span><span style="display:flex;"><span>        removeMonitorChannelLocked(connectionToken);  <span style="color:#75715e">// 如果是监控通道，额外清理
+</span></span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    mLooper<span style="color:#f92672">-&gt;</span>removeFd(connection<span style="color:#f92672">-&gt;</span>inputChannel<span style="color:#f92672">-&gt;</span>getFd());  <span style="color:#75715e">// 取消 epoll 监听
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    nsecs_t currentTime <span style="color:#f92672">=</span> now();
+</span></span><span style="display:flex;"><span>    abortBrokenDispatchCycleLocked(currentTime, connection, notify);  <span style="color:#75715e">// 清空 outboundQueue/waitQueue
+</span></span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    connection<span style="color:#f92672">-&gt;</span>status <span style="color:#f92672">=</span> Connection<span style="color:#f92672">::</span>Status<span style="color:#f92672">::</span>ZOMBIE;  <span style="color:#75715e">// 标记为僵尸，等待引用释放后析构
+</span></span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> OK;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>abortBrokenDispatchCycleLocked</code> 负责清空两个队列并释放其中的 <code>DispatchEntry</code>。如果连接原本处于 <code>NORMAL</code> 状态，会将其标记为 <code>BROKEN</code> 并通知系统策略层。</p>
+<p>外层 <code>removeInputChannel</code> 在调用 <code>removeInputChannelLocked</code> 后，还会调用 <code>mLooper-&gt;wake()</code> 唤醒 Looper，因为连接变化可能影响当前的同步状态。</p>
+<p>这里也需要和创建流程对应起来理解：<code>removeInputChannelLocked()</code> 处理的是 <code>InputDispatcher</code> 内部 <code>Connection</code> 持有的 server 端连接；<code>WindowState.mInputChannel.dispose()</code> 释放的则是 SystemServer 进程中持有的 client 端 Java 代理。两者不是同一个对象。</p>
+<h4 id="销毁流程时序图">销毁流程时序图<a hidden class="anchor" aria-hidden="true" href="#销毁流程时序图">#</a></h4>
+<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml
 !theme plain
 title InputChannel 销毁流程
 
@@ -277,9 +564,132 @@ WS -&gt; WS: mInputChannel.dispose()\n释放 SystemServer 持有的 Client 端�
 note over WS: 在普通窗口路径中，App 侧 Client FD 副本通常由\nViewRootImpl 销毁时的 InputEventReceiver.dispose()\n进一步触发 InputChannel.dispose() 释放
 
 @enduml
-</code></pre><h2 id=关键设计考量>关键设计考量<a hidden class=anchor aria-hidden=true href=#关键设计考量>#</a></h2><h3 id=为什么不用-binder-传输事件>为什么不用 Binder 传输事件<a hidden class=anchor aria-hidden=true href=#为什么不用-binder-传输事件>#</a></h3><p>Binder 调用涉及用户态-内核态切换和线程池调度，延迟在微秒到毫秒级。触摸事件的分发频率通常为 60-240Hz，使用 Socket + epoll 方案可以在纳秒级完成缓冲区读写，并且避免了 Binder 线程池的竞争。</p><h3 id=connection-作为控制块的必要性>Connection 作为控制块的必要性<a hidden class=anchor aria-hidden=true href=#connection-作为控制块的必要性>#</a></h3><p><code>InputChannel</code> 只是传输管道。<code>Connection</code> 在其之上维护分发状态：</p><ul><li><code>outboundQueue</code> / <code>waitQueue</code> 实现了流控和超时检测</li><li><code>responsive</code> 标记避免向无响应窗口继续发送事件</li><li><code>InputPublisher</code> 封装了序列化和序列号管理</li><li><code>InputState</code> 追踪按键/触摸的 down/up 配对，确保窗口切换时状态一致</li></ul><h3 id=mlock-的竞争风险>mLock 的竞争风险<a hidden class=anchor aria-hidden=true href=#mlock-的竞争风险>#</a></h3><p><code>createInputChannel</code> 和 <code>removeInputChannelLocked</code> 都需要持有 <code>InputDispatcher</code> 的全局锁 <code>mLock</code>。这个锁同时保护 <code>mConnectionsByToken</code>、<code>mLooper</code> 注册状态和事件分发路径（<code>setInputWindows</code> 也需要它）。如果窗口高频创建/销毁，会导致 <code>mLock</code> 被频繁竞争，从而阻塞负责分发事件的线程。</p><h3 id=monitor-channel>Monitor Channel<a hidden class=anchor aria-hidden=true href=#monitor-channel>#</a></h3><p>除了普通窗口通道，<code>InputDispatcher</code> 还支持 Monitor Channel（通过 <code>createInputMonitor</code>），用于系统级的全局事件监控。Monitor Channel 的创建流程与普通通道类似，但会额外注册到 <code>mGlobalMonitorsByDisplay</code>，并且在 Socket 挂断时不会产生告警（因为 Monitor 不会被显式注销）。</p></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/><span class=title>« Prev</span><br><span>Activity 跨屏幕迁移</span>
-</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/input_flinger/><span class=title>Next »</span><br><span>Android InputFlinger</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
-<span>Powered by
-<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
-<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
-</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
+</code></pre><h2 id="关键设计考量">关键设计考量<a hidden class="anchor" aria-hidden="true" href="#关键设计考量">#</a></h2>
+<h3 id="为什么不用-binder-传输事件">为什么不用 Binder 传输事件<a hidden class="anchor" aria-hidden="true" href="#为什么不用-binder-传输事件">#</a></h3>
+<p>Binder 调用涉及用户态-内核态切换和线程池调度，延迟在微秒到毫秒级。触摸事件的分发频率通常为 60-240Hz，使用 Socket + epoll 方案可以在纳秒级完成缓冲区读写，并且避免了 Binder 线程池的竞争。</p>
+<h3 id="connection-作为控制块的必要性">Connection 作为控制块的必要性<a hidden class="anchor" aria-hidden="true" href="#connection-作为控制块的必要性">#</a></h3>
+<p><code>InputChannel</code> 只是传输管道。<code>Connection</code> 在其之上维护分发状态：</p>
+<ul>
+<li><code>outboundQueue</code> / <code>waitQueue</code> 实现了流控和超时检测</li>
+<li><code>responsive</code> 标记避免向无响应窗口继续发送事件</li>
+<li><code>InputPublisher</code> 封装了序列化和序列号管理</li>
+<li><code>InputState</code> 追踪按键/触摸的 down/up 配对，确保窗口切换时状态一致</li>
+</ul>
+<h3 id="mlock-的竞争风险">mLock 的竞争风险<a hidden class="anchor" aria-hidden="true" href="#mlock-的竞争风险">#</a></h3>
+<p><code>createInputChannel</code> 和 <code>removeInputChannelLocked</code> 都需要持有 <code>InputDispatcher</code> 的全局锁 <code>mLock</code>。这个锁同时保护 <code>mConnectionsByToken</code>、<code>mLooper</code> 注册状态和事件分发路径（<code>setInputWindows</code> 也需要它）。如果窗口高频创建/销毁，会导致 <code>mLock</code> 被频繁竞争，从而阻塞负责分发事件的线程。</p>
+<h3 id="monitor-channel">Monitor Channel<a hidden class="anchor" aria-hidden="true" href="#monitor-channel">#</a></h3>
+<p>除了普通窗口通道，<code>InputDispatcher</code> 还支持 Monitor Channel（通过 <code>createInputMonitor</code>），用于系统级的全局事件监控。Monitor Channel 的创建流程与普通通道类似，但会额外注册到 <code>mGlobalMonitorsByDisplay</code>，并且在 Socket 挂断时不会产生告警（因为 Monitor 不会被显式注销）。</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a><script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
+<script>
+    (function(){
+        
+        
+        const plantumlBlocks = document.querySelectorAll('pre > code.language-plantuml, pre > code.language-planuml');
+        
+        plantumlBlocks.forEach(codeBlock => {
+            const plantumlCode = codeBlock.innerText;
+            
+            const encoded = plantumlEncoder.encode(plantumlCode);
+            
+            const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
+            
+            
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = "PlantUML Diagram";
+            img.style.maxWidth = "100%"; 
+            
+            
+            const preBlock = codeBlock.parentNode;
+            preBlock.parentNode.replaceChild(img, preBlock);
+        });
+    })();
+</script>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

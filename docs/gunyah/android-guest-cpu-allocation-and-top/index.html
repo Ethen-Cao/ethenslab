@@ -1,4 +1,13 @@
-<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配 | Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：
 
 Android guest 明明只跑了 12 个 yes，为什么 top 头部还能看到 1600%cpu 和较高的 idle。
 Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 steal 只有约 30% 出头。
@@ -19,15 +28,74 @@ Android guest 当前 possible=0-15、present=0-15，但 online=0-11，也就是�
 maxcpus=12 来自 Android guest 的启动参数，因此 16 个 vCPU 节点里只有前 12 个在线。
 当前 gvm.slice 的生效 CPU 集合是 0-17；Linux cgroup 没有表现出把 guest 固定在 12 个 host CPU 上的行为。
 gvm.slice/cpu.max = max 100000，cpu.stat 中 nr_throttled = 0，因此 Linux cgroup 没有 CPU quota throttle。
-Android guest 的 vCPU 调度属性来自 autoghgvm 镜像里的 VM 配置：affinity="pinned"、sched-priority=0、sched-timeslice=5000us。
+Android guest 的 vCPU 调度属性来自 autoghgvm 镜像里的 VM 配置：affinity=&quot;pinned&quot;、sched-priority=0、sched-timeslice=5000us。
 upstream Gunyah RM 的调度模型里，guest 的 sched-priority 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 5ms 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 32，当前场景下可将 guest 的有效优先级理解为 32。
 纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 cpu6-17 上，steal 约 33.31%，折算为约 6 个 host-core 的 wall-clock。
 
-换句话说，现场现象不是一个问题，而是两个问题叠加：'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配"><meta property="og:description" content='本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：
+换句话说，现场现象不是一个问题，而是两个问题叠加：">
+<meta name="author" content="map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css" integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配">
+  <meta property="og:description" content="本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：
 Android guest 明明只跑了 12 个 yes，为什么 top 头部还能看到 1600%cpu 和较高的 idle。 Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 steal 只有约 30% 出头。 当前平台上，Android guest 的 vCPU 数量、亲和性、优先级和时间片到底由哪一层决定。 这三个问题分别对应：
 guest 内部的 vCPU 拓扑与 top 展示口径 hypervisor 实际给 guest 的 wall-clock CPU 时间 Gunyah / Resource Manager 的静态配置与运行时调度属性 本文只保留已经通过源码和实机确认过的内容，不再使用旧现场里的过期假设。
 一、结论摘要 当前车机环境下，可以先记住下面 8 个结论：
-Linux host 当前可见 18 个 CPU，0-17 全部 online。 Android guest 当前 possible=0-15、present=0-15，但 online=0-11，也就是只启用了 12 个 vCPU。 maxcpus=12 来自 Android guest 的启动参数，因此 16 个 vCPU 节点里只有前 12 个在线。 当前 gvm.slice 的生效 CPU 集合是 0-17；Linux cgroup 没有表现出把 guest 固定在 12 个 host CPU 上的行为。 gvm.slice/cpu.max = max 100000，cpu.stat 中 nr_throttled = 0，因此 Linux cgroup 没有 CPU quota throttle。 Android guest 的 vCPU 调度属性来自 autoghgvm 镜像里的 VM 配置：affinity="pinned"、sched-priority=0、sched-timeslice=5000us。 upstream Gunyah RM 的调度模型里，guest 的 sched-priority 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 5ms 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 32，当前场景下可将 guest 的有效优先级理解为 32。 纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 cpu6-17 上，steal 约 33.31%，折算为约 6 个 host-core 的 wall-clock。 换句话说，现场现象不是一个问题，而是两个问题叠加：'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="gunyah"><meta property="article:published_time" content="2026-04-08T21:00:00+08:00"><meta property="article:modified_time" content="2026-04-08T21:00:00+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配"><meta name=twitter:description content='本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：
+Linux host 当前可见 18 个 CPU，0-17 全部 online。 Android guest 当前 possible=0-15、present=0-15，但 online=0-11，也就是只启用了 12 个 vCPU。 maxcpus=12 来自 Android guest 的启动参数，因此 16 个 vCPU 节点里只有前 12 个在线。 当前 gvm.slice 的生效 CPU 集合是 0-17；Linux cgroup 没有表现出把 guest 固定在 12 个 host CPU 上的行为。 gvm.slice/cpu.max = max 100000，cpu.stat 中 nr_throttled = 0，因此 Linux cgroup 没有 CPU quota throttle。 Android guest 的 vCPU 调度属性来自 autoghgvm 镜像里的 VM 配置：affinity=&#34;pinned&#34;、sched-priority=0、sched-timeslice=5000us。 upstream Gunyah RM 的调度模型里，guest 的 sched-priority 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 5ms 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 32，当前场景下可将 guest 的有效优先级理解为 32。 纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 cpu6-17 上，steal 约 33.31%，折算为约 6 个 host-core 的 wall-clock。 换句话说，现场现象不是一个问题，而是两个问题叠加：">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="gunyah">
+    <meta property="article:published_time" content="2026-04-08T21:00:00+08:00">
+    <meta property="article:modified_time" content="2026-04-08T21:00:00+08:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配">
+<meta name="twitter:description" content="本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：
 
 Android guest 明明只跑了 12 个 yes，为什么 top 头部还能看到 1600%cpu 和较高的 idle。
 Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 steal 只有约 30% 出头。
@@ -48,132 +116,909 @@ Android guest 当前 possible=0-15、present=0-15，但 online=0-11，也就是�
 maxcpus=12 来自 Android guest 的启动参数，因此 16 个 vCPU 节点里只有前 12 个在线。
 当前 gvm.slice 的生效 CPU 集合是 0-17；Linux cgroup 没有表现出把 guest 固定在 12 个 host CPU 上的行为。
 gvm.slice/cpu.max = max 100000，cpu.stat 中 nr_throttled = 0，因此 Linux cgroup 没有 CPU quota throttle。
-Android guest 的 vCPU 调度属性来自 autoghgvm 镜像里的 VM 配置：affinity="pinned"、sched-priority=0、sched-timeslice=5000us。
+Android guest 的 vCPU 调度属性来自 autoghgvm 镜像里的 VM 配置：affinity=&quot;pinned&quot;、sched-priority=0、sched-timeslice=5000us。
 upstream Gunyah RM 的调度模型里，guest 的 sched-priority 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 5ms 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 32，当前场景下可将 guest 的有效优先级理解为 32。
 纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 cpu6-17 上，steal 约 33.31%，折算为约 6 个 host-core 的 wall-clock。
 
-换句话说，现场现象不是一个问题，而是两个问题叠加：'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Gunyah开发笔记","item":"https://ethen-cao.github.io/ethenslab/gunyah/"},{"@type":"ListItem","position":2,"name":"SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配","item":"https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配","name":"SA8797 \/ Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配","description":"本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：\nAndroid guest 明明只跑了 12 个 yes，为什么 top 头部还能看到 1600%cpu 和较高的 idle。 Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 steal 只有约 30% 出头。 当前平台上，Android guest 的 vCPU 数量、亲和性、优先级和时间片到底由哪一层决定。 这三个问题分别对应：\nguest 内部的 vCPU 拓扑与 top 展示口径 hypervisor 实际给 guest 的 wall-clock CPU 时间 Gunyah / Resource Manager 的静态配置与运行时调度属性 本文只保留已经通过源码和实机确认过的内容，不再使用旧现场里的过期假设。\n一、结论摘要 当前车机环境下，可以先记住下面 8 个结论：\nLinux host 当前可见 18 个 CPU，0-17 全部 online。 Android guest 当前 possible=0-15、present=0-15，但 online=0-11，也就是只启用了 12 个 vCPU。 maxcpus=12 来自 Android guest 的启动参数，因此 16 个 vCPU 节点里只有前 12 个在线。 当前 gvm.slice 的生效 CPU 集合是 0-17；Linux cgroup 没有表现出把 guest 固定在 12 个 host CPU 上的行为。 gvm.slice/cpu.max = max 100000，cpu.stat 中 nr_throttled = 0，因此 Linux cgroup 没有 CPU quota throttle。 Android guest 的 vCPU 调度属性来自 autoghgvm 镜像里的 VM 配置：affinity=\u0026quot;pinned\u0026quot;、sched-priority=0、sched-timeslice=5000us。 upstream Gunyah RM 的调度模型里，guest 的 sched-priority 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 5ms 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 32，当前场景下可将 guest 的有效优先级理解为 32。 纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 cpu6-17 上，steal 约 33.31%，折算为约 6 个 host-core 的 wall-clock。 换句话说，现场现象不是一个问题，而是两个问题叠加：\n","keywords":[],"articleBody":"本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：\nAndroid guest 明明只跑了 12 个 yes，为什么 top 头部还能看到 1600%cpu 和较高的 idle。 Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 steal 只有约 30% 出头。 当前平台上，Android guest 的 vCPU 数量、亲和性、优先级和时间片到底由哪一层决定。 这三个问题分别对应：\nguest 内部的 vCPU 拓扑与 top 展示口径 hypervisor 实际给 guest 的 wall-clock CPU 时间 Gunyah / Resource Manager 的静态配置与运行时调度属性 本文只保留已经通过源码和实机确认过的内容，不再使用旧现场里的过期假设。\n一、结论摘要 当前车机环境下，可以先记住下面 8 个结论：\nLinux host 当前可见 18 个 CPU，0-17 全部 online。 Android guest 当前 possible=0-15、present=0-15，但 online=0-11，也就是只启用了 12 个 vCPU。 maxcpus=12 来自 Android guest 的启动参数，因此 16 个 vCPU 节点里只有前 12 个在线。 当前 gvm.slice 的生效 CPU 集合是 0-17；Linux cgroup 没有表现出把 guest 固定在 12 个 host CPU 上的行为。 gvm.slice/cpu.max = max 100000，cpu.stat 中 nr_throttled = 0，因此 Linux cgroup 没有 CPU quota throttle。 Android guest 的 vCPU 调度属性来自 autoghgvm 镜像里的 VM 配置：affinity=\"pinned\"、sched-priority=0、sched-timeslice=5000us。 upstream Gunyah RM 的调度模型里，guest 的 sched-priority 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 5ms 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 32，当前场景下可将 guest 的有效优先级理解为 32。 纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 cpu6-17 上，steal 约 33.31%，折算为约 6 个 host-core 的 wall-clock。 换句话说，现场现象不是一个问题，而是两个问题叠加：\nAndroid top 的总量口径更接近 16 个 configured vCPU hypervisor 实际给 Android guest 的物理 CPU 时间只有大约 6 个 host-core 当量 二、运行时 VM 视图 2.1 Linux host 侧可见的 GVM 列表 当前 Linux host 上，vmm_service 管理的 GVM 配置来自 /etc/vm_config.xml。实机内容如下：\n","wordCount":"1987","inLanguage":"en","datePublished":"2026-04-08T21:00:00+08:00","dateModified":"2026-04-08T21:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
-<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/gunyah/>Gunyah开发笔记</a></div><h1 class="post-title entry-hint-parent">SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配</h1><div class=post-meta><span title='2026-04-08 21:00:00 +0800 CST'>April 8, 2026</span>&nbsp;·&nbsp;10 min&nbsp;·&nbsp;1987 words</div></header><div class=post-content><p>本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：</p><ol><li>Android guest 明明只跑了 <code>12</code> 个 <code>yes</code>，为什么 <code>top</code> 头部还能看到 <code>1600%cpu</code> 和较高的 <code>idle</code>。</li><li>Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 <code>steal</code> 只有约 <code>30%</code> 出头。</li><li>当前平台上，Android guest 的 vCPU 数量、亲和性、优先级和时间片到底由哪一层决定。</li></ol><p>这三个问题分别对应：</p><ul><li>guest 内部的 vCPU 拓扑与 <code>top</code> 展示口径</li><li>hypervisor 实际给 guest 的 wall-clock CPU 时间</li><li>Gunyah / Resource Manager 的静态配置与运行时调度属性</li></ul><p>本文只保留已经通过源码和实机确认过的内容，不再使用旧现场里的过期假设。</p><h2 id=一结论摘要>一、结论摘要<a hidden class=anchor aria-hidden=true href=#一结论摘要>#</a></h2><p>当前车机环境下，可以先记住下面 8 个结论：</p><ul><li>Linux host 当前可见 <code>18</code> 个 CPU，<code>0-17</code> 全部 online。</li><li>Android guest 当前 <code>possible=0-15</code>、<code>present=0-15</code>，但 <code>online=0-11</code>，也就是只启用了 <code>12</code> 个 vCPU。</li><li><code>maxcpus=12</code> 来自 Android guest 的启动参数，因此 <code>16</code> 个 vCPU 节点里只有前 <code>12</code> 个在线。</li><li>当前 <code>gvm.slice</code> 的生效 CPU 集合是 <code>0-17</code>；Linux cgroup 没有表现出把 guest 固定在 <code>12</code> 个 host CPU 上的行为。</li><li><code>gvm.slice/cpu.max = max 100000</code>，<code>cpu.stat</code> 中 <code>nr_throttled = 0</code>，因此 Linux cgroup 没有 CPU quota throttle。</li><li>Android guest 的 vCPU 调度属性来自 <code>autoghgvm</code> 镜像里的 VM 配置：<code>affinity="pinned"</code>、<code>sched-priority=0</code>、<code>sched-timeslice=5000us</code>。</li><li>upstream Gunyah RM 的调度模型里，guest 的 <code>sched-priority</code> 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 <code>5ms</code> 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 <code>32</code>，当前场景下可将 guest 的有效优先级理解为 <code>32</code>。</li><li>纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 <code>cpu6-17</code> 上，<code>steal</code> 约 <code>33.31%</code>，折算为约 <code>6</code> 个 host-core 的 wall-clock。</li></ul><p>换句话说，现场现象不是一个问题，而是两个问题叠加：</p><ul><li>Android <code>top</code> 的总量口径更接近 <code>16</code> 个 configured vCPU</li><li>hypervisor 实际给 Android guest 的物理 CPU 时间只有大约 <code>6</code> 个 host-core 当量</li></ul><h2 id=二运行时-vm-视图>二、运行时 VM 视图<a hidden class=anchor aria-hidden=true href=#二运行时-vm-视图>#</a></h2><h3 id=21-linux-host-侧可见的-gvm-列表>2.1 Linux host 侧可见的 GVM 列表<a hidden class=anchor aria-hidden=true href=#21-linux-host-侧可见的-gvm-列表>#</a></h3><p>当前 Linux host 上，<code>vmm_service</code> 管理的 GVM 配置来自 <code>/etc/vm_config.xml</code>。实机内容如下：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-xml data-lang=xml><span style=display:flex><span><span style=color:#f92672>&lt;vm_config</span> <span style=color:#a6e22e>NUM_VMS=</span><span style=color:#e6db74>&#34;1&#34;</span><span style=color:#f92672>&gt;</span>
-</span></span><span style=display:flex><span>  <span style=color:#f92672>&lt;vm&gt;</span>
-</span></span><span style=display:flex><span>    <span style=color:#f92672>&lt;vm_name&gt;</span>autoghgvm<span style=color:#f92672>&lt;/vm_name&gt;</span>
-</span></span><span style=display:flex><span>    <span style=color:#f92672>&lt;vmid&gt;</span>52<span style=color:#f92672>&lt;/vmid&gt;</span>
-</span></span><span style=display:flex><span>    <span style=color:#f92672>&lt;systemd_service&gt;</span>qcrosvm.service<span style=color:#f92672>&lt;/systemd_service&gt;</span>
-</span></span><span style=display:flex><span>  <span style=color:#f92672>&lt;/vm&gt;</span>
-</span></span><span style=display:flex><span><span style=color:#f92672>&lt;/vm_config&gt;</span>
-</span></span></code></pre></div><p>这和 <code>vendor/qcom/proprietary/vmm-service-noship/vmm-lib/vmm-utils/vm_config.c</code> 以及 <code>vendor/qcom/proprietary/vmm-service-noship/vmm-drv/src/vmm_drv.c</code> 的实现一致：</p><ul><li><code>vm_config_get_num_vm()</code> / <code>vm_config_get_vmid()</code> 只从 XML 读取配置</li><li><code>vmm_service</code> 启动时按 XML 逐个创建 <code>gvm_ctx</code></li></ul><p>因此，Linux host 用户态服务这条链路当前只显式管理一个 GVM：</p><ul><li><code>autoghgvm</code></li><li><code>vmid = 52</code></li></ul><h3 id=22-hlos--root-vm-的运行时标识>2.2 HLOS / Root VM 的运行时标识<a hidden class=anchor aria-hidden=true href=#22-hlos--root-vm-的运行时标识>#</a></h3><p>在 host 运行时 device tree 中，还能看到 hypervisor 暴露的 HLOS VM 标识节点：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>/sys/firmware/devicetree/base/hypervisor/qcom,gunyah-vm
-</span></span><span style=display:flex><span>compatible = &#34;qcom,gunyah-vm-id-1.0&#34;, &#34;qcom,gunyah-vm-id&#34;
-</span></span><span style=display:flex><span>qcom,vmid = 3
-</span></span></code></pre></div><p>这和两处代码能对上：</p><ul><li>Linux 驱动 <code>vendor/qcom/opensource/gunyah-drivers/drivers/virt/gunyah/gh_rm_core.c</code>
-会读取 <code>qcom,gunyah-vm-id-1.0</code> 节点中的 <code>qcom,vmid</code></li><li>upstream Gunyah RM <code>include/rm_types.h</code> 定义 <code>VMID_HLOS = 0x3</code></li></ul><p>因此当前平台可确认的 VM 标识是：</p><ul><li><code>VMID 3</code>：HLOS / root VM</li><li><code>VMID 52</code>：Android guest <code>autoghgvm</code></li></ul><h2 id=三cpu-拓扑与-vcpu-架构>三、CPU 拓扑与 vCPU 架构<a hidden class=anchor aria-hidden=true href=#三cpu-拓扑与-vcpu-架构>#</a></h2><h3 id=31-linux-host-的-cpu-可见性>3.1 Linux host 的 CPU 可见性<a hidden class=anchor aria-hidden=true href=#31-linux-host-的-cpu-可见性>#</a></h3><p>实机 Linux host：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>/sys/devices/system/cpu/possible = 0-17
-</span></span><span style=display:flex><span>/sys/devices/system/cpu/present  = 0-17
-</span></span><span style=display:flex><span>/sys/devices/system/cpu/online   = 0-17
-</span></span></code></pre></div><p>也就是 host 侧共有 <code>18</code> 个在线 CPU。</p><p>从 <code>/sys/devices/system/cpu/cpu*/uevent</code> 可以看到 host 的 DT CPU 节点分成三组：</p><ul><li><code>cpu0-5</code> -> <code>/cpus/cpu@0</code> 到 <code>/cpus/cpu@500</code></li><li><code>cpu6-11</code> -> <code>/cpus/cpu@10000</code> 到 <code>/cpus/cpu@10500</code></li><li><code>cpu12-17</code> -> <code>/cpus/cpu@20000</code> 到 <code>/cpus/cpu@20500</code></li></ul><p>这说明平台底层 CPU index 不是简单的 <code>0-17</code> 连续编号，而是更接近：</p><ul><li><code>0-5</code></li><li><code>8-13</code></li><li><code>16-21</code></li></ul><h3 id=32-android-guest-的-vcpu-可见性>3.2 Android guest 的 vCPU 可见性<a hidden class=anchor aria-hidden=true href=#32-android-guest-的-vcpu-可见性>#</a></h3><p>实机 Android guest：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>/sys/devices/system/cpu/possible = 0-15
-</span></span><span style=display:flex><span>/sys/devices/system/cpu/present  = 0-15
-</span></span><span style=display:flex><span>/sys/devices/system/cpu/online   = 0-11
-</span></span><span style=display:flex><span>/proc/cmdline                    ... maxcpus=12 ...
-</span></span></code></pre></div><p>这说明 guest 内部是：</p><ul><li>定义了 <code>16</code> 个 vCPU 节点</li><li>但启动时只 bring up 了 <code>12</code> 个</li></ul><p>因此要把三个概念分开：</p><ul><li><code>possible/present = 16</code>：虚拟拓扑里存在 <code>16</code> 个 vCPU</li><li><code>online = 12</code>：当前真正能跑任务的只有 <code>12</code> 个 vCPU</li><li><code>maxcpus=12</code>：限制 online vCPU 数量的直接原因</li></ul><h3 id=33-当前生效的-vcpu-调度属性>3.3 当前生效的 vCPU 调度属性<a hidden class=anchor aria-hidden=true href=#33-当前生效的-vcpu-调度属性>#</a></h3><p>从运行中的 Android guest <code>/proc/device-tree/qcom,vm-config/vcpus</code> 可以读到：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>affinity       = &#34;pinned&#34;
-</span></span><span style=display:flex><span>sched-priority = 0
-</span></span><span style=display:flex><span>sched-timeslice = 5000
-</span></span><span style=display:flex><span>affinity-map   = 13 12 11 10 9 8 21 20 19 18 17 16 5 4 3 2
-</span></span></code></pre></div><p>这些字段与 <code>autoghgvm</code> 生效 DTB 中的内容一致，也与 upstream Gunyah RM 的解析逻辑一致：</p><ul><li><code>include/vm_config_parser.h</code></li><li><code>src/vm_config/vm_config_parser.c</code></li><li><code>src/vm_config/vm_config.c</code></li></ul><h3 id=34-vcpu-架构图>3.4 vCPU 架构图<a hidden class=anchor aria-hidden=true href=#34-vcpu-架构图>#</a></h3><p>下面这张图把当前平台上和 CPU 相关的三层关系放在一起。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>                         +--------------------------------------+
-</span></span><span style=display:flex><span>                         | Gunyah Resource Manager / Hypervisor |
-</span></span><span style=display:flex><span>                         +--------------------------------------+
-</span></span><span style=display:flex><span>                                      |
-</span></span><span style=display:flex><span>                    +-----------------+-----------------+
-</span></span><span style=display:flex><span>                    |                                   |
-</span></span><span style=display:flex><span>                    v                                   v
-</span></span><span style=display:flex><span>         +------------------------+          +------------------------+
-</span></span><span style=display:flex><span>         | HLOS / Root VM         |          | Android Guest          |
-</span></span><span style=display:flex><span>         | vmid = 3               |          | autoghgvm, vmid = 52   |
-</span></span><span style=display:flex><span>         | priority = 32          |          | owner-relative prio    |
-</span></span><span style=display:flex><span>         | timeslice = 5 ms       |          | affinity = pinned      |
-</span></span><span style=display:flex><span>         +------------------------+          | sched-priority = 0     |
-</span></span><span style=display:flex><span>                    |                        | sched-timeslice = 5 ms |
-</span></span><span style=display:flex><span>                    |                        +------------------------+
-</span></span><span style=display:flex><span>                    |                                   |
-</span></span><span style=display:flex><span>                    |                        +----------+-----------+
-</span></span><span style=display:flex><span>                    |                        | configured vCPU = 16 |
-</span></span><span style=display:flex><span>                    |                        | online vCPU = 12     |
-</span></span><span style=display:flex><span>                    |                        +----------+-----------+
-</span></span><span style=display:flex><span>                    |                                   |
-</span></span><span style=display:flex><span>                    |                +------------------+------------------+
-</span></span><span style=display:flex><span>                    |                |                                     |
-</span></span><span style=display:flex><span>                    |                v                                     v
-</span></span><span style=display:flex><span>                    |      online vcpu0..11                       offline vcpu12..15
-</span></span><span style=display:flex><span>                    |      affinity-map front 12                  affinity-map tail 4
-</span></span><span style=display:flex><span>                    |      13 12 11 10 9 8 21 20 19 18 17 16     5 4 3 2
-</span></span><span style=display:flex><span>                    |                |                                     |
-</span></span><span style=display:flex><span>                    +----------------+------------------+------------------+
-</span></span><span style=display:flex><span>                                                     |
-</span></span><span style=display:flex><span>                                                     v
-</span></span><span style=display:flex><span>                             Linux host logical CPUs observed at runtime
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>                 cpu0-5        &lt;-&gt; platform cpu_index 0-5
-</span></span><span style=display:flex><span>                 cpu6-11       &lt;-&gt; platform cpu_index 8-13
-</span></span><span style=display:flex><span>                 cpu12-17      &lt;-&gt; platform cpu_index 16-21
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>                 therefore:
-</span></span><span style=display:flex><span>                 guest online vcpu0..11 land on the cpu_index set {8..13, 16..21},
-</span></span><span style=display:flex><span>                 which corresponds to Linux host cpu6-17
-</span></span></code></pre></div><p>这张图里的两部分是直接证据：</p><ul><li>guest 的 <code>16</code> / <code>12</code> / <code>affinity-map</code></li><li>host 的 <code>cpu0-17</code> 与 DT CPU 节点分组</li></ul><p>其中“<code>cpu_index 8..13 / 16..21</code> 对应 Linux host <code>cpu6-17</code>”来自 host DT 节点编号和运行时 per-CPU <code>steal</code> 分布的联合观察。</p><h3 id=35-当前在线-vcpu-与-host-cpu-的对应关系>3.5 当前在线 vCPU 与 host CPU 的对应关系<a hidden class=anchor aria-hidden=true href=#35-当前在线-vcpu-与-host-cpu-的对应关系>#</a></h3><p>如果把前 <code>12</code> 个 online vCPU 按当前 <code>affinity-map</code> 展开，可以得到下面的对应关系。</p><table><thead><tr><th>guest vCPU</th><th>affinity index</th><th>对应的 host Linux CPU</th></tr></thead><tbody><tr><td>vcpu0</td><td>13</td><td>cpu11</td></tr><tr><td>vcpu1</td><td>12</td><td>cpu10</td></tr><tr><td>vcpu2</td><td>11</td><td>cpu9</td></tr><tr><td>vcpu3</td><td>10</td><td>cpu8</td></tr><tr><td>vcpu4</td><td>9</td><td>cpu7</td></tr><tr><td>vcpu5</td><td>8</td><td>cpu6</td></tr><tr><td>vcpu6</td><td>21</td><td>cpu17</td></tr><tr><td>vcpu7</td><td>20</td><td>cpu16</td></tr><tr><td>vcpu8</td><td>19</td><td>cpu15</td></tr><tr><td>vcpu9</td><td>18</td><td>cpu14</td></tr><tr><td>vcpu10</td><td>17</td><td>cpu13</td></tr><tr><td>vcpu11</td><td>16</td><td>cpu12</td></tr></tbody></table><p>后 4 个 vCPU 当前是 offline：</p><table><thead><tr><th>guest vCPU</th><th>affinity index</th><th>host Linux CPU</th><th>状态</th></tr></thead><tbody><tr><td>vcpu12</td><td>5</td><td>cpu5</td><td>offline</td></tr><tr><td>vcpu13</td><td>4</td><td>cpu4</td><td>offline</td></tr><tr><td>vcpu14</td><td>3</td><td>cpu3</td><td>offline</td></tr><tr><td>vcpu15</td><td>2</td><td>cpu2</td><td>offline</td></tr></tbody></table><h2 id=四调度属性来自哪一层>四、调度属性来自哪一层<a hidden class=anchor aria-hidden=true href=#四调度属性来自哪一层>#</a></h2><h3 id=41-linux-cgroup-不负责这次-vcpu-数量限制>4.1 Linux cgroup 不负责这次 vCPU 数量限制<a hidden class=anchor aria-hidden=true href=#41-linux-cgroup-不负责这次-vcpu-数量限制>#</a></h3><p>当前实机：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>systemctl show gvm.slice -p AllowedCPUs
-</span></span><span style=display:flex><span>AllowedCPUs=0-17
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span>/sys/fs/cgroup/gvm.slice/cpuset.cpus.effective = 0-17
-</span></span><span style=display:flex><span>/sys/fs/cgroup/gvm.slice/cpu.max               = max 100000
-</span></span><span style=display:flex><span>cpu.stat:nr_throttled                          = 0
-</span></span></code></pre></div><p>这说明：</p><ul><li><code>gvm.slice</code> 当前允许使用整个 <code>0-17</code></li><li>也没有设置 CPU quota</li><li>guest 只启用 <code>12</code> 个 vCPU 不是 Linux cgroup 造成的</li></ul><h3 id=42-vcpu-数量与属性来自-guest-镜像--rm-配置>4.2 vCPU 数量与属性来自 guest 镜像 / RM 配置<a hidden class=anchor aria-hidden=true href=#42-vcpu-数量与属性来自-guest-镜像--rm-配置>#</a></h3><p><code>autoghgvm</code> 由 host DTS 中的 <code>gh-secure-vm-loader@0</code> 加载：</p><ul><li><code>qcom,vmid = &lt;52></code></li><li><code>qcom,firmware-name = "autoghgvm"</code></li></ul><p>对应节点在 <code>vendor/qcom/opensource/base-devicetree/arch/arm64/boot/dts/qcom/sa8797p-vms.dtsi</code>。</p><p>而 upstream Gunyah RM 的 vCPU 配置模型只解析这些调度字段：</p><ul><li><code>affinity</code></li><li><code>sched-priority</code></li><li><code>sched-timeslice</code></li><li><code>affinity-map</code></li></ul><p>对应代码：</p><ul><li><code>include/vm_config_parser.h</code></li><li><code>src/vm_config/vm_config_parser.c</code></li><li><code>src/vm_config/vm_config.c</code></li></ul><h3 id=43-优先级与时间片的实际含义>4.3 优先级与时间片的实际含义<a hidden class=anchor aria-hidden=true href=#43-优先级与时间片的实际含义>#</a></h3><p>upstream Gunyah RM 里的关键常量是：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span><span style=color:#75715e>#define ROOTVM_PRIORITY            32
-</span></span></span><span style=display:flex><span><span style=color:#75715e>#define SCHEDULER_DEFAULT_TIMESLICE 5000000 ns
-</span></span></span></code></pre></div><p>HLOS/root VM 的 vCPU 创建时直接使用：</p><ul><li><code>priority = ROOTVM_PRIORITY = 32</code></li><li><code>timeslice = 5 ms</code></li></ul><p>而 Android guest 的优先级不是绝对值，而是：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span>effective_priority <span style=color:#f92672>=</span> owner_vm<span style=color:#f92672>-&gt;</span>priority <span style=color:#f92672>+</span> sched_priority
-</span></span><span style=display:flex><span>effective_timeslice <span style=color:#f92672>=</span> sched_timeslice <span style=color:#f92672>*</span> <span style=color:#ae81ff>1000</span>
-</span></span></code></pre></div><p>当前 guest 的运行时属性是：</p><ul><li><code>sched-priority = 0</code></li><li><code>sched-timeslice = 5000 us</code></li></ul><p>因此它的当前有效调度基线是：</p><ul><li><code>priority = owner_vm->priority + 0</code></li><li><code>timeslice = 5 ms</code></li></ul><p>对 SA8797 当前场景，结合 HLOS/root VM 的默认优先级 <code>32</code>，这组配置与“guest 与 HLOS/root VM 同级、同时间片”这一结论相符。</p><h3 id=44-当前没有看到明文的-cpu-quota--reservation-字段>4.4 当前没有看到明文的 CPU quota / reservation 字段<a hidden class=anchor aria-hidden=true href=#44-当前没有看到明文的-cpu-quota--reservation-字段>#</a></h3><p>到目前为止，Linux host 侧和 upstream RM 代码里都没有看到如下字段：</p><ul><li><code>quota</code></li><li><code>reservation</code></li><li><code>share</code></li><li><code>cap</code></li></ul><p>当前能看到的调度输入只有：</p><ul><li>vCPU 是否 <code>pinned</code></li><li>与 owner 的相对优先级</li><li>vCPU 时间片</li><li>vCPU affinity map</li></ul><p>这意味着：</p><ul><li>现有证据足以解释 vCPU 拓扑和基础调度属性</li><li>但不足以从 Linux host 这一层直接读出 vendor RM 私有 env payload 中的完整 CPU 策略</li></ul><h2 id=五为什么-android-top-与-linux-host-top-看起来不一致>五、为什么 Android top 与 Linux host top 看起来不一致<a hidden class=anchor aria-hidden=true href=#五为什么-android-top-与-linux-host-top-看起来不一致>#</a></h2><h3 id=51-先排除-linux-host-自己的上限>5.1 先排除 Linux host 自己的上限<a hidden class=anchor aria-hidden=true href=#51-先排除-linux-host-自己的上限>#</a></h3><p>在 Linux host 上直接运行 <code>18</code> 个 <code>yes</code> 时，host 的 <code>18</code> 个 CPU 可以全部接近满载。<br>这说明 host 自己不存在一个固定的 <code>30%</code> 或 <code>6 core</code> 上限。</p><h3 id=52-受控实验guest-内启动-12-个-yes>5.2 受控实验：guest 内启动 12 个 yes<a hidden class=anchor aria-hidden=true href=#52-受控实验guest-内启动-12-个-yes>#</a></h3><p>为了看清 guest 对 host 的映射关系，我做了一个干净的受控实验：</p><ol><li>先暂停 Android guest 内原有的 <code>dd</code> 压测进程</li><li>在 guest 内启动 <code>12</code> 个 <code>yes > /dev/null</code></li><li>同时在 host 上抓 <code>mpstat -P ALL 1 1</code></li><li>实验结束后恢复原来的 <code>dd</code></li></ol><p>guest 侧典型输出：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>1600%cpu ... 279%idle ...
-</span></span><span style=display:flex><span>12 个 yes 进程基本都在 100% 左右
-</span></span></code></pre></div><p>host 侧 <code>mpstat</code> 结果：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>all    %steal = 33.31
-</span></span><span style=display:flex><span>cpu0-5  %steal ≈ 0
-</span></span><span style=display:flex><span>cpu6-17 %steal ≈ 37% - 46%
-</span></span></code></pre></div><h3 id=53-这组结果说明了什么>5.3 这组结果说明了什么<a hidden class=anchor aria-hidden=true href=#53-这组结果说明了什么>#</a></h3><p>它说明了两件不同的事。</p><p>第一，Android <code>top</code> 的总量口径并不是简单按 <code>12</code> 个 online vCPU 展示。<br>如果它完全按 <code>12</code> 个 online vCPU 展示，那么在 <code>12</code> 个 <code>yes</code> 全部接近满载时，不应该同时出现：</p><ul><li><code>1600%cpu</code></li><li>以及较高的 <code>idle</code></li></ul><p>这组现象更接近“总容量仍然按 <code>16</code> 个 configured vCPU 计算，但真正参与调度的只有 <code>12</code> 个 online vCPU”。</p><p>第二，host 侧真实分配给 guest 的 wall-clock CPU 时间只有大约：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>18 * 33.31% ≈ 5.99 cores
-</span></span></code></pre></div><p>也就是约 <code>6</code> 个 host-core 当量。</p><p>更重要的是，这些时间主要集中在 <code>cpu6-17</code>，而不是平均铺在 <code>cpu0-17</code> 上。<br>这和前面从 <code>affinity-map</code> 推导出的“在线 guest vCPU 实际落在 host <code>cpu6-17</code>”完全一致。</p><h3 id=54-这不是-cgroup-throttle>5.4 这不是 cgroup throttle<a hidden class=anchor aria-hidden=true href=#54-这不是-cgroup-throttle>#</a></h3><p>这次实验同时也排除了一个常见误判：</p><ul><li>不是 <code>gvm.slice</code> 只允许 guest 跑在 <code>12</code> 个 host CPU 上</li><li>也不是 <code>cpu.max</code> 把 guest throttle 到了约 <code>30%</code></li></ul><p>因为当前实机已经确认：</p><ul><li><code>AllowedCPUs = 0-17</code></li><li><code>cpuset.cpus.effective = 0-17</code></li><li><code>cpu.max = max 100000</code></li><li><code>nr_throttled = 0</code></li></ul><p>因此，host 只看到约 <code>6</code> 个 core 的 guest wall-clock，不能归因到 Linux cgroup。</p><h2 id=六当前能确认的边界>六、当前能确认的边界<a hidden class=anchor aria-hidden=true href=#六当前能确认的边界>#</a></h2><h3 id=61-已确认>6.1 已确认<a hidden class=anchor aria-hidden=true href=#61-已确认>#</a></h3><ul><li>Android guest 当前有 <code>16</code> 个 configured vCPU，其中 <code>12</code> 个 online。</li><li><code>maxcpus=12</code> 是 <code>12</code> 个 online vCPU 的直接原因。</li><li>guest 的 vCPU 调度属性是 <code>pinned + priority offset 0 + 5 ms timeslice</code>。</li><li>HLOS/root VM 的默认优先级也是 <code>32</code>，默认时间片也是 <code>5 ms</code>。</li><li>在纯 CPU 压测下，guest 的 wall-clock CPU 时间主要体现为 host <code>cpu6-17</code> 上的 <code>steal</code>。</li><li>当前观测到的 guest 实际物理 CPU 时间约为 <code>6</code> 个 host-core，而不是 <code>12</code> 个。</li></ul><h3 id=62-尚未直接读出的内容>6.2 尚未直接读出的内容<a hidden class=anchor aria-hidden=true href=#62-尚未直接读出的内容>#</a></h3><ul><li>vendor RM 私有 env payload 中的 <code>usable_cores</code></li><li>vendor RM 私有 env payload 中的 <code>boot_core</code></li><li>hypervisor 内部针对各 VM 的精确 wall-clock 账本</li><li>vendor RM 是否存在更下层的专有调度权重逻辑</li></ul><p>upstream RM 代码已经证明这些字段在设计上存在：</p><ul><li><code>usable_cores</code></li><li><code>boot_core</code></li></ul><p>但当前车机运行环境没有把这份 env payload 直接暴露到 Linux host 可读路径上。</p><p>从 host CPU index 分组与 guest <code>affinity-map</code> 的组合关系看，当前平台的 usable core set 与 <code>{0-5, 8-13, 16-21}</code> 这一集合相符；但这一步仍然属于运行时推导，不是直接从 vendor RM env payload 读出的明文结果。</p><h2 id=七如何配置-android-guest-vcpu>七、如何配置 Android guest vCPU<a hidden class=anchor aria-hidden=true href=#七如何配置-android-guest-vcpu>#</a></h2><p>这一节不讨论观测口径，而只回答一个工程问题：如果需要修改 Android guest 的 vCPU 数量、启动时 online 数量、亲和性、优先级和时间片，应该改哪里。</p><p>先给出源码视角下的配置链路：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>host DTS
-</span></span><span style=display:flex><span>  sa8797p-vms.dtsi
-</span></span><span style=display:flex><span>    gh-secure-vm-loader@0
-</span></span><span style=display:flex><span>      qcom,firmware-name = &#34;autoghgvm&#34;
-</span></span><span style=display:flex><span>                 |
-</span></span><span style=display:flex><span>                 v
-</span></span><span style=display:flex><span>autoghgvm boot image
-</span></span><span style=display:flex><span>  包含 guest DTB / VM config
-</span></span><span style=display:flex><span>                 |
-</span></span><span style=display:flex><span>                 v
-</span></span><span style=display:flex><span>guest DTB
-</span></span><span style=display:flex><span>  /cpus
-</span></span><span style=display:flex><span>  /qcom,vm-config/vcpus
-</span></span><span style=display:flex><span>  /chosen/bootargs
-</span></span><span style=display:flex><span>                 |
-</span></span><span style=display:flex><span>                 v
-</span></span><span style=display:flex><span>Gunyah RM
-</span></span><span style=display:flex><span>  parse_vcpus()
-</span></span><span style=display:flex><span>  handle_vcpu()
-</span></span><span style=display:flex><span>                 |
-</span></span><span style=display:flex><span>                 v
-</span></span><span style=display:flex><span>runtime vCPU
-</span></span><span style=display:flex><span>  configured vCPU count
-</span></span><span style=display:flex><span>  online vCPU count
-</span></span><span style=display:flex><span>  affinity / priority / timeslice
-</span></span></code></pre></div><p>这里最重要的结论是：当前源码里看不到通过 <code>qcrosvm</code> 命令行直接配置 vCPU 数量的路径。真正生效的入口是 guest 镜像里的 DTB / VM config，RM 在创建 VM 时解析并下发这些属性。</p><h3 id=71-配置入口在哪里>7.1 配置入口在哪里<a hidden class=anchor aria-hidden=true href=#71-配置入口在哪里>#</a></h3><p>host 侧只负责选择要加载哪一个 guest 镜像。当前平台在：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-dts data-lang=dts><span style=display:flex><span>auto_vm_0: <span style=color:#a6e22e>gh-secure-vm-loader</span><span style=color:#f92672>@</span><span style=color:#ae81ff>0</span><span style=color:#75715e> </span>{
-</span></span><span style=display:flex><span>    <span style=color:#a6e22e>compatible</span> <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;qcom,gh-secure-vm-loader&#34;</span>;
-</span></span><span style=display:flex><span>    <span style=color:#a6e22e>qcom</span>,<span style=color:#a6e22e>pas-id</span> <span style=color:#f92672>=</span> <span style=color:#f92672>&lt;</span><span style=color:#ae81ff>44</span><span style=color:#f92672>&gt;</span>;
-</span></span><span style=display:flex><span>    <span style=color:#a6e22e>qcom</span>,<span style=color:#a6e22e>vmid</span> <span style=color:#f92672>=</span> <span style=color:#f92672>&lt;</span><span style=color:#ae81ff>52</span><span style=color:#f92672>&gt;</span>;
-</span></span><span style=display:flex><span>    <span style=color:#a6e22e>qcom</span>,<span style=color:#a6e22e>firmware-name</span> <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;autoghgvm&#34;</span>;
-</span></span><span style=display:flex><span>    <span style=color:#a6e22e>qcom</span>,<span style=color:#a6e22e>firmware-index</span> <span style=color:#f92672>=</span> <span style=color:#f92672>&lt;</span><span style=color:#ae81ff>0</span><span style=color:#f92672>&gt;</span>;
-</span></span><span style=display:flex><span>};
-</span></span></code></pre></div><p>也就是说，host DTS 这一层决定的是：</p><ul><li>加载哪个 VM image</li><li>这个 image 对应哪个 <code>vmid</code></li></ul><p>而 guest 的 vCPU 数量和调度属性，不是在这里展开定义，而是在 <code>autoghgvm</code> 这份镜像内部的 DTB / VM config 中定义，再由 Gunyah RM 读取。</p><h3 id=72-vcpu-数量是怎么配置的>7.2 vCPU 数量是怎么配置的<a hidden class=anchor aria-hidden=true href=#72-vcpu-数量是怎么配置的>#</a></h3><p>upstream Gunyah RM 的 <code>parse_vcpus()</code> 会先读取 <code>/qcom,vm-config/vcpus</code> 节点；如果这个节点没有显式给 <code>config</code>，它默认去看 <code>/cpus</code>：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span><span style=color:#66d9ef>const</span> <span style=color:#66d9ef>char</span> <span style=color:#f92672>*</span>config <span style=color:#f92672>=</span>
-</span></span><span style=display:flex><span>    <span style=color:#a6e22e>fdt_stringlist_get</span>(fdt, node_ofs, <span style=color:#e6db74>&#34;config&#34;</span>, <span style=color:#ae81ff>0</span>, NULL);
-</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> (config <span style=color:#f92672>==</span> NULL) {
-</span></span><span style=display:flex><span>    config <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;/cpus&#34;</span>;
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div><p>随后它会遍历这个路径下所有 <code>device_type = "cpu"</code> 的子节点，并把每个 CPU 节点压入 <code>vd->vcpus</code>。因此，从源码看：</p><ul><li><code>configured vCPU</code> 的数量，直接由 guest DT 里 CPU 节点的数量决定</li><li>默认来源是 <code>/cpus</code></li><li>不是由 <code>qcrosvm</code> 命令行直接指定</li></ul><p>当前 <code>autoghgvm</code> 的生效 DTB 里有 <code>16</code> 个 CPU 节点，所以 guest 运行时表现为：</p><ul><li><code>possible=0-15</code></li><li><code>present=0-15</code></li></ul><p>如果要把 guest 的总 vCPU 数量从 <code>16</code> 改成 <code>12</code>，源码视角下应当改的是：</p><ul><li>guest DTB 中 <code>/cpus</code> 下的 CPU 节点数量</li><li>或者 <code>/qcom,vm-config/vcpus</code> 的 <code>config</code> 指向的 CPU 配置路径</li></ul><h3 id=73-启动时哪些-vcpu-会-online>7.3 启动时哪些 vCPU 会 online<a hidden class=anchor aria-hidden=true href=#73-启动时哪些-vcpu-会-online>#</a></h3><p>RM 在解析 CPU 节点时，还会读取每个节点的 <code>status</code>，并据此决定它是不是 boot 时就启用的 vCPU：</p><ul><li><code>status = "okay"</code>：boot 时启用</li><li><code>status = "disabled"</code>：boot 时不启用</li><li><code>status</code> 缺失：第一个 CPU 视为 boot CPU，其余 CPU 默认不视为 boot-enabled</li></ul><p>对于不是 boot CPU 的次级 vCPU，源码还要求它必须有合法的 <code>enable-method</code>：</p><ul><li><code>psci</code></li><li><code>qcom,gunyah-hvc</code></li></ul><p>因此，从源码定义看：</p><ul><li><code>/cpus</code> 决定 guest 一共定义了多少个 vCPU</li><li><code>status</code> 和 <code>enable-method</code> 决定这些 vCPU 是否允许在 boot / secondary bring-up 过程中被启用</li></ul><p>但当前车机现场还有第二个限制来源：<code>/chosen/bootargs</code> 里的 <code>maxcpus=12</code>。</p><p>从 upstream RM 的 <code>vm_creation.c</code> 也能看到这条链路：它会先读取 base DTB <code>/chosen/bootargs</code>，再把 <code>vm->cfgcpio_cmdline</code> 追加进去，最后把合并后的 <code>bootargs</code> 写回生成中的 DTO。也就是说，启动参数这一层本身也是 VM 创建流程的一部分，而不是 Android guest 启动后才临时决定的。</p><p>我已经在当前生效的 <code>autoghgvm</code> DTB 和 guest 运行时 <code>/proc/cmdline</code> 中都确认了 <code>maxcpus=12</code>。这意味着当前平台的实际行为是：</p><ul><li>guest DT 定义了 <code>16</code> 个 vCPU</li><li>启动参数又把 online 数量限制到了 <code>12</code></li></ul><p>所以如果工程目标是“让 guest 启动时直接 online 16 个 vCPU”，只改 <code>/cpus</code> 不够，还需要同时处理 <code>bootargs</code> 里的 <code>maxcpus</code>。</p><h3 id=74-亲和性优先级和时间片怎么配置>7.4 亲和性、优先级和时间片怎么配置<a hidden class=anchor aria-hidden=true href=#74-亲和性优先级和时间片怎么配置>#</a></h3><p><code>parse_vcpus()</code> 直接解析下面这几个字段：</p><ul><li><code>affinity</code></li><li><code>sched-priority</code></li><li><code>sched-timeslice</code></li><li><code>affinity-map</code></li></ul><p>其中 <code>affinity</code> 支持的模式，源码里明确有：</p><ul><li><code>sticky</code></li><li><code>pinned</code></li><li><code>static</code></li><li><code>proxy</code></li></ul><p>真正创建 vCPU 时，<code>handle_vcpu()</code> 会按解析结果逐个调用：</p><ul><li><code>gunyah_hyp_vcpu_set_affinity()</code></li><li><code>gunyah_hyp_vcpu_set_priority()</code></li><li><code>gunyah_hyp_vcpu_set_timeslice()</code></li></ul><p>也就是说，这几个字段不是“文档说明”，而是直接映射到 hypervisor vCPU 创建接口的输入。</p><p>它们的当前含义可以按源码理解为：</p><ul><li><code>affinity-map</code>
-每个 vCPU 对应一个 platform <code>cpu_index</code></li><li><code>sched-priority</code>
-不是绝对优先级，而是相对 owner VM 的偏移量</li><li><code>sched-timeslice</code>
-DT 里按微秒配置，创建时会乘 <code>1000</code> 转成纳秒</li></ul><p>当前 <code>autoghgvm</code> 的运行时配置就是：</p><ul><li><code>affinity = "pinned"</code></li><li><code>sched-priority = 0</code></li><li><code>sched-timeslice = 5000</code></li><li><code>affinity-map = 13 12 11 10 9 8 21 20 19 18 17 16 5 4 3 2</code></li></ul><h3 id=75-修改时需要联动哪些字段>7.5 修改时需要联动哪些字段<a hidden class=anchor aria-hidden=true href=#75-修改时需要联动哪些字段>#</a></h3><p>从源码约束看，下面几组字段不能孤立修改。</p><p>第一组是 vCPU 数量和 affinity 数量：</p><ul><li>非 <code>proxy</code> 模式下，<code>cpu_count</code> 必须与 <code>affinity-map</code> 的元素个数一致</li><li>否则 <code>parse_vcpus()</code> 会直接报错：<code>cpu and affinity count don't match</code></li></ul><p>第二组是次级 vCPU 的启动属性：</p><ul><li>如果某个 vCPU 不是 boot CPU，就必须有合法 <code>enable-method</code></li><li>当前常见的是 <code>psci</code></li></ul><p>第三组是 online 数量与 bootargs：</p><ul><li><code>/cpus</code> 里可以定义 <code>16</code> 个 vCPU</li><li>但 <code>bootargs</code> 里的 <code>maxcpus=12</code> 仍然会把 online 数量限制到 <code>12</code></li></ul><p>第四组是调度属性与 owner VM 约束：</p><ul><li><code>sched-priority</code> 最终会和 owner VM 的优先级相加</li><li><code>sched-timeslice</code> 会做范围检查</li><li>非受信配置还会额外经过优先级合法性约束</li></ul><p>所以，工程上要避免一种常见误区：只改一个数字，然后期待运行时自动收敛。<br>对这套 RM 配置来说，vCPU 是一个组合配置，至少要联动检查：</p><ul><li><code>/cpus</code> 下 CPU 节点个数</li><li>每个 CPU 节点的 <code>status</code></li><li>次级 CPU 的 <code>enable-method</code></li><li><code>/qcom,vm-config/vcpus</code> 里的 <code>affinity-map</code></li><li><code>/chosen/bootargs</code> 里的 <code>maxcpus</code></li><li><code>sched-priority</code> 与 <code>sched-timeslice</code></li></ul><h3 id=76-用当前-autoghgvm-配置举例>7.6 用当前 autoghgvm 配置举例<a hidden class=anchor aria-hidden=true href=#76-用当前-autoghgvm-配置举例>#</a></h3><p>当前实机这组 <code>16 configured / 12 online</code>，正好可以反过来当成一个配置示例：</p><ul><li><code>/cpus</code> 下有 <code>16</code> 个 CPU 节点</li><li><code>/qcom,vm-config/vcpus</code> 里有 <code>16</code> 个 <code>affinity-map</code> 条目</li><li><code>/chosen/bootargs</code> 里有 <code>maxcpus=12</code></li></ul><p>所以运行时结果是：</p><ul><li>guest 能看到 <code>16</code> 个 configured vCPU</li><li>但只有前 <code>12</code> 个 online</li></ul><p>如果你的目标分别是下面几种场景，那么源码导向下的改法也不同。</p><p>场景一：保持 <code>16</code> 个 configured vCPU，但让 <code>16</code> 个都在启动时 online</p><ul><li>保留 <code>16</code> 个 CPU 节点</li><li>保留 <code>16</code> 个 <code>affinity-map</code> 条目</li><li>去掉或提高 <code>bootargs</code> 里的 <code>maxcpus</code></li><li>同时确认 secondary vCPU 的 <code>enable-method</code> 和 boot policy</li></ul><p>场景二：只需要 <code>12</code> 个 configured vCPU</p><ul><li>把 <code>/cpus</code> 下 CPU 节点收敛到 <code>12</code> 个</li><li>把 <code>affinity-map</code> 条目同步收敛到 <code>12</code> 个</li><li>再根据实际需要决定是否保留 <code>maxcpus=12</code></li></ul><p>场景三：vCPU 数量不变，只调整它们落在哪些物理 CPU index 上</p><ul><li>不改 <code>/cpus</code> 数量</li><li>只改 <code>affinity-map</code></li></ul><p>场景四：vCPU 数量不变，只调整调度积极性</p><ul><li>调整 <code>sched-priority</code></li><li>调整 <code>sched-timeslice</code></li></ul><p>这里要特别强调一点：从当前源码和现场证据看，Android guest 的 vCPU 配置是“拓扑 + affinity + priority + timeslice”的组合配置；本文还没有发现一个公开明文字段，可以直接写成“给这个 guest 固定 12 个物理核保底”。</p><h2 id=八本文回答的问题>八、本文回答的问题<a hidden class=anchor aria-hidden=true href=#八本文回答的问题>#</a></h2><p>回到开头的三个问题，可以给出更精确的回答。</p><h3 id=71-为什么-android-guest-能看到-16-个-cpu却只跑-12-个>7.1 为什么 Android guest 能看到 16 个 CPU，却只跑 12 个<a hidden class=anchor aria-hidden=true href=#71-为什么-android-guest-能看到-16-个-cpu却只跑-12-个>#</a></h3><p>因为当前 guest 的虚拟拓扑定义了 <code>16</code> 个 vCPU，但启动参数 <code>maxcpus=12</code> 只让其中 <code>12</code> 个 online。</p><h3 id=72-为什么-android-top-已经很忙linux-host-的总-steal-却只有约-30>7.2 为什么 Android top 已经很忙，Linux host 的总 <code>steal</code> 却只有约 30%<a hidden class=anchor aria-hidden=true href=#72-为什么-android-top-已经很忙linux-host-的总-steal-却只有约-30>#</a></h3><p>因为这两个数不是同一个口径：</p><ul><li>Android <code>top</code> 反映的是 guest 内部的 vCPU 负载与显示口径</li><li>Linux host 的 <code>%steal</code> 反映的是 guest 实际拿到的物理 CPU wall-clock</li></ul><p>当前实测下，guest 实际拿到的大约是 <code>6</code> 个 host-core 当量。</p><h3 id=73-当前到底是谁在决定-guest-的-cpu-行为>7.3 当前到底是谁在决定 guest 的 CPU 行为<a hidden class=anchor aria-hidden=true href=#73-当前到底是谁在决定-guest-的-cpu-行为>#</a></h3><p>当前已经确认有三层共同参与：</p><ul><li>guest 镜像 / DTB 决定 <code>16</code> 个 configured vCPU 与 <code>maxcpus=12</code></li><li>Gunyah RM 决定 <code>pinned / priority / timeslice / affinity-map</code></li><li>更下层的 vendor RM 私有 env payload 和 hypervisor 运行时状态，决定最终可用 CPU 集与实际 wall-clock 分配</li></ul><p>因此，分析 Android guest 的 CPU 问题时，不能只看 Android <code>top</code>，也不能只看 Linux cgroup，而需要把下面三类信息放在一起：</p><ul><li>guest 的 configured / online vCPU 拓扑</li><li>RM 的 vCPU affinity / priority / timeslice</li><li>host 上按核分布的 <code>%steal</code></li></ul></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
-<span>Powered by
-<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
-<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
-</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
+换句话说，现场现象不是一个问题，而是两个问题叠加：">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Gunyah开发笔记",
+      "item": "https://ethen-cao.github.io/ethenslab/gunyah/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配",
+      "item": "https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配",
+  "name": "SA8797 \/ Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配",
+  "description": "本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：\nAndroid guest 明明只跑了 12 个 yes，为什么 top 头部还能看到 1600%cpu 和较高的 idle。 Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 steal 只有约 30% 出头。 当前平台上，Android guest 的 vCPU 数量、亲和性、优先级和时间片到底由哪一层决定。 这三个问题分别对应：\nguest 内部的 vCPU 拓扑与 top 展示口径 hypervisor 实际给 guest 的 wall-clock CPU 时间 Gunyah / Resource Manager 的静态配置与运行时调度属性 本文只保留已经通过源码和实机确认过的内容，不再使用旧现场里的过期假设。\n一、结论摘要 当前车机环境下，可以先记住下面 8 个结论：\nLinux host 当前可见 18 个 CPU，0-17 全部 online。 Android guest 当前 possible=0-15、present=0-15，但 online=0-11，也就是只启用了 12 个 vCPU。 maxcpus=12 来自 Android guest 的启动参数，因此 16 个 vCPU 节点里只有前 12 个在线。 当前 gvm.slice 的生效 CPU 集合是 0-17；Linux cgroup 没有表现出把 guest 固定在 12 个 host CPU 上的行为。 gvm.slice/cpu.max = max 100000，cpu.stat 中 nr_throttled = 0，因此 Linux cgroup 没有 CPU quota throttle。 Android guest 的 vCPU 调度属性来自 autoghgvm 镜像里的 VM 配置：affinity=\u0026quot;pinned\u0026quot;、sched-priority=0、sched-timeslice=5000us。 upstream Gunyah RM 的调度模型里，guest 的 sched-priority 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 5ms 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 32，当前场景下可将 guest 的有效优先级理解为 32。 纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 cpu6-17 上，steal 约 33.31%，折算为约 6 个 host-core 的 wall-clock。 换句话说，现场现象不是一个问题，而是两个问题叠加：\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：\nAndroid guest 明明只跑了 12 个 yes，为什么 top 头部还能看到 1600%cpu 和较高的 idle。 Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 steal 只有约 30% 出头。 当前平台上，Android guest 的 vCPU 数量、亲和性、优先级和时间片到底由哪一层决定。 这三个问题分别对应：\nguest 内部的 vCPU 拓扑与 top 展示口径 hypervisor 实际给 guest 的 wall-clock CPU 时间 Gunyah / Resource Manager 的静态配置与运行时调度属性 本文只保留已经通过源码和实机确认过的内容，不再使用旧现场里的过期假设。\n一、结论摘要 当前车机环境下，可以先记住下面 8 个结论：\nLinux host 当前可见 18 个 CPU，0-17 全部 online。 Android guest 当前 possible=0-15、present=0-15，但 online=0-11，也就是只启用了 12 个 vCPU。 maxcpus=12 来自 Android guest 的启动参数，因此 16 个 vCPU 节点里只有前 12 个在线。 当前 gvm.slice 的生效 CPU 集合是 0-17；Linux cgroup 没有表现出把 guest 固定在 12 个 host CPU 上的行为。 gvm.slice/cpu.max = max 100000，cpu.stat 中 nr_throttled = 0，因此 Linux cgroup 没有 CPU quota throttle。 Android guest 的 vCPU 调度属性来自 autoghgvm 镜像里的 VM 配置：affinity=\"pinned\"、sched-priority=0、sched-timeslice=5000us。 upstream Gunyah RM 的调度模型里，guest 的 sched-priority 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 5ms 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 32，当前场景下可将 guest 的有效优先级理解为 32。 纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 cpu6-17 上，steal 约 33.31%，折算为约 6 个 host-core 的 wall-clock。 换句话说，现场现象不是一个问题，而是两个问题叠加：\nAndroid top 的总量口径更接近 16 个 configured vCPU hypervisor 实际给 Android guest 的物理 CPU 时间只有大约 6 个 host-core 当量 二、运行时 VM 视图 2.1 Linux host 侧可见的 GVM 列表 当前 Linux host 上，vmm_service 管理的 GVM 配置来自 /etc/vm_config.xml。实机内容如下：\n",
+  "wordCount" : "1987",
+  "inLanguage": "en",
+  "datePublished": "2026-04-08T21:00:00+08:00",
+  "dateModified": "2026-04-08T21:00:00+08:00",
+  "author":{
+    "@type": "Person",
+    "name": {"defaulttheme":"auto","name":"Ethen","showbreadcrumbs":true,"showcodecopybuttons":true,"showpostnavlinks":true,"showreadingtime":true,"showwordcount":true}
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/gunyah/" title="Gunyah">
+                    <span>Gunyah</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配
+    </h1>
+    <div class="post-meta"><span title='2026-04-08 21:00:00 +0800 CST'>April 8, 2026</span>&nbsp;·&nbsp;map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]
+
+</div>
+  </header> 
+  <div class="post-content"><p>本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：</p>
+<ol>
+<li>Android guest 明明只跑了 <code>12</code> 个 <code>yes</code>，为什么 <code>top</code> 头部还能看到 <code>1600%cpu</code> 和较高的 <code>idle</code>。</li>
+<li>Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 <code>steal</code> 只有约 <code>30%</code> 出头。</li>
+<li>当前平台上，Android guest 的 vCPU 数量、亲和性、优先级和时间片到底由哪一层决定。</li>
+</ol>
+<p>这三个问题分别对应：</p>
+<ul>
+<li>guest 内部的 vCPU 拓扑与 <code>top</code> 展示口径</li>
+<li>hypervisor 实际给 guest 的 wall-clock CPU 时间</li>
+<li>Gunyah / Resource Manager 的静态配置与运行时调度属性</li>
+</ul>
+<p>本文只保留已经通过源码和实机确认过的内容，不再使用旧现场里的过期假设。</p>
+<h2 id="一结论摘要">一、结论摘要<a hidden class="anchor" aria-hidden="true" href="#一结论摘要">#</a></h2>
+<p>当前车机环境下，可以先记住下面 8 个结论：</p>
+<ul>
+<li>Linux host 当前可见 <code>18</code> 个 CPU，<code>0-17</code> 全部 online。</li>
+<li>Android guest 当前 <code>possible=0-15</code>、<code>present=0-15</code>，但 <code>online=0-11</code>，也就是只启用了 <code>12</code> 个 vCPU。</li>
+<li><code>maxcpus=12</code> 来自 Android guest 的启动参数，因此 <code>16</code> 个 vCPU 节点里只有前 <code>12</code> 个在线。</li>
+<li>当前 <code>gvm.slice</code> 的生效 CPU 集合是 <code>0-17</code>；Linux cgroup 没有表现出把 guest 固定在 <code>12</code> 个 host CPU 上的行为。</li>
+<li><code>gvm.slice/cpu.max = max 100000</code>，<code>cpu.stat</code> 中 <code>nr_throttled = 0</code>，因此 Linux cgroup 没有 CPU quota throttle。</li>
+<li>Android guest 的 vCPU 调度属性来自 <code>autoghgvm</code> 镜像里的 VM 配置：<code>affinity=&quot;pinned&quot;</code>、<code>sched-priority=0</code>、<code>sched-timeslice=5000us</code>。</li>
+<li>upstream Gunyah RM 的调度模型里，guest 的 <code>sched-priority</code> 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 <code>5ms</code> 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 <code>32</code>，当前场景下可将 guest 的有效优先级理解为 <code>32</code>。</li>
+<li>纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 <code>cpu6-17</code> 上，<code>steal</code> 约 <code>33.31%</code>，折算为约 <code>6</code> 个 host-core 的 wall-clock。</li>
+</ul>
+<p>换句话说，现场现象不是一个问题，而是两个问题叠加：</p>
+<ul>
+<li>Android <code>top</code> 的总量口径更接近 <code>16</code> 个 configured vCPU</li>
+<li>hypervisor 实际给 Android guest 的物理 CPU 时间只有大约 <code>6</code> 个 host-core 当量</li>
+</ul>
+<h2 id="二运行时-vm-视图">二、运行时 VM 视图<a hidden class="anchor" aria-hidden="true" href="#二运行时-vm-视图">#</a></h2>
+<h3 id="21-linux-host-侧可见的-gvm-列表">2.1 Linux host 侧可见的 GVM 列表<a hidden class="anchor" aria-hidden="true" href="#21-linux-host-侧可见的-gvm-列表">#</a></h3>
+<p>当前 Linux host 上，<code>vmm_service</code> 管理的 GVM 配置来自 <code>/etc/vm_config.xml</code>。实机内容如下：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-xml" data-lang="xml"><span style="display:flex;"><span><span style="color:#f92672">&lt;vm_config</span> <span style="color:#a6e22e">NUM_VMS=</span><span style="color:#e6db74">&#34;1&#34;</span><span style="color:#f92672">&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&lt;vm&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;vm_name&gt;</span>autoghgvm<span style="color:#f92672">&lt;/vm_name&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;vmid&gt;</span>52<span style="color:#f92672">&lt;/vmid&gt;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&lt;systemd_service&gt;</span>qcrosvm.service<span style="color:#f92672">&lt;/systemd_service&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&lt;/vm&gt;</span>
+</span></span><span style="display:flex;"><span><span style="color:#f92672">&lt;/vm_config&gt;</span>
+</span></span></code></pre></div><p>这和 <code>vendor/qcom/proprietary/vmm-service-noship/vmm-lib/vmm-utils/vm_config.c</code> 以及 <code>vendor/qcom/proprietary/vmm-service-noship/vmm-drv/src/vmm_drv.c</code> 的实现一致：</p>
+<ul>
+<li><code>vm_config_get_num_vm()</code> / <code>vm_config_get_vmid()</code> 只从 XML 读取配置</li>
+<li><code>vmm_service</code> 启动时按 XML 逐个创建 <code>gvm_ctx</code></li>
+</ul>
+<p>因此，Linux host 用户态服务这条链路当前只显式管理一个 GVM：</p>
+<ul>
+<li><code>autoghgvm</code></li>
+<li><code>vmid = 52</code></li>
+</ul>
+<h3 id="22-hlos--root-vm-的运行时标识">2.2 HLOS / Root VM 的运行时标识<a hidden class="anchor" aria-hidden="true" href="#22-hlos--root-vm-的运行时标识">#</a></h3>
+<p>在 host 运行时 device tree 中，还能看到 hypervisor 暴露的 HLOS VM 标识节点：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>/sys/firmware/devicetree/base/hypervisor/qcom,gunyah-vm
+</span></span><span style="display:flex;"><span>compatible = &#34;qcom,gunyah-vm-id-1.0&#34;, &#34;qcom,gunyah-vm-id&#34;
+</span></span><span style="display:flex;"><span>qcom,vmid = 3
+</span></span></code></pre></div><p>这和两处代码能对上：</p>
+<ul>
+<li>Linux 驱动 <code>vendor/qcom/opensource/gunyah-drivers/drivers/virt/gunyah/gh_rm_core.c</code>
+会读取 <code>qcom,gunyah-vm-id-1.0</code> 节点中的 <code>qcom,vmid</code></li>
+<li>upstream Gunyah RM <code>include/rm_types.h</code> 定义 <code>VMID_HLOS = 0x3</code></li>
+</ul>
+<p>因此当前平台可确认的 VM 标识是：</p>
+<ul>
+<li><code>VMID 3</code>：HLOS / root VM</li>
+<li><code>VMID 52</code>：Android guest <code>autoghgvm</code></li>
+</ul>
+<h2 id="三cpu-拓扑与-vcpu-架构">三、CPU 拓扑与 vCPU 架构<a hidden class="anchor" aria-hidden="true" href="#三cpu-拓扑与-vcpu-架构">#</a></h2>
+<h3 id="31-linux-host-的-cpu-可见性">3.1 Linux host 的 CPU 可见性<a hidden class="anchor" aria-hidden="true" href="#31-linux-host-的-cpu-可见性">#</a></h3>
+<p>实机 Linux host：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>/sys/devices/system/cpu/possible = 0-17
+</span></span><span style="display:flex;"><span>/sys/devices/system/cpu/present  = 0-17
+</span></span><span style="display:flex;"><span>/sys/devices/system/cpu/online   = 0-17
+</span></span></code></pre></div><p>也就是 host 侧共有 <code>18</code> 个在线 CPU。</p>
+<p>从 <code>/sys/devices/system/cpu/cpu*/uevent</code> 可以看到 host 的 DT CPU 节点分成三组：</p>
+<ul>
+<li><code>cpu0-5</code>   -&gt; <code>/cpus/cpu@0</code> 到 <code>/cpus/cpu@500</code></li>
+<li><code>cpu6-11</code>  -&gt; <code>/cpus/cpu@10000</code> 到 <code>/cpus/cpu@10500</code></li>
+<li><code>cpu12-17</code> -&gt; <code>/cpus/cpu@20000</code> 到 <code>/cpus/cpu@20500</code></li>
+</ul>
+<p>这说明平台底层 CPU index 不是简单的 <code>0-17</code> 连续编号，而是更接近：</p>
+<ul>
+<li><code>0-5</code></li>
+<li><code>8-13</code></li>
+<li><code>16-21</code></li>
+</ul>
+<h3 id="32-android-guest-的-vcpu-可见性">3.2 Android guest 的 vCPU 可见性<a hidden class="anchor" aria-hidden="true" href="#32-android-guest-的-vcpu-可见性">#</a></h3>
+<p>实机 Android guest：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>/sys/devices/system/cpu/possible = 0-15
+</span></span><span style="display:flex;"><span>/sys/devices/system/cpu/present  = 0-15
+</span></span><span style="display:flex;"><span>/sys/devices/system/cpu/online   = 0-11
+</span></span><span style="display:flex;"><span>/proc/cmdline                    ... maxcpus=12 ...
+</span></span></code></pre></div><p>这说明 guest 内部是：</p>
+<ul>
+<li>定义了 <code>16</code> 个 vCPU 节点</li>
+<li>但启动时只 bring up 了 <code>12</code> 个</li>
+</ul>
+<p>因此要把三个概念分开：</p>
+<ul>
+<li><code>possible/present = 16</code>：虚拟拓扑里存在 <code>16</code> 个 vCPU</li>
+<li><code>online = 12</code>：当前真正能跑任务的只有 <code>12</code> 个 vCPU</li>
+<li><code>maxcpus=12</code>：限制 online vCPU 数量的直接原因</li>
+</ul>
+<h3 id="33-当前生效的-vcpu-调度属性">3.3 当前生效的 vCPU 调度属性<a hidden class="anchor" aria-hidden="true" href="#33-当前生效的-vcpu-调度属性">#</a></h3>
+<p>从运行中的 Android guest <code>/proc/device-tree/qcom,vm-config/vcpus</code> 可以读到：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>affinity       = &#34;pinned&#34;
+</span></span><span style="display:flex;"><span>sched-priority = 0
+</span></span><span style="display:flex;"><span>sched-timeslice = 5000
+</span></span><span style="display:flex;"><span>affinity-map   = 13 12 11 10 9 8 21 20 19 18 17 16 5 4 3 2
+</span></span></code></pre></div><p>这些字段与 <code>autoghgvm</code> 生效 DTB 中的内容一致，也与 upstream Gunyah RM 的解析逻辑一致：</p>
+<ul>
+<li><code>include/vm_config_parser.h</code></li>
+<li><code>src/vm_config/vm_config_parser.c</code></li>
+<li><code>src/vm_config/vm_config.c</code></li>
+</ul>
+<h3 id="34-vcpu-架构图">3.4 vCPU 架构图<a hidden class="anchor" aria-hidden="true" href="#34-vcpu-架构图">#</a></h3>
+<p>下面这张图把当前平台上和 CPU 相关的三层关系放在一起。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>                         +--------------------------------------+
+</span></span><span style="display:flex;"><span>                         | Gunyah Resource Manager / Hypervisor |
+</span></span><span style="display:flex;"><span>                         +--------------------------------------+
+</span></span><span style="display:flex;"><span>                                      |
+</span></span><span style="display:flex;"><span>                    +-----------------+-----------------+
+</span></span><span style="display:flex;"><span>                    |                                   |
+</span></span><span style="display:flex;"><span>                    v                                   v
+</span></span><span style="display:flex;"><span>         +------------------------+          +------------------------+
+</span></span><span style="display:flex;"><span>         | HLOS / Root VM         |          | Android Guest          |
+</span></span><span style="display:flex;"><span>         | vmid = 3               |          | autoghgvm, vmid = 52   |
+</span></span><span style="display:flex;"><span>         | priority = 32          |          | owner-relative prio    |
+</span></span><span style="display:flex;"><span>         | timeslice = 5 ms       |          | affinity = pinned      |
+</span></span><span style="display:flex;"><span>         +------------------------+          | sched-priority = 0     |
+</span></span><span style="display:flex;"><span>                    |                        | sched-timeslice = 5 ms |
+</span></span><span style="display:flex;"><span>                    |                        +------------------------+
+</span></span><span style="display:flex;"><span>                    |                                   |
+</span></span><span style="display:flex;"><span>                    |                        +----------+-----------+
+</span></span><span style="display:flex;"><span>                    |                        | configured vCPU = 16 |
+</span></span><span style="display:flex;"><span>                    |                        | online vCPU = 12     |
+</span></span><span style="display:flex;"><span>                    |                        +----------+-----------+
+</span></span><span style="display:flex;"><span>                    |                                   |
+</span></span><span style="display:flex;"><span>                    |                +------------------+------------------+
+</span></span><span style="display:flex;"><span>                    |                |                                     |
+</span></span><span style="display:flex;"><span>                    |                v                                     v
+</span></span><span style="display:flex;"><span>                    |      online vcpu0..11                       offline vcpu12..15
+</span></span><span style="display:flex;"><span>                    |      affinity-map front 12                  affinity-map tail 4
+</span></span><span style="display:flex;"><span>                    |      13 12 11 10 9 8 21 20 19 18 17 16     5 4 3 2
+</span></span><span style="display:flex;"><span>                    |                |                                     |
+</span></span><span style="display:flex;"><span>                    +----------------+------------------+------------------+
+</span></span><span style="display:flex;"><span>                                                     |
+</span></span><span style="display:flex;"><span>                                                     v
+</span></span><span style="display:flex;"><span>                             Linux host logical CPUs observed at runtime
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>                 cpu0-5        &lt;-&gt; platform cpu_index 0-5
+</span></span><span style="display:flex;"><span>                 cpu6-11       &lt;-&gt; platform cpu_index 8-13
+</span></span><span style="display:flex;"><span>                 cpu12-17      &lt;-&gt; platform cpu_index 16-21
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>                 therefore:
+</span></span><span style="display:flex;"><span>                 guest online vcpu0..11 land on the cpu_index set {8..13, 16..21},
+</span></span><span style="display:flex;"><span>                 which corresponds to Linux host cpu6-17
+</span></span></code></pre></div><p>这张图里的两部分是直接证据：</p>
+<ul>
+<li>guest 的 <code>16</code> / <code>12</code> / <code>affinity-map</code></li>
+<li>host 的 <code>cpu0-17</code> 与 DT CPU 节点分组</li>
+</ul>
+<p>其中“<code>cpu_index 8..13 / 16..21</code> 对应 Linux host <code>cpu6-17</code>”来自 host DT 节点编号和运行时 per-CPU <code>steal</code> 分布的联合观察。</p>
+<h3 id="35-当前在线-vcpu-与-host-cpu-的对应关系">3.5 当前在线 vCPU 与 host CPU 的对应关系<a hidden class="anchor" aria-hidden="true" href="#35-当前在线-vcpu-与-host-cpu-的对应关系">#</a></h3>
+<p>如果把前 <code>12</code> 个 online vCPU 按当前 <code>affinity-map</code> 展开，可以得到下面的对应关系。</p>
+<table>
+	<thead>
+			<tr>
+					<th>guest vCPU</th>
+					<th>affinity index</th>
+					<th>对应的 host Linux CPU</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>vcpu0</td>
+					<td>13</td>
+					<td>cpu11</td>
+			</tr>
+			<tr>
+					<td>vcpu1</td>
+					<td>12</td>
+					<td>cpu10</td>
+			</tr>
+			<tr>
+					<td>vcpu2</td>
+					<td>11</td>
+					<td>cpu9</td>
+			</tr>
+			<tr>
+					<td>vcpu3</td>
+					<td>10</td>
+					<td>cpu8</td>
+			</tr>
+			<tr>
+					<td>vcpu4</td>
+					<td>9</td>
+					<td>cpu7</td>
+			</tr>
+			<tr>
+					<td>vcpu5</td>
+					<td>8</td>
+					<td>cpu6</td>
+			</tr>
+			<tr>
+					<td>vcpu6</td>
+					<td>21</td>
+					<td>cpu17</td>
+			</tr>
+			<tr>
+					<td>vcpu7</td>
+					<td>20</td>
+					<td>cpu16</td>
+			</tr>
+			<tr>
+					<td>vcpu8</td>
+					<td>19</td>
+					<td>cpu15</td>
+			</tr>
+			<tr>
+					<td>vcpu9</td>
+					<td>18</td>
+					<td>cpu14</td>
+			</tr>
+			<tr>
+					<td>vcpu10</td>
+					<td>17</td>
+					<td>cpu13</td>
+			</tr>
+			<tr>
+					<td>vcpu11</td>
+					<td>16</td>
+					<td>cpu12</td>
+			</tr>
+	</tbody>
+</table>
+<p>后 4 个 vCPU 当前是 offline：</p>
+<table>
+	<thead>
+			<tr>
+					<th>guest vCPU</th>
+					<th>affinity index</th>
+					<th>host Linux CPU</th>
+					<th>状态</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>vcpu12</td>
+					<td>5</td>
+					<td>cpu5</td>
+					<td>offline</td>
+			</tr>
+			<tr>
+					<td>vcpu13</td>
+					<td>4</td>
+					<td>cpu4</td>
+					<td>offline</td>
+			</tr>
+			<tr>
+					<td>vcpu14</td>
+					<td>3</td>
+					<td>cpu3</td>
+					<td>offline</td>
+			</tr>
+			<tr>
+					<td>vcpu15</td>
+					<td>2</td>
+					<td>cpu2</td>
+					<td>offline</td>
+			</tr>
+	</tbody>
+</table>
+<h2 id="四调度属性来自哪一层">四、调度属性来自哪一层<a hidden class="anchor" aria-hidden="true" href="#四调度属性来自哪一层">#</a></h2>
+<h3 id="41-linux-cgroup-不负责这次-vcpu-数量限制">4.1 Linux cgroup 不负责这次 vCPU 数量限制<a hidden class="anchor" aria-hidden="true" href="#41-linux-cgroup-不负责这次-vcpu-数量限制">#</a></h3>
+<p>当前实机：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>systemctl show gvm.slice -p AllowedCPUs
+</span></span><span style="display:flex;"><span>AllowedCPUs=0-17
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>/sys/fs/cgroup/gvm.slice/cpuset.cpus.effective = 0-17
+</span></span><span style="display:flex;"><span>/sys/fs/cgroup/gvm.slice/cpu.max               = max 100000
+</span></span><span style="display:flex;"><span>cpu.stat:nr_throttled                          = 0
+</span></span></code></pre></div><p>这说明：</p>
+<ul>
+<li><code>gvm.slice</code> 当前允许使用整个 <code>0-17</code></li>
+<li>也没有设置 CPU quota</li>
+<li>guest 只启用 <code>12</code> 个 vCPU 不是 Linux cgroup 造成的</li>
+</ul>
+<h3 id="42-vcpu-数量与属性来自-guest-镜像--rm-配置">4.2 vCPU 数量与属性来自 guest 镜像 / RM 配置<a hidden class="anchor" aria-hidden="true" href="#42-vcpu-数量与属性来自-guest-镜像--rm-配置">#</a></h3>
+<p><code>autoghgvm</code> 由 host DTS 中的 <code>gh-secure-vm-loader@0</code> 加载：</p>
+<ul>
+<li><code>qcom,vmid = &lt;52&gt;</code></li>
+<li><code>qcom,firmware-name = &quot;autoghgvm&quot;</code></li>
+</ul>
+<p>对应节点在 <code>vendor/qcom/opensource/base-devicetree/arch/arm64/boot/dts/qcom/sa8797p-vms.dtsi</code>。</p>
+<p>而 upstream Gunyah RM 的 vCPU 配置模型只解析这些调度字段：</p>
+<ul>
+<li><code>affinity</code></li>
+<li><code>sched-priority</code></li>
+<li><code>sched-timeslice</code></li>
+<li><code>affinity-map</code></li>
+</ul>
+<p>对应代码：</p>
+<ul>
+<li><code>include/vm_config_parser.h</code></li>
+<li><code>src/vm_config/vm_config_parser.c</code></li>
+<li><code>src/vm_config/vm_config.c</code></li>
+</ul>
+<h3 id="43-优先级与时间片的实际含义">4.3 优先级与时间片的实际含义<a hidden class="anchor" aria-hidden="true" href="#43-优先级与时间片的实际含义">#</a></h3>
+<p>upstream Gunyah RM 里的关键常量是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#75715e">#define ROOTVM_PRIORITY            32
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">#define SCHEDULER_DEFAULT_TIMESLICE 5000000 ns
+</span></span></span></code></pre></div><p>HLOS/root VM 的 vCPU 创建时直接使用：</p>
+<ul>
+<li><code>priority = ROOTVM_PRIORITY = 32</code></li>
+<li><code>timeslice = 5 ms</code></li>
+</ul>
+<p>而 Android guest 的优先级不是绝对值，而是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>effective_priority <span style="color:#f92672">=</span> owner_vm<span style="color:#f92672">-&gt;</span>priority <span style="color:#f92672">+</span> sched_priority
+</span></span><span style="display:flex;"><span>effective_timeslice <span style="color:#f92672">=</span> sched_timeslice <span style="color:#f92672">*</span> <span style="color:#ae81ff">1000</span>
+</span></span></code></pre></div><p>当前 guest 的运行时属性是：</p>
+<ul>
+<li><code>sched-priority = 0</code></li>
+<li><code>sched-timeslice = 5000 us</code></li>
+</ul>
+<p>因此它的当前有效调度基线是：</p>
+<ul>
+<li><code>priority = owner_vm-&gt;priority + 0</code></li>
+<li><code>timeslice = 5 ms</code></li>
+</ul>
+<p>对 SA8797 当前场景，结合 HLOS/root VM 的默认优先级 <code>32</code>，这组配置与“guest 与 HLOS/root VM 同级、同时间片”这一结论相符。</p>
+<h3 id="44-当前没有看到明文的-cpu-quota--reservation-字段">4.4 当前没有看到明文的 CPU quota / reservation 字段<a hidden class="anchor" aria-hidden="true" href="#44-当前没有看到明文的-cpu-quota--reservation-字段">#</a></h3>
+<p>到目前为止，Linux host 侧和 upstream RM 代码里都没有看到如下字段：</p>
+<ul>
+<li><code>quota</code></li>
+<li><code>reservation</code></li>
+<li><code>share</code></li>
+<li><code>cap</code></li>
+</ul>
+<p>当前能看到的调度输入只有：</p>
+<ul>
+<li>vCPU 是否 <code>pinned</code></li>
+<li>与 owner 的相对优先级</li>
+<li>vCPU 时间片</li>
+<li>vCPU affinity map</li>
+</ul>
+<p>这意味着：</p>
+<ul>
+<li>现有证据足以解释 vCPU 拓扑和基础调度属性</li>
+<li>但不足以从 Linux host 这一层直接读出 vendor RM 私有 env payload 中的完整 CPU 策略</li>
+</ul>
+<h2 id="五为什么-android-top-与-linux-host-top-看起来不一致">五、为什么 Android top 与 Linux host top 看起来不一致<a hidden class="anchor" aria-hidden="true" href="#五为什么-android-top-与-linux-host-top-看起来不一致">#</a></h2>
+<h3 id="51-先排除-linux-host-自己的上限">5.1 先排除 Linux host 自己的上限<a hidden class="anchor" aria-hidden="true" href="#51-先排除-linux-host-自己的上限">#</a></h3>
+<p>在 Linux host 上直接运行 <code>18</code> 个 <code>yes</code> 时，host 的 <code>18</code> 个 CPU 可以全部接近满载。<br>
+这说明 host 自己不存在一个固定的 <code>30%</code> 或 <code>6 core</code> 上限。</p>
+<h3 id="52-受控实验guest-内启动-12-个-yes">5.2 受控实验：guest 内启动 12 个 yes<a hidden class="anchor" aria-hidden="true" href="#52-受控实验guest-内启动-12-个-yes">#</a></h3>
+<p>为了看清 guest 对 host 的映射关系，我做了一个干净的受控实验：</p>
+<ol>
+<li>先暂停 Android guest 内原有的 <code>dd</code> 压测进程</li>
+<li>在 guest 内启动 <code>12</code> 个 <code>yes &gt; /dev/null</code></li>
+<li>同时在 host 上抓 <code>mpstat -P ALL 1 1</code></li>
+<li>实验结束后恢复原来的 <code>dd</code></li>
+</ol>
+<p>guest 侧典型输出：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>1600%cpu ... 279%idle ...
+</span></span><span style="display:flex;"><span>12 个 yes 进程基本都在 100% 左右
+</span></span></code></pre></div><p>host 侧 <code>mpstat</code> 结果：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>all    %steal = 33.31
+</span></span><span style="display:flex;"><span>cpu0-5  %steal ≈ 0
+</span></span><span style="display:flex;"><span>cpu6-17 %steal ≈ 37% - 46%
+</span></span></code></pre></div><h3 id="53-这组结果说明了什么">5.3 这组结果说明了什么<a hidden class="anchor" aria-hidden="true" href="#53-这组结果说明了什么">#</a></h3>
+<p>它说明了两件不同的事。</p>
+<p>第一，Android <code>top</code> 的总量口径并不是简单按 <code>12</code> 个 online vCPU 展示。<br>
+如果它完全按 <code>12</code> 个 online vCPU 展示，那么在 <code>12</code> 个 <code>yes</code> 全部接近满载时，不应该同时出现：</p>
+<ul>
+<li><code>1600%cpu</code></li>
+<li>以及较高的 <code>idle</code></li>
+</ul>
+<p>这组现象更接近“总容量仍然按 <code>16</code> 个 configured vCPU 计算，但真正参与调度的只有 <code>12</code> 个 online vCPU”。</p>
+<p>第二，host 侧真实分配给 guest 的 wall-clock CPU 时间只有大约：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>18 * 33.31% ≈ 5.99 cores
+</span></span></code></pre></div><p>也就是约 <code>6</code> 个 host-core 当量。</p>
+<p>更重要的是，这些时间主要集中在 <code>cpu6-17</code>，而不是平均铺在 <code>cpu0-17</code> 上。<br>
+这和前面从 <code>affinity-map</code> 推导出的“在线 guest vCPU 实际落在 host <code>cpu6-17</code>”完全一致。</p>
+<h3 id="54-这不是-cgroup-throttle">5.4 这不是 cgroup throttle<a hidden class="anchor" aria-hidden="true" href="#54-这不是-cgroup-throttle">#</a></h3>
+<p>这次实验同时也排除了一个常见误判：</p>
+<ul>
+<li>不是 <code>gvm.slice</code> 只允许 guest 跑在 <code>12</code> 个 host CPU 上</li>
+<li>也不是 <code>cpu.max</code> 把 guest throttle 到了约 <code>30%</code></li>
+</ul>
+<p>因为当前实机已经确认：</p>
+<ul>
+<li><code>AllowedCPUs = 0-17</code></li>
+<li><code>cpuset.cpus.effective = 0-17</code></li>
+<li><code>cpu.max = max 100000</code></li>
+<li><code>nr_throttled = 0</code></li>
+</ul>
+<p>因此，host 只看到约 <code>6</code> 个 core 的 guest wall-clock，不能归因到 Linux cgroup。</p>
+<h2 id="六当前能确认的边界">六、当前能确认的边界<a hidden class="anchor" aria-hidden="true" href="#六当前能确认的边界">#</a></h2>
+<h3 id="61-已确认">6.1 已确认<a hidden class="anchor" aria-hidden="true" href="#61-已确认">#</a></h3>
+<ul>
+<li>Android guest 当前有 <code>16</code> 个 configured vCPU，其中 <code>12</code> 个 online。</li>
+<li><code>maxcpus=12</code> 是 <code>12</code> 个 online vCPU 的直接原因。</li>
+<li>guest 的 vCPU 调度属性是 <code>pinned + priority offset 0 + 5 ms timeslice</code>。</li>
+<li>HLOS/root VM 的默认优先级也是 <code>32</code>，默认时间片也是 <code>5 ms</code>。</li>
+<li>在纯 CPU 压测下，guest 的 wall-clock CPU 时间主要体现为 host <code>cpu6-17</code> 上的 <code>steal</code>。</li>
+<li>当前观测到的 guest 实际物理 CPU 时间约为 <code>6</code> 个 host-core，而不是 <code>12</code> 个。</li>
+</ul>
+<h3 id="62-尚未直接读出的内容">6.2 尚未直接读出的内容<a hidden class="anchor" aria-hidden="true" href="#62-尚未直接读出的内容">#</a></h3>
+<ul>
+<li>vendor RM 私有 env payload 中的 <code>usable_cores</code></li>
+<li>vendor RM 私有 env payload 中的 <code>boot_core</code></li>
+<li>hypervisor 内部针对各 VM 的精确 wall-clock 账本</li>
+<li>vendor RM 是否存在更下层的专有调度权重逻辑</li>
+</ul>
+<p>upstream RM 代码已经证明这些字段在设计上存在：</p>
+<ul>
+<li><code>usable_cores</code></li>
+<li><code>boot_core</code></li>
+</ul>
+<p>但当前车机运行环境没有把这份 env payload 直接暴露到 Linux host 可读路径上。</p>
+<p>从 host CPU index 分组与 guest <code>affinity-map</code> 的组合关系看，当前平台的 usable core set 与 <code>{0-5, 8-13, 16-21}</code> 这一集合相符；但这一步仍然属于运行时推导，不是直接从 vendor RM env payload 读出的明文结果。</p>
+<h2 id="七如何配置-android-guest-vcpu">七、如何配置 Android guest vCPU<a hidden class="anchor" aria-hidden="true" href="#七如何配置-android-guest-vcpu">#</a></h2>
+<p>这一节不讨论观测口径，而只回答一个工程问题：如果需要修改 Android guest 的 vCPU 数量、启动时 online 数量、亲和性、优先级和时间片，应该改哪里。</p>
+<p>先给出源码视角下的配置链路：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>host DTS
+</span></span><span style="display:flex;"><span>  sa8797p-vms.dtsi
+</span></span><span style="display:flex;"><span>    gh-secure-vm-loader@0
+</span></span><span style="display:flex;"><span>      qcom,firmware-name = &#34;autoghgvm&#34;
+</span></span><span style="display:flex;"><span>                 |
+</span></span><span style="display:flex;"><span>                 v
+</span></span><span style="display:flex;"><span>autoghgvm boot image
+</span></span><span style="display:flex;"><span>  包含 guest DTB / VM config
+</span></span><span style="display:flex;"><span>                 |
+</span></span><span style="display:flex;"><span>                 v
+</span></span><span style="display:flex;"><span>guest DTB
+</span></span><span style="display:flex;"><span>  /cpus
+</span></span><span style="display:flex;"><span>  /qcom,vm-config/vcpus
+</span></span><span style="display:flex;"><span>  /chosen/bootargs
+</span></span><span style="display:flex;"><span>                 |
+</span></span><span style="display:flex;"><span>                 v
+</span></span><span style="display:flex;"><span>Gunyah RM
+</span></span><span style="display:flex;"><span>  parse_vcpus()
+</span></span><span style="display:flex;"><span>  handle_vcpu()
+</span></span><span style="display:flex;"><span>                 |
+</span></span><span style="display:flex;"><span>                 v
+</span></span><span style="display:flex;"><span>runtime vCPU
+</span></span><span style="display:flex;"><span>  configured vCPU count
+</span></span><span style="display:flex;"><span>  online vCPU count
+</span></span><span style="display:flex;"><span>  affinity / priority / timeslice
+</span></span></code></pre></div><p>这里最重要的结论是：当前源码里看不到通过 <code>qcrosvm</code> 命令行直接配置 vCPU 数量的路径。真正生效的入口是 guest 镜像里的 DTB / VM config，RM 在创建 VM 时解析并下发这些属性。</p>
+<h3 id="71-配置入口在哪里">7.1 配置入口在哪里<a hidden class="anchor" aria-hidden="true" href="#71-配置入口在哪里">#</a></h3>
+<p>host 侧只负责选择要加载哪一个 guest 镜像。当前平台在：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-dts" data-lang="dts"><span style="display:flex;"><span>auto_vm_0: <span style="color:#a6e22e">gh-secure-vm-loader</span><span style="color:#f92672">@</span><span style="color:#ae81ff">0</span><span style="color:#75715e"> </span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">compatible</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;qcom,gh-secure-vm-loader&#34;</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">qcom</span>,<span style="color:#a6e22e">pas-id</span> <span style="color:#f92672">=</span> <span style="color:#f92672">&lt;</span><span style="color:#ae81ff">44</span><span style="color:#f92672">&gt;</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">qcom</span>,<span style="color:#a6e22e">vmid</span> <span style="color:#f92672">=</span> <span style="color:#f92672">&lt;</span><span style="color:#ae81ff">52</span><span style="color:#f92672">&gt;</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">qcom</span>,<span style="color:#a6e22e">firmware-name</span> <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;autoghgvm&#34;</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">qcom</span>,<span style="color:#a6e22e">firmware-index</span> <span style="color:#f92672">=</span> <span style="color:#f92672">&lt;</span><span style="color:#ae81ff">0</span><span style="color:#f92672">&gt;</span>;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>也就是说，host DTS 这一层决定的是：</p>
+<ul>
+<li>加载哪个 VM image</li>
+<li>这个 image 对应哪个 <code>vmid</code></li>
+</ul>
+<p>而 guest 的 vCPU 数量和调度属性，不是在这里展开定义，而是在 <code>autoghgvm</code> 这份镜像内部的 DTB / VM config 中定义，再由 Gunyah RM 读取。</p>
+<h3 id="72-vcpu-数量是怎么配置的">7.2 vCPU 数量是怎么配置的<a hidden class="anchor" aria-hidden="true" href="#72-vcpu-数量是怎么配置的">#</a></h3>
+<p>upstream Gunyah RM 的 <code>parse_vcpus()</code> 会先读取 <code>/qcom,vm-config/vcpus</code> 节点；如果这个节点没有显式给 <code>config</code>，它默认去看 <code>/cpus</code>：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>config <span style="color:#f92672">=</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">fdt_stringlist_get</span>(fdt, node_ofs, <span style="color:#e6db74">&#34;config&#34;</span>, <span style="color:#ae81ff">0</span>, NULL);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (config <span style="color:#f92672">==</span> NULL) {
+</span></span><span style="display:flex;"><span>    config <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;/cpus&#34;</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>随后它会遍历这个路径下所有 <code>device_type = &quot;cpu&quot;</code> 的子节点，并把每个 CPU 节点压入 <code>vd-&gt;vcpus</code>。因此，从源码看：</p>
+<ul>
+<li><code>configured vCPU</code> 的数量，直接由 guest DT 里 CPU 节点的数量决定</li>
+<li>默认来源是 <code>/cpus</code></li>
+<li>不是由 <code>qcrosvm</code> 命令行直接指定</li>
+</ul>
+<p>当前 <code>autoghgvm</code> 的生效 DTB 里有 <code>16</code> 个 CPU 节点，所以 guest 运行时表现为：</p>
+<ul>
+<li><code>possible=0-15</code></li>
+<li><code>present=0-15</code></li>
+</ul>
+<p>如果要把 guest 的总 vCPU 数量从 <code>16</code> 改成 <code>12</code>，源码视角下应当改的是：</p>
+<ul>
+<li>guest DTB 中 <code>/cpus</code> 下的 CPU 节点数量</li>
+<li>或者 <code>/qcom,vm-config/vcpus</code> 的 <code>config</code> 指向的 CPU 配置路径</li>
+</ul>
+<h3 id="73-启动时哪些-vcpu-会-online">7.3 启动时哪些 vCPU 会 online<a hidden class="anchor" aria-hidden="true" href="#73-启动时哪些-vcpu-会-online">#</a></h3>
+<p>RM 在解析 CPU 节点时，还会读取每个节点的 <code>status</code>，并据此决定它是不是 boot 时就启用的 vCPU：</p>
+<ul>
+<li><code>status = &quot;okay&quot;</code>：boot 时启用</li>
+<li><code>status = &quot;disabled&quot;</code>：boot 时不启用</li>
+<li><code>status</code> 缺失：第一个 CPU 视为 boot CPU，其余 CPU 默认不视为 boot-enabled</li>
+</ul>
+<p>对于不是 boot CPU 的次级 vCPU，源码还要求它必须有合法的 <code>enable-method</code>：</p>
+<ul>
+<li><code>psci</code></li>
+<li><code>qcom,gunyah-hvc</code></li>
+</ul>
+<p>因此，从源码定义看：</p>
+<ul>
+<li><code>/cpus</code> 决定 guest 一共定义了多少个 vCPU</li>
+<li><code>status</code> 和 <code>enable-method</code> 决定这些 vCPU 是否允许在 boot / secondary bring-up 过程中被启用</li>
+</ul>
+<p>但当前车机现场还有第二个限制来源：<code>/chosen/bootargs</code> 里的 <code>maxcpus=12</code>。</p>
+<p>从 upstream RM 的 <code>vm_creation.c</code> 也能看到这条链路：它会先读取 base DTB <code>/chosen/bootargs</code>，再把 <code>vm-&gt;cfgcpio_cmdline</code> 追加进去，最后把合并后的 <code>bootargs</code> 写回生成中的 DTO。也就是说，启动参数这一层本身也是 VM 创建流程的一部分，而不是 Android guest 启动后才临时决定的。</p>
+<p>我已经在当前生效的 <code>autoghgvm</code> DTB 和 guest 运行时 <code>/proc/cmdline</code> 中都确认了 <code>maxcpus=12</code>。这意味着当前平台的实际行为是：</p>
+<ul>
+<li>guest DT 定义了 <code>16</code> 个 vCPU</li>
+<li>启动参数又把 online 数量限制到了 <code>12</code></li>
+</ul>
+<p>所以如果工程目标是“让 guest 启动时直接 online 16 个 vCPU”，只改 <code>/cpus</code> 不够，还需要同时处理 <code>bootargs</code> 里的 <code>maxcpus</code>。</p>
+<h3 id="74-亲和性优先级和时间片怎么配置">7.4 亲和性、优先级和时间片怎么配置<a hidden class="anchor" aria-hidden="true" href="#74-亲和性优先级和时间片怎么配置">#</a></h3>
+<p><code>parse_vcpus()</code> 直接解析下面这几个字段：</p>
+<ul>
+<li><code>affinity</code></li>
+<li><code>sched-priority</code></li>
+<li><code>sched-timeslice</code></li>
+<li><code>affinity-map</code></li>
+</ul>
+<p>其中 <code>affinity</code> 支持的模式，源码里明确有：</p>
+<ul>
+<li><code>sticky</code></li>
+<li><code>pinned</code></li>
+<li><code>static</code></li>
+<li><code>proxy</code></li>
+</ul>
+<p>真正创建 vCPU 时，<code>handle_vcpu()</code> 会按解析结果逐个调用：</p>
+<ul>
+<li><code>gunyah_hyp_vcpu_set_affinity()</code></li>
+<li><code>gunyah_hyp_vcpu_set_priority()</code></li>
+<li><code>gunyah_hyp_vcpu_set_timeslice()</code></li>
+</ul>
+<p>也就是说，这几个字段不是“文档说明”，而是直接映射到 hypervisor vCPU 创建接口的输入。</p>
+<p>它们的当前含义可以按源码理解为：</p>
+<ul>
+<li><code>affinity-map</code>
+每个 vCPU 对应一个 platform <code>cpu_index</code></li>
+<li><code>sched-priority</code>
+不是绝对优先级，而是相对 owner VM 的偏移量</li>
+<li><code>sched-timeslice</code>
+DT 里按微秒配置，创建时会乘 <code>1000</code> 转成纳秒</li>
+</ul>
+<p>当前 <code>autoghgvm</code> 的运行时配置就是：</p>
+<ul>
+<li><code>affinity = &quot;pinned&quot;</code></li>
+<li><code>sched-priority = 0</code></li>
+<li><code>sched-timeslice = 5000</code></li>
+<li><code>affinity-map = 13 12 11 10 9 8 21 20 19 18 17 16 5 4 3 2</code></li>
+</ul>
+<h3 id="75-修改时需要联动哪些字段">7.5 修改时需要联动哪些字段<a hidden class="anchor" aria-hidden="true" href="#75-修改时需要联动哪些字段">#</a></h3>
+<p>从源码约束看，下面几组字段不能孤立修改。</p>
+<p>第一组是 vCPU 数量和 affinity 数量：</p>
+<ul>
+<li>非 <code>proxy</code> 模式下，<code>cpu_count</code> 必须与 <code>affinity-map</code> 的元素个数一致</li>
+<li>否则 <code>parse_vcpus()</code> 会直接报错：<code>cpu and affinity count don't match</code></li>
+</ul>
+<p>第二组是次级 vCPU 的启动属性：</p>
+<ul>
+<li>如果某个 vCPU 不是 boot CPU，就必须有合法 <code>enable-method</code></li>
+<li>当前常见的是 <code>psci</code></li>
+</ul>
+<p>第三组是 online 数量与 bootargs：</p>
+<ul>
+<li><code>/cpus</code> 里可以定义 <code>16</code> 个 vCPU</li>
+<li>但 <code>bootargs</code> 里的 <code>maxcpus=12</code> 仍然会把 online 数量限制到 <code>12</code></li>
+</ul>
+<p>第四组是调度属性与 owner VM 约束：</p>
+<ul>
+<li><code>sched-priority</code> 最终会和 owner VM 的优先级相加</li>
+<li><code>sched-timeslice</code> 会做范围检查</li>
+<li>非受信配置还会额外经过优先级合法性约束</li>
+</ul>
+<p>所以，工程上要避免一种常见误区：只改一个数字，然后期待运行时自动收敛。<br>
+对这套 RM 配置来说，vCPU 是一个组合配置，至少要联动检查：</p>
+<ul>
+<li><code>/cpus</code> 下 CPU 节点个数</li>
+<li>每个 CPU 节点的 <code>status</code></li>
+<li>次级 CPU 的 <code>enable-method</code></li>
+<li><code>/qcom,vm-config/vcpus</code> 里的 <code>affinity-map</code></li>
+<li><code>/chosen/bootargs</code> 里的 <code>maxcpus</code></li>
+<li><code>sched-priority</code> 与 <code>sched-timeslice</code></li>
+</ul>
+<h3 id="76-用当前-autoghgvm-配置举例">7.6 用当前 autoghgvm 配置举例<a hidden class="anchor" aria-hidden="true" href="#76-用当前-autoghgvm-配置举例">#</a></h3>
+<p>当前实机这组 <code>16 configured / 12 online</code>，正好可以反过来当成一个配置示例：</p>
+<ul>
+<li><code>/cpus</code> 下有 <code>16</code> 个 CPU 节点</li>
+<li><code>/qcom,vm-config/vcpus</code> 里有 <code>16</code> 个 <code>affinity-map</code> 条目</li>
+<li><code>/chosen/bootargs</code> 里有 <code>maxcpus=12</code></li>
+</ul>
+<p>所以运行时结果是：</p>
+<ul>
+<li>guest 能看到 <code>16</code> 个 configured vCPU</li>
+<li>但只有前 <code>12</code> 个 online</li>
+</ul>
+<p>如果你的目标分别是下面几种场景，那么源码导向下的改法也不同。</p>
+<p>场景一：保持 <code>16</code> 个 configured vCPU，但让 <code>16</code> 个都在启动时 online</p>
+<ul>
+<li>保留 <code>16</code> 个 CPU 节点</li>
+<li>保留 <code>16</code> 个 <code>affinity-map</code> 条目</li>
+<li>去掉或提高 <code>bootargs</code> 里的 <code>maxcpus</code></li>
+<li>同时确认 secondary vCPU 的 <code>enable-method</code> 和 boot policy</li>
+</ul>
+<p>场景二：只需要 <code>12</code> 个 configured vCPU</p>
+<ul>
+<li>把 <code>/cpus</code> 下 CPU 节点收敛到 <code>12</code> 个</li>
+<li>把 <code>affinity-map</code> 条目同步收敛到 <code>12</code> 个</li>
+<li>再根据实际需要决定是否保留 <code>maxcpus=12</code></li>
+</ul>
+<p>场景三：vCPU 数量不变，只调整它们落在哪些物理 CPU index 上</p>
+<ul>
+<li>不改 <code>/cpus</code> 数量</li>
+<li>只改 <code>affinity-map</code></li>
+</ul>
+<p>场景四：vCPU 数量不变，只调整调度积极性</p>
+<ul>
+<li>调整 <code>sched-priority</code></li>
+<li>调整 <code>sched-timeslice</code></li>
+</ul>
+<p>这里要特别强调一点：从当前源码和现场证据看，Android guest 的 vCPU 配置是“拓扑 + affinity + priority + timeslice”的组合配置；本文还没有发现一个公开明文字段，可以直接写成“给这个 guest 固定 12 个物理核保底”。</p>
+<h2 id="八本文回答的问题">八、本文回答的问题<a hidden class="anchor" aria-hidden="true" href="#八本文回答的问题">#</a></h2>
+<p>回到开头的三个问题，可以给出更精确的回答。</p>
+<h3 id="71-为什么-android-guest-能看到-16-个-cpu却只跑-12-个">7.1 为什么 Android guest 能看到 16 个 CPU，却只跑 12 个<a hidden class="anchor" aria-hidden="true" href="#71-为什么-android-guest-能看到-16-个-cpu却只跑-12-个">#</a></h3>
+<p>因为当前 guest 的虚拟拓扑定义了 <code>16</code> 个 vCPU，但启动参数 <code>maxcpus=12</code> 只让其中 <code>12</code> 个 online。</p>
+<h3 id="72-为什么-android-top-已经很忙linux-host-的总-steal-却只有约-30">7.2 为什么 Android top 已经很忙，Linux host 的总 <code>steal</code> 却只有约 30%<a hidden class="anchor" aria-hidden="true" href="#72-为什么-android-top-已经很忙linux-host-的总-steal-却只有约-30">#</a></h3>
+<p>因为这两个数不是同一个口径：</p>
+<ul>
+<li>Android <code>top</code> 反映的是 guest 内部的 vCPU 负载与显示口径</li>
+<li>Linux host 的 <code>%steal</code> 反映的是 guest 实际拿到的物理 CPU wall-clock</li>
+</ul>
+<p>当前实测下，guest 实际拿到的大约是 <code>6</code> 个 host-core 当量。</p>
+<h3 id="73-当前到底是谁在决定-guest-的-cpu-行为">7.3 当前到底是谁在决定 guest 的 CPU 行为<a hidden class="anchor" aria-hidden="true" href="#73-当前到底是谁在决定-guest-的-cpu-行为">#</a></h3>
+<p>当前已经确认有三层共同参与：</p>
+<ul>
+<li>guest 镜像 / DTB 决定 <code>16</code> 个 configured vCPU 与 <code>maxcpus=12</code></li>
+<li>Gunyah RM 决定 <code>pinned / priority / timeslice / affinity-map</code></li>
+<li>更下层的 vendor RM 私有 env payload 和 hypervisor 运行时状态，决定最终可用 CPU 集与实际 wall-clock 分配</li>
+</ul>
+<p>因此，分析 Android guest 的 CPU 问题时，不能只看 Android <code>top</code>，也不能只看 Linux cgroup，而需要把下面三类信息放在一起：</p>
+<ul>
+<li>guest 的 configured / online vCPU 拓扑</li>
+<li>RM 的 vCPU affinity / priority / timeslice</li>
+<li>host 上按核分布的 <code>%steal</code></li>
+</ul>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a><script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
+<script>
+    (function(){
+        
+        
+        const plantumlBlocks = document.querySelectorAll('pre > code.language-plantuml, pre > code.language-planuml');
+        
+        plantumlBlocks.forEach(codeBlock => {
+            const plantumlCode = codeBlock.innerText;
+            
+            const encoded = plantumlEncoder.encode(plantumlCode);
+            
+            const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
+            
+            
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = "PlantUML Diagram";
+            img.style.maxWidth = "100%"; 
+            
+            
+            const preBlock = codeBlock.parentNode;
+            preBlock.parentNode.replaceChild(img, preBlock);
+        });
+    })();
+</script>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>
