@@ -1,3 +1,22 @@
+/* --- 修復 header 置中與對齊 --- */
+/* 讓 header nav 和下方 .main 使用相同的水平內距，確保視覺寬度一致 */
+.nav {
+    padding-left: var(--gap);
+    padding-right: var(--gap);
+    box-sizing: border-box;
+}
+
+/* logo 與 menu 的水平間距現在由 .nav 的 padding 提供，不再需要自身的水平 margin */
+.logo,
+#menu {
+    margin: auto 0;
+}
+
+/* header 頂部留白，避免導航項目太靠上 */
+.header {
+    padding-top: 0.75rem;
+}
+
 /* 卡片列表的容器 */
 .home-sections-list {
     margin-top: 2rem;
