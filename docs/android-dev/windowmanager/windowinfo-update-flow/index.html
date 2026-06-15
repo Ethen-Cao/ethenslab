@@ -1,13 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" dir="auto">
-
-<head><meta charset="utf-8">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<meta name="robots" content="index, follow">
-<title>Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复 | Ethen 的实验室</title>
-<meta name="keywords" content="">
-<meta name="description" content="1. 概述
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='1. 概述
 WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（WindowInfo：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。
 主要消费者：
 
@@ -30,70 +21,11 @@ AccessibilityWindowsPopulator (system_server 进程)：为无障碍服务（A11y
               │ PointerController (local cb) │
               │ A11yPop JNI (local cb)       │
               └──────────────────────────────┘
-从 SF 的 WindowInfosListenerInvoker::mWindowInfosListeners 视角，只看到 1 个 binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 &quot;Recorded window infos message ... for 1 listener(s)&quot;。">
-<meta name="author" content="map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]">
-<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/">
-<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css" integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as="style">
-<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
-<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
-<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
-<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
-<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
-<meta name="theme-color" content="#2e2e33">
-<meta name="msapplication-TileColor" content="#2e2e33">
-<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/">
-<noscript>
-    <style>
-        #theme-toggle,
-        .top-link {
-            display: none;
-        }
-
-    </style>
-    <style>
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --theme: rgb(29, 30, 32);
-                --entry: rgb(46, 46, 51);
-                --primary: rgb(218, 218, 219);
-                --secondary: rgb(155, 156, 157);
-                --tertiary: rgb(65, 66, 68);
-                --content: rgb(196, 196, 197);
-                --code-block-bg: rgb(46, 46, 51);
-                --code-bg: rgb(55, 56, 62);
-                --border: rgb(51, 51, 51);
-            }
-
-            .list {
-                background: var(--theme);
-            }
-
-            .list:not(.dark)::-webkit-scrollbar-track {
-                background: 0 0;
-            }
-
-            .list:not(.dark)::-webkit-scrollbar-thumb {
-                border-color: var(--theme);
-            }
-        }
-
-    </style>
-</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/">
-  <meta property="og:site_name" content="Ethen 的实验室">
-  <meta property="og:title" content="Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复">
-  <meta property="og:description" content="1. 概述 WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（WindowInfo：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。
+从 SF 的 WindowInfosListenerInvoker::mWindowInfosListeners 视角，只看到 1 个 binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 "Recorded window infos message ... for 1 listener(s)"。'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复"><meta property="og:description" content='1. 概述 WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（WindowInfo：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。
 主要消费者：
 InputDispatcher (system_server 进程)：根据窗口信息计算触摸事件的目标窗口（Hit Testing）。 PointerController (system_server 进程)：处理鼠标/触控笔指针的显示与坐标映射。 AccessibilityWindowsPopulator (system_server 进程)：为无障碍服务（A11y）构建屏幕窗口节点树。 该机制的高频跨进程特性（每 16ms 一次）使其成为 Binder 缓冲区耗尽的高发区。本文档描述了 8295/AOSP13 中该流程的原始实现、一个导致 system_server 冻屏的 bug 的完整根因分析，以及基于 backpressure 的修复方案。
 2. 核心架构 2.1 注册链：三个调用者，一条 Binder 通道 所有消费者都调用 SurfaceComposerClient::addWindowInfosListener()，该函数路由到本进程的 WindowInfosListenerReporter 单例。Reporter 只在第一个本地 listener 注册时向 SF 建立 Binder 通道。Android 10 起 Input 栈（libinputservice、libinputdispatcher）编译进 system_server，因此所有三个消费者均在 system_server 进程内，共享同一个 Reporter 单例。
-SurfaceFlinger │ │ oneway binder (唯一) ▼ system_server 的 WindowInfosListenerReporter (单例) ┌──────────────────────────────┐ │ InputDispatcher (local cb) │ │ PointerController (local cb) │ │ A11yPop JNI (local cb) │ └──────────────────────────────┘ 从 SF 的 WindowInfosListenerInvoker::mWindowInfosListeners 视角，只看到 1 个 binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 &#34;Recorded window infos message ... for 1 listener(s)&#34;。">
-  <meta property="og:locale" content="en">
-  <meta property="og:type" content="article">
-    <meta property="article:section" content="android-dev">
-    <meta property="article:published_time" content="2026-06-07T10:22:54+08:00">
-    <meta property="article:modified_time" content="2026-06-07T10:22:54+08:00">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复">
-<meta name="twitter:description" content="1. 概述
+SurfaceFlinger │ │ oneway binder (唯一) ▼ system_server 的 WindowInfosListenerReporter (单例) ┌──────────────────────────────┐ │ InputDispatcher (local cb) │ │ PointerController (local cb) │ │ A11yPop JNI (local cb) │ └──────────────────────────────┘ 从 SF 的 WindowInfosListenerInvoker::mWindowInfosListeners 视角，只看到 1 个 binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 "Recorded window infos message ... for 1 listener(s)"。'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2026-06-07T10:22:54+08:00"><meta property="article:modified_time" content="2026-06-07T10:22:54+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复"><meta name=twitter:description content='1. 概述
 WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（WindowInfo：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。
 主要消费者：
 
@@ -116,168 +48,9 @@ AccessibilityWindowsPopulator (system_server 进程)：为无障碍服务（A11y
               │ PointerController (local cb) │
               │ A11yPop JNI (local cb)       │
               └──────────────────────────────┘
-从 SF 的 WindowInfosListenerInvoker::mWindowInfosListeners 视角，只看到 1 个 binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 &quot;Recorded window infos message ... for 1 listener(s)&quot;。">
-
-
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {
-      "@type": "ListItem",
-      "position":  1 ,
-      "name": "Android系统开发",
-      "item": "https://ethen-cao.github.io/ethenslab/android-dev/"
-    }, 
-    {
-      "@type": "ListItem",
-      "position":  2 ,
-      "name": "WindowManager",
-      "item": "https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/"
-    }, 
-    {
-      "@type": "ListItem",
-      "position":  3 ,
-      "name": "Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复",
-      "item": "https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/"
-    }
-  ]
-}
-</script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BlogPosting",
-  "headline": "Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复",
-  "name": "Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复",
-  "description": "1. 概述 WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（WindowInfo：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。\n主要消费者：\nInputDispatcher (system_server 进程)：根据窗口信息计算触摸事件的目标窗口（Hit Testing）。 PointerController (system_server 进程)：处理鼠标/触控笔指针的显示与坐标映射。 AccessibilityWindowsPopulator (system_server 进程)：为无障碍服务（A11y）构建屏幕窗口节点树。 该机制的高频跨进程特性（每 16ms 一次）使其成为 Binder 缓冲区耗尽的高发区。本文档描述了 8295/AOSP13 中该流程的原始实现、一个导致 system_server 冻屏的 bug 的完整根因分析，以及基于 backpressure 的修复方案。\n2. 核心架构 2.1 注册链：三个调用者，一条 Binder 通道 所有消费者都调用 SurfaceComposerClient::addWindowInfosListener()，该函数路由到本进程的 WindowInfosListenerReporter 单例。Reporter 只在第一个本地 listener 注册时向 SF 建立 Binder 通道。Android 10 起 Input 栈（libinputservice、libinputdispatcher）编译进 system_server，因此所有三个消费者均在 system_server 进程内，共享同一个 Reporter 单例。\nSurfaceFlinger │ │ oneway binder (唯一) ▼ system_server 的 WindowInfosListenerReporter (单例) ┌──────────────────────────────┐ │ InputDispatcher (local cb) │ │ PointerController (local cb) │ │ A11yPop JNI (local cb) │ └──────────────────────────────┘ 从 SF 的 WindowInfosListenerInvoker::mWindowInfosListeners 视角，只看到 1 个 binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 \u0026quot;Recorded window infos message ... for 1 listener(s)\u0026quot;。\n",
-  "keywords": [
-    
-  ],
-  "articleBody": "1. 概述 WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（WindowInfo：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。\n主要消费者：\nInputDispatcher (system_server 进程)：根据窗口信息计算触摸事件的目标窗口（Hit Testing）。 PointerController (system_server 进程)：处理鼠标/触控笔指针的显示与坐标映射。 AccessibilityWindowsPopulator (system_server 进程)：为无障碍服务（A11y）构建屏幕窗口节点树。 该机制的高频跨进程特性（每 16ms 一次）使其成为 Binder 缓冲区耗尽的高发区。本文档描述了 8295/AOSP13 中该流程的原始实现、一个导致 system_server 冻屏的 bug 的完整根因分析，以及基于 backpressure 的修复方案。\n2. 核心架构 2.1 注册链：三个调用者，一条 Binder 通道 所有消费者都调用 SurfaceComposerClient::addWindowInfosListener()，该函数路由到本进程的 WindowInfosListenerReporter 单例。Reporter 只在第一个本地 listener 注册时向 SF 建立 Binder 通道。Android 10 起 Input 栈（libinputservice、libinputdispatcher）编译进 system_server，因此所有三个消费者均在 system_server 进程内，共享同一个 Reporter 单例。\nSurfaceFlinger │ │ oneway binder (唯一) ▼ system_server 的 WindowInfosListenerReporter (单例) ┌──────────────────────────────┐ │ InputDispatcher (local cb) │ │ PointerController (local cb) │ │ A11yPop JNI (local cb) │ └──────────────────────────────┘ 从 SF 的 WindowInfosListenerInvoker::mWindowInfosListeners 视角，只看到 1 个 binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 \"Recorded window infos message ... for 1 listener(s)\"。\n2.2 各消费者注册原因与流程 为什么需要 WindowInfo？ 三个消费者对窗口信息的需求各不相同，但都只能从 SurfaceFlinger 获取——SF 是唯一拥有合成后窗口实际几何状态（变换矩阵、裁剪区域、Z-Order）的组件：\nInputDispatcher：需要窗口的 Z-Order 和触摸区域来做点击测试（Hit Testing），确定触摸事件分发给哪个窗口。 PointerController：需要 display 的变换矩阵来正确映射鼠标/触控笔坐标。 AccessibilityWindowsPopulator：需要屏幕上每个窗口的完整信息（位置、大小、层级、触摸区域、是否可见、是否被遮挡），为无障碍服务（如 TalkBack）构建窗口节点树。视障用户依赖这些信息来理解屏幕内容和进行代理操作。 无障碍注册触发时机 无障碍的 WindowInfosListener 注册并非开机即完成，而是按需注册。调用链如下：\nAccessibilityManagerService → accessibilityWindowManager.startTrackingWindows(displayId) → WindowManagerService.setWindowsForAccessibilityCallback(displayId, ...) → AccessibilityWindowsPopulator.setWindowsNotification(true) → register() // 行 221 → nativeRegister() // JNI → android_window_WindowInfosListener.cpp:140 → SurfaceComposerClient::addWindowInfosListener(listener) → WindowInfosListenerReporter::addWindowInfosListener(listener, ...) → if (mWindowInfosListeners.empty()) { surfaceComposer-\u003eaddWindowInfosListener(this); // Reporter 向 SF 注册自身 } → mWindowInfosListeners.insert(listener) // 本地 listener 加入集合 触发时机：\n系统启动完毕（BOOT_COMPLETED） 用户开启无障碍服务（TalkBack、放大镜等） 显示器插拔（onDisplayAdded） 当所有无障碍服务关闭时，调用 setWindowsNotification(false) → unregister() → 从 Reporter 的本地集合中移除 listener。如果这是最后一个本地 listener，Reporter 还会从 SF 注销，关闭 Binder 通道。\nIWindowInfosReportedListener：修复前后不变的基础设施 IWindowInfosReportedListener 和 IWindowInfosReportedListener 创建于 2020 年（AOSP 11 引入）：\n// IWindowInfosListener.aidl (修复前后不变) oneway interface IWindowInfosListener { void onWindowInfosChanged( in WindowInfo[] windowInfos, in DisplayInfo[] displayInfos, in @nullable IWindowInfosReportedListener windowInfosReportedListener // ← 一直存在 ); } // IWindowInfosReportedListener.aidl (修复前后不变) oneway interface IWindowInfosReportedListener { void onWindowInfosReported(); } Reporter 收到回调后，在进程内同步分发完所有本地 listener 后，如果 windowInfosReportedListener 非 null，就回调它：\n// WindowInfosListenerReporter.cpp:97-102 (修复前后不变) for (auto listener : windowInfosListeners) { listener-\u003eonWindowInfosChanged(windowInfos, displayInfos); } if (windowInfosReportedListener) { windowInfosReportedListener-\u003eonWindowInfosReported(); // ack } 修复前 修复后 何时传 non-null 仅 shouldSync=true（syncInputWindows） 每次更新都传递 传递什么对象 同一个 mWindowInfosReportedListener 每消息新建 WindowInfosReportedListener(messageId, targetListener) 用途 计数归零 → 通知 sync 事务完成 per-message ack 追踪 → backpressure 的控制通道 修复不改变 AIDL 协议，只改变 SF 侧何时传、传什么对象——把原本只用于 sync 事务的 ack 通道扩展为通用的 flow-control 通道。\n2.3 关键类和调用关系 层级 类/方法 进程 角色 发送 SurfaceFlinger::updateInputFlinger() SF 每帧入口 发送 SurfaceFlinger::buildWindowInfos() SF 图层→WindowInfo 转换 发送 WindowInfosListenerInvoker::windowInfosChanged() SF 遍历 listener 发送 协议 IWindowInfosListener.onWindowInfosChanged() AIDL oneway 接收 WindowInfosListenerReporter::onWindowInfosChanged() system_server Binder stub 消费 InputDispatcher::onWindowInfosChanged() system_server 同步持锁处理 消费 PointerController::DisplayInfoListener::onWindowInfosChanged() system_server 同步持锁处理 消费 JNI WindowInfosListener::onWindowInfosChanged() system_server 弱引用解包→Java 消费 AccessibilityWindowsPopulator.onWindowInfosChanged() system_server mHandler.post() 异步 ack IWindowInfosReportedListener.onWindowInfosReported() AIDL oneway，仅 sync 时非空 ack WindowInfosListenerInvoker::onListenerReported() SF 新增：处理 ack 3. Bug 分析 3.1 现象 在 CPU 压力场景（6 个 yes 进程占满 CPU0-5）下，system_server 出现约 1.78 秒的冻屏，Perfetto trace 记录如下：\nslice: onWindowInfosChanged process: system_server [1475] thread: binder:1475_1D [3807] duration: 1,777,357 μs (≈1.78s) nested slice: \"Contending for pthread mutex, mutex owner: 1612\" → 1,776,669 μs (99.96%) 同时 logcat 中密集出现：\noneway spamming → 每份 log 出现 11-40 次 binder_alloc_buf failed to map pages in userspace, no vma setTransactionState timed out! 3.2 时序 时刻 T0: SF updateInputFlinger() 发送 oneway onWindowInfosChanged → system_server Binder 线程收到 → JNI → 路径上访问 ART 全局引用锁 → 该锁被 android.bg (tid 1612) 持有 → android.bg 正在 UsageStatsService.H.handleMessage() 内 → android.bg 优先级 130，低于 yes 的 120 → 几乎得不到 CPU T0+16ms: SF 下一帧 → 再发一条 oneway onWindowInfosChanged T0+32ms: 又一条 ... T0+1.78s: 共 ~111 条 oneway 消息堆积在 system_server 的 async binder buffer → binder buffer 耗尽 → binder_alloc_buf failed → 冻屏 T0+1.78s: android.bg 终于得到 CPU → 释放锁 → binder 线程获取锁 → 处理堆积的 111 条消息 (无意义，仅最新状态有用) 3.3 根因 SF 侧无 sender-side backpressure。 核心链路有三重因素共同导致：\noneway 语义：IWindowInfosListener.onWindowInfosChanged() 定义为 oneway。调用方 transact() 即时返回，不等待远端处理。SF 可以 16ms/次无限制发送，不感知远端是否拥堵。\nBackgroundExecutor 异步投递：SurfaceFlinger::updateInputFlinger() 将发送逻辑打包为 lambda 投递给 BackgroundExecutor。每帧一个 lambda，阻塞发生时 lambda 持续堆积排队。\n// SurfaceFlinger.cpp:3265-3283 (修复前) BackgroundExecutor::getInstance().sendCallbacks({[...]() { mWindowInfosListenerInvoker-\u003ewindowInfosChanged( windowInfos, displayInfos, inputWindowCommands.syncInputWindows); // shouldSync }}); WindowInfosListenerInvoker::windowInfosChanged() 无条件全量发送：修复前实现简单遍历所有 listener，无条件调用 oneway Binder：\n// WindowInfosListenerInvoker.cpp (修复前) void WindowInfosListenerInvoker::windowInfosChanged(...) { mCallbacksPending = windowInfosListeners.size(); for (const auto\u0026 listener : windowInfosListeners) { listener-\u003eonWindowInfosChanged(windowInfos, displayInfos, shouldSync ? mWindowInfosReportedListener : nullptr); } } mCallbacksPending 仅用于 sync 事务的计数（当所有 listener ack 后触发 mFlinger.windowInfosReported()），不是发送侧限流条件。\n3.4 阻塞点定位：两个 listener 都会阻塞，但原因不同 Reporter 在 Binder 线程中同步串行调用所有本地 listener。一旦某个 listener 阻塞，后续 listener 根本不会被调用到：\n// WindowInfosListenerReporter.cpp:97-99 (修复前后逻辑相同) for (auto listener : windowInfosListeners) { listener-\u003eonWindowInfosChanged(windowInfos, displayInfos); // 同步，逐个调用 } 在 Reporter 中添加计时代码后的复现日志证实两个 listener 都有超时：\n地址 注册时间 身份 总调用 超时(\u003e16ms) 最大超时 平均 0xb4000072ecf4df00 05:12:28.256 InputDispatcher 601 10 次 96ms 1.1ms 0xb4000072ecf19820 05:12:36.711 JNI A11yPop 435 8 次 31ms 1.4ms 注册时间戳排除了歧义：0xb4000072ecf4df00 在 05:12:28.256 注册，早于 AccessibilityManagerService 启动（05:12:28.432），必定是 InputDispatcher（inputManager.start() 内构造函数注册）。0xb4000072ecf19820 在 8 秒后注册，是 JNI A11yPop。\n同一线程、同一时间戳的两条日志揭示了 unordered_set 的遍历顺序：\n05:12:36.901 TID 1669 listener 0xb4000072ecf19820 took 0 ms ← 先调用 (JNI A11yPop) 05:12:36.901 TID 1669 listener 0xb4000072ecf4df00 took 0 ms ← 后调用 (InputDispatcher) 两个 listener 的阻塞原因不同：\nInputDispatcher —— 被自身 looper 线程阻塞（mLock 竞争） InputDispatcher.cpp:6346-6363：\nvoid InputDispatcher::onWindowInfosChanged(...) { // 行 6340-6344: 纯本地堆操作，无共享锁 std::scoped_lock _l(mLock); // ← 唯一获取的锁 setInputWindowsLocked(handles, displayId); mLooper-\u003ewake(); } mLock 定义在 InputDispatcher.h:171：std::mutex mLock。这把锁不是只有 Binder 线程获取——InputDispatcher 的 looper 线程在 dispatchOnceInnerLocked() 分发输入事件时也需要持有 mLock。如果 looper 线程在处理大量积压的输入事件（持锁数十 ms），Binder 线程的 onWindowInfosChanged 就会在 mLock 上阻塞。\nandroid.bg（tid 1612）确实不会持有 InputDispatcher::mLock。但 InputDispatcher 自己的 looper 线程会。日志中 96ms 的峰值就是 looper 线程持锁分发事件时 Binder 线程等待的结果。\nJNI 路径 —— 被任意 JNI 线程阻塞（ART VM 全局锁竞争） android_window_WindowInfosListener.cpp:96-121：\nvoid onWindowInfosChanged(...) override { JNIEnv* env = AndroidRuntime::getJNIEnv(); ScopedLocalFrame localFrame(env); jobject listener = env-\u003eNewGlobalRef(mListener); // ← 行 103: 需要 VM 级锁 ... } NewGlobalRef(mListener) 中 mListener 是 jweak——弱全局引用。调用链：\njni_internal.cc:851 NewGlobalRef(env, obj) → ScopedObjectAccess soa(env) → Decode(obj) // 解析 weak ref: 访问 indirect reference table → AddGlobalRef(self, decoded) // java_vm_ext.cc:692 → WriterMutexLock mu(self, *Locks::jni_globals_lock_); // 行 700: VM 级锁 → globals_.Add(...) Locks::jni_globals_lock_ 是 ART VM 级的 ReaderWriterMutex（art/runtime/base/locks.cc:147-148）。android.bg（tid 1612）执行 UsageStatsService.H.handleMessage() → FrameworkStatsLog.write() → JNI → native 层时可能持有该锁。在 CPU 饥饿下（6 个 yes 进程抢占 CPU0-5），android.bg 得不到调度释放锁 → Binder 线程的 NewGlobalRef 等待该锁。\n两条阻塞路径对比 锁 被谁持有 阻塞对象 严重程度 InputDispatcher::mLock InputDispatcher looper 线程（分发事件） InputDispatcher Binder 回调 数十 ms（96ms 峰值） Locks::jni_globals_lock_ 任意 JNI 线程（android.bg 等） JNI Binder 回调 数十 ms 到秒级（原 trace 1.78s） 这两个阻塞独立发生且可叠加：在 Reporter 的同步循环中，InputDispatcher 阻塞 96ms + JNI 阻塞 31ms = 总延迟 \u003e127ms，远超过 16ms 帧间隔。\n3.5 关键代码路径上的锁汇总 锁 位置 作用域 持有者 与 onWindowInfosChanged 交集 InputDispatcher::mLock setInputWindowsLocked() InputDispatcher 对象 InputDispatcher looper 线程 ✅ Binder 线程等待 looper 释放 Locks::jni_globals_lock_ AddGlobalRef() → NewGlobalRef() ART VM 全局 任何 JNI 线程（android.bg 等） ✅ Binder JNI 线程等待其他 JNI 线程 Locks::jni_weak_globals_lock_ weak global ref 解引用 ART VM 全局 任何 JNI 线程 ✅ 同上 BinderProxy.sProxyMap javaObjectForIBinder() Java 静态对象 任何 Binder 调用者 ✅ 窗口 token 转换 DisplayInfoListener::mLock onDisplayInfosChangedLocked() DisplayInfoListener 对象 PointerController 自身 ⚠️ 仅在 pointer 生命周期变更时短暂持锁 WMS mGlobalLock getWindowsTransformMatrix() WMS 全局 WMS 线程 ⚠️ A11yPop 异步处理时 这些锁本身持有时间极短（μs 级），但在 CPU 饥饿下，锁持有者得不到调度，等待被放大到百毫秒甚至秒级。\n4. 修复：Sender-side Backpressure 4.1 核心思想 复用旧协议中已有但仅用于 sync 的 IWindowInfosReportedListener.onWindowInfosReported() 回调，不改 AIDL 接口。\n普通更新：最多 1 个 in-flight 消息，后续帧合并为一份 latest-wins 延迟更新 强制更新（可见窗口变化 / 焦点切换）：允许穿透，但受 kMaxInFlightMessages 硬上限限制 Sync 更新：永远立即发送（调用方阻塞等待，不可 defer） 4.2 新增状态 // WindowInfosListenerInvoker.h std::mutex mMessagesMutex; // 保护 flow-control 状态 uint64_t mNextMessageId = 1; struct UnackedMessage { bool shouldSync; std::vector\u003cwp\u003cIBinder\u003e\u003e unackedListeners; // 尚欠 ack 的 listener std::vector\u003csp\u003cIWindowInfosReportedListener\u003e\u003e reportedListeners; // strong ref }; std::unordered_map\u003cuint64_t, UnackedMessage\u003e mUnackedMessages; bool mHasDelayedUpdate = false; std::vector\u003cWindowInfo\u003e mDelayedWindowInfos; // 合并后的最新更新 std::vector\u003cDisplayInfo\u003e mDelayedDisplayInfos; uint32_t mDelayedCount = 0; static constexpr size_t kMaxInFlightMessages = 4; // 硬上限 4.3 WindowInfosReportedListener：Binder 对象编码标识 旧 AIDL 中 onWindowInfosReported() 无参数。通过在 Binder 对象自身携带 (messageId, targetListener) 来支持多 in-flight 消息追踪，不改 AIDL：\nstruct WindowInfosListenerInvoker::WindowInfosReportedListener : gui::BnWindowInfosReportedListener { WindowInfosListenerInvoker\u0026 mInvoker; const uint64_t mMessageId; const wp\u003cIBinder\u003e mTargetListener; // 哪个 listener 发的 ack binder::Status onWindowInfosReported() override { mInvoker.onListenerReported(mMessageId, mTargetListener, false); return binder::Status::ok(); } }; 4.4 发送路径 void WindowInfosListenerInvoker::windowInfosChanged(...) { std::scoped_lock lock(mMessagesMutex); // 背压决策 const bool atCapacity = mUnackedMessages.size() \u003e= kMaxInFlightMessages; const bool deferUpdate = !shouldSync \u0026\u0026 !mUnackedMessages.empty() \u0026\u0026 (!forceImmediateCall || atCapacity); if (deferUpdate) { // latest-wins: 只保留最新一份 mDelayedWindowInfos = windowInfos; mDelayedDisplayInfos = displayInfos; mHasDelayedUpdate = true; mDelayedCount++; return; // 不发送 } // force 更新淘汰旧的 delayed 数据 (携带更新状态) if (mHasDelayedUpdate) { mHasDelayedUpdate = false; mDelayedCount = 0; } // 注册消息 + 快照 listener + 分配 messageId dispatchList = recordMessageLocked(shouldSync, \u0026messageId); dispatchWindowInfos(messageId, dispatchList, windowInfos, displayInfos); } 4.5 ack 路径 Reporter 处理完所有本地 listener → if (windowInfosReportedListener) onWindowInfosReported() // oneway 回 SF → WindowInfosReportedListener::onWindowInfosReported() → WindowInfosListenerInvoker::onListenerReported(messageId, target, false) { scoped_lock(mMessagesMutex); 找到消息 → 移除 target → 若 unacked 为空 → erase 消息 若 shouldSync → syncCompletions++ 若 mUnackedMessages 为空 且 mHasDelayedUpdate → 准备 flush } mFlinger.windowInfosReported() × syncCompletions 若 flush → dispatchWindowInfos(delayed) 4.6 SurfaceFlinger.cpp 调用点变化 // 修复前 mWindowInfosListenerInvoker-\u003ewindowInfosChanged( windowInfos, displayInfos, syncInputWindows); // 修复后 const bool forceImmediateCall = visibleWindowsChanged || inputWindowCommands.syncInputWindows || !inputWindowCommands.focusRequests.empty(); mWindowInfosListenerInvoker-\u003ewindowInfosChanged( windowInfos, displayInfos, syncInputWindows, forceImmediateCall); 新增 visibleWindowsChanged 检测：通过对比相邻帧的可见窗口 ID set（mVisibleWindowIds），识别窗口出现/消失（稀疏事件，不会被 backpressure spam）。\n5. 时序图 5.1 正常流程 (无背压) @startuml !theme plain autonumber scale 1080 width title WindowInfos 正常更新流程 (无背压) box \"SurfaceFlinger\" #E3F2FD participant \"updateInputFlinger()\" as UIF participant \"BackgroundExecutor\" as BE participant \"WindowInfosListenerInvoker\" as Invoker end box box \"Kernel\" #F5F5F5 participant \"Binder Driver\" as Binder end box box \"system_server\" #FFF3E0 participant \"WindowInfosListenerReporter\\n(onWindowInfosChanged)\" as Reporter end box box \"system_server (Java)\" #FFE0B2 participant \"WindowInfosListener\\n(JNI → Java)\" as JNI participant \"AccessibilityWindowsPopulator\\n(onWindowInfosChanged)\" as A11y end box == 每帧触发 (Vsync, ~16ms) == UIF -\u003e UIF: buildWindowInfos(windowInfos, displayInfos) UIF -\u003e BE: sendCallbacks(lambda) BE -\u003e Invoker: windowInfosChanged(windowInfos, displayInfos,\\n shouldSync=false, forceImmediateCall=false) Invoker -\u003e Invoker: lock mMessagesMutex Invoker -\u003e Invoker: mUnackedMessages.empty() → 发送 Invoker -\u003e Invoker: recordMessageLocked(shouldSync=false) group 快照 listeners Invoker -\u003e Invoker: lock mListenersMutex Invoker -\u003e Invoker: 遍历 mWindowInfosListeners Invoker -\u003e Invoker: unlock mListenersMutex end Invoker -\u003e Invoker: new messageId, UnackedMessage\\{shouldSync=false\\} Invoker -\u003e Invoker: create WindowInfosReportedListener(messageId, listenerBinder) Invoker -\u003e Invoker: unlock mMessagesMutex Invoker -\u003e Binder: listener-\u003eonWindowInfosChanged(data, reported) **oneway** Binder -\u003e Reporter: onWindowInfosChanged(windowInfos, displayInfos, reported) Reporter -\u003e Reporter: lock mListenersMutex\\n复制本地 listener 集合 Reporter -\u003e JNI: listener-\u003eonWindowInfosChanged(windowInfos, displayInfos) JNI -\u003e A11y: onWindowInfosChanged(windowHandles, displayInfos) A11y -\u003e A11y: mHandler.post(→ onWindowInfosChangedInternal) JNI \u003c-- A11y: return Reporter \u003c-- JNI: return Reporter -\u003e Binder: reported-\u003eonWindowInfosReported() **oneway** Binder -\u003e Invoker: onListenerReported(messageId, listener, false) Invoker -\u003e Invoker: lock mMessagesMutex\\n移除 listener → 消息 fully acked → erase Invoker -\u003e Invoker: mUnackedMessages 为空 → 无 delayed → 无 flush Invoker -\u003e Invoker: unlock mMessagesMutex @enduml 5.2 system_server 阻塞时的背压流程 @startuml !theme plain autonumber title system_server 阻塞时的 Backpressure 流程 box \"SurfaceFlinger\" #E3F2FD participant \"Vsync (~16ms)\" as VSYNC participant \"WindowInfosListenerInvoker\" as Invoker end box box \"system_server\" #FFCDD2 participant \"Reporter\" as Reporter end box == Frame N: 首次发送 == VSYNC -\u003e Invoker: windowInfosChanged(A, forceImmediateCall=false) Invoker -\u003e Invoker: mUnackedMessages 为空 → 发送 Invoker -\u003e Reporter: **oneway** onWindowInfosChanged(A, reported_msg1) note right #FFB3B3: 消息 1 进入 system_server binder buffer\\n但 system_server 阻塞，Reporter 未被调度 == Frame N+1 (~16ms later): 背压介入 == VSYNC -\u003e Invoker: windowInfosChanged(B, forceImmediateCall=false) Invoker -\u003e Invoker: mUnackedMessages = {1} → 非空 Invoker -\u003e Invoker: mDelayedWindowInfos = B (latest-wins) Invoker -\u003e Invoker: mHasDelayedUpdate = true, mDelayedCount = 1 Invoker -\u003e Invoker: **return** (不发送) == Frame N+2: 继续合并 == VSYNC -\u003e Invoker: windowInfosChanged(C, forceImmediateCall=false) Invoker -\u003e Invoker: mDelayedWindowInfos = C (覆盖 B) Invoker -\u003e Invoker: mDelayedCount = 2 Invoker -\u003e Invoker: **return** == Frame N+3: forceImmediateCall=true (焦点切换) == VSYNC -\u003e Invoker: windowInfosChanged(D, forceImmediateCall=true) Invoker -\u003e Invoker: atCapacity = false (1/4)\\n→ 背压不生效 → 发送 Invoker -\u003e Reporter: **oneway** onWindowInfosChanged(D, reported_msg2) == (system_server 恢复) == Reporter -\u003e Reporter: **处理 msg1** → A11y → ... Reporter -\u003e Invoker: **oneway** reported_msg1-\u003eonWindowInfosReported() Invoker -\u003e Invoker: onListenerReported(1, reporter):\\n移除 reporter → msg1 还剩 0 listener → erase msg1\\n→ mUnackedMessages = {2} → 未空 → 不 flush Reporter -\u003e Reporter: **处理 msg2** → A11y → ... Reporter -\u003e Invoker: **oneway** reported_msg2-\u003eonWindowInfosReported() Invoker -\u003e Invoker: onListenerReported(2, reporter):\\n移除 reporter → msg2 还剩 0 listener → erase msg2\\n→ mUnackedMessages 为空 → mHasDelayedUpdate=true Invoker -\u003e Invoker: **flush delayed**: mDelayedWindowInfos (= C, 合并自2帧) Invoker -\u003e Reporter: **oneway** onWindowInfosChanged(C, reported_msg3) Reporter -\u003e Reporter: **处理 msg3** → A11y 获得最新状态 C Reporter -\u003e Invoker: reported_msg3-\u003eonWindowInfosReported() @enduml 5.3 force 更新达到硬上限 @startuml !theme plain autonumber title forceImmediateCall 达到 kMaxInFlightMessages 时的背压 box \"SurfaceFlinger\" #E3F2FD participant \"WindowInfosListenerInvoker\" as Invoker end box == 前置条件: 4 条 force update 已发出，全部未 ack == note over Invoker: mUnackedMessages.size() == 4\\n(atCapacity == true) == 第 5 条 force update == Invoker -\u003e Invoker: windowInfosChanged(E, forceImmediateCall=true) Invoker -\u003e Invoker: !shouldSync \u0026\u0026 !mUnackedMessages.empty()\\n\u0026\u0026 (!forceImmediateCall || atCapacity)\\n= true \u0026\u0026 true \u0026\u0026 (false || true) = true Invoker -\u003e Invoker: **DEFER** — 即使 force 也被 coalesce! note right: 硬上限防止 force update 自身\\n成为 oneway spam 来源 @enduml 6. 完整注册与更新流程 (PlantUML 长图) @startuml !theme plain autonumber \"[0]\" scale 1080 width title WindowInfos: 注册到更新的完整流程 (修复后) box \"SurfaceFlinger Process\" #E3F2FD participant \"SurfaceFlinger\\nupdateInputFlinger()\" as SF participant \"BackgroundExecutor\" as BE participant \"WindowInfosListenerInvoker\" as Invoker end box box \"Kernel\" #F5F5F5 participant \"Binder Driver\" as Binder end box box \"system_server Process (Native)\" #FFF3E0 participant \"WindowInfosListenerReporter\\n(Singleton, BnWindowInfosListener)\" as Reporter participant \"InputDispatcher\\nonWindowInfosChanged()\" as InputDisp participant \"PointerController\\nDisplayInfoListener\" as PointerCtrl end box box \"system_server Process (JNI)\" #FFECB3 participant \"WindowInfosListener\\n(JNI bridge)\" as JNI end box box \"system_server Process (Java)\" #FFE0B2 participant \"AccessibilityWindowsPopulator\\nonWindowInfosChanged()\" as A11yPop participant \"WMS Handler\" as WMS_H end box == 0. 注册阶段 == note over InputDisp, Reporter **system_server 内**: InputDispatcher 注册 DispatcherWindowListener **system_server 内**: PointerController 注册 DisplayInfoListener **system_server 内**: A11yPop 注册 JNI WindowInfosListener 三者均通过 SurfaceComposerClient::addWindowInfosListener() → WindowInfosListenerReporter::addWindowInfosListener() → 首次时 Reporter 向 SF 注册自身 (BnWindowInfosListener) 三个本地 listener 共享同一个 Reporter 单例 → SF 只看到 1 个 proxy end note == 1. 帧触发 == SF -\u003e SF: buildWindowInfos(windowInfos, displayInfos) SF -\u003e SF: 检测 visibleWindowsChanged (对比 mVisibleWindowIds) SF -\u003e BE: sendCallbacks(lambda) == 2. 发送决策 (Backpressure) == BE -\u003e Invoker: windowInfosChanged(windowInfos, displayInfos,\\n shouldSync, forceImmediateCall) Invoker -\u003e Invoker: lock mMessagesMutex alt 背压 (mUnackedMessages 非空 且 !forceImmediateCall) Invoker -\u003e Invoker: latest-wins 合并到 mDelayedWindowInfos Invoker -\u003e Invoker: return (不发送) else 背压 + force + atCapacity Invoker -\u003e Invoker: 同样合并 (硬上限) else 发送 Invoker -\u003e Invoker: recordMessageLocked(shouldSync) Invoker -\u003e Invoker: 快照 mWindowInfosListeners Invoker -\u003e Invoker: new UnackedMessage{shouldSync, unackedListeners} Invoker -\u003e Invoker: new WindowInfosReportedListener(messageId, listenerBinder) Invoker -\u003e Invoker: unlock mMessagesMutex Invoker -\u003e Invoker: dispatchWindowInfos(messageId, dispatchList, ...) end == 3. 跨进程分发 == Invoker -\u003e Binder: listener-\u003eonWindowInfosChanged(data, reported) **oneway** Binder -\u003e Reporter: onWindowInfosChanged(windowInfos, displayInfos, reported) Reporter -\u003e Reporter: lock mListenersMutex, 快照本地 listeners par 本地 listener: InputDispatcher Reporter -\u003e InputDisp: onWindowInfosChanged(windowInfos, displayInfos) InputDisp -\u003e InputDisp: std::scoped_lock _l(mLock) InputDisp -\u003e InputDisp: setInputWindowsLocked(...) end par 本地 listener: PointerController Reporter -\u003e PointerCtrl: onWindowInfosChanged(windowInfos, displayInfos) PointerCtrl -\u003e PointerCtrl: std::scoped_lock lock(mLock)\\nonDisplayInfosChangedLocked(...) end par 本地 listener: JNI → A11yPop Reporter -\u003e JNI: onWindowInfosChanged(windowInfos, displayInfos) JNI -\u003e JNI: NewGlobalRef(mListener) JNI -\u003e JNI: fromWindowInfos(env, windowInfos) JNI -\u003e JNI: CallVoidMethod → Java onWindowInfosChanged(...) JNI -\u003e A11yPop: onWindowInfosChanged(windowHandles, displayInfos) A11yPop -\u003e A11yPop: mHandler.post(→ onWindowInfosChangedInternal) end Reporter -\u003e Binder: **if (reported)** reported-\u003eonWindowInfosReported() **oneway** == 4. ack 处理 == Binder -\u003e Invoker: onListenerReported(messageId, targetListener, false) Invoker -\u003e Invoker: lock mMessagesMutex Invoker -\u003e Invoker: 找到 message → 移除 targetListener Invoker -\u003e Invoker: unacked 为空 → erase message alt shouldSync Invoker --\u003e SF: mFlinger.windowInfosReported() end alt mUnackedMessages 为空 且 mHasDelayedUpdate Invoker -\u003e Invoker: move delayedWindowInfos → recordMessageLocked Invoker -\u003e Invoker: unlock mMessagesMutex Invoker -\u003e Invoker: dispatchWindowInfos(delayed...) end @enduml 7. 修复效果 指标 修复前 修复后 “oneway spamming” 11-40 次/份日志 0 binder_alloc_buf failed 密集出现 与 WindowInfo 路径无关的其他 binder 错误 SF transact failed N/A 0 listener died N/A 0 Recorded ≈ fully acked 无追踪 完全匹配 (消息生命周期健康) 背压 coalesce 率 无 50-57% (正常负载下拦截一半以上) 8. 附录 8.1 SurfaceFlinger::updateInputFlinger() 调用上下文 VSYNC Signal ↓ MessageQueue::handleMessage() ↓ SurfaceFlinger::commit() ├── commitTransactions() ← 应用窗口属性变更 ├── updateLayerGeometry() ← 计算可见区域 ├── updateInputFlinger() ← [本文主角] 窗口信息同步 │ ├── buildWindowInfos() │ ├── 检测 visibleWindowsChanged │ └── BackgroundExecutor::sendCallbacks(lambda) │ └── WindowInfosListenerInvoker::windowInfosChanged() │ ├── [背压决策] defer / send │ ├── recordMessageLocked() │ └── dispatchWindowInfos() │ └── listener-\u003eonWindowInfosChanged() oneway Binder └── composite() ← GPU/HWC 合成上屏 8.2 线程模型 线程 进程 职责 SF Main Thread surfaceflinger updateInputFlinger() 入口 BackgroundExecutor surfaceflinger 执行 lambda (发送 Binder) Binder threads surfaceflinger 接收 onWindowInfosReported() ack Binder threads system_server 接收 onWindowInfosChanged() → Reporter 同步分发到 InputDispatcher/PointerCtrl/JNI WMS Handler system_server onWindowInfosChangedInternal() 异步处理 ",
-  "wordCount" : "2370",
-  "inLanguage": "en",
-  "datePublished": "2026-06-07T10:22:54+08:00",
-  "dateModified": "2026-06-07T10:22:54+08:00",
-  "author":{
-    "@type": "Person",
-    "name": {"defaulttheme":"auto","name":"Ethen","showbreadcrumbs":true,"showcodecopybuttons":true,"showpostnavlinks":true,"showreadingtime":true,"showwordcount":true}
-  },
-  "mainEntityOfPage": {
-    "@type": "WebPage",
-    "@id": "https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/"
-  },
-  "publisher": {
-    "@type": "Organization",
-    "name": "Ethen 的实验室",
-    "logo": {
-      "@type": "ImageObject",
-      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
-    }
-  }
-}
-</script>
-</head>
-
-<body class="" id="top">
-<script>
-    if (localStorage.getItem("pref-theme") === "dark") {
-        document.body.classList.add('dark');
-    } else if (localStorage.getItem("pref-theme") === "light") {
-        document.body.classList.remove('dark')
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.body.classList.add('dark');
-    }
-
-</script>
-
-<header class="header">
-    <nav class="nav">
-        <div class="logo">
-            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
-            <div class="logo-switches">
-                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
-                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                    </svg>
-                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="5"></circle>
-                        <line x1="12" y1="1" x2="12" y2="3"></line>
-                        <line x1="12" y1="21" x2="12" y2="23"></line>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                        <line x1="1" y1="12" x2="3" y2="12"></line>
-                        <line x1="21" y1="12" x2="23" y2="12"></line>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
-                </button>
-            </div>
-        </div>
-        <ul id="menu">
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
-                    <span>Android系统开发</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
-                    <span>Android Automotive</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
-                    <span>QNX开发</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/gunyah/" title="Gunyah">
-                    <span>Gunyah</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
-                    <span>智能座舱方案</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
-                    <span>Explore AI</span>
-                </a>
-            </li>
-        </ul>
-    </nav>
-</header>
-<main class="main">
-
-<article class="post-single">
-  <header class="post-header">
-    
-    <h1 class="post-title entry-hint-parent">
-      Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复
-    </h1>
-    <div class="post-meta"><span title='2026-06-07 10:22:54 +0800 CST'>June 7, 2026</span>&nbsp;·&nbsp;map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]
-
-</div>
-  </header> 
-  <div class="post-content"><h2 id="1-概述">1. 概述<a hidden class="anchor" aria-hidden="true" href="#1-概述">#</a></h2>
-<p>WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（<code>WindowInfo</code>：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。</p>
-<p><strong>主要消费者</strong>：</p>
-<ul>
-<li><strong>InputDispatcher</strong> (system_server 进程)：根据窗口信息计算触摸事件的目标窗口（Hit Testing）。</li>
-<li><strong>PointerController</strong> (system_server 进程)：处理鼠标/触控笔指针的显示与坐标映射。</li>
-<li><strong>AccessibilityWindowsPopulator</strong> (system_server 进程)：为无障碍服务（A11y）构建屏幕窗口节点树。</li>
-</ul>
-<p>该机制的高频跨进程特性（每 16ms 一次）使其成为 Binder 缓冲区耗尽的高发区。本文档描述了 8295/AOSP13 中该流程的原始实现、一个导致 system_server 冻屏的 bug 的完整根因分析，以及基于 backpressure 的修复方案。</p>
-<h2 id="2-核心架构">2. 核心架构<a hidden class="anchor" aria-hidden="true" href="#2-核心架构">#</a></h2>
-<h3 id="21-注册链三个调用者一条-binder-通道">2.1 注册链：三个调用者，一条 Binder 通道<a hidden class="anchor" aria-hidden="true" href="#21-注册链三个调用者一条-binder-通道">#</a></h3>
-<p>所有消费者都调用 <code>SurfaceComposerClient::addWindowInfosListener()</code>，该函数路由到本进程的 <code>WindowInfosListenerReporter</code> 单例。Reporter 只在第一个本地 listener 注册时向 SF 建立 Binder 通道。Android 10 起 Input 栈（<code>libinputservice</code>、<code>libinputdispatcher</code>）编译进 system_server，因此所有三个消费者均在 system_server 进程内，共享同一个 Reporter 单例。</p>
-<pre tabindex="0"><code>                     SurfaceFlinger
+从 SF 的 WindowInfosListenerInvoker::mWindowInfosListeners 视角，只看到 1 个 binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 "Recorded window infos message ... for 1 listener(s)"。'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"WindowManager","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/"},{"@type":"ListItem","position":3,"name":"Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复","item":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复","name":"Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复","description":"1. 概述 WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（WindowInfo：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。\n主要消费者：\nInputDispatcher (system_server 进程)：根据窗口信息计算触摸事件的目标窗口（Hit Testing）。 PointerController (system_server 进程)：处理鼠标/触控笔指针的显示与坐标映射。 AccessibilityWindowsPopulator (system_server 进程)：为无障碍服务（A11y）构建屏幕窗口节点树。 该机制的高频跨进程特性（每 16ms 一次）使其成为 Binder 缓冲区耗尽的高发区。本文档描述了 8295/AOSP13 中该流程的原始实现、一个导致 system_server 冻屏的 bug 的完整根因分析，以及基于 backpressure 的修复方案。\n2. 核心架构 2.1 注册链：三个调用者，一条 Binder 通道 所有消费者都调用 SurfaceComposerClient::addWindowInfosListener()，该函数路由到本进程的 WindowInfosListenerReporter 单例。Reporter 只在第一个本地 listener 注册时向 SF 建立 Binder 通道。Android 10 起 Input 栈（libinputservice、libinputdispatcher）编译进 system_server，因此所有三个消费者均在 system_server 进程内，共享同一个 Reporter 单例。\nSurfaceFlinger │ │ oneway binder (唯一) ▼ system_server 的 WindowInfosListenerReporter (单例) ┌──────────────────────────────┐ │ InputDispatcher (local cb) │ │ PointerController (local cb) │ │ A11yPop JNI (local cb) │ └──────────────────────────────┘ 从 SF 的 WindowInfosListenerInvoker::mWindowInfosListeners 视角，只看到 1 个 binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 \u0026quot;Recorded window infos message ... for 1 listener(s)\u0026quot;。\n","keywords":[],"articleBody":"1. 概述 WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（WindowInfo：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。\n主要消费者：\nInputDispatcher (system_server 进程)：根据窗口信息计算触摸事件的目标窗口（Hit Testing）。 PointerController (system_server 进程)：处理鼠标/触控笔指针的显示与坐标映射。 AccessibilityWindowsPopulator (system_server 进程)：为无障碍服务（A11y）构建屏幕窗口节点树。 该机制的高频跨进程特性（每 16ms 一次）使其成为 Binder 缓冲区耗尽的高发区。本文档描述了 8295/AOSP13 中该流程的原始实现、一个导致 system_server 冻屏的 bug 的完整根因分析，以及基于 backpressure 的修复方案。\n2. 核心架构 2.1 注册链：三个调用者，一条 Binder 通道 所有消费者都调用 SurfaceComposerClient::addWindowInfosListener()，该函数路由到本进程的 WindowInfosListenerReporter 单例。Reporter 只在第一个本地 listener 注册时向 SF 建立 Binder 通道。Android 10 起 Input 栈（libinputservice、libinputdispatcher）编译进 system_server，因此所有三个消费者均在 system_server 进程内，共享同一个 Reporter 单例。\nSurfaceFlinger │ │ oneway binder (唯一) ▼ system_server 的 WindowInfosListenerReporter (单例) ┌──────────────────────────────┐ │ InputDispatcher (local cb) │ │ PointerController (local cb) │ │ A11yPop JNI (local cb) │ └──────────────────────────────┘ 从 SF 的 WindowInfosListenerInvoker::mWindowInfosListeners 视角，只看到 1 个 binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 \"Recorded window infos message ... for 1 listener(s)\"。\n2.2 各消费者注册原因与流程 为什么需要 WindowInfo？ 三个消费者对窗口信息的需求各不相同，但都只能从 SurfaceFlinger 获取——SF 是唯一拥有合成后窗口实际几何状态（变换矩阵、裁剪区域、Z-Order）的组件：\nInputDispatcher：需要窗口的 Z-Order 和触摸区域来做点击测试（Hit Testing），确定触摸事件分发给哪个窗口。 PointerController：需要 display 的变换矩阵来正确映射鼠标/触控笔坐标。 AccessibilityWindowsPopulator：需要屏幕上每个窗口的完整信息（位置、大小、层级、触摸区域、是否可见、是否被遮挡），为无障碍服务（如 TalkBack）构建窗口节点树。视障用户依赖这些信息来理解屏幕内容和进行代理操作。 无障碍注册触发时机 无障碍的 WindowInfosListener 注册并非开机即完成，而是按需注册。调用链如下：\nAccessibilityManagerService → accessibilityWindowManager.startTrackingWindows(displayId) → WindowManagerService.setWindowsForAccessibilityCallback(displayId, ...) → AccessibilityWindowsPopulator.setWindowsNotification(true) → register() // 行 221 → nativeRegister() // JNI → android_window_WindowInfosListener.cpp:140 → SurfaceComposerClient::addWindowInfosListener(listener) → WindowInfosListenerReporter::addWindowInfosListener(listener, ...) → if (mWindowInfosListeners.empty()) { surfaceComposer-\u003eaddWindowInfosListener(this); // Reporter 向 SF 注册自身 } → mWindowInfosListeners.insert(listener) // 本地 listener 加入集合 触发时机：\n系统启动完毕（BOOT_COMPLETED） 用户开启无障碍服务（TalkBack、放大镜等） 显示器插拔（onDisplayAdded） 当所有无障碍服务关闭时，调用 setWindowsNotification(false) → unregister() → 从 Reporter 的本地集合中移除 listener。如果这是最后一个本地 listener，Reporter 还会从 SF 注销，关闭 Binder 通道。\nIWindowInfosReportedListener：修复前后不变的基础设施 IWindowInfosReportedListener 和 IWindowInfosReportedListener 创建于 2020 年（AOSP 11 引入）：\n// IWindowInfosListener.aidl (修复前后不变) oneway interface IWindowInfosListener { void onWindowInfosChanged( in WindowInfo[] windowInfos, in DisplayInfo[] displayInfos, in @nullable IWindowInfosReportedListener windowInfosReportedListener // ← 一直存在 ); } // IWindowInfosReportedListener.aidl (修复前后不变) oneway interface IWindowInfosReportedListener { void onWindowInfosReported(); } Reporter 收到回调后，在进程内同步分发完所有本地 listener 后，如果 windowInfosReportedListener 非 null，就回调它：\n// WindowInfosListenerReporter.cpp:97-102 (修复前后不变) for (auto listener : windowInfosListeners) { listener-\u003eonWindowInfosChanged(windowInfos, displayInfos); } if (windowInfosReportedListener) { windowInfosReportedListener-\u003eonWindowInfosReported(); // ack } 修复前 修复后 何时传 non-null 仅 shouldSync=true（syncInputWindows） 每次更新都传递 传递什么对象 同一个 mWindowInfosReportedListener 每消息新建 WindowInfosReportedListener(messageId, targetListener) 用途 计数归零 → 通知 sync 事务完成 per-message ack 追踪 → backpressure 的控制通道 修复不改变 AIDL 协议，只改变 SF 侧何时传、传什么对象——把原本只用于 sync 事务的 ack 通道扩展为通用的 flow-control 通道。\n2.3 关键类和调用关系 层级 类/方法 进程 角色 发送 SurfaceFlinger::updateInputFlinger() SF 每帧入口 发送 SurfaceFlinger::buildWindowInfos() SF 图层→WindowInfo 转换 发送 WindowInfosListenerInvoker::windowInfosChanged() SF 遍历 listener 发送 协议 IWindowInfosListener.onWindowInfosChanged() AIDL oneway 接收 WindowInfosListenerReporter::onWindowInfosChanged() system_server Binder stub 消费 InputDispatcher::onWindowInfosChanged() system_server 同步持锁处理 消费 PointerController::DisplayInfoListener::onWindowInfosChanged() system_server 同步持锁处理 消费 JNI WindowInfosListener::onWindowInfosChanged() system_server 弱引用解包→Java 消费 AccessibilityWindowsPopulator.onWindowInfosChanged() system_server mHandler.post() 异步 ack IWindowInfosReportedListener.onWindowInfosReported() AIDL oneway，仅 sync 时非空 ack WindowInfosListenerInvoker::onListenerReported() SF 新增：处理 ack 3. Bug 分析 3.1 现象 在 CPU 压力场景（6 个 yes 进程占满 CPU0-5）下，system_server 出现约 1.78 秒的冻屏，Perfetto trace 记录如下：\nslice: onWindowInfosChanged process: system_server [1475] thread: binder:1475_1D [3807] duration: 1,777,357 μs (≈1.78s) nested slice: \"Contending for pthread mutex, mutex owner: 1612\" → 1,776,669 μs (99.96%) 同时 logcat 中密集出现：\noneway spamming → 每份 log 出现 11-40 次 binder_alloc_buf failed to map pages in userspace, no vma setTransactionState timed out! 3.2 时序 时刻 T0: SF updateInputFlinger() 发送 oneway onWindowInfosChanged → system_server Binder 线程收到 → JNI → 路径上访问 ART 全局引用锁 → 该锁被 android.bg (tid 1612) 持有 → android.bg 正在 UsageStatsService.H.handleMessage() 内 → android.bg 优先级 130，低于 yes 的 120 → 几乎得不到 CPU T0+16ms: SF 下一帧 → 再发一条 oneway onWindowInfosChanged T0+32ms: 又一条 ... T0+1.78s: 共 ~111 条 oneway 消息堆积在 system_server 的 async binder buffer → binder buffer 耗尽 → binder_alloc_buf failed → 冻屏 T0+1.78s: android.bg 终于得到 CPU → 释放锁 → binder 线程获取锁 → 处理堆积的 111 条消息 (无意义，仅最新状态有用) 3.3 根因 SF 侧无 sender-side backpressure。 核心链路有三重因素共同导致：\noneway 语义：IWindowInfosListener.onWindowInfosChanged() 定义为 oneway。调用方 transact() 即时返回，不等待远端处理。SF 可以 16ms/次无限制发送，不感知远端是否拥堵。\nBackgroundExecutor 异步投递：SurfaceFlinger::updateInputFlinger() 将发送逻辑打包为 lambda 投递给 BackgroundExecutor。每帧一个 lambda，阻塞发生时 lambda 持续堆积排队。\n// SurfaceFlinger.cpp:3265-3283 (修复前) BackgroundExecutor::getInstance().sendCallbacks({[...]() { mWindowInfosListenerInvoker-\u003ewindowInfosChanged( windowInfos, displayInfos, inputWindowCommands.syncInputWindows); // shouldSync }}); WindowInfosListenerInvoker::windowInfosChanged() 无条件全量发送：修复前实现简单遍历所有 listener，无条件调用 oneway Binder：\n// WindowInfosListenerInvoker.cpp (修复前) void WindowInfosListenerInvoker::windowInfosChanged(...) { mCallbacksPending = windowInfosListeners.size(); for (const auto\u0026 listener : windowInfosListeners) { listener-\u003eonWindowInfosChanged(windowInfos, displayInfos, shouldSync ? mWindowInfosReportedListener : nullptr); } } mCallbacksPending 仅用于 sync 事务的计数（当所有 listener ack 后触发 mFlinger.windowInfosReported()），不是发送侧限流条件。\n3.4 阻塞点定位：两个 listener 都会阻塞，但原因不同 Reporter 在 Binder 线程中同步串行调用所有本地 listener。一旦某个 listener 阻塞，后续 listener 根本不会被调用到：\n// WindowInfosListenerReporter.cpp:97-99 (修复前后逻辑相同) for (auto listener : windowInfosListeners) { listener-\u003eonWindowInfosChanged(windowInfos, displayInfos); // 同步，逐个调用 } 在 Reporter 中添加计时代码后的复现日志证实两个 listener 都有超时：\n地址 注册时间 身份 总调用 超时(\u003e16ms) 最大超时 平均 0xb4000072ecf4df00 05:12:28.256 InputDispatcher 601 10 次 96ms 1.1ms 0xb4000072ecf19820 05:12:36.711 JNI A11yPop 435 8 次 31ms 1.4ms 注册时间戳排除了歧义：0xb4000072ecf4df00 在 05:12:28.256 注册，早于 AccessibilityManagerService 启动（05:12:28.432），必定是 InputDispatcher（inputManager.start() 内构造函数注册）。0xb4000072ecf19820 在 8 秒后注册，是 JNI A11yPop。\n同一线程、同一时间戳的两条日志揭示了 unordered_set 的遍历顺序：\n05:12:36.901 TID 1669 listener 0xb4000072ecf19820 took 0 ms ← 先调用 (JNI A11yPop) 05:12:36.901 TID 1669 listener 0xb4000072ecf4df00 took 0 ms ← 后调用 (InputDispatcher) 两个 listener 的阻塞原因不同：\nInputDispatcher —— 被自身 looper 线程阻塞（mLock 竞争） InputDispatcher.cpp:6346-6363：\nvoid InputDispatcher::onWindowInfosChanged(...) { // 行 6340-6344: 纯本地堆操作，无共享锁 std::scoped_lock _l(mLock); // ← 唯一获取的锁 setInputWindowsLocked(handles, displayId); mLooper-\u003ewake(); } mLock 定义在 InputDispatcher.h:171：std::mutex mLock。这把锁不是只有 Binder 线程获取——InputDispatcher 的 looper 线程在 dispatchOnceInnerLocked() 分发输入事件时也需要持有 mLock。如果 looper 线程在处理大量积压的输入事件（持锁数十 ms），Binder 线程的 onWindowInfosChanged 就会在 mLock 上阻塞。\nandroid.bg（tid 1612）确实不会持有 InputDispatcher::mLock。但 InputDispatcher 自己的 looper 线程会。日志中 96ms 的峰值就是 looper 线程持锁分发事件时 Binder 线程等待的结果。\nJNI 路径 —— 被任意 JNI 线程阻塞（ART VM 全局锁竞争） android_window_WindowInfosListener.cpp:96-121：\nvoid onWindowInfosChanged(...) override { JNIEnv* env = AndroidRuntime::getJNIEnv(); ScopedLocalFrame localFrame(env); jobject listener = env-\u003eNewGlobalRef(mListener); // ← 行 103: 需要 VM 级锁 ... } NewGlobalRef(mListener) 中 mListener 是 jweak——弱全局引用。调用链：\njni_internal.cc:851 NewGlobalRef(env, obj) → ScopedObjectAccess soa(env) → Decode(obj) // 解析 weak ref: 访问 indirect reference table → AddGlobalRef(self, decoded) // java_vm_ext.cc:692 → WriterMutexLock mu(self, *Locks::jni_globals_lock_); // 行 700: VM 级锁 → globals_.Add(...) Locks::jni_globals_lock_ 是 ART VM 级的 ReaderWriterMutex（art/runtime/base/locks.cc:147-148）。android.bg（tid 1612）执行 UsageStatsService.H.handleMessage() → FrameworkStatsLog.write() → JNI → native 层时可能持有该锁。在 CPU 饥饿下（6 个 yes 进程抢占 CPU0-5），android.bg 得不到调度释放锁 → Binder 线程的 NewGlobalRef 等待该锁。\n两条阻塞路径对比 锁 被谁持有 阻塞对象 严重程度 InputDispatcher::mLock InputDispatcher looper 线程（分发事件） InputDispatcher Binder 回调 数十 ms（96ms 峰值） Locks::jni_globals_lock_ 任意 JNI 线程（android.bg 等） JNI Binder 回调 数十 ms 到秒级（原 trace 1.78s） 这两个阻塞独立发生且可叠加：在 Reporter 的同步循环中，InputDispatcher 阻塞 96ms + JNI 阻塞 31ms = 总延迟 \u003e127ms，远超过 16ms 帧间隔。\n3.5 关键代码路径上的锁汇总 锁 位置 作用域 持有者 与 onWindowInfosChanged 交集 InputDispatcher::mLock setInputWindowsLocked() InputDispatcher 对象 InputDispatcher looper 线程 ✅ Binder 线程等待 looper 释放 Locks::jni_globals_lock_ AddGlobalRef() → NewGlobalRef() ART VM 全局 任何 JNI 线程（android.bg 等） ✅ Binder JNI 线程等待其他 JNI 线程 Locks::jni_weak_globals_lock_ weak global ref 解引用 ART VM 全局 任何 JNI 线程 ✅ 同上 BinderProxy.sProxyMap javaObjectForIBinder() Java 静态对象 任何 Binder 调用者 ✅ 窗口 token 转换 DisplayInfoListener::mLock onDisplayInfosChangedLocked() DisplayInfoListener 对象 PointerController 自身 ⚠️ 仅在 pointer 生命周期变更时短暂持锁 WMS mGlobalLock getWindowsTransformMatrix() WMS 全局 WMS 线程 ⚠️ A11yPop 异步处理时 这些锁本身持有时间极短（μs 级），但在 CPU 饥饿下，锁持有者得不到调度，等待被放大到百毫秒甚至秒级。\n4. 修复：Sender-side Backpressure 4.1 核心思想 复用旧协议中已有但仅用于 sync 的 IWindowInfosReportedListener.onWindowInfosReported() 回调，不改 AIDL 接口。\n普通更新：最多 1 个 in-flight 消息，后续帧合并为一份 latest-wins 延迟更新 强制更新（可见窗口变化 / 焦点切换）：允许穿透，但受 kMaxInFlightMessages 硬上限限制 Sync 更新：永远立即发送（调用方阻塞等待，不可 defer） 4.2 新增状态 // WindowInfosListenerInvoker.h std::mutex mMessagesMutex; // 保护 flow-control 状态 uint64_t mNextMessageId = 1; struct UnackedMessage { bool shouldSync; std::vector\u003cwp\u003cIBinder\u003e\u003e unackedListeners; // 尚欠 ack 的 listener std::vector\u003csp\u003cIWindowInfosReportedListener\u003e\u003e reportedListeners; // strong ref }; std::unordered_map\u003cuint64_t, UnackedMessage\u003e mUnackedMessages; bool mHasDelayedUpdate = false; std::vector\u003cWindowInfo\u003e mDelayedWindowInfos; // 合并后的最新更新 std::vector\u003cDisplayInfo\u003e mDelayedDisplayInfos; uint32_t mDelayedCount = 0; static constexpr size_t kMaxInFlightMessages = 4; // 硬上限 4.3 WindowInfosReportedListener：Binder 对象编码标识 旧 AIDL 中 onWindowInfosReported() 无参数。通过在 Binder 对象自身携带 (messageId, targetListener) 来支持多 in-flight 消息追踪，不改 AIDL：\nstruct WindowInfosListenerInvoker::WindowInfosReportedListener : gui::BnWindowInfosReportedListener { WindowInfosListenerInvoker\u0026 mInvoker; const uint64_t mMessageId; const wp\u003cIBinder\u003e mTargetListener; // 哪个 listener 发的 ack binder::Status onWindowInfosReported() override { mInvoker.onListenerReported(mMessageId, mTargetListener, false); return binder::Status::ok(); } }; 4.4 发送路径 void WindowInfosListenerInvoker::windowInfosChanged(...) { std::scoped_lock lock(mMessagesMutex); // 背压决策 const bool atCapacity = mUnackedMessages.size() \u003e= kMaxInFlightMessages; const bool deferUpdate = !shouldSync \u0026\u0026 !mUnackedMessages.empty() \u0026\u0026 (!forceImmediateCall || atCapacity); if (deferUpdate) { // latest-wins: 只保留最新一份 mDelayedWindowInfos = windowInfos; mDelayedDisplayInfos = displayInfos; mHasDelayedUpdate = true; mDelayedCount++; return; // 不发送 } // force 更新淘汰旧的 delayed 数据 (携带更新状态) if (mHasDelayedUpdate) { mHasDelayedUpdate = false; mDelayedCount = 0; } // 注册消息 + 快照 listener + 分配 messageId dispatchList = recordMessageLocked(shouldSync, \u0026messageId); dispatchWindowInfos(messageId, dispatchList, windowInfos, displayInfos); } 4.5 ack 路径 Reporter 处理完所有本地 listener → if (windowInfosReportedListener) onWindowInfosReported() // oneway 回 SF → WindowInfosReportedListener::onWindowInfosReported() → WindowInfosListenerInvoker::onListenerReported(messageId, target, false) { scoped_lock(mMessagesMutex); 找到消息 → 移除 target → 若 unacked 为空 → erase 消息 若 shouldSync → syncCompletions++ 若 mUnackedMessages 为空 且 mHasDelayedUpdate → 准备 flush } mFlinger.windowInfosReported() × syncCompletions 若 flush → dispatchWindowInfos(delayed) 4.6 SurfaceFlinger.cpp 调用点变化 // 修复前 mWindowInfosListenerInvoker-\u003ewindowInfosChanged( windowInfos, displayInfos, syncInputWindows); // 修复后 const bool forceImmediateCall = visibleWindowsChanged || inputWindowCommands.syncInputWindows || !inputWindowCommands.focusRequests.empty(); mWindowInfosListenerInvoker-\u003ewindowInfosChanged( windowInfos, displayInfos, syncInputWindows, forceImmediateCall); 新增 visibleWindowsChanged 检测：通过对比相邻帧的可见窗口 ID set（mVisibleWindowIds），识别窗口出现/消失（稀疏事件，不会被 backpressure spam）。\n5. 时序图 5.1 正常流程 (无背压) @startuml !theme plain autonumber scale 1080 width title WindowInfos 正常更新流程 (无背压) box \"SurfaceFlinger\" #E3F2FD participant \"updateInputFlinger()\" as UIF participant \"BackgroundExecutor\" as BE participant \"WindowInfosListenerInvoker\" as Invoker end box box \"Kernel\" #F5F5F5 participant \"Binder Driver\" as Binder end box box \"system_server\" #FFF3E0 participant \"WindowInfosListenerReporter\\n(onWindowInfosChanged)\" as Reporter end box box \"system_server (Java)\" #FFE0B2 participant \"WindowInfosListener\\n(JNI → Java)\" as JNI participant \"AccessibilityWindowsPopulator\\n(onWindowInfosChanged)\" as A11y end box == 每帧触发 (Vsync, ~16ms) == UIF -\u003e UIF: buildWindowInfos(windowInfos, displayInfos) UIF -\u003e BE: sendCallbacks(lambda) BE -\u003e Invoker: windowInfosChanged(windowInfos, displayInfos,\\n shouldSync=false, forceImmediateCall=false) Invoker -\u003e Invoker: lock mMessagesMutex Invoker -\u003e Invoker: mUnackedMessages.empty() → 发送 Invoker -\u003e Invoker: recordMessageLocked(shouldSync=false) group 快照 listeners Invoker -\u003e Invoker: lock mListenersMutex Invoker -\u003e Invoker: 遍历 mWindowInfosListeners Invoker -\u003e Invoker: unlock mListenersMutex end Invoker -\u003e Invoker: new messageId, UnackedMessage\\{shouldSync=false\\} Invoker -\u003e Invoker: create WindowInfosReportedListener(messageId, listenerBinder) Invoker -\u003e Invoker: unlock mMessagesMutex Invoker -\u003e Binder: listener-\u003eonWindowInfosChanged(data, reported) **oneway** Binder -\u003e Reporter: onWindowInfosChanged(windowInfos, displayInfos, reported) Reporter -\u003e Reporter: lock mListenersMutex\\n复制本地 listener 集合 Reporter -\u003e JNI: listener-\u003eonWindowInfosChanged(windowInfos, displayInfos) JNI -\u003e A11y: onWindowInfosChanged(windowHandles, displayInfos) A11y -\u003e A11y: mHandler.post(→ onWindowInfosChangedInternal) JNI \u003c-- A11y: return Reporter \u003c-- JNI: return Reporter -\u003e Binder: reported-\u003eonWindowInfosReported() **oneway** Binder -\u003e Invoker: onListenerReported(messageId, listener, false) Invoker -\u003e Invoker: lock mMessagesMutex\\n移除 listener → 消息 fully acked → erase Invoker -\u003e Invoker: mUnackedMessages 为空 → 无 delayed → 无 flush Invoker -\u003e Invoker: unlock mMessagesMutex @enduml 5.2 system_server 阻塞时的背压流程 @startuml !theme plain autonumber title system_server 阻塞时的 Backpressure 流程 box \"SurfaceFlinger\" #E3F2FD participant \"Vsync (~16ms)\" as VSYNC participant \"WindowInfosListenerInvoker\" as Invoker end box box \"system_server\" #FFCDD2 participant \"Reporter\" as Reporter end box == Frame N: 首次发送 == VSYNC -\u003e Invoker: windowInfosChanged(A, forceImmediateCall=false) Invoker -\u003e Invoker: mUnackedMessages 为空 → 发送 Invoker -\u003e Reporter: **oneway** onWindowInfosChanged(A, reported_msg1) note right #FFB3B3: 消息 1 进入 system_server binder buffer\\n但 system_server 阻塞，Reporter 未被调度 == Frame N+1 (~16ms later): 背压介入 == VSYNC -\u003e Invoker: windowInfosChanged(B, forceImmediateCall=false) Invoker -\u003e Invoker: mUnackedMessages = {1} → 非空 Invoker -\u003e Invoker: mDelayedWindowInfos = B (latest-wins) Invoker -\u003e Invoker: mHasDelayedUpdate = true, mDelayedCount = 1 Invoker -\u003e Invoker: **return** (不发送) == Frame N+2: 继续合并 == VSYNC -\u003e Invoker: windowInfosChanged(C, forceImmediateCall=false) Invoker -\u003e Invoker: mDelayedWindowInfos = C (覆盖 B) Invoker -\u003e Invoker: mDelayedCount = 2 Invoker -\u003e Invoker: **return** == Frame N+3: forceImmediateCall=true (焦点切换) == VSYNC -\u003e Invoker: windowInfosChanged(D, forceImmediateCall=true) Invoker -\u003e Invoker: atCapacity = false (1/4)\\n→ 背压不生效 → 发送 Invoker -\u003e Reporter: **oneway** onWindowInfosChanged(D, reported_msg2) == (system_server 恢复) == Reporter -\u003e Reporter: **处理 msg1** → A11y → ... Reporter -\u003e Invoker: **oneway** reported_msg1-\u003eonWindowInfosReported() Invoker -\u003e Invoker: onListenerReported(1, reporter):\\n移除 reporter → msg1 还剩 0 listener → erase msg1\\n→ mUnackedMessages = {2} → 未空 → 不 flush Reporter -\u003e Reporter: **处理 msg2** → A11y → ... Reporter -\u003e Invoker: **oneway** reported_msg2-\u003eonWindowInfosReported() Invoker -\u003e Invoker: onListenerReported(2, reporter):\\n移除 reporter → msg2 还剩 0 listener → erase msg2\\n→ mUnackedMessages 为空 → mHasDelayedUpdate=true Invoker -\u003e Invoker: **flush delayed**: mDelayedWindowInfos (= C, 合并自2帧) Invoker -\u003e Reporter: **oneway** onWindowInfosChanged(C, reported_msg3) Reporter -\u003e Reporter: **处理 msg3** → A11y 获得最新状态 C Reporter -\u003e Invoker: reported_msg3-\u003eonWindowInfosReported() @enduml 5.3 force 更新达到硬上限 @startuml !theme plain autonumber title forceImmediateCall 达到 kMaxInFlightMessages 时的背压 box \"SurfaceFlinger\" #E3F2FD participant \"WindowInfosListenerInvoker\" as Invoker end box == 前置条件: 4 条 force update 已发出，全部未 ack == note over Invoker: mUnackedMessages.size() == 4\\n(atCapacity == true) == 第 5 条 force update == Invoker -\u003e Invoker: windowInfosChanged(E, forceImmediateCall=true) Invoker -\u003e Invoker: !shouldSync \u0026\u0026 !mUnackedMessages.empty()\\n\u0026\u0026 (!forceImmediateCall || atCapacity)\\n= true \u0026\u0026 true \u0026\u0026 (false || true) = true Invoker -\u003e Invoker: **DEFER** — 即使 force 也被 coalesce! note right: 硬上限防止 force update 自身\\n成为 oneway spam 来源 @enduml 6. 完整注册与更新流程 (PlantUML 长图) @startuml !theme plain autonumber \"[0]\" scale 1080 width title WindowInfos: 注册到更新的完整流程 (修复后) box \"SurfaceFlinger Process\" #E3F2FD participant \"SurfaceFlinger\\nupdateInputFlinger()\" as SF participant \"BackgroundExecutor\" as BE participant \"WindowInfosListenerInvoker\" as Invoker end box box \"Kernel\" #F5F5F5 participant \"Binder Driver\" as Binder end box box \"system_server Process (Native)\" #FFF3E0 participant \"WindowInfosListenerReporter\\n(Singleton, BnWindowInfosListener)\" as Reporter participant \"InputDispatcher\\nonWindowInfosChanged()\" as InputDisp participant \"PointerController\\nDisplayInfoListener\" as PointerCtrl end box box \"system_server Process (JNI)\" #FFECB3 participant \"WindowInfosListener\\n(JNI bridge)\" as JNI end box box \"system_server Process (Java)\" #FFE0B2 participant \"AccessibilityWindowsPopulator\\nonWindowInfosChanged()\" as A11yPop participant \"WMS Handler\" as WMS_H end box == 0. 注册阶段 == note over InputDisp, Reporter **system_server 内**: InputDispatcher 注册 DispatcherWindowListener **system_server 内**: PointerController 注册 DisplayInfoListener **system_server 内**: A11yPop 注册 JNI WindowInfosListener 三者均通过 SurfaceComposerClient::addWindowInfosListener() → WindowInfosListenerReporter::addWindowInfosListener() → 首次时 Reporter 向 SF 注册自身 (BnWindowInfosListener) 三个本地 listener 共享同一个 Reporter 单例 → SF 只看到 1 个 proxy end note == 1. 帧触发 == SF -\u003e SF: buildWindowInfos(windowInfos, displayInfos) SF -\u003e SF: 检测 visibleWindowsChanged (对比 mVisibleWindowIds) SF -\u003e BE: sendCallbacks(lambda) == 2. 发送决策 (Backpressure) == BE -\u003e Invoker: windowInfosChanged(windowInfos, displayInfos,\\n shouldSync, forceImmediateCall) Invoker -\u003e Invoker: lock mMessagesMutex alt 背压 (mUnackedMessages 非空 且 !forceImmediateCall) Invoker -\u003e Invoker: latest-wins 合并到 mDelayedWindowInfos Invoker -\u003e Invoker: return (不发送) else 背压 + force + atCapacity Invoker -\u003e Invoker: 同样合并 (硬上限) else 发送 Invoker -\u003e Invoker: recordMessageLocked(shouldSync) Invoker -\u003e Invoker: 快照 mWindowInfosListeners Invoker -\u003e Invoker: new UnackedMessage{shouldSync, unackedListeners} Invoker -\u003e Invoker: new WindowInfosReportedListener(messageId, listenerBinder) Invoker -\u003e Invoker: unlock mMessagesMutex Invoker -\u003e Invoker: dispatchWindowInfos(messageId, dispatchList, ...) end == 3. 跨进程分发 == Invoker -\u003e Binder: listener-\u003eonWindowInfosChanged(data, reported) **oneway** Binder -\u003e Reporter: onWindowInfosChanged(windowInfos, displayInfos, reported) Reporter -\u003e Reporter: lock mListenersMutex, 快照本地 listeners par 本地 listener: InputDispatcher Reporter -\u003e InputDisp: onWindowInfosChanged(windowInfos, displayInfos) InputDisp -\u003e InputDisp: std::scoped_lock _l(mLock) InputDisp -\u003e InputDisp: setInputWindowsLocked(...) end par 本地 listener: PointerController Reporter -\u003e PointerCtrl: onWindowInfosChanged(windowInfos, displayInfos) PointerCtrl -\u003e PointerCtrl: std::scoped_lock lock(mLock)\\nonDisplayInfosChangedLocked(...) end par 本地 listener: JNI → A11yPop Reporter -\u003e JNI: onWindowInfosChanged(windowInfos, displayInfos) JNI -\u003e JNI: NewGlobalRef(mListener) JNI -\u003e JNI: fromWindowInfos(env, windowInfos) JNI -\u003e JNI: CallVoidMethod → Java onWindowInfosChanged(...) JNI -\u003e A11yPop: onWindowInfosChanged(windowHandles, displayInfos) A11yPop -\u003e A11yPop: mHandler.post(→ onWindowInfosChangedInternal) end Reporter -\u003e Binder: **if (reported)** reported-\u003eonWindowInfosReported() **oneway** == 4. ack 处理 == Binder -\u003e Invoker: onListenerReported(messageId, targetListener, false) Invoker -\u003e Invoker: lock mMessagesMutex Invoker -\u003e Invoker: 找到 message → 移除 targetListener Invoker -\u003e Invoker: unacked 为空 → erase message alt shouldSync Invoker --\u003e SF: mFlinger.windowInfosReported() end alt mUnackedMessages 为空 且 mHasDelayedUpdate Invoker -\u003e Invoker: move delayedWindowInfos → recordMessageLocked Invoker -\u003e Invoker: unlock mMessagesMutex Invoker -\u003e Invoker: dispatchWindowInfos(delayed...) end @enduml 7. 修复效果 指标 修复前 修复后 “oneway spamming” 11-40 次/份日志 0 binder_alloc_buf failed 密集出现 与 WindowInfo 路径无关的其他 binder 错误 SF transact failed N/A 0 listener died N/A 0 Recorded ≈ fully acked 无追踪 完全匹配 (消息生命周期健康) 背压 coalesce 率 无 50-57% (正常负载下拦截一半以上) 8. 附录 8.1 SurfaceFlinger::updateInputFlinger() 调用上下文 VSYNC Signal ↓ MessageQueue::handleMessage() ↓ SurfaceFlinger::commit() ├── commitTransactions() ← 应用窗口属性变更 ├── updateLayerGeometry() ← 计算可见区域 ├── updateInputFlinger() ← [本文主角] 窗口信息同步 │ ├── buildWindowInfos() │ ├── 检测 visibleWindowsChanged │ └── BackgroundExecutor::sendCallbacks(lambda) │ └── WindowInfosListenerInvoker::windowInfosChanged() │ ├── [背压决策] defer / send │ ├── recordMessageLocked() │ └── dispatchWindowInfos() │ └── listener-\u003eonWindowInfosChanged() oneway Binder └── composite() ← GPU/HWC 合成上屏 8.2 线程模型 线程 进程 职责 SF Main Thread surfaceflinger updateInputFlinger() 入口 BackgroundExecutor surfaceflinger 执行 lambda (发送 Binder) Binder threads surfaceflinger 接收 onWindowInfosReported() ack Binder threads system_server 接收 onWindowInfosChanged() → Reporter 同步分发到 InputDispatcher/PointerCtrl/JNI WMS Handler system_server onWindowInfosChangedInternal() 异步处理 ","wordCount":"2370","inLanguage":"en","datePublished":"2026-06-07T10:22:54+08:00","dateModified":"2026-06-07T10:22:54+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/>WindowManager</a></div><h1 class="post-title entry-hint-parent">Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复</h1><div class=post-meta><span title='2026-06-07 10:22:54 +0800 CST'>June 7, 2026</span>&nbsp;·&nbsp;12 min&nbsp;·&nbsp;2370 words</div></header><div class=post-content><h2 id=1-概述>1. 概述<a hidden class=anchor aria-hidden=true href=#1-概述>#</a></h2><p>WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（<code>WindowInfo</code>：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。</p><p><strong>主要消费者</strong>：</p><ul><li><strong>InputDispatcher</strong> (system_server 进程)：根据窗口信息计算触摸事件的目标窗口（Hit Testing）。</li><li><strong>PointerController</strong> (system_server 进程)：处理鼠标/触控笔指针的显示与坐标映射。</li><li><strong>AccessibilityWindowsPopulator</strong> (system_server 进程)：为无障碍服务（A11y）构建屏幕窗口节点树。</li></ul><p>该机制的高频跨进程特性（每 16ms 一次）使其成为 Binder 缓冲区耗尽的高发区。本文档描述了 8295/AOSP13 中该流程的原始实现、一个导致 system_server 冻屏的 bug 的完整根因分析，以及基于 backpressure 的修复方案。</p><h2 id=2-核心架构>2. 核心架构<a hidden class=anchor aria-hidden=true href=#2-核心架构>#</a></h2><h3 id=21-注册链三个调用者一条-binder-通道>2.1 注册链：三个调用者，一条 Binder 通道<a hidden class=anchor aria-hidden=true href=#21-注册链三个调用者一条-binder-通道>#</a></h3><p>所有消费者都调用 <code>SurfaceComposerClient::addWindowInfosListener()</code>，该函数路由到本进程的 <code>WindowInfosListenerReporter</code> 单例。Reporter 只在第一个本地 listener 注册时向 SF 建立 Binder 通道。Android 10 起 Input 栈（<code>libinputservice</code>、<code>libinputdispatcher</code>）编译进 system_server，因此所有三个消费者均在 system_server 进程内，共享同一个 Reporter 单例。</p><pre tabindex=0><code>                     SurfaceFlinger
                           │
                           │ oneway binder (唯一)
                           ▼
@@ -288,18 +61,7 @@ AccessibilityWindowsPopulator (system_server 进程)：为无障碍服务（A11y
               │ PointerController (local cb) │
               │ A11yPop JNI (local cb)       │
               └──────────────────────────────┘
-</code></pre><p>从 SF 的 <code>WindowInfosListenerInvoker::mWindowInfosListeners</code> 视角，只看到 <strong>1 个</strong> binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 <code>&quot;Recorded window infos message ... for 1 listener(s)&quot;</code>。</p>
-<h3 id="22-各消费者注册原因与流程">2.2 各消费者注册原因与流程<a hidden class="anchor" aria-hidden="true" href="#22-各消费者注册原因与流程">#</a></h3>
-<h4 id="为什么需要-windowinfo">为什么需要 WindowInfo？<a hidden class="anchor" aria-hidden="true" href="#为什么需要-windowinfo">#</a></h4>
-<p>三个消费者对窗口信息的需求各不相同，但都<strong>只能从 SurfaceFlinger 获取</strong>——SF 是唯一拥有合成后窗口实际几何状态（变换矩阵、裁剪区域、Z-Order）的组件：</p>
-<ul>
-<li><strong>InputDispatcher</strong>：需要窗口的 Z-Order 和触摸区域来做点击测试（Hit Testing），确定触摸事件分发给哪个窗口。</li>
-<li><strong>PointerController</strong>：需要 display 的变换矩阵来正确映射鼠标/触控笔坐标。</li>
-<li><strong>AccessibilityWindowsPopulator</strong>：需要<strong>屏幕上每个窗口的完整信息</strong>（位置、大小、层级、触摸区域、是否可见、是否被遮挡），为无障碍服务（如 TalkBack）构建窗口节点树。视障用户依赖这些信息来理解屏幕内容和进行代理操作。</li>
-</ul>
-<h4 id="无障碍注册触发时机">无障碍注册触发时机<a hidden class="anchor" aria-hidden="true" href="#无障碍注册触发时机">#</a></h4>
-<p>无障碍的 <code>WindowInfosListener</code> 注册并非开机即完成，而是<strong>按需注册</strong>。调用链如下：</p>
-<pre tabindex="0"><code>AccessibilityManagerService
+</code></pre><p>从 SF 的 <code>WindowInfosListenerInvoker::mWindowInfosListeners</code> 视角，只看到 <strong>1 个</strong> binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 <code>"Recorded window infos message ... for 1 listener(s)"</code>。</p><h3 id=22-各消费者注册原因与流程>2.2 各消费者注册原因与流程<a hidden class=anchor aria-hidden=true href=#22-各消费者注册原因与流程>#</a></h3><h4 id=为什么需要-windowinfo>为什么需要 WindowInfo？<a hidden class=anchor aria-hidden=true href=#为什么需要-windowinfo>#</a></h4><p>三个消费者对窗口信息的需求各不相同，但都<strong>只能从 SurfaceFlinger 获取</strong>——SF 是唯一拥有合成后窗口实际几何状态（变换矩阵、裁剪区域、Z-Order）的组件：</p><ul><li><strong>InputDispatcher</strong>：需要窗口的 Z-Order 和触摸区域来做点击测试（Hit Testing），确定触摸事件分发给哪个窗口。</li><li><strong>PointerController</strong>：需要 display 的变换矩阵来正确映射鼠标/触控笔坐标。</li><li><strong>AccessibilityWindowsPopulator</strong>：需要<strong>屏幕上每个窗口的完整信息</strong>（位置、大小、层级、触摸区域、是否可见、是否被遮挡），为无障碍服务（如 TalkBack）构建窗口节点树。视障用户依赖这些信息来理解屏幕内容和进行代理操作。</li></ul><h4 id=无障碍注册触发时机>无障碍注册触发时机<a hidden class=anchor aria-hidden=true href=#无障碍注册触发时机>#</a></h4><p>无障碍的 <code>WindowInfosListener</code> 注册并非开机即完成，而是<strong>按需注册</strong>。调用链如下：</p><pre tabindex=0><code>AccessibilityManagerService
   → accessibilityWindowManager.startTrackingWindows(displayId)
   → WindowManagerService.setWindowsForAccessibilityCallback(displayId, ...)
   → AccessibilityWindowsPopulator.setWindowsNotification(true)
@@ -311,16 +73,7 @@ AccessibilityWindowsPopulator (system_server 进程)：为无障碍服务（A11y
             surfaceComposer-&gt;addWindowInfosListener(this);  // Reporter 向 SF 注册自身
         }
       → mWindowInfosListeners.insert(listener)        // 本地 listener 加入集合
-</code></pre><p>触发时机：</p>
-<ul>
-<li>系统启动完毕（<code>BOOT_COMPLETED</code>）</li>
-<li>用户开启无障碍服务（TalkBack、放大镜等）</li>
-<li>显示器插拔（<code>onDisplayAdded</code>）</li>
-</ul>
-<p>当所有无障碍服务关闭时，调用 <code>setWindowsNotification(false)</code> → <code>unregister()</code> → 从 Reporter 的本地集合中移除 listener。如果这是最后一个本地 listener，Reporter 还会从 SF 注销，<strong>关闭 Binder 通道</strong>。</p>
-<h4 id="iwindowinfosreportedlistener修复前后不变的基础设施"><code>IWindowInfosReportedListener</code>：修复前后不变的基础设施<a hidden class="anchor" aria-hidden="true" href="#iwindowinfosreportedlistener修复前后不变的基础设施">#</a></h4>
-<p><code>IWindowInfosReportedListener</code> 和 <code>IWindowInfosReportedListener</code> 创建于 2020 年（AOSP 11 引入）：</p>
-<pre tabindex="0"><code class="language-aidl" data-lang="aidl">// IWindowInfosListener.aidl (修复前后不变)
+</code></pre><p>触发时机：</p><ul><li>系统启动完毕（<code>BOOT_COMPLETED</code>）</li><li>用户开启无障碍服务（TalkBack、放大镜等）</li><li>显示器插拔（<code>onDisplayAdded</code>）</li></ul><p>当所有无障碍服务关闭时，调用 <code>setWindowsNotification(false)</code> → <code>unregister()</code> → 从 Reporter 的本地集合中移除 listener。如果这是最后一个本地 listener，Reporter 还会从 SF 注销，<strong>关闭 Binder 通道</strong>。</p><h4 id=iwindowinfosreportedlistener修复前后不变的基础设施><code>IWindowInfosReportedListener</code>：修复前后不变的基础设施<a hidden class=anchor aria-hidden=true href=#iwindowinfosreportedlistener修复前后不变的基础设施>#</a></h4><p><code>IWindowInfosReportedListener</code> 和 <code>IWindowInfosReportedListener</code> 创建于 2020 年（AOSP 11 引入）：</p><pre tabindex=0><code class=language-aidl data-lang=aidl>// IWindowInfosListener.aidl (修复前后不变)
 oneway interface IWindowInfosListener {
     void onWindowInfosChanged(
         in WindowInfo[] windowInfos,
@@ -333,134 +86,22 @@ oneway interface IWindowInfosListener {
 oneway interface IWindowInfosReportedListener {
     void onWindowInfosReported();
 }
-</code></pre><p>Reporter 收到回调后，在进程内同步分发完所有本地 listener 后，如果 <code>windowInfosReportedListener</code> 非 null，就回调它：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// WindowInfosListenerReporter.cpp:97-102 (修复前后不变)
-</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">auto</span> listener : windowInfosListeners) {
-</span></span><span style="display:flex;"><span>    listener<span style="color:#f92672">-&gt;</span>onWindowInfosChanged(windowInfos, displayInfos);
-</span></span><span style="display:flex;"><span>}
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (windowInfosReportedListener) {
-</span></span><span style="display:flex;"><span>    windowInfosReportedListener<span style="color:#f92672">-&gt;</span>onWindowInfosReported();  <span style="color:#75715e">// ack
-</span></span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><table>
-	<thead>
-			<tr>
-					<th></th>
-					<th>修复前</th>
-					<th>修复后</th>
-			</tr>
-	</thead>
-	<tbody>
-			<tr>
-					<td>何时传 non-null</td>
-					<td>仅 <code>shouldSync=true</code>（syncInputWindows）</td>
-					<td><strong>每次更新都传递</strong></td>
-			</tr>
-			<tr>
-					<td>传递什么对象</td>
-					<td>同一个 <code>mWindowInfosReportedListener</code></td>
-					<td><strong>每消息新建</strong> <code>WindowInfosReportedListener(messageId, targetListener)</code></td>
-			</tr>
-			<tr>
-					<td>用途</td>
-					<td>计数归零 → 通知 sync 事务完成</td>
-					<td><strong>per-message ack 追踪</strong> → backpressure 的控制通道</td>
-			</tr>
-	</tbody>
-</table>
-<p>修复不改变 AIDL 协议，只改变 SF 侧<strong>何时传、传什么对象</strong>——把原本只用于 sync 事务的 ack 通道扩展为通用的 flow-control 通道。</p>
-<h3 id="23-关键类和调用关系">2.3 关键类和调用关系<a hidden class="anchor" aria-hidden="true" href="#23-关键类和调用关系">#</a></h3>
-<table>
-	<thead>
-			<tr>
-					<th>层级</th>
-					<th>类/方法</th>
-					<th>进程</th>
-					<th>角色</th>
-			</tr>
-	</thead>
-	<tbody>
-			<tr>
-					<td>发送</td>
-					<td><code>SurfaceFlinger::updateInputFlinger()</code></td>
-					<td>SF</td>
-					<td>每帧入口</td>
-			</tr>
-			<tr>
-					<td>发送</td>
-					<td><code>SurfaceFlinger::buildWindowInfos()</code></td>
-					<td>SF</td>
-					<td>图层→WindowInfo 转换</td>
-			</tr>
-			<tr>
-					<td>发送</td>
-					<td><code>WindowInfosListenerInvoker::windowInfosChanged()</code></td>
-					<td>SF</td>
-					<td>遍历 listener 发送</td>
-			</tr>
-			<tr>
-					<td>协议</td>
-					<td><code>IWindowInfosListener.onWindowInfosChanged()</code></td>
-					<td>AIDL</td>
-					<td><strong>oneway</strong></td>
-			</tr>
-			<tr>
-					<td>接收</td>
-					<td><code>WindowInfosListenerReporter::onWindowInfosChanged()</code></td>
-					<td>system_server</td>
-					<td>Binder stub</td>
-			</tr>
-			<tr>
-					<td>消费</td>
-					<td><code>InputDispatcher::onWindowInfosChanged()</code></td>
-					<td>system_server</td>
-					<td>同步持锁处理</td>
-			</tr>
-			<tr>
-					<td>消费</td>
-					<td><code>PointerController::DisplayInfoListener::onWindowInfosChanged()</code></td>
-					<td>system_server</td>
-					<td>同步持锁处理</td>
-			</tr>
-			<tr>
-					<td>消费</td>
-					<td>JNI <code>WindowInfosListener::onWindowInfosChanged()</code></td>
-					<td>system_server</td>
-					<td>弱引用解包→Java</td>
-			</tr>
-			<tr>
-					<td>消费</td>
-					<td><code>AccessibilityWindowsPopulator.onWindowInfosChanged()</code></td>
-					<td>system_server</td>
-					<td><code>mHandler.post()</code> 异步</td>
-			</tr>
-			<tr>
-					<td>ack</td>
-					<td><code>IWindowInfosReportedListener.onWindowInfosReported()</code></td>
-					<td>AIDL</td>
-					<td><strong>oneway</strong>，仅 sync 时非空</td>
-			</tr>
-			<tr>
-					<td>ack</td>
-					<td><code>WindowInfosListenerInvoker::onListenerReported()</code></td>
-					<td>SF</td>
-					<td>新增：处理 ack</td>
-			</tr>
-	</tbody>
-</table>
-<h2 id="3-bug-分析">3. Bug 分析<a hidden class="anchor" aria-hidden="true" href="#3-bug-分析">#</a></h2>
-<h3 id="31-现象">3.1 现象<a hidden class="anchor" aria-hidden="true" href="#31-现象">#</a></h3>
-<p>在 CPU 压力场景（6 个 <code>yes</code> 进程占满 CPU0-5）下，system_server 出现约 1.78 秒的冻屏，Perfetto trace 记录如下：</p>
-<pre tabindex="0"><code>slice: onWindowInfosChanged
+</code></pre><p>Reporter 收到回调后，在进程内同步分发完所有本地 listener 后，如果 <code>windowInfosReportedListener</code> 非 null，就回调它：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// WindowInfosListenerReporter.cpp:97-102 (修复前后不变)
+</span></span></span><span style=display:flex><span><span style=color:#66d9ef>for</span> (<span style=color:#66d9ef>auto</span> listener : windowInfosListeners) {
+</span></span><span style=display:flex><span>    listener<span style=color:#f92672>-&gt;</span>onWindowInfosChanged(windowInfos, displayInfos);
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> (windowInfosReportedListener) {
+</span></span><span style=display:flex><span>    windowInfosReportedListener<span style=color:#f92672>-&gt;</span>onWindowInfosReported();  <span style=color:#75715e>// ack
+</span></span></span><span style=display:flex><span>}
+</span></span></code></pre></div><table><thead><tr><th></th><th>修复前</th><th>修复后</th></tr></thead><tbody><tr><td>何时传 non-null</td><td>仅 <code>shouldSync=true</code>（syncInputWindows）</td><td><strong>每次更新都传递</strong></td></tr><tr><td>传递什么对象</td><td>同一个 <code>mWindowInfosReportedListener</code></td><td><strong>每消息新建</strong> <code>WindowInfosReportedListener(messageId, targetListener)</code></td></tr><tr><td>用途</td><td>计数归零 → 通知 sync 事务完成</td><td><strong>per-message ack 追踪</strong> → backpressure 的控制通道</td></tr></tbody></table><p>修复不改变 AIDL 协议，只改变 SF 侧<strong>何时传、传什么对象</strong>——把原本只用于 sync 事务的 ack 通道扩展为通用的 flow-control 通道。</p><h3 id=23-关键类和调用关系>2.3 关键类和调用关系<a hidden class=anchor aria-hidden=true href=#23-关键类和调用关系>#</a></h3><table><thead><tr><th>层级</th><th>类/方法</th><th>进程</th><th>角色</th></tr></thead><tbody><tr><td>发送</td><td><code>SurfaceFlinger::updateInputFlinger()</code></td><td>SF</td><td>每帧入口</td></tr><tr><td>发送</td><td><code>SurfaceFlinger::buildWindowInfos()</code></td><td>SF</td><td>图层→WindowInfo 转换</td></tr><tr><td>发送</td><td><code>WindowInfosListenerInvoker::windowInfosChanged()</code></td><td>SF</td><td>遍历 listener 发送</td></tr><tr><td>协议</td><td><code>IWindowInfosListener.onWindowInfosChanged()</code></td><td>AIDL</td><td><strong>oneway</strong></td></tr><tr><td>接收</td><td><code>WindowInfosListenerReporter::onWindowInfosChanged()</code></td><td>system_server</td><td>Binder stub</td></tr><tr><td>消费</td><td><code>InputDispatcher::onWindowInfosChanged()</code></td><td>system_server</td><td>同步持锁处理</td></tr><tr><td>消费</td><td><code>PointerController::DisplayInfoListener::onWindowInfosChanged()</code></td><td>system_server</td><td>同步持锁处理</td></tr><tr><td>消费</td><td>JNI <code>WindowInfosListener::onWindowInfosChanged()</code></td><td>system_server</td><td>弱引用解包→Java</td></tr><tr><td>消费</td><td><code>AccessibilityWindowsPopulator.onWindowInfosChanged()</code></td><td>system_server</td><td><code>mHandler.post()</code> 异步</td></tr><tr><td>ack</td><td><code>IWindowInfosReportedListener.onWindowInfosReported()</code></td><td>AIDL</td><td><strong>oneway</strong>，仅 sync 时非空</td></tr><tr><td>ack</td><td><code>WindowInfosListenerInvoker::onListenerReported()</code></td><td>SF</td><td>新增：处理 ack</td></tr></tbody></table><h2 id=3-bug-分析>3. Bug 分析<a hidden class=anchor aria-hidden=true href=#3-bug-分析>#</a></h2><h3 id=31-现象>3.1 现象<a hidden class=anchor aria-hidden=true href=#31-现象>#</a></h3><p>在 CPU 压力场景（6 个 <code>yes</code> 进程占满 CPU0-5）下，system_server 出现约 1.78 秒的冻屏，Perfetto trace 记录如下：</p><pre tabindex=0><code>slice: onWindowInfosChanged
   process: system_server [1475]
   thread:  binder:1475_1D [3807]
   duration: 1,777,357 μs (≈1.78s)
   nested slice: &#34;Contending for pthread mutex, mutex owner: 1612&#34; → 1,776,669 μs (99.96%)
-</code></pre><p>同时 <code>logcat</code> 中密集出现：</p>
-<pre tabindex="0"><code>oneway spamming  →  每份 log 出现 11-40 次
+</code></pre><p>同时 <code>logcat</code> 中密集出现：</p><pre tabindex=0><code>oneway spamming  →  每份 log 出现 11-40 次
 binder_alloc_buf failed to map pages in userspace, no vma
 setTransactionState timed out!
-</code></pre><h3 id="32-时序">3.2 时序<a hidden class="anchor" aria-hidden="true" href="#32-时序">#</a></h3>
-<pre tabindex="0"><code>时刻 T0: SF updateInputFlinger() 发送 oneway onWindowInfosChanged
+</code></pre><h3 id=32-时序>3.2 时序<a hidden class=anchor aria-hidden=true href=#32-时序>#</a></h3><pre tabindex=0><code>时刻 T0: SF updateInputFlinger() 发送 oneway onWindowInfosChanged
         → system_server Binder 线程收到 → JNI → 路径上访问 ART 全局引用锁
         → 该锁被 android.bg (tid 1612) 持有
         → android.bg 正在 UsageStatsService.H.handleMessage() 内
@@ -473,257 +114,100 @@ T0+1.78s: 共 ~111 条 oneway 消息堆积在 system_server 的 async binder buf
          → binder buffer 耗尽 → binder_alloc_buf failed → 冻屏
 T0+1.78s: android.bg 终于得到 CPU → 释放锁
          → binder 线程获取锁 → 处理堆积的 111 条消息 (无意义，仅最新状态有用)
-</code></pre><h3 id="33-根因">3.3 根因<a hidden class="anchor" aria-hidden="true" href="#33-根因">#</a></h3>
-<p><strong>SF 侧无 sender-side backpressure。</strong> 核心链路有三重因素共同导致：</p>
-<ol>
-<li>
-<p><strong><code>oneway</code> 语义</strong>：<code>IWindowInfosListener.onWindowInfosChanged()</code> 定义为 <code>oneway</code>。调用方 <code>transact()</code> 即时返回，不等待远端处理。SF 可以 16ms/次无限制发送，不感知远端是否拥堵。</p>
-</li>
-<li>
-<p><strong><code>BackgroundExecutor</code> 异步投递</strong>：<code>SurfaceFlinger::updateInputFlinger()</code> 将发送逻辑打包为 lambda 投递给 <code>BackgroundExecutor</code>。每帧一个 lambda，阻塞发生时 lambda 持续堆积排队。</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// SurfaceFlinger.cpp:3265-3283 (修复前)
-</span></span></span><span style="display:flex;"><span>BackgroundExecutor<span style="color:#f92672">::</span>getInstance().sendCallbacks({[...]() {
-</span></span><span style="display:flex;"><span>    mWindowInfosListenerInvoker<span style="color:#f92672">-&gt;</span>windowInfosChanged(
-</span></span><span style="display:flex;"><span>        windowInfos, displayInfos,
-</span></span><span style="display:flex;"><span>        inputWindowCommands.syncInputWindows);  <span style="color:#75715e">// shouldSync
-</span></span></span><span style="display:flex;"><span>}});
-</span></span></code></pre></div></li>
-<li>
-<p><strong><code>WindowInfosListenerInvoker::windowInfosChanged()</code> 无条件全量发送</strong>：修复前实现简单遍历所有 listener，无条件调用 oneway Binder：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// WindowInfosListenerInvoker.cpp (修复前)
-</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">void</span> WindowInfosListenerInvoker<span style="color:#f92672">::</span>windowInfosChanged(...) {
-</span></span><span style="display:flex;"><span>    mCallbacksPending <span style="color:#f92672">=</span> windowInfosListeners.size();
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">auto</span><span style="color:#f92672">&amp;</span> listener : windowInfosListeners) {
-</span></span><span style="display:flex;"><span>        listener<span style="color:#f92672">-&gt;</span>onWindowInfosChanged(windowInfos, displayInfos,
-</span></span><span style="display:flex;"><span>            shouldSync <span style="color:#f92672">?</span> mWindowInfosReportedListener : <span style="color:#66d9ef">nullptr</span>);
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p><code>mCallbacksPending</code> 仅用于 sync 事务的计数（当所有 listener ack 后触发 <code>mFlinger.windowInfosReported()</code>），<strong>不是发送侧限流条件</strong>。</p>
-</li>
-</ol>
-<h3 id="34-阻塞点定位两个-listener-都会阻塞但原因不同">3.4 阻塞点定位：两个 listener 都会阻塞，但原因不同<a hidden class="anchor" aria-hidden="true" href="#34-阻塞点定位两个-listener-都会阻塞但原因不同">#</a></h3>
-<p>Reporter 在 Binder 线程中<strong>同步串行</strong>调用所有本地 listener。一旦某个 listener 阻塞，后续 listener 根本不会被调用到：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// WindowInfosListenerReporter.cpp:97-99 (修复前后逻辑相同)
-</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">for</span> (<span style="color:#66d9ef">auto</span> listener : windowInfosListeners) {
-</span></span><span style="display:flex;"><span>    listener<span style="color:#f92672">-&gt;</span>onWindowInfosChanged(windowInfos, displayInfos);  <span style="color:#75715e">// 同步，逐个调用
-</span></span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p>在 Reporter 中添加计时代码后的复现日志证实<strong>两个 listener 都有超时</strong>：</p>
-<table>
-	<thead>
-			<tr>
-					<th>地址</th>
-					<th>注册时间</th>
-					<th>身份</th>
-					<th>总调用</th>
-					<th>超时(&gt;16ms)</th>
-					<th>最大超时</th>
-					<th>平均</th>
-			</tr>
-	</thead>
-	<tbody>
-			<tr>
-					<td><code>0xb4000072ecf4df00</code></td>
-					<td>05:12:28.256</td>
-					<td>InputDispatcher</td>
-					<td>601</td>
-					<td>10 次</td>
-					<td><strong>96ms</strong></td>
-					<td>1.1ms</td>
-			</tr>
-			<tr>
-					<td><code>0xb4000072ecf19820</code></td>
-					<td>05:12:36.711</td>
-					<td>JNI A11yPop</td>
-					<td>435</td>
-					<td>8 次</td>
-					<td>31ms</td>
-					<td>1.4ms</td>
-			</tr>
-	</tbody>
-</table>
-<p>注册时间戳排除了歧义：<code>0xb4000072ecf4df00</code> 在 05:12:28.256 注册，早于 <code>AccessibilityManagerService</code> 启动（05:12:28.432），必定是 <code>InputDispatcher</code>（<code>inputManager.start()</code> 内构造函数注册）。<code>0xb4000072ecf19820</code> 在 8 秒后注册，是 JNI A11yPop。</p>
-<p>同一线程、同一时间戳的两条日志揭示了 <code>unordered_set</code> 的遍历顺序：</p>
-<pre tabindex="0"><code>05:12:36.901  TID 1669  listener 0xb4000072ecf19820 took 0 ms   ← 先调用 (JNI A11yPop)
+</code></pre><h3 id=33-根因>3.3 根因<a hidden class=anchor aria-hidden=true href=#33-根因>#</a></h3><p><strong>SF 侧无 sender-side backpressure。</strong> 核心链路有三重因素共同导致：</p><ol><li><p><strong><code>oneway</code> 语义</strong>：<code>IWindowInfosListener.onWindowInfosChanged()</code> 定义为 <code>oneway</code>。调用方 <code>transact()</code> 即时返回，不等待远端处理。SF 可以 16ms/次无限制发送，不感知远端是否拥堵。</p></li><li><p><strong><code>BackgroundExecutor</code> 异步投递</strong>：<code>SurfaceFlinger::updateInputFlinger()</code> 将发送逻辑打包为 lambda 投递给 <code>BackgroundExecutor</code>。每帧一个 lambda，阻塞发生时 lambda 持续堆积排队。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// SurfaceFlinger.cpp:3265-3283 (修复前)
+</span></span></span><span style=display:flex><span>BackgroundExecutor<span style=color:#f92672>::</span>getInstance().sendCallbacks({[...]() {
+</span></span><span style=display:flex><span>    mWindowInfosListenerInvoker<span style=color:#f92672>-&gt;</span>windowInfosChanged(
+</span></span><span style=display:flex><span>        windowInfos, displayInfos,
+</span></span><span style=display:flex><span>        inputWindowCommands.syncInputWindows);  <span style=color:#75715e>// shouldSync
+</span></span></span><span style=display:flex><span>}});
+</span></span></code></pre></div></li><li><p><strong><code>WindowInfosListenerInvoker::windowInfosChanged()</code> 无条件全量发送</strong>：修复前实现简单遍历所有 listener，无条件调用 oneway Binder：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// WindowInfosListenerInvoker.cpp (修复前)
+</span></span></span><span style=display:flex><span><span style=color:#66d9ef>void</span> WindowInfosListenerInvoker<span style=color:#f92672>::</span>windowInfosChanged(...) {
+</span></span><span style=display:flex><span>    mCallbacksPending <span style=color:#f92672>=</span> windowInfosListeners.size();
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>for</span> (<span style=color:#66d9ef>const</span> <span style=color:#66d9ef>auto</span><span style=color:#f92672>&amp;</span> listener : windowInfosListeners) {
+</span></span><span style=display:flex><span>        listener<span style=color:#f92672>-&gt;</span>onWindowInfosChanged(windowInfos, displayInfos,
+</span></span><span style=display:flex><span>            shouldSync <span style=color:#f92672>?</span> mWindowInfosReportedListener : <span style=color:#66d9ef>nullptr</span>);
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p><code>mCallbacksPending</code> 仅用于 sync 事务的计数（当所有 listener ack 后触发 <code>mFlinger.windowInfosReported()</code>），<strong>不是发送侧限流条件</strong>。</p></li></ol><h3 id=34-阻塞点定位两个-listener-都会阻塞但原因不同>3.4 阻塞点定位：两个 listener 都会阻塞，但原因不同<a hidden class=anchor aria-hidden=true href=#34-阻塞点定位两个-listener-都会阻塞但原因不同>#</a></h3><p>Reporter 在 Binder 线程中<strong>同步串行</strong>调用所有本地 listener。一旦某个 listener 阻塞，后续 listener 根本不会被调用到：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// WindowInfosListenerReporter.cpp:97-99 (修复前后逻辑相同)
+</span></span></span><span style=display:flex><span><span style=color:#66d9ef>for</span> (<span style=color:#66d9ef>auto</span> listener : windowInfosListeners) {
+</span></span><span style=display:flex><span>    listener<span style=color:#f92672>-&gt;</span>onWindowInfosChanged(windowInfos, displayInfos);  <span style=color:#75715e>// 同步，逐个调用
+</span></span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>在 Reporter 中添加计时代码后的复现日志证实<strong>两个 listener 都有超时</strong>：</p><table><thead><tr><th>地址</th><th>注册时间</th><th>身份</th><th>总调用</th><th>超时(>16ms)</th><th>最大超时</th><th>平均</th></tr></thead><tbody><tr><td><code>0xb4000072ecf4df00</code></td><td>05:12:28.256</td><td>InputDispatcher</td><td>601</td><td>10 次</td><td><strong>96ms</strong></td><td>1.1ms</td></tr><tr><td><code>0xb4000072ecf19820</code></td><td>05:12:36.711</td><td>JNI A11yPop</td><td>435</td><td>8 次</td><td>31ms</td><td>1.4ms</td></tr></tbody></table><p>注册时间戳排除了歧义：<code>0xb4000072ecf4df00</code> 在 05:12:28.256 注册，早于 <code>AccessibilityManagerService</code> 启动（05:12:28.432），必定是 <code>InputDispatcher</code>（<code>inputManager.start()</code> 内构造函数注册）。<code>0xb4000072ecf19820</code> 在 8 秒后注册，是 JNI A11yPop。</p><p>同一线程、同一时间戳的两条日志揭示了 <code>unordered_set</code> 的遍历顺序：</p><pre tabindex=0><code>05:12:36.901  TID 1669  listener 0xb4000072ecf19820 took 0 ms   ← 先调用 (JNI A11yPop)
 05:12:36.901  TID 1669  listener 0xb4000072ecf4df00 took 0 ms   ← 后调用 (InputDispatcher)
-</code></pre><p>两个 listener 的阻塞原因<strong>不同</strong>：</p>
-<h4 id="inputdispatcher--被自身-looper-线程阻塞mlock-竞争">InputDispatcher —— 被自身 looper 线程阻塞（mLock 竞争）<a hidden class="anchor" aria-hidden="true" href="#inputdispatcher--被自身-looper-线程阻塞mlock-竞争">#</a></h4>
-<p><code>InputDispatcher.cpp:6346-6363</code>：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> InputDispatcher<span style="color:#f92672">::</span>onWindowInfosChanged(...) {
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 行 6340-6344: 纯本地堆操作，无共享锁
-</span></span></span><span style="display:flex;"><span>    std<span style="color:#f92672">::</span>scoped_lock _l(mLock);   <span style="color:#75715e">// ← 唯一获取的锁
-</span></span></span><span style="display:flex;"><span>    setInputWindowsLocked(handles, displayId);
-</span></span><span style="display:flex;"><span>    mLooper<span style="color:#f92672">-&gt;</span>wake();
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p><code>mLock</code> 定义在 <code>InputDispatcher.h:171</code>：<code>std::mutex mLock</code>。<strong>这把锁不是只有 Binder 线程获取</strong>——InputDispatcher 的 looper 线程在 <code>dispatchOnceInnerLocked()</code> 分发输入事件时也需要持有 <code>mLock</code>。如果 looper 线程在处理大量积压的输入事件（持锁数十 ms），Binder 线程的 <code>onWindowInfosChanged</code> 就会在 <code>mLock</code> 上阻塞。</p>
-<p><code>android.bg</code>（tid 1612）确实<strong>不会</strong>持有 <code>InputDispatcher::mLock</code>。但 <strong>InputDispatcher 自己的 looper 线程会</strong>。日志中 96ms 的峰值就是 looper 线程持锁分发事件时 Binder 线程等待的结果。</p>
-<h4 id="jni-路径--被任意-jni-线程阻塞art-vm-全局锁竞争">JNI 路径 —— 被任意 JNI 线程阻塞（ART VM 全局锁竞争）<a hidden class="anchor" aria-hidden="true" href="#jni-路径--被任意-jni-线程阻塞art-vm-全局锁竞争">#</a></h4>
-<p><code>android_window_WindowInfosListener.cpp:96-121</code>：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">onWindowInfosChanged</span>(...) <span style="color:#66d9ef">override</span> {
-</span></span><span style="display:flex;"><span>    JNIEnv<span style="color:#f92672">*</span> env <span style="color:#f92672">=</span> AndroidRuntime<span style="color:#f92672">::</span>getJNIEnv();
-</span></span><span style="display:flex;"><span>    ScopedLocalFrame localFrame(env);
-</span></span><span style="display:flex;"><span>    jobject listener <span style="color:#f92672">=</span> env<span style="color:#f92672">-&gt;</span>NewGlobalRef(mListener);  <span style="color:#75715e">// ← 行 103: 需要 VM 级锁
-</span></span></span><span style="display:flex;"><span>    ...
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><p><code>NewGlobalRef(mListener)</code> 中 <code>mListener</code> 是 <code>jweak</code>——弱全局引用。调用链：</p>
-<pre tabindex="0"><code>jni_internal.cc:851  NewGlobalRef(env, obj)
+</code></pre><p>两个 listener 的阻塞原因<strong>不同</strong>：</p><h4 id=inputdispatcher--被自身-looper-线程阻塞mlock-竞争>InputDispatcher —— 被自身 looper 线程阻塞（mLock 竞争）<a hidden class=anchor aria-hidden=true href=#inputdispatcher--被自身-looper-线程阻塞mlock-竞争>#</a></h4><p><code>InputDispatcher.cpp:6346-6363</code>：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#66d9ef>void</span> InputDispatcher<span style=color:#f92672>::</span>onWindowInfosChanged(...) {
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 行 6340-6344: 纯本地堆操作，无共享锁
+</span></span></span><span style=display:flex><span>    std<span style=color:#f92672>::</span>scoped_lock _l(mLock);   <span style=color:#75715e>// ← 唯一获取的锁
+</span></span></span><span style=display:flex><span>    setInputWindowsLocked(handles, displayId);
+</span></span><span style=display:flex><span>    mLooper<span style=color:#f92672>-&gt;</span>wake();
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p><code>mLock</code> 定义在 <code>InputDispatcher.h:171</code>：<code>std::mutex mLock</code>。<strong>这把锁不是只有 Binder 线程获取</strong>——InputDispatcher 的 looper 线程在 <code>dispatchOnceInnerLocked()</code> 分发输入事件时也需要持有 <code>mLock</code>。如果 looper 线程在处理大量积压的输入事件（持锁数十 ms），Binder 线程的 <code>onWindowInfosChanged</code> 就会在 <code>mLock</code> 上阻塞。</p><p><code>android.bg</code>（tid 1612）确实<strong>不会</strong>持有 <code>InputDispatcher::mLock</code>。但 <strong>InputDispatcher 自己的 looper 线程会</strong>。日志中 96ms 的峰值就是 looper 线程持锁分发事件时 Binder 线程等待的结果。</p><h4 id=jni-路径--被任意-jni-线程阻塞art-vm-全局锁竞争>JNI 路径 —— 被任意 JNI 线程阻塞（ART VM 全局锁竞争）<a hidden class=anchor aria-hidden=true href=#jni-路径--被任意-jni-线程阻塞art-vm-全局锁竞争>#</a></h4><p><code>android_window_WindowInfosListener.cpp:96-121</code>：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#66d9ef>void</span> <span style=color:#a6e22e>onWindowInfosChanged</span>(...) <span style=color:#66d9ef>override</span> {
+</span></span><span style=display:flex><span>    JNIEnv<span style=color:#f92672>*</span> env <span style=color:#f92672>=</span> AndroidRuntime<span style=color:#f92672>::</span>getJNIEnv();
+</span></span><span style=display:flex><span>    ScopedLocalFrame localFrame(env);
+</span></span><span style=display:flex><span>    jobject listener <span style=color:#f92672>=</span> env<span style=color:#f92672>-&gt;</span>NewGlobalRef(mListener);  <span style=color:#75715e>// ← 行 103: 需要 VM 级锁
+</span></span></span><span style=display:flex><span>    ...
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p><code>NewGlobalRef(mListener)</code> 中 <code>mListener</code> 是 <code>jweak</code>——弱全局引用。调用链：</p><pre tabindex=0><code>jni_internal.cc:851  NewGlobalRef(env, obj)
   → ScopedObjectAccess soa(env)
   → Decode&lt;Object&gt;(obj)              // 解析 weak ref: 访问 indirect reference table
   → AddGlobalRef(self, decoded)      // java_vm_ext.cc:692
       → WriterMutexLock mu(self, *Locks::jni_globals_lock_);   // 行 700: VM 级锁
       → globals_.Add(...)
-</code></pre><p><code>Locks::jni_globals_lock_</code> 是 <strong>ART VM 级的 ReaderWriterMutex</strong>（<code>art/runtime/base/locks.cc:147-148</code>）。<code>android.bg</code>（tid 1612）执行 <code>UsageStatsService.H.handleMessage()</code> → <code>FrameworkStatsLog.write()</code> → JNI → native 层时可能持有该锁。在 CPU 饥饿下（6 个 <code>yes</code> 进程抢占 CPU0-5），<code>android.bg</code> 得不到调度释放锁 → Binder 线程的 <code>NewGlobalRef</code> 等待该锁。</p>
-<h4 id="两条阻塞路径对比">两条阻塞路径对比<a hidden class="anchor" aria-hidden="true" href="#两条阻塞路径对比">#</a></h4>
-<table>
-	<thead>
-			<tr>
-					<th>锁</th>
-					<th>被谁持有</th>
-					<th>阻塞对象</th>
-					<th>严重程度</th>
-			</tr>
-	</thead>
-	<tbody>
-			<tr>
-					<td><code>InputDispatcher::mLock</code></td>
-					<td><strong>InputDispatcher looper 线程</strong>（分发事件）</td>
-					<td>InputDispatcher Binder 回调</td>
-					<td>数十 ms（96ms 峰值）</td>
-			</tr>
-			<tr>
-					<td><code>Locks::jni_globals_lock_</code></td>
-					<td><strong>任意 JNI 线程</strong>（android.bg 等）</td>
-					<td>JNI Binder 回调</td>
-					<td>数十 ms 到秒级（原 trace 1.78s）</td>
-			</tr>
-	</tbody>
-</table>
-<p><strong>这两个阻塞独立发生且可叠加</strong>：在 Reporter 的同步循环中，InputDispatcher 阻塞 96ms + JNI 阻塞 31ms = 总延迟 &gt;127ms，远超过 16ms 帧间隔。</p>
-<h3 id="35-关键代码路径上的锁汇总">3.5 关键代码路径上的锁汇总<a hidden class="anchor" aria-hidden="true" href="#35-关键代码路径上的锁汇总">#</a></h3>
-<table>
-	<thead>
-			<tr>
-					<th>锁</th>
-					<th>位置</th>
-					<th>作用域</th>
-					<th>持有者</th>
-					<th>与 onWindowInfosChanged 交集</th>
-			</tr>
-	</thead>
-	<tbody>
-			<tr>
-					<td><code>InputDispatcher::mLock</code></td>
-					<td><code>setInputWindowsLocked()</code></td>
-					<td>InputDispatcher 对象</td>
-					<td><strong>InputDispatcher looper 线程</strong></td>
-					<td>✅ Binder 线程等待 looper 释放</td>
-			</tr>
-			<tr>
-					<td><code>Locks::jni_globals_lock_</code></td>
-					<td><code>AddGlobalRef()</code> → <code>NewGlobalRef()</code></td>
-					<td><strong>ART VM 全局</strong></td>
-					<td>任何 JNI 线程（android.bg 等）</td>
-					<td>✅ Binder JNI 线程等待其他 JNI 线程</td>
-			</tr>
-			<tr>
-					<td><code>Locks::jni_weak_globals_lock_</code></td>
-					<td>weak global ref 解引用</td>
-					<td><strong>ART VM 全局</strong></td>
-					<td>任何 JNI 线程</td>
-					<td>✅ 同上</td>
-			</tr>
-			<tr>
-					<td><code>BinderProxy.sProxyMap</code></td>
-					<td><code>javaObjectForIBinder()</code></td>
-					<td>Java 静态对象</td>
-					<td>任何 Binder 调用者</td>
-					<td>✅ 窗口 token 转换</td>
-			</tr>
-			<tr>
-					<td><code>DisplayInfoListener::mLock</code></td>
-					<td><code>onDisplayInfosChangedLocked()</code></td>
-					<td>DisplayInfoListener 对象</td>
-					<td>PointerController 自身</td>
-					<td>⚠️ 仅在 pointer 生命周期变更时短暂持锁</td>
-			</tr>
-			<tr>
-					<td>WMS <code>mGlobalLock</code></td>
-					<td><code>getWindowsTransformMatrix()</code></td>
-					<td>WMS 全局</td>
-					<td>WMS 线程</td>
-					<td>⚠️ A11yPop 异步处理时</td>
-			</tr>
-	</tbody>
-</table>
-<p>这些锁本身持有时间极短（μs 级），但在 CPU 饥饿下，锁持有者得不到调度，等待被放大到百毫秒甚至秒级。</p>
-<h2 id="4-修复sender-side-backpressure">4. 修复：Sender-side Backpressure<a hidden class="anchor" aria-hidden="true" href="#4-修复sender-side-backpressure">#</a></h2>
-<h3 id="41-核心思想">4.1 核心思想<a hidden class="anchor" aria-hidden="true" href="#41-核心思想">#</a></h3>
-<p>复用旧协议中已有但仅用于 sync 的 <code>IWindowInfosReportedListener.onWindowInfosReported()</code> 回调，不改 AIDL 接口。</p>
-<ul>
-<li><strong>普通更新</strong>：最多 1 个 in-flight 消息，后续帧合并为一份 latest-wins 延迟更新</li>
-<li><strong>强制更新</strong>（可见窗口变化 / 焦点切换）：允许穿透，但受 <code>kMaxInFlightMessages</code> 硬上限限制</li>
-<li><strong>Sync 更新</strong>：永远立即发送（调用方阻塞等待，不可 defer）</li>
-</ul>
-<h3 id="42-新增状态">4.2 新增状态<a hidden class="anchor" aria-hidden="true" href="#42-新增状态">#</a></h3>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// WindowInfosListenerInvoker.h
-</span></span></span><span style="display:flex;"><span>std<span style="color:#f92672">::</span>mutex mMessagesMutex;           <span style="color:#75715e">// 保护 flow-control 状态
-</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">uint64_t</span> mNextMessageId <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">UnackedMessage</span> {
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">bool</span> shouldSync;
-</span></span><span style="display:flex;"><span>    std<span style="color:#f92672">::</span>vector<span style="color:#f92672">&lt;</span>wp<span style="color:#f92672">&lt;</span>IBinder<span style="color:#f92672">&gt;&gt;</span> unackedListeners;   <span style="color:#75715e">// 尚欠 ack 的 listener
-</span></span></span><span style="display:flex;"><span>    std<span style="color:#f92672">::</span>vector<span style="color:#f92672">&lt;</span>sp<span style="color:#f92672">&lt;</span>IWindowInfosReportedListener<span style="color:#f92672">&gt;&gt;</span> reportedListeners; <span style="color:#75715e">// strong ref
-</span></span></span><span style="display:flex;"><span>};
-</span></span><span style="display:flex;"><span>std<span style="color:#f92672">::</span>unordered_map<span style="color:#f92672">&lt;</span><span style="color:#66d9ef">uint64_t</span>, UnackedMessage<span style="color:#f92672">&gt;</span> mUnackedMessages;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">bool</span> mHasDelayedUpdate <span style="color:#f92672">=</span> false;
-</span></span><span style="display:flex;"><span>std<span style="color:#f92672">::</span>vector<span style="color:#f92672">&lt;</span>WindowInfo<span style="color:#f92672">&gt;</span> mDelayedWindowInfos;     <span style="color:#75715e">// 合并后的最新更新
-</span></span></span><span style="display:flex;"><span>std<span style="color:#f92672">::</span>vector<span style="color:#f92672">&lt;</span>DisplayInfo<span style="color:#f92672">&gt;</span> mDelayedDisplayInfos;
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">uint32_t</span> mDelayedCount <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">constexpr</span> size_t kMaxInFlightMessages <span style="color:#f92672">=</span> <span style="color:#ae81ff">4</span>; <span style="color:#75715e">// 硬上限
-</span></span></span></code></pre></div><h3 id="43-windowinfosreportedlistenerbinder-对象编码标识">4.3 <code>WindowInfosReportedListener</code>：Binder 对象编码标识<a hidden class="anchor" aria-hidden="true" href="#43-windowinfosreportedlistenerbinder-对象编码标识">#</a></h3>
-<p>旧 AIDL 中 <code>onWindowInfosReported()</code> 无参数。通过在 Binder 对象自身携带 <code>(messageId, targetListener)</code> 来支持多 in-flight 消息追踪，不改 AIDL：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">WindowInfosListenerInvoker</span><span style="color:#f92672">::</span>WindowInfosReportedListener
-</span></span><span style="display:flex;"><span>      : gui<span style="color:#f92672">::</span>BnWindowInfosReportedListener {
-</span></span><span style="display:flex;"><span>    WindowInfosListenerInvoker<span style="color:#f92672">&amp;</span> mInvoker;
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">uint64_t</span> mMessageId;
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> wp<span style="color:#f92672">&lt;</span>IBinder<span style="color:#f92672">&gt;</span> mTargetListener;   <span style="color:#75715e">// 哪个 listener 发的 ack
-</span></span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    binder<span style="color:#f92672">::</span>Status onWindowInfosReported() <span style="color:#66d9ef">override</span> {
-</span></span><span style="display:flex;"><span>        mInvoker.onListenerReported(mMessageId, mTargetListener, false);
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> binder<span style="color:#f92672">::</span>Status<span style="color:#f92672">::</span>ok();
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>};
-</span></span></code></pre></div><h3 id="44-发送路径">4.4 发送路径<a hidden class="anchor" aria-hidden="true" href="#44-发送路径">#</a></h3>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> WindowInfosListenerInvoker<span style="color:#f92672">::</span>windowInfosChanged(...) {
-</span></span><span style="display:flex;"><span>    std<span style="color:#f92672">::</span>scoped_lock lock(mMessagesMutex);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 背压决策
-</span></span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">bool</span> atCapacity <span style="color:#f92672">=</span> mUnackedMessages.size() <span style="color:#f92672">&gt;=</span> kMaxInFlightMessages;
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">bool</span> deferUpdate <span style="color:#f92672">=</span> <span style="color:#f92672">!</span>shouldSync <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span>mUnackedMessages.empty() <span style="color:#f92672">&amp;&amp;</span>
-</span></span><span style="display:flex;"><span>            (<span style="color:#f92672">!</span>forceImmediateCall <span style="color:#f92672">||</span> atCapacity);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (deferUpdate) {
-</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// latest-wins: 只保留最新一份
-</span></span></span><span style="display:flex;"><span>        mDelayedWindowInfos <span style="color:#f92672">=</span> windowInfos;
-</span></span><span style="display:flex;"><span>        mDelayedDisplayInfos <span style="color:#f92672">=</span> displayInfos;
-</span></span><span style="display:flex;"><span>        mHasDelayedUpdate <span style="color:#f92672">=</span> true;
-</span></span><span style="display:flex;"><span>        mDelayedCount<span style="color:#f92672">++</span>;
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span>;  <span style="color:#75715e">// 不发送
-</span></span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// force 更新淘汰旧的 delayed 数据 (携带更新状态)
-</span></span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (mHasDelayedUpdate) {
-</span></span><span style="display:flex;"><span>        mHasDelayedUpdate <span style="color:#f92672">=</span> false;
-</span></span><span style="display:flex;"><span>        mDelayedCount <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
-</span></span><span style="display:flex;"><span>    }
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 注册消息 + 快照 listener + 分配 messageId
-</span></span></span><span style="display:flex;"><span>    dispatchList <span style="color:#f92672">=</span> recordMessageLocked(shouldSync, <span style="color:#f92672">&amp;</span>messageId);
-</span></span><span style="display:flex;"><span>    dispatchWindowInfos(messageId, dispatchList, windowInfos, displayInfos);
-</span></span><span style="display:flex;"><span>}
-</span></span></code></pre></div><h3 id="45-ack-路径">4.5 ack 路径<a hidden class="anchor" aria-hidden="true" href="#45-ack-路径">#</a></h3>
-<pre tabindex="0"><code>Reporter 处理完所有本地 listener
+</code></pre><p><code>Locks::jni_globals_lock_</code> 是 <strong>ART VM 级的 ReaderWriterMutex</strong>（<code>art/runtime/base/locks.cc:147-148</code>）。<code>android.bg</code>（tid 1612）执行 <code>UsageStatsService.H.handleMessage()</code> → <code>FrameworkStatsLog.write()</code> → JNI → native 层时可能持有该锁。在 CPU 饥饿下（6 个 <code>yes</code> 进程抢占 CPU0-5），<code>android.bg</code> 得不到调度释放锁 → Binder 线程的 <code>NewGlobalRef</code> 等待该锁。</p><h4 id=两条阻塞路径对比>两条阻塞路径对比<a hidden class=anchor aria-hidden=true href=#两条阻塞路径对比>#</a></h4><table><thead><tr><th>锁</th><th>被谁持有</th><th>阻塞对象</th><th>严重程度</th></tr></thead><tbody><tr><td><code>InputDispatcher::mLock</code></td><td><strong>InputDispatcher looper 线程</strong>（分发事件）</td><td>InputDispatcher Binder 回调</td><td>数十 ms（96ms 峰值）</td></tr><tr><td><code>Locks::jni_globals_lock_</code></td><td><strong>任意 JNI 线程</strong>（android.bg 等）</td><td>JNI Binder 回调</td><td>数十 ms 到秒级（原 trace 1.78s）</td></tr></tbody></table><p><strong>这两个阻塞独立发生且可叠加</strong>：在 Reporter 的同步循环中，InputDispatcher 阻塞 96ms + JNI 阻塞 31ms = 总延迟 >127ms，远超过 16ms 帧间隔。</p><h3 id=35-关键代码路径上的锁汇总>3.5 关键代码路径上的锁汇总<a hidden class=anchor aria-hidden=true href=#35-关键代码路径上的锁汇总>#</a></h3><table><thead><tr><th>锁</th><th>位置</th><th>作用域</th><th>持有者</th><th>与 onWindowInfosChanged 交集</th></tr></thead><tbody><tr><td><code>InputDispatcher::mLock</code></td><td><code>setInputWindowsLocked()</code></td><td>InputDispatcher 对象</td><td><strong>InputDispatcher looper 线程</strong></td><td>✅ Binder 线程等待 looper 释放</td></tr><tr><td><code>Locks::jni_globals_lock_</code></td><td><code>AddGlobalRef()</code> → <code>NewGlobalRef()</code></td><td><strong>ART VM 全局</strong></td><td>任何 JNI 线程（android.bg 等）</td><td>✅ Binder JNI 线程等待其他 JNI 线程</td></tr><tr><td><code>Locks::jni_weak_globals_lock_</code></td><td>weak global ref 解引用</td><td><strong>ART VM 全局</strong></td><td>任何 JNI 线程</td><td>✅ 同上</td></tr><tr><td><code>BinderProxy.sProxyMap</code></td><td><code>javaObjectForIBinder()</code></td><td>Java 静态对象</td><td>任何 Binder 调用者</td><td>✅ 窗口 token 转换</td></tr><tr><td><code>DisplayInfoListener::mLock</code></td><td><code>onDisplayInfosChangedLocked()</code></td><td>DisplayInfoListener 对象</td><td>PointerController 自身</td><td>⚠️ 仅在 pointer 生命周期变更时短暂持锁</td></tr><tr><td>WMS <code>mGlobalLock</code></td><td><code>getWindowsTransformMatrix()</code></td><td>WMS 全局</td><td>WMS 线程</td><td>⚠️ A11yPop 异步处理时</td></tr></tbody></table><p>这些锁本身持有时间极短（μs 级），但在 CPU 饥饿下，锁持有者得不到调度，等待被放大到百毫秒甚至秒级。</p><h2 id=4-修复sender-side-backpressure>4. 修复：Sender-side Backpressure<a hidden class=anchor aria-hidden=true href=#4-修复sender-side-backpressure>#</a></h2><h3 id=41-核心思想>4.1 核心思想<a hidden class=anchor aria-hidden=true href=#41-核心思想>#</a></h3><p>复用旧协议中已有但仅用于 sync 的 <code>IWindowInfosReportedListener.onWindowInfosReported()</code> 回调，不改 AIDL 接口。</p><ul><li><strong>普通更新</strong>：最多 1 个 in-flight 消息，后续帧合并为一份 latest-wins 延迟更新</li><li><strong>强制更新</strong>（可见窗口变化 / 焦点切换）：允许穿透，但受 <code>kMaxInFlightMessages</code> 硬上限限制</li><li><strong>Sync 更新</strong>：永远立即发送（调用方阻塞等待，不可 defer）</li></ul><h3 id=42-新增状态>4.2 新增状态<a hidden class=anchor aria-hidden=true href=#42-新增状态>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// WindowInfosListenerInvoker.h
+</span></span></span><span style=display:flex><span>std<span style=color:#f92672>::</span>mutex mMessagesMutex;           <span style=color:#75715e>// 保护 flow-control 状态
+</span></span></span><span style=display:flex><span><span style=color:#66d9ef>uint64_t</span> mNextMessageId <span style=color:#f92672>=</span> <span style=color:#ae81ff>1</span>;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>struct</span> <span style=color:#a6e22e>UnackedMessage</span> {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>bool</span> shouldSync;
+</span></span><span style=display:flex><span>    std<span style=color:#f92672>::</span>vector<span style=color:#f92672>&lt;</span>wp<span style=color:#f92672>&lt;</span>IBinder<span style=color:#f92672>&gt;&gt;</span> unackedListeners;   <span style=color:#75715e>// 尚欠 ack 的 listener
+</span></span></span><span style=display:flex><span>    std<span style=color:#f92672>::</span>vector<span style=color:#f92672>&lt;</span>sp<span style=color:#f92672>&lt;</span>IWindowInfosReportedListener<span style=color:#f92672>&gt;&gt;</span> reportedListeners; <span style=color:#75715e>// strong ref
+</span></span></span><span style=display:flex><span>};
+</span></span><span style=display:flex><span>std<span style=color:#f92672>::</span>unordered_map<span style=color:#f92672>&lt;</span><span style=color:#66d9ef>uint64_t</span>, UnackedMessage<span style=color:#f92672>&gt;</span> mUnackedMessages;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>bool</span> mHasDelayedUpdate <span style=color:#f92672>=</span> false;
+</span></span><span style=display:flex><span>std<span style=color:#f92672>::</span>vector<span style=color:#f92672>&lt;</span>WindowInfo<span style=color:#f92672>&gt;</span> mDelayedWindowInfos;     <span style=color:#75715e>// 合并后的最新更新
+</span></span></span><span style=display:flex><span>std<span style=color:#f92672>::</span>vector<span style=color:#f92672>&lt;</span>DisplayInfo<span style=color:#f92672>&gt;</span> mDelayedDisplayInfos;
+</span></span><span style=display:flex><span><span style=color:#66d9ef>uint32_t</span> mDelayedCount <span style=color:#f92672>=</span> <span style=color:#ae81ff>0</span>;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>static</span> <span style=color:#66d9ef>constexpr</span> size_t kMaxInFlightMessages <span style=color:#f92672>=</span> <span style=color:#ae81ff>4</span>; <span style=color:#75715e>// 硬上限
+</span></span></span></code></pre></div><h3 id=43-windowinfosreportedlistenerbinder-对象编码标识>4.3 <code>WindowInfosReportedListener</code>：Binder 对象编码标识<a hidden class=anchor aria-hidden=true href=#43-windowinfosreportedlistenerbinder-对象编码标识>#</a></h3><p>旧 AIDL 中 <code>onWindowInfosReported()</code> 无参数。通过在 Binder 对象自身携带 <code>(messageId, targetListener)</code> 来支持多 in-flight 消息追踪，不改 AIDL：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#66d9ef>struct</span> <span style=color:#a6e22e>WindowInfosListenerInvoker</span><span style=color:#f92672>::</span>WindowInfosReportedListener
+</span></span><span style=display:flex><span>      : gui<span style=color:#f92672>::</span>BnWindowInfosReportedListener {
+</span></span><span style=display:flex><span>    WindowInfosListenerInvoker<span style=color:#f92672>&amp;</span> mInvoker;
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>const</span> <span style=color:#66d9ef>uint64_t</span> mMessageId;
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>const</span> wp<span style=color:#f92672>&lt;</span>IBinder<span style=color:#f92672>&gt;</span> mTargetListener;   <span style=color:#75715e>// 哪个 listener 发的 ack
+</span></span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    binder<span style=color:#f92672>::</span>Status onWindowInfosReported() <span style=color:#66d9ef>override</span> {
+</span></span><span style=display:flex><span>        mInvoker.onListenerReported(mMessageId, mTargetListener, false);
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span> binder<span style=color:#f92672>::</span>Status<span style=color:#f92672>::</span>ok();
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>};
+</span></span></code></pre></div><h3 id=44-发送路径>4.4 发送路径<a hidden class=anchor aria-hidden=true href=#44-发送路径>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#66d9ef>void</span> WindowInfosListenerInvoker<span style=color:#f92672>::</span>windowInfosChanged(...) {
+</span></span><span style=display:flex><span>    std<span style=color:#f92672>::</span>scoped_lock lock(mMessagesMutex);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 背压决策
+</span></span></span><span style=display:flex><span>    <span style=color:#66d9ef>const</span> <span style=color:#66d9ef>bool</span> atCapacity <span style=color:#f92672>=</span> mUnackedMessages.size() <span style=color:#f92672>&gt;=</span> kMaxInFlightMessages;
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>const</span> <span style=color:#66d9ef>bool</span> deferUpdate <span style=color:#f92672>=</span> <span style=color:#f92672>!</span>shouldSync <span style=color:#f92672>&amp;&amp;</span> <span style=color:#f92672>!</span>mUnackedMessages.empty() <span style=color:#f92672>&amp;&amp;</span>
+</span></span><span style=display:flex><span>            (<span style=color:#f92672>!</span>forceImmediateCall <span style=color:#f92672>||</span> atCapacity);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (deferUpdate) {
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// latest-wins: 只保留最新一份
+</span></span></span><span style=display:flex><span>        mDelayedWindowInfos <span style=color:#f92672>=</span> windowInfos;
+</span></span><span style=display:flex><span>        mDelayedDisplayInfos <span style=color:#f92672>=</span> displayInfos;
+</span></span><span style=display:flex><span>        mHasDelayedUpdate <span style=color:#f92672>=</span> true;
+</span></span><span style=display:flex><span>        mDelayedCount<span style=color:#f92672>++</span>;
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span>;  <span style=color:#75715e>// 不发送
+</span></span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// force 更新淘汰旧的 delayed 数据 (携带更新状态)
+</span></span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (mHasDelayedUpdate) {
+</span></span><span style=display:flex><span>        mHasDelayedUpdate <span style=color:#f92672>=</span> false;
+</span></span><span style=display:flex><span>        mDelayedCount <span style=color:#f92672>=</span> <span style=color:#ae81ff>0</span>;
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 注册消息 + 快照 listener + 分配 messageId
+</span></span></span><span style=display:flex><span>    dispatchList <span style=color:#f92672>=</span> recordMessageLocked(shouldSync, <span style=color:#f92672>&amp;</span>messageId);
+</span></span><span style=display:flex><span>    dispatchWindowInfos(messageId, dispatchList, windowInfos, displayInfos);
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h3 id=45-ack-路径>4.5 ack 路径<a hidden class=anchor aria-hidden=true href=#45-ack-路径>#</a></h3><pre tabindex=0><code>Reporter 处理完所有本地 listener
   → if (windowInfosReportedListener) onWindowInfosReported()  // oneway 回 SF
   → WindowInfosReportedListener::onWindowInfosReported()
   → WindowInfosListenerInvoker::onListenerReported(messageId, target, false)
@@ -735,21 +219,17 @@ T0+1.78s: android.bg 终于得到 CPU → 释放锁
       }
       mFlinger.windowInfosReported() × syncCompletions
       若 flush → dispatchWindowInfos(delayed)
-</code></pre><h3 id="46-surfaceflingercpp-调用点变化">4.6 <code>SurfaceFlinger.cpp</code> 调用点变化<a hidden class="anchor" aria-hidden="true" href="#46-surfaceflingercpp-调用点变化">#</a></h3>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// 修复前
-</span></span></span><span style="display:flex;"><span>mWindowInfosListenerInvoker<span style="color:#f92672">-&gt;</span>windowInfosChanged(
-</span></span><span style="display:flex;"><span>    windowInfos, displayInfos, syncInputWindows);
-</span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span><span style="color:#75715e">// 修复后
-</span></span></span><span style="display:flex;"><span><span style="color:#66d9ef">const</span> <span style="color:#66d9ef">bool</span> forceImmediateCall <span style="color:#f92672">=</span> visibleWindowsChanged <span style="color:#f92672">||</span>
-</span></span><span style="display:flex;"><span>        inputWindowCommands.syncInputWindows <span style="color:#f92672">||</span>
-</span></span><span style="display:flex;"><span>        <span style="color:#f92672">!</span>inputWindowCommands.focusRequests.empty();
-</span></span><span style="display:flex;"><span>mWindowInfosListenerInvoker<span style="color:#f92672">-&gt;</span>windowInfosChanged(
-</span></span><span style="display:flex;"><span>    windowInfos, displayInfos, syncInputWindows, forceImmediateCall);
-</span></span></code></pre></div><p>新增 <code>visibleWindowsChanged</code> 检测：通过对比相邻帧的可见窗口 ID set（<code>mVisibleWindowIds</code>），识别窗口出现/消失（稀疏事件，不会被 backpressure spam）。</p>
-<h2 id="5-时序图">5. 时序图<a hidden class="anchor" aria-hidden="true" href="#5-时序图">#</a></h2>
-<h3 id="51-正常流程-无背压">5.1 正常流程 (无背压)<a hidden class="anchor" aria-hidden="true" href="#51-正常流程-无背压">#</a></h3>
-<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml
+</code></pre><h3 id=46-surfaceflingercpp-调用点变化>4.6 <code>SurfaceFlinger.cpp</code> 调用点变化<a hidden class=anchor aria-hidden=true href=#46-surfaceflingercpp-调用点变化>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// 修复前
+</span></span></span><span style=display:flex><span>mWindowInfosListenerInvoker<span style=color:#f92672>-&gt;</span>windowInfosChanged(
+</span></span><span style=display:flex><span>    windowInfos, displayInfos, syncInputWindows);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// 修复后
+</span></span></span><span style=display:flex><span><span style=color:#66d9ef>const</span> <span style=color:#66d9ef>bool</span> forceImmediateCall <span style=color:#f92672>=</span> visibleWindowsChanged <span style=color:#f92672>||</span>
+</span></span><span style=display:flex><span>        inputWindowCommands.syncInputWindows <span style=color:#f92672>||</span>
+</span></span><span style=display:flex><span>        <span style=color:#f92672>!</span>inputWindowCommands.focusRequests.empty();
+</span></span><span style=display:flex><span>mWindowInfosListenerInvoker<span style=color:#f92672>-&gt;</span>windowInfosChanged(
+</span></span><span style=display:flex><span>    windowInfos, displayInfos, syncInputWindows, forceImmediateCall);
+</span></span></code></pre></div><p>新增 <code>visibleWindowsChanged</code> 检测：通过对比相邻帧的可见窗口 ID set（<code>mVisibleWindowIds</code>），识别窗口出现/消失（稀疏事件，不会被 backpressure spam）。</p><h2 id=5-时序图>5. 时序图<a hidden class=anchor aria-hidden=true href=#5-时序图>#</a></h2><h3 id=51-正常流程-无背压>5.1 正常流程 (无背压)<a hidden class=anchor aria-hidden=true href=#51-正常流程-无背压>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 autonumber
 scale 1080 width
@@ -811,8 +291,7 @@ Invoker -&gt; Invoker: mUnackedMessages 为空 → 无 delayed → 无 flush
 Invoker -&gt; Invoker: unlock mMessagesMutex
 
 @enduml
-</code></pre><h3 id="52-system_server-阻塞时的背压流程">5.2 system_server 阻塞时的背压流程<a hidden class="anchor" aria-hidden="true" href="#52-system_server-阻塞时的背压流程">#</a></h3>
-<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml
+</code></pre><h3 id=52-system_server-阻塞时的背压流程>5.2 system_server 阻塞时的背压流程<a hidden class=anchor aria-hidden=true href=#52-system_server-阻塞时的背压流程>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 autonumber
 
@@ -867,8 +346,7 @@ Reporter -&gt; Reporter: **处理 msg3** → A11y 获得最新状态 C
 Reporter -&gt; Invoker: reported_msg3-&gt;onWindowInfosReported()
 
 @enduml
-</code></pre><h3 id="53-force-更新达到硬上限">5.3 force 更新达到硬上限<a hidden class="anchor" aria-hidden="true" href="#53-force-更新达到硬上限">#</a></h3>
-<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml
+</code></pre><h3 id=53-force-更新达到硬上限>5.3 force 更新达到硬上限<a hidden class=anchor aria-hidden=true href=#53-force-更新达到硬上限>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 autonumber
 
@@ -888,8 +366,7 @@ Invoker -&gt; Invoker: **DEFER** — 即使 force 也被 coalesce!
 note right: 硬上限防止 force update 自身\n成为 oneway spam 来源
 
 @enduml
-</code></pre><h2 id="6-完整注册与更新流程-plantuml-长图">6. 完整注册与更新流程 (PlantUML 长图)<a hidden class="anchor" aria-hidden="true" href="#6-完整注册与更新流程-plantuml-长图">#</a></h2>
-<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml
+</code></pre><h2 id=6-完整注册与更新流程-plantuml-长图>6. 完整注册与更新流程 (PlantUML 长图)<a hidden class=anchor aria-hidden=true href=#6-完整注册与更新流程-plantuml-长图>#</a></h2><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 autonumber &#34;&lt;b&gt;[0]&#34;
 scale 1080 width
@@ -1002,51 +479,7 @@ alt mUnackedMessages 为空 且 mHasDelayedUpdate
 end
 
 @enduml
-</code></pre><h2 id="7-修复效果">7. 修复效果<a hidden class="anchor" aria-hidden="true" href="#7-修复效果">#</a></h2>
-<table>
-	<thead>
-			<tr>
-					<th>指标</th>
-					<th>修复前</th>
-					<th>修复后</th>
-			</tr>
-	</thead>
-	<tbody>
-			<tr>
-					<td>&ldquo;oneway spamming&rdquo;</td>
-					<td>11-40 次/份日志</td>
-					<td><strong>0</strong></td>
-			</tr>
-			<tr>
-					<td><code>binder_alloc_buf failed</code></td>
-					<td>密集出现</td>
-					<td>与 WindowInfo 路径无关的其他 binder 错误</td>
-			</tr>
-			<tr>
-					<td>SF transact failed</td>
-					<td>N/A</td>
-					<td><strong>0</strong></td>
-			</tr>
-			<tr>
-					<td>listener died</td>
-					<td>N/A</td>
-					<td><strong>0</strong></td>
-			</tr>
-			<tr>
-					<td>Recorded ≈ fully acked</td>
-					<td>无追踪</td>
-					<td><strong>完全匹配</strong> (消息生命周期健康)</td>
-			</tr>
-			<tr>
-					<td>背压 coalesce 率</td>
-					<td>无</td>
-					<td>50-57% (正常负载下拦截一半以上)</td>
-			</tr>
-	</tbody>
-</table>
-<h2 id="8-附录">8. 附录<a hidden class="anchor" aria-hidden="true" href="#8-附录">#</a></h2>
-<h3 id="81-surfaceflingerupdateinputflinger-调用上下文">8.1 <code>SurfaceFlinger::updateInputFlinger()</code> 调用上下文<a hidden class="anchor" aria-hidden="true" href="#81-surfaceflingerupdateinputflinger-调用上下文">#</a></h3>
-<pre tabindex="0"><code>VSYNC Signal
+</code></pre><h2 id=7-修复效果>7. 修复效果<a hidden class=anchor aria-hidden=true href=#7-修复效果>#</a></h2><table><thead><tr><th>指标</th><th>修复前</th><th>修复后</th></tr></thead><tbody><tr><td>&ldquo;oneway spamming&rdquo;</td><td>11-40 次/份日志</td><td><strong>0</strong></td></tr><tr><td><code>binder_alloc_buf failed</code></td><td>密集出现</td><td>与 WindowInfo 路径无关的其他 binder 错误</td></tr><tr><td>SF transact failed</td><td>N/A</td><td><strong>0</strong></td></tr><tr><td>listener died</td><td>N/A</td><td><strong>0</strong></td></tr><tr><td>Recorded ≈ fully acked</td><td>无追踪</td><td><strong>完全匹配</strong> (消息生命周期健康)</td></tr><tr><td>背压 coalesce 率</td><td>无</td><td>50-57% (正常负载下拦截一半以上)</td></tr></tbody></table><h2 id=8-附录>8. 附录<a hidden class=anchor aria-hidden=true href=#8-附录>#</a></h2><h3 id=81-surfaceflingerupdateinputflinger-调用上下文>8.1 <code>SurfaceFlinger::updateInputFlinger()</code> 调用上下文<a hidden class=anchor aria-hidden=true href=#81-surfaceflingerupdateinputflinger-调用上下文>#</a></h3><pre tabindex=0><code>VSYNC Signal
   ↓
 MessageQueue::handleMessage()
   ↓
@@ -1063,154 +496,9 @@ SurfaceFlinger::commit()
   │                 └── dispatchWindowInfos()
   │                       └── listener-&gt;onWindowInfosChanged() oneway Binder
   └── composite()                ← GPU/HWC 合成上屏
-</code></pre><h3 id="82-线程模型">8.2 线程模型<a hidden class="anchor" aria-hidden="true" href="#82-线程模型">#</a></h3>
-<table>
-	<thead>
-			<tr>
-					<th>线程</th>
-					<th>进程</th>
-					<th>职责</th>
-			</tr>
-	</thead>
-	<tbody>
-			<tr>
-					<td>SF Main Thread</td>
-					<td>surfaceflinger</td>
-					<td><code>updateInputFlinger()</code> 入口</td>
-			</tr>
-			<tr>
-					<td>BackgroundExecutor</td>
-					<td>surfaceflinger</td>
-					<td>执行 lambda (发送 Binder)</td>
-			</tr>
-			<tr>
-					<td>Binder threads</td>
-					<td>surfaceflinger</td>
-					<td>接收 <code>onWindowInfosReported()</code> ack</td>
-			</tr>
-			<tr>
-					<td>Binder threads</td>
-					<td>system_server</td>
-					<td>接收 <code>onWindowInfosChanged()</code> → Reporter 同步分发到 InputDispatcher/PointerCtrl/JNI</td>
-			</tr>
-			<tr>
-					<td>WMS Handler</td>
-					<td>system_server</td>
-					<td><code>onWindowInfosChangedInternal()</code> 异步处理</td>
-			</tr>
-	</tbody>
-</table>
-
-
-  </div>
-
-  <footer class="post-footer">
-    <ul class="post-tags">
-    </ul>
-  </footer>
-</article>
-    </main>
-    
-<footer class="footer">
-        <span>&copy; 2026 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
-
-    <span>
-        Powered by
-        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
-        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
-    </span>
-</footer>
-<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
-        <path d="M12 6H0l6-6z" />
-    </svg>
-</a><script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>
-    
-    mermaid.initialize({ startOnLoad: true, theme: 'default' });
-</script>
-
-<script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
-<script>
-    (function(){
-        
-        
-        const plantumlBlocks = document.querySelectorAll('pre > code.language-plantuml, pre > code.language-planuml');
-        
-        plantumlBlocks.forEach(codeBlock => {
-            const plantumlCode = codeBlock.innerText;
-            
-            const encoded = plantumlEncoder.encode(plantumlCode);
-            
-            const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
-            
-            
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.alt = "PlantUML Diagram";
-            img.style.maxWidth = "100%"; 
-            
-            
-            const preBlock = codeBlock.parentNode;
-            preBlock.parentNode.replaceChild(img, preBlock);
-        });
-    })();
-</script>
-
-<script>
-    let menu = document.getElementById('menu')
-    if (menu) {
-        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
-        menu.onscroll = function () {
-            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
-        }
-    }
-
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener("click", function (e) {
-            e.preventDefault();
-            var id = this.getAttribute("href").substr(1);
-            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
-                    behavior: "smooth"
-                });
-            } else {
-                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
-            }
-            if (id === "top") {
-                history.replaceState(null, null, " ");
-            } else {
-                history.pushState(null, null, `#${id}`);
-            }
-        });
-    });
-
-</script>
-<script>
-    var mybutton = document.getElementById("top-link");
-    window.onscroll = function () {
-        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
-            mybutton.style.visibility = "visible";
-            mybutton.style.opacity = "1";
-        } else {
-            mybutton.style.visibility = "hidden";
-            mybutton.style.opacity = "0";
-        }
-    };
-
-</script>
-<script>
-    document.getElementById("theme-toggle").addEventListener("click", () => {
-        if (document.body.className.includes("dark")) {
-            document.body.classList.remove('dark');
-            localStorage.setItem("pref-theme", 'light');
-        } else {
-            document.body.classList.add('dark');
-            localStorage.setItem("pref-theme", 'dark');
-        }
-    })
-
-</script>
-</body>
-
-</html>
+</code></pre><h3 id=82-线程模型>8.2 线程模型<a hidden class=anchor aria-hidden=true href=#82-线程模型>#</a></h3><table><thead><tr><th>线程</th><th>进程</th><th>职责</th></tr></thead><tbody><tr><td>SF Main Thread</td><td>surfaceflinger</td><td><code>updateInputFlinger()</code> 入口</td></tr><tr><td>BackgroundExecutor</td><td>surfaceflinger</td><td>执行 lambda (发送 Binder)</td></tr><tr><td>Binder threads</td><td>surfaceflinger</td><td>接收 <code>onWindowInfosReported()</code> ack</td></tr><tr><td>Binder threads</td><td>system_server</td><td>接收 <code>onWindowInfosChanged()</code> → Reporter 同步分发到 InputDispatcher/PointerCtrl/JNI</td></tr><tr><td>WMS Handler</td><td>system_server</td><td><code>onWindowInfosChangedInternal()</code> 异步处理</td></tr></tbody></table></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/><span class=title>« Prev</span><br><span>Android 13 AudioPlaybackCapture 技术原理与实现</span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/display/vsync/><span class=title>Next »</span><br><span>AOSP 16 VSync 实现机制</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
