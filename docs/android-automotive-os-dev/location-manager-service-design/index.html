@@ -1,37 +1,46 @@
-<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Ethen 的实验室</title><meta name=keywords content><meta name=description content='LocationManagerService 详细设计
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Ethen 的实验室</title>
+<meta name="keywords" content="">
+<meta name="description" content="LocationManagerService 详细设计
 
 基于 AOSP 源码分析，文件路径相对于 frameworks/base/。
 
 
 一、总体架构
 graph TB
-    subgraph Apps["应用层"]
-        LM["LocationManagerpublic API"]
+    subgraph Apps[&#34;应用层&#34;]
+        LM[&#34;LocationManagerpublic API&#34;]
     end
 
-    subgraph Framework["framework 层 (system_server)"]
-        LMS["LocationManagerServiceILocationManager.Stub门面层: 权限校验 + 路由"]
-        LPM1["LocationProviderManagergps provider"]
-        LPM2["LocationProviderManagernetwork provider"]
-        LPM3["LocationProviderManagerfused provider"]
-        LPM4["PassiveLocationProviderManagerpassive provider"]
-        GMS["GnssManagerServiceGNSS 子组件管理"]
-        GLP["GnssLocationProviderAbstractLocationProvider"]
+    subgraph Framework[&#34;framework 层 (system_server)&#34;]
+        LMS[&#34;LocationManagerServiceILocationManager.Stub门面层: 权限校验 &#43; 路由&#34;]
+        LPM1[&#34;LocationProviderManagergps provider&#34;]
+        LPM2[&#34;LocationProviderManagernetwork provider&#34;]
+        LPM3[&#34;LocationProviderManagerfused provider&#34;]
+        LPM4[&#34;PassiveLocationProviderManagerpassive provider&#34;]
+        GMS[&#34;GnssManagerServiceGNSS 子组件管理&#34;]
+        GLP[&#34;GnssLocationProviderAbstractLocationProvider&#34;]
     end
 
-    subgraph HAL["HAL 层"]
-        GNSS_HAL["IGnss AIDL/HIDL Service"]
+    subgraph HAL[&#34;HAL 层&#34;]
+        GNSS_HAL[&#34;IGnss AIDL/HIDL Service&#34;]
     end
 
-    LM -->|"ILocationManager.aidl"| LMS
-    LMS --> LPM1
-    LMS --> LPM2
-    LMS --> LPM3
-    LMS --> LPM4
-    LMS --> GMS
-    GMS --> GLP
-    GLP --> GNSS_HAL
-    LPM1 --> GLP
+    LM --&gt;|&#34;ILocationManager.aidl&#34;| LMS
+    LMS --&gt; LPM1
+    LMS --&gt; LPM2
+    LMS --&gt; LPM3
+    LMS --&gt; LPM4
+    LMS --&gt; GMS
+    GMS --&gt; GLP
+    GLP --&gt; GNSS_HAL
+    LPM1 --&gt; GLP
 已读取的关键源文件
 
 	
@@ -86,41 +95,98 @@ graph TB
 
 
 二、分层设计
-系统分为四层，从上到下依次为:'><meta name=author content="map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]"><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Ethen 的实验室"><meta property="og:description" content='LocationManagerService 详细设计 基于 AOSP 源码分析，文件路径相对于 frameworks/base/。
-一、总体架构 graph TB subgraph Apps["应用层"] LM["LocationManagerpublic API"] end subgraph Framework["framework 层 (system_server)"] LMS["LocationManagerServiceILocationManager.Stub门面层: 权限校验 + 路由"] LPM1["LocationProviderManagergps provider"] LPM2["LocationProviderManagernetwork provider"] LPM3["LocationProviderManagerfused provider"] LPM4["PassiveLocationProviderManagerpassive provider"] GMS["GnssManagerServiceGNSS 子组件管理"] GLP["GnssLocationProviderAbstractLocationProvider"] end subgraph HAL["HAL 层"] GNSS_HAL["IGnss AIDL/HIDL Service"] end LM -->|"ILocationManager.aidl"| LMS LMS --> LPM1 LMS --> LPM2 LMS --> LPM3 LMS --> LPM4 LMS --> GMS GMS --> GLP GLP --> GNSS_HAL LPM1 --> GLP 已读取的关键源文件 文件 关键类 说明 location/java/android/location/LocationManager.java LocationManager 公开 API services/.../location/LocationManagerService.java LocationManagerService 门面层，Binder 入口 services/.../location/provider/LocationProviderManager.java LocationProviderManager 多路复用器，管理单个 Provider services/.../location/provider/AbstractLocationProvider.java AbstractLocationProvider Provider 抽象基类 services/.../location/provider/MockableLocationProvider.java MockableLocationProvider Mock/Real 代理 services/.../location/gnss/GnssManagerService.java GnssManagerService GNSS 组件管理 services/.../location/gnss/GnssLocationProvider.java GnssLocationProvider GPS Provider 实现 services/.../location/listeners/ListenerMultiplexer.java ListenerMultiplexer 通用多路复用器基类 二、分层设计 系统分为四层，从上到下依次为:'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-automotive-os-dev"><meta name=twitter:card content="summary"><meta name=twitter:title content><meta name=twitter:description content='LocationManagerService 详细设计
+系统分为四层，从上到下依次为:">
+<meta name="author" content="map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css" integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="Ethen 的实验室">
+  <meta property="og:description" content="LocationManagerService 详细设计 基于 AOSP 源码分析，文件路径相对于 frameworks/base/。
+一、总体架构 graph TB subgraph Apps[&#34;应用层&#34;] LM[&#34;LocationManagerpublic API&#34;] end subgraph Framework[&#34;framework 层 (system_server)&#34;] LMS[&#34;LocationManagerServiceILocationManager.Stub门面层: 权限校验 &#43; 路由&#34;] LPM1[&#34;LocationProviderManagergps provider&#34;] LPM2[&#34;LocationProviderManagernetwork provider&#34;] LPM3[&#34;LocationProviderManagerfused provider&#34;] LPM4[&#34;PassiveLocationProviderManagerpassive provider&#34;] GMS[&#34;GnssManagerServiceGNSS 子组件管理&#34;] GLP[&#34;GnssLocationProviderAbstractLocationProvider&#34;] end subgraph HAL[&#34;HAL 层&#34;] GNSS_HAL[&#34;IGnss AIDL/HIDL Service&#34;] end LM --&gt;|&#34;ILocationManager.aidl&#34;| LMS LMS --&gt; LPM1 LMS --&gt; LPM2 LMS --&gt; LPM3 LMS --&gt; LPM4 LMS --&gt; GMS GMS --&gt; GLP GLP --&gt; GNSS_HAL LPM1 --&gt; GLP 已读取的关键源文件 文件 关键类 说明 location/java/android/location/LocationManager.java LocationManager 公开 API services/.../location/LocationManagerService.java LocationManagerService 门面层，Binder 入口 services/.../location/provider/LocationProviderManager.java LocationProviderManager 多路复用器，管理单个 Provider services/.../location/provider/AbstractLocationProvider.java AbstractLocationProvider Provider 抽象基类 services/.../location/provider/MockableLocationProvider.java MockableLocationProvider Mock/Real 代理 services/.../location/gnss/GnssManagerService.java GnssManagerService GNSS 组件管理 services/.../location/gnss/GnssLocationProvider.java GnssLocationProvider GPS Provider 实现 services/.../location/listeners/ListenerMultiplexer.java ListenerMultiplexer 通用多路复用器基类 二、分层设计 系统分为四层，从上到下依次为:">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="android-automotive-os-dev">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="">
+<meta name="twitter:description" content="LocationManagerService 详细设计
 
 基于 AOSP 源码分析，文件路径相对于 frameworks/base/。
 
 
 一、总体架构
 graph TB
-    subgraph Apps["应用层"]
-        LM["LocationManagerpublic API"]
+    subgraph Apps[&#34;应用层&#34;]
+        LM[&#34;LocationManagerpublic API&#34;]
     end
 
-    subgraph Framework["framework 层 (system_server)"]
-        LMS["LocationManagerServiceILocationManager.Stub门面层: 权限校验 + 路由"]
-        LPM1["LocationProviderManagergps provider"]
-        LPM2["LocationProviderManagernetwork provider"]
-        LPM3["LocationProviderManagerfused provider"]
-        LPM4["PassiveLocationProviderManagerpassive provider"]
-        GMS["GnssManagerServiceGNSS 子组件管理"]
-        GLP["GnssLocationProviderAbstractLocationProvider"]
+    subgraph Framework[&#34;framework 层 (system_server)&#34;]
+        LMS[&#34;LocationManagerServiceILocationManager.Stub门面层: 权限校验 &#43; 路由&#34;]
+        LPM1[&#34;LocationProviderManagergps provider&#34;]
+        LPM2[&#34;LocationProviderManagernetwork provider&#34;]
+        LPM3[&#34;LocationProviderManagerfused provider&#34;]
+        LPM4[&#34;PassiveLocationProviderManagerpassive provider&#34;]
+        GMS[&#34;GnssManagerServiceGNSS 子组件管理&#34;]
+        GLP[&#34;GnssLocationProviderAbstractLocationProvider&#34;]
     end
 
-    subgraph HAL["HAL 层"]
-        GNSS_HAL["IGnss AIDL/HIDL Service"]
+    subgraph HAL[&#34;HAL 层&#34;]
+        GNSS_HAL[&#34;IGnss AIDL/HIDL Service&#34;]
     end
 
-    LM -->|"ILocationManager.aidl"| LMS
-    LMS --> LPM1
-    LMS --> LPM2
-    LMS --> LPM3
-    LMS --> LPM4
-    LMS --> GMS
-    GMS --> GLP
-    GLP --> GNSS_HAL
-    LPM1 --> GLP
+    LM --&gt;|&#34;ILocationManager.aidl&#34;| LMS
+    LMS --&gt; LPM1
+    LMS --&gt; LPM2
+    LMS --&gt; LPM3
+    LMS --&gt; LPM4
+    LMS --&gt; GMS
+    GMS --&gt; GLP
+    GLP --&gt; GNSS_HAL
+    LPM1 --&gt; GLP
 已读取的关键源文件
 
 	
@@ -175,33 +241,239 @@ graph TB
 
 
 二、分层设计
-系统分为四层，从上到下依次为:'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android Automotive OS开发","item":"https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/"},{"@type":"ListItem","position":2,"name":"","item":"https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"","name":"","description":"LocationManagerService 详细设计 基于 AOSP 源码分析，文件路径相对于 frameworks/base/。\n一、总体架构 graph TB subgraph Apps[\"应用层\"] LM[\"LocationManagerpublic API\"] end subgraph Framework[\"framework 层 (system_server)\"] LMS[\"LocationManagerServiceILocationManager.Stub门面层: 权限校验 + 路由\"] LPM1[\"LocationProviderManagergps provider\"] LPM2[\"LocationProviderManagernetwork provider\"] LPM3[\"LocationProviderManagerfused provider\"] LPM4[\"PassiveLocationProviderManagerpassive provider\"] GMS[\"GnssManagerServiceGNSS 子组件管理\"] GLP[\"GnssLocationProviderAbstractLocationProvider\"] end subgraph HAL[\"HAL 层\"] GNSS_HAL[\"IGnss AIDL/HIDL Service\"] end LM --\u003e|\"ILocationManager.aidl\"| LMS LMS --\u003e LPM1 LMS --\u003e LPM2 LMS --\u003e LPM3 LMS --\u003e LPM4 LMS --\u003e GMS GMS --\u003e GLP GLP --\u003e GNSS_HAL LPM1 --\u003e GLP 已读取的关键源文件 文件 关键类 说明 location/java/android/location/LocationManager.java LocationManager 公开 API services/.../location/LocationManagerService.java LocationManagerService 门面层，Binder 入口 services/.../location/provider/LocationProviderManager.java LocationProviderManager 多路复用器，管理单个 Provider services/.../location/provider/AbstractLocationProvider.java AbstractLocationProvider Provider 抽象基类 services/.../location/provider/MockableLocationProvider.java MockableLocationProvider Mock/Real 代理 services/.../location/gnss/GnssManagerService.java GnssManagerService GNSS 组件管理 services/.../location/gnss/GnssLocationProvider.java GnssLocationProvider GPS Provider 实现 services/.../location/listeners/ListenerMultiplexer.java ListenerMultiplexer 通用多路复用器基类 二、分层设计 系统分为四层，从上到下依次为:\n","keywords":[],"articleBody":"LocationManagerService 详细设计 基于 AOSP 源码分析，文件路径相对于 frameworks/base/。\n一、总体架构 graph TB subgraph Apps[\"应用层\"] LM[\"LocationManagerpublic API\"] end subgraph Framework[\"framework 层 (system_server)\"] LMS[\"LocationManagerServiceILocationManager.Stub门面层: 权限校验 + 路由\"] LPM1[\"LocationProviderManagergps provider\"] LPM2[\"LocationProviderManagernetwork provider\"] LPM3[\"LocationProviderManagerfused provider\"] LPM4[\"PassiveLocationProviderManagerpassive provider\"] GMS[\"GnssManagerServiceGNSS 子组件管理\"] GLP[\"GnssLocationProviderAbstractLocationProvider\"] end subgraph HAL[\"HAL 层\"] GNSS_HAL[\"IGnss AIDL/HIDL Service\"] end LM --\u003e|\"ILocationManager.aidl\"| LMS LMS --\u003e LPM1 LMS --\u003e LPM2 LMS --\u003e LPM3 LMS --\u003e LPM4 LMS --\u003e GMS GMS --\u003e GLP GLP --\u003e GNSS_HAL LPM1 --\u003e GLP 已读取的关键源文件 文件 关键类 说明 location/java/android/location/LocationManager.java LocationManager 公开 API services/.../location/LocationManagerService.java LocationManagerService 门面层，Binder 入口 services/.../location/provider/LocationProviderManager.java LocationProviderManager 多路复用器，管理单个 Provider services/.../location/provider/AbstractLocationProvider.java AbstractLocationProvider Provider 抽象基类 services/.../location/provider/MockableLocationProvider.java MockableLocationProvider Mock/Real 代理 services/.../location/gnss/GnssManagerService.java GnssManagerService GNSS 组件管理 services/.../location/gnss/GnssLocationProvider.java GnssLocationProvider GPS Provider 实现 services/.../location/listeners/ListenerMultiplexer.java ListenerMultiplexer 通用多路复用器基类 二、分层设计 系统分为四层，从上到下依次为:\n┌──────────────────────────────────────────────┐ │ LocationManager (公开 API) │ ← App 调用入口 ├──────────────────────────────────────────────┤ │ LocationManagerService (门面层) │ ← Binder Stub, 权限 + 路由 ├──────────────────────────────────────────────┤ │ LocationProviderManager (多路复用层) │ ← ListenerMultiplexer 子类 ├──────────────────────────────────────────────┤ │ AbstractLocationProvider (Provider 抽象基类) │ ← Controller/Provider 模式 │ └── GnssLocationProvider (GPS 实现) │ └──────────────────────────────────────────────┘ 2.1 LocationManager — 公开 API 层 文件: location/java/android/location/LocationManager.java\n对外暴露的核心 API:\nAPI 说明 requestLocationUpdates(provider, request, executor, listener) 注册位置监听 removeUpdates(listener) 取消监听 getCurrentLocation(provider, ...) 单次位置查询 setAutomotiveGnssSuspended(boolean) AAOS 专用: 挂起/恢复 GNSS isLocationEnabled() 检查位置开关状态 每条 API 调用通过 AIDL 跨进程传递到 LocationManagerService。LocationManager 不包含任何业务逻辑，只是薄代理。\n2.2 LocationManagerService — 门面层 (Binder 入口) 文件: services/.../location/LocationManagerService.java\nclass LocationManagerService extends ILocationManager.Stub implements LocationProviderManager.StateChangedListener 职责:\nBinder 入口: 实现 ILocationManager.aidl 定义的所有方法 权限校验: checkLocationPermission(), checkCallerIsProvider() Provider 路由: 根据 provider name 找到对应的 LocationProviderManager 生命周期管理: 通过内部 Lifecycle extends SystemService 控制 核心字段:\n// 所有 Provider Manager 的集合 CopyOnWriteArrayList\u003cLocationProviderManager\u003e mProviderManagers; // 被动 Provider (接收所有 provider 的位置) PassiveLocationProviderManager mPassiveManager; // GNSS 管理器 (管理 GnssLocationProvider 等子组件) GnssManagerService mGnssManagerService; setAutomotiveGnssSuspended() 调用链：\nLocationManager.setAutomotiveGnssSuspended(suspended) → ILocationManager.setAutomotiveGnssSuspended(suspended) // Binder → LocationManagerService.setAutomotiveGnssSuspended(suspended) → 检查 CONTROL_AUTOMOTIVE_GNSS 权限 → 检查 FEATURE_AUTOMOTIVE → mGnssManagerService.setAutomotiveGnssSuspended(suspended) → mGnssLocationProvider.setAutomotiveGnssSuspended(suspended) requestLocationUpdates() 调用链：\nLocationManager.requestLocationUpdates(provider, request, executor, listener) → 创建 LocationListenerTransport(listener, executor) → ILocationManager.registerLocationListener(request, identity, listener) → LocationManagerService.registerLocationListener(...) → 权限校验 + provider 解析 → manager.registerLocationRequest(request, identity, permissionLevel, transport) 2.3 LocationProviderManager — 多路复用层 文件: services/.../location/provider/LocationProviderManager.java\nclass LocationProviderManager extends ListenerMultiplexer implements AbstractLocationProvider.Listener 泛型参数:\n参数 具体类型 含义 TKey IBinder 用 Binder 对象唯一标识每个 listener TListener LocationTransport 向 client 投递位置数据的接口 TRegistration Registration 单个 client 的注册信息 TMergedRegistration ProviderRequest 合并后发给 Provider 的请求 Registration 子类型：\n类型 用途 LocationListenerRegistration ILocationListener 回调 LocationPendingIntentRegistration PendingIntent 回调 GetCurrentLocationRegistration 单次 getCurrentLocation() 请求 核心字段:\nMockableLocationProvider mProvider; // 真实或 Mock Provider SparseBooleanArray mEnabled; // 每个 user 的 enable 状态 SparseArray\u003cLocation\u003e mLastLocations; // 每个 user 的最后已知位置 注册流程 (registerLocationRequest → putRegistration):\nregisterLocationRequest(request, identity, permissionLevel, listener) ↓ registerAndHandleIdentity(key, registration) ↓ putRegistration(key, registration) // 继承自 ListenerMultiplexer ↓ ├── isActive(registration) 检查: // LocationProviderManager 实现 │ - 是否有足够权限 │ - 是否在省电模式下 │ - 是否为前台/后台 │ - 屏幕状态 │ ├── activeCount: 0→1 → onActive() │ activeCount: 1→0 → onInactive() │ └── updateService() ↓ mergeRegistrations(activeRegistrations) // 合并为单个 ProviderRequest ↓ - minInterval: 所有 active 请求的最小间隔 - quality: 最严格的精度要求 - maxUpdateDelay: 最大可接受延迟（用于批量） - lowPower: 是否有 low power 请求 - workSource: 所有 client UID ↓ setProviderRequest(mergedRequest) // 发给 Provider ↓ mProvider.getController().setRequest(request) // 进入 AbstractLocationProvider 2.4 ListenerMultiplexer — 通用多路复用器 文件: services/.../location/listeners/ListenerMultiplexer.java\nabstract class ListenerMultiplexer 设计意图: 多个 client 的注册请求合并为单个对底层服务的请求。当 client 集合变化时，自动重新计算合并结果并更新底层服务。\n核心算法 (updateService()):\nupdateService(): 1. 遍历所有 registration，收集 isActive() == true 的 2. 如果没有 active: → wasActive → onInactive() → 如果之前有注册 → unregisterWithService() 3. 如果有 active: wasInactive → onActive() newMerged = mergeRegistrations(activeRegistrations) if newMerged != oldMerged: if oldMerged == null: registerWithService(newMerged) else: reregisterWithService(oldMerged, newMerged) 子类必须实现的抽象方法:\n方法 说明 isActive(TRegistration) 判断注册是否应当视为 active mergeRegistrations(Collection) 合并所有 active 注册为单个请求 registerWithService(TMergedRegistration) 向底层服务注册 reregisterWithService(old, new) 更新已有注册 unregisterWithService() 取消注册 Lifecycle 回调顺序:\nonRegister() → registration.onRegister() → onRegistrationAdded() → onActive() → registration.onActive() ... → registration.onInactive() → onInactive() → onRegistrationRemoved() → registration.onUnregister() → onUnregister() 2.5 AbstractLocationProvider — Provider 抽象基类 文件: services/.../location/provider/AbstractLocationProvider.java\nabstract class AbstractLocationProvider 2.5.1 Controller / Provider 模式 AbstractLocationProvider 使用 Controller/Provider 分离模式:\n// 内部 Controller 类 (对外暴露) private class Controller implements LocationProviderController { void start() { mExecutor.execute(() -\u003e onStart()); } void stop() { mExecutor.execute(() -\u003e onStop()); } void setRequest(ProviderRequest request) { mExecutor.execute(() -\u003e onSetRequest(request)); } void flush(Runnable listener) { mExecutor.execute(() -\u003e onFlush(listener)); } } // 子类实现的抽象方法 (Provider 行为) protected void onStart() {} // Provider 启动 protected void onStop() {} // Provider 停止 protected abstract void onSetRequest(ProviderRequest request); // 收到新请求 protected abstract void onFlush(Runnable listener); // 刷新批量数据 对外部 (LocationProviderManager) 只暴露 Controller 接口 (getController()):\nstart() — 启动 provider stop() — 停止 provider setRequest(ProviderRequest) — 发送合并后的请求 flush(Runnable) — 刷新 内部 (Provider) 实现抽象方法响应控制指令。\n2.5.2 不可变状态管理 // 不可变状态对象 static final class State { final boolean allowed; // 是否允许 final ProviderProperties properties; // Provider 属性 final CallerIdentity identity; // 身份 final Set\u003cString\u003e extraAttributionTags; // 额外属性标签 } // 线程安全的内部状态 (AtomicReference) private static class InternalState { final Listener listener; final State state; } // Provider 通过 setState() 上报状态变更 protected void setState(UnaryOperator\u003cState\u003e operator) { // 原子更新 state，变化时回调 listener.onStateChanged() } 2.5.3 Listener 接口 interface Listener { void onStateChanged(State oldState, State newState); void onReportLocation(LocationResult locationResult); } LocationProviderManager 实现此接口，接收 Provider 的状态变化和位置数据上报。\n2.5.4 GnssLocationProvider 实现 class GnssLocationProvider extends AbstractLocationProvider implements GnssNative.BaseCallbacks, GnssNative.LocationCallbacks, GnssNative.SvStatusCallbacks, ... 实现了 GnssNative 定义的近 10 个回调接口，是 GNSS HAL 到 Framework 的主要桥梁。\n关键状态字段:\n字段 含义 mGpsEnabled GPS 是否被启用（受 Location Setting + Bypass + AutomotiveSuspend + Shutdown 控制） mAutomotiveSuspend AAOS 挂起标记 mStarted GNSS 引擎是否正在运行（startNavigating() 置 true，stopNavigating() 置 false） mFixInterval 当前定位间隔 (ms) mProviderRequest 最新的合并 ProviderRequest mBatchingEnabled 是否启用批量定位 onSetRequest(ProviderRequest) 实现:\npublic void onSetRequest(ProviderRequest request) { mProviderRequest = request; updateEnabled(); // 第一步：更新 mGpsEnabled updateRequirements(); // 第二步：更新定位参数，必要时调用 startNavigating() } updateEnabled() — GPS 启停决策:\nenabled = false for each visibleUser: enabled |= isLocationEnabledForUser(user) enabled |= (mProviderRequest != null \u0026\u0026 mProviderRequest.isActive() \u0026\u0026 mProviderRequest.isBypass()) // Bypass (如 ELS/ADAS) enabled \u0026= !mAutomotiveSuspend // AAOS 电源管理挂起 enabled \u0026= !mShutdown // 设备关机 if (enabled == isGpsEnabled()) return; // 无变化，不操作 if (enabled) handleEnable(); else handleDisable(); updateRequirements() — 定位模式决策:\nif (mProviderRequest.isActive() \u0026\u0026 isGpsEnabled()): 计算 mFixInterval = mProviderRequest.getIntervalMillis() if (mBatchingEnabled \u0026\u0026 batchLength/2 \u003e= batchInterval): stopNavigating(); startBatching(batchLength) else: stopBatching() if (mStarted \u0026\u0026 hasScheduling()): setPositionMode(新参数) // 仅更新参数 else if (!mStarted): startNavigating() // 启动 GNSS 引擎！ else: startTimeoutAlarm() // 启动超时闹钟 else: stopNavigating(); stopBatching() // 无 active 请求，停止 2.6 GnssManagerService — GNSS 子组件管理 文件: services/.../location/gnss/GnssManagerService.java\n不继承任何特定基类，通过组合管理多个 GNSS 子组件:\nGnssManagerService ├── GnssLocationProvider (GPS 定位引擎) ├── GnssStatusProvider (GNSS 状态) ├── GnssNmeaProvider (NMEA 原始数据) ├── GnssMeasurementsProvider (原始测量值) ├── GnssNavigationMessageProvider (导航电文) ├── GnssAntennaInfoProvider (天线信息) └── GnssGeofenceProxy (地理围栏) 三、核心设计模式总结 模式 应用位置 说明 门面 (Facade) LocationManagerService 对外隐藏内部 ProviderManager 复杂度 多路复用器 (Multiplexer) LocationProviderManager extends ListenerMultiplexer 多 client → 单 Provider 请求合并 Controller/Provider AbstractLocationProvider.Controller 分离控制面和数据面 不可变状态 (Immutable State) AbstractLocationProvider.State + AtomicReference 无锁线程安全状态管理 组合 (Composition) GnssManagerService 组合多个独立子组件 代理 (Proxy) MockableLocationProvider Mock/Real Provider 切换 依赖注入 (DI) Injector 接口 解耦系统依赖，便于测试 四、关键数据流 4.1 位置数据投递 GNSS HAL 产生 fix → GnssNative.reportLocation() // JNI 回调 → GnssLocationProvider.handleReportLocation() → AbstractLocationProvider.reportLocation(LocationResult) → Listener.onReportLocation() → LocationProviderManager.onReportLocation() → ListenerMultiplexer.deliverToListeners() → for each active Registration: Registration.getListener().onLocationChanged(location) 4.2 Provider 请求变更 App: requestLocationUpdates(...) → LocationManagerService.registerLocationListener(...) → LocationProviderManager.registerLocationRequest(...) → putRegistration(key, registration) → updateService() → mergeRegistrations() → ProviderRequest → mProvider.getController().setRequest(merged) → AbstractLocationProvider.onSetRequest(request) → GnssLocationProvider.updateEnabled() → GnssLocationProvider.updateRequirements() 4.3 AAOS GNSS Suspend CarLocationService (PowerPolicy 回调) → LocationManager.setAutomotiveGnssSuspended(true/false) → ILocationManager.setAutomotiveGnssSuspended() // Binder → LocationManagerService.setAutomotiveGnssSuspended() → 权限检查 (CONTROL_AUTOMOTIVE_GNSS + FEATURE_AUTOMOTIVE) → mGnssManagerService.setAutomotiveGnssSuspended() → mGnssLocationProvider.setAutomotiveGnssSuspended() → mAutomotiveSuspend = suspended → mHandler.post(this::updateEnabled) → updateEnabled() 计算 enabled 状态 → handleEnable() / handleDisable() 五、Provider 类型 系统中有五种 Provider Manager，每种管理对应的 Provider:\nProvider Name Manager 类型 Provider 实现 数据来源 gps LocationProviderManager GnssLocationProvider GNSS HAL network LocationProviderManager 代理 (系统 APK) WiFi/基站 fused LocationProviderManager 代理 (系统 APK) 多源融合 passive PassiveLocationProviderManager PassiveLocationProvider 其他 Provider 透传 gps_hardware LocationProviderManager GnssLocationProvider GNSS HAL (需 LOCATION_HARDWARE 权限) ","wordCount":"1138","inLanguage":"en","datePublished":"0001-01-01T00:00:00Z","dateModified":"0001-01-01T00:00:00Z","author":{"@type":"Person","name":{"defaulttheme":"auto","name":"Ethen","showbreadcrumbs":true,"showcodecopybuttons":true,"showpostnavlinks":true,"showreadingtime":true,"showwordcount":true}},"mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
-<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><h1 class="post-title entry-hint-parent"></h1><div class=post-meta>map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]</div></header><div class=post-content><h1 id=locationmanagerservice-详细设计>LocationManagerService 详细设计<a hidden class=anchor aria-hidden=true href=#locationmanagerservice-详细设计>#</a></h1><blockquote><p>基于 AOSP 源码分析，文件路径相对于 <code>frameworks/base/</code>。</p></blockquote><hr><h2 id=一总体架构>一、总体架构<a hidden class=anchor aria-hidden=true href=#一总体架构>#</a></h2><div class=mermaid>graph TB
-subgraph Apps["应用层"]
-LM["LocationManager<br>public API"]
-end
-subgraph Framework["framework 层 (system_server)"]
-LMS["LocationManagerService<br>ILocationManager.Stub<br>门面层: 权限校验 + 路由"]
-LPM1["LocationProviderManager<br>gps provider"]
-LPM2["LocationProviderManager<br>network provider"]
-LPM3["LocationProviderManager<br>fused provider"]
-LPM4["PassiveLocationProviderManager<br>passive provider"]
-GMS["GnssManagerService<br>GNSS 子组件管理"]
-GLP["GnssLocationProvider<br>AbstractLocationProvider"]
-end
-subgraph HAL["HAL 层"]
-GNSS_HAL["IGnss AIDL/HIDL Service"]
-end
-LM -->|"ILocationManager.aidl"| LMS
-LMS --> LPM1
-LMS --> LPM2
-LMS --> LPM3
-LMS --> LPM4
-LMS --> GMS
-GMS --> GLP
-GLP --> GNSS_HAL
-LPM1 --> GLP</div><h3 id=已读取的关键源文件>已读取的关键源文件<a hidden class=anchor aria-hidden=true href=#已读取的关键源文件>#</a></h3><table><thead><tr><th>文件</th><th>关键类</th><th>说明</th></tr></thead><tbody><tr><td><code>location/java/android/location/LocationManager.java</code></td><td><code>LocationManager</code></td><td>公开 API</td></tr><tr><td><code>services/.../location/LocationManagerService.java</code></td><td><code>LocationManagerService</code></td><td>门面层，Binder 入口</td></tr><tr><td><code>services/.../location/provider/LocationProviderManager.java</code></td><td><code>LocationProviderManager</code></td><td>多路复用器，管理单个 Provider</td></tr><tr><td><code>services/.../location/provider/AbstractLocationProvider.java</code></td><td><code>AbstractLocationProvider</code></td><td>Provider 抽象基类</td></tr><tr><td><code>services/.../location/provider/MockableLocationProvider.java</code></td><td><code>MockableLocationProvider</code></td><td>Mock/Real 代理</td></tr><tr><td><code>services/.../location/gnss/GnssManagerService.java</code></td><td><code>GnssManagerService</code></td><td>GNSS 组件管理</td></tr><tr><td><code>services/.../location/gnss/GnssLocationProvider.java</code></td><td><code>GnssLocationProvider</code></td><td>GPS Provider 实现</td></tr><tr><td><code>services/.../location/listeners/ListenerMultiplexer.java</code></td><td><code>ListenerMultiplexer</code></td><td>通用多路复用器基类</td></tr></tbody></table><hr><h2 id=二分层设计>二、分层设计<a hidden class=anchor aria-hidden=true href=#二分层设计>#</a></h2><p>系统分为四层，从上到下依次为:</p><pre tabindex=0><code>┌──────────────────────────────────────────────┐
+系统分为四层，从上到下依次为:">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Android Automotive OS开发",
+      "item": "https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "",
+      "item": "https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "",
+  "name": "",
+  "description": "LocationManagerService 详细设计 基于 AOSP 源码分析，文件路径相对于 frameworks/base/。\n一、总体架构 graph TB subgraph Apps[\"应用层\"] LM[\"LocationManagerpublic API\"] end subgraph Framework[\"framework 层 (system_server)\"] LMS[\"LocationManagerServiceILocationManager.Stub门面层: 权限校验 + 路由\"] LPM1[\"LocationProviderManagergps provider\"] LPM2[\"LocationProviderManagernetwork provider\"] LPM3[\"LocationProviderManagerfused provider\"] LPM4[\"PassiveLocationProviderManagerpassive provider\"] GMS[\"GnssManagerServiceGNSS 子组件管理\"] GLP[\"GnssLocationProviderAbstractLocationProvider\"] end subgraph HAL[\"HAL 层\"] GNSS_HAL[\"IGnss AIDL/HIDL Service\"] end LM --\u003e|\"ILocationManager.aidl\"| LMS LMS --\u003e LPM1 LMS --\u003e LPM2 LMS --\u003e LPM3 LMS --\u003e LPM4 LMS --\u003e GMS GMS --\u003e GLP GLP --\u003e GNSS_HAL LPM1 --\u003e GLP 已读取的关键源文件 文件 关键类 说明 location/java/android/location/LocationManager.java LocationManager 公开 API services/.../location/LocationManagerService.java LocationManagerService 门面层，Binder 入口 services/.../location/provider/LocationProviderManager.java LocationProviderManager 多路复用器，管理单个 Provider services/.../location/provider/AbstractLocationProvider.java AbstractLocationProvider Provider 抽象基类 services/.../location/provider/MockableLocationProvider.java MockableLocationProvider Mock/Real 代理 services/.../location/gnss/GnssManagerService.java GnssManagerService GNSS 组件管理 services/.../location/gnss/GnssLocationProvider.java GnssLocationProvider GPS Provider 实现 services/.../location/listeners/ListenerMultiplexer.java ListenerMultiplexer 通用多路复用器基类 二、分层设计 系统分为四层，从上到下依次为:\n",
+  "keywords": [
+    
+  ],
+  "articleBody": "LocationManagerService 详细设计 基于 AOSP 源码分析，文件路径相对于 frameworks/base/。\n一、总体架构 graph TB subgraph Apps[\"应用层\"] LM[\"LocationManagerpublic API\"] end subgraph Framework[\"framework 层 (system_server)\"] LMS[\"LocationManagerServiceILocationManager.Stub门面层: 权限校验 + 路由\"] LPM1[\"LocationProviderManagergps provider\"] LPM2[\"LocationProviderManagernetwork provider\"] LPM3[\"LocationProviderManagerfused provider\"] LPM4[\"PassiveLocationProviderManagerpassive provider\"] GMS[\"GnssManagerServiceGNSS 子组件管理\"] GLP[\"GnssLocationProviderAbstractLocationProvider\"] end subgraph HAL[\"HAL 层\"] GNSS_HAL[\"IGnss AIDL/HIDL Service\"] end LM --\u003e|\"ILocationManager.aidl\"| LMS LMS --\u003e LPM1 LMS --\u003e LPM2 LMS --\u003e LPM3 LMS --\u003e LPM4 LMS --\u003e GMS GMS --\u003e GLP GLP --\u003e GNSS_HAL LPM1 --\u003e GLP 已读取的关键源文件 文件 关键类 说明 location/java/android/location/LocationManager.java LocationManager 公开 API services/.../location/LocationManagerService.java LocationManagerService 门面层，Binder 入口 services/.../location/provider/LocationProviderManager.java LocationProviderManager 多路复用器，管理单个 Provider services/.../location/provider/AbstractLocationProvider.java AbstractLocationProvider Provider 抽象基类 services/.../location/provider/MockableLocationProvider.java MockableLocationProvider Mock/Real 代理 services/.../location/gnss/GnssManagerService.java GnssManagerService GNSS 组件管理 services/.../location/gnss/GnssLocationProvider.java GnssLocationProvider GPS Provider 实现 services/.../location/listeners/ListenerMultiplexer.java ListenerMultiplexer 通用多路复用器基类 二、分层设计 系统分为四层，从上到下依次为:\n┌──────────────────────────────────────────────┐ │ LocationManager (公开 API) │ ← App 调用入口 ├──────────────────────────────────────────────┤ │ LocationManagerService (门面层) │ ← Binder Stub, 权限 + 路由 ├──────────────────────────────────────────────┤ │ LocationProviderManager (多路复用层) │ ← ListenerMultiplexer 子类 ├──────────────────────────────────────────────┤ │ AbstractLocationProvider (Provider 抽象基类) │ ← Controller/Provider 模式 │ └── GnssLocationProvider (GPS 实现) │ └──────────────────────────────────────────────┘ 2.1 LocationManager — 公开 API 层 文件: location/java/android/location/LocationManager.java\n对外暴露的核心 API:\nAPI 说明 requestLocationUpdates(provider, request, executor, listener) 注册位置监听 removeUpdates(listener) 取消监听 getCurrentLocation(provider, ...) 单次位置查询 setAutomotiveGnssSuspended(boolean) AAOS 专用: 挂起/恢复 GNSS isLocationEnabled() 检查位置开关状态 每条 API 调用通过 AIDL 跨进程传递到 LocationManagerService。LocationManager 不包含任何业务逻辑，只是薄代理。\n2.2 LocationManagerService — 门面层 (Binder 入口) 文件: services/.../location/LocationManagerService.java\nclass LocationManagerService extends ILocationManager.Stub implements LocationProviderManager.StateChangedListener 职责:\nBinder 入口: 实现 ILocationManager.aidl 定义的所有方法 权限校验: checkLocationPermission(), checkCallerIsProvider() Provider 路由: 根据 provider name 找到对应的 LocationProviderManager 生命周期管理: 通过内部 Lifecycle extends SystemService 控制 核心字段:\n// 所有 Provider Manager 的集合 CopyOnWriteArrayList\u003cLocationProviderManager\u003e mProviderManagers; // 被动 Provider (接收所有 provider 的位置) PassiveLocationProviderManager mPassiveManager; // GNSS 管理器 (管理 GnssLocationProvider 等子组件) GnssManagerService mGnssManagerService; setAutomotiveGnssSuspended() 调用链：\nLocationManager.setAutomotiveGnssSuspended(suspended) → ILocationManager.setAutomotiveGnssSuspended(suspended) // Binder → LocationManagerService.setAutomotiveGnssSuspended(suspended) → 检查 CONTROL_AUTOMOTIVE_GNSS 权限 → 检查 FEATURE_AUTOMOTIVE → mGnssManagerService.setAutomotiveGnssSuspended(suspended) → mGnssLocationProvider.setAutomotiveGnssSuspended(suspended) requestLocationUpdates() 调用链：\nLocationManager.requestLocationUpdates(provider, request, executor, listener) → 创建 LocationListenerTransport(listener, executor) → ILocationManager.registerLocationListener(request, identity, listener) → LocationManagerService.registerLocationListener(...) → 权限校验 + provider 解析 → manager.registerLocationRequest(request, identity, permissionLevel, transport) 2.3 LocationProviderManager — 多路复用层 文件: services/.../location/provider/LocationProviderManager.java\nclass LocationProviderManager extends ListenerMultiplexer implements AbstractLocationProvider.Listener 泛型参数:\n参数 具体类型 含义 TKey IBinder 用 Binder 对象唯一标识每个 listener TListener LocationTransport 向 client 投递位置数据的接口 TRegistration Registration 单个 client 的注册信息 TMergedRegistration ProviderRequest 合并后发给 Provider 的请求 Registration 子类型：\n类型 用途 LocationListenerRegistration ILocationListener 回调 LocationPendingIntentRegistration PendingIntent 回调 GetCurrentLocationRegistration 单次 getCurrentLocation() 请求 核心字段:\nMockableLocationProvider mProvider; // 真实或 Mock Provider SparseBooleanArray mEnabled; // 每个 user 的 enable 状态 SparseArray\u003cLocation\u003e mLastLocations; // 每个 user 的最后已知位置 注册流程 (registerLocationRequest → putRegistration):\nregisterLocationRequest(request, identity, permissionLevel, listener) ↓ registerAndHandleIdentity(key, registration) ↓ putRegistration(key, registration) // 继承自 ListenerMultiplexer ↓ ├── isActive(registration) 检查: // LocationProviderManager 实现 │ - 是否有足够权限 │ - 是否在省电模式下 │ - 是否为前台/后台 │ - 屏幕状态 │ ├── activeCount: 0→1 → onActive() │ activeCount: 1→0 → onInactive() │ └── updateService() ↓ mergeRegistrations(activeRegistrations) // 合并为单个 ProviderRequest ↓ - minInterval: 所有 active 请求的最小间隔 - quality: 最严格的精度要求 - maxUpdateDelay: 最大可接受延迟（用于批量） - lowPower: 是否有 low power 请求 - workSource: 所有 client UID ↓ setProviderRequest(mergedRequest) // 发给 Provider ↓ mProvider.getController().setRequest(request) // 进入 AbstractLocationProvider 2.4 ListenerMultiplexer — 通用多路复用器 文件: services/.../location/listeners/ListenerMultiplexer.java\nabstract class ListenerMultiplexer 设计意图: 多个 client 的注册请求合并为单个对底层服务的请求。当 client 集合变化时，自动重新计算合并结果并更新底层服务。\n核心算法 (updateService()):\nupdateService(): 1. 遍历所有 registration，收集 isActive() == true 的 2. 如果没有 active: → wasActive → onInactive() → 如果之前有注册 → unregisterWithService() 3. 如果有 active: wasInactive → onActive() newMerged = mergeRegistrations(activeRegistrations) if newMerged != oldMerged: if oldMerged == null: registerWithService(newMerged) else: reregisterWithService(oldMerged, newMerged) 子类必须实现的抽象方法:\n方法 说明 isActive(TRegistration) 判断注册是否应当视为 active mergeRegistrations(Collection) 合并所有 active 注册为单个请求 registerWithService(TMergedRegistration) 向底层服务注册 reregisterWithService(old, new) 更新已有注册 unregisterWithService() 取消注册 Lifecycle 回调顺序:\nonRegister() → registration.onRegister() → onRegistrationAdded() → onActive() → registration.onActive() ... → registration.onInactive() → onInactive() → onRegistrationRemoved() → registration.onUnregister() → onUnregister() 2.5 AbstractLocationProvider — Provider 抽象基类 文件: services/.../location/provider/AbstractLocationProvider.java\nabstract class AbstractLocationProvider 2.5.1 Controller / Provider 模式 AbstractLocationProvider 使用 Controller/Provider 分离模式:\n// 内部 Controller 类 (对外暴露) private class Controller implements LocationProviderController { void start() { mExecutor.execute(() -\u003e onStart()); } void stop() { mExecutor.execute(() -\u003e onStop()); } void setRequest(ProviderRequest request) { mExecutor.execute(() -\u003e onSetRequest(request)); } void flush(Runnable listener) { mExecutor.execute(() -\u003e onFlush(listener)); } } // 子类实现的抽象方法 (Provider 行为) protected void onStart() {} // Provider 启动 protected void onStop() {} // Provider 停止 protected abstract void onSetRequest(ProviderRequest request); // 收到新请求 protected abstract void onFlush(Runnable listener); // 刷新批量数据 对外部 (LocationProviderManager) 只暴露 Controller 接口 (getController()):\nstart() — 启动 provider stop() — 停止 provider setRequest(ProviderRequest) — 发送合并后的请求 flush(Runnable) — 刷新 内部 (Provider) 实现抽象方法响应控制指令。\n2.5.2 不可变状态管理 // 不可变状态对象 static final class State { final boolean allowed; // 是否允许 final ProviderProperties properties; // Provider 属性 final CallerIdentity identity; // 身份 final Set\u003cString\u003e extraAttributionTags; // 额外属性标签 } // 线程安全的内部状态 (AtomicReference) private static class InternalState { final Listener listener; final State state; } // Provider 通过 setState() 上报状态变更 protected void setState(UnaryOperator\u003cState\u003e operator) { // 原子更新 state，变化时回调 listener.onStateChanged() } 2.5.3 Listener 接口 interface Listener { void onStateChanged(State oldState, State newState); void onReportLocation(LocationResult locationResult); } LocationProviderManager 实现此接口，接收 Provider 的状态变化和位置数据上报。\n2.5.4 GnssLocationProvider 实现 class GnssLocationProvider extends AbstractLocationProvider implements GnssNative.BaseCallbacks, GnssNative.LocationCallbacks, GnssNative.SvStatusCallbacks, ... 实现了 GnssNative 定义的近 10 个回调接口，是 GNSS HAL 到 Framework 的主要桥梁。\n关键状态字段:\n字段 含义 mGpsEnabled GPS 是否被启用（受 Location Setting + Bypass + AutomotiveSuspend + Shutdown 控制） mAutomotiveSuspend AAOS 挂起标记 mStarted GNSS 引擎是否正在运行（startNavigating() 置 true，stopNavigating() 置 false） mFixInterval 当前定位间隔 (ms) mProviderRequest 最新的合并 ProviderRequest mBatchingEnabled 是否启用批量定位 onSetRequest(ProviderRequest) 实现:\npublic void onSetRequest(ProviderRequest request) { mProviderRequest = request; updateEnabled(); // 第一步：更新 mGpsEnabled updateRequirements(); // 第二步：更新定位参数，必要时调用 startNavigating() } updateEnabled() — GPS 启停决策:\nenabled = false for each visibleUser: enabled |= isLocationEnabledForUser(user) enabled |= (mProviderRequest != null \u0026\u0026 mProviderRequest.isActive() \u0026\u0026 mProviderRequest.isBypass()) // Bypass (如 ELS/ADAS) enabled \u0026= !mAutomotiveSuspend // AAOS 电源管理挂起 enabled \u0026= !mShutdown // 设备关机 if (enabled == isGpsEnabled()) return; // 无变化，不操作 if (enabled) handleEnable(); else handleDisable(); updateRequirements() — 定位模式决策:\nif (mProviderRequest.isActive() \u0026\u0026 isGpsEnabled()): 计算 mFixInterval = mProviderRequest.getIntervalMillis() if (mBatchingEnabled \u0026\u0026 batchLength/2 \u003e= batchInterval): stopNavigating(); startBatching(batchLength) else: stopBatching() if (mStarted \u0026\u0026 hasScheduling()): setPositionMode(新参数) // 仅更新参数 else if (!mStarted): startNavigating() // 启动 GNSS 引擎！ else: startTimeoutAlarm() // 启动超时闹钟 else: stopNavigating(); stopBatching() // 无 active 请求，停止 2.6 GnssManagerService — GNSS 子组件管理 文件: services/.../location/gnss/GnssManagerService.java\n不继承任何特定基类，通过组合管理多个 GNSS 子组件:\nGnssManagerService ├── GnssLocationProvider (GPS 定位引擎) ├── GnssStatusProvider (GNSS 状态) ├── GnssNmeaProvider (NMEA 原始数据) ├── GnssMeasurementsProvider (原始测量值) ├── GnssNavigationMessageProvider (导航电文) ├── GnssAntennaInfoProvider (天线信息) └── GnssGeofenceProxy (地理围栏) 三、核心设计模式总结 模式 应用位置 说明 门面 (Facade) LocationManagerService 对外隐藏内部 ProviderManager 复杂度 多路复用器 (Multiplexer) LocationProviderManager extends ListenerMultiplexer 多 client → 单 Provider 请求合并 Controller/Provider AbstractLocationProvider.Controller 分离控制面和数据面 不可变状态 (Immutable State) AbstractLocationProvider.State + AtomicReference 无锁线程安全状态管理 组合 (Composition) GnssManagerService 组合多个独立子组件 代理 (Proxy) MockableLocationProvider Mock/Real Provider 切换 依赖注入 (DI) Injector 接口 解耦系统依赖，便于测试 四、关键数据流 4.1 位置数据投递 GNSS HAL 产生 fix → GnssNative.reportLocation() // JNI 回调 → GnssLocationProvider.handleReportLocation() → AbstractLocationProvider.reportLocation(LocationResult) → Listener.onReportLocation() → LocationProviderManager.onReportLocation() → ListenerMultiplexer.deliverToListeners() → for each active Registration: Registration.getListener().onLocationChanged(location) 4.2 Provider 请求变更 App: requestLocationUpdates(...) → LocationManagerService.registerLocationListener(...) → LocationProviderManager.registerLocationRequest(...) → putRegistration(key, registration) → updateService() → mergeRegistrations() → ProviderRequest → mProvider.getController().setRequest(merged) → AbstractLocationProvider.onSetRequest(request) → GnssLocationProvider.updateEnabled() → GnssLocationProvider.updateRequirements() 4.3 AAOS GNSS Suspend CarLocationService (PowerPolicy 回调) → LocationManager.setAutomotiveGnssSuspended(true/false) → ILocationManager.setAutomotiveGnssSuspended() // Binder → LocationManagerService.setAutomotiveGnssSuspended() → 权限检查 (CONTROL_AUTOMOTIVE_GNSS + FEATURE_AUTOMOTIVE) → mGnssManagerService.setAutomotiveGnssSuspended() → mGnssLocationProvider.setAutomotiveGnssSuspended() → mAutomotiveSuspend = suspended → mHandler.post(this::updateEnabled) → updateEnabled() 计算 enabled 状态 → handleEnable() / handleDisable() 五、Provider 类型 系统中有五种 Provider Manager，每种管理对应的 Provider:\nProvider Name Manager 类型 Provider 实现 数据来源 gps LocationProviderManager GnssLocationProvider GNSS HAL network LocationProviderManager 代理 (系统 APK) WiFi/基站 fused LocationProviderManager 代理 (系统 APK) 多源融合 passive PassiveLocationProviderManager PassiveLocationProvider 其他 Provider 透传 gps_hardware LocationProviderManager GnssLocationProvider GNSS HAL (需 LOCATION_HARDWARE 权限) ",
+  "wordCount" : "1138",
+  "inLanguage": "en",
+  "datePublished": "0001-01-01T00:00:00Z",
+  "dateModified": "0001-01-01T00:00:00Z",
+  "author":{
+    "@type": "Person",
+    "name": {"defaulttheme":"auto","name":"Ethen","showbreadcrumbs":true,"showcodecopybuttons":true,"showpostnavlinks":true,"showreadingtime":true,"showwordcount":true}
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/gunyah/" title="Gunyah">
+                    <span>Gunyah</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title entry-hint-parent">
+      
+    </h1>
+    <div class="post-meta">map[defaulttheme:auto name:Ethen showbreadcrumbs:true showcodecopybuttons:true showpostnavlinks:true showreadingtime:true showwordcount:true]
+
+</div>
+  </header> 
+  <div class="post-content"><h1 id="locationmanagerservice-详细设计">LocationManagerService 详细设计<a hidden class="anchor" aria-hidden="true" href="#locationmanagerservice-详细设计">#</a></h1>
+<blockquote>
+<p>基于 AOSP 源码分析，文件路径相对于 <code>frameworks/base/</code>。</p>
+</blockquote>
+<hr>
+<h2 id="一总体架构">一、总体架构<a hidden class="anchor" aria-hidden="true" href="#一总体架构">#</a></h2>
+<div class="mermaid">graph TB
+    subgraph Apps["应用层"]
+        LM["LocationManager<br/>public API"]
+    end
+
+    subgraph Framework["framework 层 (system_server)"]
+        LMS["LocationManagerService<br/>ILocationManager.Stub<br/>门面层: 权限校验 + 路由"]
+        LPM1["LocationProviderManager<br/>gps provider"]
+        LPM2["LocationProviderManager<br/>network provider"]
+        LPM3["LocationProviderManager<br/>fused provider"]
+        LPM4["PassiveLocationProviderManager<br/>passive provider"]
+        GMS["GnssManagerService<br/>GNSS 子组件管理"]
+        GLP["GnssLocationProvider<br/>AbstractLocationProvider"]
+    end
+
+    subgraph HAL["HAL 层"]
+        GNSS_HAL["IGnss AIDL/HIDL Service"]
+    end
+
+    LM -->|"ILocationManager.aidl"| LMS
+    LMS --> LPM1
+    LMS --> LPM2
+    LMS --> LPM3
+    LMS --> LPM4
+    LMS --> GMS
+    GMS --> GLP
+    GLP --> GNSS_HAL
+    LPM1 --> GLP
+</div><h3 id="已读取的关键源文件">已读取的关键源文件<a hidden class="anchor" aria-hidden="true" href="#已读取的关键源文件">#</a></h3>
+<table>
+	<thead>
+			<tr>
+					<th>文件</th>
+					<th>关键类</th>
+					<th>说明</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>location/java/android/location/LocationManager.java</code></td>
+					<td><code>LocationManager</code></td>
+					<td>公开 API</td>
+			</tr>
+			<tr>
+					<td><code>services/.../location/LocationManagerService.java</code></td>
+					<td><code>LocationManagerService</code></td>
+					<td>门面层，Binder 入口</td>
+			</tr>
+			<tr>
+					<td><code>services/.../location/provider/LocationProviderManager.java</code></td>
+					<td><code>LocationProviderManager</code></td>
+					<td>多路复用器，管理单个 Provider</td>
+			</tr>
+			<tr>
+					<td><code>services/.../location/provider/AbstractLocationProvider.java</code></td>
+					<td><code>AbstractLocationProvider</code></td>
+					<td>Provider 抽象基类</td>
+			</tr>
+			<tr>
+					<td><code>services/.../location/provider/MockableLocationProvider.java</code></td>
+					<td><code>MockableLocationProvider</code></td>
+					<td>Mock/Real 代理</td>
+			</tr>
+			<tr>
+					<td><code>services/.../location/gnss/GnssManagerService.java</code></td>
+					<td><code>GnssManagerService</code></td>
+					<td>GNSS 组件管理</td>
+			</tr>
+			<tr>
+					<td><code>services/.../location/gnss/GnssLocationProvider.java</code></td>
+					<td><code>GnssLocationProvider</code></td>
+					<td>GPS Provider 实现</td>
+			</tr>
+			<tr>
+					<td><code>services/.../location/listeners/ListenerMultiplexer.java</code></td>
+					<td><code>ListenerMultiplexer</code></td>
+					<td>通用多路复用器基类</td>
+			</tr>
+	</tbody>
+</table>
+<hr>
+<h2 id="二分层设计">二、分层设计<a hidden class="anchor" aria-hidden="true" href="#二分层设计">#</a></h2>
+<p>系统分为四层，从上到下依次为:</p>
+<pre tabindex="0"><code>┌──────────────────────────────────────────────┐
 │  LocationManager (公开 API)                    │  ← App 调用入口
 ├──────────────────────────────────────────────┤
 │  LocationManagerService (门面层)               │  ← Binder Stub, 权限 + 路由
@@ -211,36 +483,141 @@ LPM1 --> GLP</div><h3 id=已读取的关键源文件>已读取的关键源文件
 │  AbstractLocationProvider (Provider 抽象基类)   │  ← Controller/Provider 模式
 │    └── GnssLocationProvider (GPS 实现)         │
 └──────────────────────────────────────────────┘
-</code></pre><h3 id=21-locationmanager--公开-api-层>2.1 LocationManager — 公开 API 层<a hidden class=anchor aria-hidden=true href=#21-locationmanager--公开-api-层>#</a></h3><p>文件: <code>location/java/android/location/LocationManager.java</code></p><p>对外暴露的核心 API:</p><table><thead><tr><th>API</th><th>说明</th></tr></thead><tbody><tr><td><code>requestLocationUpdates(provider, request, executor, listener)</code></td><td>注册位置监听</td></tr><tr><td><code>removeUpdates(listener)</code></td><td>取消监听</td></tr><tr><td><code>getCurrentLocation(provider, ...)</code></td><td>单次位置查询</td></tr><tr><td><code>setAutomotiveGnssSuspended(boolean)</code></td><td>AAOS 专用: 挂起/恢复 GNSS</td></tr><tr><td><code>isLocationEnabled()</code></td><td>检查位置开关状态</td></tr></tbody></table><p>每条 API 调用通过 AIDL 跨进程传递到 <code>LocationManagerService</code>。<code>LocationManager</code> 不包含任何业务逻辑，只是薄代理。</p><h3 id=22-locationmanagerservice--门面层-binder-入口>2.2 LocationManagerService — 门面层 (Binder 入口)<a hidden class=anchor aria-hidden=true href=#22-locationmanagerservice--门面层-binder-入口>#</a></h3><p>文件: <code>services/.../location/LocationManagerService.java</code></p><pre tabindex=0><code>class LocationManagerService extends ILocationManager.Stub
+</code></pre><h3 id="21-locationmanager--公开-api-层">2.1 LocationManager — 公开 API 层<a hidden class="anchor" aria-hidden="true" href="#21-locationmanager--公开-api-层">#</a></h3>
+<p>文件: <code>location/java/android/location/LocationManager.java</code></p>
+<p>对外暴露的核心 API:</p>
+<table>
+	<thead>
+			<tr>
+					<th>API</th>
+					<th>说明</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>requestLocationUpdates(provider, request, executor, listener)</code></td>
+					<td>注册位置监听</td>
+			</tr>
+			<tr>
+					<td><code>removeUpdates(listener)</code></td>
+					<td>取消监听</td>
+			</tr>
+			<tr>
+					<td><code>getCurrentLocation(provider, ...)</code></td>
+					<td>单次位置查询</td>
+			</tr>
+			<tr>
+					<td><code>setAutomotiveGnssSuspended(boolean)</code></td>
+					<td>AAOS 专用: 挂起/恢复 GNSS</td>
+			</tr>
+			<tr>
+					<td><code>isLocationEnabled()</code></td>
+					<td>检查位置开关状态</td>
+			</tr>
+	</tbody>
+</table>
+<p>每条 API 调用通过 AIDL 跨进程传递到 <code>LocationManagerService</code>。<code>LocationManager</code> 不包含任何业务逻辑，只是薄代理。</p>
+<h3 id="22-locationmanagerservice--门面层-binder-入口">2.2 LocationManagerService — 门面层 (Binder 入口)<a hidden class="anchor" aria-hidden="true" href="#22-locationmanagerservice--门面层-binder-入口">#</a></h3>
+<p>文件: <code>services/.../location/LocationManagerService.java</code></p>
+<pre tabindex="0"><code>class LocationManagerService extends ILocationManager.Stub
     implements LocationProviderManager.StateChangedListener
-</code></pre><p><strong>职责:</strong></p><ul><li>Binder 入口: 实现 <code>ILocationManager.aidl</code> 定义的所有方法</li><li>权限校验: <code>checkLocationPermission()</code>, <code>checkCallerIsProvider()</code></li><li>Provider 路由: 根据 provider name 找到对应的 <code>LocationProviderManager</code></li><li>生命周期管理: 通过内部 <code>Lifecycle extends SystemService</code> 控制</li></ul><p><strong>核心字段:</strong></p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// 所有 Provider Manager 的集合</span>
-</span></span><span style=display:flex><span>CopyOnWriteArrayList<span style=color:#f92672>&lt;</span>LocationProviderManager<span style=color:#f92672>&gt;</span> mProviderManagers;
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>// 被动 Provider (接收所有 provider 的位置)</span>
-</span></span><span style=display:flex><span>PassiveLocationProviderManager mPassiveManager;
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>// GNSS 管理器 (管理 GnssLocationProvider 等子组件)</span>
-</span></span><span style=display:flex><span>GnssManagerService mGnssManagerService;
-</span></span></code></pre></div><p><strong><code>setAutomotiveGnssSuspended()</code> 调用链：</strong></p><pre tabindex=0><code>LocationManager.setAutomotiveGnssSuspended(suspended)
+</code></pre><p><strong>职责:</strong></p>
+<ul>
+<li>Binder 入口: 实现 <code>ILocationManager.aidl</code> 定义的所有方法</li>
+<li>权限校验: <code>checkLocationPermission()</code>, <code>checkCallerIsProvider()</code></li>
+<li>Provider 路由: 根据 provider name 找到对应的 <code>LocationProviderManager</code></li>
+<li>生命周期管理: 通过内部 <code>Lifecycle extends SystemService</code> 控制</li>
+</ul>
+<p><strong>核心字段:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-java" data-lang="java"><span style="display:flex;"><span><span style="color:#75715e">// 所有 Provider Manager 的集合</span>
+</span></span><span style="display:flex;"><span>CopyOnWriteArrayList<span style="color:#f92672">&lt;</span>LocationProviderManager<span style="color:#f92672">&gt;</span> mProviderManagers;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// 被动 Provider (接收所有 provider 的位置)</span>
+</span></span><span style="display:flex;"><span>PassiveLocationProviderManager mPassiveManager;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// GNSS 管理器 (管理 GnssLocationProvider 等子组件)</span>
+</span></span><span style="display:flex;"><span>GnssManagerService mGnssManagerService;
+</span></span></code></pre></div><p><strong><code>setAutomotiveGnssSuspended()</code> 调用链：</strong></p>
+<pre tabindex="0"><code>LocationManager.setAutomotiveGnssSuspended(suspended)
   → ILocationManager.setAutomotiveGnssSuspended(suspended)  // Binder
     → LocationManagerService.setAutomotiveGnssSuspended(suspended)
       → 检查 CONTROL_AUTOMOTIVE_GNSS 权限
       → 检查 FEATURE_AUTOMOTIVE
       → mGnssManagerService.setAutomotiveGnssSuspended(suspended)
         → mGnssLocationProvider.setAutomotiveGnssSuspended(suspended)
-</code></pre><p><strong><code>requestLocationUpdates()</code> 调用链：</strong></p><pre tabindex=0><code>LocationManager.requestLocationUpdates(provider, request, executor, listener)
+</code></pre><p><strong><code>requestLocationUpdates()</code> 调用链：</strong></p>
+<pre tabindex="0"><code>LocationManager.requestLocationUpdates(provider, request, executor, listener)
   → 创建 LocationListenerTransport(listener, executor)
   → ILocationManager.registerLocationListener(request, identity, listener)
     → LocationManagerService.registerLocationListener(...)
       → 权限校验 + provider 解析
       → manager.registerLocationRequest(request, identity, permissionLevel, transport)
-</code></pre><h3 id=23-locationprovidermanager--多路复用层>2.3 LocationProviderManager — 多路复用层<a hidden class=anchor aria-hidden=true href=#23-locationprovidermanager--多路复用层>#</a></h3><p>文件: <code>services/.../location/provider/LocationProviderManager.java</code></p><pre tabindex=0><code>class LocationProviderManager
+</code></pre><h3 id="23-locationprovidermanager--多路复用层">2.3 LocationProviderManager — 多路复用层<a hidden class="anchor" aria-hidden="true" href="#23-locationprovidermanager--多路复用层">#</a></h3>
+<p>文件: <code>services/.../location/provider/LocationProviderManager.java</code></p>
+<pre tabindex="0"><code>class LocationProviderManager
     extends ListenerMultiplexer&lt;IBinder, LocationTransport, Registration, ProviderRequest&gt;
     implements AbstractLocationProvider.Listener
-</code></pre><p><strong>泛型参数:</strong></p><table><thead><tr><th>参数</th><th>具体类型</th><th>含义</th></tr></thead><tbody><tr><td><code>TKey</code></td><td><code>IBinder</code></td><td>用 Binder 对象唯一标识每个 listener</td></tr><tr><td><code>TListener</code></td><td><code>LocationTransport</code></td><td>向 client 投递位置数据的接口</td></tr><tr><td><code>TRegistration</code></td><td><code>Registration</code></td><td>单个 client 的注册信息</td></tr><tr><td><code>TMergedRegistration</code></td><td><code>ProviderRequest</code></td><td>合并后发给 Provider 的请求</td></tr></tbody></table><p><strong>Registration 子类型：</strong></p><table><thead><tr><th>类型</th><th>用途</th></tr></thead><tbody><tr><td><code>LocationListenerRegistration</code></td><td><code>ILocationListener</code> 回调</td></tr><tr><td><code>LocationPendingIntentRegistration</code></td><td>PendingIntent 回调</td></tr><tr><td><code>GetCurrentLocationRegistration</code></td><td>单次 <code>getCurrentLocation()</code> 请求</td></tr></tbody></table><p><strong>核心字段:</strong></p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span>MockableLocationProvider mProvider;  <span style=color:#75715e>// 真实或 Mock Provider</span>
-</span></span><span style=display:flex><span>SparseBooleanArray mEnabled;         <span style=color:#75715e>// 每个 user 的 enable 状态</span>
-</span></span><span style=display:flex><span>SparseArray<span style=color:#f92672>&lt;</span>Location<span style=color:#f92672>&gt;</span> mLastLocations; <span style=color:#75715e>// 每个 user 的最后已知位置</span>
-</span></span></code></pre></div><p><strong>注册流程 (<code>registerLocationRequest</code> → <code>putRegistration</code>):</strong></p><pre tabindex=0><code>registerLocationRequest(request, identity, permissionLevel, listener)
+</code></pre><p><strong>泛型参数:</strong></p>
+<table>
+	<thead>
+			<tr>
+					<th>参数</th>
+					<th>具体类型</th>
+					<th>含义</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>TKey</code></td>
+					<td><code>IBinder</code></td>
+					<td>用 Binder 对象唯一标识每个 listener</td>
+			</tr>
+			<tr>
+					<td><code>TListener</code></td>
+					<td><code>LocationTransport</code></td>
+					<td>向 client 投递位置数据的接口</td>
+			</tr>
+			<tr>
+					<td><code>TRegistration</code></td>
+					<td><code>Registration</code></td>
+					<td>单个 client 的注册信息</td>
+			</tr>
+			<tr>
+					<td><code>TMergedRegistration</code></td>
+					<td><code>ProviderRequest</code></td>
+					<td>合并后发给 Provider 的请求</td>
+			</tr>
+	</tbody>
+</table>
+<p><strong>Registration 子类型：</strong></p>
+<table>
+	<thead>
+			<tr>
+					<th>类型</th>
+					<th>用途</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>LocationListenerRegistration</code></td>
+					<td><code>ILocationListener</code> 回调</td>
+			</tr>
+			<tr>
+					<td><code>LocationPendingIntentRegistration</code></td>
+					<td>PendingIntent 回调</td>
+			</tr>
+			<tr>
+					<td><code>GetCurrentLocationRegistration</code></td>
+					<td>单次 <code>getCurrentLocation()</code> 请求</td>
+			</tr>
+	</tbody>
+</table>
+<p><strong>核心字段:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-java" data-lang="java"><span style="display:flex;"><span>MockableLocationProvider mProvider;  <span style="color:#75715e">// 真实或 Mock Provider</span>
+</span></span><span style="display:flex;"><span>SparseBooleanArray mEnabled;         <span style="color:#75715e">// 每个 user 的 enable 状态</span>
+</span></span><span style="display:flex;"><span>SparseArray<span style="color:#f92672">&lt;</span>Location<span style="color:#f92672">&gt;</span> mLastLocations; <span style="color:#75715e">// 每个 user 的最后已知位置</span>
+</span></span></code></pre></div><p><strong>注册流程 (<code>registerLocationRequest</code> → <code>putRegistration</code>):</strong></p>
+<pre tabindex="0"><code>registerLocationRequest(request, identity, permissionLevel, listener)
   ↓
 registerAndHandleIdentity(key, registration)
   ↓
@@ -268,8 +645,12 @@ putRegistration(key, registration)          // 继承自 ListenerMultiplexer
       setProviderRequest(mergedRequest)         // 发给 Provider
         ↓
       mProvider.getController().setRequest(request)  // 进入 AbstractLocationProvider
-</code></pre><h3 id=24-listenermultiplexer--通用多路复用器>2.4 ListenerMultiplexer — 通用多路复用器<a hidden class=anchor aria-hidden=true href=#24-listenermultiplexer--通用多路复用器>#</a></h3><p>文件: <code>services/.../location/listeners/ListenerMultiplexer.java</code></p><pre tabindex=0><code>abstract class ListenerMultiplexer&lt;TKey, TListener, TRegistration, TMergedRegistration&gt;
-</code></pre><p><strong>设计意图:</strong> 多个 client 的注册请求合并为单个对底层服务的请求。当 client 集合变化时，自动重新计算合并结果并更新底层服务。</p><p><strong>核心算法 (<code>updateService()</code>):</strong></p><pre tabindex=0><code>updateService():
+</code></pre><h3 id="24-listenermultiplexer--通用多路复用器">2.4 ListenerMultiplexer — 通用多路复用器<a hidden class="anchor" aria-hidden="true" href="#24-listenermultiplexer--通用多路复用器">#</a></h3>
+<p>文件: <code>services/.../location/listeners/ListenerMultiplexer.java</code></p>
+<pre tabindex="0"><code>abstract class ListenerMultiplexer&lt;TKey, TListener, TRegistration, TMergedRegistration&gt;
+</code></pre><p><strong>设计意图:</strong> 多个 client 的注册请求合并为单个对底层服务的请求。当 client 集合变化时，自动重新计算合并结果并更新底层服务。</p>
+<p><strong>核心算法 (<code>updateService()</code>):</strong></p>
+<pre tabindex="0"><code>updateService():
   1. 遍历所有 registration，收集 isActive() == true 的
   2. 如果没有 active:
        → wasActive → onInactive()
@@ -282,62 +663,148 @@ putRegistration(key, registration)          // 继承自 ListenerMultiplexer
            registerWithService(newMerged)
          else:
            reregisterWithService(oldMerged, newMerged)
-</code></pre><p><strong>子类必须实现的抽象方法:</strong></p><table><thead><tr><th>方法</th><th>说明</th></tr></thead><tbody><tr><td><code>isActive(TRegistration)</code></td><td>判断注册是否应当视为 active</td></tr><tr><td><code>mergeRegistrations(Collection&lt;TRegistration>)</code></td><td>合并所有 active 注册为单个请求</td></tr><tr><td><code>registerWithService(TMergedRegistration)</code></td><td>向底层服务注册</td></tr><tr><td><code>reregisterWithService(old, new)</code></td><td>更新已有注册</td></tr><tr><td><code>unregisterWithService()</code></td><td>取消注册</td></tr></tbody></table><p><strong>Lifecycle 回调顺序:</strong></p><pre tabindex=0><code>onRegister() → registration.onRegister() → onRegistrationAdded()
+</code></pre><p><strong>子类必须实现的抽象方法:</strong></p>
+<table>
+	<thead>
+			<tr>
+					<th>方法</th>
+					<th>说明</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>isActive(TRegistration)</code></td>
+					<td>判断注册是否应当视为 active</td>
+			</tr>
+			<tr>
+					<td><code>mergeRegistrations(Collection&lt;TRegistration&gt;)</code></td>
+					<td>合并所有 active 注册为单个请求</td>
+			</tr>
+			<tr>
+					<td><code>registerWithService(TMergedRegistration)</code></td>
+					<td>向底层服务注册</td>
+			</tr>
+			<tr>
+					<td><code>reregisterWithService(old, new)</code></td>
+					<td>更新已有注册</td>
+			</tr>
+			<tr>
+					<td><code>unregisterWithService()</code></td>
+					<td>取消注册</td>
+			</tr>
+	</tbody>
+</table>
+<p><strong>Lifecycle 回调顺序:</strong></p>
+<pre tabindex="0"><code>onRegister() → registration.onRegister() → onRegistrationAdded()
   → onActive() → registration.onActive()
   ...
   → registration.onInactive() → onInactive()
   → onRegistrationRemoved() → registration.onUnregister() → onUnregister()
-</code></pre><h3 id=25-abstractlocationprovider--provider-抽象基类>2.5 AbstractLocationProvider — Provider 抽象基类<a hidden class=anchor aria-hidden=true href=#25-abstractlocationprovider--provider-抽象基类>#</a></h3><p>文件: <code>services/.../location/provider/AbstractLocationProvider.java</code></p><pre tabindex=0><code>abstract class AbstractLocationProvider
-</code></pre><h4 id=251-controller--provider-模式>2.5.1 Controller / Provider 模式<a hidden class=anchor aria-hidden=true href=#251-controller--provider-模式>#</a></h4><p><code>AbstractLocationProvider</code> 使用 Controller/Provider 分离模式:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// 内部 Controller 类 (对外暴露)</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>private</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>Controller</span> <span style=color:#66d9ef>implements</span> LocationProviderController {
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>start</span>()    { mExecutor.<span style=color:#a6e22e>execute</span>(() <span style=color:#f92672>-&gt;</span> onStart()); }
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>stop</span>()     { mExecutor.<span style=color:#a6e22e>execute</span>(() <span style=color:#f92672>-&gt;</span> onStop()); }
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>setRequest</span>(ProviderRequest request) {
-</span></span><span style=display:flex><span>        mExecutor.<span style=color:#a6e22e>execute</span>(() <span style=color:#f92672>-&gt;</span> onSetRequest(request));
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>flush</span>(Runnable listener) {
-</span></span><span style=display:flex><span>        mExecutor.<span style=color:#a6e22e>execute</span>(() <span style=color:#f92672>-&gt;</span> onFlush(listener));
-</span></span><span style=display:flex><span>    }
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>// 子类实现的抽象方法 (Provider 行为)</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>protected</span> <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>onStart</span>() {}                        <span style=color:#75715e>// Provider 启动</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>protected</span> <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>onStop</span>() {}                         <span style=color:#75715e>// Provider 停止</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>protected</span> <span style=color:#66d9ef>abstract</span> <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>onSetRequest</span>(ProviderRequest request);  <span style=color:#75715e>// 收到新请求</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>protected</span> <span style=color:#66d9ef>abstract</span> <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>onFlush</span>(Runnable listener);             <span style=color:#75715e>// 刷新批量数据</span>
-</span></span></code></pre></div><p>对外部 (LocationProviderManager) 只暴露 <code>Controller</code> 接口 (<code>getController()</code>):</p><ul><li><code>start()</code> — 启动 provider</li><li><code>stop()</code> — 停止 provider</li><li><code>setRequest(ProviderRequest)</code> — 发送合并后的请求</li><li><code>flush(Runnable)</code> — 刷新</li></ul><p>内部 (<code>Provider</code>) 实现抽象方法响应控制指令。</p><h4 id=252-不可变状态管理>2.5.2 不可变状态管理<a hidden class=anchor aria-hidden=true href=#252-不可变状态管理>#</a></h4><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// 不可变状态对象</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>static</span> <span style=color:#66d9ef>final</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>State</span> {
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>final</span> <span style=color:#66d9ef>boolean</span> allowed;                     <span style=color:#75715e>// 是否允许</span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>final</span> ProviderProperties properties;       <span style=color:#75715e>// Provider 属性</span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>final</span> CallerIdentity identity;             <span style=color:#75715e>// 身份</span>
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>final</span> Set<span style=color:#f92672>&lt;</span>String<span style=color:#f92672>&gt;</span> extraAttributionTags;    <span style=color:#75715e>// 额外属性标签</span>
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>// 线程安全的内部状态 (AtomicReference)</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>private</span> <span style=color:#66d9ef>static</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>InternalState</span> {
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>final</span> Listener listener;
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>final</span> State state;
-</span></span><span style=display:flex><span>}
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e>// Provider 通过 setState() 上报状态变更</span>
-</span></span><span style=display:flex><span><span style=color:#66d9ef>protected</span> <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>setState</span>(UnaryOperator<span style=color:#f92672>&lt;</span>State<span style=color:#f92672>&gt;</span> operator) {
-</span></span><span style=display:flex><span>    <span style=color:#75715e>// 原子更新 state，变化时回调 listener.onStateChanged()</span>
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div><h4 id=253-listener-接口>2.5.3 Listener 接口<a hidden class=anchor aria-hidden=true href=#253-listener-接口>#</a></h4><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#66d9ef>interface</span> <span style=color:#a6e22e>Listener</span> {
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>onStateChanged</span>(State oldState, State newState);
-</span></span><span style=display:flex><span>    <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>onReportLocation</span>(LocationResult locationResult);
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div><p><code>LocationProviderManager</code> 实现此接口，接收 Provider 的状态变化和位置数据上报。</p><h4 id=254-gnsslocationprovider-实现>2.5.4 GnssLocationProvider 实现<a hidden class=anchor aria-hidden=true href=#254-gnsslocationprovider-实现>#</a></h4><pre tabindex=0><code>class GnssLocationProvider extends AbstractLocationProvider
+</code></pre><h3 id="25-abstractlocationprovider--provider-抽象基类">2.5 AbstractLocationProvider — Provider 抽象基类<a hidden class="anchor" aria-hidden="true" href="#25-abstractlocationprovider--provider-抽象基类">#</a></h3>
+<p>文件: <code>services/.../location/provider/AbstractLocationProvider.java</code></p>
+<pre tabindex="0"><code>abstract class AbstractLocationProvider
+</code></pre><h4 id="251-controller--provider-模式">2.5.1 Controller / Provider 模式<a hidden class="anchor" aria-hidden="true" href="#251-controller--provider-模式">#</a></h4>
+<p><code>AbstractLocationProvider</code> 使用 Controller/Provider 分离模式:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-java" data-lang="java"><span style="display:flex;"><span><span style="color:#75715e">// 内部 Controller 类 (对外暴露)</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Controller</span> <span style="color:#66d9ef">implements</span> LocationProviderController {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">start</span>()    { mExecutor.<span style="color:#a6e22e">execute</span>(() <span style="color:#f92672">-&gt;</span> onStart()); }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">stop</span>()     { mExecutor.<span style="color:#a6e22e">execute</span>(() <span style="color:#f92672">-&gt;</span> onStop()); }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">setRequest</span>(ProviderRequest request) {
+</span></span><span style="display:flex;"><span>        mExecutor.<span style="color:#a6e22e">execute</span>(() <span style="color:#f92672">-&gt;</span> onSetRequest(request));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">flush</span>(Runnable listener) {
+</span></span><span style="display:flex;"><span>        mExecutor.<span style="color:#a6e22e">execute</span>(() <span style="color:#f92672">-&gt;</span> onFlush(listener));
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// 子类实现的抽象方法 (Provider 行为)</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">onStart</span>() {}                        <span style="color:#75715e">// Provider 启动</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">onStop</span>() {}                         <span style="color:#75715e">// Provider 停止</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">onSetRequest</span>(ProviderRequest request);  <span style="color:#75715e">// 收到新请求</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">abstract</span> <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">onFlush</span>(Runnable listener);             <span style="color:#75715e">// 刷新批量数据</span>
+</span></span></code></pre></div><p>对外部 (LocationProviderManager) 只暴露 <code>Controller</code> 接口 (<code>getController()</code>):</p>
+<ul>
+<li><code>start()</code> — 启动 provider</li>
+<li><code>stop()</code> — 停止 provider</li>
+<li><code>setRequest(ProviderRequest)</code> — 发送合并后的请求</li>
+<li><code>flush(Runnable)</code> — 刷新</li>
+</ul>
+<p>内部 (<code>Provider</code>) 实现抽象方法响应控制指令。</p>
+<h4 id="252-不可变状态管理">2.5.2 不可变状态管理<a hidden class="anchor" aria-hidden="true" href="#252-不可变状态管理">#</a></h4>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-java" data-lang="java"><span style="display:flex;"><span><span style="color:#75715e">// 不可变状态对象</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">static</span> <span style="color:#66d9ef">final</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">State</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">final</span> <span style="color:#66d9ef">boolean</span> allowed;                     <span style="color:#75715e">// 是否允许</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">final</span> ProviderProperties properties;       <span style="color:#75715e">// Provider 属性</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">final</span> CallerIdentity identity;             <span style="color:#75715e">// 身份</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">final</span> Set<span style="color:#f92672">&lt;</span>String<span style="color:#f92672">&gt;</span> extraAttributionTags;    <span style="color:#75715e">// 额外属性标签</span>
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// 线程安全的内部状态 (AtomicReference)</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">private</span> <span style="color:#66d9ef">static</span> <span style="color:#66d9ef">class</span> <span style="color:#a6e22e">InternalState</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">final</span> Listener listener;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">final</span> State state;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// Provider 通过 setState() 上报状态变更</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">protected</span> <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">setState</span>(UnaryOperator<span style="color:#f92672">&lt;</span>State<span style="color:#f92672">&gt;</span> operator) {
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 原子更新 state，变化时回调 listener.onStateChanged()</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h4 id="253-listener-接口">2.5.3 Listener 接口<a hidden class="anchor" aria-hidden="true" href="#253-listener-接口">#</a></h4>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-java" data-lang="java"><span style="display:flex;"><span><span style="color:#66d9ef">interface</span> <span style="color:#a6e22e">Listener</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">onStateChanged</span>(State oldState, State newState);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">onReportLocation</span>(LocationResult locationResult);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>LocationProviderManager</code> 实现此接口，接收 Provider 的状态变化和位置数据上报。</p>
+<h4 id="254-gnsslocationprovider-实现">2.5.4 GnssLocationProvider 实现<a hidden class="anchor" aria-hidden="true" href="#254-gnsslocationprovider-实现">#</a></h4>
+<pre tabindex="0"><code>class GnssLocationProvider extends AbstractLocationProvider
     implements GnssNative.BaseCallbacks,
                GnssNative.LocationCallbacks,
                GnssNative.SvStatusCallbacks,
                ...
-</code></pre><p>实现了 <code>GnssNative</code> 定义的近 10 个回调接口，是 GNSS HAL 到 Framework 的主要桥梁。</p><p><strong>关键状态字段:</strong></p><table><thead><tr><th>字段</th><th>含义</th></tr></thead><tbody><tr><td><code>mGpsEnabled</code></td><td>GPS 是否被启用（受 Location Setting + Bypass + AutomotiveSuspend + Shutdown 控制）</td></tr><tr><td><code>mAutomotiveSuspend</code></td><td>AAOS 挂起标记</td></tr><tr><td><code>mStarted</code></td><td>GNSS 引擎是否正在运行（<code>startNavigating()</code> 置 true，<code>stopNavigating()</code> 置 false）</td></tr><tr><td><code>mFixInterval</code></td><td>当前定位间隔 (ms)</td></tr><tr><td><code>mProviderRequest</code></td><td>最新的合并 ProviderRequest</td></tr><tr><td><code>mBatchingEnabled</code></td><td>是否启用批量定位</td></tr></tbody></table><p><strong><code>onSetRequest(ProviderRequest)</code> 实现:</strong></p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>onSetRequest</span>(ProviderRequest request) {
-</span></span><span style=display:flex><span>    mProviderRequest <span style=color:#f92672>=</span> request;
-</span></span><span style=display:flex><span>    updateEnabled();      <span style=color:#75715e>// 第一步：更新 mGpsEnabled</span>
-</span></span><span style=display:flex><span>    updateRequirements(); <span style=color:#75715e>// 第二步：更新定位参数，必要时调用 startNavigating()</span>
-</span></span><span style=display:flex><span>}
-</span></span></code></pre></div><p><strong><code>updateEnabled()</code> — GPS 启停决策:</strong></p><pre tabindex=0><code>enabled = false
+</code></pre><p>实现了 <code>GnssNative</code> 定义的近 10 个回调接口，是 GNSS HAL 到 Framework 的主要桥梁。</p>
+<p><strong>关键状态字段:</strong></p>
+<table>
+	<thead>
+			<tr>
+					<th>字段</th>
+					<th>含义</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>mGpsEnabled</code></td>
+					<td>GPS 是否被启用（受 Location Setting + Bypass + AutomotiveSuspend + Shutdown 控制）</td>
+			</tr>
+			<tr>
+					<td><code>mAutomotiveSuspend</code></td>
+					<td>AAOS 挂起标记</td>
+			</tr>
+			<tr>
+					<td><code>mStarted</code></td>
+					<td>GNSS 引擎是否正在运行（<code>startNavigating()</code> 置 true，<code>stopNavigating()</code> 置 false）</td>
+			</tr>
+			<tr>
+					<td><code>mFixInterval</code></td>
+					<td>当前定位间隔 (ms)</td>
+			</tr>
+			<tr>
+					<td><code>mProviderRequest</code></td>
+					<td>最新的合并 ProviderRequest</td>
+			</tr>
+			<tr>
+					<td><code>mBatchingEnabled</code></td>
+					<td>是否启用批量定位</td>
+			</tr>
+	</tbody>
+</table>
+<p><strong><code>onSetRequest(ProviderRequest)</code> 实现:</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-java" data-lang="java"><span style="display:flex;"><span><span style="color:#66d9ef">public</span> <span style="color:#66d9ef">void</span> <span style="color:#a6e22e">onSetRequest</span>(ProviderRequest request) {
+</span></span><span style="display:flex;"><span>    mProviderRequest <span style="color:#f92672">=</span> request;
+</span></span><span style="display:flex;"><span>    updateEnabled();      <span style="color:#75715e">// 第一步：更新 mGpsEnabled</span>
+</span></span><span style="display:flex;"><span>    updateRequirements(); <span style="color:#75715e">// 第二步：更新定位参数，必要时调用 startNavigating()</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><strong><code>updateEnabled()</code> — GPS 启停决策:</strong></p>
+<pre tabindex="0"><code>enabled = false
 for each visibleUser:
     enabled |= isLocationEnabledForUser(user)
 enabled |= (mProviderRequest != null
@@ -348,7 +815,8 @@ enabled &amp;= !mShutdown                      // 设备关机
 
 if (enabled == isGpsEnabled()) return;     // 无变化，不操作
 if (enabled) handleEnable(); else handleDisable();
-</code></pre><p><strong><code>updateRequirements()</code> — 定位模式决策:</strong></p><pre tabindex=0><code>if (mProviderRequest.isActive() &amp;&amp; isGpsEnabled()):
+</code></pre><p><strong><code>updateRequirements()</code> — 定位模式决策:</strong></p>
+<pre tabindex="0"><code>if (mProviderRequest.isActive() &amp;&amp; isGpsEnabled()):
     计算 mFixInterval = mProviderRequest.getIntervalMillis()
     if (mBatchingEnabled &amp;&amp; batchLength/2 &gt;= batchInterval):
         stopNavigating(); startBatching(batchLength)
@@ -362,7 +830,10 @@ if (enabled) handleEnable(); else handleDisable();
             startTimeoutAlarm()             // 启动超时闹钟
 else:
     stopNavigating(); stopBatching()        // 无 active 请求，停止
-</code></pre><h3 id=26-gnssmanagerservice--gnss-子组件管理>2.6 GnssManagerService — GNSS 子组件管理<a hidden class=anchor aria-hidden=true href=#26-gnssmanagerservice--gnss-子组件管理>#</a></h3><p>文件: <code>services/.../location/gnss/GnssManagerService.java</code></p><p>不继承任何特定基类，通过<strong>组合</strong>管理多个 GNSS 子组件:</p><pre tabindex=0><code>GnssManagerService
+</code></pre><h3 id="26-gnssmanagerservice--gnss-子组件管理">2.6 GnssManagerService — GNSS 子组件管理<a hidden class="anchor" aria-hidden="true" href="#26-gnssmanagerservice--gnss-子组件管理">#</a></h3>
+<p>文件: <code>services/.../location/gnss/GnssManagerService.java</code></p>
+<p>不继承任何特定基类，通过<strong>组合</strong>管理多个 GNSS 子组件:</p>
+<pre tabindex="0"><code>GnssManagerService
   ├── GnssLocationProvider          (GPS 定位引擎)
   ├── GnssStatusProvider            (GNSS 状态)
   ├── GnssNmeaProvider              (NMEA 原始数据)
@@ -370,7 +841,58 @@ else:
   ├── GnssNavigationMessageProvider (导航电文)
   ├── GnssAntennaInfoProvider       (天线信息)
   └── GnssGeofenceProxy             (地理围栏)
-</code></pre><hr><h2 id=三核心设计模式总结>三、核心设计模式总结<a hidden class=anchor aria-hidden=true href=#三核心设计模式总结>#</a></h2><table><thead><tr><th>模式</th><th>应用位置</th><th>说明</th></tr></thead><tbody><tr><td><strong>门面 (Facade)</strong></td><td><code>LocationManagerService</code></td><td>对外隐藏内部 ProviderManager 复杂度</td></tr><tr><td><strong>多路复用器 (Multiplexer)</strong></td><td><code>LocationProviderManager extends ListenerMultiplexer</code></td><td>多 client → 单 Provider 请求合并</td></tr><tr><td><strong>Controller/Provider</strong></td><td><code>AbstractLocationProvider.Controller</code></td><td>分离控制面和数据面</td></tr><tr><td><strong>不可变状态 (Immutable State)</strong></td><td><code>AbstractLocationProvider.State</code> + <code>AtomicReference</code></td><td>无锁线程安全状态管理</td></tr><tr><td><strong>组合 (Composition)</strong></td><td><code>GnssManagerService</code></td><td>组合多个独立子组件</td></tr><tr><td><strong>代理 (Proxy)</strong></td><td><code>MockableLocationProvider</code></td><td>Mock/Real Provider 切换</td></tr><tr><td><strong>依赖注入 (DI)</strong></td><td><code>Injector</code> 接口</td><td>解耦系统依赖，便于测试</td></tr></tbody></table><hr><h2 id=四关键数据流>四、关键数据流<a hidden class=anchor aria-hidden=true href=#四关键数据流>#</a></h2><h3 id=41-位置数据投递>4.1 位置数据投递<a hidden class=anchor aria-hidden=true href=#41-位置数据投递>#</a></h3><pre tabindex=0><code>GNSS HAL 产生 fix
+</code></pre><hr>
+<h2 id="三核心设计模式总结">三、核心设计模式总结<a hidden class="anchor" aria-hidden="true" href="#三核心设计模式总结">#</a></h2>
+<table>
+	<thead>
+			<tr>
+					<th>模式</th>
+					<th>应用位置</th>
+					<th>说明</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><strong>门面 (Facade)</strong></td>
+					<td><code>LocationManagerService</code></td>
+					<td>对外隐藏内部 ProviderManager 复杂度</td>
+			</tr>
+			<tr>
+					<td><strong>多路复用器 (Multiplexer)</strong></td>
+					<td><code>LocationProviderManager extends ListenerMultiplexer</code></td>
+					<td>多 client → 单 Provider 请求合并</td>
+			</tr>
+			<tr>
+					<td><strong>Controller/Provider</strong></td>
+					<td><code>AbstractLocationProvider.Controller</code></td>
+					<td>分离控制面和数据面</td>
+			</tr>
+			<tr>
+					<td><strong>不可变状态 (Immutable State)</strong></td>
+					<td><code>AbstractLocationProvider.State</code> + <code>AtomicReference</code></td>
+					<td>无锁线程安全状态管理</td>
+			</tr>
+			<tr>
+					<td><strong>组合 (Composition)</strong></td>
+					<td><code>GnssManagerService</code></td>
+					<td>组合多个独立子组件</td>
+			</tr>
+			<tr>
+					<td><strong>代理 (Proxy)</strong></td>
+					<td><code>MockableLocationProvider</code></td>
+					<td>Mock/Real Provider 切换</td>
+			</tr>
+			<tr>
+					<td><strong>依赖注入 (DI)</strong></td>
+					<td><code>Injector</code> 接口</td>
+					<td>解耦系统依赖，便于测试</td>
+			</tr>
+	</tbody>
+</table>
+<hr>
+<h2 id="四关键数据流">四、关键数据流<a hidden class="anchor" aria-hidden="true" href="#四关键数据流">#</a></h2>
+<h3 id="41-位置数据投递">4.1 位置数据投递<a hidden class="anchor" aria-hidden="true" href="#41-位置数据投递">#</a></h3>
+<pre tabindex="0"><code>GNSS HAL 产生 fix
   → GnssNative.reportLocation()           // JNI 回调
     → GnssLocationProvider.handleReportLocation()
       → AbstractLocationProvider.reportLocation(LocationResult)
@@ -379,7 +901,8 @@ else:
             → ListenerMultiplexer.deliverToListeners()
               → for each active Registration:
                   Registration.getListener().onLocationChanged(location)
-</code></pre><h3 id=42-provider-请求变更>4.2 Provider 请求变更<a hidden class=anchor aria-hidden=true href=#42-provider-请求变更>#</a></h3><pre tabindex=0><code>App: requestLocationUpdates(...)
+</code></pre><h3 id="42-provider-请求变更">4.2 Provider 请求变更<a hidden class="anchor" aria-hidden="true" href="#42-provider-请求变更">#</a></h3>
+<pre tabindex="0"><code>App: requestLocationUpdates(...)
   → LocationManagerService.registerLocationListener(...)
     → LocationProviderManager.registerLocationRequest(...)
       → putRegistration(key, registration)
@@ -389,7 +912,8 @@ else:
             → AbstractLocationProvider.onSetRequest(request)
               → GnssLocationProvider.updateEnabled()
               → GnssLocationProvider.updateRequirements()
-</code></pre><h3 id=43-aaos-gnss-suspend>4.3 AAOS GNSS Suspend<a hidden class=anchor aria-hidden=true href=#43-aaos-gnss-suspend>#</a></h3><pre tabindex=0><code>CarLocationService (PowerPolicy 回调)
+</code></pre><h3 id="43-aaos-gnss-suspend">4.3 AAOS GNSS Suspend<a hidden class="anchor" aria-hidden="true" href="#43-aaos-gnss-suspend">#</a></h3>
+<pre tabindex="0"><code>CarLocationService (PowerPolicy 回调)
   → LocationManager.setAutomotiveGnssSuspended(true/false)
     → ILocationManager.setAutomotiveGnssSuspended()        // Binder
       → LocationManagerService.setAutomotiveGnssSuspended()
@@ -400,8 +924,162 @@ else:
             → mHandler.post(this::updateEnabled)
               → updateEnabled() 计算 enabled 状态
               → handleEnable()  / handleDisable()
-</code></pre><hr><h2 id=五provider-类型>五、Provider 类型<a hidden class=anchor aria-hidden=true href=#五provider-类型>#</a></h2><p>系统中有五种 Provider Manager，每种管理对应的 Provider:</p><table><thead><tr><th>Provider Name</th><th>Manager 类型</th><th>Provider 实现</th><th>数据来源</th></tr></thead><tbody><tr><td><code>gps</code></td><td><code>LocationProviderManager</code></td><td><code>GnssLocationProvider</code></td><td>GNSS HAL</td></tr><tr><td><code>network</code></td><td><code>LocationProviderManager</code></td><td>代理 (系统 APK)</td><td>WiFi/基站</td></tr><tr><td><code>fused</code></td><td><code>LocationProviderManager</code></td><td>代理 (系统 APK)</td><td>多源融合</td></tr><tr><td><code>passive</code></td><td><code>PassiveLocationProviderManager</code></td><td><code>PassiveLocationProvider</code></td><td>其他 Provider 透传</td></tr><tr><td><code>gps_hardware</code></td><td><code>LocationProviderManager</code></td><td><code>GnssLocationProvider</code></td><td>GNSS HAL (需 <code>LOCATION_HARDWARE</code> 权限)</td></tr></tbody></table></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
-<span>Powered by
-<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
-<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
-</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script></body></html>
+</code></pre><hr>
+<h2 id="五provider-类型">五、Provider 类型<a hidden class="anchor" aria-hidden="true" href="#五provider-类型">#</a></h2>
+<p>系统中有五种 Provider Manager，每种管理对应的 Provider:</p>
+<table>
+	<thead>
+			<tr>
+					<th>Provider Name</th>
+					<th>Manager 类型</th>
+					<th>Provider 实现</th>
+					<th>数据来源</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>gps</code></td>
+					<td><code>LocationProviderManager</code></td>
+					<td><code>GnssLocationProvider</code></td>
+					<td>GNSS HAL</td>
+			</tr>
+			<tr>
+					<td><code>network</code></td>
+					<td><code>LocationProviderManager</code></td>
+					<td>代理 (系统 APK)</td>
+					<td>WiFi/基站</td>
+			</tr>
+			<tr>
+					<td><code>fused</code></td>
+					<td><code>LocationProviderManager</code></td>
+					<td>代理 (系统 APK)</td>
+					<td>多源融合</td>
+			</tr>
+			<tr>
+					<td><code>passive</code></td>
+					<td><code>PassiveLocationProviderManager</code></td>
+					<td><code>PassiveLocationProvider</code></td>
+					<td>其他 Provider 透传</td>
+			</tr>
+			<tr>
+					<td><code>gps_hardware</code></td>
+					<td><code>LocationProviderManager</code></td>
+					<td><code>GnssLocationProvider</code></td>
+					<td>GNSS HAL (需 <code>LOCATION_HARDWARE</code> 权限)</td>
+			</tr>
+	</tbody>
+</table>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a><script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
+<script>
+    (function(){
+        
+        
+        const plantumlBlocks = document.querySelectorAll('pre > code.language-plantuml, pre > code.language-planuml');
+        
+        plantumlBlocks.forEach(codeBlock => {
+            const plantumlCode = codeBlock.innerText;
+            
+            const encoded = plantumlEncoder.encode(plantumlCode);
+            
+            const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
+            
+            
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = "PlantUML Diagram";
+            img.style.maxWidth = "100%"; 
+            
+            
+            const preBlock = codeBlock.parentNode;
+            preBlock.parentNode.replaceChild(img, preBlock);
+        });
+    })();
+</script>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

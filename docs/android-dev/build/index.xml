@@ -1,51 +1,69 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android build on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/build/</link><description>Recent content in Android build on Ethen 的实验室</description><generator>Hugo -- 0.163.0</generator><language>en</language><lastBuildDate>Wed, 27 Aug 2025 11:36:11 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/build/index.xml" rel="self" type="application/rss+xml"/><item><title>Android SELinux 编译与加载机制解析（基于 AOSP 16）</title><link>https://ethen-cao.github.io/ethenslab/android-dev/build/selinux_compilation/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/build/selinux_compilation/</guid><description>&lt;p&gt;本文基于 AOSP 16 源码详细讲解 Android 系统中 SELinux 的文件分类、按分区隔离的构建配置项与编译机制、常用编译与验证命令，以及在系统启动时的动态校验与加载机制。&lt;/p&gt;
-&lt;h2 id="1-selinux-文件分类"&gt;1. SELinux 文件分类&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Android build on Ethen 的实验室</title>
+    <link>https://ethen-cao.github.io/ethenslab/android-dev/build/</link>
+    <description>Recent content in Android build on Ethen 的实验室</description>
+    <generator>Hugo -- 0.163.0</generator>
+    <language>en</language>
+    <lastBuildDate>Wed, 27 Aug 2025 11:36:11 +0800</lastBuildDate>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/build/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Android SELinux 编译与加载机制解析（基于 AOSP 16）</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/build/selinux_compilation/</link>
+      <pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/build/selinux_compilation/</guid>
+      <description>&lt;p&gt;本文基于 AOSP 16 源码详细讲解 Android 系统中 SELinux 的文件分类、按分区隔离的构建配置项与编译机制、常用编译与验证命令，以及在系统启动时的动态校验与加载机制。&lt;/p&gt;
+&lt;h2 id=&#34;1-selinux-文件分类&#34;&gt;1. SELinux 文件分类&lt;/h2&gt;
 &lt;p&gt;系统中的 SELinux 文件主要可以分为两大类：&lt;strong&gt;Policy 文件&lt;/strong&gt; 和 &lt;strong&gt;Context 文件&lt;/strong&gt;。&lt;/p&gt;
-&lt;h3 id="11-policy-文件"&gt;1.1 Policy 文件&lt;/h3&gt;
+&lt;h3 id=&#34;11-policy-文件&#34;&gt;1.1 Policy 文件&lt;/h3&gt;
 &lt;p&gt;Policy 文件通常是以 &lt;code&gt;.te&lt;/code&gt; 结尾的文件。这些文件主要用于定义 Domain（域）、Type（类型）以及各种访问控制策略（Allow, Neverallow 等）。在 Android 中，它们还广泛使用了 M4 宏来精简策略。&lt;/p&gt;
-&lt;h3 id="12-context-文件"&gt;1.2 Context 文件&lt;/h3&gt;
+&lt;h3 id=&#34;12-context-文件&#34;&gt;1.2 Context 文件&lt;/h3&gt;
 &lt;p&gt;Context 文件的主要作用是给一个 Object（如文件、属性、服务、进程等）分配 SELinux Label（标签）。Context 文件主要分为以下几类：&lt;/p&gt;
 &lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th style="text-align: left"&gt;文件类型&lt;/th&gt;
-&lt;th style="text-align: left"&gt;作用描述&lt;/th&gt;
-&lt;th style="text-align: left"&gt;示例/说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;file_contexts&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;给文件系统中的文件分配 Label。&lt;/td&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;/system/bin/urmservice u:object_r:urmservice_exec:s0&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;genfs_contexts&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;给类似 &lt;code&gt;/proc&lt;/code&gt;, &lt;code&gt;/sys&lt;/code&gt; 这种不支持扩展属性 (Extended attributes) 的虚拟文件系统分配 Label。因为它们不能持久化保存 Label，挂载时需要重新分配。&lt;/td&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;genfscon proc /net/if_inet6 u:object_r:proc_net:s0&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;property_contexts&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;给 Android 的系统属性 (System Properties) 分配 Label。&lt;/td&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;ro.boot.vendor. u:object_r:vendor_default_prop:s0&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;service_contexts&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;给 Android Binder Services 分配 Label。&lt;/td&gt;
-&lt;td style="text-align: left"&gt;-&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;seapp_contexts&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;给 App 进程以及 &lt;code&gt;/data/data&lt;/code&gt; 目录分配 Label。Zygote 和 Installd 会读取此文件。&lt;/td&gt;
-&lt;td style="text-align: left"&gt;-&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;mac_permissions.xml&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;根据 App 的签名或包名，给 App 分配 &lt;code&gt;seinfo&lt;/code&gt;。&lt;code&gt;seinfo&lt;/code&gt; 作为 Key 在 &lt;code&gt;seapp_contexts&lt;/code&gt; 中匹配具体的 Domain。&lt;/td&gt;
-&lt;td style="text-align: left"&gt;-&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th style=&#34;text-align: left&#34;&gt;文件类型&lt;/th&gt;
+					&lt;th style=&#34;text-align: left&#34;&gt;作用描述&lt;/th&gt;
+					&lt;th style=&#34;text-align: left&#34;&gt;示例/说明&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;file_contexts&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;给文件系统中的文件分配 Label。&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;/system/bin/urmservice u:object_r:urmservice_exec:s0&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;genfs_contexts&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;给类似 &lt;code&gt;/proc&lt;/code&gt;, &lt;code&gt;/sys&lt;/code&gt; 这种不支持扩展属性 (Extended attributes) 的虚拟文件系统分配 Label。因为它们不能持久化保存 Label，挂载时需要重新分配。&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;genfscon proc /net/if_inet6 u:object_r:proc_net:s0&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;property_contexts&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;给 Android 的系统属性 (System Properties) 分配 Label。&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;ro.boot.vendor. u:object_r:vendor_default_prop:s0&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;service_contexts&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;给 Android Binder Services 分配 Label。&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;-&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;seapp_contexts&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;给 App 进程以及 &lt;code&gt;/data/data&lt;/code&gt; 目录分配 Label。Zygote 和 Installd 会读取此文件。&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;-&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;mac_permissions.xml&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;根据 App 的签名或包名，给 App 分配 &lt;code&gt;seinfo&lt;/code&gt;。&lt;code&gt;seinfo&lt;/code&gt; 作为 Key 在 &lt;code&gt;seapp_contexts&lt;/code&gt; 中匹配具体的 Domain。&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;-&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
 &lt;/table&gt;
 &lt;blockquote&gt;
 &lt;p&gt;&lt;strong&gt;什么是 Extended attributes (xattr)?&lt;/strong&gt;
-扩展属性是永久关联到文件和目录的 name:value 对，常见于 ext4、f2fs 等现代文件系统。&lt;/p&gt;</description></item></channel></rss>
+扩展属性是永久关联到文件和目录的 name:value 对，常见于 ext4、f2fs 等现代文件系统。&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

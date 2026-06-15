@@ -1,86 +1,106 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android Automotive OS开发 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/</link><description>Recent content in Android Automotive OS开发 on Ethen 的实验室</description><generator>Hugo -- 0.163.0</generator><language>en</language><atom:link href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/index.xml" rel="self" type="application/rss+xml"/><item><title/><link>https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/</guid><description>&lt;h1 id="locationmanagerservice-详细设计"&gt;LocationManagerService 详细设计&lt;/h1&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Android Automotive OS开发 on Ethen 的实验室</title>
+    <link>https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/</link>
+    <description>Recent content in Android Automotive OS开发 on Ethen 的实验室</description>
+    <generator>Hugo -- 0.163.0</generator>
+    <language>en</language>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title></title>
+      <link>https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/location-manager-service-design/</guid>
+      <description>&lt;h1 id=&#34;locationmanagerservice-详细设计&#34;&gt;LocationManagerService 详细设计&lt;/h1&gt;
 &lt;blockquote&gt;
 &lt;p&gt;基于 AOSP 源码分析，文件路径相对于 &lt;code&gt;frameworks/base/&lt;/code&gt;。&lt;/p&gt;
 &lt;/blockquote&gt;
 &lt;hr&gt;
-&lt;h2 id="一总体架构"&gt;一、总体架构&lt;/h2&gt;
-&lt;div class="mermaid"&gt;graph TB
-subgraph Apps["应用层"]
-LM["LocationManager&lt;br/&gt;public API"]
-end
-subgraph Framework["framework 层 (system_server)"]
-LMS["LocationManagerService&lt;br/&gt;ILocationManager.Stub&lt;br/&gt;门面层: 权限校验 + 路由"]
-LPM1["LocationProviderManager&lt;br/&gt;gps provider"]
-LPM2["LocationProviderManager&lt;br/&gt;network provider"]
-LPM3["LocationProviderManager&lt;br/&gt;fused provider"]
-LPM4["PassiveLocationProviderManager&lt;br/&gt;passive provider"]
-GMS["GnssManagerService&lt;br/&gt;GNSS 子组件管理"]
-GLP["GnssLocationProvider&lt;br/&gt;AbstractLocationProvider"]
-end
-subgraph HAL["HAL 层"]
-GNSS_HAL["IGnss AIDL/HIDL Service"]
-end
-LM --&gt;|"ILocationManager.aidl"| LMS
-LMS --&gt; LPM1
-LMS --&gt; LPM2
-LMS --&gt; LPM3
-LMS --&gt; LPM4
-LMS --&gt; GMS
-GMS --&gt; GLP
-GLP --&gt; GNSS_HAL
-LPM1 --&gt; GLP
-&lt;/div&gt;&lt;h3 id="已读取的关键源文件"&gt;已读取的关键源文件&lt;/h3&gt;
+&lt;h2 id=&#34;一总体架构&#34;&gt;一、总体架构&lt;/h2&gt;
+&lt;div class=&#34;mermaid&#34;&gt;graph TB
+    subgraph Apps[&#34;应用层&#34;]
+        LM[&#34;LocationManager&lt;br/&gt;public API&#34;]
+    end
+
+    subgraph Framework[&#34;framework 层 (system_server)&#34;]
+        LMS[&#34;LocationManagerService&lt;br/&gt;ILocationManager.Stub&lt;br/&gt;门面层: 权限校验 + 路由&#34;]
+        LPM1[&#34;LocationProviderManager&lt;br/&gt;gps provider&#34;]
+        LPM2[&#34;LocationProviderManager&lt;br/&gt;network provider&#34;]
+        LPM3[&#34;LocationProviderManager&lt;br/&gt;fused provider&#34;]
+        LPM4[&#34;PassiveLocationProviderManager&lt;br/&gt;passive provider&#34;]
+        GMS[&#34;GnssManagerService&lt;br/&gt;GNSS 子组件管理&#34;]
+        GLP[&#34;GnssLocationProvider&lt;br/&gt;AbstractLocationProvider&#34;]
+    end
+
+    subgraph HAL[&#34;HAL 层&#34;]
+        GNSS_HAL[&#34;IGnss AIDL/HIDL Service&#34;]
+    end
+
+    LM --&gt;|&#34;ILocationManager.aidl&#34;| LMS
+    LMS --&gt; LPM1
+    LMS --&gt; LPM2
+    LMS --&gt; LPM3
+    LMS --&gt; LPM4
+    LMS --&gt; GMS
+    GMS --&gt; GLP
+    GLP --&gt; GNSS_HAL
+    LPM1 --&gt; GLP
+&lt;/div&gt;&lt;h3 id=&#34;已读取的关键源文件&#34;&gt;已读取的关键源文件&lt;/h3&gt;
 &lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;文件&lt;/th&gt;
-&lt;th&gt;关键类&lt;/th&gt;
-&lt;th&gt;说明&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;code&gt;location/java/android/location/LocationManager.java&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;LocationManager&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;公开 API&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;code&gt;services/.../location/LocationManagerService.java&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;LocationManagerService&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;门面层，Binder 入口&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;code&gt;services/.../location/provider/LocationProviderManager.java&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;LocationProviderManager&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;多路复用器，管理单个 Provider&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;code&gt;services/.../location/provider/AbstractLocationProvider.java&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;AbstractLocationProvider&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;Provider 抽象基类&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;code&gt;services/.../location/provider/MockableLocationProvider.java&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;MockableLocationProvider&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;Mock/Real 代理&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;code&gt;services/.../location/gnss/GnssManagerService.java&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;GnssManagerService&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;GNSS 组件管理&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;code&gt;services/.../location/gnss/GnssLocationProvider.java&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;GnssLocationProvider&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;GPS Provider 实现&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;code&gt;services/.../location/listeners/ListenerMultiplexer.java&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;ListenerMultiplexer&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;通用多路复用器基类&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;文件&lt;/th&gt;
+					&lt;th&gt;关键类&lt;/th&gt;
+					&lt;th&gt;说明&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;location/java/android/location/LocationManager.java&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;LocationManager&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;公开 API&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;services/.../location/LocationManagerService.java&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;LocationManagerService&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;门面层，Binder 入口&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;services/.../location/provider/LocationProviderManager.java&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;LocationProviderManager&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;多路复用器，管理单个 Provider&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;services/.../location/provider/AbstractLocationProvider.java&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;AbstractLocationProvider&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Provider 抽象基类&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;services/.../location/provider/MockableLocationProvider.java&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;MockableLocationProvider&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Mock/Real 代理&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;services/.../location/gnss/GnssManagerService.java&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;GnssManagerService&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;GNSS 组件管理&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;services/.../location/gnss/GnssLocationProvider.java&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;GnssLocationProvider&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;GPS Provider 实现&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;services/.../location/listeners/ListenerMultiplexer.java&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;ListenerMultiplexer&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;通用多路复用器基类&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
 &lt;/table&gt;
 &lt;hr&gt;
-&lt;h2 id="二分层设计"&gt;二、分层设计&lt;/h2&gt;
-&lt;p&gt;系统分为四层，从上到下依次为:&lt;/p&gt;</description></item></channel></rss>
+&lt;h2 id=&#34;二分层设计&#34;&gt;二、分层设计&lt;/h2&gt;
+&lt;p&gt;系统分为四层，从上到下依次为:&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>
