@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>H56C Display Architecture — SA8295P</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;0,600&family=Newsreader:opsz,wght@12..72,500;12..72,600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:    #faf8f3;
+    --paper2:   #f3f0e9;
+    --ink:      #1a1d26;
+    --ink-dim:  #6b6d75;
+    --ink-faint:#b0b2b8;
+    --line:     #d9d6ce;
+    --line-sub: #e8e5dd;
+
+    --dsi:      #1e7a5e;
+    --dsi-bg:   #eaf5f0;
+    --dp2:      #c45a2c;
+    --dp2-bg:   #fdf3ec;
+    --edp0:     #95989e;
+    --edp0-bg:  #f5f4f2;
+    --serdes:   #3a7a8c;
+    --serdes-bg:#edf4f6;
+    --display:  #b8453a;
+    --disp-bg:  #fef5f4;
+    --android:  #4f7db3;
+    --android-bg:#eef4fa;
+    --qnx-bg:   #faf7ee;
+    --i2c:      #7c5ea7;
+    --i2c-bg:   #f6f2fa;
+    --soc:      #3a5a8c;
+    --soc-bg:   #f2f5f9;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--paper2);
+    color: var(--ink);
+    font-family: "DM Mono", "JetBrains Mono", ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 36px 24px;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      linear-gradient(rgba(180,175,165,0.12) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(180,175,165,0.12) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: -1px -1px;
+  }
+
+  /* ── Header ── */
+  .header {
+    max-width: 1240px; margin: 0 auto 28px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+    padding-bottom: 16px; border-bottom: 2px solid var(--ink);
+  }
+  .header h1 {
+    font-family: "Newsreader", "Crimson Text", "Source Han Serif SC", "Noto Serif SC", Georgia, serif;
+    font-size: 28px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em;
+  }
+  .header h1 span { color: var(--dp2); }
+  .header .meta {
+    text-align: right; font-size: 10px; color: var(--ink-dim); letter-spacing: 0.04em;
+    line-height: 1.7;
+  }
+  .header .meta b { color: var(--ink); font-weight: 500; }
+
+  /* ── Subtitle ── */
+  .subtitle {
+    max-width: 1240px; margin: 0 auto 28px;
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  }
+  .subtitle .port-tag {
+    font-size: 11px; padding: 3px 10px; border-radius: 2px;
+    border: 1.5px solid; font-weight: 500; letter-spacing: 0.03em;
+  }
+  .port-tag.dsi   { color: var(--dsi);   border-color: var(--dsi);   background: var(--dsi-bg); }
+  .port-tag.dp2   { color: var(--dp2);   border-color: var(--dp2);   background: var(--dp2-bg); }
+  .port-tag.edp0  { color: var(--edp0);  border-color: var(--edp0);  background: var(--edp0-bg); }
+
+  /* ── Canvas ── */
+  .canvas {
+    position: relative; width: 1240px; height: 1450px; margin: 0 auto;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+  }
+
+  /* ── Zones ── */
+  .zone { position: absolute; }
+  .zone-label {
+    position: absolute; top: -10px; left: 18px; padding: 0 8px;
+    font-size: 9.5px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+    font-family: "DM Mono", "JetBrains Mono", monospace;
+  }
+
+  .z-soc {
+    border: 1.5px solid var(--soc); background: var(--soc-bg);
+    left: 16px; top: 36px; width: 1208px; height: 828px;
+  }
+  .z-soc > .zone-label { color: var(--soc); background: var(--paper); }
+
+  .z-sw {
+    border: 1px dashed #c4b88c; background: rgba(196,184,140,0.06);
+    left: 34px; top: 68px; width: 1172px; height: 504px;
+  }
+  .z-sw > .zone-label { color: #8a7e5c; background: var(--paper); }
+
+  .z-hw {
+    border: 1px dashed #c4a06c; background: rgba(196,160,108,0.06);
+    left: 34px; top: 594px; width: 1172px; height: 252px;
+  }
+  .z-hw > .zone-label { color: #8a6e4a; background: var(--paper); }
+
+  .z-serdes {
+    border: 1.5px solid var(--serdes); background: var(--serdes-bg);
+    left: 16px; top: 888px; width: 1208px; height: 338px;
+  }
+  .z-serdes > .zone-label { color: var(--serdes); background: var(--paper); }
+
+  .z-display {
+    border: 1.5px solid var(--display); background: var(--disp-bg);
+    left: 16px; top: 1250px; width: 1208px; height: 152px;
+  }
+  .z-display > .zone-label { color: var(--display); background: var(--paper); }
+
+  /* ── Boxes ── */
+  .box {
+    position: absolute; border-radius: 3px; padding: 8px 12px;
+    font-size: 11.5px; line-height: 1.5;
+    background: #fff;
+    border: 1px solid var(--line);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.02);
+    cursor: default;
+    transition: box-shadow 0.2s, border-color 0.2s;
+  }
+  .box:hover { z-index: 50; box-shadow: 0 2px 12px rgba(0,0,0,0.08); border-color: var(--ink-dim); }
+
+  .box .title {
+    font-weight: 600; color: var(--ink); font-size: 12px; margin-bottom: 2px;
+    font-family: "DM Mono", "JetBrains Mono", monospace; letter-spacing: -0.01em;
+  }
+  .box .sub  { color: var(--ink-dim); font-size: 10.5px; }
+  .box .meta {
+    color: var(--ink-dim); font-size: 10px; margin-top: 3px;
+    font-family: "DM Mono", "JetBrains Mono", monospace;
+  }
+
+  .pill-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+  .pill {
+    font-size: 9.5px; padding: 1px 6px; border-radius: 2px;
+    border: 1px solid var(--line-sub); color: var(--ink-dim);
+    font-family: "DM Mono", "JetBrains Mono", monospace;
+  }
+  .pill.pb { color: #4a7db3; border-color: rgba(74,125,179,0.25); background: rgba(74,125,179,0.05); }
+  .pill.pg { color: var(--dsi);  border-color: rgba(30,122,94,0.25); background: rgba(30,122,94,0.05); }
+  .pill.po { color: var(--dp2);  border-color: rgba(196,90,44,0.25); background: rgba(196,90,44,0.05); }
+  .pill.py { color: #8a7e5c;    border-color: rgba(138,126,92,0.25); background: rgba(138,126,92,0.05); }
+  .pill.pc { color: var(--serdes);border-color: rgba(58,122,140,0.25);background: rgba(58,122,140,0.05); }
+  .pill.pr { color: var(--edp0); border-color: rgba(149,152,158,0.25);background: rgba(149,152,158,0.05); }
+
+  /* colour variants */
+  .b-qnx     { border-left: 3px solid #c4b03c; }
+  .b-android { border-left: 3px solid var(--android); }
+  .b-pipe    { border-left: 3px solid var(--soc); }
+  .b-dsi     { border: 1.5px solid var(--dsi);  }
+  .b-dp2     { border: 1.5px solid var(--dp2);  }
+  .b-edp0    { border: 1.5px dashed var(--edp0); }
+  .b-hw      { border-left: 3px solid #c4a06c; background: #fefdfa; }
+  .b-serdes  { border-color: var(--serdes); background: #fafdfd; }
+  .b-display { border: 1.5px solid var(--display); background: #fffafa; }
+  .b-i2c     { border-left: 3px solid var(--i2c); background: #fdfcff; }
+  .b-note    { border: 1px dashed var(--ink-faint); background: transparent; box-shadow: none; }
+  .b-note:hover { box-shadow: none; border-color: var(--ink-dim); }
+
+  /* ── Tooltip ── */
+  .box .tt {
+    display: none; position: absolute; top: calc(100% + 6px); left: -1px; z-index: 100;
+    min-width: 300px; max-width: 440px;
+    background: #fffef9; border: 1.5px solid var(--ink);
+    padding: 12px 15px; font-size: 10.5px; line-height: 1.6;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.12); pointer-events: none;
+    font-family: "DM Mono", "JetBrains Mono", monospace;
+  }
+  .box:hover .tt { display: block; }
+  .tt .tt-title {
+    font-weight: 600; color: var(--ink); font-size: 12px;
+    margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  }
+  .tt .tt-row { display: flex; gap: 10px; margin-bottom: 2px; }
+  .tt .tt-k { color: var(--ink-dim); min-width: 55px; white-space: nowrap; font-size: 10px; }
+  .tt .tt-v { color: var(--ink); word-break: break-all; }
+  .tt .tt-v.note { color: var(--ink-dim); }
+
+  /* ── Divider ── */
+  .divider {
+    position: absolute; display: flex; align-items: center; gap: 10px;
+    font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 500;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1; height: 0; border-top: 1px dotted var(--ink-faint);
+  }
+
+  /* ── SVG ── */
+  .lines { position: absolute; inset: 0; pointer-events: none; width: 100%; height: 100%; }
+
+  /* ── Legend ── */
+  .legend {
+    max-width: 1240px; margin: 24px auto 0; padding: 16px 24px;
+    background: var(--paper); border: 1px solid var(--line);
+    display: flex; gap: 24px; flex-wrap: wrap; font-size: 11px; font-family: "DM Mono", "JetBrains Mono", monospace;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .legend-swatch { display: inline-block; width: 32px; height: 0; border-top: 2.5px solid; }
+  .legend-swatch.solid  { border-style: solid; }
+  .legend-swatch.dashed { border-style: dashed; }
+
+  .footnote {
+    max-width: 1240px; margin: 8px auto 0; font-size: 10px; color: var(--ink-faint);
+    text-align: right; font-family: "DM Mono", "JetBrains Mono", monospace;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>H56C <span>·</span> Display Architecture</h1>
+  <div class="meta">
+    <b>SA8295P</b> Premium Cockpit SoC &nbsp;·&nbsp; QNX 7.1 + Android GVM &nbsp;·&nbsp; H56C Platform
+  </div>
+</div>
+
+<div class="subtitle">
+  <span class="port-tag dsi">DSI1 &nbsp; HUD + Cluster</span>
+  <span class="port-tag dp2">DP2 &nbsp; IVI + Passenger</span>
+  <span class="port-tag edp0">EDP0 &nbsp; Ceiling (not equipped)</span>
+</div>
+
+<div class="canvas">
+
+  <!-- SoC -->
+  <div class="zone z-soc"><div class="zone-label">SoC — Qualcomm SA8295P</div></div>
+
+  <!-- QNX Userspace + Android GVM -->
+  <div class="zone z-sw"><div class="zone-label">QNX userspace + Android GVM</div></div>
+
+  <!-- Row 1: Content Producers -->
+  <div class="box b-qnx" style="left:58px;top:104px;width:540px;height:68px;">
+    <div class="title">ivi_compositor_QC</div>
+    <div class="sub">Instrument Cluster QML rendering · IcTelltale · IcWarning</div>
+    <div class="pill-row"><span class="pill py">QML Scene Graph</span><span class="pill">topic IPC</span><span class="pill py">1920 × 720</span></div>
+    <div class="tt"><div class="tt-title">ivi_compositor_QC</div>
+      <div class="tt-row"><span class="tt-k">role</span><span class="tt-v note">仪表盘 QML 渲染引擎 — 指示灯、告警、行车信息</span></div>
+      <div class="tt-row"><span class="tt-k">output</span><span class="tt-v">1920 × 720 layer → QNX display compositor</span></div>
+      <div class="tt-row"><span class="tt-k">IPC</span><span class="tt-v">topic subscribe: ictelltale/* · icdriving/* · icserver/*</span></div>
+    </div>
+  </div>
+
+  <div class="box b-android" style="left:628px;top:104px;width:546px;height:68px;">
+    <div class="title">Android GVM</div>
+    <div class="sub">SurfaceFlinger · HWComposer · Navigation · Media · DVR · Voice</div>
+    <div class="pill-row"><span class="pill pb">framebuffer (shared memory)</span><span class="pill">virtio-gpu</span><span class="pill pb">1920 × 720</span></div>
+    <div class="tt"><div class="tt-title">Android Guest VM</div>
+      <div class="tt-row"><span class="tt-k">compositor</span><span class="tt-v">SurfaceFlinger + HWComposer</span></div>
+      <div class="tt-row"><span class="tt-k">output</span><span class="tt-v note">framebuffer → shared memory → QNX display compositor</span></div>
+      <div class="tt-row"><span class="tt-k">apps</span><span class="tt-v note">Mega Map (导航) · VoyahMusic · DVR · Voice Assist · BT Phone · SystemUI</span></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Data Plane -->
+  <div class="box b-pipe" style="left:150px;top:206px;width:940px;height:52px;">
+    <div class="title">QNX display compositor</div>
+    <div class="sub">wfdCreateSourceFromImage · EGLImage composite (QDI_PIXEL_FORMAT_ABGR_8888_32BPP) · layer 5/11 · device 0/1</div>
+    <div class="tt"><div class="tt-title">QNX display compositor — Pixel Pipeline (Data Plane)</div>
+      <div class="tt-row"><span class="tt-k">input</span><span class="tt-v note">ivi_compositor_QC (QML layer) + Android GVM (framebuffer)</span></div>
+      <div class="tt-row"><span class="tt-k">output</span><span class="tt-v">wfdCreateSourceFromImage → EGLImage → DPU</span></div>
+      <div class="tt-row"><span class="tt-k">format</span><span class="tt-v">QDI_PIXEL_FORMAT_ABGR_8888_32BPP · 1920 × 720 · 0x54c000 bytes</span></div>
+    </div>
+  </div>
+
+  <!-- Row 3: Control Plane -->
+  <div class="divider" style="left:58px;top:284px;width:1116px;">Control &amp; Monitoring Plane</div>
+
+  <div class="box b-qnx" style="left:58px;top:308px;width:360px;height:96px;">
+    <div class="title">disp_plugin</div>
+    <div class="sub">DP2 / DSI1 / EDP0 link monitoring &amp; fault recovery</div>
+    <div class="meta">DP2_diag_thread · DSI1_diag_thread · EDP0_diag_thread</div>
+    <div class="pill-row"><span class="pill pc">libBRIDGECHIP_DRV.so</span><span class="pill">PCLK · video lock · link training</span></div>
+    <div class="tt"><div class="tt-title">disp_plugin — Link Monitor &amp; Recovery</div>
+      <div class="tt-row"><span class="tt-k">threads</span><span class="tt-v">DP2_diag_thread · DSI1_diag_thread · DSI1_diag_thread_B10 · EDP0_diag_thread · EDP0_diag_thread_B10 · DP3_diag_thread</span></div>
+      <div class="tt-row"><span class="tt-k">monitor</span><span class="tt-v note">PCLK reg · video lock reg · link training status · every 1 s</span></div>
+      <div class="tt-row"><span class="tt-k">recovery</span><span class="tt-v note">detect → STS_REM_POWEROFF (2 s) → STS_REM_POWERON → wait 6 s → recheck</span></div>
+      <div class="tt-row"><span class="tt-k">GPIO</span><span class="tt-v">egpio 249 (wakeup_ivi_pass) · egpio 250 (wakeup_ceiling)</span></div>
+      <div class="tt-row"><span class="tt-k">source</span><span class="tt-v note">display/utils/H56C/disp_diag.c · display/plugin/src/disp_drv_public.c</span></div>
+    </div>
+  </div>
+
+  <div class="box b-qnx" style="left:444px;top:308px;width:335px;height:96px;">
+    <div class="title">mfd_server</div>
+    <div class="sub">Multi-display I²C touch / temperature data relay</div>
+    <div class="meta">per-screen ISR thread (GPIO → i2c_read) + dispatch thread</div>
+    <div class="pill-row"><span class="pill py">lcd_cluster</span><span class="pill py">lcd_ivi</span><span class="pill py">lcd_passenger</span><span class="pill py">lcd_ceiling</span></div>
+    <div class="tt"><div class="tt-title">mfd_server — I²C Data Relay</div>
+      <div class="tt-row"><span class="tt-k">devices</span><span class="tt-v">/dev/mfd/mfd_device · /dev/gpio · /dev/i2cX</span></div>
+      <div class="tt-row"><span class="tt-k">threads</span><span class="tt-v note">per-screen: 1 ISR thread (GPIO int → mcu_read → ringbuffer) + 1 dispatch thread (→ client IPC)</span></div>
+      <div class="tt-row"><span class="tt-k">I²C read</span><span class="tt-v note">i2c_read / i2c_combined_writeread · retry ×10 (I2C_READ_RETRY_TIMES=10) · interval 10 ms</span></div>
+      <div class="tt-row"><span class="tt-k">config</span><span class="tt-v">/ifs/etc/mfd_server/mfd_server.xml → ParseMfdCfgList()</span></div>
+      <div class="tt-row"><span class="tt-k">source</span><span class="tt-v note">mfd_server/server/H56/mfd_server.c · mfd_io.c · mfd_config.c</span></div>
+    </div>
+  </div>
+
+  <div class="box b-qnx" style="left:804px;top:308px;width:370px;height:96px;">
+    <div class="title">libbacklight</div>
+    <div class="sub">Backlight I²C direct control · Temperature · Lux · MCU diag</div>
+    <div class="meta">backlight_ivi/passenger/cluster_update (I²C cmd 0x31 0x22)</div>
+    <div class="pill-row"><span class="pill po">backlight PWM</span><span class="pill po">temperature</span><span class="pill po">screen_mcu_diag</span></div>
+    <div class="tt"><div class="tt-title">libbacklight — Backlight / Temp / Diag</div>
+      <div class="tt-row"><span class="tt-k">process</span><span class="tt-v">backlight_resmgr (loads libbacklight as shared library)</span></div>
+      <div class="tt-row"><span class="tt-k">devices</span><span class="tt-v">/dev/backlight/vbl_* · /dev/disp/temp/* · /dev/i2cX</span></div>
+      <div class="tt-row"><span class="tt-k">backlight</span><span class="tt-v note">direct I²C write (cmd 0x31 0x22) — bypasses mfd_server</span></div>
+      <div class="tt-row"><span class="tt-k">temperature</span><span class="tt-v note">non-ceiling: via mfd_server callback · ceiling: direct I²C read</span></div>
+      <div class="tt-row"><span class="tt-k">diagnosis</span><span class="tt-v">screen_mcu_diag.c → diag_report_dtc_event() → /dev/diagnosis</span></div>
+      <div class="tt-row"><span class="tt-k">source</span><span class="tt-v note">backlight/H56C/lib_interface.c · temp_resmgr.c · lightsensor.c · screen_mcu_diag.c</span></div>
+    </div>
+  </div>
+
+  <!-- Row 4: Support -->
+  <div class="box b-qnx" style="left:58px;top:434px;width:310px;height:52px;">
+    <div class="title">thermal_ctrl</div>
+    <div class="sub">Screen temperature monitor · 5-sample rolling avg · over-temp IPC alert</div>
+    <div class="meta">reads /dev/disp/temp/* → threshold comparison</div>
+    <div class="tt"><div class="tt-title">thermal_ctrl</div>
+      <div class="tt-row"><span class="tt-k">sampling</span><span class="tt-v note">5-sample rolling average per screen (THERMAL_CTRL_SCN_TEMP_SAMPLE_MAX_NUM=5)</span></div>
+      <div class="tt-row"><span class="tt-k">alert</span><span class="tt-v note">exceeds high_temp_threshold → IPC temperature warning message</span></div>
+      <div class="tt-row"><span class="tt-k">source</span><span class="tt-v note">thermal_ctrl/H56C/screen_ctrl.c</span></div>
+    </div>
+  </div>
+
+  <div class="box b-qnx" style="left:394px;top:434px;width:260px;height:52px;">
+    <div class="title">diagnosis</div>
+    <div class="sub">DTC fault code aggregation &amp; reporting</div>
+    <div class="meta">/dev/diagnosis · dtc_event_t write</div>
+    <div class="tt"><div class="tt-title">diagnosis</div>
+      <div class="tt-row"><span class="tt-k">interface</span><span class="tt-v">/dev/diagnosis · dtc_event_t {code, status}</span></div>
+      <div class="tt-row"><span class="tt-k">reporters</span><span class="tt-v note">disp_diag.c · screen_mcu_diag.c → diag_report_dtc_event()</span></div>
+    </div>
+  </div>
+
+  <div class="box b-qnx" style="left:680px;top:434px;width:494px;height:52px;">
+    <div class="title">ais_server + DVR_SerDes</div>
+    <div class="sub">DMS camera (MAX96712) · DVR camera (SerDes camcorder) — independent subsystem</div>
+    <div class="tt"><div class="tt-title">ais_server + DVR SerDes</div>
+      <div class="tt-row"><span class="tt-k">chips</span><span class="tt-v">MAX96712 (DMS serializer) · MAX96756 (DVR deserializer)</span></div>
+      <div class="tt-row"><span class="tt-k">note</span><span class="tt-v note">independent camera subsystem — not part of display pipeline</span></div>
+    </div>
+  </div>
+
+  <div class="box b-note" style="left:58px;top:510px;width:380px;height:34px;">
+    <div class="sub" style="color:var(--ink-dim);">ecu_config: CEILINGSCREEN_EQUIPMENT = 0 — vehicle not equipped with ceiling screen</div>
+  </div>
+
+  <!-- Hardware -->
+  <div class="zone z-hw"><div class="zone-label">Hardware — DPU &amp; display controllers</div></div>
+
+  <div class="box b-hw" style="left:58px;top:628px;width:1108px;height:52px;">
+    <div class="title">DPU — Mobile Display Processor</div>
+    <div class="sub">Layer Mixer · composition pipeline · timing generator · DSC encoder · multi-INTF output</div>
+    <div class="pill-row"><span class="pill po">VIG pipes</span><span class="pill po">DMA pipes</span><span class="pill po">Layer Mixer ×N</span><span class="pill po">PingPong / 3D mux</span><span class="pill po">DSC encoder</span></div>
+  </div>
+
+  <div class="box b-hw" style="left:58px;top:706px;width:340px;height:64px;">
+    <div class="title">DSI1 TX + PHY · MIPI 4-lane</div>
+    <div class="sub">link0 → HUD · link1 → Cluster instrument</div>
+    <div class="pill-row"><span class="pill pg">DSI1_L0 0xFF050200</span><span class="pill pg">DSI1_L1 0xFF050300</span></div>
+  </div>
+  <div class="box b-hw" style="left:424px;top:706px;width:420px;height:64px;">
+    <div class="title">DP2 TX + PHY · DisplayPort 4-lane</div>
+    <div class="sub">link0 → IVI 2560×1280 (stream0) · link1 → Passenger (stream1, dual-link)</div>
+    <div class="pill-row"><span class="pill po">DP2_L0 0xFF050400</span><span class="pill po">DP2_L1 0xFF050500</span></div>
+  </div>
+  <div class="box b-hw" style="left:870px;top:706px;width:296px;height:64px;">
+    <div class="title">EDP0 TX + PHY · eDP 4-lane</div>
+    <div class="sub">link0 → Ceiling (not equipped)</div>
+    <div class="pill-row"><span class="pill pr">EDP0_L0 0xFF050800</span><span class="pill pr">permanent STS_NODEV</span></div>
+  </div>
+
+  <div class="box b-i2c" style="left:58px;top:794px;width:1108px;height:36px;">
+    <div class="sub">
+      I²C subsystem: /dev/i2cX → Host SER (MAX96789 @ 0x0C · MAX96855 @ 0x42 · 983 @ 0x0C) → tunneled through serial link →
+      Remote DES (DES_948 @ 0x31 · DES_772 @ 0x4c &amp; 0x4a · DES_983 @ 0x2e) → LCD Panel MCU (backlight IC · touch IC · temp sensor)
+    </div>
+  </div>
+
+  <!-- SerDes -->
+  <div class="zone z-serdes"><div class="zone-label">SerDes — long-distance serial links</div></div>
+
+  <div class="box b-serdes" style="left:58px;top:924px;width:340px;height:66px;">
+    <div class="title">MAX96789 · Host SER · DSI1 side</div>
+    <div class="sub">DSI → GMSL2 high-speed serial · on carrier PCB</div>
+    <div class="meta">I²C 0x0C · link0 (HUD) + link1 (Cluster) · DES_948_28/34</div>
+    <div class="tt"><div class="tt-title">MAX96789 — DSI1 Host Serializer</div>
+      <div class="tt-row"><span class="tt-k">I²C</span><span class="tt-v">0x0C</span></div>
+      <div class="tt-row"><span class="tt-k">input</span><span class="tt-v">DSI1 4-lane MIPI (link0 HUD + link1 Cluster)</span></div>
+      <div class="tt-row"><span class="tt-k">output</span><span class="tt-v">GMSL2 serial → DES_948</span></div>
+      <div class="tt-row"><span class="tt-k">monitor</span><span class="tt-v">DES_948_28 reg (receiver active video stream0)</span></div>
+    </div>
+  </div>
+
+  <div class="box b-serdes" style="left:424px;top:924px;width:420px;height:66px;">
+    <div class="title">MAX96855 · Host SER · DP2 side</div>
+    <div class="sub">DisplayPort → high-speed serial · on carrier PCB</div>
+    <div class="meta">I²C 0x42 · MAX96855L0_PCLK / L1_PCLK · LF0_LF1 / LF2_LF3</div>
+    <div class="tt"><div class="tt-title">MAX96855 — DP2 Host Serializer</div>
+      <div class="tt-row"><span class="tt-k">I²C</span><span class="tt-v">0x42</span></div>
+      <div class="tt-row"><span class="tt-k">input</span><span class="tt-v">DP2 4-lane DP · link0 (IVI stream0 2560×1280) · link1 (Passenger stream1 dual-link)</span></div>
+      <div class="tt-row"><span class="tt-k">PCLK</span><span class="tt-v">MAX96855L0_PCLK (link0 ivi) · MAX96855L1_PCLK (link1 passenger)</span></div>
+      <div class="tt-row"><span class="tt-k">fault</span><span class="tt-v">MAX96XXX_LF0_LF1 (link0) · MAX96XXX_LF2_LF3 (link1) — open/short/line-to-line</span></div>
+    </div>
+  </div>
+
+  <div class="box b-serdes" style="left:870px;top:924px;width:296px;height:66px;">
+    <div class="title">983 Bridge · Host SER · EDP0 side</div>
+    <div class="sub">eDP → serial · on carrier PCB · panel not installed</div>
+    <div class="meta">I²C 0x0C · link0 (Ceiling) · permanent disconnect</div>
+    <div class="tt"><div class="tt-title">983 Bridge — EDP0 Host Serializer</div>
+      <div class="tt-row"><span class="tt-k">I²C</span><span class="tt-v">0x0C</span></div>
+      <div class="tt-row"><span class="tt-k">input</span><span class="tt-v">EDP0 4-lane eDP → serial → DES_983 (no panel attached)</span></div>
+      <div class="tt-row"><span class="tt-k">note</span><span class="tt-v note">link training timeout → sys_powerctl_reset_system("983_link_fail")</span></div>
+    </div>
+  </div>
+
+  <!-- Cable -->
+  <div class="box b-note" style="left:58px;top:1016px;width:340px;height:36px;background:transparent;">
+    <div class="sub" style="text-align:center;font-size:10px;">shielded twisted-pair / coax · DSI1 · EMC protection</div>
+  </div>
+  <div class="box b-note" style="left:424px;top:1016px;width:420px;height:36px;background:transparent;">
+    <div class="sub" style="text-align:center;font-size:10px;">shielded twisted-pair / coax · DP2 · EMC protection</div>
+  </div>
+  <div class="box b-note" style="left:870px;top:1016px;width:296px;height:36px;background:transparent;">
+    <div class="sub" style="text-align:center;font-size:10px;">shielded twisted-pair / coax · EDP0 (idle)</div>
+  </div>
+
+  <!-- Remote DES -->
+  <div class="box b-serdes" style="left:58px;top:1078px;width:340px;height:66px;">
+    <div class="title">DES_948 · Remote DES · DSI1 remote</div>
+    <div class="sub">GMSL2 → MIPI-DSI · on display module</div>
+    <div class="meta">I²C 0x31 · link0 (HUD) + link1 (Cluster)</div>
+    <div class="tt"><div class="tt-title">DES_948 — DSI1 Remote Deserializer</div>
+      <div class="tt-row"><span class="tt-k">I²C</span><span class="tt-v">0x31</span></div>
+      <div class="tt-row"><span class="tt-k">output</span><span class="tt-v">link0: MIPI-DSI → HUD · link1: MIPI-DSI → Cluster</span></div>
+    </div>
+  </div>
+
+  <div class="box b-serdes" style="left:424px;top:1078px;width:420px;height:66px;">
+    <div class="title">DES_772 × 2 · Remote DES · DP2 remote</div>
+    <div class="sub">serial → eDP / LVDS · on display module</div>
+    <div class="meta">link0: I²C 0x4c (IVI) · link1: I²C 0x4a (Passenger) · VIDLOCK_REG / LINK_REG</div>
+    <div class="tt"><div class="tt-title">DES_772 — DP2 Remote Deserializer (×2)</div>
+      <div class="tt-row"><span class="tt-k">link0 I²C</span><span class="tt-v">0x4c → IVI center display 2560×1280</span></div>
+      <div class="tt-row"><span class="tt-k">link1 I²C</span><span class="tt-v">0x4a → Passenger display (dual-link)</span></div>
+      <div class="tt-row"><span class="tt-k">registers</span><span class="tt-v">DES_772_VIDLOCK_REG · DES_772_LINK_REG</span></div>
+    </div>
+  </div>
+
+  <div class="box b-serdes" style="left:870px;top:1078px;width:296px;height:66px;">
+    <div class="title">DES_983 · Remote DES · EDP0 remote</div>
+    <div class="sub">serial → eDP · on display module · not installed</div>
+    <div class="meta">I²C 0x2e · permanent disconnect</div>
+  </div>
+
+  <!-- Display panels -->
+  <div class="zone z-display"><div class="zone-label">Display panels</div></div>
+
+  <div class="box b-dsi" style="left:36px;top:1290px;width:155px;height:95px;">
+    <div class="title">HUD</div>
+    <div class="sub">Head-Up Display</div>
+    <div class="meta">DSI1 link0<br>DES_948 · I²C 0x31</div>
+  </div>
+  <div class="box b-dsi" style="left:210px;top:1290px;width:188px;height:95px;">
+    <div class="title">Cluster</div>
+    <div class="sub">Instrument · LCD_TYPE_CLUSTER (1)</div>
+    <div class="meta">DSI1 link1 · temp ~77°C<br>DES_948 · I²C 0x31</div>
+  </div>
+
+  <div class="box b-dp2" style="left:424px;top:1290px;width:245px;height:95px;">
+    <div class="title">IVI Center Display</div>
+    <div class="sub">LCD_TYPE_IVI (2)</div>
+    <div class="meta">DP2 link0 stream0 · 2560×1280<br>DES_772 · I²C 0x4c</div>
+  </div>
+  <div class="box b-dp2" style="left:692px;top:1290px;width:245px;height:95px;">
+    <div class="title">Passenger Display</div>
+    <div class="sub">LCD_TYPE_PASSENGER (3)</div>
+    <div class="meta">DP2 link1 stream1 · dual-link<br>DES_772 · I²C 0x4a</div>
+  </div>
+
+  <div class="box b-edp0" style="left:960px;top:1290px;width:236px;height:95px;">
+    <div class="title">Ceiling</div>
+    <div class="sub">LCD_TYPE_CEILING (7) · not equipped</div>
+    <div class="meta">EDP0 link0 · DES_983 · I²C 0x2e<br>CEILINGSCREEN_EQUIPMENT = 0</div>
+  </div>
+
+  <!-- SVG -->
+  <svg class="lines" viewBox="0 0 1240 1450" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ad" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+        <path d="M0 0 L11 6 L0 12 z" fill="#3a5a8c"/></marker>
+      <marker id="ag" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+        <path d="M0 0 L11 6 L0 12 z" fill="#1e7a5e"/></marker>
+      <marker id="ao" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+        <path d="M0 0 L11 6 L0 12 z" fill="#c45a2c"/></marker>
+      <marker id="ae" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+        <path d="M0 0 L11 6 L0 12 z" fill="#95989e"/></marker>
+      <marker id="ai" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+        <path d="M0 0 L11 6 L0 12 z" fill="#7c5ea7"/></marker>
+    </defs>
+
+    <!-- Content Producers → Compositor -->
+    <path d="M 328 172 L 328 206" stroke="#8a7e5c" stroke-width="1.6" marker-end="url(#ad)"/>
+    <path d="M 901 172 L 901 206" stroke="#4f7db3" stroke-width="1.6" marker-end="url(#ad)"/>
+
+    <!-- Compositor → DPU -->
+    <path d="M 620 258 L 620 628" stroke="#3a5a8c" stroke-width="2.2" marker-end="url(#ad)"/>
+
+    <!-- DPU → three ports -->
+    <path d="M 228 680 L 228 706" stroke="#1e7a5e" stroke-width="1.8" marker-end="url(#ag)"/>
+    <path d="M 634 680 L 634 706" stroke="#c45a2c" stroke-width="1.8" marker-end="url(#ao)"/>
+    <path d="M 1018 680 L 1018 706" stroke="#95989e" stroke-width="1.4" marker-end="url(#ae)"/>
+
+    <!-- Ports → Host SER -->
+    <path d="M 228 770 L 228 924" stroke="#1e7a5e" stroke-width="1.6" marker-end="url(#ag)"/>
+    <path d="M 634 770 L 634 924" stroke="#c45a2c" stroke-width="1.6" marker-end="url(#ao)"/>
+    <path d="M 1018 770 L 1018 924" stroke="#95989e" stroke-width="1.2" marker-end="url(#ae)"/>
+
+    <!-- SER → cable → DES -->
+    <path d="M 228 990 L 228 1078" stroke="#3a7a8c" stroke-width="1.6" stroke-dasharray="8 5" marker-end="url(#ag)"/>
+    <path d="M 634 990 L 634 1078" stroke="#3a7a8c" stroke-width="1.6" stroke-dasharray="8 5" marker-end="url(#ao)"/>
+    <path d="M 1018 990 L 1018 1078" stroke="#3a7a8c" stroke-width="1.1" stroke-dasharray="8 5" marker-end="url(#ae)"/>
+
+    <!-- DES → Panels -->
+    <path d="M 168 1144 L 114 1290" stroke="#1e7a5e" stroke-width="1.4" marker-end="url(#ag)"/>
+    <path d="M 288 1144 L 304 1290" stroke="#1e7a5e" stroke-width="1.4" marker-end="url(#ag)"/>
+    <path d="M 564 1144 L 546 1290" stroke="#c45a2c" stroke-width="1.4" marker-end="url(#ao)"/>
+    <path d="M 704 1144 L 814 1290" stroke="#c45a2c" stroke-width="1.4" marker-end="url(#ao)"/>
+    <path d="M 1018 1144 L 1078 1290" stroke="#95989e" stroke-width="1" stroke-dasharray="5 4" marker-end="url(#ae)"/>
+
+    <!-- I²C -->
+    <path d="M 612 404 L 612 794" stroke="#7c5ea7" stroke-width="1.3" stroke-dasharray="5 3 2 3" marker-end="url(#ai)"/>
+    <path d="M 990 404 L 990 794" stroke="#7c5ea7" stroke-width="1.3" stroke-dasharray="5 3 2 3" marker-end="url(#ai)"/>
+    <path d="M 200 812 L 200 924" stroke="#7c5ea7" stroke-width="0.9" stroke-dasharray="3 4" marker-end="url(#ai)"/>
+    <path d="M 610 812 L 610 924" stroke="#7c5ea7" stroke-width="0.9" stroke-dasharray="3 4" marker-end="url(#ai)"/>
+    <path d="M 1010 812 L 1010 924" stroke="#7c5ea7" stroke-width="0.9" stroke-dasharray="3 4" marker-end="url(#ai)"/>
+
+    <!-- Annotations -->
+    <g font-family="DM Mono, JetBrains Mono, monospace" font-size="9" fill="#6b6d75">
+      <text x="334" y="192" fill="#8a7e5c">QML render</text>
+      <text x="907" y="192" fill="#4f7db3">virtio-gpu · shared memory</text>
+      <text x="628" y="450" fill="#3a5a8c">QNX display API — pixel output</text>
+      <text x="234" y="855" fill="#1e7a5e">DSI main link (4 lanes)</text>
+      <text x="640" y="855" fill="#c45a2c">DP main link (4 lanes)</text>
+      <text x="1024" y="855" fill="#95989e">eDP (idle)</text>
+      <text x="234" y="1040" fill="#3a7a8c">GMSL2 serial</text>
+      <text x="640" y="1040" fill="#3a7a8c">proprietary serial</text>
+      <text x="1024" y="1040" fill="#95989e">serial (unused)</text>
+      <text x="182" y="1188" fill="#1e7a5e">MIPI-DSI</text>
+      <text x="648" y="1188" fill="#c45a2c">eDP / LVDS</text>
+      <text x="1024" y="1188" fill="#95989e">eDP (unused)</text>
+      <text x="615" y="570" fill="#7c5ea7">mfd_server I²C</text>
+      <text x="993" y="570" fill="#7c5ea7">libbacklight I²C</text>
+    </g>
+  </svg>
+
+</div><!-- .canvas -->
+
+<div class="legend">
+  <div class="legend-item"><span class="legend-swatch solid" style="border-color:#3a5a8c"></span><span>Pixel data path (DP/DSI main link)</span></div>
+  <div class="legend-item"><span class="legend-swatch solid" style="border-color:#1e7a5e"></span><span>DSI1 — HUD + Cluster</span></div>
+  <div class="legend-item"><span class="legend-swatch solid" style="border-color:#c45a2c"></span><span>DP2 — IVI + Passenger</span></div>
+  <div class="legend-item"><span class="legend-swatch dashed" style="border-color:#95989e"></span><span>EDP0 — Ceiling (not equipped)</span></div>
+  <div class="legend-item"><span class="legend-swatch dashed" style="border-color:#3a7a8c"></span><span>SerDes serial (vehicle harness)</span></div>
+  <div class="legend-item"><span class="legend-swatch dashed" style="border-color:#7c5ea7"></span><span>I²C control / backlight</span></div>
+</div>
+
+<div class="footnote">
+  Source: qnx/mega/customization/nurburgring/display/ · H56C/disp_diag.c · mfd_server/H56/mfd_io.c · backlight/H56C/
+</div>
+
+</body>
+</html>
