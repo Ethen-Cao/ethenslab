@@ -1,12 +1,5 @@
 {{ define "main" }}
 <main class="main">
-  <!-- <header class="page-header">
-    {{ .Render "title" }}
-    {{- with .Description }}
-    <div class="page-description">{{ . }}</div>
-    {{- end }}
-  </header> -->
-
   {{ $sections := .Sections }}
   {{ if gt (len $sections) 0 }}
     {{/* 如果有子目錄，就顯示「卡片列表」 */}}

@@ -1,0 +1,876 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>WindowManager on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/</link><description>Recent content in WindowManager on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Sun, 07 Jun 2026 10:22:54 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/index.xml" rel="self" type="application/rss+xml"/><item><title>Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</link><pubDate>Sun, 07 Jun 2026 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（&lt;code&gt;WindowInfo&lt;/code&gt;：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;主要消费者&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;InputDispatcher&lt;/strong&gt; (system_server 进程)：根据窗口信息计算触摸事件的目标窗口（Hit Testing）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;PointerController&lt;/strong&gt; (system_server 进程)：处理鼠标/触控笔指针的显示与坐标映射。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;AccessibilityWindowsPopulator&lt;/strong&gt; (system_server 进程)：为无障碍服务（A11y）构建屏幕窗口节点树。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;该机制的高频跨进程特性（每 16ms 一次）使其成为 Binder 缓冲区耗尽的高发区。本文档描述了 8295/AOSP13 中该流程的原始实现、一个导致 system_server 冻屏的 bug 的完整根因分析，以及基于 backpressure 的修复方案。&lt;/p&gt;
+&lt;h2 id="2-核心架构"&gt;2. 核心架构&lt;/h2&gt;
+&lt;h3 id="21-注册链三个调用者一条-binder-通道"&gt;2.1 注册链：三个调用者，一条 Binder 通道&lt;/h3&gt;
+&lt;p&gt;所有消费者都调用 &lt;code&gt;SurfaceComposerClient::addWindowInfosListener()&lt;/code&gt;，该函数路由到本进程的 &lt;code&gt;WindowInfosListenerReporter&lt;/code&gt; 单例。Reporter 只在第一个本地 listener 注册时向 SF 建立 Binder 通道。Android 10 起 Input 栈（&lt;code&gt;libinputservice&lt;/code&gt;、&lt;code&gt;libinputdispatcher&lt;/code&gt;）编译进 system_server，因此所有三个消费者均在 system_server 进程内，共享同一个 Reporter 单例。&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt; SurfaceFlinger
+│
+│ oneway binder (唯一)
+▼
+system_server 的
+WindowInfosListenerReporter (单例)
+┌──────────────────────────────┐
+│ InputDispatcher (local cb) │
+│ PointerController (local cb) │
+│ A11yPop JNI (local cb) │
+└──────────────────────────────┘
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;从 SF 的 &lt;code&gt;WindowInfosListenerInvoker::mWindowInfosListeners&lt;/code&gt; 视角，只看到 &lt;strong&gt;1 个&lt;/strong&gt; binder 级 listener：system_server 的 Reporter。本机日志验证：全部 28996 条 &lt;code&gt;&amp;quot;Recorded window infos message ... for 1 listener(s)&amp;quot;&lt;/code&gt;。&lt;/p&gt;</description></item><item><title>Activity 跨屏幕迁移</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/activity-reparent/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/activity-reparent.png" alt="" /&gt;&lt;/p&gt;
+&lt;h2 id="分步说明与生命周期映射"&gt;分步说明（与生命周期映射）&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Launcher 发起&lt;/strong&gt;：用户点击 → Launcher 构造 &lt;code&gt;Intent&lt;/code&gt;（带 &lt;code&gt;launchDisplayId=2&lt;/code&gt;）并调用 &lt;code&gt;startActivity()&lt;/code&gt; 到 ATMS。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;ATMS 决策&lt;/strong&gt;：ATMS 在 system_server 内部查看 &lt;code&gt;ActivityRecord/TaskRecord&lt;/code&gt;，决定把某个 Task 从 Display1 移到 Display2（修改 parent：&lt;code&gt;TaskDisplayArea&lt;/code&gt;）。这一步只是服务端的数据结构变化，不会直接调用应用对象的方法。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;协调 WMS&lt;/strong&gt;：ATMS 通知 WMS 准备窗口切换（应用 transition），以便在 surface 层面上能做平滑迁移。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;暂停目标 Display 上的当前前台&lt;/strong&gt;（ActivityB）：为了保证目标 Display 上只会有一个 resumed Activity，ATMS 先对 Display2 上当前的前台 Activity（ActivityB）发 &lt;code&gt;IApplicationThread.schedulePauseActivity&lt;/code&gt;，等待应用进程回 ACK（pauseFinished）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;暂停将要被移动的 ActivityA（源 Display1）&lt;/strong&gt;：ATMS 对 ActivityA 发 &lt;code&gt;schedulePauseActivity&lt;/code&gt;，应用进程进入 &lt;code&gt;onPause()&lt;/code&gt;，并回 ACK。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;这一步非常重要：把要移动的 Activity 保持在非-resumed 状态，便于改变它的窗口所属 Display/Surface。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;WMS 做 Window/Surface reparent&lt;/strong&gt;：ATMS 请求 WMS 将对应的 &lt;code&gt;WindowContainer&lt;/code&gt;/task 窗口树从 Display1 移到 Display2；WMS 在 SurfaceControl 层（通过 SurfaceFlinger）把 layer 重新 attach 到目标 Display 的 layer stack。&lt;/p&gt;</description></item><item><title>Android InputChannel 原理与生命周期详解</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputchannel/</guid><description>&lt;h2 id="概述"&gt;概述&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;InputChannel&lt;/code&gt; 是 Android 输入系统中用于跨进程传输输入事件的核心通信机制。它连接 &lt;code&gt;InputDispatcher&lt;/code&gt;（运行在 &lt;code&gt;system_server&lt;/code&gt;）和应用窗口（运行在 App 进程），承载所有类型的输入事件，包括触摸、按键、拖拽等。&lt;/p&gt;
+&lt;h3 id="核心特性"&gt;核心特性&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;基于 Socket Pair&lt;/strong&gt;：底层通过 &lt;code&gt;socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets)&lt;/code&gt; 创建，两端共享同一个 &lt;code&gt;BBinder&lt;/code&gt; token 用于标识关联关系。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;双向通信&lt;/strong&gt;：Server 端写入事件、读取完成确认；Client 端读取事件、写回完成确认。不是单向投递，而是带有 ACK 机制的请求-响应模型。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;高性能&lt;/strong&gt;：通过 &lt;code&gt;::send()&lt;/code&gt; 系统调用直接写入 Socket 缓冲区，结合 &lt;code&gt;epoll&lt;/code&gt; 监听，绕过 Binder 调用开销，适合高频 &lt;code&gt;MotionEvent&lt;/code&gt; 场景。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;跨进程传输&lt;/strong&gt;：Client 端 &lt;code&gt;InputChannel&lt;/code&gt; 通过 Binder 的 &lt;code&gt;writeUniqueFileDescriptor&lt;/code&gt; / &lt;code&gt;readUniqueFileDescriptor&lt;/code&gt; 将文件描述符传递给应用进程。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="核心数据结构"&gt;核心数据结构&lt;/h2&gt;
+&lt;h3 id="inputchannel"&gt;InputChannel&lt;/h3&gt;
+&lt;p&gt;定义在 &lt;code&gt;frameworks/native/libs/input/InputTransport.cpp&lt;/code&gt;。&lt;/p&gt;
+&lt;p&gt;每个 &lt;code&gt;InputChannel&lt;/code&gt; 实例持有三个关键成员：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;mFd&lt;/code&gt;：底层 Socket 文件描述符&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;mToken&lt;/code&gt;：&lt;code&gt;sp&amp;lt;IBinder&amp;gt;&lt;/code&gt; 类型，Server 和 Client 两端共享同一个 token，系统通过它将窗口映射到对应的连接&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;mName&lt;/code&gt;：通道名称，用于调试，格式为 &lt;code&gt;&amp;quot;窗口名 (server)&amp;quot;&lt;/code&gt; / &lt;code&gt;&amp;quot;窗口名 (client)&amp;quot;&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;openInputChannelPair&lt;/code&gt; 创建一对通道时，会为两端的 Socket 设置 &lt;code&gt;SO_SNDBUF&lt;/code&gt; / &lt;code&gt;SO_RCVBUF&lt;/code&gt; 缓冲区大小（&lt;code&gt;SOCKET_BUFFER_SIZE&lt;/code&gt;）：&lt;/p&gt;</description></item><item><title>Android InputFlinger</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/input_flinger/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/input_flinger/</guid><description>&lt;h1 id="android-inputflinger"&gt;Android InputFlinger&lt;/h1&gt;
+&lt;h2 id="架构图"&gt;架构图&lt;/h2&gt;
+&lt;div class="mermaid"&gt;flowchart TD
+%% 样式定义
+classDef kernel fill:#d5e8d4,stroke:#333,stroke-width:1px;
+classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px;
+classDef sysnative fill:#dae8fc,stroke:#333,stroke-width:1px;
+classDef sf fill:#f8cecc,stroke:#333,stroke-width:1px;
+classDef app fill:#e1d5e7,stroke:#333,stroke-width:1px;
+subgraph KernelSpace [Kernel Space]
+Driver[Touch Driver]:::kernel
+DevNode([/dev/input/event*]):::kernel
+end
+subgraph SystemServerJava [System Server Java]
+WMS[WindowManagerService]:::sysjava
+IMS[InputManagerService]:::sysjava
+end
+subgraph SurfaceFlingerSpace [SurfaceFlinger Process]
+SF[SurfaceFlinger]:::sf
+end
+subgraph SystemServerNative [System Server Native InputFlinger]
+subgraph ReaderThread [InputReader Thread]
+EventHub[EventHub]:::sysnative
+InputReader[InputReader]:::sysnative
+Mapper[MultiTouchInputMapper
+解析 Slot/TrackingID]:::sysnative
+end
+subgraph Pipeline [Processing Chain - Listener]
+Blocker[UnwantedInteractionBlocker
+掌误触抑制]:::sysnative
+Choreo[PointerChoreographer
+光标/坐标转换]:::sysnative
+Processor[InputProcessor]:::sysnative
+Filter[InputFilter]:::sysnative
+end
+subgraph DispatcherThread [InputDispatcher Thread]
+Dispatcher[InputDispatcher]:::sysnative
+InQueue[(InboundQueue)]:::sysnative
+OutQueue[(OutboundQueue)]:::sysnative
+end
+end
+subgraph AppSpace [App Process]
+ClientChannel[InputChannel Client]:::app
+ViewRoot[ViewRootImpl]:::app
+end
+%% --- 事件流 (Event Flow) ---
+Driver --&gt; DevNode
+DevNode -- "read()" --&gt; EventHub
+EventHub -- "RawEvents" --&gt; InputReader
+InputReader &lt;--&gt;|"process() / Cooked Data"| Mapper
+InputReader -- "notifyMotion()" --&gt; Blocker
+Blocker -- "notifyMotion()" --&gt; Choreo
+Choreo -- "notifyMotion()" --&gt; Processor
+Processor -- "notifyMotion()" --&gt; Filter
+Filter -- "notifyMotion()" --&gt; Dispatcher
+Dispatcher -- "enqueue" --&gt; InQueue
+InQueue -- "dispatch" --&gt; OutQueue
+OutQueue -. "SocketPair (InputChannel)" .-&gt; ClientChannel
+ClientChannel -- "onInputEvent()" --&gt; ViewRoot
+%% --- 控制流 (Control Flow - Window &amp; Config) ---
+WMS -. "1. 同步焦点与拦截规则" .-&gt; IMS
+IMS == "2. JNI 下发配置 (DisplayViewport等)" ==&gt; InputReader
+WMS == "3. WindowHandle (SurfaceControl Transaction)" ==&gt; SF
+SF == "4. 跨进程更新可见窗口列表 (setInputWindows)" ==&gt; Dispatcher
+&lt;/div&gt;&lt;h2 id="关键逻辑的实现与作用"&gt;关键逻辑的实现与作用&lt;/h2&gt;
+&lt;p&gt;在上述架构图中，Android Input 框架通过职责分离，将复杂的输入事件处理拆解为多个核心阶段。为了确保事件准确、安全、低延迟地送达 App，系统服务（WMS、IMS、SurfaceFlinger）与 Native Input 进行了深度的协同。以下是关键逻辑的实现细节与作用：&lt;/p&gt;</description></item><item><title>Android InputMethodService 交互流程技术说明文档</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethodservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethodservice/</guid><description>&lt;p&gt;本文以当前代码树中的 &lt;code&gt;ViewRootImpl&lt;/code&gt;、&lt;code&gt;ImeFocusController&lt;/code&gt;、&lt;code&gt;InputMethodManager&lt;/code&gt;、&lt;code&gt;InputMethodManagerService&lt;/code&gt;、&lt;code&gt;InputMethodService&lt;/code&gt; 实现为准。重点说明 3 条链路：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;控制链路：App -&amp;gt; IMMS -&amp;gt; IME&lt;/li&gt;
+&lt;li&gt;文本链路：IME -&amp;gt; &lt;code&gt;IInputContext&lt;/code&gt; -&amp;gt; App &lt;code&gt;InputConnection&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;事件链路：App -&amp;gt; &lt;code&gt;InputChannel&lt;/code&gt; -&amp;gt; IME &lt;code&gt;InputMethodSession&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="1-流程详细解析"&gt;1. 流程详细解析&lt;/h3&gt;
+&lt;div class="mermaid"&gt;sequenceDiagram
+actor User
+participant WMS as WindowManagerService
+participant VRI as ViewRootImpl
+participant IFC as ImeFocusController
+participant IMM as InputMethodManager
+participant View as EditText
+participant RIC as RemoteInputConnectionImpl
+participant IMMS as InputMethodManagerService
+participant IMS as InputMethodService
+participant IC as InputConnection
+WMS-&gt;&gt;VRI: windowFocusChanged(true)
+VRI-&gt;&gt;IFC: onPostWindowFocus(...)
+IFC-&gt;&gt;IMM: startInputAsyncOnWindowFocusGain(...)
+IMM-&gt;&gt;View: onCreateInputConnection(EditorInfo)
+View--&gt;&gt;IMM: InputConnection
+IMM-&gt;&gt;RIC: wrap as IInputContext
+IMM-&gt;&gt;IMMS: startInputOrWindowGainedFocus(...)
+Note over IMMS: if client changed&lt;br&gt;unbind old client first
+IMMS--&gt;&gt;IMM: InputBindResult&lt;br&gt;IInputMethodSession + InputChannel
+IMMS-&gt;&gt;IMS: bindInput(InputBinding)
+IMMS-&gt;&gt;IMS: startInput(...) or restartInput(...)
+Note over IMS: onBindInput&lt;br&gt;onStartInput
+User-&gt;&gt;View: tap editor
+View-&gt;&gt;IMM: showSoftInput(view)
+IMM-&gt;&gt;IMMS: showSoftInput(...)
+IMMS-&gt;&gt;IMS: showSoftInput(flags)
+IMS-&gt;&gt;IMS: onShowInputRequested(...)
+alt request accepted
+IMS-&gt;&gt;IMS: showWindow(true)
+else request rejected
+IMS-&gt;&gt;IMS: keep window hidden
+end
+IMS-&gt;&gt;RIC: commitText(...)
+RIC-&gt;&gt;IC: dispatch on IC looper
+IC-&gt;&gt;View: update editor state
+&lt;/div&gt;&lt;h4 id="11-连接建立与切换"&gt;1.1 连接建立与切换&lt;/h4&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;WindowManagerService&lt;/code&gt; 把窗口焦点变化通知给 App 进程的 &lt;code&gt;ViewRootImpl&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;ViewRootImpl&lt;/code&gt; 把 IME 焦点相关逻辑交给 &lt;code&gt;ImeFocusController&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;ImeFocusController&lt;/code&gt; 先判断当前窗口是否 &lt;code&gt;mayUseInputMethod(...)&lt;/code&gt;，再通过 &lt;code&gt;onViewFocusChanged()&lt;/code&gt; 和 &lt;code&gt;checkFocus()&lt;/code&gt; 确认新的 &lt;code&gt;served view&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;InputMethodManager.startInputInner()&lt;/code&gt; 调用 &lt;code&gt;View.onCreateInputConnection(EditorInfo)&lt;/code&gt; 创建真实的 &lt;code&gt;InputConnection&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;App 并不是把 &lt;code&gt;InputConnection&lt;/code&gt; 自身直接跨进程传给 IME，而是把它包装成 &lt;code&gt;RemoteInputConnectionImpl&lt;/code&gt;，由后者实现 &lt;code&gt;IInputContext.Stub&lt;/code&gt;，再交给 &lt;code&gt;InputMethodManagerService&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;InputMethodManagerService&lt;/code&gt; 如果发现客户端切换，会先向旧客户端发送 &lt;code&gt;onUnbindMethod()&lt;/code&gt;。旧客户端收到 &lt;code&gt;MSG_UNBIND&lt;/code&gt; 后走的是 &lt;code&gt;clearBindingLocked()&lt;/code&gt; 清理绑定状态，而不是 &lt;code&gt;closeCurrentInput()&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;InputMethodManagerService&lt;/code&gt; 给新客户端返回 &lt;code&gt;InputBindResult&lt;/code&gt;。这个结果里同时包含：
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;IInputMethodSession&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;InputChannel&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;IME 侧真正进入 &lt;code&gt;InputMethodService&lt;/code&gt; 生命周期时，顺序是：
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;bindInput()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;onBindInput()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;startInput()&lt;/code&gt; 或 &lt;code&gt;restartInput()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;doStartInput()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;onStartInput()&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h4 id="12-显示控制"&gt;1.2 显示控制&lt;/h4&gt;
+&lt;ol&gt;
+&lt;li&gt;App 侧调用 &lt;code&gt;InputMethodManager.showSoftInput(view)&lt;/code&gt; 时，前提是这个 &lt;code&gt;view&lt;/code&gt; 已经是当前 &lt;code&gt;served view&lt;/code&gt;。如果不是，IMM 会直接忽略这次请求。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;InputMethodManagerService&lt;/code&gt; 收到显示请求后，会转发给当前 IME 的 &lt;code&gt;showSoftInput()&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;IME 侧并不是“收到请求就一定显示”。&lt;code&gt;InputMethodService.InputMethodImpl.showSoftInput()&lt;/code&gt; 会先执行 &lt;code&gt;dispatchOnShowInputRequested()&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;只有 &lt;code&gt;dispatchOnShowInputRequested()&lt;/code&gt; 返回 &lt;code&gt;true&lt;/code&gt;，IME 才会继续 &lt;code&gt;showWindow(true)&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;onShowInputRequested()&lt;/code&gt; 可能因为全屏模式、硬键盘策略等条件拒绝隐式显示，所以“App 发起 show 请求”和“IME 窗口已经可见”不是同一个语义。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h4 id="13-文本提交"&gt;1.3 文本提交&lt;/h4&gt;
+&lt;ol&gt;
+&lt;li&gt;用户在软键盘上输入字符后，IME 通过 &lt;code&gt;IInputContext&lt;/code&gt; 调用 App 侧的编辑接口，例如 &lt;code&gt;commitText()&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;这条文本链路在逻辑上绕过 &lt;code&gt;system_server&lt;/code&gt;，不经过 &lt;code&gt;InputMethodManagerService&lt;/code&gt; 的热路径。&lt;/li&gt;
+&lt;li&gt;App 侧真正接收 Binder 调用的是 &lt;code&gt;RemoteInputConnectionImpl&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;RemoteInputConnectionImpl&lt;/code&gt; 不会直接在 Binder 线程里修改文本，而是优先切到 &lt;code&gt;InputConnection.getHandler().getLooper()&lt;/code&gt;；如果取不到，再回退到 View 所在线程的 Looper。&lt;/li&gt;
+&lt;li&gt;真实的文本修改由 &lt;code&gt;InputConnection&lt;/code&gt; 实现完成，例如 &lt;code&gt;EditableInputConnection&lt;/code&gt; 或 &lt;code&gt;BaseInputConnection&lt;/code&gt; 的子类，随后再触发视图刷新。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="2-windowfocuschanged-的调用时机"&gt;2. &lt;code&gt;windowFocusChanged&lt;/code&gt; 的调用时机&lt;/h3&gt;
+&lt;p&gt;基于当前代码实现，App 侧至少有 3 条会影响 IME 焦点同步的路径。&lt;/p&gt;</description></item><item><title>Android窗口焦点抢占与输入法连接断开技术时序分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/android%E7%AA%97%E5%8F%A3%E7%84%A6%E7%82%B9%E6%8A%A2%E5%8D%A0%E4%B8%8E%E8%BE%93%E5%85%A5%E6%B3%95%E8%BF%9E%E6%8E%A5%E6%96%AD%E5%BC%80%E6%8A%80%E6%9C%AF%E6%97%B6%E5%BA%8F%E5%88%86%E6%9E%90/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/android%E7%AA%97%E5%8F%A3%E7%84%A6%E7%82%B9%E6%8A%A2%E5%8D%A0%E4%B8%8E%E8%BE%93%E5%85%A5%E6%B3%95%E8%BF%9E%E6%8E%A5%E6%96%AD%E5%BC%80%E6%8A%80%E6%9C%AF%E6%97%B6%E5%BA%8F%E5%88%86%E6%9E%90/</guid><description>&lt;h3 id="1-概述"&gt;1. 概述&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+autonumber
+skinparam backgroundColor white
+skinparam participantBackgroundColor white
+skinparam boxPadding 10
+skinparam noteBackgroundColor #FFFFA0
+skinparam noteBorderColor #808080
+actor &amp;#34;User&amp;#34; as User
+box &amp;#34;应用进程 A (Overlay - 当前焦点持有者)&amp;#34; #MistyRose
+participant &amp;#34;ViewRootImpl&amp;#34; as Overlay_VRI
+participant &amp;#34;ImeFocusController&amp;#34; as Overlay_Ctrl
+participant &amp;#34;InputMethodManager\n(IMM)&amp;#34; as Overlay_IMM
+end box
+box &amp;#34;系统服务 (System Server)&amp;#34; #LightBlue
+participant &amp;#34;InputDispatcher&amp;#34; as InputDispatcher
+participant &amp;#34;WindowManagerService\n(WMS)&amp;#34; as WMS
+participant &amp;#34;DisplayContent\n(DC)&amp;#34; as DC
+participant &amp;#34;InputMethodManagerService\n(IMMS)&amp;#34; as IMMS
+end box
+box &amp;#34;应用进程 B (Browser - 触摸事件接收者)&amp;#34; #Honeydew
+participant &amp;#34;ViewRootImpl&amp;#34; as Browser_VRI
+participant &amp;#34;Browser\nActivity&amp;#34; as Browser
+participant &amp;#34;InputMethodManager\n(IMM)&amp;#34; as Browser_IMM
+end box
+== 第一阶段：Overlay 窗口添加与焦点计算 ==
+Overlay_VRI -&amp;gt; WMS: &amp;lt;color:red&amp;gt;**addWindow**(TYPE_APPLICATION_OVERLAY)Flags 中**未包含** FLAG_NOT_FOCUSABLE
+activate WMS
+WMS -&amp;gt; WMS: **addWindowInner**() -&amp;gt; **updateFocusedWindowLocked**()
+group WMS 焦点更新逻辑
+WMS -&amp;gt; DC: **findFocusedWindowIfNeeded**()
+activate DC
+DC -&amp;gt; DC: 遍历窗口列表 (Z-Order Top-Down)
+DC -&amp;gt; DC: 检查 Overlay WindowState
+DC -&amp;gt; DC: **mayUseInputMethod**(flags)
+note right of DC
+**判定逻辑：**
+return (flags &amp;amp; FLAG_NOT_FOCUSABLE) == 0;
+**结果：TRUE**
+(系统判定该窗口具备处理 IME 输入的能力)
+end note
+DC --&amp;gt; WMS: 返回 **newFocus = Overlay**
+deactivate DC
+end
+WMS -&amp;gt; WMS: **mCurrentFocus = Overlay**
+par 并发通知焦点变更
+WMS -&amp;gt; Overlay_VRI: **windowFocusChanged**(hasWindowFocus=true)
+WMS -&amp;gt; Browser_VRI: **windowFocusChanged**(hasWindowFocus=false)
+end
+deactivate WMS
+== 第二阶段：Overlay 建立输入法连接 ==
+activate Overlay_VRI
+note right of Overlay_VRI
+触发条件：
+1. 收到 windowFocusChanged 回调
+2. 或执行 performTraversals 布局遍历
+end note
+Overlay_VRI -&amp;gt; Overlay_Ctrl: **onPostWindowFocus**() / **onTraversal**()
+activate Overlay_Ctrl
+Overlay_Ctrl -&amp;gt; Overlay_Ctrl: check **mayUseInputMethod**() == true
+Overlay_Ctrl -&amp;gt; Overlay_IMM: **onPostWindowGainedFocus**()
+activate Overlay_IMM
+note right of Overlay_IMM
+**IPC 请求：**
+请求建立输入连接
+end note
+Overlay_IMM -&amp;gt; IMMS: **startInputOrWindowGainedFocus**(\n reason=WINDOW_FOCUS_GAIN,\n client=Overlay,\n windowToken=OverlayToken)
+activate IMMS
+== 第三阶段：IMMS 执行客户端切换与解绑 ==
+group IMMS 服务端处理
+IMMS -&amp;gt; IMMS: **startInputOrWindowGainedFocusInternalLocked**()
+IMMS -&amp;gt; IMMS: check **mCurClient (Browser) != newClient (Overlay)**
+IMMS -&amp;gt; IMMS: **prepareClientSwitchLocked**()
+IMMS -&amp;gt; IMMS: **unbindCurrentClientLocked**(SWITCH_CLIENT)
+activate IMMS #FFBBBB
+note right of IMMS
+**状态清理：**
+1. userData.mCurClient.mClient.setActive(false)
+-&amp;gt; 通知 Browser 停止输入活动
+2. finishSessionLocked(session)
+-&amp;gt; 销毁 Browser 的 InputChannel
+3. **mCurClient = null**
+end note
+deactivate IMMS
+IMMS -&amp;gt; IMMS: **mCurClient = Overlay**
+note right of IMMS
+**当前状态：**
+IMMS 服务端记录的 Client 已变更为 Overlay
+end note
+end
+IMMS --&amp;gt; Overlay_IMM: return InputBindResult (SUCCESS)
+deactivate IMMS
+deactivate Overlay_IMM
+deactivate Overlay_Ctrl
+deactivate Overlay_VRI
+== 第四阶段：触摸事件派发 (Touch Dispatch) ==
+User -&amp;gt; InputDispatcher: 点击屏幕 (Touch Down)
+activate InputDispatcher
+note right of InputDispatcher
+**事件派发逻辑：**
+虽然 Overlay Z-Order 最高，但设置了
+FLAG_NOT_TOUCH_MODAL (或点击区域在 Overlay 范围外)
+事件向下穿透
+end note
+InputDispatcher -&amp;gt; Browser_VRI: **InputEvent (ACTION_DOWN)**
+deactivate InputDispatcher
+activate Browser_VRI
+Browser_VRI -&amp;gt; Browser: **dispatchTouchEvent**()
+Browser -&amp;gt; Browser: View.onTouchEvent() -&amp;gt; performClick()
+note right of Browser
+Browser 能够接收点击事件
+但此时 Window 焦点已丢失 (HasFocus=false)
+end note
+== 第五阶段：请求输入法失败 ==
+Browser -&amp;gt; Browser_IMM: **showSoftInput**(view)
+activate Browser_IMM
+group IMM 客户端自检
+Browser_IMM -&amp;gt; Browser_IMM: **checkFocus**()
+Browser_IMM -&amp;gt; Browser_IMM: **hasServedByInputMethodLocked**()
+note left
+**失败点 A (客户端拦截)：**
+由于之前收到 windowFocusChanged(false)
+ViewRootImpl 判定当前窗口无焦点
+mServedView 可能为 null 或不匹配
+**Result: return false** (Log: &amp;#34;Ignoring... is not served&amp;#34;)
+end note
+end
+alt 假设绕过客户端检查 (强制请求服务端)
+Browser_IMM -&amp;gt; IMMS: **showSoftInput**(client=Browser)
+activate IMMS
+IMMS -&amp;gt; IMMS: check **mCurClient (Overlay) == client (Browser)**
+note left of IMMS #FFAAAA
+**失败点 B (服务端拒绝)：**
+Validation Failed.
+请求者 Browser 与当前记录的 mCurClient (Overlay) 不一致。
+end note
+IMMS --&amp;gt;&amp;gt; Browser_IMM: return false
+deactivate IMMS
+end
+Browser_IMM --&amp;gt;&amp;gt; Browser: return false
+deactivate Browser_IMM
+deactivate Browser_VRI
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;本时序图展示了一个配置为 &lt;code&gt;TYPE_APPLICATION_OVERLAY&lt;/code&gt; 但缺失 &lt;code&gt;FLAG_NOT_FOCUSABLE&lt;/code&gt; 属性的悬浮窗口（Overlay），如何在系统层（WMS）和输入法服务层（IMMS）通过标准生命周期回调，强制剥夺底层应用（Browser）的输入法连接权（Input Connection），导致底层应用虽然能响应点击但无法弹出软键盘的异常流程。&lt;/p&gt;</description></item><item><title>InputMethodManagerService 技术文档</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/</guid><description>&lt;h2 id="架构概述与系统定位"&gt;架构概述与系统定位&lt;/h2&gt;
+&lt;p&gt;IME（Input Method Editor，输入法编辑器）是 Android 中负责文本输入的独立应用，典型例子是系统键盘。它运行在自己的进程中，通过软键盘界面接收用户输入，再将文本提交给当前获得焦点的应用。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;InputMethodManagerService&lt;/code&gt; (IMMS) 是运行在 &lt;code&gt;system_server&lt;/code&gt; 中的系统输入法中枢。它本身不负责编辑文本，也不负责绘制键盘界面；它的主要职责是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;判定当前哪个窗口、哪个客户端可以拥有输入法焦点&lt;/li&gt;
+&lt;li&gt;在 App 进程与 IME 进程之间建立输入会话&lt;/li&gt;
+&lt;li&gt;管理 IME 的绑定、切换、显示/隐藏，以及相关权限校验&lt;/li&gt;
+&lt;li&gt;与 WindowManager 协同处理输入法窗口、Insets 和可见性&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;从代码实现看，输入法系统是一个典型的三端架构：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;App 进程&lt;/strong&gt;（普通应用）负责产生 &lt;code&gt;InputConnection&lt;/code&gt;，并通过 &lt;code&gt;InputMethodManager&lt;/code&gt; 参与输入会话&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;system_server&lt;/code&gt;&lt;/strong&gt; 中的 IMMS 负责会话编排和 Binder 建链&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;IME 进程&lt;/strong&gt;（输入法应用）通过 &lt;code&gt;InputMethodService&lt;/code&gt; 提供输入 UI，并通过远程接口回调 App 执行真实文本编辑&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="组件关系"&gt;组件关系&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+scale 1024 width
+skinparam defaultFontColor black
+skinparam {
+rectangleRoundCorner 10
+defaultFontSize 12
+shadowing false
+rectangleBorderColor #666666
+arrowColor #333333
+arrowThickness 1.2
+}
+rectangle &amp;#34;应用层&amp;#34; as AppLayer {
+rectangle &amp;#34;普通应用进程 (App)&amp;#34; as APP {
+rectangle &amp;#34;EditText&amp;#34; as ET
+rectangle &amp;#34;ViewRootImpl&amp;#34; as VRI
+rectangle &amp;#34;ImeFocusController&amp;#34; as IFC
+rectangle &amp;#34;InputMethodManager (IMM)&amp;#34; as IMM
+rectangle &amp;#34;InputConnection\n(EditableInputConnection)&amp;#34; as IC
+rectangle &amp;#34;RemoteInputConnectionImpl\n(IInputContext.Stub)&amp;#34; as RIC
+rectangle &amp;#34;IInputMethodClient.Stub&amp;#34; as CLIENT
+ET -down-&amp;gt; VRI : 所属窗口
+ET -down-&amp;gt; IC : onCreateInputConnection()
+VRI -down-&amp;gt; IFC
+IFC -down-&amp;gt; IMM
+IMM -up-&amp;gt; IC
+IMM -down-&amp;gt; RIC
+IMM -down-&amp;gt; CLIENT
+}
+rectangle &amp;#34;输入法应用进程 (IME)&amp;#34; as IMEPROC {
+rectangle &amp;#34;IInputMethod.Stub&amp;#34; as IIM
+rectangle &amp;#34;IInputMethodSession.Stub&amp;#34; as SESSION
+rectangle &amp;#34;InputMethodService&amp;#34; as IMS
+rectangle &amp;#34;SoftInputWindow&amp;#34; as SIW
+IIM -up-&amp;gt; IMS
+SESSION -down-&amp;gt; IMS
+IMS -down-&amp;gt; SIW
+}
+}
+rectangle &amp;#34;system_server 层&amp;#34; as SSLayer {
+rectangle &amp;#34;InputMethodManagerService (IMMS)&amp;#34; as IMMS
+rectangle &amp;#34;WindowManagerService&amp;#34; as WMS
+IMMS -down-&amp;gt; WMS : focus / visibility / insets
+}
+&amp;#39; App → IMMS (同步 Binder)
+IMM -down-&amp;gt; IMMS : **IInputMethodManager**\nshow/hide / startInput
+&amp;#39; IMMS → App (回调)
+IMMS -up-&amp;gt; CLIENT : **IInputMethodClient**\nonBindMethod
+IMMS -up-&amp;gt; IMM : InputBindResult\n(Session + InputChannel)
+&amp;#39; IMMS → IME (oneway Binder)
+IMMS -up-&amp;gt; IIM : **IInputMethod**\nbind/start/show/hide
+&amp;#39; App ↔ IME (直连，不经过 IMMS)
+IMM -right-&amp;gt; SESSION : **IInputMethodSession**\n状态与通知同步
+IMS -left-&amp;gt; RIC : **IInputContext**\n真实文本编辑命令
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;这张图里最关键的两点是：&lt;/p&gt;</description></item><item><title>Insets animation flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/insets_animation_flow/</guid><description>&lt;p&gt;Insets 动画 API 的核心价值在于&lt;strong&gt;消除系统 UI 动画和应用 UI 动画之间的“割裂感”&lt;/strong&gt;，将两者融合成一个平滑、无缝的整体。&lt;/p&gt;
+&lt;p&gt;以下是一些典型的应用场景，从最常见到更高级的交互：&lt;/p&gt;
+&lt;h3 id="1-核心场景键盘的显示与隐藏-messaging--input"&gt;1. 核心场景：键盘的显示与隐藏 (Messaging &amp;amp; Input)&lt;/h3&gt;
+&lt;p&gt;这是最经典、最能体现其价值的场景。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;传统体验 (问题所在):&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;在一个聊天应用里，你点击底部的输入框。&lt;/li&gt;
+&lt;li&gt;键盘从底部滑出，这个动画是系统负责的。&lt;/li&gt;
+&lt;li&gt;在键盘动画的同时，应用收到一个“可用空间变小了”的通知。&lt;/li&gt;
+&lt;li&gt;应用为了防止输入框被键盘遮挡，只能&lt;strong&gt;跳变式地&lt;/strong&gt;将整个聊天列表和输入框向上移动。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;结果：&lt;/strong&gt; 用户会感觉键盘和聊天界面是两个独立的东西在动，体验很生硬。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;使用 Insets 动画 (解决方案):&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;点击输入框。&lt;/li&gt;
+&lt;li&gt;应用接管键盘的动画控制权。&lt;/li&gt;
+&lt;li&gt;在键盘从底部向上滑出的每一帧，应用都精确地计算出键盘的当前高度，并&lt;strong&gt;同步地、等速地&lt;/strong&gt;将自己的聊天列表和输入框也向上推。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;结果：&lt;/strong&gt; 在用户看来，整个过程是一个连贯的动画：&lt;strong&gt;仿佛是键盘“推”着聊天内容向上移动&lt;/strong&gt;，非常自然、流畅。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th style="text-align: left"&gt;场景&lt;/th&gt;
+&lt;th style="text-align: left"&gt;传统方式的问题&lt;/th&gt;
+&lt;th style="text-align: left"&gt;Insets 动画的效果&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td style="text-align: left"&gt;聊天应用&lt;/td&gt;
+&lt;td style="text-align: left"&gt;键盘动画与内容移动分离，内容&lt;strong&gt;跳变&lt;/strong&gt;&lt;/td&gt;
+&lt;td style="text-align: left"&gt;键盘&lt;strong&gt;平滑推起&lt;/strong&gt;内容，动画无缝衔接&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id="2-沉浸式模式的过渡-video--photo-apps"&gt;2. 沉浸式模式的过渡 (Video &amp;amp; Photo Apps)&lt;/h3&gt;
+&lt;p&gt;当应用进入或退出全屏（沉浸式）模式时，状态栏和导航栏会显示或隐藏。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;传统体验 (问题所在):&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;你在一个相册应用中全屏查看一张图片。你点击屏幕，希望退出全屏。&lt;/li&gt;
+&lt;li&gt;系统状态栏和导航栏&lt;strong&gt;突然出现&lt;/strong&gt;或&lt;strong&gt;淡入&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;应用内容区域（图片）为了适应变小的空间，&lt;strong&gt;突然缩放或移动&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;结果：&lt;/strong&gt; 动画不协调，感觉像是系统 UI 粗暴地“覆盖”在了内容上。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;使用 Insets 动画 (解决方案):&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;点击屏幕。&lt;/li&gt;
+&lt;li&gt;应用接管状态栏和导航栏的动画。&lt;/li&gt;
+&lt;li&gt;当状态栏从顶部滑入、导航栏从底部滑入的每一帧，应用都&lt;strong&gt;同步地、平滑地&lt;/strong&gt;将图片进行缩放和平移，使其正好填充在两个系统栏之间的新空间里。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;结果：&lt;/strong&gt; 整个过渡非常优雅，感觉像是&lt;strong&gt;画面和系统栏一起构成了一场精心编排的转场动画&lt;/strong&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="3-高级交互场景手势控制动画"&gt;3. 高级交互场景：手势控制动画&lt;/h3&gt;
+&lt;p&gt;这是 Insets 动画 API 强大灵活性的体现，允许开发者创造更丰富的交互。&lt;/p&gt;</description></item><item><title>SplitScreenController flow</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/splitscreen-wmshell/</guid><description>&lt;h2 id="时序图"&gt;时序图&lt;/h2&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/splitscreen_wmshell.png" alt="" /&gt;&lt;/p&gt;
+&lt;h2 id="debug"&gt;Debug&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;打印分屏区域&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;adb shell dumpsys activity service SystemUIService WMShell
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;dump SystemUI&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;Enable protolog&lt;/p&gt;
+&lt;p&gt;参考 &lt;code&gt;frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/ProtoLogController.java&lt;/code&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;help命令：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell help
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;查看protolog status：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; $ adb shell dumpsys activity service SystemUIService WMShell protolog status
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; SERVICE com.android.systemui/.SystemUIService e73cb38 pid&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;4871&lt;/span&gt; user&lt;span style="color:#f92672"&gt;=&lt;/span&gt;&lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Client:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; com.android.systemui.wmshell.WMShell:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ----------------------------------------------------------------------------
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ProtoLog status: Disabled
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Enabled log groups:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Proto: TEST_GROUP WM_DEBUG_ADD_REMOVE WM_DEBUG_ANIM WM_DEBUG_APP_TRANSITIONS WM_DEBUG_APP_TRANSITIONS_ANIM WM_DEBUG_BACK_PREVIEW WM_DEBUG_BOOT WM_DEBUG_CONFIGURATION WM_DEBUG_CONTAINERS WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DRAW WM_DEBUG_DREAM WM_DEBUG_FOCUS WM_DEBUG_FOCUS_LIGHT WM_DEBUG_IME WM_DEBUG_IMMERSIVE WM_DEBUG_KEEP_SCREEN_ON WM_DEBUG_LOCKTASK WM_DEBUG_ORIENTATION WM_DEBUG_RECENTS_ANIMATIONS WM_DEBUG_REMOTE_ANIMATIONS WM_DEBUG_RESIZE WM_DEBUG_SCREEN_ON WM_DEBUG_STARTING_WINDOW WM_DEBUG_STATES WM_DEBUG_SWITCH WM_DEBUG_SYNC_ENGINE WM_DEBUG_TASKS WM_DEBUG_WALLPAPER WM_DEBUG_WINDOW_INSETS WM_DEBUG_WINDOW_MOVEMENT WM_DEBUG_WINDOW_ORGANIZER WM_DEBUG_WINDOW_TRANSITIONS WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DESKTOP_MODE WM_SHELL_DRAG_AND_DROP WM_SHELL_FLOATING_APPS WM_SHELL_FOLDABLE WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_RECENT_TASKS WM_SHELL_SPLIT_SCREEN WM_SHELL_STARTING_WINDOW WM_SHELL_SYSUI_EVENTS WM_SHELL_TASK_ORG WM_SHELL_TRANSITIONS WM_SHOW_SURFACE_ALLOC WM_SHOW_TRANSACTIONS
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Logcat: WM_DEBUG_BACK_PREVIEW WM_DEBUG_CONTENT_RECORDING WM_DEBUG_DREAM WM_DEBUG_WINDOW_TRANSITIONS_MIN WM_ERROR WM_SHELL_BACK_PREVIEW WM_SHELL_DRAG_AND_DROP WM_SHELL_INIT WM_SHELL_PICTURE_IN_PICTURE WM_SHELL_RECENTS_TRANSITION WM_SHELL_SPLIT_SCREEN WM_SHELL_TRANSITIONS
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Logging definitions loaded: &lt;span style="color:#ae81ff"&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; Dump took 2ms
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;enable protolog：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-shell" data-lang="shell"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog enable WM_SHELL_TRANSITIONS WM_SHELL_DRAG_AND_DROP WM_SHELL_SPLIT_SCREEN
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;$ adb shell dumpsys activity service SystemUIService WMShell protolog start
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;/ol&gt;</description></item><item><title>WindowManagerService 解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</link><pubDate>Tue, 29 Jul 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowmanagerservice/</guid><description>&lt;h2 id="windowmanagerservice-概述"&gt;WindowManagerService 概述&lt;/h2&gt;
+&lt;p&gt;WindowManagerService（简称WMS）是Android系统中负责窗口（Window）管理的核心系统服务。它是屏幕上所有可见元素的“总管家”，决定了所有窗口的外观、行为和交互方式。&lt;/p&gt;
+&lt;p&gt;作为Android框架层（Framework Layer）的关键部分，WMS随系统启动，并稳定运行在权限极高的 system_server 进程中。这个位置赋予了它管理所有应用窗口和系统窗口的最高权限。&lt;/p&gt;
+&lt;p&gt;WMS的角色像一个“总指挥”，它并不亲自执行所有底层操作，而是协调系统中的多个组件来共同完成对窗口的生命周期管理。其核心作用包括：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;窗口的创建与管理 (Creation &amp;amp; Management): 与 ActivityManagerService (AMS) 协同工作。当AMS决定要显示某个Activity时，WMS负责为其创建和管理对应的窗口实例（WindowState）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;布局与计算 (Layout &amp;amp; Calculation): 通过自顶向下的遍历，精确计算出每个窗口在屏幕上的最终位置和尺寸（Frame），从而适配不同尺寸的屏幕以及分屏、小窗等各种显示模式。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;层级与Z序 (Layer &amp;amp; Z-Order): 维护所有窗口的前后堆叠顺序（Z-Order），决定哪个窗口显示在最上层，哪个窗口被遮挡，确保界面元素以正确的次序呈现。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;绘制与合成 (Drawing &amp;amp; Composition): WMS自身不负责绘制窗口内容。它管理窗口的绘图表面（Surface），并将所有窗口的元数据（位置、层级、透明度等）统一提交给 SurfaceFlinger，由后者完成最终的画面合成。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;窗口动画 (Window Animation): 负责实现窗口切换、应用启动/退出、调整大小等过程中的过渡动画，为用户提供流畅的视觉体验。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;输入事件分发 (Input Event Dispatching): 作为输入系统的关键一环，WMS接收原始的触摸、按键等事件，准确判断事件应该由哪个窗口接收，并交由 InputDispatcher 进行精确投递。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="窗口的创建与管理"&gt;窗口的创建与管理&lt;/h2&gt;
+&lt;p&gt;窗口的创建请求总是由应用进程发起的，WMS 则是请求的响应者和执行者。&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/windowstate-creation.png" alt="WindowState 创建时序示意图" /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;触发流程&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;应用层调用：当一个 Activity 的 onResume() 回调被触发，准备变得可见时，其内部的 PhoneWindow 会通过 WindowManager.addView() 方法将它的根视图（DecorView）添加到窗口中。这个调用是应用请求显示UI的起点。&lt;/li&gt;
+&lt;li&gt;ViewRootImpl 的桥梁作用：addView() 的调用会创建一个名为 ViewRootImpl 的关键对象。ViewRootImpl 充当了应用UI和WMS之间的“信使”和“桥梁”。&lt;/li&gt;
+&lt;li&gt;Binder IPC 调用：ViewRootImpl 通过一个名为 IWindowSession 的 Binder 接口，向 WMS 发起一个远程调用，通常是 addToDisplay()。这个调用会携带两个核心信息：
+&lt;ul&gt;
+&lt;li&gt;Window Token: 一个唯一的 Binder 令牌，用于将这个窗口与 AMS 中的 ActivityRecord 关联起来，WMS据此知道这个窗口属于哪个Activity。
+&lt;img src="https://ethen-cao.github.io/ethenslab/images/windowtoken-creation-transport.png" alt="WindowToken创建与使用示意图" /&gt;&lt;/li&gt;
+&lt;li&gt;WindowManager.LayoutParams: 一个包含了窗口所有期望属性的参数集，如窗口的类型（应用窗口、系统窗口）、尺寸（MATCH_PARENT等）、标志（FLAG_NOT_FOCUSABLE等）和 gravity。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;WMS 的响应动作&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>Android AccessibilityService 架构与原理深度剖析-1</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/</link><pubDate>Thu, 15 May 2025 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibility_service/</guid><description>&lt;p&gt;&lt;code&gt;AccessibilityService&lt;/code&gt;（无障碍服务）是 Android 系统中权限最高、能力最强的系统级后门之一。它原本是为视障、听障或肢体障碍用户设计的辅助功能框架（例如 TalkBack），但在实际的系统级开发（尤其是智能座舱 AAOS、自动化测试、按键精灵类 App）中，它常被用来实现全局手势监听、实体按键重映射以及“可见即可说”等高频商业功能。&lt;/p&gt;
+&lt;p&gt;本文将深入 Android Framework 底层，解析 &lt;code&gt;AccessibilityService&lt;/code&gt; 的架构拓扑，并重点推演它截获全局 &lt;code&gt;onMotionEvent&lt;/code&gt; 与 &lt;code&gt;onKeyEvent&lt;/code&gt; 的完整调用时序。&lt;/p&gt;
+&lt;h2 id="架构一览"&gt;架构一览&lt;/h2&gt;
+&lt;h3 id="系统架构"&gt;系统架构&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+!theme plain
+skinparam componentStyle rectangle
+top to bottom direction
+frame &amp;#34;Accessibility App Process (辅助服务进程)&amp;#34; {
+[AccessibilityService\n(无障碍服务基类)] as A11yService #e1d5e7
+}
+frame &amp;#34;Target App Process (目标应用进程)&amp;#34; {
+[ViewRootImpl\n(目标应用视图根节点)] as ViewRoot #d5e8d4
+[AccessibilityNodeInfo\n(无障碍节点信息 / Parcelable 节点快照)] as A11yNode #d5e8d4
+}
+frame &amp;#34;Binder IPC 接口&amp;#34; {
+interface &amp;#34;IAccessibilityServiceClient&amp;#34; as IA11yClient #fff2cc
+interface &amp;#34;IAccessibilityServiceConnection&amp;#34; as IA11yConn #fff2cc
+interface &amp;#34;IAccessibilityManager&amp;#34; as IA11yManager #fff2cc
+interface &amp;#34;IAccessibilityInteractionConnection&amp;#34; as IA11yInteract #fff2cc
+}
+frame &amp;#34;System Server (Java Framework)&amp;#34; {
+[AccessibilityManagerService\n(AMS 大管家)] as AMS #ffe6cc
+[AccessibilityServiceConnection\n(AMS 内的 Per-Service 连接)] as Conn #ffe6cc
+[UiAutomationManager\n(自动化测试代理)] as UiTest #ffe6cc
+[AccessibilityInputFilter\n(事件过滤器)] as InputFilter #ffe6cc
+[WindowManagerService\n(WMS 窗口管理)] as WMS #ffe6cc
+[InputManagerService] as InputManagerService #ffe6cc
+}
+frame &amp;#34;Native C++ 层&amp;#34; {
+[InputDispatcher(输入分发器)] as InputDispatcher #dae8fc
+[NativeInputManager\n(JNI Bridge)] as NativeInputManager #dae8fc
+[SurfaceFlinger(图层合成)] as SurfaceFlinger #dae8fc
+}
+&amp;#39; ==========================================
+&amp;#39; 关系连线 (强制 Top to Bottom 布局)
+&amp;#39; ==========================================
+&amp;#39; 1. App &amp;lt;--&amp;gt; Binder 接口
+IA11yClient -up-&amp;gt; A11yService : 持有/调用\n(onAccessibilityEvent 等)
+A11yService -down-&amp;gt; IA11yConn : 主动查询节点树 / 执行动作\n(via AccessibilityInteractionClient)
+IA11yInteract -up-&amp;gt; ViewRoot : 跨进程查询节点
+&amp;#39; 2. App 内部视图树流转
+ViewRoot .right.&amp;gt; A11yNode : 生成并返回
+A11yNode .right.&amp;gt; A11yService : 跨进程序列化传递
+&amp;#39; 3. Binder 接口 &amp;lt;--&amp;gt; System Server
+Conn -up-&amp;gt; IA11yClient : 持有/调用
+IA11yConn -down-&amp;gt; Conn
+IA11yManager -down-&amp;gt; AMS
+AMS -up-&amp;gt; IA11yInteract
+&amp;#39; 4. System Server 内部交互
+AMS -right-&amp;gt; Conn : 管理与绑定
+AMS -left-&amp;gt; UiTest : 测试注入
+InputFilter -up-&amp;gt; AMS : 传递过滤事件
+InputFilter -left-&amp;gt; InputManagerService : sendInputEvent\n(via super.sendInputEvent / IInputFilterHost)
+WMS -up-&amp;gt; AMS : 同步窗口状态/焦点\n(via WindowManagerInternal)
+AMS -down-&amp;gt; WMS : magnification / window transform
+&amp;#39; 5. System Server &amp;lt;--&amp;gt; Native
+InputDispatcher -up-&amp;gt; NativeInputManager : filterInputEvent
+NativeInputManager -up-&amp;gt; InputManagerService : filterInputEvent (JNI)
+InputManagerService -up-&amp;gt; InputFilter : filterInputEvent\nInputFilter内部异步处理Touch事件
+InputManagerService --&amp;gt; NativeInputManager : injectInputEvent\n(via mNative/InputFilterHost)
+NativeInputManager --&amp;gt; InputDispatcher : injectInputEvent
+WMS -down-&amp;gt; SurfaceFlinger : SurfaceControl\n图层变换
+@enduml
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="系统流程图"&gt;系统流程图&lt;/h3&gt;
+&lt;div class="mermaid"&gt;flowchart TD
+%% 样式定义
+classDef native fill:#dae8fc,stroke:#333,stroke-width:1px;
+classDef sysjava fill:#ffe6cc,stroke:#333,stroke-width:1px;
+classDef app fill:#e1d5e7,stroke:#333,stroke-width:1px;
+classDef binder fill:#d5e8d4,stroke:#333,stroke-width:1px;
+subgraph NativeSpace [Native 层 System Server]
+Dispatcher[InputDispatcher]:::native
+NativeIMS[NativeInputManager&lt;br&gt;JNI Bridge]:::native
+end
+subgraph SysJavaSpace [System Server Java 层]
+IMS[InputManagerService]:::sysjava
+AMS[AccessibilityManagerService]:::sysjava
+A11yFilter[AccessibilityInputFilter\n事件加工责任链]:::sysjava
+A11yConn[AccessibilityServiceConnection]:::sysjava
+end
+subgraph AppSpace [Accessibility App 进程]
+A11yService[AccessibilityService]:::app
+Wrapper[AccessibilityServiceClientWrapper\nIAccessibilityServiceClient.Stub]:::app
+end
+%% 连接关系
+Dispatcher -- "1. 拦截底层物理事件\nfilterInputEvent" --&gt; NativeIMS
+NativeIMS -- "JNI 回调 Java 层" --&gt; IMS
+IMS -- "2. 交给无障碍流水线处理" --&gt; A11yFilter
+A11yFilter -- "3. 提取特征并广播" --&gt; AMS
+AMS --&gt; A11yConn
+A11yConn -- "4. Binder IPC" --&gt; Wrapper
+Wrapper -- "5. Handler 切主线程" --&gt; A11yService
+&lt;/div&gt;&lt;hr&gt;
+&lt;h2 id="关键时序全局按键与触摸事件的监听闭环"&gt;关键时序：全局按键与触摸事件的监听闭环&lt;/h2&gt;
+&lt;p&gt;许多车机应用会在继承 &lt;code&gt;AccessibilityService&lt;/code&gt; 的类中重写 &lt;code&gt;onKeyEvent&lt;/code&gt;，或是通过配置 &lt;code&gt;FLAG_REQUEST_TOUCH_EXPLORATION_MODE&lt;/code&gt; 来重写 &lt;code&gt;onMotionEvent&lt;/code&gt;（或 &lt;code&gt;onGesture&lt;/code&gt;）。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/01-wmshell-architecture-and-positioning/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/01-wmshell-architecture-and-positioning/</guid><description>&lt;h1 id="wmshell-宏观定位与设计初衷"&gt;WMShell 宏观定位与设计初衷&lt;/h1&gt;
+&lt;p&gt;本文档基于当前 AOSP/QSSI 源码树，说明 WMShell 的职责边界、跨进程通信方式，以及它在车载产品形态中的落点与扩展方向。&lt;/p&gt;
+&lt;h2 id="android-窗口架构演进为什么需要-wmshell"&gt;Android 窗口架构演进：为什么需要 WMShell&lt;/h2&gt;
+&lt;p&gt;在 WMShell 成形之前，大量多窗口策略、交互控制和动画逻辑都更紧密地堆在 &lt;code&gt;system_server&lt;/code&gt; 一侧。随着分屏、画中画、recent tasks、desktop mode 等复杂场景增加，这种做法很容易带来三个问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;稳定性风险更高&lt;/strong&gt;：交互状态机和动画逻辑一旦在 &lt;code&gt;system_server&lt;/code&gt; 侧出错，影响面会直接扩大到系统核心进程。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;定制与升级成本更高&lt;/strong&gt;：OEM 若要改分屏或转场，往往要侵入 &lt;code&gt;frameworks/base/services/core/&lt;/code&gt; 一侧，版本升级冲突会很重。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;交互演进受限&lt;/strong&gt;：布局计算、手势反馈、动画编排如果都绑在核心服务里，功能迭代会更慢，调试成本也更高。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;WMShell 的核心思想是“机制与策略分离”&lt;/strong&gt;。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;system_server&lt;/code&gt; 保留窗口容器树、生命周期推进、安全边界、输入与 surface placement 等机制&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;SystemUI&lt;/code&gt; 进程中的 WMShell 承接多窗口策略、交互控制、具体功能模块的动画和对外能力导出&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这种分层把“谁负责状态一致性”和“谁负责交互与动画”区分开来：前者留在 &lt;code&gt;system_server&lt;/code&gt;，后者主要由 WMShell 承接。&lt;/p&gt;
+&lt;h2 id="进程边界划分system_server-vs-systemui"&gt;进程边界划分：system_server vs SystemUI&lt;/h2&gt;
+&lt;p&gt;WMShell 的跨进程结构可以从三个层面来理解：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;进程归属&lt;/strong&gt;：WMShell 运行在 &lt;code&gt;SystemUI&lt;/code&gt; 进程&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;服务端入口&lt;/strong&gt;：organizer / transition 的 Binder 服务端挂在 &lt;code&gt;system_server&lt;/code&gt; 的 &lt;code&gt;ActivityTaskManagerService&lt;/code&gt; 一侧&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;核心状态维护&lt;/strong&gt;：&lt;code&gt;WindowManagerService&lt;/code&gt;、&lt;code&gt;RootWindowContainer&lt;/code&gt;、&lt;code&gt;InputMonitor&lt;/code&gt; 仍掌握全局窗口状态、焦点、输入窗口和 surface placement&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="图-1进程归属与组件分层"&gt;图 1：进程归属与组件分层&lt;/h3&gt;
+&lt;div class="mermaid"&gt;flowchart LR
+subgraph SysUI["SystemUI 进程"]
+Init["SystemUIInitializer / CarSystemUIInitializer"]
+WMComp["WMComponent / CarWMComponent"]
+WMShell["WMShell CoreStartable"]
+STO["ShellTaskOrganizer"]
+Trans["Transitions"]
+SplitCtl["SplitScreenController"]
+Stage["StageCoordinator"]
+PipOrg["PipTaskOrganizer"]
+end
+subgraph SS["system_server 进程"]
+ATMS["ActivityTaskManagerService"]
+WOC["WindowOrganizerController"]
+TOC["TaskOrganizerController"]
+TC["TransitionController"]
+WMS["WindowManagerService"]
+RWC["RootWindowContainer"]
+IM["InputMonitor"]
+end
+Init --&gt; WMComp
+WMComp --&gt; WMShell
+WMComp --&gt; STO
+WMComp --&gt; Trans
+WMComp --&gt; SplitCtl
+WMComp --&gt; PipOrg
+SplitCtl --&gt; Stage
+ATMS --&gt; WOC
+WOC --&gt; TOC
+WOC --&gt; TC
+WMS --&gt; RWC
+WMS --&gt; IM
+STO -. "TaskOrganizer / ITaskOrganizer" .-&gt; TOC
+Trans -. "WindowOrganizer / ITransitionPlayer" .-&gt; WOC
+WOC --&gt; WMS
+TC --&gt; WMS
+&lt;/div&gt;&lt;p&gt;图 1 展示组件所在的进程和主要从属关系：&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibilityservice/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/accessibilityservice/</guid><description>&lt;h2 id="简介"&gt;简介&lt;/h2&gt;
+&lt;h2 id="架构"&gt;架构&lt;/h2&gt;
+&lt;p&gt;Android 无障碍系统的整体架构采用了典型的 &lt;strong&gt;Hub-and-Spoke (星型/中介)&lt;/strong&gt; 拓扑结构。在这个架构中，无论是目标应用还是无障碍服务，都不会进行点对点的直接通信，所有的跨进程交互（IPC）必须经过 SystemServer 进程中的系统服务进行安全校验和路由转发。&lt;/p&gt;
+&lt;p&gt;整个架构可以清晰地划分为三个核心域（Block）：&lt;strong&gt;target应用&lt;/strong&gt;、&lt;strong&gt;SystemServer&lt;/strong&gt; 和 &lt;strong&gt;AccessibilityService&lt;/strong&gt;。&lt;/p&gt;
+&lt;h3 id="核心组件关系图"&gt;核心组件关系图&lt;/h3&gt;
+&lt;div class="mermaid"&gt;graph TD
+%% 定义样式
+classDef app fill:#e1f5fe,stroke:#4fc3f7,stroke-width:2px,color:#01579b;
+classDef system fill:#fff3e0,stroke:#ffb74d,stroke-width:2px,color:#e65100;
+classDef service fill:#e8f5e9,stroke:#81c784,stroke-width:2px,color:#1b5e20;
+subgraph TargetApp ["1. target应用 (Client Process)"]
+direction TB
+ViewTree["View Tree / UI层次结构"]
+VRI["ViewRootImpl&lt;br&gt;(窗口根视图)"]
+AIC_App["AccessibilityInteractionConnection&lt;br&gt;(响应系统转发的节点查询)"]
+ViewTree --- VRI
+VRI --&gt;|挂载时注册| AIC_App
+end
+subgraph SystemServer ["2. SystemServer (System Process)"]
+direction TB
+ID["InputDispatcher&lt;br&gt;(Native: 拦截底层输入事件)"]
+AIF["AccessibilityInputFilter&lt;br&gt;(拦截事件与手势识别)"]
+AMS["AccessibilityManagerService&lt;br&gt;(中枢路由与权限校验)"]
+AWM["AccessibilityWindowManager&lt;br&gt;(Window与全系统连接管理)"]
+ID --&gt;|"InputEvent"| AIF
+AIF --&gt;|"上报特征事件/手势"| AMS
+AMS --- AWM
+end
+subgraph AccService ["3. AccessibilityService (Service Process)"]
+direction TB
+AS_Dev["开发者自定义的&lt;br&gt;AccessibilityService"]
+AIC_Client["AccessibilityInteractionClient&lt;br&gt;(缓存池与主动查询代理)"]
+ASC_Wrapper["IAccessibilityServiceClientWrapper&lt;br&gt;(接收系统下行推送)"]
+AIC_Client &lt;-- "调用 API" --&gt; AS_Dev
+ASC_Wrapper --&gt;|"回调 onAccessibilityEvent 等"| AS_Dev
+end
+%% 跨进程通信 IPC 连线
+AIC_App &lt;==&gt;|"IPC (注册与返回结果)"| AWM
+AMS ==&gt;|"IPC: 下行通道 (推送事件/手势)"| ASC_Wrapper
+AIC_Client ==&gt;|"IPC: 上行通道 (主动拉取节点/执行Action)"| AMS
+%% 应用样式
+class TargetApp app;
+class SystemServer system;
+class AccService service;
+&lt;/div&gt;&lt;h3 id="架构域功能解析"&gt;架构域功能解析&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;target应用 (被操作的目标 App)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell-%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90-wiki/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell-%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90-wiki/</guid><description>&lt;h1 id="wmshell-架构与源码解析-wiki"&gt;WMShell 架构与源码解析 Wiki&lt;/h1&gt;
+&lt;p&gt;本文档库旨在深入剖析 Android WMShell 的系统架构、核心机制与关键业务源码。内容编排由浅入深，涵盖基础架构、跨进程渲染同步机制以及车载环境下的定制化扩展。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="目录结构"&gt;目录结构&lt;/h2&gt;
+&lt;h3 id="1-wmshell-宏观定位与设计初衷"&gt;&lt;a href="01-wmshell-architecture-and-positioning.md"&gt;1. WMShell 宏观定位与设计初衷&lt;/a&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Android 窗口架构演进&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;为什么需要引入 WMShell 架构&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;进程边界划分&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;system_server&lt;/code&gt; (WM Core)：维护全局容器树、Z 轴层级、状态机与安全策略&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;SystemUI&lt;/code&gt; (WMShell)：承接用户交互、视觉呈现与复杂动画逻辑&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;WMShell 在车载 OS 中的位置&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;标准 Phone UI 与 CarSystemUI 在 WMShell 接入与初始化上的差异&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="2-wmshell-典型业务场景"&gt;&lt;a href="02-wmshell-typical-scenarios.md"&gt;2. WMShell 典型业务场景&lt;/a&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;分屏模式 (Split Screen)&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;画中画 (Picture-in-Picture / PiP)&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;自由窗口与桌面模式 (Freeform / Desktop Mode)&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;气泡与多任务概览 (Bubbles &amp;amp; Recents)&lt;/strong&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;系统级窗口动画 (Back Animation, Starting Window)&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="3-wmshell-核心技术原理"&gt;&lt;a href="03-wmshell-core-mechanisms.md"&gt;3. WMShell 核心技术原理&lt;/a&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;任务管理基础设施&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;TaskOrganizer&lt;/code&gt;：Task 状态变更的事件总线与系统接管机制&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WindowOrganizer&lt;/code&gt; 与 &lt;code&gt;WindowContainerTransaction&lt;/code&gt; (WCT)：跨进程窗口事务的构建与提交&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;跨进程动画与渲染同步底座（核心难点）&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;Transitions&lt;/code&gt; 框架：动画播放权的移交链路与责任链分发&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;BLAST Sync 机制&lt;/strong&gt;：SurfaceFlinger 如何保障 WMShell 动画与 App 绘制帧的级联同步（必读）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;输入与事件处理&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;基于 &lt;code&gt;InputMonitor&lt;/code&gt; 的全局手势拦截&lt;/li&gt;
+&lt;li&gt;焦点转移与 IME (输入法) 的跨容器层级协同&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="4-wmshell-内部架构与生命周期"&gt;&lt;a href="04-wmshell-initialization-process.md"&gt;4. WMShell 内部架构与生命周期&lt;/a&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;初始化链路&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;Dagger 与 &lt;code&gt;WMComponent&lt;/code&gt; 子图：内部依赖注入、作用域隔离与实例管理&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;ShellInit&lt;/code&gt;：各业务控制器的按序启动与回调注册&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内外通信模型&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;对内协作：&lt;code&gt;ShellController&lt;/code&gt; 处理系统配置、Keyguard 状态、用户切换事件&lt;/li&gt;
+&lt;li&gt;对外暴露：通过 Binder 接口（如 &lt;code&gt;ISplitScreen&lt;/code&gt;）向 Launcher 等外部进程导出控制能力&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="5-深度案例剖析以-splitscreen-为例"&gt;&lt;a href="05-wmshell-splitscreen-case-study.md"&gt;5. 深度案例剖析：以 SplitScreen 为例&lt;/a&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;核心类图与职责域&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;门面模式 &lt;code&gt;SplitScreenController&lt;/code&gt; 与总协调者 &lt;code&gt;StageCoordinator&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;容器构建&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;Root Task 与 Stage Task (Main/Side) 的创建及挂载时序&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;状态机运转（三阶段解析）&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;进入分屏：WCT 构造、&lt;code&gt;EnterTransition&lt;/code&gt; 拦截与动画播放&lt;/li&gt;
+&lt;li&gt;动态交互：拖动 Divider 时的纯 &lt;code&gt;SurfaceControl&lt;/code&gt; 形变处理（不经 WM Core）&lt;/li&gt;
+&lt;li&gt;定稿与退出：Snap 吸附算法计算与 Dismiss 逻辑的事务提交&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id="6-系统调试与座舱客制化实践"&gt;&lt;a href="06-wmshell-debug-and-customization.md"&gt;6. 系统调试与座舱客制化实践&lt;/a&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;排查工具集&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;dumpsys activity service SystemUIService WMShell&lt;/code&gt; 状态树分析&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;protolog&lt;/code&gt; 在 WMShell 中的使用规范与动态开关&lt;/li&gt;
+&lt;li&gt;使用 &lt;code&gt;Winscope&lt;/code&gt; 抓取并分析 WMShell 动画异常（Transaction Trace）&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;座舱扩展场景探讨（架构级）&lt;/strong&gt;
+&lt;ul&gt;
+&lt;li&gt;多屏互动：WMShell 如何应对副驾/后排的 &lt;code&gt;DisplayArea&lt;/code&gt; 跨屏 Task 拖拽与接力&lt;/li&gt;
+&lt;li&gt;多用户并发：MUMD (Multi-User Multi-Display) 架构下，WMShell 的实例隔离与事件路由策略&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;</description></item></channel></rss>
