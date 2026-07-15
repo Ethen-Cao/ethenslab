@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualcomm PVM KGSL/RGS 架构</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;background:#0d1117;color:#c9d1d9;line-height:1.55}
+  .page{max-width:1260px;margin:0 auto;padding:24px 20px 34px}
+  .title{font-size:1.18rem;font-weight:800;color:#58a6ff;margin-bottom:4px}
+  .sub{font-size:.84rem;color:#8b949e;margin-bottom:15px}
+  code{font-family:'Cascadia Code','SFMono-Regular',Consolas,monospace}
+
+  .legend{display:flex;flex-wrap:wrap;gap:12px 20px;margin-bottom:16px;padding:11px 14px;background:#161b22;border:1px solid #30363d;border-radius:10px}
+  .leg{display:flex;align-items:center;gap:7px;font-size:.76rem;color:#b8c0ca}
+  .sw{width:28px;height:4px;border-radius:4px;flex:none}
+  .dash{height:0;border-top:2px dashed #58a6ff;background:transparent}
+
+  .wrap{overflow-x:auto;background:#090d12;border:1px solid #30363d;border-radius:14px;padding:8px}
+  .canvas{position:relative;width:1180px;height:1260px;margin:0 auto}
+
+  .zone{position:absolute;border:1.5px solid #30363d;border-radius:15px;background:rgba(22,27,34,.62);z-index:1}
+  .zone .zh{position:absolute;top:11px;left:15px;font-size:13px;font-weight:800;letter-spacing:.03em}
+  .zone .en{position:absolute;top:30px;left:15px;font-size:9px;color:#6e7681;letter-spacing:.13em;text-transform:uppercase}
+  .guest-zone{border-color:#275d9b;background:linear-gradient(180deg,rgba(31,111,235,.10),rgba(15,28,45,.30))}
+  .guest-zone .zh{color:#79c0ff}
+  .hyp-zone{border-color:#7656a8;background:linear-gradient(180deg,rgba(163,113,247,.09),rgba(28,20,42,.28))}
+  .hyp-zone .zh{color:#d2a8ff}
+  .pvm-zone{border-color:#2f7d4b;background:linear-gradient(180deg,rgba(46,160,67,.07),rgba(14,34,22,.22))}
+  .pvm-zone .zh{color:#56d364}
+  .hw-zone{border-color:#9e6a1f;background:linear-gradient(180deg,rgba(210,153,34,.08),rgba(40,27,10,.28))}
+  .hw-zone .zh{color:#e3b341}
+
+  .lane{position:absolute;z-index:2;border:1px dashed #30363d;border-radius:11px;background:rgba(13,17,23,.38)}
+  .lane-label{position:absolute;left:12px;top:7px;color:#6e7681;font-size:10px;font-weight:700;letter-spacing:.08em}
+
+  .node{position:absolute;z-index:5;border:1.5px solid #3b4552;border-radius:11px;background:linear-gradient(180deg,#1d2530,#141a22);box-shadow:0 5px 15px rgba(0,0,0,.38);padding:10px 12px;display:flex;flex-direction:column;justify-content:center;text-align:center}
+  .node .t{font-size:13px;font-weight:750;color:#e6edf3;line-height:1.25}
+  .node .s{font-size:10.5px;color:#8b949e;line-height:1.38;margin-top:5px}
+  .node .mono{font-family:'Cascadia Code','SFMono-Regular',Consolas,monospace;color:#b6c2cf}
+  .node .tag{display:inline-block;width:fit-content;margin:6px auto 0;padding:1px 7px;border-radius:12px;font-size:9px;font-weight:800;letter-spacing:.03em}
+
+  .guest{border-color:#1f6feb;background:linear-gradient(180deg,#152844,#111b29)}
+  .guest .tag{background:rgba(88,166,255,.15);color:#79c0ff}
+  .hab{border-color:#8957c7;background:linear-gradient(180deg,#251b36,#171220)}
+  .hab .tag{background:rgba(210,168,255,.14);color:#d2a8ff}
+  .control{border-color:#388bfd;background:linear-gradient(180deg,#17283b,#111a25)}
+  .backend{border-color:#3fb950;background:linear-gradient(180deg,#15291d,#101a15)}
+  .backend .tag{background:rgba(63,185,80,.14);color:#56d364}
+  .rgs{border:2px solid #56d364;background:linear-gradient(180deg,#173522,#101d15);box-shadow:0 0 0 1px rgba(86,211,100,.18),0 0 28px rgba(63,185,80,.15)}
+  .rgs .t{font-size:15px;color:#7ee787}
+  .rgs .tag{background:rgba(63,185,80,.17);color:#7ee787}
+  .io{border-color:#8b949e;background:linear-gradient(180deg,#232a33,#171b21)}
+  .fault{border-color:#d29922;background:linear-gradient(180deg,#30220f,#1d160d)}
+  .fault .tag{background:rgba(210,153,34,.16);color:#e3b341}
+  .hardware{border-color:#d29922;background:linear-gradient(180deg,#30230f,#1b160d)}
+
+  .flabel{font:600 11px 'Segoe UI','PingFang SC',sans-serif;paint-order:stroke;stroke:#090d12;stroke-width:4px;stroke-linejoin:round}
+  .small{font-size:9px;color:#6e7681}
+  .foot{margin-top:12px;color:#6e7681;font-size:.72rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="title">Qualcomm PVM KGSL/RGS：虚拟化图形、Hang 检测与 BPMD 落盘</div>
+  <div class="sub">分层关系：Android Guest → Gunyah virtio-HAB → Linux PVM RGS → GMU / Adreno GPU</div>
+
+  <div class="legend">
+    <div class="leg"><span class="sw dash"></span>vhost-user 控制面：vring / 内存表 / eventfd 建链</div>
+    <div class="leg"><span class="sw" style="background:#3fb950"></span>GSL/HAB 数据面：RPC、共享队列、IB 提交</div>
+    <div class="leg"><span class="sw" style="background:#d29922"></span>Fault 数据面：HFI error、snapshot、BPMD、QLF</div>
+  </div>
+
+  <div class="wrap">
+  <div class="canvas">
+    <!-- top-level zones -->
+    <div class="zone guest-zone" style="left:10px;top:55px;width:280px;height:680px">
+      <div class="zh">Android Guest（GVM）</div><div class="en">graphics client / hab frontend</div>
+    </div>
+    <div class="zone hyp-zone" style="left:305px;top:55px;width:175px;height:680px">
+      <div class="zh">Gunyah</div><div class="en">hypervisor transport</div>
+    </div>
+    <div class="zone pvm-zone" style="left:495px;top:55px;width:675px;height:980px">
+      <div class="zh">Linux PVM（Host / Primary VM）</div><div class="en">vhost control + hab backend + rgs</div>
+    </div>
+    <div class="zone hw-zone" style="left:495px;top:1050px;width:675px;height:190px">
+      <div class="zh">SoC Hardware / Firmware</div><div class="en">gmu firmware + adreno gpu</div>
+    </div>
+
+    <!-- lanes inside PVM -->
+    <div class="lane" style="left:510px;top:98px;width:645px;height:116px"><div class="lane-label">VHOST-USER CONTROL PLANE</div></div>
+    <div class="lane" style="left:515px;top:235px;width:465px;height:540px"><div class="lane-label">HAB / GSL BACKEND DATA PLANE</div></div>
+    <div class="lane" style="left:515px;top:790px;width:465px;height:225px"><div class="lane-label">RGS PHYSICAL GPU CONTROL</div></div>
+    <div class="lane" style="left:995px;top:235px;width:160px;height:780px"><div class="lane-label">POSTMORTEM</div></div>
+
+    <!-- SVG wires -->
+    <svg width="1180" height="1260" viewBox="0 0 1180 1260" xmlns="http://www.w3.org/2000/svg"
+         style="position:absolute;left:0;top:0;z-index:3;pointer-events:none">
+      <defs>
+        <marker id="a-blue" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#58a6ff"/></marker>
+        <marker id="a-green" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#3fb950"/></marker>
+        <marker id="a-orange" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#d29922"/></marker>
+        <marker id="a-purple" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#a371f7"/></marker>
+      </defs>
+
+      <!-- Guest application to HAB -->
+      <path d="M150 218 L150 282" fill="none" stroke="#3fb950" stroke-width="3" marker-end="url(#a-green)"/>
+      <path d="M150 382 L150 484" fill="none" stroke="#3fb950" stroke-width="3" marker-end="url(#a-green)"/>
+      <text class="flabel" fill="#56d364" x="161" y="440">GSL RPC / export memory</text>
+
+      <!-- Cross-VM HAB -->
+      <path d="M260 557 L300 557 L300 376 L325 376" fill="none" stroke="#a371f7" stroke-width="3" marker-end="url(#a-purple)"/>
+      <path d="M460 376 L555 376 L555 333 L705 333" fill="none" stroke="#a371f7" stroke-width="3" marker-end="url(#a-purple)"/>
+      <text class="flabel" fill="#d2a8ff" x="300" y="590">MM_GFX · vring / shared memory / virq</text>
+
+      <!-- vhost-user control chain -->
+      <path d="M650 158 L676 158" fill="none" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a-blue)"/>
+      <path d="M830 158 L850 158" fill="none" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a-blue)"/>
+      <path d="M1000 158 L1020 158" fill="none" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a-blue)"/>
+      <path d="M1085 198 L1085 245 L935 245 L935 288" fill="none" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a-blue)"/>
+      <text class="flabel" fill="#79c0ff" x="825" y="232">VHOST_SET_MEM_TABLE / VRING / KICK / CALL</text>
+
+      <!-- Host HAB to user-space backend -->
+      <path d="M810 378 L810 408" fill="none" stroke="#3fb950" stroke-width="3" marker-end="url(#a-green)"/>
+      <path d="M810 508 L810 558" fill="none" stroke="#3fb950" stroke-width="3" marker-end="url(#a-green)"/>
+      <path d="M810 653 L810 692" fill="none" stroke="#3fb950" stroke-width="3" marker-end="url(#a-green)"/>
+      <path d="M810 764 L810 805" fill="none" stroke="#3fb950" stroke-width="3" marker-end="url(#a-green)"/>
+      <text class="flabel" fill="#56d364" x="823" y="538">habmm_recv → gsl_* RPC</text>
+      <text class="flabel" fill="#56d364" x="823" y="682">libkiumd / local IPCQ</text>
+
+      <!-- RGS to VFIO and hardware -->
+      <path d="M790 925 L790 948" fill="none" stroke="#3fb950" stroke-width="3" marker-end="url(#a-green)"/>
+      <path d="M735 1010 L735 1060 L685 1060 L685 1092" fill="none" stroke="#3fb950" stroke-width="3" marker-end="url(#a-green)"/>
+      <path d="M845 1010 L845 1060 L958 1060 L958 1092" fill="none" stroke="#3fb950" stroke-width="3" marker-end="url(#a-green)"/>
+      <text class="flabel" fill="#56d364" x="520" y="1040">VFIO MMIO / SMMU / IRQ</text>
+
+      <!-- GMU fault back to RGS -->
+      <path d="M755 1092 L755 1030 L985 1030 L985 875 L965 875" fill="none" stroke="#d29922" stroke-width="3" marker-end="url(#a-orange)"/>
+      <text class="flabel" fill="#e3b341" x="765" y="1025">F2H HFI context-bad: 602 / 603 / 609</text>
+
+      <!-- Snapshot / dump chain -->
+      <path d="M965 850 L985 850 L985 685 L1005 685" fill="none" stroke="#d29922" stroke-width="3" marker-end="url(#a-orange)"/>
+      <path d="M1075 730 L1075 772" fill="none" stroke="#d29922" stroke-width="3" marker-end="url(#a-orange)"/>
+      <path d="M1075 842 L1075 892" fill="none" stroke="#d29922" stroke-width="3" marker-end="url(#a-orange)"/>
+      <path d="M950 460 L980 460 L980 650 L1005 650" fill="none" stroke="#d29922" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#a-orange)"/>
+      <text class="flabel" fill="#e3b341" x="966" y="554">gsl_gvm_state_dump()</text>
+      <text class="flabel" fill="#e3b341" x="984" y="875">QLF postmortem</text>
+    </svg>
+
+    <!-- Guest nodes -->
+    <div class="node guest" style="left:45px;top:125px;width:210px;height:93px">
+      <div class="t">App / SurfaceFlinger / GPU Client</div>
+      <div class="s">OpenGL ES / Vulkan UMD<br>生成 IB、shader 与同步对象</div>
+      <span class="tag">GVM workload</span>
+    </div>
+    <div class="node guest" style="left:45px;top:282px;width:210px;height:100px">
+      <div class="t">Guest libgsl / HGSL client</div>
+      <div class="s mono">context · memory · issueib<br>timestamp · syncobj</div>
+      <span class="tag">GSL frontend</span>
+    </div>
+    <div class="node hab" style="left:40px;top:484px;width:220px;height:146px">
+      <div class="t">Guest msm_hab.ko</div>
+      <div class="s mono">habmm_socket_send/recv<br>habmm_export/import<br>virtqueue_kick</div>
+      <span class="tag">HAB frontend · MM_GFX</span>
+    </div>
+
+    <!-- Hypervisor node -->
+    <div class="node hab" style="left:325px;top:260px;width:135px;height:230px">
+      <div class="t">virtio-HAB</div>
+      <div class="s mono">device-id = 94<br><br>shared memory<br>vring<br>doorbell / virq<br><br>VM boundary</div>
+      <span class="tag">Gunyah</span>
+    </div>
+
+    <!-- PVM control nodes -->
+    <div class="node control" style="left:525px;top:123px;width:125px;height:70px">
+      <div class="t">qcrosvm</div><div class="s">vhost-user frontend</div>
+    </div>
+    <div class="node control" style="left:676px;top:123px;width:154px;height:70px">
+      <div class="t mono">linux-vm2-ogles-skt</div><div class="s">AF_UNIX control socket</div>
+    </div>
+    <div class="node control" style="left:850px;top:123px;width:150px;height:70px">
+      <div class="t">vhost-user-qti</div><div class="s">vhost-user backend bridge</div>
+    </div>
+    <div class="node control" style="left:1020px;top:123px;width:130px;height:75px">
+      <div class="t mono">/dev/vhost-ogles</div><div class="s">2 queues</div>
+    </div>
+
+    <!-- Host data path -->
+    <div class="node hab" style="left:705px;top:288px;width:230px;height:90px">
+      <div class="t">Host msm_hab.ko / hab_vhost</div>
+      <div class="s">MM_GFX backend · tx/rx vring worker<br>kick/call eventfd</div>
+      <span class="tag">HAB backend</span>
+    </div>
+    <div class="node backend" style="left:670px;top:408px;width:280px;height:100px">
+      <div class="t">gsl_hab_server</div>
+      <div class="s mono">libuhab.so + libgsl.so<br>per-client listener / RPC worker</div>
+      <span class="tag">GVM GSL RPC backend</span>
+    </div>
+    <div class="node backend" style="left:690px;top:558px;width:240px;height:95px">
+      <div class="t">PVM libgsl.so</div>
+      <div class="s mono">ioctl_kgsl_* adapter<br>DBCQ / IPCQ registration</div>
+      <span class="tag">RGS client adapter</span>
+    </div>
+    <div class="node io" style="left:690px;top:692px;width:240px;height:72px">
+      <div class="t">libkiumd.so / local IPC</div>
+      <div class="s mono">/tmp/kgsl-unix-domain-socket</div>
+    </div>
+
+    <!-- RGS -->
+    <div class="node rgs" style="left:610px;top:805px;width:355px;height:120px">
+      <div class="t">/usr/bin/kgsl + libGSLKernel.so</div>
+      <div class="s">RGS：device/context/memory · HFI dispatch<br>hang detection · snapshot · recovery/reset</div>
+      <span class="tag">PVM physical GPU owner</span>
+    </div>
+    <div class="node io" style="left:610px;top:948px;width:355px;height:62px">
+      <div class="t">VFIO / SMMU / IRQ / compute-resmgr</div>
+      <div class="s">GPU/GMU MMIO 映射、页表、功耗与中断</div>
+    </div>
+
+    <!-- Postmortem -->
+    <div class="node fault" style="left:1005px;top:620px;width:140px;height:110px">
+      <div class="t">rgs_snapshot_capture</div>
+      <div class="s">GPU + GMU + RGS<br>合并 GVM state</div>
+      <span class="tag">capture</span>
+    </div>
+    <div class="node fault" style="left:1005px;top:772px;width:140px;height:70px">
+      <div class="t mono">/tmp/gpuN_<br>statedump*.bpmd</div>
+      <div class="s">rgs_snapshot_flush</div>
+    </div>
+    <div class="node fault" style="left:1005px;top:892px;width:140px;height:105px">
+      <div class="t">QLF gpuN_fault</div>
+      <div class="s mono">/var/log/qlf_dumps/<br>qlf_gpuN/</div>
+      <span class="tag">archive</span>
+    </div>
+
+    <!-- Hardware -->
+    <div class="node hardware" style="left:550px;top:1092px;width:265px;height:105px">
+      <div class="t">GMU Firmware</div>
+      <div class="s">HFI scheduler · preemption<br>Long IB bail-out timer · context-bad</div>
+      <span class="tag" style="background:rgba(210,153,34,.16);color:#e3b341">fault producer</span>
+    </div>
+    <div class="node hardware" style="left:850px;top:1092px;width:265px;height:105px">
+      <div class="t">Adreno GPU / CP / GPC</div>
+      <div class="s">执行 IB · RBBM/GPC/CP fault<br>timestamp retire</div>
+      <span class="tag" style="background:rgba(210,153,34,.16);color:#e3b341">physical engine</span>
+    </div>
+  </div>
+  </div>
+
+  <div class="foot">关键边界：vhost-user-qti 负责建链；gsl_hab_server 解释 GSL RPC；libGSLKernel.so 中的 RGS 才是物理 GPU 管理与 BPMD 写入者。</div>
+</div>
+</body>
+</html>
