@@ -1,6 +1,6 @@
 +++
 date = '2026-07-15T10:00:00+08:00'
-draft = false
+draft = true
 title = 'Qualcomm PVM KGSL/RGS 架构、GPU Hang 检测与 BPMD 落盘'
 tags = ["Qualcomm", "Adreno", "KGSL", "RGS", "GPU", "Gunyah", "HAB", "Debug"]
 +++
@@ -25,8 +25,6 @@ tags = ["Qualcomm", "Adreno", "KGSL", "RGS", "GPU", "Gunyah", "HAB", "Debug"]
 7. 第一次 fault 到 BPMD 创建约 2.036s、到 snapshot 完成约 2.054s；第二次分别约 2.338s 和 2.357s。这些是 fault 上报后的 dump/recovery 时间，不是 hang 判定阈值。
 
 ## 2. 证据基线
-
-下表源码路径相对于 `/home/voyah/workspace/8397/`，复现数据路径相对于 `/data/allapp_blocked/reproduced_log_and_trace/`。
 
 | 组件或数据 | 路径 | 用途 |
 |---|---|---|
