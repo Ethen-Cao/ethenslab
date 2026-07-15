@@ -52,30 +52,7 @@ tags = ["Qualcomm", "Adreno", "KGSL", "RGS", "GPU", "Gunyah", "HAB", "Debug"]
         style="width:100%;height:1380px;border:1px solid #30363d;border-radius:12px"
         loading="lazy" title="Qualcomm PVM KGSL/RGS architecture"></iframe>
 
-### 3.1 从 Android 图形栈看 GSL
-
-下图复用 [Android 图形渲染架构详解](./graphics.md#2-整体架构图) 中的总览图，用来补足应用、RenderThread、OpenGL ES/Vulkan、Qualcomm UMD 与 Guest GSL/HGSL 之间的关系。
-
-![](../../static/images/gunyah-graphics.png)
-
-这张图中的 GSL 原理可以概括为：
-
-1. `libhwui`/Skia 经 OpenGL ES 或 Vulkan loader 调用 Qualcomm UMD；UMD 负责 shader 编译、状态组织，并把绘制或计算命令编码为 Adreno IB。
-2. Guest `libgsl.so` 是 UMD 下方的统一设备抽象和内核 ABI 封装层。GL 与 Vulkan 最终都通过它完成 device/context、GPU 内存、IB 提交、timestamp 和同步操作；它本身不执行 shader，也不直接调度 GPU。
-3. `libgsl.so` 把操作转换为 `/dev/hgsl` ioctl。Guest `graphics-hgsl` 内核驱动依据操作类型和 context 能力选择传输路径：控制、资源管理及回退提交经 `hgsl_hyp -> HAB -> PVM RGS`；稳态 `ISSUE_IB` 优先写入 per-context DBCQ，并通过 doorbell 通知 GMU。
-4. PVM RGS 是物理 GPU 的资源与调度服务端，负责 context/memory 映射、HFI、hang detection 和 recovery；GMU/CP/GPU 执行完成后，通过 timestamp retire、IRQ 和 dma-fence 把完成状态返回 Guest。
-
-因此，GSL 不是一个单独的“渲染器”，而是一组贯穿 UMD、Guest HGSL 和 PVM RGS 的 Qualcomm 图形服务接口。需要特别区分三个对象：
-
-| 名称 | 所在位置 | 主要职责 |
-|---|---|---|
-| Guest `libgsl.so` | Android 用户态 | 向 UMD 提供统一 GSL API，封装 `/dev/hgsl` ioctl |
-| Guest HGSL（`/dev/hgsl`） | Android Guest 内核 | 管理 Guest context/memory/timestamp，选择 HAB 控制路径或 DBCQ 提交快路径 |
-| PVM `/usr/bin/kgsl` + `libGSLKernel.so`（RGS） | Linux PVM 用户态 | 管理物理 GPU、GMU/HFI、hang 检测、snapshot 和恢复 |
-
-总览图把高频通道抽象成“Shared Memory + Doorbell”。对本文所分析的 SA8797 构建，更精确的说法是：IB 正文位于 GPU 可寻址内存，Guest HGSL 把包含 context、timestamp、IB GPU 地址和长度的 HFI `ISSUE_CMD` 写入 DBCQ，再更新 write index 并 ring doorbell。它不是把每帧 IB payload 都作为 HAB RPC 发送，也不是把像素数据跨 VM 拷贝到 PVM。
-
-### 3.2 Android Guest 前端
+### 3.1 Android Guest 前端
 
 Android 应用并不直接调用 Guest HAB：
 
@@ -91,7 +68,7 @@ Android App / SurfaceFlinger / HWUI
 
 现场 Android 日志加载的是 `/vendor/lib64/hw/vulkan.adreno.so`。该 UMD 依赖 `libgsl.so`，Guest `libgsl` 再通过 `/dev/hgsl` ioctl 创建 context、管理内存、提交 IB 和等待 timestamp。因此架构必须包含 `/dev/hgsl`，不能把用户态 UMD 直接画到 HAB 上。
 
-### 3.3 HAB 控制与回退路径
+### 3.2 HAB 控制与回退路径
 
 设备打开、context 创建、内存 export/import、DBCQ query/register，以及 DBCQ 不可用时的 `issueib` 回退会走 HGSL/HAB：
 
@@ -116,7 +93,7 @@ ExecStart=/usr/bin/vhost-user-qti \
   -q 2
 ```
 
-### 3.4 DBCQ 提交快路径
+### 3.3 DBCQ 提交快路径
 
 Guest context 注册 DBCQ 后，`hgsl_ioctl_issueib()` 优先调用 `hgsl_db_issueib()`；只有快路径不可用时才调用 `hgsl_hyp_issueib()`。正常快路径是：
 
@@ -142,7 +119,7 @@ Guest UMD / libgsl
 
 因此，不能把所有 GVM 渲染提交写成线性的 `HAB -> gsl_hab_server -> RGS -> GMU`。这条线只适用于控制/资源操作和回退提交。
 
-### 3.5 DBCQ 与 IPCQ
+### 3.4 DBCQ 与 IPCQ
 
 | 通道 | 两端 | 已证实用途 |
 |---|---|---|
@@ -152,7 +129,7 @@ Guest UMD / libgsl
 
 这些通道的端点、生命周期和协议不同，不能写成“DBCQ/IPCQ 是同一个跨 VM 提交队列”。现场 `kgsl-1571.log` 也只在 snapshot 阶段出现 `rgs_hyp_ipcq_send_msg`。
 
-### 3.6 GMU、CP/SQE 与执行单元的职责
+### 3.5 GMU、CP/SQE 与执行单元的职责
 
 - GMU firmware 接收 HFI，负责调度、优先级、preemption、context queue、功耗及 fault 上报。
 - CP/SQE 从 GPU 地址取 IB，解析命令流并把绘制/计算工作派发给图形和 shader 执行单元。
