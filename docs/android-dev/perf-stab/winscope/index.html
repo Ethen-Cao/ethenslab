@@ -1,0 +1,333 @@
+<!doctype html><html lang=en dir=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android Winscope：工作原理、编译、运行与部署 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='Winscope 是 Android 平台用于分析窗口、SurfaceFlinger Layer、窗口动画、输入法和系统界面状态的可视化工具。它尤其适合排查闪屏、黑屏、花屏、窗口层级错误、启动动画异常、画中画和多窗口切换异常等问题。
+Winscope 不是单一的 trace recorder。更准确地说，它由以下几部分组成：
+
+运行在浏览器中的 Winscope Web 前端。
+运行在开发机上的 Winscope Proxy。
+Android 设备上的 WindowManager、SurfaceFlinger、WM Shell、screenrecord 等数据生产者。
+运行于浏览器中的 Perfetto Trace Processor WASM。
+
+本文介绍 Winscope 的工作原理、主要用途，以及如何从 AOSP 源码编译、运行和部署一套可离线分发的 Winscope。
+1. Winscope 能解决什么问题
+普通 logcat 更擅长回答“某个时间点打印了什么日志”，但窗口和显示问题往往需要回答一组空间与时序问题：
+
+哪个 Window 或 Layer 在异常帧突然出现？
+Layer 的位置、大小、裁剪区域、透明度和 Z-order 是否发生变化？
+App 是否已经提交新 Buffer？
+SurfaceFlinger 选择了 Client Composition 还是 Device Composition？
+黑色区域来自 Android Layer，还是出现在 HWC/显示驱动之后？
+WindowManager、SurfaceFlinger 和录屏中的异常是否发生在同一时刻？
+
+Winscope 把 WindowManager、SurfaceFlinger、Transition、录屏等数据放到统一的时间线上，并提供层级树、属性面板和二维/三维可视化，从而把“屏幕闪了一下”转换为可以逐帧验证的系统状态变化。
+典型适用场景包括：
+
+	
+			
+					场景
+					重点数据
+			
+	
+	
+			
+					局部黑块、闪屏、花屏
+					Screen recording、SF Layers、SF Transactions、HWC
+			
+			
+					窗口突然消失或覆盖错误
+					WindowManager、SF Layers、Transitions
+			
+			
+					Activity 启动/退出动画异常
+					WindowManager、WM Shell Transitions、SF Transactions
+			
+			
+					多显示屏或虚拟显示异常
+					Screen recording、SF Virtual displays、Display 信息
+			
+			
+					输入法窗口位置或可见性异常
+					WindowManager、IME traces、SF Layers
+			
+			
+					物理屏异常但 Android 录屏正常
+					外部摄像机、HWC、显示驱动和供应商显示日志
+			
+	
+
+2. 总体架构
+@startuml
+!theme plain
+skinparam defaultFontName Arial
+
+actor Engineer as User
+
+box "开发机" #E8F5E9
+  participant "Browser\nWinscope Web" as Web
+  participant "Trace Processor\nWASM" as TP
+  participant "Winscope Proxy\nlocalhost:5544" as Proxy
+  participant "adb" as ADB
+end box
+
+box "Android Device" #E3F2FD
+  participant "WindowManager\nsystem_server" as WM
+  participant "WM Shell\nSystemUI" as Shell
+  participant "SurfaceFlinger" as SF
+  participant "screenrecord" as SR
+end box
+
+User -> Web: 选择 trace 类型并点击 Start trace
+Web -> Proxy: HTTP 请求 + Winscope token
+Proxy -> ADB: 执行设备发现和抓取命令
+ADB -> WM: 启动 WM trace
+ADB -> Shell: 启动 Transition trace
+ADB -> SF: 启动 Layers/Transactions trace
+ADB -> SR: 启动指定 Display 的录屏
+
+User -> Web: 点击 End trace
+Web -> Proxy: 请求停止并取回文件
+Proxy -> ADB: 停止、flush、pull
+ADB --> Proxy: trace / dump / MP4
+Proxy --> Web: 返回采集结果
+Web -> TP: 在浏览器中解析 Perfetto trace
+TP --> Web: 结构化表和时间戳
+Web --> User: 时间线、层级树、属性和画面
+@enduml
+2.1 Web 前端
+Winscope 前端是 Angular/TypeScript 应用，主要负责：'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.df934c1cb4ec21a5f35ff16b2259d414f4815136394fc1886c9ca075d881989e.css integrity="sha256-35NMHLTsIaXzX/FrIlnUFPSBUTY5T8GIbJygddiBmJ4=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Android Winscope：工作原理、编译、运行与部署"><meta property="og:description" content='Winscope 是 Android 平台用于分析窗口、SurfaceFlinger Layer、窗口动画、输入法和系统界面状态的可视化工具。它尤其适合排查闪屏、黑屏、花屏、窗口层级错误、启动动画异常、画中画和多窗口切换异常等问题。
+Winscope 不是单一的 trace recorder。更准确地说，它由以下几部分组成：
+运行在浏览器中的 Winscope Web 前端。 运行在开发机上的 Winscope Proxy。 Android 设备上的 WindowManager、SurfaceFlinger、WM Shell、screenrecord 等数据生产者。 运行于浏览器中的 Perfetto Trace Processor WASM。 本文介绍 Winscope 的工作原理、主要用途，以及如何从 AOSP 源码编译、运行和部署一套可离线分发的 Winscope。
+1. Winscope 能解决什么问题 普通 logcat 更擅长回答“某个时间点打印了什么日志”，但窗口和显示问题往往需要回答一组空间与时序问题：
+哪个 Window 或 Layer 在异常帧突然出现？ Layer 的位置、大小、裁剪区域、透明度和 Z-order 是否发生变化？ App 是否已经提交新 Buffer？ SurfaceFlinger 选择了 Client Composition 还是 Device Composition？ 黑色区域来自 Android Layer，还是出现在 HWC/显示驱动之后？ WindowManager、SurfaceFlinger 和录屏中的异常是否发生在同一时刻？ Winscope 把 WindowManager、SurfaceFlinger、Transition、录屏等数据放到统一的时间线上，并提供层级树、属性面板和二维/三维可视化，从而把“屏幕闪了一下”转换为可以逐帧验证的系统状态变化。
+典型适用场景包括：
+场景 重点数据 局部黑块、闪屏、花屏 Screen recording、SF Layers、SF Transactions、HWC 窗口突然消失或覆盖错误 WindowManager、SF Layers、Transitions Activity 启动/退出动画异常 WindowManager、WM Shell Transitions、SF Transactions 多显示屏或虚拟显示异常 Screen recording、SF Virtual displays、Display 信息 输入法窗口位置或可见性异常 WindowManager、IME traces、SF Layers 物理屏异常但 Android 录屏正常 外部摄像机、HWC、显示驱动和供应商显示日志 2. 总体架构 @startuml !theme plain skinparam defaultFontName Arial actor Engineer as User box "开发机" #E8F5E9 participant "Browser\nWinscope Web" as Web participant "Trace Processor\nWASM" as TP participant "Winscope Proxy\nlocalhost:5544" as Proxy participant "adb" as ADB end box box "Android Device" #E3F2FD participant "WindowManager\nsystem_server" as WM participant "WM Shell\nSystemUI" as Shell participant "SurfaceFlinger" as SF participant "screenrecord" as SR end box User -> Web: 选择 trace 类型并点击 Start trace Web -> Proxy: HTTP 请求 + Winscope token Proxy -> ADB: 执行设备发现和抓取命令 ADB -> WM: 启动 WM trace ADB -> Shell: 启动 Transition trace ADB -> SF: 启动 Layers/Transactions trace ADB -> SR: 启动指定 Display 的录屏 User -> Web: 点击 End trace Web -> Proxy: 请求停止并取回文件 Proxy -> ADB: 停止、flush、pull ADB --> Proxy: trace / dump / MP4 Proxy --> Web: 返回采集结果 Web -> TP: 在浏览器中解析 Perfetto trace TP --> Web: 结构化表和时间戳 Web --> User: 时间线、层级树、属性和画面 @enduml 2.1 Web 前端 Winscope 前端是 Angular/TypeScript 应用，主要负责：'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2026-07-13T09:00:00+08:00"><meta property="article:modified_time" content="2026-07-13T09:00:00+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android Winscope：工作原理、编译、运行与部署"><meta name=twitter:description content='Winscope 是 Android 平台用于分析窗口、SurfaceFlinger Layer、窗口动画、输入法和系统界面状态的可视化工具。它尤其适合排查闪屏、黑屏、花屏、窗口层级错误、启动动画异常、画中画和多窗口切换异常等问题。
+Winscope 不是单一的 trace recorder。更准确地说，它由以下几部分组成：
+
+运行在浏览器中的 Winscope Web 前端。
+运行在开发机上的 Winscope Proxy。
+Android 设备上的 WindowManager、SurfaceFlinger、WM Shell、screenrecord 等数据生产者。
+运行于浏览器中的 Perfetto Trace Processor WASM。
+
+本文介绍 Winscope 的工作原理、主要用途，以及如何从 AOSP 源码编译、运行和部署一套可离线分发的 Winscope。
+1. Winscope 能解决什么问题
+普通 logcat 更擅长回答“某个时间点打印了什么日志”，但窗口和显示问题往往需要回答一组空间与时序问题：
+
+哪个 Window 或 Layer 在异常帧突然出现？
+Layer 的位置、大小、裁剪区域、透明度和 Z-order 是否发生变化？
+App 是否已经提交新 Buffer？
+SurfaceFlinger 选择了 Client Composition 还是 Device Composition？
+黑色区域来自 Android Layer，还是出现在 HWC/显示驱动之后？
+WindowManager、SurfaceFlinger 和录屏中的异常是否发生在同一时刻？
+
+Winscope 把 WindowManager、SurfaceFlinger、Transition、录屏等数据放到统一的时间线上，并提供层级树、属性面板和二维/三维可视化，从而把“屏幕闪了一下”转换为可以逐帧验证的系统状态变化。
+典型适用场景包括：
+
+	
+			
+					场景
+					重点数据
+			
+	
+	
+			
+					局部黑块、闪屏、花屏
+					Screen recording、SF Layers、SF Transactions、HWC
+			
+			
+					窗口突然消失或覆盖错误
+					WindowManager、SF Layers、Transitions
+			
+			
+					Activity 启动/退出动画异常
+					WindowManager、WM Shell Transitions、SF Transactions
+			
+			
+					多显示屏或虚拟显示异常
+					Screen recording、SF Virtual displays、Display 信息
+			
+			
+					输入法窗口位置或可见性异常
+					WindowManager、IME traces、SF Layers
+			
+			
+					物理屏异常但 Android 录屏正常
+					外部摄像机、HWC、显示驱动和供应商显示日志
+			
+	
+
+2. 总体架构
+@startuml
+!theme plain
+skinparam defaultFontName Arial
+
+actor Engineer as User
+
+box "开发机" #E8F5E9
+  participant "Browser\nWinscope Web" as Web
+  participant "Trace Processor\nWASM" as TP
+  participant "Winscope Proxy\nlocalhost:5544" as Proxy
+  participant "adb" as ADB
+end box
+
+box "Android Device" #E3F2FD
+  participant "WindowManager\nsystem_server" as WM
+  participant "WM Shell\nSystemUI" as Shell
+  participant "SurfaceFlinger" as SF
+  participant "screenrecord" as SR
+end box
+
+User -> Web: 选择 trace 类型并点击 Start trace
+Web -> Proxy: HTTP 请求 + Winscope token
+Proxy -> ADB: 执行设备发现和抓取命令
+ADB -> WM: 启动 WM trace
+ADB -> Shell: 启动 Transition trace
+ADB -> SF: 启动 Layers/Transactions trace
+ADB -> SR: 启动指定 Display 的录屏
+
+User -> Web: 点击 End trace
+Web -> Proxy: 请求停止并取回文件
+Proxy -> ADB: 停止、flush、pull
+ADB --> Proxy: trace / dump / MP4
+Proxy --> Web: 返回采集结果
+Web -> TP: 在浏览器中解析 Perfetto trace
+TP --> Web: 结构化表和时间戳
+Web --> User: 时间线、层级树、属性和画面
+@enduml
+2.1 Web 前端
+Winscope 前端是 Angular/TypeScript 应用，主要负责：'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Android 性能与稳定专项","item":"https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/"},{"@type":"ListItem","position":3,"name":"Android Winscope：工作原理、编译、运行与部署","item":"https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android Winscope：工作原理、编译、运行与部署","name":"Android Winscope：工作原理、编译、运行与部署","description":"Winscope 是 Android 平台用于分析窗口、SurfaceFlinger Layer、窗口动画、输入法和系统界面状态的可视化工具。它尤其适合排查闪屏、黑屏、花屏、窗口层级错误、启动动画异常、画中画和多窗口切换异常等问题。\nWinscope 不是单一的 trace recorder。更准确地说，它由以下几部分组成：\n运行在浏览器中的 Winscope Web 前端。 运行在开发机上的 Winscope Proxy。 Android 设备上的 WindowManager、SurfaceFlinger、WM Shell、screenrecord 等数据生产者。 运行于浏览器中的 Perfetto Trace Processor WASM。 本文介绍 Winscope 的工作原理、主要用途，以及如何从 AOSP 源码编译、运行和部署一套可离线分发的 Winscope。\n1. Winscope 能解决什么问题 普通 logcat 更擅长回答“某个时间点打印了什么日志”，但窗口和显示问题往往需要回答一组空间与时序问题：\n哪个 Window 或 Layer 在异常帧突然出现？ Layer 的位置、大小、裁剪区域、透明度和 Z-order 是否发生变化？ App 是否已经提交新 Buffer？ SurfaceFlinger 选择了 Client Composition 还是 Device Composition？ 黑色区域来自 Android Layer，还是出现在 HWC/显示驱动之后？ WindowManager、SurfaceFlinger 和录屏中的异常是否发生在同一时刻？ Winscope 把 WindowManager、SurfaceFlinger、Transition、录屏等数据放到统一的时间线上，并提供层级树、属性面板和二维/三维可视化，从而把“屏幕闪了一下”转换为可以逐帧验证的系统状态变化。\n典型适用场景包括：\n场景 重点数据 局部黑块、闪屏、花屏 Screen recording、SF Layers、SF Transactions、HWC 窗口突然消失或覆盖错误 WindowManager、SF Layers、Transitions Activity 启动/退出动画异常 WindowManager、WM Shell Transitions、SF Transactions 多显示屏或虚拟显示异常 Screen recording、SF Virtual displays、Display 信息 输入法窗口位置或可见性异常 WindowManager、IME traces、SF Layers 物理屏异常但 Android 录屏正常 外部摄像机、HWC、显示驱动和供应商显示日志 2. 总体架构 @startuml !theme plain skinparam defaultFontName Arial actor Engineer as User box \u0026#34;开发机\u0026#34; #E8F5E9 participant \u0026#34;Browser\\nWinscope Web\u0026#34; as Web participant \u0026#34;Trace Processor\\nWASM\u0026#34; as TP participant \u0026#34;Winscope Proxy\\nlocalhost:5544\u0026#34; as Proxy participant \u0026#34;adb\u0026#34; as ADB end box box \u0026#34;Android Device\u0026#34; #E3F2FD participant \u0026#34;WindowManager\\nsystem_server\u0026#34; as WM participant \u0026#34;WM Shell\\nSystemUI\u0026#34; as Shell participant \u0026#34;SurfaceFlinger\u0026#34; as SF participant \u0026#34;screenrecord\u0026#34; as SR end box User -\u0026gt; Web: 选择 trace 类型并点击 Start trace Web -\u0026gt; Proxy: HTTP 请求 + Winscope token Proxy -\u0026gt; ADB: 执行设备发现和抓取命令 ADB -\u0026gt; WM: 启动 WM trace ADB -\u0026gt; Shell: 启动 Transition trace ADB -\u0026gt; SF: 启动 Layers/Transactions trace ADB -\u0026gt; SR: 启动指定 Display 的录屏 User -\u0026gt; Web: 点击 End trace Web -\u0026gt; Proxy: 请求停止并取回文件 Proxy -\u0026gt; ADB: 停止、flush、pull ADB --\u0026gt; Proxy: trace / dump / MP4 Proxy --\u0026gt; Web: 返回采集结果 Web -\u0026gt; TP: 在浏览器中解析 Perfetto trace TP --\u0026gt; Web: 结构化表和时间戳 Web --\u0026gt; User: 时间线、层级树、属性和画面 @enduml 2.1 Web 前端 Winscope 前端是 Angular/TypeScript 应用，主要负责：\n","keywords":[],"articleBody":"Winscope 是 Android 平台用于分析窗口、SurfaceFlinger Layer、窗口动画、输入法和系统界面状态的可视化工具。它尤其适合排查闪屏、黑屏、花屏、窗口层级错误、启动动画异常、画中画和多窗口切换异常等问题。\nWinscope 不是单一的 trace recorder。更准确地说，它由以下几部分组成：\n运行在浏览器中的 Winscope Web 前端。 运行在开发机上的 Winscope Proxy。 Android 设备上的 WindowManager、SurfaceFlinger、WM Shell、screenrecord 等数据生产者。 运行于浏览器中的 Perfetto Trace Processor WASM。 本文介绍 Winscope 的工作原理、主要用途，以及如何从 AOSP 源码编译、运行和部署一套可离线分发的 Winscope。\n1. Winscope 能解决什么问题 普通 logcat 更擅长回答“某个时间点打印了什么日志”，但窗口和显示问题往往需要回答一组空间与时序问题：\n哪个 Window 或 Layer 在异常帧突然出现？ Layer 的位置、大小、裁剪区域、透明度和 Z-order 是否发生变化？ App 是否已经提交新 Buffer？ SurfaceFlinger 选择了 Client Composition 还是 Device Composition？ 黑色区域来自 Android Layer，还是出现在 HWC/显示驱动之后？ WindowManager、SurfaceFlinger 和录屏中的异常是否发生在同一时刻？ Winscope 把 WindowManager、SurfaceFlinger、Transition、录屏等数据放到统一的时间线上，并提供层级树、属性面板和二维/三维可视化，从而把“屏幕闪了一下”转换为可以逐帧验证的系统状态变化。\n典型适用场景包括：\n场景 重点数据 局部黑块、闪屏、花屏 Screen recording、SF Layers、SF Transactions、HWC 窗口突然消失或覆盖错误 WindowManager、SF Layers、Transitions Activity 启动/退出动画异常 WindowManager、WM Shell Transitions、SF Transactions 多显示屏或虚拟显示异常 Screen recording、SF Virtual displays、Display 信息 输入法窗口位置或可见性异常 WindowManager、IME traces、SF Layers 物理屏异常但 Android 录屏正常 外部摄像机、HWC、显示驱动和供应商显示日志 2. 总体架构 @startuml !theme plain skinparam defaultFontName Arial actor Engineer as User box \"开发机\" #E8F5E9 participant \"Browser\\nWinscope Web\" as Web participant \"Trace Processor\\nWASM\" as TP participant \"Winscope Proxy\\nlocalhost:5544\" as Proxy participant \"adb\" as ADB end box box \"Android Device\" #E3F2FD participant \"WindowManager\\nsystem_server\" as WM participant \"WM Shell\\nSystemUI\" as Shell participant \"SurfaceFlinger\" as SF participant \"screenrecord\" as SR end box User -\u003e Web: 选择 trace 类型并点击 Start trace Web -\u003e Proxy: HTTP 请求 + Winscope token Proxy -\u003e ADB: 执行设备发现和抓取命令 ADB -\u003e WM: 启动 WM trace ADB -\u003e Shell: 启动 Transition trace ADB -\u003e SF: 启动 Layers/Transactions trace ADB -\u003e SR: 启动指定 Display 的录屏 User -\u003e Web: 点击 End trace Web -\u003e Proxy: 请求停止并取回文件 Proxy -\u003e ADB: 停止、flush、pull ADB --\u003e Proxy: trace / dump / MP4 Proxy --\u003e Web: 返回采集结果 Web -\u003e TP: 在浏览器中解析 Perfetto trace TP --\u003e Web: 结构化表和时间戳 Web --\u003e User: 时间线、层级树、属性和画面 @enduml 2.1 Web 前端 Winscope 前端是 Angular/TypeScript 应用，主要负责：\n选择设备和采集项目； 启停 trace； 导入本地 trace、dump 和录屏； 显示时间线、窗口树和 Layer 树； 展示某一帧的 Window/Layer 属性； 将多个数据源按时间戳关联起来。 生产构建是纯静态文件，可以由 Python HTTP Server、Nginx、Apache 等普通 Web Server 提供服务。\n2.2 Winscope Proxy 浏览器不能直接执行开发机上的 adb，因此 Winscope 使用本地 Python Proxy 作为桥梁。当前源码中的默认地址是：\nhttp://localhost:5544 Proxy 的职责包括：\n通过 adb devices 枚举设备； 在选定设备上执行 Winscope 抓取命令； 启停 WindowManager、SurfaceFlinger 和录屏； 从设备取回采集结果； 通过 HTTP 将数据返回给浏览器。 Proxy 启动时会生成安全 token，并保存到：\n~/.config/winscope/.token 浏览器连接 Proxy 时需要携带该 token。前端和 Proxy 还会校验版本，因此必须成套分发，不能把新版前端与旧版 winscope_proxy.py 混用。\n2.3 Android 设备上的数据生产者 Android 新版本逐步把 Winscope 数据接入 Perfetto。常见 datasource 包括：\nandroid.windowmanager com.android.wm.shell.transition android.surfaceflinger.layers android.surfaceflinger.transactions 部分设备或旧版本仍使用 legacy Winscope trace。设备是否支持某个 Perfetto datasource，应以实际查询结果为准：\nadb shell perfetto --query | grep -E 'android.windowmanager|com.android.wm.shell.transition|android.surfaceflinger' Perfetto 配置中写入一个 datasource 名称，并不代表设备一定注册了相应 producer。比如 Android 16 的 WindowManager Perfetto tracing 还可能受平台 feature flag 控制；未注册时配置可以启动，但不会产生 WM 数据。\n2.4 Trace Processor WASM 生产目录中的文件：\nengine_bundle.js trace_processor.wasm trace_processor_memory64.wasm 用于在浏览器中解析 Perfetto trace。解析主要在本机浏览器内完成，不需要单独部署 Perfetto 服务。WASM、前端 parser 和 proto 定义之间存在版本配套关系，因此分析新平台 trace 时应优先使用同版本或更新版本的 Winscope。\n3. Winscope 录屏与 Layer trace 的区别 Winscope 可以同时录制一个或多个 Display，这是官方采集流程的一部分，但需要区分“录屏”和“Layer trace”：\nScreen recording 记录所选 Display 的最终画面； WindowManager trace 记录窗口层级、可见性、焦点、Bounds、配置和动画状态； SurfaceFlinger Layers trace 记录 Layer 层级、位置、裁剪、透明度、Z-order、Buffer 元数据和合成信息； SurfaceFlinger Transactions trace 记录 Layer 属性和 Buffer transaction 的变化过程； TRACE_FLAG_BUFFERS 记录 Buffer 变化及元数据，不保存每个 Layer 的真实像素内容。 因此，Winscope 能在录屏中看到异常画面，并在相同时间附近检查每个 Layer 的状态，但不能从 WindowManager/SF trace 中单独还原每个 Layer 的图像 Buffer。\n对于显示问题，可以使用如下判断方法：\n现象 初步判断 Winscope 录屏和外部摄像机都看到黑块 问题大概率发生在 Android 合成链路或更上游 SF Layer 中存在覆盖区域的异常黑色/Color Layer 重点检查 Layer 创建者、Z-order、alpha 和 transaction 外部摄像机看到异常，但 Screen recording 正常 重点检查 HWC、PVM、Display driver、链路和物理屏 Screen recording 有异常，但 WM/SF 层级没有结构变化 重点检查 App Buffer 内容、视频解码或 Buffer 生产者 Android 2024 年 9 月之后、adb screenrecord 1.4 及以上版本支持在 Winscope 中选择多个 Display；旧版本通常只能录制单个 Display。\n4. SurfaceFlinger 抓取选项 Winscope 页面中的 SurfaceFlinger 选项与 Perfetto trace flags 基本对应：\nWinscope 选项 Perfetto flag 作用 Input TRACE_FLAG_INPUT 记录 Layer 关联的输入窗口信息 Composition TRACE_FLAG_COMPOSITION 记录合成类型、可见区域等合成状态 Metadata TRACE_FLAG_EXTRA 记录额外 metadata 和 offscreen layers HWC TRACE_FLAG_HWC 记录额外的 Hardware Composer 文本信息 Trace buffers TRACE_FLAG_BUFFERS Buffer 变化时也生成状态快照 Virtual displays TRACE_FLAG_VIRTUAL_DISPLAYS 包含虚拟显示对应的 Layer HWC、Metadata 和 Trace buffers 都可能显著增大 trace。特别是 MODE_ACTIVE + TRACE_FLAG_BUFFERS 会在 Buffer latch 时频繁生成 Layer snapshot，若同时启用 HWC，每个 snapshot 还可能带有较大的 HWC dump。\n采集多个高流量 datasource 时，建议为 WM、SF Layers、SF Transactions 和 Transition 分配独立 Perfetto buffer。省略 target_buffer 时，它们默认竞争 buffer 0，SF 的高频数据可能覆盖低频 WM snapshot。\n5. 源码目录与依赖 在 Android 源码树中，ANDROID_BUILD_TOP 表示源码根目录。Winscope 位于：\n$ANDROID_BUILD_TOP/development/tools/winscope 主要目录和文件如下：\ndevelopment/tools/winscope/ ├── package.json ├── webpack.config.common.js ├── webpack.config.dev.js ├── webpack.config.prod.js ├── protos/ # Winscope 使用的 proto 定义 ├── src/ │ ├── adb/winscope_proxy.py # 本地 ADB Proxy │ ├── parsers/ # legacy/Perfetto 数据解析 │ ├── trace_collection/ # 抓取控制和设备连接 │ ├── trace_processor/ # Trace Processor 接入 │ └── viewers/ # WM/SF/IME 等 Viewer ├── deps_build/trace_processor/ # Trace Processor 构建产物 └── dist/prod/ # 可部署的生产版本 构建环境通常需要：\nAndroid 源码树； Node.js 和 npm； Python 3.10+； ADB； 构建 Trace Processor 所需的 Clang/LLVM、WASM toolchain 等依赖。 没有 AOSP 环境的使用者不需要这些构建依赖，只需要最终的 dist/prod。\n6. 安装前端依赖 进入 Winscope 目录：\ncd $ANDROID_BUILD_TOP/development/tools/winscope 安装依赖：\nnpm install 如果项目使用 pnpm 管理依赖，则应遵循源码树中 lockfile 和团队约定，不要在同一工作区反复混用 npm/pnpm，以免 lockfile 和 node_modules 状态不一致。\n网络不稳定时，ECONNRESET 或 ERR_PNPM_BROKEN_METADATA_JSON 通常是 registry 下载中断，并不代表 Winscope 源码有问题。应先确认代理、registry 和缓存，再重新安装。\n7. 构建方式 7.1 完整生产构建 npm run build:prod 这条命令依次执行：\nbuild:trace_processor：构建 Perfetto Trace Processor JavaScript/WASM； build:protos：重新生成 Winscope proto 代码； build:app：构建 Web 前端并复制运行资源。 最终产物位于：\ndist/prod/ 7.2 分步构建 重新构建 Trace Processor：\nnpm run build:trace_processor 重新生成 proto：\nnpm run build:protos 只重新构建 Web 应用：\nnpm run build:app 如果以下文件已经存在：\ndeps_build/trace_processor/to_be_served/engine_bundle.js deps_build/trace_processor/to_be_served/trace_processor.wasm deps_build/trace_processor/to_be_served/trace_processor_memory64.wasm 通常可以直接执行 npm run build:app，不必每次重建 Perfetto。这也能绕开部分源码树中 WASM toolchain 与 libc++ ABI 不匹配导致的 wasm-ld undefined symbol: std::__2::... 问题。\n但应确保这些 WASM 文件来自与当前 Winscope 版本兼容的 Perfetto 构建，不能长期混用来源不明的旧文件。\n8. 开发模式运行 启动 Webpack development server：\ncd $ANDROID_BUILD_TOP/development/tools/winscope npm run start 默认行为包括：\n监听 8080 端口； 自动打开浏览器； 启用 hot reload； 使用 webpack.config.dev.js； 从 deps_build/trace_processor/to_be_served 复制 WASM 和 engine bundle。 开发页面通常为：\nhttp://localhost:8080/ 如果需要直接从设备抓取数据，还要启动 Proxy：\npython3 src/adb/winscope_proxy.py 输出示例：\nWinscope ADB Connect proxy version: 6.0.1 Winscope token: \u003c随机 token\u003e 然后在 Winscope 中选择 Winscope Proxy，输入 token 并连接设备。\n9. 生产模式本机运行 生产目录是自包含的静态站点，但不能依赖双击 index.html 的 file:// 方式运行。WASM 和 JavaScript 资源通过浏览器 Fetch API 加载，应使用 HTTP Server。\n进入生产目录：\ncd $ANDROID_BUILD_TOP/development/tools/winscope/dist/prod 启动静态服务器：\npython3 -m http.server 8080 --bind 127.0.0.1 浏览器打开：\nhttp://127.0.0.1:8080/ 如果只导入已有 trace，不需要运行 Proxy。如果需要连接 Android 设备，在另一个终端执行：\ncd $ANDROID_BUILD_TOP/development/tools/winscope/dist/prod python3 winscope_proxy.py 10. 分发给没有 AOSP 环境的同事 生产目录已经包含 Web 前端、WASM 和配套 Proxy，可以直接打包：\ncd $ANDROID_BUILD_TOP/development/tools/winscope tar -C dist/prod \\ -czf winscope-standalone-6.0.1.tar.gz \\ . 同事只需要：\nPython 3.10+； Chrome/Chromium； 如需抓取设备，安装 Android platform-tools 并把 adb 加入 PATH。 解压并运行：\nmkdir winscope-standalone tar -xzf winscope-standalone-6.0.1.tar.gz -C winscope-standalone cd winscope-standalone python3 -m http.server 8080 --bind 127.0.0.1 另开终端启动 Proxy：\ncd winscope-standalone python3 winscope_proxy.py 验证设备：\nadb devices -l 浏览器访问 http://127.0.0.1:8080/，输入 Proxy 输出的 token 即可。\n11. 部署到团队内部 Web Server 也可以把 dist/prod 部署到公司内部 Nginx，让同事通过统一 URL 打开 Winscope。官方文档同样支持把生产构建托管到标准 Web Server。\n复制文件：\nsudo mkdir -p /srv/winscope sudo cp -a dist/prod/. /srv/winscope/ 一个简单的 Nginx 配置如下：\nserver { listen 8080; server_name _; root /srv/winscope; index index.html; location / { try_files $uri $uri/ /index.html; } types { text/html html; text/css css; application/javascript js; application/wasm wasm; image/svg+xml svg; } add_header Cache-Control \"no-cache\"; } 检查并重载：\nsudo nginx -t sudo systemctl reload nginx 集中部署的只是 Web 前端。每个需要连接设备的同事，仍然应在自己的电脑上运行同版本 winscope_proxy.py：\npython3 winscope_proxy.py 浏览器中的前端会访问用户自己电脑上的 http://localhost:5544，因此不应该在服务器上集中运行一个共享 ADB Proxy。\n12. 安全注意事项 Winscope Proxy 提供了执行 ADB 命令、启动 trace 和读取设备文件的能力，应遵守以下原则：\nProxy 只监听 localhost，不要改成 0.0.0.0 暴露到局域网。 不要把 ~/.config/winscope/.token 发送给其他人。 Web 前端和 Proxy 必须使用匹配版本。 抓取文件可能包含窗口标题、应用信息、画面和用户数据，应按内部敏感数据处理。 公共服务器只部署静态前端，不要部署可访问真实设备的共享 Proxy。 当前 Proxy 默认绑定：\nHTTPServer((\"localhost\", 5544), ADBWinscopeProxy) 保持 loopback 绑定可以避免其他主机直接调用本机 ADB。\n13. 常见问题 13.1 页面能打开，但无法加载 trace 检查浏览器开发者工具中的 Network 和 Console：\n是否通过 http:// 打开，而不是 file://； trace_processor.wasm 是否返回 HTTP 200； WASM MIME type 是否为 application/wasm； engine_bundle.js 是否与 WASM 配套； trace 是否完整，尾部是否被截断。 13.2 Proxy 显示版本不匹配 生产前端和 winscope_proxy.py 中都定义了 Proxy version。解决办法是使用同一个 dist/prod 中自带的 Proxy，不要从其他 AOSP 分支或旧工具目录复制。\n13.3 Winscope 没有发现设备 先脱离 Winscope 检查 ADB：\nadb kill-server adb start-server adb devices -l 如果设备状态为 unauthorized，需要在设备端确认 USB 调试授权。\n13.4 配置了 WindowManager，但 trace 中没有 WM 数据 检查 datasource 是否注册：\nadb shell perfetto --query | grep android.windowmanager 同时检查：\n系统是否启用了 WindowManager Perfetto tracing； 当前 build 是否为 debuggable； 是否存在 legacy WM tracing 与 Perfetto tracing 的版本差异； WM 是否与高流量 SF datasource 共用一个过小的 Ring Buffer； 停止 trace 时是否完成 flush； trace 文件是否在 pull 前被截断。 13.5 SurfaceFlinger trace 很快达到上百 MB 常见原因是同时启用了：\nMODE_ACTIVE TRACE_FLAG_BUFFERS TRACE_FLAG_HWC TRACE_FLAG_EXTRA 可以缩短采集时间、为不同 datasource 分配独立 buffer，或按问题需要关闭 Input、Metadata、HWC 等非必要选项。\n13.6 Screen recording 没看到摄像机拍到的闪屏 这是非常有价值的证据。Android screenrecord 的捕获位置不等同于物理屏最终输出。如果外部摄像机看到黑块，而 Winscope 录屏正常，应优先排查：\nHardware Composer； PVM/共享显示链路； Display driver； DPU/DSI/SerDes； 面板或物理链路。 14. 闪屏问题的推荐抓取组合 对于一闪而过的局部黑块或花屏，建议在 Winscope 中同时选择：\nScreen recording：选择发生问题的 Display； WindowManager：Transaction + Verbose； SurfaceFlinger Layers：Composition、Trace buffers、HWC、Virtual displays； SurfaceFlinger Transactions； WM Shell Transitions； 外部摄像机：记录物理屏最终输出。 分析顺序建议如下：\n从录屏或外部视频确定异常帧的时间。 在 SF Layers 中查找覆盖异常区域的 Layer。 检查该 Layer 的 bounds、crop、alpha、Z-order、visible region 和 Buffer frame number。 在 SF Transactions 中定位属性或 Buffer 更新来源。 对照 WindowManager 判断是否有 Window/Task/Transition 状态变化。 对照 HWC 和供应商日志判断异常是否发生在 Android 合成之后。 15. 参考资料 Run Winscope Capture traces with Winscope Winscope overview Perfetto documentation ","wordCount":"1209","inLanguage":"en","datePublished":"2026-07-13T09:00:00+08:00","dateModified":"2026-07-13T09:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script><header class=header><nav class=nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://ethen-cao.github.io/ethenslab/>Home</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/>Android系统开发</a>&nbsp;»&nbsp;<a href=https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/>Android 性能与稳定专项</a></div><h1 class="post-title entry-hint-parent">Android Winscope：工作原理、编译、运行与部署</h1><div class=post-meta><span title='2026-07-13 09:00:00 +0800 CST'>July 13, 2026</span>&nbsp;·&nbsp;6 min&nbsp;·&nbsp;1209 words</div></header><div class=post-content><p>Winscope 是 Android 平台用于分析窗口、SurfaceFlinger Layer、窗口动画、输入法和系统界面状态的可视化工具。它尤其适合排查闪屏、黑屏、花屏、窗口层级错误、启动动画异常、画中画和多窗口切换异常等问题。</p><p>Winscope 不是单一的 trace recorder。更准确地说，它由以下几部分组成：</p><ol><li>运行在浏览器中的 Winscope Web 前端。</li><li>运行在开发机上的 Winscope Proxy。</li><li>Android 设备上的 WindowManager、SurfaceFlinger、WM Shell、<code>screenrecord</code> 等数据生产者。</li><li>运行于浏览器中的 Perfetto Trace Processor WASM。</li></ol><p>本文介绍 Winscope 的工作原理、主要用途，以及如何从 AOSP 源码编译、运行和部署一套可离线分发的 Winscope。</p><h2 id=1-winscope-能解决什么问题>1. Winscope 能解决什么问题<a hidden class=anchor aria-hidden=true href=#1-winscope-能解决什么问题>#</a></h2><p>普通 logcat 更擅长回答“某个时间点打印了什么日志”，但窗口和显示问题往往需要回答一组空间与时序问题：</p><ul><li>哪个 Window 或 Layer 在异常帧突然出现？</li><li>Layer 的位置、大小、裁剪区域、透明度和 Z-order 是否发生变化？</li><li>App 是否已经提交新 Buffer？</li><li>SurfaceFlinger 选择了 Client Composition 还是 Device Composition？</li><li>黑色区域来自 Android Layer，还是出现在 HWC/显示驱动之后？</li><li>WindowManager、SurfaceFlinger 和录屏中的异常是否发生在同一时刻？</li></ul><p>Winscope 把 WindowManager、SurfaceFlinger、Transition、录屏等数据放到统一的时间线上，并提供层级树、属性面板和二维/三维可视化，从而把“屏幕闪了一下”转换为可以逐帧验证的系统状态变化。</p><p>典型适用场景包括：</p><table><thead><tr><th>场景</th><th>重点数据</th></tr></thead><tbody><tr><td>局部黑块、闪屏、花屏</td><td>Screen recording、SF Layers、SF Transactions、HWC</td></tr><tr><td>窗口突然消失或覆盖错误</td><td>WindowManager、SF Layers、Transitions</td></tr><tr><td>Activity 启动/退出动画异常</td><td>WindowManager、WM Shell Transitions、SF Transactions</td></tr><tr><td>多显示屏或虚拟显示异常</td><td>Screen recording、SF Virtual displays、Display 信息</td></tr><tr><td>输入法窗口位置或可见性异常</td><td>WindowManager、IME traces、SF Layers</td></tr><tr><td>物理屏异常但 Android 录屏正常</td><td>外部摄像机、HWC、显示驱动和供应商显示日志</td></tr></tbody></table><h2 id=2-总体架构>2. 总体架构<a hidden class=anchor aria-hidden=true href=#2-总体架构>#</a></h2><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+skinparam defaultFontName Arial
+
+actor Engineer as User
+
+box &#34;开发机&#34; #E8F5E9
+  participant &#34;Browser\nWinscope Web&#34; as Web
+  participant &#34;Trace Processor\nWASM&#34; as TP
+  participant &#34;Winscope Proxy\nlocalhost:5544&#34; as Proxy
+  participant &#34;adb&#34; as ADB
+end box
+
+box &#34;Android Device&#34; #E3F2FD
+  participant &#34;WindowManager\nsystem_server&#34; as WM
+  participant &#34;WM Shell\nSystemUI&#34; as Shell
+  participant &#34;SurfaceFlinger&#34; as SF
+  participant &#34;screenrecord&#34; as SR
+end box
+
+User -&gt; Web: 选择 trace 类型并点击 Start trace
+Web -&gt; Proxy: HTTP 请求 + Winscope token
+Proxy -&gt; ADB: 执行设备发现和抓取命令
+ADB -&gt; WM: 启动 WM trace
+ADB -&gt; Shell: 启动 Transition trace
+ADB -&gt; SF: 启动 Layers/Transactions trace
+ADB -&gt; SR: 启动指定 Display 的录屏
+
+User -&gt; Web: 点击 End trace
+Web -&gt; Proxy: 请求停止并取回文件
+Proxy -&gt; ADB: 停止、flush、pull
+ADB --&gt; Proxy: trace / dump / MP4
+Proxy --&gt; Web: 返回采集结果
+Web -&gt; TP: 在浏览器中解析 Perfetto trace
+TP --&gt; Web: 结构化表和时间戳
+Web --&gt; User: 时间线、层级树、属性和画面
+@enduml
+</code></pre><h3 id=21-web-前端>2.1 Web 前端<a hidden class=anchor aria-hidden=true href=#21-web-前端>#</a></h3><p>Winscope 前端是 Angular/TypeScript 应用，主要负责：</p><ul><li>选择设备和采集项目；</li><li>启停 trace；</li><li>导入本地 trace、dump 和录屏；</li><li>显示时间线、窗口树和 Layer 树；</li><li>展示某一帧的 Window/Layer 属性；</li><li>将多个数据源按时间戳关联起来。</li></ul><p>生产构建是纯静态文件，可以由 Python HTTP Server、Nginx、Apache 等普通 Web Server 提供服务。</p><h3 id=22-winscope-proxy>2.2 Winscope Proxy<a hidden class=anchor aria-hidden=true href=#22-winscope-proxy>#</a></h3><p>浏览器不能直接执行开发机上的 <code>adb</code>，因此 Winscope 使用本地 Python Proxy 作为桥梁。当前源码中的默认地址是：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>http://localhost:5544
+</span></span></code></pre></div><p>Proxy 的职责包括：</p><ul><li>通过 <code>adb devices</code> 枚举设备；</li><li>在选定设备上执行 Winscope 抓取命令；</li><li>启停 WindowManager、SurfaceFlinger 和录屏；</li><li>从设备取回采集结果；</li><li>通过 HTTP 将数据返回给浏览器。</li></ul><p>Proxy 启动时会生成安全 token，并保存到：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>~/.config/winscope/.token
+</span></span></code></pre></div><p>浏览器连接 Proxy 时需要携带该 token。前端和 Proxy 还会校验版本，因此必须成套分发，不能把新版前端与旧版 <code>winscope_proxy.py</code> 混用。</p><h3 id=23-android-设备上的数据生产者>2.3 Android 设备上的数据生产者<a hidden class=anchor aria-hidden=true href=#23-android-设备上的数据生产者>#</a></h3><p>Android 新版本逐步把 Winscope 数据接入 Perfetto。常见 datasource 包括：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>android.windowmanager
+</span></span><span style=display:flex><span>com.android.wm.shell.transition
+</span></span><span style=display:flex><span>android.surfaceflinger.layers
+</span></span><span style=display:flex><span>android.surfaceflinger.transactions
+</span></span></code></pre></div><p>部分设备或旧版本仍使用 legacy Winscope trace。设备是否支持某个 Perfetto datasource，应以实际查询结果为准：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>adb shell perfetto --query |
+</span></span><span style=display:flex><span>  grep -E <span style=color:#e6db74>&#39;android.windowmanager|com.android.wm.shell.transition|android.surfaceflinger&#39;</span>
+</span></span></code></pre></div><p>Perfetto 配置中写入一个 datasource 名称，并不代表设备一定注册了相应 producer。比如 Android 16 的 WindowManager Perfetto tracing 还可能受平台 feature flag 控制；未注册时配置可以启动，但不会产生 WM 数据。</p><h3 id=24-trace-processor-wasm>2.4 Trace Processor WASM<a hidden class=anchor aria-hidden=true href=#24-trace-processor-wasm>#</a></h3><p>生产目录中的文件：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>engine_bundle.js
+</span></span><span style=display:flex><span>trace_processor.wasm
+</span></span><span style=display:flex><span>trace_processor_memory64.wasm
+</span></span></code></pre></div><p>用于在浏览器中解析 Perfetto trace。解析主要在本机浏览器内完成，不需要单独部署 Perfetto 服务。WASM、前端 parser 和 proto 定义之间存在版本配套关系，因此分析新平台 trace 时应优先使用同版本或更新版本的 Winscope。</p><h2 id=3-winscope-录屏与-layer-trace-的区别>3. Winscope 录屏与 Layer trace 的区别<a hidden class=anchor aria-hidden=true href=#3-winscope-录屏与-layer-trace-的区别>#</a></h2><p>Winscope 可以同时录制一个或多个 Display，这是官方采集流程的一部分，但需要区分“录屏”和“Layer trace”：</p><ul><li><strong>Screen recording</strong> 记录所选 Display 的最终画面；</li><li><strong>WindowManager trace</strong> 记录窗口层级、可见性、焦点、Bounds、配置和动画状态；</li><li><strong>SurfaceFlinger Layers trace</strong> 记录 Layer 层级、位置、裁剪、透明度、Z-order、Buffer 元数据和合成信息；</li><li><strong>SurfaceFlinger Transactions trace</strong> 记录 Layer 属性和 Buffer transaction 的变化过程；</li><li><code>TRACE_FLAG_BUFFERS</code> 记录 Buffer 变化及元数据，不保存每个 Layer 的真实像素内容。</li></ul><p>因此，Winscope 能在录屏中看到异常画面，并在相同时间附近检查每个 Layer 的状态，但不能从 WindowManager/SF trace 中单独还原每个 Layer 的图像 Buffer。</p><p>对于显示问题，可以使用如下判断方法：</p><table><thead><tr><th>现象</th><th>初步判断</th></tr></thead><tbody><tr><td>Winscope 录屏和外部摄像机都看到黑块</td><td>问题大概率发生在 Android 合成链路或更上游</td></tr><tr><td>SF Layer 中存在覆盖区域的异常黑色/Color Layer</td><td>重点检查 Layer 创建者、Z-order、alpha 和 transaction</td></tr><tr><td>外部摄像机看到异常，但 Screen recording 正常</td><td>重点检查 HWC、PVM、Display driver、链路和物理屏</td></tr><tr><td>Screen recording 有异常，但 WM/SF 层级没有结构变化</td><td>重点检查 App Buffer 内容、视频解码或 Buffer 生产者</td></tr></tbody></table><p>Android 2024 年 9 月之后、<code>adb screenrecord</code> 1.4 及以上版本支持在 Winscope 中选择多个 Display；旧版本通常只能录制单个 Display。</p><h2 id=4-surfaceflinger-抓取选项>4. SurfaceFlinger 抓取选项<a hidden class=anchor aria-hidden=true href=#4-surfaceflinger-抓取选项>#</a></h2><p>Winscope 页面中的 SurfaceFlinger 选项与 Perfetto trace flags 基本对应：</p><table><thead><tr><th>Winscope 选项</th><th>Perfetto flag</th><th>作用</th></tr></thead><tbody><tr><td>Input</td><td><code>TRACE_FLAG_INPUT</code></td><td>记录 Layer 关联的输入窗口信息</td></tr><tr><td>Composition</td><td><code>TRACE_FLAG_COMPOSITION</code></td><td>记录合成类型、可见区域等合成状态</td></tr><tr><td>Metadata</td><td><code>TRACE_FLAG_EXTRA</code></td><td>记录额外 metadata 和 offscreen layers</td></tr><tr><td>HWC</td><td><code>TRACE_FLAG_HWC</code></td><td>记录额外的 Hardware Composer 文本信息</td></tr><tr><td>Trace buffers</td><td><code>TRACE_FLAG_BUFFERS</code></td><td>Buffer 变化时也生成状态快照</td></tr><tr><td>Virtual displays</td><td><code>TRACE_FLAG_VIRTUAL_DISPLAYS</code></td><td>包含虚拟显示对应的 Layer</td></tr></tbody></table><p><code>HWC</code>、<code>Metadata</code> 和 <code>Trace buffers</code> 都可能显著增大 trace。特别是 <code>MODE_ACTIVE + TRACE_FLAG_BUFFERS</code> 会在 Buffer latch 时频繁生成 Layer snapshot，若同时启用 HWC，每个 snapshot 还可能带有较大的 HWC dump。</p><p>采集多个高流量 datasource 时，建议为 WM、SF Layers、SF Transactions 和 Transition 分配独立 Perfetto buffer。省略 <code>target_buffer</code> 时，它们默认竞争 buffer 0，SF 的高频数据可能覆盖低频 WM snapshot。</p><h2 id=5-源码目录与依赖>5. 源码目录与依赖<a hidden class=anchor aria-hidden=true href=#5-源码目录与依赖>#</a></h2><p>在 Android 源码树中，<code>ANDROID_BUILD_TOP</code> 表示源码根目录。Winscope 位于：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>$ANDROID_BUILD_TOP/development/tools/winscope
+</span></span></code></pre></div><p>主要目录和文件如下：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>development/tools/winscope/
+</span></span><span style=display:flex><span>├── package.json
+</span></span><span style=display:flex><span>├── webpack.config.common.js
+</span></span><span style=display:flex><span>├── webpack.config.dev.js
+</span></span><span style=display:flex><span>├── webpack.config.prod.js
+</span></span><span style=display:flex><span>├── protos/                         # Winscope 使用的 proto 定义
+</span></span><span style=display:flex><span>├── src/
+</span></span><span style=display:flex><span>│   ├── adb/winscope_proxy.py       # 本地 ADB Proxy
+</span></span><span style=display:flex><span>│   ├── parsers/                    # legacy/Perfetto 数据解析
+</span></span><span style=display:flex><span>│   ├── trace_collection/           # 抓取控制和设备连接
+</span></span><span style=display:flex><span>│   ├── trace_processor/            # Trace Processor 接入
+</span></span><span style=display:flex><span>│   └── viewers/                    # WM/SF/IME 等 Viewer
+</span></span><span style=display:flex><span>├── deps_build/trace_processor/     # Trace Processor 构建产物
+</span></span><span style=display:flex><span>└── dist/prod/                      # 可部署的生产版本
+</span></span></code></pre></div><p>构建环境通常需要：</p><ul><li>Android 源码树；</li><li>Node.js 和 npm；</li><li>Python 3.10+；</li><li>ADB；</li><li>构建 Trace Processor 所需的 Clang/LLVM、WASM toolchain 等依赖。</li></ul><p>没有 AOSP 环境的使用者不需要这些构建依赖，只需要最终的 <code>dist/prod</code>。</p><h2 id=6-安装前端依赖>6. 安装前端依赖<a hidden class=anchor aria-hidden=true href=#6-安装前端依赖>#</a></h2><p>进入 Winscope 目录：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>cd $ANDROID_BUILD_TOP/development/tools/winscope
+</span></span></code></pre></div><p>安装依赖：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>npm install
+</span></span></code></pre></div><p>如果项目使用 pnpm 管理依赖，则应遵循源码树中 lockfile 和团队约定，不要在同一工作区反复混用 npm/pnpm，以免 lockfile 和 <code>node_modules</code> 状态不一致。</p><p>网络不稳定时，<code>ECONNRESET</code> 或 <code>ERR_PNPM_BROKEN_METADATA_JSON</code> 通常是 registry 下载中断，并不代表 Winscope 源码有问题。应先确认代理、registry 和缓存，再重新安装。</p><h2 id=7-构建方式>7. 构建方式<a hidden class=anchor aria-hidden=true href=#7-构建方式>#</a></h2><h3 id=71-完整生产构建>7.1 完整生产构建<a hidden class=anchor aria-hidden=true href=#71-完整生产构建>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>npm run build:prod
+</span></span></code></pre></div><p>这条命令依次执行：</p><ol><li><code>build:trace_processor</code>：构建 Perfetto Trace Processor JavaScript/WASM；</li><li><code>build:protos</code>：重新生成 Winscope proto 代码；</li><li><code>build:app</code>：构建 Web 前端并复制运行资源。</li></ol><p>最终产物位于：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>dist/prod/
+</span></span></code></pre></div><h3 id=72-分步构建>7.2 分步构建<a hidden class=anchor aria-hidden=true href=#72-分步构建>#</a></h3><p>重新构建 Trace Processor：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>npm run build:trace_processor
+</span></span></code></pre></div><p>重新生成 proto：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>npm run build:protos
+</span></span></code></pre></div><p>只重新构建 Web 应用：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>npm run build:app
+</span></span></code></pre></div><p>如果以下文件已经存在：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>deps_build/trace_processor/to_be_served/engine_bundle.js
+</span></span><span style=display:flex><span>deps_build/trace_processor/to_be_served/trace_processor.wasm
+</span></span><span style=display:flex><span>deps_build/trace_processor/to_be_served/trace_processor_memory64.wasm
+</span></span></code></pre></div><p>通常可以直接执行 <code>npm run build:app</code>，不必每次重建 Perfetto。这也能绕开部分源码树中 WASM toolchain 与 libc++ ABI 不匹配导致的 <code>wasm-ld undefined symbol: std::__2::...</code> 问题。</p><p>但应确保这些 WASM 文件来自与当前 Winscope 版本兼容的 Perfetto 构建，不能长期混用来源不明的旧文件。</p><h2 id=8-开发模式运行>8. 开发模式运行<a hidden class=anchor aria-hidden=true href=#8-开发模式运行>#</a></h2><p>启动 Webpack development server：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>cd $ANDROID_BUILD_TOP/development/tools/winscope
+</span></span><span style=display:flex><span>npm run start
+</span></span></code></pre></div><p>默认行为包括：</p><ul><li>监听 <code>8080</code> 端口；</li><li>自动打开浏览器；</li><li>启用 hot reload；</li><li>使用 <code>webpack.config.dev.js</code>；</li><li>从 <code>deps_build/trace_processor/to_be_served</code> 复制 WASM 和 engine bundle。</li></ul><p>开发页面通常为：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>http://localhost:8080/
+</span></span></code></pre></div><p>如果需要直接从设备抓取数据，还要启动 Proxy：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>python3 src/adb/winscope_proxy.py
+</span></span></code></pre></div><p>输出示例：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>Winscope ADB Connect proxy version: 6.0.1
+</span></span><span style=display:flex><span>Winscope token: &lt;随机 token&gt;
+</span></span></code></pre></div><p>然后在 Winscope 中选择 <code>Winscope Proxy</code>，输入 token 并连接设备。</p><h2 id=9-生产模式本机运行>9. 生产模式本机运行<a hidden class=anchor aria-hidden=true href=#9-生产模式本机运行>#</a></h2><p>生产目录是自包含的静态站点，但不能依赖双击 <code>index.html</code> 的 <code>file://</code> 方式运行。WASM 和 JavaScript 资源通过浏览器 Fetch API 加载，应使用 HTTP Server。</p><p>进入生产目录：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>cd $ANDROID_BUILD_TOP/development/tools/winscope/dist/prod
+</span></span></code></pre></div><p>启动静态服务器：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>python3 -m http.server <span style=color:#ae81ff>8080</span> --bind 127.0.0.1
+</span></span></code></pre></div><p>浏览器打开：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>http://127.0.0.1:8080/
+</span></span></code></pre></div><p>如果只导入已有 trace，不需要运行 Proxy。如果需要连接 Android 设备，在另一个终端执行：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>cd $ANDROID_BUILD_TOP/development/tools/winscope/dist/prod
+</span></span><span style=display:flex><span>python3 winscope_proxy.py
+</span></span></code></pre></div><h2 id=10-分发给没有-aosp-环境的同事>10. 分发给没有 AOSP 环境的同事<a hidden class=anchor aria-hidden=true href=#10-分发给没有-aosp-环境的同事>#</a></h2><p>生产目录已经包含 Web 前端、WASM 和配套 Proxy，可以直接打包：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>cd $ANDROID_BUILD_TOP/development/tools/winscope
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>tar -C dist/prod <span style=color:#ae81ff>\
+</span></span></span><span style=display:flex><span>  -czf winscope-standalone-6.0.1.tar.gz <span style=color:#ae81ff>\
+</span></span></span><span style=display:flex><span>  .
+</span></span></code></pre></div><p>同事只需要：</p><ul><li>Python 3.10+；</li><li>Chrome/Chromium；</li><li>如需抓取设备，安装 Android platform-tools 并把 <code>adb</code> 加入 <code>PATH</code>。</li></ul><p>解压并运行：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>mkdir winscope-standalone
+</span></span><span style=display:flex><span>tar -xzf winscope-standalone-6.0.1.tar.gz -C winscope-standalone
+</span></span><span style=display:flex><span>cd winscope-standalone
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>python3 -m http.server <span style=color:#ae81ff>8080</span> --bind 127.0.0.1
+</span></span></code></pre></div><p>另开终端启动 Proxy：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>cd winscope-standalone
+</span></span><span style=display:flex><span>python3 winscope_proxy.py
+</span></span></code></pre></div><p>验证设备：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>adb devices -l
+</span></span></code></pre></div><p>浏览器访问 <code>http://127.0.0.1:8080/</code>，输入 Proxy 输出的 token 即可。</p><h2 id=11-部署到团队内部-web-server>11. 部署到团队内部 Web Server<a hidden class=anchor aria-hidden=true href=#11-部署到团队内部-web-server>#</a></h2><p>也可以把 <code>dist/prod</code> 部署到公司内部 Nginx，让同事通过统一 URL 打开 Winscope。官方文档同样支持把生产构建托管到标准 Web Server。</p><p>复制文件：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>sudo mkdir -p /srv/winscope
+</span></span><span style=display:flex><span>sudo cp -a dist/prod/. /srv/winscope/
+</span></span></code></pre></div><p>一个简单的 Nginx 配置如下：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-nginx data-lang=nginx><span style=display:flex><span><span style=color:#66d9ef>server</span> {
+</span></span><span style=display:flex><span>    <span style=color:#f92672>listen</span> <span style=color:#ae81ff>8080</span>;
+</span></span><span style=display:flex><span>    <span style=color:#f92672>server_name</span> <span style=color:#e6db74>_</span>;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>root</span> <span style=color:#e6db74>/srv/winscope</span>;
+</span></span><span style=display:flex><span>    <span style=color:#f92672>index</span> <span style=color:#e6db74>index.html</span>;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>location</span> <span style=color:#e6db74>/</span> {
+</span></span><span style=display:flex><span>        <span style=color:#f92672>try_files</span> $uri $uri/ <span style=color:#e6db74>/index.html</span>;
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>types</span> {
+</span></span><span style=display:flex><span>        <span style=color:#f92672>text/html</span> <span style=color:#e6db74>html</span>;
+</span></span><span style=display:flex><span>        <span style=color:#f92672>text/css</span> <span style=color:#e6db74>css</span>;
+</span></span><span style=display:flex><span>        <span style=color:#f92672>application/javascript</span> <span style=color:#e6db74>js</span>;
+</span></span><span style=display:flex><span>        <span style=color:#f92672>application/wasm</span> <span style=color:#e6db74>wasm</span>;
+</span></span><span style=display:flex><span>        <span style=color:#f92672>image/svg+xml</span> <span style=color:#e6db74>svg</span>;
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>add_header</span> <span style=color:#e6db74>Cache-Control</span> <span style=color:#e6db74>&#34;no-cache&#34;</span>;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>检查并重载：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>sudo nginx -t
+</span></span><span style=display:flex><span>sudo systemctl reload nginx
+</span></span></code></pre></div><p>集中部署的只是 Web 前端。每个需要连接设备的同事，仍然应在自己的电脑上运行同版本 <code>winscope_proxy.py</code>：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>python3 winscope_proxy.py
+</span></span></code></pre></div><p>浏览器中的前端会访问用户自己电脑上的 <code>http://localhost:5544</code>，因此不应该在服务器上集中运行一个共享 ADB Proxy。</p><h2 id=12-安全注意事项>12. 安全注意事项<a hidden class=anchor aria-hidden=true href=#12-安全注意事项>#</a></h2><p>Winscope Proxy 提供了执行 ADB 命令、启动 trace 和读取设备文件的能力，应遵守以下原则：</p><ol><li>Proxy 只监听 <code>localhost</code>，不要改成 <code>0.0.0.0</code> 暴露到局域网。</li><li>不要把 <code>~/.config/winscope/.token</code> 发送给其他人。</li><li>Web 前端和 Proxy 必须使用匹配版本。</li><li>抓取文件可能包含窗口标题、应用信息、画面和用户数据，应按内部敏感数据处理。</li><li>公共服务器只部署静态前端，不要部署可访问真实设备的共享 Proxy。</li></ol><p>当前 Proxy 默认绑定：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-python data-lang=python><span style=display:flex><span>HTTPServer((<span style=color:#e6db74>&#34;localhost&#34;</span>, <span style=color:#ae81ff>5544</span>), ADBWinscopeProxy)
+</span></span></code></pre></div><p>保持 loopback 绑定可以避免其他主机直接调用本机 ADB。</p><h2 id=13-常见问题>13. 常见问题<a hidden class=anchor aria-hidden=true href=#13-常见问题>#</a></h2><h3 id=131-页面能打开但无法加载-trace>13.1 页面能打开，但无法加载 trace<a hidden class=anchor aria-hidden=true href=#131-页面能打开但无法加载-trace>#</a></h3><p>检查浏览器开发者工具中的 Network 和 Console：</p><ul><li>是否通过 <code>http://</code> 打开，而不是 <code>file://</code>；</li><li><code>trace_processor.wasm</code> 是否返回 HTTP 200；</li><li>WASM MIME type 是否为 <code>application/wasm</code>；</li><li><code>engine_bundle.js</code> 是否与 WASM 配套；</li><li>trace 是否完整，尾部是否被截断。</li></ul><h3 id=132-proxy-显示版本不匹配>13.2 Proxy 显示版本不匹配<a hidden class=anchor aria-hidden=true href=#132-proxy-显示版本不匹配>#</a></h3><p>生产前端和 <code>winscope_proxy.py</code> 中都定义了 Proxy version。解决办法是使用同一个 <code>dist/prod</code> 中自带的 Proxy，不要从其他 AOSP 分支或旧工具目录复制。</p><h3 id=133-winscope-没有发现设备>13.3 Winscope 没有发现设备<a hidden class=anchor aria-hidden=true href=#133-winscope-没有发现设备>#</a></h3><p>先脱离 Winscope 检查 ADB：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>adb kill-server
+</span></span><span style=display:flex><span>adb start-server
+</span></span><span style=display:flex><span>adb devices -l
+</span></span></code></pre></div><p>如果设备状态为 <code>unauthorized</code>，需要在设备端确认 USB 调试授权。</p><h3 id=134-配置了-windowmanager但-trace-中没有-wm-数据>13.4 配置了 WindowManager，但 trace 中没有 WM 数据<a hidden class=anchor aria-hidden=true href=#134-配置了-windowmanager但-trace-中没有-wm-数据>#</a></h3><p>检查 datasource 是否注册：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>adb shell perfetto --query | grep android.windowmanager
+</span></span></code></pre></div><p>同时检查：</p><ul><li>系统是否启用了 WindowManager Perfetto tracing；</li><li>当前 build 是否为 debuggable；</li><li>是否存在 legacy WM tracing 与 Perfetto tracing 的版本差异；</li><li>WM 是否与高流量 SF datasource 共用一个过小的 Ring Buffer；</li><li>停止 trace 时是否完成 flush；</li><li>trace 文件是否在 pull 前被截断。</li></ul><h3 id=135-surfaceflinger-trace-很快达到上百-mb>13.5 SurfaceFlinger trace 很快达到上百 MB<a hidden class=anchor aria-hidden=true href=#135-surfaceflinger-trace-很快达到上百-mb>#</a></h3><p>常见原因是同时启用了：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>MODE_ACTIVE
+</span></span><span style=display:flex><span>TRACE_FLAG_BUFFERS
+</span></span><span style=display:flex><span>TRACE_FLAG_HWC
+</span></span><span style=display:flex><span>TRACE_FLAG_EXTRA
+</span></span></code></pre></div><p>可以缩短采集时间、为不同 datasource 分配独立 buffer，或按问题需要关闭 Input、Metadata、HWC 等非必要选项。</p><h3 id=136-screen-recording-没看到摄像机拍到的闪屏>13.6 Screen recording 没看到摄像机拍到的闪屏<a hidden class=anchor aria-hidden=true href=#136-screen-recording-没看到摄像机拍到的闪屏>#</a></h3><p>这是非常有价值的证据。Android <code>screenrecord</code> 的捕获位置不等同于物理屏最终输出。如果外部摄像机看到黑块，而 Winscope 录屏正常，应优先排查：</p><ul><li>Hardware Composer；</li><li>PVM/共享显示链路；</li><li>Display driver；</li><li>DPU/DSI/SerDes；</li><li>面板或物理链路。</li></ul><h2 id=14-闪屏问题的推荐抓取组合>14. 闪屏问题的推荐抓取组合<a hidden class=anchor aria-hidden=true href=#14-闪屏问题的推荐抓取组合>#</a></h2><p>对于一闪而过的局部黑块或花屏，建议在 Winscope 中同时选择：</p><ul><li><strong>Screen recording</strong>：选择发生问题的 Display；</li><li><strong>WindowManager</strong>：Transaction + Verbose；</li><li><strong>SurfaceFlinger Layers</strong>：Composition、Trace buffers、HWC、Virtual displays；</li><li><strong>SurfaceFlinger Transactions</strong>；</li><li><strong>WM Shell Transitions</strong>；</li><li><strong>外部摄像机</strong>：记录物理屏最终输出。</li></ul><p>分析顺序建议如下：</p><ol><li>从录屏或外部视频确定异常帧的时间。</li><li>在 SF Layers 中查找覆盖异常区域的 Layer。</li><li>检查该 Layer 的 bounds、crop、alpha、Z-order、visible region 和 Buffer frame number。</li><li>在 SF Transactions 中定位属性或 Buffer 更新来源。</li><li>对照 WindowManager 判断是否有 Window/Task/Transition 状态变化。</li><li>对照 HWC 和供应商日志判断异常是否发生在 Android 合成之后。</li></ol><h2 id=15-参考资料>15. 参考资料<a hidden class=anchor aria-hidden=true href=#15-参考资料>#</a></h2><ul><li><a href=https://source.android.com/docs/core/graphics/winscope/run>Run Winscope</a></li><li><a href=https://source.android.com/docs/core/graphics/winscope/capture/winscope>Capture traces with Winscope</a></li><li><a href=https://source.android.com/docs/core/graphics/winscope>Winscope overview</a></li><li><a href=https://perfetto.dev/docs/>Perfetto documentation</a></li></ul></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/lmkd/><span class=title>Next »</span><br><span>Android Low Memory Killer Daemon (LMKD) 源码机制与策略分析</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
