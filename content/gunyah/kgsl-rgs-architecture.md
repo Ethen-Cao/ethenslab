@@ -40,7 +40,7 @@ tags = ["Qualcomm", "Adreno", "KGSL", "RGS", "GPU", "Gunyah", "HAB", "Debug"]
 | PVM KGSL/RGS 服务 | `linux/apps/apps_proc/prebuilt_HY11/sa8797/adreno/usr/lib/systemd/system/kgsl@.service` | `/usr/bin/kgsl -p %i`、依赖和环境 |
 | PVM RGS 实现 | `linux/apps/apps_proc/prebuilt_HY11/sa8797/adreno/usr/lib/libGSLKernel.so` | 当前闭源实现的符号、字符串和反汇编 |
 | HFI 协议 | `vendor/vendor/qcom/opensource/graphics-kernel/adreno_hfi.h` | ISSUE_CMD、TS_RETIRE、601/602/603/609 定义 |
-| 可控复现程序 | `qssi/vendor/voyah/system/polaris/native/tests/gpu_stress/` | fragment 对照、serial-compute、wall/GPU timer、completion marker |
+| 可控复现程序 | `qssi/vendor/oem_a/system/polaris/native/tests/gpu_stress/` | fragment 对照、serial-compute、wall/GPU timer、completion marker |
 | 2026-07-17 实验记录 | 工具终端输出与 PVM `journalctl`（PID 13279、13924） | timer 有效性、603 owner、未 retire 计数与 324～325ms recovery |
 | 应用 buffer 生产端 | `qssi/frameworks/native/libs/gui/{Surface.cpp,BLASTBufferQueue.cpp}` | dequeue/queue、GraphicBuffer、producer fence、BLAST Transaction |
 | SurfaceFlinger layer | `qssi/frameworks/native/services/surfaceflinger/Layer.cpp` | buffer/fence 接收、ready 检查和 latch |
@@ -643,7 +643,7 @@ Davey 字段中第一次 `CommandSubmissionCompleted -> GpuCompleted` 为 2.1441
 实验程序位于：
 
 ```text
-qssi/vendor/voyah/system/polaris/native/tests/gpu_stress/
+qssi/vendor/oem_a/system/polaris/native/tests/gpu_stress/
 ```
 
 测试设备报告为 Adreno 753、OpenGL ES 3.2。程序使用离屏 EGL pbuffer，不创建可见窗口；compute 模式固定使用 8×8 pbuffer，pbuffer 尺寸不参与 compute 工作量。

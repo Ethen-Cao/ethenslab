@@ -1,0 +1,1126 @@
+diff --git a/libs/renderengine/Android.bp b/libs/renderengine/Android.bp
+index 61aab1a..bbab80e 100644
+--- a/libs/renderengine/Android.bp
++++ b/libs/renderengine/Android.bp
+@@ -118,6 +118,7 @@ filegroup {
+         "skia/filters/LiquidGlassFilter.cpp",
+         "skia/filters/LutShader.cpp",
+         "skia/filters/MouriMap.cpp",
++        "skia/filters/RoundedCornerShaderFactory.cpp",
+         "skia/filters/RuntimeEffectManager.cpp",
+         "skia/filters/ShockwaveShaderFactory.cpp",
+         "skia/filters/StretchShaderFactory.cpp",
+diff --git a/libs/renderengine/include/renderengine/RenderEngine.h b/libs/renderengine/include/renderengine/RenderEngine.h
+index 8ea882b..6f5af90 100644
+--- a/libs/renderengine/include/renderengine/RenderEngine.h
++++ b/libs/renderengine/include/renderengine/RenderEngine.h
+@@ -71,6 +71,23 @@
+  */
+ #define PROPERTY_DEBUG_RENDERENGINE_BLUR_ALGORITHM "debug.renderengine.blur_algorithm"
+ 
++/**
++ * Enables RenderEngine's device-space Gaussian coverage for simple rounded corners.
++ *
++ * The value is read once per process. SurfaceFlinger must be restarted after changing it.
++ */
++#define PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA \
++    "debug.renderengine.enhanced_rounded_corner_aa"
++
++/**
++ * Sets the rounded-corner Gaussian sigma in hundredths of a device pixel.
++ *
++ * For example, 100 selects sigma=1.00 device pixels. The supported debug-tuning range is 75..125.
++ * The value is read once per process. SurfaceFlinger must be restarted after changing it.
++ */
++#define PROPERTY_DEBUG_RENDERENGINE_ROUNDED_CORNER_AA_SIGMA_X100 \
++    "debug.renderengine.rounded_corner_aa_sigma_x100"
++
+ /**
+  * Allows recording of Skia drawing commands with systrace.
+  */
+diff --git a/libs/renderengine/skia/SkiaRenderEngine.cpp b/libs/renderengine/skia/SkiaRenderEngine.cpp
+index e58b9b6..e8af70c 100644
+--- a/libs/renderengine/skia/SkiaRenderEngine.cpp
++++ b/libs/renderengine/skia/SkiaRenderEngine.cpp
+@@ -105,6 +105,33 @@ namespace {
+ static const bool kPrintLayerSettings = false;
+ static const bool kGaneshFlushAfterEveryLayer = kPrintLayerSettings;
+ 
++// A one-device-pixel Gaussian sigma suppresses the worst shallow-angle staircase energy while
++// keeping the 10%-to-90% transition near 2.56 pixels. Keep this independent from the old V1 box
++// width property: interpreting a persisted width of 225 as sigma=2.25 would grossly over-blur.
++static constexpr int kRoundedCornerDefaultAaSigmaX100 = 100;
++static constexpr int kRoundedCornerMinAaSigmaX100 = 75;
++static constexpr int kRoundedCornerMaxAaSigmaX100 = 125;
++static constexpr const char* kRoundedCornerAaSigmaProperty =
++        PROPERTY_DEBUG_RENDERENGINE_ROUNDED_CORNER_AA_SIGMA_X100;
++
++static bool useEnhancedRoundedCornerAa() {
++    static const bool enabled =
++            android::base::GetBoolProperty(PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA,
++                                           true);
++    return enabled;
++}
++
++static float getRoundedCornerAaSigmaPx() {
++    static const int sigmaX100 =
++            android::base::GetIntProperty<int>(kRoundedCornerAaSigmaProperty,
++                                               kRoundedCornerDefaultAaSigmaX100);
++    static const float sigma =
++            std::clamp(sigmaX100, kRoundedCornerMinAaSigmaX100,
++                       kRoundedCornerMaxAaSigmaX100) /
++            100.0f;
++    return sigma;
++}
++
+ } // namespace
+ 
+ // Utility functions related to SkRect
+@@ -1658,23 +1685,55 @@ void SkiaRenderEngine::drawLayersInternal(
+             }
+         }
+ 
+-        if (!clipPath.isEmpty()) {
+-            canvas->clipPath(clipPath, true);
++        // Use signed-distance Gaussian coverage for ordinary circular/elliptical RRects. The
++        // shader reconstructs the arc in device pixels, so this remains stable under ordinary
++        // affine scale/rotation and does not require a 1:1 layer transform. Very small or
++        // ill-conditioned corners, smooth/custom paths, and complex per-corner radii retain
++        // Skia's existing path AA.
++        const SkRRect* enhancedRRect = nullptr;
++        bool enhancedRRectIsBounds = false;
++        if (useEnhancedRoundedCornerAa() && layer.geometry.cornerSmoothness <= 0.0f) {
++            if (roundRectClip.isEmpty() && !bounds.isRect()) {
++                enhancedRRect = &bounds;
++                enhancedRRectIsBounds = true;
++            } else if (bounds.isRect() && !roundRectClip.isEmpty()) {
++                enhancedRRect = &roundRectClip;
++            }
+         }
+ 
+-        if (!boundsPath.isRect(nullptr)) {
+-            paint.setAntiAlias(true);
+-        }
+-        canvas->drawPath(boundsPath, paint);
++        const auto roundedCornerShader = enhancedRRect
++                ? mRoundedCornerShaderFactory.createShader(canvas, *enhancedRRect,
++                                                           getRoundedCornerAaSigmaPx())
++                : std::nullopt;
++        if (roundedCornerShader) {
++            canvas->clipShader(roundedCornerShader->shader);
++            if (enhancedRRectIsBounds) {
++                // The shader supplies all edge coverage. Drawing a non-AA outset rect avoids
++                // multiplying it by Skia's regular one-pixel RRect coverage.
++                canvas->drawRect(roundedCornerShader->drawBounds, paint);
++            } else {
++                canvas->drawPath(boundsPath, paint);
++            }
++        } else {
++            if (!clipPath.isEmpty()) {
++                canvas->clipPath(clipPath, true);
++            }
+ 
++            if (!boundsPath.isRect(nullptr)) {
++                paint.setAntiAlias(true);
++            }
++            canvas->drawPath(boundsPath, paint);
++        }
+ /*Begin Modify by zhenhua.wang 20260721 for VPA唤醒涟漪开发效果, VCOS2-70099*/
+ 
+         // Solution: Soft-edge stroke for rounded corners.
+         // Standard analytic AA provides only ~1px transition which is
+         // insufficient for large displays (6400x1800). Drawing a 3px-wide
+         // semi-transparent AA stroke along the rounded path edge creates
+-        // a broader transition zone that masks the aliasing.
+-        if (!boundsPath.isRect(nullptr)) {
++        // a broader transition zone that masks the aliasing. The Gaussian shader already provides
++        // a wider device-space transition, so retain this legacy treatment only on the fallback
++        // path to avoid drawing the rounded edge twice.
++        if (!roundedCornerShader && !boundsPath.isRect(nullptr)) {
+             SkPaint strokePaint(paint);
+             strokePaint.setStyle(SkPaint::kStroke_Style);
+             strokePaint.setStrokeWidth(3.0f);
+@@ -1902,6 +1961,11 @@ void SkiaRenderEngine::dump(std::string& result) {
+         gpuProtectedReporter.logOutput(result, true);
+ 
+         StringAppendF(&result, "\n");
++        StringAppendF(&result,
++                      "RenderEngine enhanced rounded-corner AA: %s "
++                      "(device-space Gaussian coverage, sigma %.2f px)\n",
++                      useEnhancedRoundedCornerAa() ? "enabled" : "disabled",
++                      getRoundedCornerAaSigmaPx());
+         mRuntimeEffectManager.dump(result);
+     }
+     StringAppendF(&result, "\n");
+diff --git a/libs/renderengine/skia/SkiaRenderEngine.h b/libs/renderengine/skia/SkiaRenderEngine.h
+index 9d90cea..e71c1bf 100644
+--- a/libs/renderengine/skia/SkiaRenderEngine.h
++++ b/libs/renderengine/skia/SkiaRenderEngine.h
+@@ -45,6 +45,7 @@
+ #include "filters/LiquidGlassFilter.h"
+ #include "filters/LutShader.h"
+ #include "filters/MouriMap.h"
++#include "filters/RoundedCornerShaderFactory.h"
+ #include "filters/RuntimeEffectManager.h"
+ /*Begin Modify by zhenhua.wang 20260721 for VPA唤醒涟漪开发效果, VCOS2-70099*/
+ #include "filters/ShockwaveShaderFactory.h"
+@@ -212,6 +213,7 @@ private:
+         LiquidGlassFilter mLiquidGlassFilter = LiquidGlassFilter(mRuntimeEffectManager);
+     LutShader mLutShader = LutShader(mRuntimeEffectManager);
+     MouriMap mLocalTonemapper = MouriMap(mRuntimeEffectManager);
++    RoundedCornerShaderFactory mRoundedCornerShaderFactory;
+     /*Begin Modify by zhenhua.wang 20260721 for VPA唤醒涟漪开发效果, VCOS2-70099*/
+     ShockwaveShaderFactory mShockwaveShaderFactory = ShockwaveShaderFactory(mRuntimeEffectManager);
+     /*End Modify by zhenhua.wang 20260721 for VPA唤醒涟漪开发效果, VCOS2-70099*/
+diff --git a/libs/renderengine/skia/filters/RoundedCornerShaderFactory.cpp b/libs/renderengine/skia/filters/RoundedCornerShaderFactory.cpp
+new file mode 100644
+index 0000000..608f82f
+--- /dev/null
++++ b/libs/renderengine/skia/filters/RoundedCornerShaderFactory.cpp
+@@ -0,0 +1,298 @@
++/*
++ * Copyright 2026 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "RoundedCornerShaderFactory.h"
++
++#include <SkCanvas.h>
++#include <SkMatrix.h>
++#include <SkRRect.h>
++#include <SkRuntimeEffect.h>
++#include <SkString.h>
++#include <log/log.h>
++
++#include <cmath>
++#include <utility>
++
++namespace android::renderengine::skia {
++
++namespace {
++
++const SkString kEffectSource_RoundedCornerCoverageEffect(R"(
++    uniform float2 u_stretchFactor;
++    uniform float2x2 u_deviceDerivatives;
++    uniform float2 u_maxSampleRadius;
++    uniform float2 u_axisDeviceSize;
++    uniform float2 u_tangencyHasStraightEdge;
++    uniform float u_arcSigma;
++
++    // Area of an axis-aligned destination pixel cut by the locally linearized edge. The signed
++    // distance is positive outside, and normal is the outward device-space unit normal.
++    float pixelBoxCoverage(float signedDistance, float2 normal) {
++        float2 halfProjection = 0.5 * abs(normal);
++        float a = max(halfProjection.x, halfProjection.y);
++        float b = min(halfProjection.x, halfProjection.y);
++        float z = -signedDistance;
++
++        if (b <= 1e-5) {
++            return saturate((z + a) / max(2.0 * a, 1e-5));
++        }
++        if (z <= -a - b) {
++            return 0.0;
++        }
++        if (z < -a + b) {
++            float t = z + a + b;
++            return t * t / (8.0 * a * b);
++        }
++        if (z <= a - b) {
++            return (z + a) / (2.0 * a);
++        }
++        if (z < a + b) {
++            float t = a + b - z;
++            return 1.0 - t * t / (8.0 * a * b);
++        }
++        return 1.0;
++    }
++
++    // Winitzki's approximation. Its maximum absolute error is small enough to remain below one
++    // 8-bit coverage level, while avoiding a sampled lookup texture in this hot path.
++    float erfApprox(float x) {
++        float xSquared = x * x;
++        float exponent =
++                -xSquared * (1.27323954474 + 0.147 * xSquared) /
++                (1.0 + 0.147 * xSquared);
++        return sign(x) * sqrt(max(1.0 - exp(exponent), 0.0));
++    }
++
++    float gaussianCoverage(float signedDistance) {
++        float support = 3.0 * u_arcSigma;
++        if (signedDistance <= -support) {
++            return 1.0;
++        }
++        if (signedDistance >= support) {
++            return 0.0;
++        }
++        float normalizedDistance = signedDistance / (1.41421356237 * u_arcSigma);
++        return 0.5 * (1.0 - erfApprox(normalizedDistance));
++    }
++
++    half4 main(float2 xy) {
++        float2 rawCorner = abs(xy) + u_stretchFactor;
++
++        // Bound the three-sigma footprint in normalized corner coordinates. Almost every fragment
++        // of a large freeform layer returns through one of these coherent branches.
++        float2 outerCorner = max(rawCorner + u_maxSampleRadius, float2(0.0));
++        if (dot(outerCorner, outerCorner) <= 1.0) {
++            return half4(1.0);
++        }
++        float2 innerCorner = max(rawCorner - u_maxSampleRadius, float2(0.0));
++        if (dot(innerCorner, innerCorner) >= 1.0) {
++            return half4(0.0);
++        }
++
++        float2 corner = max(rawCorner, float2(0.0));
++        float radiusSquared = dot(corner, corner);
++        if (radiusSquared <= 1e-8) {
++            return half4(1.0);
++        }
++
++        // U = 2 * device-to-normalized-corner Jacobian. Include the derivative of abs(xy), which
++        // matters for rotated/sheared RRects even though it cancels for axis-aligned scaling.
++        float2 cornerSign = sign(xy);
++        float2 gradient = (corner * cornerSign) * u_deviceDerivatives;
++        float gradientLength = length(gradient);
++        if (gradientLength <= 1e-6) {
++            return half4(radiusSquared <= 1.0 ? 1.0 : 0.0);
++        }
++        float2 normal = gradient / gradientLength;
++
++        // Find the intersection of the ellipse with a ray along the device-space edge normal.
++        // Unlike f/fwidth, this yields a distance in destination pixels and remains stable when
++        // the same device geometry is represented by a different affine layer transform.
++        float2 activeAxis =
++                float2(rawCorner.x > 0.0 ? 1.0 : 0.0,
++                       rawCorner.y > 0.0 ? 1.0 : 0.0);
++        float2 normalStep =
++                0.5 * (u_deviceDerivatives * normal) * cornerSign * activeAxis;
++        float implicitEdge = radiusSquared - 1.0;
++        float quadraticA = dot(normalStep, normalStep);
++        float quadraticB = dot(corner, normalStep);
++        float discriminant =
++                max(quadraticB * quadraticB - quadraticA * implicitEdge, 0.0);
++        float signedDistance =
++                implicitEdge /
++                max(quadraticB + sqrt(discriminant), 1e-6);
++
++        // Where a straight edge exists, keep ordinary one-pixel area coverage at the exact arc
++        // tangency. Change to the Gaussian over two destination pixels of arc length so both the
++        // value and first derivative stay continuous at the join. Ovals have no straight join and
++        // therefore select Gaussian coverage around their full contour.
++        float2 cornerDirection = corner / sqrt(radiusSquared);
++        float2 distanceFromTangency = cornerDirection * u_axisDeviceSize;
++        float2 tangencyMix =
++                smoothstep(float2(0.0), float2(2.0), distanceFromTangency);
++        tangencyMix =
++                mix(float2(1.0), tangencyMix, u_tangencyHasStraightEdge);
++        float arcMix = min(tangencyMix.x, tangencyMix.y);
++        float coverage =
++                mix(pixelBoxCoverage(signedDistance, normal),
++                    gaussianCoverage(signedDistance), arcMix);
++        return half4(saturate(coverage));
++    }
++)");
++
++const sk_sp<SkRuntimeEffect>& getRoundedCornerCoverageEffect() {
++    // Keep this experimental effect out of RuntimeEffectManager's eager startup path. A SkSL
++    // incompatibility must never prevent RenderEngine (and therefore SurfaceFlinger) from
++    // starting. Function-local static initialization is thread-safe and also ensures an error is
++    // logged only once; a null result makes every later call use the existing rounded-corner path.
++    static const sk_sp<SkRuntimeEffect> effect = [] {
++        SkRuntimeEffect::Options options;
++        options.fName = "RE_RoundedCornerCoverageEffect";
++        auto [effect, error] =
++                SkRuntimeEffect::MakeForShader(kEffectSource_RoundedCornerCoverageEffect, options);
++        if (!effect) {
++            ALOGE("Rounded-corner coverage effect construction failed; using existing path: %s",
++                  error.c_str());
++        }
++        return effect;
++    }();
++    return effect;
++}
++
++} // namespace
++
++std::optional<RoundedCornerShaderFactory::Shader> RoundedCornerShaderFactory::createShader(
++        SkCanvas* canvas, const SkRRect& roundedRect, float arcSigmaPx) const {
++    if (!canvas || !std::isfinite(arcSigmaPx) || arcSigmaPx < 0.5f || arcSigmaPx > 2.0f ||
++        (!roundedRect.isSimple() && !roundedRect.isOval())) {
++        return std::nullopt;
++    }
++
++    const SkRect& rect = roundedRect.rect();
++    const SkVector radii = roundedRect.getSimpleRadii();
++    if (rect.isEmpty() || !rect.isFinite() || radii.fX <= 0.0f || radii.fY <= 0.0f ||
++        !std::isfinite(radii.fX) || !std::isfinite(radii.fY)) {
++        return std::nullopt;
++    }
++
++    const SkMatrix& canvasMatrix = canvas->getTotalMatrix();
++    if (canvasMatrix.hasPerspective()) {
++        return std::nullopt;
++    }
++
++    const float a = canvasMatrix.getScaleX();
++    const float b = canvasMatrix.getSkewX();
++    const float c = canvasMatrix.getSkewY();
++    const float d = canvasMatrix.getScaleY();
++    const float determinant = a * d - b * c;
++    if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(c) || !std::isfinite(d) ||
++        !std::isfinite(determinant) || std::abs(determinant) < 1e-6f) {
++        return std::nullopt;
++    }
++
++    const float filterSupportPx = 3.0f * arcSigmaPx;
++
++    // The normal-ray intersection below is effectively exact for circles and well-conditioned
++    // transformed ellipses. Fall back to Skia when a highly eccentric/sheared ellipse makes that
++    // ray a poor signed-distance approximation. Small physical corners also fall back: if the
++    // complete Gaussian support reaches the ellipse center, its normal is undefined and a
++    // distance-only reconstruction would need a separate small-shape convolution.
++    const float axisX = radii.fX * std::hypot(a, c);
++    const float axisY = radii.fY * std::hypot(b, d);
++    const float axisDot = radii.fX * radii.fY * (a * b + c * d);
++    const float trace = axisX * axisX + axisY * axisY;
++    const float eigenvalueDifference = std::hypot(axisX * axisX - axisY * axisY, 2.0f * axisDot);
++    const float maxEigenvalue = 0.5f * (trace + eigenvalueDifference);
++    const float ellipseDeterminant = std::abs(determinant) * radii.fX * radii.fY;
++    if (!std::isfinite(maxEigenvalue) || !std::isfinite(ellipseDeterminant) ||
++        maxEigenvalue <= 0.0f || ellipseDeterminant <= 0.0f) {
++        return std::nullopt;
++    }
++    const float conditionNumber = maxEigenvalue / ellipseDeterminant;
++    const float minDeviceSemiAxis = ellipseDeterminant / std::sqrt(maxEigenvalue);
++    if (!std::isfinite(conditionNumber) || !std::isfinite(minDeviceSemiAxis) ||
++        conditionNumber > 4.0f || minDeviceSemiAxis < filterSupportPx) {
++        return std::nullopt;
++    }
++
++    const float stretchX = 1.0f - rect.width() * 0.5f / radii.fX;
++    const float stretchY = 1.0f - rect.height() * 0.5f / radii.fY;
++    if (!std::isfinite(stretchX) || !std::isfinite(stretchY)) {
++        return std::nullopt;
++    }
++
++    const sk_sp<SkRuntimeEffect>& effect = getRoundedCornerCoverageEffect();
++    if (!effect) {
++        return std::nullopt;
++    }
++
++    SkRuntimeShaderBuilder builder(effect);
++    builder.uniform("u_stretchFactor") = SkV2{stretchX, stretchY};
++
++    // This is the derivative of x^2 + y^2 - 1 after accounting for both the normalization by
++    // corner radii and the current local-to-device transform. The derivation follows Skia's
++    // ClipSuperRRect runtime-shader implementation.
++    const float dx = 2.0f / (radii.fX * determinant);
++    const float dy = 2.0f / (radii.fY * determinant);
++    if (!std::isfinite(dx) || !std::isfinite(dy)) {
++        return std::nullopt;
++    }
++    builder.uniform("u_deviceDerivatives") = SkV4{d * dx, -c * dy, -b * dx, a * dy};
++    const float axisDeviceSizeX = axisX;
++    const float axisDeviceSizeY = axisY;
++    if (!std::isfinite(axisDeviceSizeX) || !std::isfinite(axisDeviceSizeY) ||
++        axisDeviceSizeX <= 0.0f || axisDeviceSizeY <= 0.0f) {
++        return std::nullopt;
++    }
++    builder.uniform("u_axisDeviceSize") = SkV2{axisDeviceSizeX, axisDeviceSizeY};
++    builder.uniform("u_tangencyHasStraightEdge") =
++            SkV2{rect.width() > 2.0f * radii.fX ? 1.0f : 0.0f,
++                 rect.height() > 2.0f * radii.fY ? 1.0f : 0.0f};
++
++    const float inverseAbsDeterminant = 1.0f / std::abs(determinant);
++    const float maxSampleRadiusX =
++            filterSupportPx * std::hypot(d, b) * inverseAbsDeterminant / radii.fX;
++    const float maxSampleRadiusY =
++            filterSupportPx * std::hypot(c, a) * inverseAbsDeterminant / radii.fY;
++    if (!std::isfinite(maxSampleRadiusX) || !std::isfinite(maxSampleRadiusY)) {
++        return std::nullopt;
++    }
++    builder.uniform("u_maxSampleRadius") = SkV2{maxSampleRadiusX, maxSampleRadiusY};
++    builder.uniform("u_arcSigma") = arcSigmaPx;
++
++    SkMatrix cornerToLocal;
++    cornerToLocal.setScaleTranslate(radii.fX, radii.fY, rect.centerX(), rect.centerY());
++    sk_sp<SkShader> shader = builder.makeShader(&cornerToLocal);
++    if (!shader) {
++        return std::nullopt;
++    }
++
++    // Convert the three-sigma device-space support to conservative local X/Y outsets.
++    const float bloatX = std::hypot(d, b) * inverseAbsDeterminant * filterSupportPx;
++    const float bloatY = std::hypot(c, a) * inverseAbsDeterminant * filterSupportPx;
++    if (!std::isfinite(bloatX) || !std::isfinite(bloatY)) {
++        return std::nullopt;
++    }
++
++    const SkRect drawBounds = rect.makeOutset(bloatX, bloatY);
++    if (!drawBounds.isFinite()) {
++        return std::nullopt;
++    }
++
++    return Shader{.shader = std::move(shader), .drawBounds = drawBounds};
++}
++
++} // namespace android::renderengine::skia
+diff --git a/libs/renderengine/skia/filters/RoundedCornerShaderFactory.h b/libs/renderengine/skia/filters/RoundedCornerShaderFactory.h
+new file mode 100644
+index 0000000..5dc261f
+--- /dev/null
++++ b/libs/renderengine/skia/filters/RoundedCornerShaderFactory.h
+@@ -0,0 +1,51 @@
++/*
++ * Copyright 2026 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#pragma once
++
++#include <SkRRect.h>
++#include <SkRect.h>
++#include <SkRefCnt.h>
++#include <SkShader.h>
++
++#include <optional>
++
++class SkCanvas;
++
++namespace android::renderengine::skia {
++
++/**
++ * Creates a device-space Gaussian coverage shader for a simple rounded rectangle.
++ *
++ * Where an arc joins a straight edge, the exact tangency retains analytic one-pixel box coverage.
++ * Over the first two device pixels of arc, reconstruction changes smoothly to a Gaussian of the
++ * requested sigma. Ovals have no straight join and use Gaussian coverage around the full contour.
++ * This attenuates shallow-angle staircase runs without moving the 50% contour. Very small or
++ * ill-conditioned transformed corners return no shader and use the caller's existing fallback.
++ */
++class RoundedCornerShaderFactory {
++public:
++    struct Shader {
++        sk_sp<SkShader> shader;
++        // Conservative local-space bounds containing every non-zero coverage fragment.
++        SkRect drawBounds;
++    };
++
++    std::optional<Shader> createShader(SkCanvas* canvas, const SkRRect& roundedRect,
++                                       float arcSigmaPx) const;
++};
++
++} // namespace android::renderengine::skia
+diff --git a/libs/renderengine/tests/RenderEngineTest.cpp b/libs/renderengine/tests/RenderEngineTest.cpp
+index 06a0017..0bd3616 100644
+--- a/libs/renderengine/tests/RenderEngineTest.cpp
++++ b/libs/renderengine/tests/RenderEngineTest.cpp
+@@ -22,6 +22,7 @@
+ #pragma clang diagnostic ignored "-Wconversion"
+ #pragma clang diagnostic ignored "-Wextra"
+ 
++#include <android-base/properties.h>
+ #include <com_android_graphics_surfaceflinger_flags.h>
+ #include <cutils/properties.h>
+ #include <gtest/gtest.h>
+@@ -35,7 +36,9 @@
+ #include <ui/PixelFormat.h>
+ 
+ #include <algorithm>
++#include <array>
+ #include <chrono>
++#include <cmath>
+ #include <condition_variable>
+ #include <filesystem>
+ #include <fstream>
+@@ -367,6 +370,30 @@ public:
+         expectBufferColor(rect, generator, colorCompare);
+     }
+ 
++    std::vector<uint8_t> copyBufferAlpha() {
++        uint8_t* pixels = nullptr;
++        const status_t lockResult = mBuffer->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN,
++                                                               reinterpret_cast<void**>(&pixels));
++        EXPECT_EQ(NO_ERROR, lockResult);
++        if (lockResult != NO_ERROR) {
++            return {};
++        }
++
++        const uint32_t width = mBuffer->getBuffer()->getWidth();
++        const uint32_t height = mBuffer->getBuffer()->getHeight();
++        const uint32_t stride = mBuffer->getBuffer()->getStride();
++        std::vector<uint8_t> alpha(width * height);
++        for (uint32_t y = 0; y < height; y++) {
++            const uint8_t* src = pixels + stride * y * 4;
++            for (uint32_t x = 0; x < width; x++) {
++                alpha[y * width + x] = src[x * 4 + 3];
++            }
++        }
++
++        EXPECT_EQ(NO_ERROR, mBuffer->getBuffer()->unlock());
++        return alpha;
++    }
++
+     void expectShadowColor(const renderengine::LayerSettings& castingLayer,
+                            const ShadowSettings& shadow, const ubyte4& casterColor,
+                            const ubyte4& backgroundColor) {
+@@ -1607,6 +1634,537 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_colorSource) {
+     fillBufferWithRoundedCorners<ColorSourceVariant>();
+ }
+ 
++TEST_P(RenderEngineTest, drawLayers_roundedCornerUsesGaussianArcCoverage) {
++    if (!GetParam()->apiSupported()) {
++        GTEST_SKIP();
++    }
++    if (!base::GetBoolProperty(PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA, true)) {
++        GTEST_SKIP() << "Enhanced rounded-corner AA is disabled by debug property";
++    }
++    constexpr int kExpectedAaSigmaX100 = 100;
++    if (base::GetIntProperty<int>(PROPERTY_DEBUG_RENDERENGINE_ROUNDED_CORNER_AA_SIGMA_X100,
++                                  kExpectedAaSigmaX100) != kExpectedAaSigmaX100) {
++        GTEST_SKIP() << "Coverage thresholds require the default 1.00px Gaussian sigma";
++    }
++    initializeRenderEngine();
++
++    renderengine::DisplaySettings settings;
++    settings.physicalDisplay = fullscreenRect();
++    settings.clip = fullscreenRect();
++    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++
++    constexpr int kLeft = 8;
++    constexpr int kTop = 8;
++    constexpr int kRight = 120;
++    constexpr int kBottom = 120;
++    constexpr int kRadius = 50;
++
++    renderengine::LayerSettings layer;
++    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++    layer.geometry.boundaries = FloatRect(kLeft, kTop, kRight, kBottom);
++    layer.geometry.roundedCornersRadii = gui::CornerRadii(kRadius);
++    layer.geometry.roundedCornersCrop = layer.geometry.boundaries;
++    layer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
++    layer.alpha = 1.0f;
++
++    invokeDraw(settings, {layer});
++    const std::vector<uint8_t> alpha = copyBufferAlpha();
++    ASSERT_EQ(static_cast<size_t>(DEFAULT_DISPLAY_WIDTH * DEFAULT_DISPLAY_HEIGHT), alpha.size());
++
++    const auto alphaAt = [&alpha](int x, int y) {
++        return alpha[static_cast<size_t>(y * DEFAULT_DISPLAY_WIDTH + x)];
++    };
++
++    // The straight edge keeps an approximately one-pixel transition.
++    EXPECT_LE(alphaAt(DEFAULT_DISPLAY_WIDTH / 2, kTop - 1), 2);
++    EXPECT_GE(alphaAt(DEFAULT_DISPLAY_WIDTH / 2, kTop), 253);
++
++    // A one-pixel Gaussian sigma provides several independently quantized transition pixels at
++    // every arc angle. This is intentionally wider than Skia's regular one-pixel RRect AA: a
++    // high-luminance layer behind a dark window otherwise exposes shallow-angle alpha steps.
++    size_t partialPixels = 0;
++    std::array<size_t, 3> coverageBands = {};
++    for (int y = kTop; y < kTop + kRadius; y++) {
++        for (int x = kLeft; x < kLeft + kRadius; x++) {
++            const uint8_t value = alphaAt(x, y);
++            if (value > 0 && value < 255) {
++                partialPixels++;
++            }
++            if (value >= 8 && value <= 79) {
++                coverageBands[0]++;
++            } else if (value >= 80 && value <= 175) {
++                coverageBands[1]++;
++            } else if (value >= 176 && value <= 247) {
++                coverageBands[2]++;
++            }
++        }
++    }
++    EXPECT_GE(partialPixels, 330u);
++    EXPECT_LE(partialPixels, 430u);
++    EXPECT_GE(coverageBands[0], 65u);
++    EXPECT_GE(coverageBands[1], 60u);
++    EXPECT_GE(coverageBands[2], 80u);
++
++    // Reference values from the device-space signed-distance Gaussian. They span three coverage
++    // bands at shallow and diagonal portions of the arc instead of collapsing into long runs.
++    EXPECT_NEAR(62, alphaAt(27, 17), 8);
++    EXPECT_NEAR(193, alphaAt(28, 18), 8);
++    EXPECT_NEAR(176, alphaAt(23, 22), 8);
++
++    // The same analytic equation must produce symmetric coverage at all four corners.
++    int maxSymmetryDifference = 0;
++    for (int y = 0; y < kRadius; y++) {
++        for (int x = 0; x < kRadius; x++) {
++            const int topLeft = alphaAt(kLeft + x, kTop + y);
++            maxSymmetryDifference = std::max(maxSymmetryDifference,
++                                             std::abs(topLeft - alphaAt(kRight - 1 - x, kTop + y)));
++            maxSymmetryDifference =
++                    std::max(maxSymmetryDifference,
++                             std::abs(topLeft - alphaAt(kLeft + x, kBottom - 1 - y)));
++            maxSymmetryDifference =
++                    std::max(maxSymmetryDifference,
++                             std::abs(topLeft - alphaAt(kRight - 1 - x, kBottom - 1 - y)));
++            maxSymmetryDifference = std::max(maxSymmetryDifference,
++                                             std::abs(topLeft - alphaAt(kLeft + y, kTop + x)));
++        }
++    }
++    EXPECT_LE(maxSymmetryDifference, 2);
++}
++
++TEST_P(RenderEngineTest, drawLayers_roundedCornerGaussianPreservesHalfCoverageContour) {
++    if (!GetParam()->apiSupported()) {
++        GTEST_SKIP();
++    }
++    if (!base::GetBoolProperty(PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA, true)) {
++        GTEST_SKIP() << "Enhanced rounded-corner AA is disabled by debug property";
++    }
++    initializeRenderEngine();
++
++    renderengine::DisplaySettings settings;
++    settings.physicalDisplay = fullscreenRect();
++    settings.clip = fullscreenRect();
++    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++
++    renderengine::LayerSettings layer;
++    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++    // The fractional origin places pixel centers exactly on both a straight edge and the
++    // top-left arc's 3-4-5 point. Gaussian reconstruction must not move either 0.5 contour.
++    layer.geometry.boundaries = FloatRect(14.5f, 14.5f, 120.5f, 120.5f);
++    layer.geometry.roundedCornersRadii = gui::CornerRadii(50.0f);
++    layer.geometry.roundedCornersCrop = layer.geometry.boundaries;
++    layer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
++    layer.alpha = 1.0f;
++
++    invokeDraw(settings, {layer});
++    const std::vector<uint8_t> alpha = copyBufferAlpha();
++    ASSERT_EQ(static_cast<size_t>(DEFAULT_DISPLAY_WIDTH * DEFAULT_DISPLAY_HEIGHT), alpha.size());
++
++    const auto alphaAt = [&alpha](int x, int y) {
++        return alpha[static_cast<size_t>(y * DEFAULT_DISPLAY_WIDTH + x)];
++    };
++
++    // Pixel center (34.5, 24.5) is 30px left and 40px above the corner center (64.5, 64.5).
++    // It therefore lies exactly on the 50px circular contour.
++    EXPECT_NEAR(128, alphaAt(34, 24), 4);
++    EXPECT_LT(alphaAt(33, 24), 120);
++    EXPECT_GT(alphaAt(35, 24), 136);
++
++    // Pixel center (67.5, 14.5) lies on the flat top edge. Its neighboring rows demonstrate
++    // that straight-edge coverage remains approximately one destination pixel wide.
++    EXPECT_NEAR(128, alphaAt(67, 14), 4);
++    EXPECT_LE(alphaAt(67, 13), 2);
++    EXPECT_GE(alphaAt(67, 15), 253);
++}
++
++TEST_P(RenderEngineTest, drawLayers_roundedCornerOvalHasNoTangencyPinch) {
++    if (!GetParam()->apiSupported()) {
++        GTEST_SKIP();
++    }
++    if (!base::GetBoolProperty(PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA, true)) {
++        GTEST_SKIP() << "Enhanced rounded-corner AA is disabled by debug property";
++    }
++    constexpr int kExpectedAaSigmaX100 = 100;
++    if (base::GetIntProperty<int>(PROPERTY_DEBUG_RENDERENGINE_ROUNDED_CORNER_AA_SIGMA_X100,
++                                  kExpectedAaSigmaX100) != kExpectedAaSigmaX100) {
++        GTEST_SKIP() << "Coverage reference requires the default 1.00px Gaussian sigma";
++    }
++    initializeRenderEngine();
++
++    renderengine::DisplaySettings settings;
++    settings.physicalDisplay = fullscreenRect();
++    settings.clip = fullscreenRect();
++    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++
++    renderengine::LayerSettings layer;
++    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++    layer.geometry.boundaries = FloatRect(14.5f, 14.5f, 114.5f, 114.5f);
++    layer.geometry.roundedCornersRadii = gui::CornerRadii(50.0f);
++    layer.geometry.roundedCornersCrop = layer.geometry.boundaries;
++    layer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
++    layer.alpha = 1.0f;
++
++    invokeDraw(settings, {layer});
++    const std::vector<uint8_t> alpha = copyBufferAlpha();
++    ASSERT_EQ(static_cast<size_t>(DEFAULT_DISPLAY_WIDTH * DEFAULT_DISPLAY_HEIGHT), alpha.size());
++
++    const auto alphaAt = [&alpha](int x, int y) {
++        return alpha[static_cast<size_t>(y * DEFAULT_DISPLAY_WIDTH + x)];
++    };
++
++    // An oval has no straight edge at its cardinal points, so the Gaussian must continue through
++    // them instead of narrowing to the one-pixel tangency ramp used by an ordinary RRect.
++    EXPECT_NEAR(40, alphaAt(64, 13), 4);
++    EXPECT_NEAR(128, alphaAt(64, 14), 4);
++    EXPECT_NEAR(215, alphaAt(64, 15), 4);
++}
++
++TEST_P(RenderEngineTest, drawLayers_roundedCornerGaussianIsStableAcrossSubpixelPhases) {
++    if (!GetParam()->apiSupported()) {
++        GTEST_SKIP();
++    }
++    if (!base::GetBoolProperty(PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA, true)) {
++        GTEST_SKIP() << "Enhanced rounded-corner AA is disabled by debug property";
++    }
++    constexpr int kExpectedAaSigmaX100 = 100;
++    if (base::GetIntProperty<int>(PROPERTY_DEBUG_RENDERENGINE_ROUNDED_CORNER_AA_SIGMA_X100,
++                                  kExpectedAaSigmaX100) != kExpectedAaSigmaX100) {
++        GTEST_SKIP() << "Coverage reference requires the default 1.00px Gaussian sigma";
++    }
++    initializeRenderEngine();
++
++    renderengine::DisplaySettings settings;
++    settings.physicalDisplay = fullscreenRect();
++    settings.clip = fullscreenRect();
++    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++
++    renderengine::LayerSettings layer;
++    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++    layer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
++    layer.alpha = 1.0f;
++
++    constexpr float kLeft = 14.0f;
++    constexpr float kTop = 14.0f;
++    constexpr float kDiameter = 100.0f;
++    constexpr float kRadius = kDiameter * 0.5f;
++    constexpr float kInverseSqrtTwo = 0.70710678118f;
++    constexpr std::array<float, 4> kPhases = {0.0f, 0.25f, 0.5f, 0.75f};
++
++    size_t sampleCount = 0;
++    double totalError = 0.0;
++    float maxError = 0.0f;
++    for (const float phaseY : kPhases) {
++        for (const float phaseX : kPhases) {
++            layer.geometry.boundaries =
++                    FloatRect(kLeft + phaseX, kTop + phaseY,
++                              kLeft + phaseX + kDiameter, kTop + phaseY + kDiameter);
++            layer.geometry.roundedCornersRadii = gui::CornerRadii(kRadius);
++            layer.geometry.roundedCornersCrop = layer.geometry.boundaries;
++
++            invokeDraw(settings, {layer});
++            const std::vector<uint8_t> alpha = copyBufferAlpha();
++            ASSERT_EQ(static_cast<size_t>(DEFAULT_DISPLAY_WIDTH * DEFAULT_DISPLAY_HEIGHT),
++                      alpha.size());
++
++            const float centerX = kLeft + phaseX + kRadius;
++            const float centerY = kTop + phaseY + kRadius;
++            size_t phaseSampleCount = 0;
++            double phaseTotalError = 0.0;
++            float phaseMaxError = 0.0f;
++            for (int y = 8; y < 70; y++) {
++                for (int x = 8; x < 70; x++) {
++                    const float dx = static_cast<float>(x) + 0.5f - centerX;
++                    const float dy = static_cast<float>(y) + 0.5f - centerY;
++                    if (dx > 0.0f || dy > 0.0f) {
++                        continue;
++                    }
++
++                    const float signedDistance = std::hypot(dx, dy) - kRadius;
++                    const float distanceFromTangency = std::min(-dx, -dy);
++                    if (std::abs(signedDistance) > 2.5f || distanceFromTangency < 3.0f) {
++                        continue;
++                    }
++
++                    const float expected =
++                            0.5f * std::erfc(signedDistance * kInverseSqrtTwo);
++                    const float actual =
++                            alpha[static_cast<size_t>(y * DEFAULT_DISPLAY_WIDTH + x)] / 255.0f;
++                    const float error = std::abs(actual - expected);
++                    maxError = std::max(maxError, error);
++                    totalError += error;
++                    sampleCount++;
++                    phaseMaxError = std::max(phaseMaxError, error);
++                    phaseTotalError += error;
++                    phaseSampleCount++;
++                }
++            }
++            ASSERT_GE(phaseSampleCount, 340u);
++            EXPECT_LE(phaseMaxError, 0.015f) << "phase " << phaseX << ", " << phaseY;
++            EXPECT_LE(phaseTotalError / static_cast<double>(phaseSampleCount), 0.004)
++                    << "phase " << phaseX << ", " << phaseY;
++        }
++    }
++
++    ASSERT_GE(sampleCount, 5500u);
++    EXPECT_LE(maxError, 0.015f);
++    EXPECT_LE(totalError / static_cast<double>(sampleCount), 0.004);
++}
++
++TEST_P(RenderEngineTest, drawLayers_roundedCornerGaussianCompositesSmoothlyOverBrightBackground) {
++    if (!GetParam()->apiSupported()) {
++        GTEST_SKIP();
++    }
++    if (!base::GetBoolProperty(PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA, true)) {
++        GTEST_SKIP() << "Enhanced rounded-corner AA is disabled by debug property";
++    }
++    constexpr int kExpectedAaSigmaX100 = 100;
++    if (base::GetIntProperty<int>(PROPERTY_DEBUG_RENDERENGINE_ROUNDED_CORNER_AA_SIGMA_X100,
++                                  kExpectedAaSigmaX100) != kExpectedAaSigmaX100) {
++        GTEST_SKIP() << "Color reference requires the default 1.00px Gaussian sigma";
++    }
++    initializeRenderEngine();
++
++    renderengine::DisplaySettings settings;
++    settings.physicalDisplay = fullscreenRect();
++    settings.clip = fullscreenRect();
++    settings.outputDataspace = ui::Dataspace::V0_SRGB;
++
++    renderengine::LayerSettings background;
++    background.sourceDataspace = ui::Dataspace::V0_SRGB;
++    background.geometry.boundaries = fullscreenRect().toFloatRect();
++    background.source.solidColor = half3(139.0f / 255.0f, 191.0f / 255.0f, 239.0f / 255.0f);
++    background.alpha = 1.0f;
++
++    renderengine::LayerSettings foreground;
++    foreground.sourceDataspace = ui::Dataspace::V0_SRGB;
++    foreground.geometry.boundaries = FloatRect(14.5f, 14.5f, 114.5f, 114.5f);
++    foreground.geometry.roundedCornersRadii = gui::CornerRadii(50.0f);
++    foreground.geometry.roundedCornersCrop = foreground.geometry.boundaries;
++    foreground.source.solidColor = half3(17.0f / 255.0f, 19.0f / 255.0f, 23.0f / 255.0f);
++    foreground.alpha = 1.0f;
++
++    invokeDraw(settings, {background, foreground});
++
++    // This row crosses the arc at a shallow normal (14/50 in X), where a one-pixel AA ramp forms
++    // conspicuous same-color runs over a bright background. Check the full Gaussian transition in
++    // final RGB, not only its 50% point. This intentionally reflects RenderEngine's current sRGB
++    // code-value compositing; a future global linear-light policy should update this reference.
++    constexpr float kCenterX = 64.5f;
++    constexpr float kCenterY = 64.5f;
++    constexpr float kRadius = 50.0f;
++    constexpr float kInverseSqrtTwo = 0.70710678118f;
++    constexpr std::array<float, 3> kForeground = {17.0f, 19.0f, 23.0f};
++    constexpr std::array<float, 3> kBackground = {139.0f, 191.0f, 239.0f};
++    const auto expectedTransition = [=](Point location) {
++        const float dx = static_cast<float>(location.x) + 0.5f - kCenterX;
++        const float dy = static_cast<float>(location.y) + 0.5f - kCenterY;
++        const float signedDistance = std::hypot(dx, dy) - kRadius;
++        const float coverage = 0.5f * std::erfc(signedDistance * kInverseSqrtTwo);
++        const auto blendChannel = [coverage](float foreground, float background) {
++            return static_cast<uint8_t>(
++                    std::lround(coverage * foreground + (1.0f - coverage) * background));
++        };
++        return ubyte4(blendChannel(kForeground[0], kBackground[0]),
++                      blendChannel(kForeground[1], kBackground[1]),
++                      blendChannel(kForeground[2], kBackground[2]), 255);
++    };
++    expectBufferColor(Rect(46, 16, 56, 17), expectedTransition, 3);
++
++    expectBufferColor(Point(64, 64), 17, 19, 23, 255, 2);
++    expectBufferColor(Point(8, 8), 139, 191, 239, 255, 2);
++}
++
++TEST_P(RenderEngineTest, drawLayers_roundedCornerBoundsAndClipCoverageMatch) {
++    if (!GetParam()->apiSupported()) {
++        GTEST_SKIP();
++    }
++    if (!base::GetBoolProperty(PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA, true)) {
++        GTEST_SKIP() << "Enhanced rounded-corner AA is disabled by debug property";
++    }
++    initializeRenderEngine();
++
++    renderengine::DisplaySettings settings;
++    settings.physicalDisplay = fullscreenRect();
++    settings.clip = fullscreenRect();
++    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++
++    const FloatRect roundedRect(8, 8, 120, 120);
++    renderengine::LayerSettings layer;
++    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++    layer.geometry.boundaries = roundedRect;
++    layer.geometry.roundedCornersRadii = gui::CornerRadii(50.0f);
++    layer.geometry.roundedCornersCrop = roundedRect;
++    layer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
++    layer.alpha = 1.0f;
++
++    // First render the RRect directly as layer bounds.
++    invokeDraw(settings, {layer});
++    const std::vector<uint8_t> boundsAlpha = copyBufferAlpha();
++
++    // Then render the same visible shape through the rounded crop/clip branch.
++    // Leave at least the complete three-sigma support around the rounded crop. Otherwise the
++    // rectangular bounds would legitimately truncate the clip shader's outer Gaussian tail.
++    layer.geometry.boundaries = FloatRect(4, 4, 124, 124);
++    invokeDraw(settings, {layer});
++    const std::vector<uint8_t> clipAlpha = copyBufferAlpha();
++
++    ASSERT_EQ(boundsAlpha.size(), clipAlpha.size());
++    ASSERT_FALSE(boundsAlpha.empty());
++    int maxDifference = 0;
++    uint64_t totalDifference = 0;
++    for (size_t i = 0; i < boundsAlpha.size(); i++) {
++        const int difference =
++                std::abs(static_cast<int>(boundsAlpha[i]) - static_cast<int>(clipAlpha[i]));
++        maxDifference = std::max(maxDifference, difference);
++        totalDifference += static_cast<uint64_t>(difference);
++    }
++    EXPECT_LE(maxDifference, 2);
++    EXPECT_LE(totalDifference, boundsAlpha.size() / 2);
++}
++
++TEST_P(RenderEngineTest, drawLayers_roundedCornerCoverageIsDeviceSpaceInvariant) {
++    if (!GetParam()->apiSupported()) {
++        GTEST_SKIP();
++    }
++    if (!base::GetBoolProperty(PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA, true)) {
++        GTEST_SKIP() << "Enhanced rounded-corner AA is disabled by debug property";
++    }
++    initializeRenderEngine();
++
++    renderengine::DisplaySettings settings;
++    settings.physicalDisplay = fullscreenRect();
++    settings.clip = fullscreenRect();
++    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++
++    renderengine::LayerSettings layer;
++    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++    layer.geometry.boundaries = FloatRect(8, 8, 120, 120);
++    layer.geometry.roundedCornersRadii = gui::CornerRadii(50.0f);
++    layer.geometry.roundedCornersCrop = layer.geometry.boundaries;
++    layer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
++    layer.alpha = 1.0f;
++
++    invokeDraw(settings, {layer});
++    const std::vector<uint8_t> oneToOneAlpha = copyBufferAlpha();
++
++    // Render identical device-space geometry from a half-sized layer. The coverage width must
++    // remain measured in destination pixels instead of being doubled by the layer transform.
++    layer.geometry.boundaries = FloatRect(4, 4, 60, 60);
++    layer.geometry.roundedCornersRadii = gui::CornerRadii(25.0f);
++    layer.geometry.roundedCornersCrop = layer.geometry.boundaries;
++    layer.geometry.positionTransform = mat4::scale(vec4(2.0f, 2.0f, 1.0f, 1.0f));
++    invokeDraw(settings, {layer});
++    const std::vector<uint8_t> scaledAlpha = copyBufferAlpha();
++
++    ASSERT_EQ(oneToOneAlpha.size(), scaledAlpha.size());
++    ASSERT_FALSE(oneToOneAlpha.empty());
++    int maxDifference = 0;
++    uint64_t totalDifference = 0;
++    for (size_t i = 0; i < oneToOneAlpha.size(); i++) {
++        const int difference =
++                std::abs(static_cast<int>(oneToOneAlpha[i]) - static_cast<int>(scaledAlpha[i]));
++        maxDifference = std::max(maxDifference, difference);
++        totalDifference += static_cast<uint64_t>(difference);
++    }
++    EXPECT_LE(maxDifference, 2);
++    EXPECT_LE(totalDifference, oneToOneAlpha.size() / 2);
++}
++
++TEST_P(RenderEngineTest, drawLayers_roundedCornerCoverageIsStableUnderAffineReparameterization) {
++    if (!GetParam()->apiSupported()) {
++        GTEST_SKIP();
++    }
++    if (!base::GetBoolProperty(PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA, true)) {
++        GTEST_SKIP() << "Enhanced rounded-corner AA is disabled by debug property";
++    }
++    initializeRenderEngine();
++
++    renderengine::DisplaySettings settings;
++    settings.physicalDisplay = fullscreenRect();
++    settings.clip = fullscreenRect();
++    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++
++    renderengine::LayerSettings layer;
++    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++    layer.geometry.boundaries = FloatRect(10, 20, 70, 80);
++    layer.geometry.roundedCornersRadii = gui::CornerRadii(20.0f);
++    layer.geometry.roundedCornersCrop = layer.geometry.boundaries;
++    layer.geometry.positionTransform = mat4(1.0f, 0.0f, 0.0f, 0.0f, 0.25f, 1.0f, 0.0f, 0.0f, 0.0f,
++                                            0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
++    layer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
++    layer.alpha = 1.0f;
++
++    invokeDraw(settings, {layer});
++    const std::vector<uint8_t> referenceAlpha = copyBufferAlpha();
++
++    // Halve local X while doubling the transform's X basis. The resulting device-space sheared
++    // RRect is identical, but its local parameterization and inverse affine matrix are different.
++    layer.geometry.boundaries = FloatRect(5, 20, 35, 80);
++    layer.geometry.roundedCornersRadii = gui::CornerRadii(20.0f);
++    layer.geometry.roundedCornersRadii.topLeft.x = 10.0f;
++    layer.geometry.roundedCornersRadii.topRight.x = 10.0f;
++    layer.geometry.roundedCornersRadii.bottomLeft.x = 10.0f;
++    layer.geometry.roundedCornersRadii.bottomRight.x = 10.0f;
++    layer.geometry.roundedCornersCrop = layer.geometry.boundaries;
++    layer.geometry.positionTransform = mat4(2.0f, 0.0f, 0.0f, 0.0f, 0.25f, 1.0f, 0.0f, 0.0f, 0.0f,
++                                            0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
++
++    invokeDraw(settings, {layer});
++    const std::vector<uint8_t> reparameterizedAlpha = copyBufferAlpha();
++
++    ASSERT_EQ(referenceAlpha.size(), reparameterizedAlpha.size());
++    ASSERT_FALSE(referenceAlpha.empty());
++    int maxDifference = 0;
++    uint64_t totalDifference = 0;
++    for (size_t i = 0; i < referenceAlpha.size(); i++) {
++        const int difference = std::abs(static_cast<int>(referenceAlpha[i]) -
++                                        static_cast<int>(reparameterizedAlpha[i]));
++        maxDifference = std::max(maxDifference, difference);
++        totalDifference += static_cast<uint64_t>(difference);
++    }
++    EXPECT_LE(maxDifference, 2);
++    EXPECT_LE(totalDifference, referenceAlpha.size() / 2);
++}
++
++TEST_P(RenderEngineTest, drawLayers_roundedCornerDebugSwitchUsesExistingPathWhenDisabled) {
++    if (!GetParam()->apiSupported()) {
++        GTEST_SKIP();
++    }
++    if (base::GetBoolProperty(PROPERTY_DEBUG_RENDERENGINE_ENHANCED_ROUNDED_CORNER_AA, true)) {
++        GTEST_SKIP() << "Run with enhanced rounded-corner AA disabled to exercise the existing path";
++    }
++    initializeRenderEngine();
++
++    renderengine::DisplaySettings settings;
++    settings.physicalDisplay = fullscreenRect();
++    settings.clip = fullscreenRect();
++    settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++
++    constexpr int kLeft = 8;
++    constexpr int kTop = 8;
++    constexpr int kRadius = 50;
++    renderengine::LayerSettings layer;
++    layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
++    layer.geometry.boundaries = FloatRect(kLeft, kTop, 120, 120);
++    layer.geometry.roundedCornersRadii = gui::CornerRadii(kRadius);
++    layer.geometry.roundedCornersCrop = layer.geometry.boundaries;
++    layer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
++    layer.alpha = 1.0f;
++
++    invokeDraw(settings, {layer});
++    const std::vector<uint8_t> alpha = copyBufferAlpha();
++    ASSERT_EQ(static_cast<size_t>(DEFAULT_DISPLAY_WIDTH * DEFAULT_DISPLAY_HEIGHT), alpha.size());
++
++    size_t partialPixels = 0;
++    for (int y = kTop; y < kTop + kRadius; y++) {
++        for (int x = kLeft; x < kLeft + kRadius; x++) {
++            const uint8_t value = alpha[static_cast<size_t>(y * DEFAULT_DISPLAY_WIDTH + x)];
++            partialPixels += value > 0 && value < 255;
++        }
++    }
++    EXPECT_GE(partialPixels, 50u);
++    EXPECT_LT(partialPixels, 330u);
++}
++
+ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_colorSource) {
+     if (!GetParam()->apiSupported()) {
+         GTEST_SKIP();

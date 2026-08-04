@@ -1,4 +1,50 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android Media技术文档 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/</link><description>Recent content in Android Media技术文档 on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Sun, 07 Jun 2026 10:22:54 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/media/index.xml" rel="self" type="application/rss+xml"/><item><title>Android 13 AudioPlaybackCapture 技术原理与实现</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</link><pubDate>Sun, 07 Jun 2026 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android Media技术文档 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/</link><description>Recent content in Android Media技术文档 on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Sat, 01 Aug 2026 00:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/media/index.xml" rel="self" type="application/rss+xml"/><item><title>QNX OpenWFD OEM Secure Port 安全日志分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/qnx-openwfd-oem-secure-port-analysis/</link><pubDate>Sat, 01 Aug 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/qnx-openwfd-oem-secure-port-analysis/</guid><description>&lt;h2 id="问题背景"&gt;问题背景&lt;/h2&gt;
+&lt;p&gt;QNX 系统中出现如下 WARNING 日志：&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;[22][wfdBindSourceToPipeline:3302] DISPLAY_WARNING The source is secure, but the port 4 is not secure.The content is blocked
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;该日志表明：某个 WFD 客户端尝试将**安全源（secure source）**绑定到一个
+&lt;code&gt;eDisplayID=4&lt;/code&gt; 的有效 port，但该 port 当时的 &lt;code&gt;bOEMSecure&lt;/code&gt; 为 &lt;code&gt;WFD_FALSE&lt;/code&gt;。
+OpenWFD 因而将本次 source 改成无效句柄，使 pipeline 不再接收该安全内容。&lt;/p&gt;
+&lt;p&gt;这里的 &lt;code&gt;port 4&lt;/code&gt; 是日志参数 &lt;code&gt;pPort-&amp;gt;eDisplayID&lt;/code&gt;，不是 XML 中客户端私有的
+&lt;code&gt;&amp;lt;WFDPort ID='4'&amp;gt;&lt;/code&gt;。单凭这条日志也无法确定具体客户端和本地 WFDPort ID。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="一日志打印模块定位"&gt;一、日志打印模块定位&lt;/h2&gt;
+&lt;h3 id="11-日志来源"&gt;1.1 日志来源&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;项目&lt;/th&gt;
+&lt;th&gt;详情&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;模块&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;OpenWFD (&lt;code&gt;MDSS_MODULE_SW_WFD&lt;/code&gt;)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;源文件&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;AMSS/multimedia/display/Hoya/openwfd/src/pipeline.c&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;函数&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;wfdBindSourceToPipeline&lt;/code&gt; (定义于第 3178 行)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;打印行号&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;第 3300–3302 行&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;模块声明在 &lt;code&gt;pipeline.c:30&lt;/code&gt;：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-c" data-lang="c"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#a6e22e"&gt;DISP_OSAL_DEBUG_MODULE&lt;/span&gt;(WFD); &lt;span style="color:#75715e"&gt;// → gDispOsalDebugModuleId = MDSS_MODULE_SW_WFD
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="12-日志格式解析"&gt;1.2 日志格式解析&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;[22][wfdBindSourceToPipeline:3302] DISPLAY_WARNING The source is secure, but the port 4 is not secure.The content is blocked
+│ │ │ │
+│ │ │ └── 日志消息正文
+│ │ └── 日志级别标签 (来自 DISP_OSAL_LOG_WARNING 宏)
+│ └── 函数名 : 行号
+└── 线程 ID（pthread_self()）
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;&lt;code&gt;DISP_OSAL_LOG_WARNING&lt;/code&gt; 定义在 &lt;code&gt;openwfd/inc/wfd_osal.h:508-509&lt;/code&gt;：&lt;/p&gt;</description></item><item><title>Android 13 AudioPlaybackCapture 技术原理与实现</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</link><pubDate>Sun, 07 Jun 2026 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;&lt;strong&gt;AudioPlaybackCapture&lt;/strong&gt; 是 Android 10 (API 29) 引入的 API,允许 App 捕获其他 App 正在播放的音频。典型场景包括:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;屏幕录制时同时录制内部音频 (SystemUI 的 ScreenRecord)&lt;/li&gt;

@@ -1,4 +1,91 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/</link><description>Recent content on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Mon, 13 Jul 2026 09:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml"/><item><title>Android Winscope：工作原理、编译、运行与部署</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/</link><pubDate>Mon, 13 Jul 2026 09:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/</guid><description>&lt;p&gt;Winscope 是 Android 平台用于分析窗口、SurfaceFlinger Layer、窗口动画、输入法和系统界面状态的可视化工具。它尤其适合排查闪屏、黑屏、花屏、窗口层级错误、启动动画异常、画中画和多窗口切换异常等问题。&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/</link><description>Recent content on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Sat, 01 Aug 2026 15:54:21 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml"/><item><title>RenderEngine 圆角抗锯齿：Freeform 窗口的描画链路与 Gaussian Coverage 改进</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/renderengine-rounded-corner-antialiasing/</link><pubDate>Sat, 01 Aug 2026 15:54:21 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/renderengine-rounded-corner-antialiasing/</guid><description>&lt;p&gt;本文记录一个 Android Freeform 窗口圆角锯齿问题的完整分析过程。现象是：窗口几何形状正确，但四个圆角在高对比背景上仍能看到明显的阶梯状边缘。最终修复不针对某个应用，也不依赖 1:1 变换，而是在 RenderEngine 中重建一条以设备像素为度量的圆角 coverage 路径。&lt;/p&gt;
+&lt;p&gt;配套代码见同目录的 &lt;a href="renderengine-rounded-corner-antialiasing.patch"&gt;renderengine-rounded-corner-antialiasing.patch&lt;/a&gt;。Patch 以 &lt;code&gt;frameworks/native&lt;/code&gt; 为仓库根目录，包含 RenderEngine 接入、SkSL RuntimeEffect、容错与回归测试。&lt;/p&gt;
+&lt;h2 id="1-需求与验收标准"&gt;1. 需求与验收标准&lt;/h2&gt;
+&lt;p&gt;需求表面上是“消除 Freeform 窗口圆角锯齿”，但实际上包含几个很强的约束：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;对任意应用生效，不使用包名白名单。&lt;/li&gt;
+&lt;li&gt;不只支持 1:1 的 layer-to-display 变换；普通缩放、旋转和轻度 shear 也要保持相同的物理边缘宽度。&lt;/li&gt;
+&lt;li&gt;上层是深色或灰度画面、下层是高亮画面时，也不应出现明显阶梯。&lt;/li&gt;
+&lt;li&gt;不能通过改大圆角、移动几何边界或模糊整个内容来“遮住”问题。&lt;/li&gt;
+&lt;li&gt;直线边仍然要清晰，圆弧与直线的切点不能收紧或鼓包。&lt;/li&gt;
+&lt;li&gt;不支持的几何与数值情况必须回到原有描画路径，不影响正常合成。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;最终验收标准是：在实际显示尺寸与正常观看距离下，高对比场景中四个圆角的阶梯感肉眼基本不可见；同时圆角的 50% coverage 轮廓不偏移。&lt;/p&gt;
+&lt;h2 id="2-先理解-freeform-窗口是怎样被画出来的"&gt;2. 先理解 Freeform 窗口是怎样被画出来的&lt;/h2&gt;
+&lt;p&gt;要分析圆角，不能只看应用窗口的 Buffer。Freeform 的圆角往往是 SurfaceFlinger 合成 Layer 时附加的几何 coverage，而不是应用已经画进 Buffer 的透明像素。&lt;/p&gt;
+&lt;h3 id="21-从应用-buffer-到屏幕像素"&gt;2.1 从应用 Buffer 到屏幕像素&lt;/h3&gt;
+&lt;div class="mermaid"&gt;flowchart LR
+A[App 绘制 Buffer] --&gt; B[BufferQueue / Surface]
+B --&gt; C[WindowManager 提交窗口几何]
+C --&gt; D[SurfaceFlinger Layer 状态]
+D --&gt; E[LayerFE / LayerSettings]
+E --&gt; F[RenderEngine::drawLayers]
+F --&gt; G[SkiaRenderEngine::drawLayersInternal]
+G --&gt; H[内容 Shader + 颜色变换]
+G --&gt; I[边界 / 圆角 Coverage]
+H --&gt; J[Skia Canvas 光栅化]
+I --&gt; J
+J --&gt; K[Foreground / Background 混合]
+K --&gt; L[Display Output Buffer]
+L --&gt; M[HWC / Display]
+&lt;/div&gt;&lt;p&gt;这条链路中，与本问题最直接相关的是 &lt;code&gt;LayerSettings::geometry&lt;/code&gt;：&lt;/p&gt;</description></item><item><title>QNX OpenWFD OEM Secure Port 安全日志分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/qnx-openwfd-oem-secure-port-analysis/</link><pubDate>Sat, 01 Aug 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/qnx-openwfd-oem-secure-port-analysis/</guid><description>&lt;h2 id="问题背景"&gt;问题背景&lt;/h2&gt;
+&lt;p&gt;QNX 系统中出现如下 WARNING 日志：&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;[22][wfdBindSourceToPipeline:3302] DISPLAY_WARNING The source is secure, but the port 4 is not secure.The content is blocked
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;该日志表明：某个 WFD 客户端尝试将**安全源（secure source）**绑定到一个
+&lt;code&gt;eDisplayID=4&lt;/code&gt; 的有效 port，但该 port 当时的 &lt;code&gt;bOEMSecure&lt;/code&gt; 为 &lt;code&gt;WFD_FALSE&lt;/code&gt;。
+OpenWFD 因而将本次 source 改成无效句柄，使 pipeline 不再接收该安全内容。&lt;/p&gt;
+&lt;p&gt;这里的 &lt;code&gt;port 4&lt;/code&gt; 是日志参数 &lt;code&gt;pPort-&amp;gt;eDisplayID&lt;/code&gt;，不是 XML 中客户端私有的
+&lt;code&gt;&amp;lt;WFDPort ID='4'&amp;gt;&lt;/code&gt;。单凭这条日志也无法确定具体客户端和本地 WFDPort ID。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="一日志打印模块定位"&gt;一、日志打印模块定位&lt;/h2&gt;
+&lt;h3 id="11-日志来源"&gt;1.1 日志来源&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;项目&lt;/th&gt;
+&lt;th&gt;详情&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;模块&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;OpenWFD (&lt;code&gt;MDSS_MODULE_SW_WFD&lt;/code&gt;)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;源文件&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;AMSS/multimedia/display/Hoya/openwfd/src/pipeline.c&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;函数&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;wfdBindSourceToPipeline&lt;/code&gt; (定义于第 3178 行)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;打印行号&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;第 3300–3302 行&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;模块声明在 &lt;code&gt;pipeline.c:30&lt;/code&gt;：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-c" data-lang="c"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#a6e22e"&gt;DISP_OSAL_DEBUG_MODULE&lt;/span&gt;(WFD); &lt;span style="color:#75715e"&gt;// → gDispOsalDebugModuleId = MDSS_MODULE_SW_WFD
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id="12-日志格式解析"&gt;1.2 日志格式解析&lt;/h3&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;[22][wfdBindSourceToPipeline:3302] DISPLAY_WARNING The source is secure, but the port 4 is not secure.The content is blocked
+│ │ │ │
+│ │ │ └── 日志消息正文
+│ │ └── 日志级别标签 (来自 DISP_OSAL_LOG_WARNING 宏)
+│ └── 函数名 : 行号
+└── 线程 ID（pthread_self()）
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;&lt;code&gt;DISP_OSAL_LOG_WARNING&lt;/code&gt; 定义在 &lt;code&gt;openwfd/inc/wfd_osal.h:508-509&lt;/code&gt;：&lt;/p&gt;</description></item><item><title>PVM 图形栈架构（SA8797 / Gunyah）</title><link>https://ethen-cao.github.io/ethenslab/gunyah/pvm-graphics-stack/</link><pubDate>Wed, 29 Jul 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/pvm-graphics-stack/</guid><description>&lt;p&gt;本文描述 SA8797 座舱平台 Primary VM（PVM）的显示架构、OpenWFD 资源划分、LA-GVM（Android Guest）显示通路以及抓帧边界。结论由 PVM 源码、镜像配置与台架运行态交叉验证。&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;核验基线：设备 &lt;code&gt;e8cc24da&lt;/code&gt;，&lt;code&gt;auto-oem_a 202607262327&lt;/code&gt;，Linux &lt;code&gt;6.6.110-rt61-debug&lt;/code&gt;（PREEMPT_RT，aarch64），Weston &lt;code&gt;13.0.1&lt;/code&gt;。&lt;br&gt;
+运行态采集日期：2026-07-29。VFIO group 编号、PID 等动态标识不作为固定接口。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id="1-架构总览"&gt;1. 架构总览&lt;/h2&gt;
+&lt;p&gt;PVM 上存在两条相互独立的显示提交路径：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;PVM 原生应用通过 Wayland 向 Weston 提交 surface。Weston 使用 SDM 选择 GPU 合成或 overlay，再经 DRM Front End（DRM-FE）和 OpenWFD 客户端协议提交。&lt;/li&gt;
+&lt;li&gt;LA-GVM 的显示帧经 VirtIO/HAB 到达 &lt;code&gt;VirtIOGPU2DBackendService&lt;/code&gt;，由该进程以独立 OpenWFD 客户端身份提交，不进入 Weston 的 scene graph。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;两条路径最终由 &lt;code&gt;openwfd_server -i 0/1&lt;/code&gt; 按静态配置的 Port、Pipeline 和 z-order 汇合。OpenWFD Server 直接持有 KIUMD、VFIO 与 SCMI MDSS 设备，是 PVM 中面向 DPU 硬件的服务端。&lt;/p&gt;</description></item><item><title>Android Winscope：工作原理、编译、运行与部署</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/</link><pubDate>Mon, 13 Jul 2026 09:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/</guid><description>&lt;p&gt;Winscope 是 Android 平台用于分析窗口、SurfaceFlinger Layer、窗口动画、输入法和系统界面状态的可视化工具。它尤其适合排查闪屏、黑屏、花屏、窗口层级错误、启动动画异常、画中画和多窗口切换异常等问题。&lt;/p&gt;
 &lt;p&gt;Winscope 不是单一的 trace recorder。更准确地说，它由以下几部分组成：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;运行在浏览器中的 Winscope Web 前端。&lt;/li&gt;
@@ -4212,7 +4299,69 @@ LPM1 --&gt; GLP
 &lt;/table&gt;
 &lt;hr&gt;
 &lt;h2 id="二分层设计"&gt;二、分层设计&lt;/h2&gt;
-&lt;p&gt;系统分为四层，从上到下依次为:&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;div class="mermaid"&gt;graph TD
+&lt;p&gt;系统分为四层，从上到下依次为:&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-statemachine/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-statemachine/</guid><description>&lt;h1 id="bufferqueue-buffer-状态机"&gt;BufferQueue Buffer 状态机&lt;/h1&gt;
+&lt;blockquote&gt;
+&lt;p&gt;基于 AOSP 源码 &lt;code&gt;frameworks/native/libs/gui/include/gui/BufferSlot.h&lt;/code&gt;（&lt;code&gt;BufferState&lt;/code&gt; 结构体）
+及 &lt;code&gt;BufferQueueProducer.cpp&lt;/code&gt; / &lt;code&gt;BufferQueueConsumer.cpp&lt;/code&gt; 中的状态转换逻辑。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;hr&gt;
+&lt;h2 id="一状态定义"&gt;一、状态定义&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;BufferSlot.h:50-58&lt;/code&gt; 定义了 buffer slot 的 5 种状态，由计数器三元组 &lt;code&gt;(mDequeueCount, mQueueCount, mAcquireCount)&lt;/code&gt; 加 &lt;code&gt;mShared&lt;/code&gt; 标志位编码：&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;状态&lt;/th&gt;
+&lt;th&gt;mShared&lt;/th&gt;
+&lt;th style="text-align: center"&gt;mDequeueCount&lt;/th&gt;
+&lt;th style="text-align: center"&gt;mQueueCount&lt;/th&gt;
+&lt;th style="text-align: center"&gt;mAcquireCount&lt;/th&gt;
+&lt;th&gt;被谁持有&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;FREE&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;false&lt;/td&gt;
+&lt;td style="text-align: center"&gt;0&lt;/td&gt;
+&lt;td style="text-align: center"&gt;0&lt;/td&gt;
+&lt;td style="text-align: center"&gt;0&lt;/td&gt;
+&lt;td&gt;BufferQueue 自身&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;DEQUEUED&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;false&lt;/td&gt;
+&lt;td style="text-align: center"&gt;1&lt;/td&gt;
+&lt;td style="text-align: center"&gt;0&lt;/td&gt;
+&lt;td style="text-align: center"&gt;0&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;Producer&lt;/strong&gt;（App 渲染线程）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;QUEUED&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;false&lt;/td&gt;
+&lt;td style="text-align: center"&gt;0&lt;/td&gt;
+&lt;td style="text-align: center"&gt;1&lt;/td&gt;
+&lt;td style="text-align: center"&gt;0&lt;/td&gt;
+&lt;td&gt;BufferQueue 自身&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;ACQUIRED&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;false&lt;/td&gt;
+&lt;td style="text-align: center"&gt;0&lt;/td&gt;
+&lt;td style="text-align: center"&gt;0&lt;/td&gt;
+&lt;td style="text-align: center"&gt;1&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;Consumer&lt;/strong&gt;（SurfaceFlinger）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;strong&gt;SHARED&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;true&lt;/td&gt;
+&lt;td style="text-align: center"&gt;any&lt;/td&gt;
+&lt;td style="text-align: center"&gt;any&lt;/td&gt;
+&lt;td style="text-align: center"&gt;any&lt;/td&gt;
+&lt;td&gt;Producer + Consumer 共享&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;源码中对各状态的注释（&lt;code&gt;BufferSlot.h:60-87&lt;/code&gt;）：&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/</guid><description>&lt;div class="mermaid"&gt;graph TD
 !theme plain
 %% --- 定义样式 ---
 classDef appLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
@@ -4388,7 +4537,33 @@ note right of CE: **放弃当前帧合成**\n(SurfaceFlinger 丢弃这一帧)
 &lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
 &lt;h3 id="详细说明为什么会失败"&gt;详细说明：为什么会失败&lt;/h3&gt;
 &lt;h4 id="1-根本原因-root-cause"&gt;1. 根本原因 (Root Cause)&lt;/h4&gt;
-&lt;p&gt;故障发生在 &lt;strong&gt;阶段 2&lt;/strong&gt; 的底层 &lt;code&gt;HWPeripheralDRM&lt;/code&gt; 中。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;
+&lt;p&gt;故障发生在 &lt;strong&gt;阶段 2&lt;/strong&gt; 的底层 &lt;code&gt;HWPeripheralDRM&lt;/code&gt; 中。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/recoverable_from_buffer_stuffing/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/recoverable_from_buffer_stuffing/</guid><description>&lt;h1 id="recoverable_from_buffer_stuffing-机制详解"&gt;RECOVERABLE_FROM_BUFFER_STUFFING 机制详解&lt;/h1&gt;
+&lt;h2 id="一什么是-buffer-stuffing"&gt;一、什么是 Buffer Stuffing&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;Buffer Stuffing&lt;/strong&gt;（缓冲区拥堵）是 Android 图形系统中一种特定的 Jank 类型（&lt;code&gt;JankType::BufferStuffing = 0x40&lt;/code&gt;）。&lt;/p&gt;
+&lt;h3 id="11-定义"&gt;1.1 定义&lt;/h3&gt;
+&lt;blockquote&gt;
+&lt;p&gt;如果一帧原本预期在某个 vsync 上送出（present），但因为&lt;strong&gt;前一帧占用了它的预期 vsync 槽位&lt;/strong&gt;而被迫延迟到下一个 vsync 才送出，这一帧就被称为被 &amp;ldquo;stuffed&amp;rdquo;（拥堵）。这通常发生在一帧意外耗时过长，导致后续所有缓冲帧都进入拥堵状态。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;—— &lt;code&gt;frameworks/native/libs/gui/include/gui/JankInfo.h:38-42&lt;/code&gt;&lt;/p&gt;
+&lt;h3 id="12-直观理解"&gt;1.2 直观理解&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;三缓冲的 BufferQueue 状态机（回顾）&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;每个 buffer slot 有三种状态：&lt;code&gt;FREE&lt;/code&gt;（可分配）→ &lt;code&gt;DEQUEUED&lt;/code&gt;（App 渲染中）→ &lt;code&gt;QUEUED&lt;/code&gt;（等待 SF 消费）→ &lt;code&gt;ACQUIRED&lt;/code&gt;（SF 持有，正在显示）→ &lt;code&gt;FREE&lt;/code&gt;（SF 释放）。&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;dequeueBuffer()&lt;/code&gt; 的分配条件：只要 slot 状态为 &lt;code&gt;FREE&lt;/code&gt;，即可分配——&lt;strong&gt;与 release fence 是否 signaled 无关&lt;/strong&gt;。fence 作为出参返回给 App，由 GPU 侧异步等待。&lt;/p&gt;
+&lt;p&gt;三缓冲管线在正常情况下以 vsync 节奏运行，始终有 0~1 帧在排队：&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt; Normal Pipeline (Triple Buffer, 60fps)
+Vsync: V0 V1 V2 V3 V4
+| | | | |
+App: [==A==] [==B==] [==C==] [==D==] [==E==]
+| | | | |
+SF latch: A B C D E
+| | | | |
+SF present: A B C D E
+Slot trace (S=Slot, *=in use, .=free):
+V0-&amp;gt;V1: S0=[A SF-acquired*] S1=.free S2=.free -&amp;gt; depth=0
+V1-&amp;gt;V2: S0=.free (A released) S1=[B SF-acquired*] S2=.free -&amp;gt; depth=0
+V2-&amp;gt;V3: S0=.free S1=.free (B released) S2=[C SF-acquired*] -&amp;gt; depth=0
+^ free slot always available for dequeue
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;当某一帧（Frame B）渲染耗时异常长（例如 25ms，远超 16.67ms 的 vsync 周期）时：&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;
 &lt;p&gt;基于提供AOSP的代码，以“Hi Google”为例，语音唤醒（Hotword Detection）的完整流程是一个跨进程、跨层级的复杂协作过程。它主要涉及&lt;strong&gt;底层硬件触发&lt;/strong&gt;、&lt;strong&gt;系统服务路由&lt;/strong&gt;、&lt;strong&gt;沙盒服务校验&lt;/strong&gt;以及&lt;strong&gt;上层应用响应&lt;/strong&gt;四个关键阶段。&lt;/p&gt;
 &lt;p&gt;以下是基于代码分析的时序流程：&lt;/p&gt;
 &lt;h3 id="第一阶段底层硬件触发与系统层接收-hardware-trigger--system-layer"&gt;第一阶段：底层硬件触发与系统层接收 (Hardware Trigger &amp;amp; System Layer)&lt;/h3&gt;

@@ -569,7 +569,7 @@ adb shell dumpsys statsd
     1.  **全面纳入按键事件：** 不仅追踪屏幕触摸事件（`notifyMotion`），还会额外把所有实体按键事件（`notifyKey`，如音量键、车机旋钮、游戏手柄按键）也一并纳入延迟追踪的生命周期。
     2.  **启用直方图与设备隔离：** 处理器会从旧版的普通聚合器切换为带有直方图且按厂商 ID (Vendor ID) / 产品 ID (Product ID) 区分的高精度统计类（`LatencyAggregatorWithHistograms`）。这对于智能座舱中多外设并发的精准调优极其关键。
 *   **默认值与设置方法：** 
-    该变量由 AOSP 的 `aconfig` 特性框架控制（定义在 `input_flags.aconfig` 的 `enable_per_device_input_latency_metrics` 标志中）。根据 aconfig 约定，其默认状态通常为 `DISABLED`（即 `false`），是否启用由各 Release Config 或产品决定（在部分高配机型或如上述调查报告中的 H47A 车机上，该选项实际被启用了）。
+    该变量由 AOSP 的 `aconfig` 特性框架控制（定义在 `input_flags.aconfig` 的 `enable_per_device_input_latency_metrics` 标志中）。根据 aconfig 约定，其默认状态通常为 `DISABLED`（即 `false`），是否启用由各 Release Config 或产品决定（在部分高配机型或如上述调查报告中的 PROJECT_A 车机上，该选项实际被启用了）。
     
     > **⚠️ 源码不对称陷阱：** 在 `InputDispatcher.cpp` 的原生源码中，`notifyKey` 路径的 `trackListener` 被包裹在这个 `mPerDeviceInputLatencyMetricsFlag` 的条件判断中；但在早期的 AOSP `notifyMotion` 路径中却**没有**包裹这层 Flag。这个不对称的坑曾经误导了大量开发者。
     **如何在工程机上强行开启：** 测试人员或开发者可以通过 ADB 动态修改 `device_config` 命名空间来开启这个特性，以便在压测时抓取精细化数据：
@@ -1079,7 +1079,7 @@ sequenceDiagram
 
 当你怀疑系统的输入管线被异常劫持，或者 `SLOW_INPUT_EVENT_REPORTED` 日志打不出来时，通过对 `adb shell dumpsys accessibility` 输出日志的解析，往往能直接锁定“元凶”。
 
-以下是对一台真实车机（`h47a`）实车 dump 结果的专业级调查报告。
+以下是对一台真实车机（`PROJECT_A`）实车 dump 结果的专业级调查报告。
 
 #### 抓获幕后元凶：到底是谁注册了无障碍服务？
 在 dumpsys 输出中，找到 `User state` 节点下的 `Enabled services` 和 `Bound services` 字段：

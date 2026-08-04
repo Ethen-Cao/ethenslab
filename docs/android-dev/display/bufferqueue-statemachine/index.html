@@ -1,0 +1,213 @@
+<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Ethen 的实验室</title><meta name=keywords content><meta name=description content="BufferQueue Buffer 状态机
+
+基于 AOSP 源码 frameworks/native/libs/gui/include/gui/BufferSlot.h（BufferState 结构体）
+及 BufferQueueProducer.cpp / BufferQueueConsumer.cpp 中的状态转换逻辑。
+
+
+一、状态定义
+BufferSlot.h:50-58 定义了 buffer slot 的 5 种状态，由计数器三元组 (mDequeueCount, mQueueCount, mAcquireCount) 加 mShared 标志位编码：
+
+	
+			
+					状态
+					mShared
+					mDequeueCount
+					mQueueCount
+					mAcquireCount
+					被谁持有
+			
+	
+	
+			
+					FREE
+					false
+					0
+					0
+					0
+					BufferQueue 自身
+			
+			
+					DEQUEUED
+					false
+					1
+					0
+					0
+					Producer（App 渲染线程）
+			
+			
+					QUEUED
+					false
+					0
+					1
+					0
+					BufferQueue 自身
+			
+			
+					ACQUIRED
+					false
+					0
+					0
+					1
+					Consumer（SurfaceFlinger）
+			
+			
+					SHARED
+					true
+					any
+					any
+					any
+					Producer + Consumer 共享
+			
+	
+
+源码中对各状态的注释（BufferSlot.h:60-87）："><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-statemachine/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.7d3658a230b9b53c9b5a0e97fffc51585a6e6b9e3743fc0bac7b802ba076ac94.css integrity="sha256-fTZYojC5tTybWg6X//xRWFpua543Q/wLrHuAK6B2rJQ=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-statemachine/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-statemachine/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Ethen 的实验室"><meta property="og:description" content="BufferQueue Buffer 状态机 基于 AOSP 源码 frameworks/native/libs/gui/include/gui/BufferSlot.h（BufferState 结构体） 及 BufferQueueProducer.cpp / BufferQueueConsumer.cpp 中的状态转换逻辑。
+一、状态定义 BufferSlot.h:50-58 定义了 buffer slot 的 5 种状态，由计数器三元组 (mDequeueCount, mQueueCount, mAcquireCount) 加 mShared 标志位编码：
+状态 mShared mDequeueCount mQueueCount mAcquireCount 被谁持有 FREE false 0 0 0 BufferQueue 自身 DEQUEUED false 1 0 0 Producer（App 渲染线程） QUEUED false 0 1 0 BufferQueue 自身 ACQUIRED false 0 0 1 Consumer（SurfaceFlinger） SHARED true any any any Producer + Consumer 共享 源码中对各状态的注释（BufferSlot.h:60-87）："><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta name=twitter:card content="summary"><meta name=twitter:title content="Ethen 的实验室"><meta name=twitter:description content="BufferQueue Buffer 状态机 基于 AOSP 源码 frameworks/native/libs/gui/include/gui/BufferSlot.h（BufferState 结构体） 及 BufferQueueProducer.cpp / BufferQueueConsumer.cpp 中的状态转换逻辑。
+一、状态定义 BufferSlot.h:50-58 定义了 buffer slot 的 5 种状态，由计数器三元组 (mDequeueCount, mQueueCount, mAcquireCount) 加 mShared 标志位编码：
+状态 mShared mDequeueCount mQueueCount mAcquireCount 被谁持有 FREE false 0 0 0 BufferQueue 自身 DEQUEUED false 1 0 0 Producer（App 渲染线程） QUEUED false 0 1 0 BufferQueue 自身 ACQUIRED false 0 0 1 Consumer（SurfaceFlinger） SHARED true any any any Producer + Consumer 共享 源码中对各状态的注释（BufferSlot.h:60-87）："><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Display Manager","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/"},{"@type":"ListItem","position":3,"name":"","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-statemachine/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"","name":"","description":"BufferQueue Buffer 状态机 基于 AOSP 源码 frameworks/native/libs/gui/include/gui/BufferSlot.h（BufferState 结构体） 及 BufferQueueProducer.cpp / BufferQueueConsumer.cpp 中的状态转换逻辑。\n一、状态定义 BufferSlot.h:50-58 定义了 buffer slot 的 5 种状态，由计数器三元组 (mDequeueCount, mQueueCount, mAcquireCount) 加 mShared 标志位编码：\n状态 mShared mDequeueCount mQueueCount mAcquireCount 被谁持有 FREE false 0 0 0 BufferQueue 自身 DEQUEUED false 1 0 0 Producer（App 渲染线程） QUEUED false 0 1 0 BufferQueue 自身 ACQUIRED false 0 0 1 Consumer（SurfaceFlinger） SHARED true any any any Producer + Consumer 共享 源码中对各状态的注释（BufferSlot.h:60-87）：\n","keywords":[],"articleBody":"BufferQueue Buffer 状态机 基于 AOSP 源码 frameworks/native/libs/gui/include/gui/BufferSlot.h（BufferState 结构体） 及 BufferQueueProducer.cpp / BufferQueueConsumer.cpp 中的状态转换逻辑。\n一、状态定义 BufferSlot.h:50-58 定义了 buffer slot 的 5 种状态，由计数器三元组 (mDequeueCount, mQueueCount, mAcquireCount) 加 mShared 标志位编码：\n状态 mShared mDequeueCount mQueueCount mAcquireCount 被谁持有 FREE false 0 0 0 BufferQueue 自身 DEQUEUED false 1 0 0 Producer（App 渲染线程） QUEUED false 0 1 0 BufferQueue 自身 ACQUIRED false 0 0 1 Consumer（SurfaceFlinger） SHARED true any any any Producer + Consumer 共享 源码中对各状态的注释（BufferSlot.h:60-87）：\nFREE: \"The slot is owned by BufferQueue. It transitions to DEQUEUED when dequeueBuffer is called.\" DEQUEUED: \"The slot is owned by the producer. The producer may modify the buffer's contents as soon as the associated release fence is signaled. It can transition to QUEUED (via queueBuffer or attachBuffer) or back to FREE (via cancelBuffer or detachBuffer).\" QUEUED: \"The slot is owned by BufferQueue. The contents must not be accessed until the associated fence is signaled. It can transition to ACQUIRED (via acquireBuffer) or to FREE (if another buffer is queued in asynchronous mode).\" ACQUIRED: \"The slot is owned by the consumer. As with QUEUED, the contents must not be accessed by the consumer until the acquire fence is signaled. It transitions to FREE when releaseBuffer (or detachBuffer) is called.\" SHARED: \"This buffer is being used in shared buffer mode. It can be in any combination of the other states at the same time, except for FREE.\" 二、状态机图 stateDiagram-v2 direction LR [*] --\u003e FREE : slot 初始化 state \"PRODUCER 持有\" as PRODUCER_HOLD { DEQUEUED } state \"CONSUMER 持有\" as CONSUMER_HOLD { ACQUIRED } FREE --\u003e DEQUEUED : dequeueBuffer()Producer::dequeue() DEQUEUED --\u003e QUEUED : queueBuffer()Producer::queue() QUEUED --\u003e ACQUIRED : acquireBuffer()Consumer::acquire() ACQUIRED --\u003e FREE : releaseBuffer()Consumer::release() DEQUEUED --\u003e FREE : cancelBuffer()Producer::cancel() QUEUED --\u003e FREE : async mode dropConsumer/Producer::freeQueued() DEQUEUED --\u003e [*] : detachBuffer()Producer::detachProducer() ACQUIRED --\u003e [*] : detachBuffer()Consumer::detachConsumer() [*] --\u003e DEQUEUED : attachBuffer()Producer::attachProducer() [*] --\u003e ACQUIRED : attachBuffer()Consumer::attachConsumer() 主循环（正常渲染管线） stateDiagram-v2 direction LR FREE : FREE┄┄┄┄┄┄┄┄┄┄┄┄┄┄持有者: BufferQueuemFence: consumer 写完成信号 DEQUEUED : DEQUEUED┄┄┄┄┄┄┄┄┄┄┄┄┄┄持有者: Producer (App)mFence: NO_FENCE(fence 已交给 Producer) QUEUED : QUEUED┄┄┄┄┄┄┄┄┄┄┄┄┄┄持有者: BufferQueuemFence: producer 写完成信号(fence 保护 buffer 内容) ACQUIRED : ACQUIRED┄┄┄┄┄┄┄┄┄┄┄┄┄┄持有者: Consumer (SF)mFence: NO_FENCE(fence 已交给 Consumer) FREE --\u003e DEQUEUED : ① dequeueBuffer() DEQUEUED --\u003e QUEUED : ② queueBuffer() QUEUED --\u003e ACQUIRED : ③ acquireBuffer() ACQUIRED --\u003e FREE : ④ releaseBuffer() DEQUEUED --\u003e FREE : cancelBuffer() QUEUED --\u003e FREE : async drop / drop stale 完整状态机（含 detach/attach） stateDiagram-v2 direction TB [*] : (未分配 / detached) FREE : ★ FREE DEQUEUED : DEQUEUED QUEUED : QUEUED ACQUIRED : ACQUIRED [*] --\u003e FREE : GraphicBuffer 分配 FREE --\u003e DEQUEUED : dequeueBuffer()mBufferState.dequeue() DEQUEUED --\u003e QUEUED : queueBuffer()mBufferState.queue() QUEUED --\u003e ACQUIRED : acquireBuffer()mBufferState.acquire() ACQUIRED --\u003e FREE : releaseBuffer()mBufferState.release() DEQUEUED --\u003e FREE : cancelBuffer()mBufferState.cancel() QUEUED --\u003e FREE : async 模式下新 buffer 入队或 acquire 时丢弃过期帧mBufferState.freeQueued() DEQUEUED --\u003e [*] : detachBuffer (Producer)mBufferState.detachProducer() ACQUIRED --\u003e [*] : detachBuffer (Consumer)mBufferState.detachConsumer() [*] --\u003e DEQUEUED : attachBuffer (Producer)mBufferState.attachProducer() [*] --\u003e ACQUIRED : attachBuffer (Consumer)mBufferState.attachConsumer() 三、状态转换表 # 转换 触发 API 调用方法 源码位置 ① FREE → DEQUEUED dequeueBuffer() mBufferState.dequeue() BufferQueueProducer.cpp:577 ② DEQUEUED → QUEUED queueBuffer() mBufferState.queue() BufferQueueProducer.cpp:1060 ③ QUEUED → ACQUIRED acquireBuffer() mBufferState.acquire() BufferQueueConsumer.cpp:288 ④ ACQUIRED → FREE releaseBuffer() mBufferState.release() BufferQueueConsumer.cpp:527 ⑤ DEQUEUED → FREE cancelBuffer() mBufferState.cancel() BufferQueueProducer.cpp:1271 ⑥ QUEUED → FREE async drop / drop stale mBufferState.freeQueued() BufferQueueProducer.cpp:1119 / BufferQueueConsumer.cpp:187 ⑦ DEQUEUED → [*] detachBuffer() (Producer) mBufferState.detachProducer() BufferQueueProducer.cpp:805 ⑧ ACQUIRED → [*] detachBuffer() (Consumer) mBufferState.detachConsumer() BufferQueueConsumer.cpp:354 四、各状态下的持有者与 Fence 语义 Producer (App) BufferQueue Consumer (SF) ══════════════ ═══════════ ═════════════ FREE [持有 slot] mFence = consumer 的 release fence (指示 SF 何时读完) ↓ dequeueBuffer() │ mFence 作为 outFence │ 返回给 Producer DEQUEUED [持有 slot] [不持有] mFence = NO_FENCE Producer 等待 outFence 信号化后写入 buffer ↓ queueBuffer() │ Producer 传入 acquireFence QUEUED [持有 slot] mFence = acquireFence (指示 Producer 何时写完) 等待 SF 来取 ↓ acquireBuffer() ACQUIRED [持有 slot] mFence = NO_FENCE Consumer 可读取内容 ↓ releaseBuffer() │ Consumer 传入 releaseFence FREE [持有 slot] mFence = releaseFence (指示 SF 何时读完) 关键点：\nFREE 状态的 slot 立即可被 dequeue，无论 mFence 是否已 signal。fence 会作为 outFence 返回给 Producer，由 Producer 侧的 GPU 异步等待。 QUEUED 状态的 buffer 内容受 mFence（acquire fence）保护：Consumer 必须在 fence signal 后才能读取。 ACQUIRED → FREE 时，Consumer 传入的 releaseFence 被写入 slot 的 mFence，供下一轮 Producer 等待。 五、三缓冲模式下稳态运行时 slot 分布 以 60fps 正常管线为例，3 个 slot (S0, S1, S2) 在各 vsync 间的状态：\nV0-\u003eV1: S0=[ACQUIRED, SF持有] S1=[FREE] S2=[FREE] ^ SF 正在展示 A V1前: App dequeue S1, 渲染 B V1: SF release S0 -\u003e S0 FREE SF acquire S1(empty) -\u003e 无新帧, 复用旧 latch V1-\u003eV2: S0=[FREE] S1=[DEQUEUED, App渲染B] S2=[FREE] (B 超时, 仍在渲染...) V1-\u003eV2: B 完成 -\u003e queueBuffer -\u003e S1 QUEUED App dequeue S2, 渲染 C Pre V2: S0=[FREE] S1=[QUEUED] S2=[DEQUEUED, App渲染C] ^ B 等待 SF latch V2: SF latch B -\u003e S1 ACQUIRED SF releaseBuffer 可能还未调用, S0 仍是 FREE V2-\u003eV3: C 完成 -\u003e queueBuffer -\u003e S2 QUEUED App dequeue S0 -\u003e 渲染 D S0=[DEQUEUED] S1=[ACQUIRED, SF持有B] S2=[QUEUED, C等待] ^ 3 个 slot 各在不同状态——这是三缓冲满负荷运行的正常快照 在三缓冲下，同时出现 ACQUIRED × 1 + QUEUED × 1 + DEQUEUED × 1 是正常满载状态。只有当 App 试图在 FREE 数量为 0 时 dequeue，才会触发 tooManyBuffers → 短暂阻塞。\n","wordCount":"797","inLanguage":"en","datePublished":"0001-01-01T00:00:00Z","dateModified":"0001-01-01T00:00:00Z","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-statemachine/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=header-nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle class=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu class=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><nav class=breadcrumbs role=navigation aria-label=Breadcrumb><a href=/ethenslab/>Home</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
+<a href=/ethenslab/android-dev/>Android系统开发</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
+<a href=/ethenslab/android-dev/display/>Display Manager</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg></nav><h1 class="post-title entry-hint-parent"></h1><div class=post-meta><span>4 min</span>&nbsp;·&nbsp;<span>797 words</span></div></header><div class="post-content md-content"><h1 id=bufferqueue-buffer-状态机>BufferQueue Buffer 状态机<a hidden class=anchor aria-hidden=true href=#bufferqueue-buffer-状态机>#</a></h1><blockquote><p>基于 AOSP 源码 <code>frameworks/native/libs/gui/include/gui/BufferSlot.h</code>（<code>BufferState</code> 结构体）
+及 <code>BufferQueueProducer.cpp</code> / <code>BufferQueueConsumer.cpp</code> 中的状态转换逻辑。</p></blockquote><hr><h2 id=一状态定义>一、状态定义<a hidden class=anchor aria-hidden=true href=#一状态定义>#</a></h2><p><code>BufferSlot.h:50-58</code> 定义了 buffer slot 的 5 种状态，由计数器三元组 <code>(mDequeueCount, mQueueCount, mAcquireCount)</code> 加 <code>mShared</code> 标志位编码：</p><table><thead><tr><th>状态</th><th>mShared</th><th style=text-align:center>mDequeueCount</th><th style=text-align:center>mQueueCount</th><th style=text-align:center>mAcquireCount</th><th>被谁持有</th></tr></thead><tbody><tr><td><strong>FREE</strong></td><td>false</td><td style=text-align:center>0</td><td style=text-align:center>0</td><td style=text-align:center>0</td><td>BufferQueue 自身</td></tr><tr><td><strong>DEQUEUED</strong></td><td>false</td><td style=text-align:center>1</td><td style=text-align:center>0</td><td style=text-align:center>0</td><td><strong>Producer</strong>（App 渲染线程）</td></tr><tr><td><strong>QUEUED</strong></td><td>false</td><td style=text-align:center>0</td><td style=text-align:center>1</td><td style=text-align:center>0</td><td>BufferQueue 自身</td></tr><tr><td><strong>ACQUIRED</strong></td><td>false</td><td style=text-align:center>0</td><td style=text-align:center>0</td><td style=text-align:center>1</td><td><strong>Consumer</strong>（SurfaceFlinger）</td></tr><tr><td><strong>SHARED</strong></td><td>true</td><td style=text-align:center>any</td><td style=text-align:center>any</td><td style=text-align:center>any</td><td>Producer + Consumer 共享</td></tr></tbody></table><p>源码中对各状态的注释（<code>BufferSlot.h:60-87</code>）：</p><pre tabindex=0><code>FREE:
+    &#34;The slot is owned by BufferQueue. It transitions to DEQUEUED
+     when dequeueBuffer is called.&#34;
+
+DEQUEUED:
+    &#34;The slot is owned by the producer. The producer may modify the
+     buffer&#39;s contents as soon as the associated release fence is signaled.
+     It can transition to QUEUED (via queueBuffer or attachBuffer) or
+     back to FREE (via cancelBuffer or detachBuffer).&#34;
+
+QUEUED:
+    &#34;The slot is owned by BufferQueue. The contents must not be accessed
+     until the associated fence is signaled. It can transition to ACQUIRED
+     (via acquireBuffer) or to FREE (if another buffer is queued in
+     asynchronous mode).&#34;
+
+ACQUIRED:
+    &#34;The slot is owned by the consumer. As with QUEUED, the contents must
+     not be accessed by the consumer until the acquire fence is signaled.
+     It transitions to FREE when releaseBuffer (or detachBuffer) is called.&#34;
+
+SHARED:
+    &#34;This buffer is being used in shared buffer mode. It can be in any
+     combination of the other states at the same time, except for FREE.&#34;
+</code></pre><hr><h2 id=二状态机图>二、状态机图<a hidden class=anchor aria-hidden=true href=#二状态机图>#</a></h2><div class=mermaid>stateDiagram-v2
+direction LR
+[*] --> FREE : slot 初始化
+state "PRODUCER 持有" as PRODUCER_HOLD {
+DEQUEUED
+}
+state "CONSUMER 持有" as CONSUMER_HOLD {
+ACQUIRED
+}
+FREE --> DEQUEUED : dequeueBuffer()<br>Producer::dequeue()
+DEQUEUED --> QUEUED : queueBuffer()<br>Producer::queue()
+QUEUED --> ACQUIRED : acquireBuffer()<br>Consumer::acquire()
+ACQUIRED --> FREE : releaseBuffer()<br>Consumer::release()
+DEQUEUED --> FREE : cancelBuffer()<br>Producer::cancel()
+QUEUED --> FREE : async mode drop<br>Consumer/Producer::freeQueued()
+DEQUEUED --> [*] : detachBuffer()<br>Producer::detachProducer()
+ACQUIRED --> [*] : detachBuffer()<br>Consumer::detachConsumer()
+[*] --> DEQUEUED : attachBuffer()<br>Producer::attachProducer()
+[*] --> ACQUIRED : attachBuffer()<br>Consumer::attachConsumer()</div><h3 id=主循环正常渲染管线>主循环（正常渲染管线）<a hidden class=anchor aria-hidden=true href=#主循环正常渲染管线>#</a></h3><div class=mermaid>stateDiagram-v2
+direction LR
+FREE : FREE<br>┄┄┄┄┄┄┄┄┄┄┄┄┄┄<br>持有者: BufferQueue<br>mFence: consumer 写完成信号
+DEQUEUED : DEQUEUED<br>┄┄┄┄┄┄┄┄┄┄┄┄┄┄<br>持有者: Producer (App)<br>mFence: NO_FENCE<br>(fence 已交给 Producer)
+QUEUED : QUEUED<br>┄┄┄┄┄┄┄┄┄┄┄┄┄┄<br>持有者: BufferQueue<br>mFence: producer 写完成信号<br>(fence 保护 buffer 内容)
+ACQUIRED : ACQUIRED<br>┄┄┄┄┄┄┄┄┄┄┄┄┄┄<br>持有者: Consumer (SF)<br>mFence: NO_FENCE<br>(fence 已交给 Consumer)
+FREE --> DEQUEUED : ① dequeueBuffer()
+DEQUEUED --> QUEUED : ② queueBuffer()
+QUEUED --> ACQUIRED : ③ acquireBuffer()
+ACQUIRED --> FREE : ④ releaseBuffer()
+DEQUEUED --> FREE : cancelBuffer()
+QUEUED --> FREE : async drop / drop stale</div><h3 id=完整状态机含-detachattach>完整状态机（含 detach/attach）<a hidden class=anchor aria-hidden=true href=#完整状态机含-detachattach>#</a></h3><div class=mermaid>stateDiagram-v2
+direction TB
+[*] : (未分配 / detached)
+FREE : ★ FREE
+DEQUEUED : DEQUEUED
+QUEUED : QUEUED
+ACQUIRED : ACQUIRED
+[*] --> FREE : GraphicBuffer 分配
+FREE --> DEQUEUED : dequeueBuffer()<br>mBufferState.dequeue()
+DEQUEUED --> QUEUED : queueBuffer()<br>mBufferState.queue()
+QUEUED --> ACQUIRED : acquireBuffer()<br>mBufferState.acquire()
+ACQUIRED --> FREE : releaseBuffer()<br>mBufferState.release()
+DEQUEUED --> FREE : cancelBuffer()<br>mBufferState.cancel()
+QUEUED --> FREE : async 模式下新 buffer 入队<br>或 acquire 时丢弃过期帧<br>mBufferState.freeQueued()
+DEQUEUED --> [*] : detachBuffer (Producer)<br>mBufferState.detachProducer()
+ACQUIRED --> [*] : detachBuffer (Consumer)<br>mBufferState.detachConsumer()
+[*] --> DEQUEUED : attachBuffer (Producer)<br>mBufferState.attachProducer()
+[*] --> ACQUIRED : attachBuffer (Consumer)<br>mBufferState.attachConsumer()</div><hr><h2 id=三状态转换表>三、状态转换表<a hidden class=anchor aria-hidden=true href=#三状态转换表>#</a></h2><table><thead><tr><th>#</th><th>转换</th><th>触发 API</th><th>调用方法</th><th>源码位置</th></tr></thead><tbody><tr><td>①</td><td>FREE → DEQUEUED</td><td><code>dequeueBuffer()</code></td><td><code>mBufferState.dequeue()</code></td><td><code>BufferQueueProducer.cpp:577</code></td></tr><tr><td>②</td><td>DEQUEUED → QUEUED</td><td><code>queueBuffer()</code></td><td><code>mBufferState.queue()</code></td><td><code>BufferQueueProducer.cpp:1060</code></td></tr><tr><td>③</td><td>QUEUED → ACQUIRED</td><td><code>acquireBuffer()</code></td><td><code>mBufferState.acquire()</code></td><td><code>BufferQueueConsumer.cpp:288</code></td></tr><tr><td>④</td><td>ACQUIRED → FREE</td><td><code>releaseBuffer()</code></td><td><code>mBufferState.release()</code></td><td><code>BufferQueueConsumer.cpp:527</code></td></tr><tr><td>⑤</td><td>DEQUEUED → FREE</td><td><code>cancelBuffer()</code></td><td><code>mBufferState.cancel()</code></td><td><code>BufferQueueProducer.cpp:1271</code></td></tr><tr><td>⑥</td><td>QUEUED → FREE</td><td>async drop / drop stale</td><td><code>mBufferState.freeQueued()</code></td><td><code>BufferQueueProducer.cpp:1119</code> / <code>BufferQueueConsumer.cpp:187</code></td></tr><tr><td>⑦</td><td>DEQUEUED → [*]</td><td><code>detachBuffer()</code> (Producer)</td><td><code>mBufferState.detachProducer()</code></td><td><code>BufferQueueProducer.cpp:805</code></td></tr><tr><td>⑧</td><td>ACQUIRED → [*]</td><td><code>detachBuffer()</code> (Consumer)</td><td><code>mBufferState.detachConsumer()</code></td><td><code>BufferQueueConsumer.cpp:354</code></td></tr></tbody></table><hr><h2 id=四各状态下的持有者与-fence-语义>四、各状态下的持有者与 Fence 语义<a hidden class=anchor aria-hidden=true href=#四各状态下的持有者与-fence-语义>#</a></h2><pre tabindex=0><code>                    Producer (App)          BufferQueue             Consumer (SF)
+                    ══════════════          ═══════════             ═════════════
+
+    FREE                                   [持有 slot]
+                                           mFence = consumer 的
+                                           release fence
+                                           (指示 SF 何时读完)
+
+      ↓ dequeueBuffer()
+      │  mFence 作为 outFence
+      │  返回给 Producer
+
+  DEQUEUED          [持有 slot]             [不持有]
+                    mFence = NO_FENCE
+                    Producer 等待 outFence
+                    信号化后写入 buffer
+
+      ↓ queueBuffer()
+      │  Producer 传入 acquireFence
+
+    QUEUED                                  [持有 slot]
+                                            mFence = acquireFence
+                                            (指示 Producer 何时写完)
+                                            等待 SF 来取
+
+      ↓ acquireBuffer()
+
+    ACQUIRED                                                [持有 slot]
+                                                            mFence = NO_FENCE
+                                                            Consumer 可读取内容
+
+      ↓ releaseBuffer()
+      │  Consumer 传入 releaseFence
+
+    FREE                                   [持有 slot]
+                                           mFence = releaseFence
+                                           (指示 SF 何时读完)
+</code></pre><p><strong>关键点</strong>：</p><ul><li><code>FREE</code> 状态的 slot <strong>立即可被 dequeue</strong>，无论 <code>mFence</code> 是否已 signal。fence 会作为 <code>outFence</code> 返回给 Producer，由 Producer 侧的 GPU 异步等待。</li><li><code>QUEUED</code> 状态的 buffer 内容受 <code>mFence</code>（acquire fence）保护：Consumer 必须在 fence signal 后才能读取。</li><li><code>ACQUIRED</code> → <code>FREE</code> 时，Consumer 传入的 <code>releaseFence</code> 被写入 slot 的 <code>mFence</code>，供下一轮 Producer 等待。</li></ul><hr><h2 id=五三缓冲模式下稳态运行时-slot-分布>五、三缓冲模式下稳态运行时 slot 分布<a hidden class=anchor aria-hidden=true href=#五三缓冲模式下稳态运行时-slot-分布>#</a></h2><p>以 60fps 正常管线为例，3 个 slot (S0, S1, S2) 在各 vsync 间的状态：</p><pre tabindex=0><code>V0-&gt;V1:  S0=[ACQUIRED, SF持有]   S1=[FREE]            S2=[FREE]
+         ^ SF 正在展示 A
+
+V1前:    App dequeue S1, 渲染 B
+V1:      SF release S0 -&gt; S0 FREE
+         SF acquire S1(empty) -&gt; 无新帧, 复用旧 latch
+
+V1-&gt;V2:  S0=[FREE]               S1=[DEQUEUED, App渲染B] S2=[FREE]
+         (B 超时, 仍在渲染...)
+
+V1-&gt;V2:  B 完成 -&gt; queueBuffer -&gt; S1 QUEUED
+         App dequeue S2, 渲染 C
+
+Pre V2:  S0=[FREE]               S1=[QUEUED]            S2=[DEQUEUED, App渲染C]
+                                   ^ B 等待 SF latch
+
+V2:      SF latch B -&gt; S1 ACQUIRED
+         SF releaseBuffer 可能还未调用, S0 仍是 FREE
+
+V2-&gt;V3:  C 完成 -&gt; queueBuffer -&gt; S2 QUEUED
+         App dequeue S0 -&gt; 渲染 D
+         S0=[DEQUEUED]           S1=[ACQUIRED, SF持有B]  S2=[QUEUED, C等待]
+
+         ^ 3 个 slot 各在不同状态——这是三缓冲满负荷运行的正常快照
+</code></pre><p>在三缓冲下，同时出现 <code>ACQUIRED × 1 + QUEUED × 1 + DEQUEUED × 1</code> 是<strong>正常满载状态</strong>。只有当 App 试图在 <code>FREE</code> 数量为 0 时 dequeue，才会触发 <code>tooManyBuffers</code> → 短暂阻塞。</p></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/><span class=title>« Prev</span>
+<span>Android Native Crash 处理机制深度解析</span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/><span class=title>Next »</span>
+<span></span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href="https://gohugo.io/?utm_source=papermod" rel=noopener target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top id=top-link class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey=g><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");if(menu){const e=localStorage.getItem("menu-scroll-position");e&&(menu.scrollLeft=parseInt(e,10)),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}}document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var toplink=document.getElementById("top-link");window.onscroll=function(){const e=window.innerHeight;document.body.scrollTop>e||document.documentElement.scrollTop>e?toplink.classList.remove("hidden"):toplink.classList.add("hidden")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{const e=document.querySelector("html");e.dataset.theme==="dark"?(e.dataset.theme="light",localStorage.setItem("pref-theme","light")):(e.dataset.theme="dark",localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

@@ -1,0 +1,543 @@
+<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Ethen 的实验室</title><meta name=keywords content><meta name=description content="RECOVERABLE_FROM_BUFFER_STUFFING 机制详解
+一、什么是 Buffer Stuffing
+Buffer Stuffing（缓冲区拥堵）是 Android 图形系统中一种特定的 Jank 类型（JankType::BufferStuffing = 0x40）。
+1.1 定义
+
+如果一帧原本预期在某个 vsync 上送出（present），但因为前一帧占用了它的预期 vsync 槽位而被迫延迟到下一个 vsync 才送出，这一帧就被称为被 &ldquo;stuffed&rdquo;（拥堵）。这通常发生在一帧意外耗时过长，导致后续所有缓冲帧都进入拥堵状态。
+
+—— frameworks/native/libs/gui/include/gui/JankInfo.h:38-42
+1.2 直观理解
+三缓冲的 BufferQueue 状态机（回顾）
+每个 buffer slot 有三种状态：FREE（可分配）→ DEQUEUED（App 渲染中）→ QUEUED（等待 SF 消费）→ ACQUIRED（SF 持有，正在显示）→ FREE（SF 释放）。
+dequeueBuffer() 的分配条件：只要 slot 状态为 FREE，即可分配——与 release fence 是否 signaled 无关。fence 作为出参返回给 App，由 GPU 侧异步等待。
+三缓冲管线在正常情况下以 vsync 节奏运行，始终有 0~1 帧在排队：
+                    Normal Pipeline (Triple Buffer, 60fps)
+
+Vsync:            V0         V1         V2         V3         V4
+                  |          |          |          |          |
+App:          [==A==]   [==B==]   [==C==]   [==D==]   [==E==]
+                  |          |          |          |          |
+SF latch:         A          B          C          D          E
+                  |          |          |          |          |
+SF present:       A          B          C          D          E
+
+Slot trace (S=Slot, *=in use, .=free):
+
+  V0->V1:  S0=[A SF-acquired*]  S1=.free     S2=.free  -> depth=0
+  V1->V2:  S0=.free (A released)  S1=[B SF-acquired*]  S2=.free  -> depth=0
+  V2->V3:  S0=.free  S1=.free (B released)  S2=[C SF-acquired*]  -> depth=0
+           ^ free slot always available for dequeue
+当某一帧（Frame B）渲染耗时异常长（例如 25ms，远超 16.67ms 的 vsync 周期）时："><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/display/recoverable_from_buffer_stuffing/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.7d3658a230b9b53c9b5a0e97fffc51585a6e6b9e3743fc0bac7b802ba076ac94.css integrity="sha256-fTZYojC5tTybWg6X//xRWFpua543Q/wLrHuAK6B2rJQ=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/display/recoverable_from_buffer_stuffing/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/display/recoverable_from_buffer_stuffing/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Ethen 的实验室"><meta property="og:description" content="RECOVERABLE_FROM_BUFFER_STUFFING 机制详解 一、什么是 Buffer Stuffing Buffer Stuffing（缓冲区拥堵）是 Android 图形系统中一种特定的 Jank 类型（JankType::BufferStuffing = 0x40）。
+1.1 定义 如果一帧原本预期在某个 vsync 上送出（present），但因为前一帧占用了它的预期 vsync 槽位而被迫延迟到下一个 vsync 才送出，这一帧就被称为被 “stuffed”（拥堵）。这通常发生在一帧意外耗时过长，导致后续所有缓冲帧都进入拥堵状态。
+—— frameworks/native/libs/gui/include/gui/JankInfo.h:38-42
+1.2 直观理解 三缓冲的 BufferQueue 状态机（回顾）
+每个 buffer slot 有三种状态：FREE（可分配）→ DEQUEUED（App 渲染中）→ QUEUED（等待 SF 消费）→ ACQUIRED（SF 持有，正在显示）→ FREE（SF 释放）。
+dequeueBuffer() 的分配条件：只要 slot 状态为 FREE，即可分配——与 release fence 是否 signaled 无关。fence 作为出参返回给 App，由 GPU 侧异步等待。
+三缓冲管线在正常情况下以 vsync 节奏运行，始终有 0~1 帧在排队：
+Normal Pipeline (Triple Buffer, 60fps) Vsync: V0 V1 V2 V3 V4 | | | | | App: [==A==] [==B==] [==C==] [==D==] [==E==] | | | | | SF latch: A B C D E | | | | | SF present: A B C D E Slot trace (S=Slot, *=in use, .=free): V0->V1: S0=[A SF-acquired*] S1=.free S2=.free -> depth=0 V1->V2: S0=.free (A released) S1=[B SF-acquired*] S2=.free -> depth=0 V2->V3: S0=.free S1=.free (B released) S2=[C SF-acquired*] -> depth=0 ^ free slot always available for dequeue 当某一帧（Frame B）渲染耗时异常长（例如 25ms，远超 16.67ms 的 vsync 周期）时："><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta name=twitter:card content="summary"><meta name=twitter:title content="Ethen 的实验室"><meta name=twitter:description content="RECOVERABLE_FROM_BUFFER_STUFFING 机制详解 一、什么是 Buffer Stuffing Buffer Stuffing（缓冲区拥堵）是 Android 图形系统中一种特定的 Jank 类型（JankType::BufferStuffing = 0x40）。
+1.1 定义 如果一帧原本预期在某个 vsync 上送出（present），但因为前一帧占用了它的预期 vsync 槽位而被迫延迟到下一个 vsync 才送出，这一帧就被称为被 “stuffed”（拥堵）。这通常发生在一帧意外耗时过长，导致后续所有缓冲帧都进入拥堵状态。
+—— frameworks/native/libs/gui/include/gui/JankInfo.h:38-42
+1.2 直观理解 三缓冲的 BufferQueue 状态机（回顾）
+每个 buffer slot 有三种状态：FREE（可分配）→ DEQUEUED（App 渲染中）→ QUEUED（等待 SF 消费）→ ACQUIRED（SF 持有，正在显示）→ FREE（SF 释放）。
+dequeueBuffer() 的分配条件：只要 slot 状态为 FREE，即可分配——与 release fence 是否 signaled 无关。fence 作为出参返回给 App，由 GPU 侧异步等待。
+三缓冲管线在正常情况下以 vsync 节奏运行，始终有 0~1 帧在排队：
+Normal Pipeline (Triple Buffer, 60fps) Vsync: V0 V1 V2 V3 V4 | | | | | App: [==A==] [==B==] [==C==] [==D==] [==E==] | | | | | SF latch: A B C D E | | | | | SF present: A B C D E Slot trace (S=Slot, *=in use, .=free): V0->V1: S0=[A SF-acquired*] S1=.free S2=.free -> depth=0 V1->V2: S0=.free (A released) S1=[B SF-acquired*] S2=.free -> depth=0 V2->V3: S0=.free S1=.free (B released) S2=[C SF-acquired*] -> depth=0 ^ free slot always available for dequeue 当某一帧（Frame B）渲染耗时异常长（例如 25ms，远超 16.67ms 的 vsync 周期）时："><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Display Manager","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/"},{"@type":"ListItem","position":3,"name":"","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/recoverable_from_buffer_stuffing/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"","name":"","description":"RECOVERABLE_FROM_BUFFER_STUFFING 机制详解 一、什么是 Buffer Stuffing Buffer Stuffing（缓冲区拥堵）是 Android 图形系统中一种特定的 Jank 类型（JankType::BufferStuffing = 0x40）。\n1.1 定义 如果一帧原本预期在某个 vsync 上送出（present），但因为前一帧占用了它的预期 vsync 槽位而被迫延迟到下一个 vsync 才送出，这一帧就被称为被 \u0026ldquo;stuffed\u0026rdquo;（拥堵）。这通常发生在一帧意外耗时过长，导致后续所有缓冲帧都进入拥堵状态。\n—— frameworks/native/libs/gui/include/gui/JankInfo.h:38-42\n1.2 直观理解 三缓冲的 BufferQueue 状态机（回顾）\n每个 buffer slot 有三种状态：FREE（可分配）→ DEQUEUED（App 渲染中）→ QUEUED（等待 SF 消费）→ ACQUIRED（SF 持有，正在显示）→ FREE（SF 释放）。\ndequeueBuffer() 的分配条件：只要 slot 状态为 FREE，即可分配——与 release fence 是否 signaled 无关。fence 作为出参返回给 App，由 GPU 侧异步等待。\n三缓冲管线在正常情况下以 vsync 节奏运行，始终有 0~1 帧在排队：\nNormal Pipeline (Triple Buffer, 60fps) Vsync: V0 V1 V2 V3 V4 | | | | | App: [==A==] [==B==] [==C==] [==D==] [==E==] | | | | | SF latch: A B C D E | | | | | SF present: A B C D E Slot trace (S=Slot, *=in use, .=free): V0-\u0026gt;V1: S0=[A SF-acquired*] S1=.free S2=.free -\u0026gt; depth=0 V1-\u0026gt;V2: S0=.free (A released) S1=[B SF-acquired*] S2=.free -\u0026gt; depth=0 V2-\u0026gt;V3: S0=.free S1=.free (B released) S2=[C SF-acquired*] -\u0026gt; depth=0 ^ free slot always available for dequeue 当某一帧（Frame B）渲染耗时异常长（例如 25ms，远超 16.67ms 的 vsync 周期）时：\n","keywords":[],"articleBody":"RECOVERABLE_FROM_BUFFER_STUFFING 机制详解 一、什么是 Buffer Stuffing Buffer Stuffing（缓冲区拥堵）是 Android 图形系统中一种特定的 Jank 类型（JankType::BufferStuffing = 0x40）。\n1.1 定义 如果一帧原本预期在某个 vsync 上送出（present），但因为前一帧占用了它的预期 vsync 槽位而被迫延迟到下一个 vsync 才送出，这一帧就被称为被 “stuffed”（拥堵）。这通常发生在一帧意外耗时过长，导致后续所有缓冲帧都进入拥堵状态。\n—— frameworks/native/libs/gui/include/gui/JankInfo.h:38-42\n1.2 直观理解 三缓冲的 BufferQueue 状态机（回顾）\n每个 buffer slot 有三种状态：FREE（可分配）→ DEQUEUED（App 渲染中）→ QUEUED（等待 SF 消费）→ ACQUIRED（SF 持有，正在显示）→ FREE（SF 释放）。\ndequeueBuffer() 的分配条件：只要 slot 状态为 FREE，即可分配——与 release fence 是否 signaled 无关。fence 作为出参返回给 App，由 GPU 侧异步等待。\n三缓冲管线在正常情况下以 vsync 节奏运行，始终有 0~1 帧在排队：\nNormal Pipeline (Triple Buffer, 60fps) Vsync: V0 V1 V2 V3 V4 | | | | | App: [==A==] [==B==] [==C==] [==D==] [==E==] | | | | | SF latch: A B C D E | | | | | SF present: A B C D E Slot trace (S=Slot, *=in use, .=free): V0-\u003eV1: S0=[A SF-acquired*] S1=.free S2=.free -\u003e depth=0 V1-\u003eV2: S0=.free (A released) S1=[B SF-acquired*] S2=.free -\u003e depth=0 V2-\u003eV3: S0=.free S1=.free (B released) S2=[C SF-acquired*] -\u003e depth=0 ^ free slot always available for dequeue 当某一帧（Frame B）渲染耗时异常长（例如 25ms，远超 16.67ms 的 vsync 周期）时：\nBuffer Stuffing Occurs Vsync: V0 V1 V2 V3 V4 V5 | | | | | | App: [==A==] [====B====] [==C==] [==D==] [==E==] [==F==] | B overtime | | | | | 25ms | | | | | | | | | | SF latch: A (none) B C D E | | | | | | SF present: A A' B C D E V0 V1 V2 V3 V4 V5 expected expected expected V1! V2! V3! Note: A' means no new buffer at V1, SF re-uses previously latched frame A. Slot trace: After V0: S0=[A, SF-acquired*] S1=.free S2=.free ^ App dequeues S1, starts rendering B At V1 (B still rendering, ~16ms elapsed): S0=[A, SF-acquired*] S1=[B, rendering] S2=.free ^ Queue empty, SF has nothing new to latch -\u003e re-uses A ^ App cannot start next frame yet: RenderThread still busy with B (S2 is FREE and instantly available if App were to call dequeueBuffer, but the serial render thread hasn't finished B's draw calls yet) V1-\u003eV2 (~t=25ms): B finishes -\u003e App queueBuffer(B) App dequeues S2 -\u003e starts rendering C Before V2 latch: S0=[A, SF-acquired*] S1=[B, QUEUED] S2=[C, rendering] ^ B waiting in queue for SF V2 latch: SF latches B, S0 immediately transitions ACQUIRED-\u003eFREE S0=.free (just released) S1=[B, SF-acquired*] S2=[C, rendering] ^ S0 is FREE! App can dequeue it immediately V2-\u003eV3: C finishes -\u003e App queueBuffer(C) App dequeues S0 -\u003e starts rendering D S0=[D, rendering] S1=[B, SF-acquired*] S2=[C, QUEUED] ^ 3 slots in use: SF*1 + QUEUED*1 + RENDERING*1 ^ If App finishes D and tries to dequeue again before SF latches C: tooManyBuffers -\u003e brief block in waitForBufferRelease() This is the transient blocking that signals \"buffer stuffing\" to Choreographer. V3 latch: SF latches C, S1 -\u003e FREE. Pipeline flowing but 1 vsync behind. V4 latch: SF latches D, S2 -\u003e FREE. Still behind. V5 latch: SF latches E, S0 -\u003e FREE. Still behind. ...all subsequent frames permanently shifted by +1 vsync. Key insight: The pipeline does NOT deadlock. * Throughput = full vsync rate (App and SF both keep up) * Latency = permanently inflated by 1 vsync period * B stole C's V2 → C stole D's V3 → D stole E's V4 → cascading shift * Every frame from C onward is presented 1 vsync later than intended The transient dequeue blocking (tooManyBuffers): * Occurs when App momentarily gets ahead of SF in a stuffed pipeline * Triggers BLASTBufferQueue::onWaitForBufferRelease() callback * Choreographer marks isStuffed=true if wait \u003e half frame interval * This is the signal that starts the RECOVERY process 1.3 BufferStuffing 与 SurfaceFlingerStuffing 的对比 类型 值 本质 成因 BufferStuffing 0x40 管线延迟膨胀 一帧超时 → 后续帧整体位移 1 vsync → 队列深度 +1 → 输入延迟永久增加 → 短暂 tooManyBuffers 触发 recovery SurfaceFlingerStuffing 0x100 SF 占用槽位 SF 自身合成超时 → 当前帧被推到下一 vsync Pipeline Stall — 管线失速/死锁 双缓冲限制或 HWC 卡死 → App 无法 dequeue → 帧率归零 Buffer Stuffing 不等于死锁。管线仍在全速运行，只是画面传递的延迟被永久推高了 1 个 vsync 周期。RECOVERABLE_FROM_BUFFER_STUFFING 机制的目标就是检测并消除这 1 帧的膨胀延迟。\n二、RECOVERABLE_FROM_BUFFER_STUFFING 标志 2.1 是什么 RECOVERABLE_FROM_BUFFER_STUFFING 是一个 layer flag，值为 0x2000，定义在三个层次：\n层次 文件 定义 Java SurfaceControl.java:862 public static final int RECOVERABLE_FROM_BUFFER_STUFFING = 0x00002000 Native LayerState.h:199 eRecoverableFromBufferStuffing = 0x2000 Flicker Flag.kt:30 RECOVERABLE_FROM_BUFFER_STUFFING(0x2000) 2.2 标记对象 只有 ViewRootImpl 的根 SurfaceControl 会被打上此标记：\n// ViewRootImpl.java:2873-2874 // Since the SurfaceControl is a VRI, indicate that it can recover from buffer stuffing. mTransaction.setRecoverableFromBufferStuffing(mSurfaceControl).applyAsyncUnsafe(); 2.3 传递路径 ViewRootImpl +-- setRecoverableFromBufferStuffing(mSurfaceControl) +-- nativeSetFlags(RECOVERABLE_FROM_BUFFER_STUFFING, | RECOVERABLE_FROM_BUFFER_STUFFING) +-- SurfaceComposerClient::Transaction::setFlags() +-- LayerState::flags |= eRecoverableFromBufferStuffing +-- SurfaceFlinger applies flag to Layer 三、整体架构 3.1 系统分层图 +------------------------------------------------------------------+ | JAVA (App Process) | | | | +--------------+ setRecoverableFromBufferStuffing() | | | ViewRootImpl |-------------------------------------\u003e Layer | | +------+-------+ | | | | | +------+--------------+ setWaitForBufferReleaseCallback() | | | BLASTBufferQueue |---------------------------\u003e | | | (Java Wrapper) | Choreographer | | +---------+-----------+ | | | | | +---------+-----------+ onWaitForBufferRelease(durationNanos) | | | Choreographer |\u003c------------------------------------- | | | BufferStuffingState | | | | +================+ | isStuffed = true | | | | Recovery State | | | | | | Machine | | doFrame() -\u003e updateBufferStuffingState| | | +================+ | DELAY_FRAME / OFFSET / NONE | | +----------------------+ | | | +------------------------------------------------------------------+ | Binder (Transaction + BufferQueue IPC) | +------------------------------------------------------------------+ | NATIVE (SurfaceFlinger Process) | | | | +----------------------+ | | | BufferQueueProducer | dequeueBuffer() -\u003e waitForBufferRelease| | | (mDequeueCondition) | CV wait for buffer release | | +----------+-----------+ | | | | | +----------+-----------+ readBlocking() wait for SF release | | | BLASTBufferQueue | compute durationNanos = now - start | | | (Native) | invoke mWaitForBufferReleaseCallback()| | +----------+-----------+ | | | | | +----------+-----------+ | | | FrameTimeline | classifyJankLocked() | | | +----------------+ | readyBeforePreviousLatch? | | | | SurfaceFrame | | dueLastFrame? | | | | mJankType | | -\u003e mJankType |= BufferStuffing | | | | + None | | -\u003e Perfetto Trace | | | | + DisplayHAL | | -\u003e statsd Telemetry | | | | + AppDeadline | | | | | | + Prediction | | | | | | + SF_Scheduling| | | | | | + BufferStuff |\u003c-+ | | | | + Unknown | | | | | | + SF_Stuffing | | | | | | + Dropped | | | | | +----------------+ | | | +----------------------+ | | | | +----------------------+ | | | TimeStats | totalAppBufferStuffing++ | | | summary atoms | -\u003e SurfaceFlingerPuller -\u003e statsd | | +----------------------+ | +------------------------------------------------------------------+ 3.2 两条独立的路径 RECOVERABLE_FROM_BUFFER_STUFFING 机制由两条独立路径协作完成：\n路径 方向 作用 Detection（检测） SF → Perfetto/statsd FrameTimeline 分析帧时序，判定 JankType::BufferStuffing，上报 trace \u0026 telemetry Recovery（恢复） BLASTBufferQueue → Choreographer dequeue 阻塞时回调通知 Choreographer，Choreographer 执行跳帧+偏移恢复 两条路径的纽带是 BLASTBufferQueue::waitForBufferRelease()：\n当 stuffed 管线中 App 短暂领先于 SF 消费速度时，tooManyBuffers 条件触发 dequeueBuffer 在 waitForBufferRelease 上短暂阻塞 阻塞结束后，将 durationNanos 通过 mWaitForBufferReleaseCallback 回调给 Choreographer Choreographer 判断 durationNanos \u003e frameInterval/2 则标记 isStuffed = true 四、完整时序 4.1 端到端时序图 Time -----------------------------------------------------------------------------\u003e Vsync: V0 V1 V2 V3 V4 V5 V6 | | | | | | | App: [==A==] [====B====] [==C==] [==D==] [==E==] [==F==] [==G==] | B overtime | | | | | | | | 25ms | | | | | | | | | | | | | | | | SF: latch:A latch: latch:B latch:C latch:D latch:E latch:F | (nothing) | | | | | present:A present:A' present:B present:C present:D present:E present:F V0 V1 V2 V3 V4 V5 V6 expected expected expected expected V1! V2! V3! V4! late 1v pushed 1v pushed 2v pushed 3v A' = SF re-uses previously latched frame (no new buffer at V1). Buffer slot states (S0/S1/S2): V0-\u003eV1: S0=[A SF-acquired*] S1=.free S2=.free depth=0 V1-\u003eV2: S0=[A SF-acquired*] S1=[B rendering] S2=.free depth=0 ^ B still rendering at V1, queue empty, SF re-uses A Pre V2: S0=[A SF-acquired*] S1=[B QUEUED] S2=[C rendering] depth=1 ^ B finally finished, queued. App dequeued S2 for C. V2: SF latches B -\u003e S0 transitions ACQUIRED-\u003eFREE immediately V2-\u003eV3: S0=.free S1=[B SF-acquired*] S2=[C QUEUED] depth=1 ^ S0 IS FREE. App dequeues S0 for D, starts rendering. ^ Pipeline already shifted: C presented at V3 instead of V2. V3-\u003eV4: S0=[D QUEUED] S1=.free S2=[C SF-acquired*] depth=1 ^ After V3 latch (C), S1 freed. App dequeues S1 for E. ^ Queue depth = 1 (inflated from normal 0). Latency permanently +1vsync. V4-\u003eV5: S0=[D SF-acquired*] S1=[E QUEUED] S2=.free depth=1 ^ Stuffed-but-flowing: 1 slot free each cycle, App never permanently blocked. Steady \"stuffed\" state (V4+): Every frame is presented 1 vsync later than intended. Throughput = full vsync rate. No deadlock. Latency inflated by ~16.67ms. Transient dequeue blocking (tooManyBuffers): When queue depth briefly reaches 2 (App produces ahead of SF's latch pace), App hits max buffer count (3/3: 1 acquired + 2 queued). -\u003e dequeueBuffer() -\u003e waitForBufferRelease() -\u003e brief CV block. -\u003e onWaitForBufferRelease(durationNanos) fires with wait duration. -\u003e The block shifts App's render start relative to vsync (gap in App row above). BBQ callback trigger (transient): | | | |\u003c- tooManyBuffers -\u003e| | | | | | waitForBufferRelease | | | | | | | onWaitForBufferRelease(durationNanos) | | | durationNanos \u003e frameInterval/2? | | | isStuffed = true | Choreo recovery state machine trace: (mLastNoOffset = last frameTimeNanos where NONE or OFFSET was taken) V2: action=NONE -\u003e mLastNoOffset = V2, recovering=false V3: isStuffed=true -\u003e action=DELAY_FRAME -\u003e numberWaitsForNextVsync=1, scheduleVsyncLocked() -\u003e return EARLY (line 1048, BEFORE line 1066) -\u003e mLastNoOffset STAYS at V2 (not updated during DELAY_FRAME) V4: isStuffed=false, recovering=true totalFrameDelays = numberWaitsForNextVsync + 1 = 2 vsyncsSinceLastCallback = (V4.frameTime - V2.frameTime) / interval = 2 -\u003e 2 \u003e 2 ? NO -\u003e OFFSET -\u003e line 1066: mLastNoOffset = V4 \u003c-- UPDATED V5: totalFrameDelays = 2 vsyncsSinceLastCallback = (V5.frameTime - V4.frameTime) / interval = 1 -\u003e 1 \u003e 2 ? NO -\u003e OFFSET (continues) -\u003e line 1066: mLastNoOffset = V5 V6..VN: OFFSET continues every vsync while doFrame is called. Recovery only ends via idle detection: when animation pauses (several vsyncs with no doFrame callback), vsyncsSinceLastCallback grows large enough -\u003e reset() -\u003e NONE. Simplified timeline: | | | | | | | Action: NONE NONE DELAY_FRAME OFFSET OFFSET OFFSET | | | | | | ... | | | |skip V3 | offset | offset | | | |frame | V4 | V5 | | mLastNoOffset=V4 mLastNoOffset=V5 | | | | | | | ^ Recovery drains the stuffed queue: DELAY_FRAME: skips 1 app frame -\u003e queue depth shrinks OFFSET: negative offset on animation timeline each frame OFFSET continues until animation goes idle -\u003e reset() Code key (Choreographer.java): DELAY_FRAME: return at line 1048 (before line 1066 mLastNoOffset update) OFFSET: reaches line 1066, mLastNoOffset IS updated Result: OFFSET continues every vsync during active animation, never terminating from vsyncSinceLastCallback alone. Termination comes from idle (gap between doFrame calls). FT (FrameTimeline): At V3 present (C is late): readyBeforePreviousLatch? -\u003e YES (C.endTime \u003c= B.latchTime) dueLastFrame? -\u003e YES (C.expectedPresent \u003c B.expectedPresent) -\u003e mJankType |= JankType::BufferStuffing -\u003e adjustedDeadline = B.latchTime + 1 vsync -\u003e C re-evaluated: OnTimeFinish in stuffed context | | | | | | | Stats: totalAppBufferStuffing++ 4.2 Recovery 状态机 +--------------+ | IDLE | | isRecovering | | = false | +------+-------+ | onWaitForBufferRelease() durationNanos \u003e frameInterval/2 | isStuffed = true | +------------v-----------+ | DELAY_FRAME | | (Recovery Start) | | | | isRecovering = true | | isStuffed = false | | numberWaitsForNextVsync++| | scheduleVsyncLocked() | | return (skip frame) | +------------+-----------+ | next doFrame() | +------------v-----------+ | OFFSET | | (Recovery Ongoing) | | | | offsetFrameTimeNanos = | | frameTimeNanos | | - frameIntervalNanos | | | | Negative offset to | | animation timeline | +------------+-----------+ | +------------v-----------+ | Check Idle | | | | vsyncsSinceLastCallback| | \u003e totalFrameDelays? | | | | NO --\u003e continue OFFSET | | YES -\u003e reset() | | return NONE | +------------------------+ 4.3 Multi-Recovery 对比 Single Recovery (bufferStuffingRecovery): --- DELAY_FRAME --- OFFSET --- OFFSET --- idle --- END (once only) (continuous) (cannot re-trigger) Multi Recovery (bufferStuffingMultiRecovery): --- DELAY_FRAME --- OFFSET --- DELAY_FRAME --- OFFSET --- idle --- END (1st) (2nd, isStuffed set again) 五、核心代码分析 5.1 BufferStuffingState 状态结构 // Choreographer.java:236-270 private static class BufferStuffingState { enum RecoveryAction { NONE, // No recovery OFFSET, // Apply negative offset to animation timeline DELAY_FRAME // Skip frame to free a buffer slot } // true when dequeue blocked for more than half a frame interval public AtomicBoolean isStuffed = new AtomicBoolean(false); // whether recovery has started public boolean isRecovering = false; // accumulated frame skips during recovery // (+ 1 expected vsync delay from natural scheduling) public int numberWaitsForNextVsync = 0; public void reset() { isStuffed.set(false); isRecovering = false; numberWaitsForNextVsync = 0; } } 5.2 dequeue 阻塞触发 // Choreographer.java:280-283 public void onWaitForBufferRelease(long durationNanos) { if (durationNanos \u003e mLastFrameIntervalNanos / 2) { // Blocked for \u003e half frame interval -\u003e buffer stuffing detected mBufferStuffingState.isStuffed.set(true); } } 5.3 SurfaceFlinger 侧检测 // FrameTimeline.cpp:650-672 // classifyJankLocked() -- BufferStuffing classification branch // FramePresentMetadata::LatePresent: // Frame was presented late const bool readyBeforePreviousLatch = mLastFrameTimestamps.latchTime != 0 \u0026\u0026 mPredictions.endTime \u003c= mLastFrameTimestamps.latchTime; // Condition: frame finished before previous frame's latch time // Meaning: this frame was ready early, but stuck waiting in queue const bool dueLastFrame = !FlagManager::getInstance().buffer_stuffing_fix() || (mLastFrameTimestamps.expectedPresentTime != 0 \u0026\u0026 mPredictions.presentTime - presentThreshold \u003c mLastFrameTimestamps.expectedPresentTime); // Condition: current frame's expected present time \u003c previous frame's // Meaning: previous frame stole this frame's vsync slot if (readyBeforePreviousLatch \u0026\u0026 dueLastFrame) { // Classified as Buffer Stuffing mJankType |= JankType::BufferStuffing; // Use adjusted deadline to re-evaluate if app finished on time // In stuffed state, frame may be delayed by dequeue wait. // Use previous latch time + 1 vsync period as the adjusted deadline. nsecs_t adjustedDeadline = mLastFrameTimestamps.latchTime + displayFrameRenderRate.getPeriodNsecs(); if (adjustedDeadline \u003e mActuals.endTime) { mFrameReadyMetadata = FrameReadyMetadata::OnTimeFinish; } else { mFrameReadyMetadata = FrameReadyMetadata::LateFinish; } } 5.4 Recovery 决策逻辑 // Choreographer.java:942-1019 BufferStuffingState.RecoveryAction updateBufferStuffingState( long frameTimeNanos, DisplayEventReceiver.VsyncEventData vsyncEventData) { if (bufferStuffingMultiRecovery()) { // --- Multi-Recovery Mode --- if (mBufferStuffingState.isStuffed.getAndSet(false)) { // isStuffed == true -\u003e start a new recovery round if (!mBufferStuffingState.isRecovering) { // First entry into recovery, record trace Trace.asyncTraceForTrackBegin( TRACE_TAG_VIEW, \"Buffer stuffing recovery\", \"Thread \" + Process.myTid() + \", recover frame\", 0); mBufferStuffingState.isRecovering = true; } return BufferStuffingState.RecoveryAction.DELAY_FRAME; } else if (!mBufferStuffingState.isRecovering) { // Neither stuffed nor recovering -\u003e normal path return BufferStuffingState.RecoveryAction.NONE; } } else { // --- Single-Recovery Mode --- if (!mBufferStuffingState.isRecovering) { if (!mBufferStuffingState.isStuffed.getAndSet(false)) { return BufferStuffingState.RecoveryAction.NONE; } mBufferStuffingState.isRecovering = true; // Only ONE DELAY_FRAME allowed at recovery start return BufferStuffingState.RecoveryAction.DELAY_FRAME; } } // --- Recovery In Progress --- // Check if we have entered idle state final int totalFrameDelays = mBufferStuffingState.numberWaitsForNextVsync + 1; final long vsyncsSinceLastCallback = mLastFrameIntervalNanos \u003e 0 ? (frameTimeNanos - mLastNoOffsetFrameTimeNanos) / mLastFrameIntervalNanos : 0; // Idle detection: vsyncs elapsed since last callback \u003e total frame delays if (vsyncsSinceLastCallback \u003e totalFrameDelays) { // Recovery ends Trace.asyncTraceForTrackEnd(TRACE_TAG_VIEW, \"Buffer stuffing recovery\", 0); mBufferStuffingState.reset(); return BufferStuffingState.RecoveryAction.NONE; } // Continue recovery: apply negative offset return BufferStuffingState.RecoveryAction.OFFSET; } 5.5 doFrame 中的恢复执行 // Choreographer.java:1033-1051 switch (updateBufferStuffingState(frameTimeNanos, vsyncEventData)) { case NONE: // Normal path, offsetFrameTimeNanos = frameTimeNanos break; case OFFSET: // Shift animation timeline back by one frame // Purpose: compensate for the frame lost during stuffing offsetFrameTimeNanos = frameTimeNanos - frameIntervalNanos; break; case DELAY_FRAME: // Intentional frame skip // Purpose: reduce buffer queue depth, unblock dequeue mBufferStuffingState.numberWaitsForNextVsync++; scheduleVsyncLocked(); return; // \u003c-- Skip ALL callbacks for this frame } 六、Feature Flags Flag 定义文件 说明 buffer_stuffing_recovery view_flags.aconfig 启用 Buffer Stuffing 恢复功能 buffer_stuffing_multi_recovery view_flags.aconfig 允许同一动画内多次触发恢复 buffer_stuffing_fix FlagManager.cpp:313 FrameTimeline 侧修复：增加 dueLastFrame 的 expectedPresentTime 校验 七、Telemetry 与 Trace 7.1 Perfetto Trace BufferStuffing 被映射为 JANK_BUFFER_STUFFING (128)，在 Perfetto FrameTimeline 面板中显示为 “Buffer Stuffing”。\nFrameTimeline::classifyJankLocked() | +--\u003e mJankType |= JankType::BufferStuffing (0x40) | +--\u003e toProto() +--\u003e FrameTimelineEvent::JANK_BUFFER_STUFFING (128) +--\u003e Perfetto: \"Buffer Stuffing\" 7.2 statsd 统计 // TimeStats.cpp if (reasons \u0026 JankType::BufferStuffing) { t.jankPayload.totalAppBufferStuffing++; } statsd atom: total_jank_frames_app_buffer_stuffing\n用于 Android 性能面板和系统健康度监控。\n7.3 Choreographer Trace Buffer stuffing recovery --- begin --- Thread 42, recover frame | \"buffer stuffed\" instant \"Negative offset of 16666666 ns\" instant \"Negative offset of 16666666 ns\" instant ... (OFFSET repeats each vsync while animating) offset offset idle detected (vsync gap -\u003e reset) Buffer stuffing recovery --- end ----- Note: DELAY_FRAME (1x) + OFFSET (repeats every doFrame during active animation). OFFSET only stops when animation goes idle (no doFrame call for several vsyncs). 八、源代码索引 文件 关键内容 frameworks/native/libs/gui/include/gui/JankInfo.h:42 BufferStuffing = 0x40 枚举定义 frameworks/native/libs/gui/include/gui/LayerState.h:199 eRecoverableFromBufferStuffing = 0x2000 标志 frameworks/base/core/java/android/view/SurfaceControl.java:862 Java 层 flag 常量 frameworks/base/core/java/android/view/SurfaceControl.java:5533 setRecoverableFromBufferStuffing() API frameworks/base/core/java/android/view/ViewRootImpl.java:2865 注册 onWaitForBufferRelease 回调 frameworks/base/core/java/android/view/ViewRootImpl.java:2874 设置 eRecoverableFromBufferStuffing 标志 frameworks/base/core/java/android/view/Choreographer.java:236-270 BufferStuffingState 内部类 frameworks/base/core/java/android/view/Choreographer.java:280-283 onWaitForBufferRelease() frameworks/base/core/java/android/view/Choreographer.java:942-1019 updateBufferStuffingState() 恢复状态机 frameworks/base/core/java/android/view/Choreographer.java:1033-1051 doFrame() 中的恢复执行 frameworks/native/libs/gui/BLASTBufferQueue.cpp:1245-1283 Native 层 wait 回调与 duration 计算 frameworks/native/libs/gui/BufferQueueProducer.cpp:425-446 dequeueBuffer 阻塞等待 frameworks/native/services/surfaceflinger/Scheduler/FrameTimeline.cpp:650-672 BufferStuffing 检测核心逻辑 frameworks/native/services/surfaceflinger/Scheduler/FrameTimeline.cpp:262-264 转换到 Perfetto proto frameworks/native/services/surfaceflinger/Scheduler/FrameTimeline.h:291-294 LastFrameTimestamps 用于检测 frameworks/native/services/surfaceflinger/TimeStats/TimeStats.cpp:126,226 statsd 统计 frameworks/native/services/surfaceflinger/common/FlagManager.cpp:313 buffer_stuffing_fix 标志 frameworks/base/core/java/android/view/flags/view_flags.aconfig buffer_stuffing_recovery / multi_recovery 九、总结 RECOVERABLE_FROM_BUFFER_STUFFING 是 Android 图形系统对 Buffer Stuffing 卡顿的端到端解决方案，由三层协作完成：\n层 职责 FrameTimeline (SF) 事后检测：分析帧时序，识别 JANK_BUFFER_STUFFING BLASTBufferQueue 事件传递：dequeue 阻塞时通知 Choreographer Choreographer 主动恢复：跳帧释放缓冲 + 时间轴偏移补偿动画 其核心思路是：当检测到管线拥堵时，不要让 App 被动等待。主动跳帧释放一个缓冲槽位，同时用时间轴偏移让动画计算平滑过渡，最后通过空闲检测优雅退出恢复状态。\n","wordCount":"2701","inLanguage":"en","datePublished":"0001-01-01T00:00:00Z","dateModified":"0001-01-01T00:00:00Z","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/display/recoverable_from_buffer_stuffing/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=header-nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle class=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu class=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><nav class=breadcrumbs role=navigation aria-label=Breadcrumb><a href=/ethenslab/>Home</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
+<a href=/ethenslab/android-dev/>Android系统开发</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
+<a href=/ethenslab/android-dev/display/>Display Manager</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg></nav><h1 class="post-title entry-hint-parent"></h1><div class=post-meta><span>13 min</span>&nbsp;·&nbsp;<span>2701 words</span></div></header><div class="post-content md-content"><h1 id=recoverable_from_buffer_stuffing-机制详解>RECOVERABLE_FROM_BUFFER_STUFFING 机制详解<a hidden class=anchor aria-hidden=true href=#recoverable_from_buffer_stuffing-机制详解>#</a></h1><h2 id=一什么是-buffer-stuffing>一、什么是 Buffer Stuffing<a hidden class=anchor aria-hidden=true href=#一什么是-buffer-stuffing>#</a></h2><p><strong>Buffer Stuffing</strong>（缓冲区拥堵）是 Android 图形系统中一种特定的 Jank 类型（<code>JankType::BufferStuffing = 0x40</code>）。</p><h3 id=11-定义>1.1 定义<a hidden class=anchor aria-hidden=true href=#11-定义>#</a></h3><blockquote><p>如果一帧原本预期在某个 vsync 上送出（present），但因为<strong>前一帧占用了它的预期 vsync 槽位</strong>而被迫延迟到下一个 vsync 才送出，这一帧就被称为被 &ldquo;stuffed&rdquo;（拥堵）。这通常发生在一帧意外耗时过长，导致后续所有缓冲帧都进入拥堵状态。</p></blockquote><p>—— <code>frameworks/native/libs/gui/include/gui/JankInfo.h:38-42</code></p><h3 id=12-直观理解>1.2 直观理解<a hidden class=anchor aria-hidden=true href=#12-直观理解>#</a></h3><p><strong>三缓冲的 BufferQueue 状态机（回顾）</strong></p><p>每个 buffer slot 有三种状态：<code>FREE</code>（可分配）→ <code>DEQUEUED</code>（App 渲染中）→ <code>QUEUED</code>（等待 SF 消费）→ <code>ACQUIRED</code>（SF 持有，正在显示）→ <code>FREE</code>（SF 释放）。</p><p><code>dequeueBuffer()</code> 的分配条件：只要 slot 状态为 <code>FREE</code>，即可分配——<strong>与 release fence 是否 signaled 无关</strong>。fence 作为出参返回给 App，由 GPU 侧异步等待。</p><p>三缓冲管线在正常情况下以 vsync 节奏运行，始终有 0~1 帧在排队：</p><pre tabindex=0><code>                    Normal Pipeline (Triple Buffer, 60fps)
+
+Vsync:            V0         V1         V2         V3         V4
+                  |          |          |          |          |
+App:          [==A==]   [==B==]   [==C==]   [==D==]   [==E==]
+                  |          |          |          |          |
+SF latch:         A          B          C          D          E
+                  |          |          |          |          |
+SF present:       A          B          C          D          E
+
+Slot trace (S=Slot, *=in use, .=free):
+
+  V0-&gt;V1:  S0=[A SF-acquired*]  S1=.free     S2=.free  -&gt; depth=0
+  V1-&gt;V2:  S0=.free (A released)  S1=[B SF-acquired*]  S2=.free  -&gt; depth=0
+  V2-&gt;V3:  S0=.free  S1=.free (B released)  S2=[C SF-acquired*]  -&gt; depth=0
+           ^ free slot always available for dequeue
+</code></pre><p>当某一帧（Frame B）渲染耗时异常长（例如 25ms，远超 16.67ms 的 vsync 周期）时：</p><pre tabindex=0><code>                       Buffer Stuffing Occurs
+
+Vsync:            V0         V1         V2         V3         V4         V5
+                  |          |          |          |          |          |
+App:          [==A==]  [====B====]  [==C==]   [==D==]   [==E==]   [==F==]
+                  |     B overtime  |          |          |          |
+                  |      25ms       |          |          |          |
+                  |          |      |          |          |          |
+SF latch:         A        (none)     B          C          D          E
+                  |          |        |          |          |          |
+SF present:       A         A&#39;        B          C          D          E
+                 V0         V1       V2         V3         V4         V5
+                                    expected   expected   expected
+                                     V1!        V2!        V3!
+
+Note: A&#39; means no new buffer at V1, SF re-uses previously latched frame A.
+
+Slot trace:
+
+ After V0:
+    S0=[A, SF-acquired*]    S1=.free              S2=.free
+    ^ App dequeues S1, starts rendering B
+
+ At V1 (B still rendering, ~16ms elapsed):
+    S0=[A, SF-acquired*]    S1=[B, rendering]     S2=.free
+    ^ Queue empty, SF has nothing new to latch -&gt; re-uses A
+    ^ App cannot start next frame yet: RenderThread still busy with B
+      (S2 is FREE and instantly available if App were to call dequeueBuffer,
+      but the serial render thread hasn&#39;t finished B&#39;s draw calls yet)
+
+ V1-&gt;V2 (~t=25ms):
+    B finishes -&gt; App queueBuffer(B)
+    App dequeues S2 -&gt; starts rendering C
+
+ Before V2 latch:
+    S0=[A, SF-acquired*]    S1=[B, QUEUED]        S2=[C, rendering]
+    ^ B waiting in queue for SF
+
+ V2 latch: SF latches B, S0 immediately transitions ACQUIRED-&gt;FREE
+    S0=.free (just released) S1=[B, SF-acquired*] S2=[C, rendering]
+    ^ S0 is FREE! App can dequeue it immediately
+
+ V2-&gt;V3:
+    C finishes -&gt; App queueBuffer(C)
+    App dequeues S0 -&gt; starts rendering D
+    S0=[D, rendering]       S1=[B, SF-acquired*]  S2=[C, QUEUED]
+    ^ 3 slots in use: SF*1 + QUEUED*1 + RENDERING*1
+    ^ If App finishes D and tries to dequeue again before SF latches C:
+      tooManyBuffers -&gt; brief block in waitForBufferRelease()
+      This is the transient blocking that signals &#34;buffer stuffing&#34; to Choreographer.
+
+ V3 latch: SF latches C, S1 -&gt; FREE. Pipeline flowing but 1 vsync behind.
+ V4 latch: SF latches D, S2 -&gt; FREE. Still behind.
+ V5 latch: SF latches E, S0 -&gt; FREE. Still behind.
+ ...all subsequent frames permanently shifted by +1 vsync.
+
+Key insight: The pipeline does NOT deadlock.
+  * Throughput = full vsync rate (App and SF both keep up)
+  * Latency = permanently inflated by 1 vsync period
+  * B stole C&#39;s V2 → C stole D&#39;s V3 → D stole E&#39;s V4 → cascading shift
+  * Every frame from C onward is presented 1 vsync later than intended
+
+The transient dequeue blocking (tooManyBuffers):
+  * Occurs when App momentarily gets ahead of SF in a stuffed pipeline
+  * Triggers BLASTBufferQueue::onWaitForBufferRelease() callback
+  * Choreographer marks isStuffed=true if wait &gt; half frame interval
+  * This is the signal that starts the RECOVERY process
+</code></pre><h3 id=13-bufferstuffing-与-surfaceflingerstuffing-的对比>1.3 BufferStuffing 与 SurfaceFlingerStuffing 的对比<a hidden class=anchor aria-hidden=true href=#13-bufferstuffing-与-surfaceflingerstuffing-的对比>#</a></h3><table><thead><tr><th>类型</th><th>值</th><th>本质</th><th>成因</th></tr></thead><tbody><tr><td><code>BufferStuffing</code></td><td><code>0x40</code></td><td>管线延迟膨胀</td><td>一帧超时 → 后续帧整体位移 1 vsync → 队列深度 +1 → 输入延迟永久增加 → 短暂 <code>tooManyBuffers</code> 触发 recovery</td></tr><tr><td><code>SurfaceFlingerStuffing</code></td><td><code>0x100</code></td><td>SF 占用槽位</td><td>SF 自身合成超时 → 当前帧被推到下一 vsync</td></tr><tr><td><strong>Pipeline Stall</strong></td><td>—</td><td>管线失速/死锁</td><td>双缓冲限制或 HWC 卡死 → App 无法 dequeue → 帧率归零</td></tr></tbody></table><p>Buffer Stuffing 不等于死锁。管线仍在全速运行，只是画面传递的延迟被永久推高了 1 个 vsync 周期。<code>RECOVERABLE_FROM_BUFFER_STUFFING</code> 机制的目标就是检测并消除这 1 帧的膨胀延迟。</p><hr><h2 id=二recoverable_from_buffer_stuffing-标志>二、RECOVERABLE_FROM_BUFFER_STUFFING 标志<a hidden class=anchor aria-hidden=true href=#二recoverable_from_buffer_stuffing-标志>#</a></h2><h3 id=21-是什么>2.1 是什么<a hidden class=anchor aria-hidden=true href=#21-是什么>#</a></h3><p><code>RECOVERABLE_FROM_BUFFER_STUFFING</code> 是一个 <strong>layer flag</strong>，值为 <code>0x2000</code>，定义在三个层次：</p><table><thead><tr><th>层次</th><th>文件</th><th>定义</th></tr></thead><tbody><tr><td>Java</td><td><code>SurfaceControl.java:862</code></td><td><code>public static final int RECOVERABLE_FROM_BUFFER_STUFFING = 0x00002000</code></td></tr><tr><td>Native</td><td><code>LayerState.h:199</code></td><td><code>eRecoverableFromBufferStuffing = 0x2000</code></td></tr><tr><td>Flicker</td><td><code>Flag.kt:30</code></td><td><code>RECOVERABLE_FROM_BUFFER_STUFFING(0x2000)</code></td></tr></tbody></table><h3 id=22-标记对象>2.2 标记对象<a hidden class=anchor aria-hidden=true href=#22-标记对象>#</a></h3><p><strong>只有 <code>ViewRootImpl</code> 的根 SurfaceControl 会被打上此标记：</strong></p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// ViewRootImpl.java:2873-2874</span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Since the SurfaceControl is a VRI, indicate that it can recover from buffer stuffing.</span>
+</span></span><span style=display:flex><span>mTransaction.<span style=color:#a6e22e>setRecoverableFromBufferStuffing</span>(mSurfaceControl).<span style=color:#a6e22e>applyAsyncUnsafe</span>();
+</span></span></code></pre></div><h3 id=23-传递路径>2.3 传递路径<a hidden class=anchor aria-hidden=true href=#23-传递路径>#</a></h3><pre tabindex=0><code>ViewRootImpl
+  +-- setRecoverableFromBufferStuffing(mSurfaceControl)
+       +-- nativeSetFlags(RECOVERABLE_FROM_BUFFER_STUFFING,
+       |                  RECOVERABLE_FROM_BUFFER_STUFFING)
+       +-- SurfaceComposerClient::Transaction::setFlags()
+            +-- LayerState::flags |= eRecoverableFromBufferStuffing
+                 +-- SurfaceFlinger applies flag to Layer
+</code></pre><hr><h2 id=三整体架构>三、整体架构<a hidden class=anchor aria-hidden=true href=#三整体架构>#</a></h2><h3 id=31-系统分层图>3.1 系统分层图<a hidden class=anchor aria-hidden=true href=#31-系统分层图>#</a></h3><pre tabindex=0><code>+------------------------------------------------------------------+
+|                    JAVA (App Process)                            |
+|                                                                  |
+|  +--------------+  setRecoverableFromBufferStuffing()            |
+|  | ViewRootImpl |-------------------------------------&gt; Layer   |
+|  +------+-------+                                                |
+|         |                                                        |
+|  +------+--------------+  setWaitForBufferReleaseCallback()     |
+|  |  BLASTBufferQueue   |---------------------------&gt;            |
+|  |  (Java Wrapper)     |        Choreographer                   |
+|  +---------+-----------+                                        |
+|            |                                                     |
+|  +---------+-----------+  onWaitForBufferRelease(durationNanos) |
+|  |    Choreographer     |&lt;------------------------------------- |
+|  |  BufferStuffingState |                                       |
+|  |  +================+  |       isStuffed = true                |
+|  |  | Recovery State |  |                                       |
+|  |  | Machine        |  |  doFrame() -&gt; updateBufferStuffingState|
+|  |  +================+  |     DELAY_FRAME / OFFSET / NONE       |
+|  +----------------------+                                       |
+|                                                                  |
++------------------------------------------------------------------+
+|                 Binder (Transaction + BufferQueue IPC)           |
++------------------------------------------------------------------+
+|                 NATIVE (SurfaceFlinger Process)                  |
+|                                                                  |
+|  +----------------------+                                       |
+|  | BufferQueueProducer  |  dequeueBuffer() -&gt; waitForBufferRelease|
+|  |  (mDequeueCondition) |  CV wait for buffer release            |
+|  +----------+-----------+                                        |
+|             |                                                     |
+|  +----------+-----------+  readBlocking() wait for SF release   |
+|  |  BLASTBufferQueue    |  compute durationNanos = now - start   |
+|  |  (Native)            |  invoke mWaitForBufferReleaseCallback()|
+|  +----------+-----------+                                        |
+|             |                                                     |
+|  +----------+-----------+                                        |
+|  |     FrameTimeline    |  classifyJankLocked()                  |
+|  |  +----------------+  |    readyBeforePreviousLatch?           |
+|  |  | SurfaceFrame   |  |    dueLastFrame?                       |
+|  |  | mJankType      |  |    -&gt; mJankType |= BufferStuffing      |
+|  |  | + None         |  |    -&gt; Perfetto Trace                   |
+|  |  | + DisplayHAL   |  |    -&gt; statsd Telemetry                 |
+|  |  | + AppDeadline  |  |                                        |
+|  |  | + Prediction   |  |                                        |
+|  |  | + SF_Scheduling|  |                                        |
+|  |  | + BufferStuff  |&lt;-+                                        |
+|  |  | + Unknown      |  |                                        |
+|  |  | + SF_Stuffing  |  |                                        |
+|  |  | + Dropped      |  |                                        |
+|  |  +----------------+  |                                        |
+|  +----------------------+                                        |
+|                                                                  |
+|  +----------------------+                                        |
+|  |      TimeStats       |  totalAppBufferStuffing++             |
+|  |  summary atoms       |  -&gt; SurfaceFlingerPuller -&gt; statsd    |
+|  +----------------------+                                        |
++------------------------------------------------------------------+
+</code></pre><h3 id=32-两条独立的路径>3.2 两条独立的路径<a hidden class=anchor aria-hidden=true href=#32-两条独立的路径>#</a></h3><p>RECOVERABLE_FROM_BUFFER_STUFFING 机制由<strong>两条独立路径</strong>协作完成：</p><table><thead><tr><th>路径</th><th>方向</th><th>作用</th></tr></thead><tbody><tr><td><strong>Detection（检测）</strong></td><td>SF → Perfetto/statsd</td><td>FrameTimeline 分析帧时序，判定 <code>JankType::BufferStuffing</code>，上报 trace & telemetry</td></tr><tr><td><strong>Recovery（恢复）</strong></td><td>BLASTBufferQueue → Choreographer</td><td>dequeue 阻塞时回调通知 Choreographer，Choreographer 执行跳帧+偏移恢复</td></tr></tbody></table><p>两条路径的纽带是 <strong><code>BLASTBufferQueue::waitForBufferRelease()</code></strong>：</p><ul><li>当 stuffed 管线中 App 短暂领先于 SF 消费速度时，<code>tooManyBuffers</code> 条件触发 <code>dequeueBuffer</code> 在 <code>waitForBufferRelease</code> 上短暂阻塞</li><li>阻塞结束后，将 <code>durationNanos</code> 通过 <code>mWaitForBufferReleaseCallback</code> 回调给 Choreographer</li><li>Choreographer 判断 <code>durationNanos > frameInterval/2</code> 则标记 <code>isStuffed = true</code></li></ul><hr><h2 id=四完整时序>四、完整时序<a hidden class=anchor aria-hidden=true href=#四完整时序>#</a></h2><h3 id=41-端到端时序图>4.1 端到端时序图<a hidden class=anchor aria-hidden=true href=#41-端到端时序图>#</a></h3><pre tabindex=0><code>Time -----------------------------------------------------------------------------&gt;
+
+Vsync:     V0         V1         V2         V3         V4         V5         V6
+           |          |          |          |          |          |          |
+
+App:    [==A==]  [====B====]  [==C==]   [==D==]   [==E==]    [==F==]  [==G==]
+           |     B overtime  |          |  |       |  |       |          |
+           |       25ms      |          |  |       |  |       |          |
+           |          |      |          |  |       |  |       |          |
+
+SF:    latch:A    latch:    latch:B    latch:C    latch:D    latch:E    latch:F
+           |     (nothing)     |          |          |          |          |
+      present:A  present:A&#39; present:B  present:C  present:D  present:E  present:F
+          V0        V1        V2         V3         V4         V5         V6
+                              expected   expected   expected   expected
+                               V1!        V2!        V3!        V4!
+                              late 1v    pushed 1v  pushed 2v  pushed 3v
+
+A&#39; = SF re-uses previously latched frame (no new buffer at V1).
+
+Buffer slot states (S0/S1/S2):
+
+ V0-&gt;V1:  S0=[A SF-acquired*]  S1=.free          S2=.free             depth=0
+ V1-&gt;V2:  S0=[A SF-acquired*]  S1=[B rendering]  S2=.free             depth=0
+          ^ B still rendering at V1, queue empty, SF re-uses A
+
+ Pre V2:  S0=[A SF-acquired*]  S1=[B QUEUED]     S2=[C rendering]     depth=1
+          ^ B finally finished, queued. App dequeued S2 for C.
+
+ V2:      SF latches B -&gt; S0 transitions ACQUIRED-&gt;FREE immediately
+ V2-&gt;V3:  S0=.free             S1=[B SF-acquired*] S2=[C QUEUED]     depth=1
+          ^ S0 IS FREE. App dequeues S0 for D, starts rendering.
+          ^ Pipeline already shifted: C presented at V3 instead of V2.
+
+ V3-&gt;V4:  S0=[D QUEUED]        S1=.free            S2=[C SF-acquired*] depth=1
+          ^ After V3 latch (C), S1 freed. App dequeues S1 for E.
+          ^ Queue depth = 1 (inflated from normal 0). Latency permanently +1vsync.
+
+ V4-&gt;V5:  S0=[D SF-acquired*]  S1=[E QUEUED]       S2=.free            depth=1
+          ^ Stuffed-but-flowing: 1 slot free each cycle, App never permanently blocked.
+
+ Steady &#34;stuffed&#34; state (V4+):
+   Every frame is presented 1 vsync later than intended.
+   Throughput = full vsync rate. No deadlock. Latency inflated by ~16.67ms.
+
+Transient dequeue blocking (tooManyBuffers):
+  When queue depth briefly reaches 2 (App produces ahead of SF&#39;s latch pace),
+  App hits max buffer count (3/3: 1 acquired + 2 queued).
+  -&gt; dequeueBuffer() -&gt; waitForBufferRelease() -&gt; brief CV block.
+  -&gt; onWaitForBufferRelease(durationNanos) fires with wait duration.
+  -&gt; The block shifts App&#39;s render start relative to vsync (gap in App row above).
+
+BBQ callback trigger (transient):
+           |          |          |          |&lt;- tooManyBuffers -&gt;|     |
+           |          |          |          | waitForBufferRelease     |
+           |          |          |          |          |              |
+                     onWaitForBufferRelease(durationNanos)            |
+                                    |                                 |
+                         durationNanos &gt; frameInterval/2?             |
+                                    |                                 |
+                              isStuffed = true                        |
+
+Choreo recovery state machine trace:
+  (mLastNoOffset = last frameTimeNanos where NONE or OFFSET was taken)
+
+ V2:   action=NONE        -&gt; mLastNoOffset = V2, recovering=false
+ V3:   isStuffed=true
+       -&gt; action=DELAY_FRAME -&gt; numberWaitsForNextVsync=1, scheduleVsyncLocked()
+       -&gt; return EARLY (line 1048, BEFORE line 1066)
+       -&gt; mLastNoOffset STAYS at V2  (not updated during DELAY_FRAME)
+
+ V4:   isStuffed=false, recovering=true
+       totalFrameDelays = numberWaitsForNextVsync + 1 = 2
+       vsyncsSinceLastCallback = (V4.frameTime - V2.frameTime) / interval = 2
+       -&gt; 2 &gt; 2 ? NO -&gt; OFFSET
+       -&gt; line 1066: mLastNoOffset = V4   &lt;-- UPDATED
+
+ V5:   totalFrameDelays = 2
+       vsyncsSinceLastCallback = (V5.frameTime - V4.frameTime) / interval = 1
+       -&gt; 1 &gt; 2 ? NO -&gt; OFFSET (continues)
+       -&gt; line 1066: mLastNoOffset = V5
+
+ V6..VN:  OFFSET continues every vsync while doFrame is called.
+          Recovery only ends via idle detection:
+          when animation pauses (several vsyncs with no doFrame callback),
+          vsyncsSinceLastCallback grows large enough -&gt; reset() -&gt; NONE.
+
+  Simplified timeline:
+           |          |          |          |          |          |          |
+  Action:            NONE       NONE    DELAY_FRAME   OFFSET     OFFSET   OFFSET
+           |          |          |          |          |          |     ...
+           |          |          |          |skip V3    | offset   | offset
+           |          |          |          |frame      | V4       | V5
+                                                       |          |
+                                              mLastNoOffset=V4  mLastNoOffset=V5
+           |          |          |          |          |          |          |
+           ^ Recovery drains the stuffed queue:
+             DELAY_FRAME: skips 1 app frame -&gt; queue depth shrinks
+             OFFSET: negative offset on animation timeline each frame
+             OFFSET continues until animation goes idle -&gt; reset()
+
+Code key (Choreographer.java):
+  DELAY_FRAME: return at line 1048 (before line 1066 mLastNoOffset update)
+  OFFSET:      reaches line 1066, mLastNoOffset IS updated
+  Result:      OFFSET continues every vsync during active animation,
+               never terminating from vsyncSinceLastCallback alone.
+               Termination comes from idle (gap between doFrame calls).
+
+FT (FrameTimeline):
+  At V3 present (C is late):
+      readyBeforePreviousLatch? -&gt; YES (C.endTime &lt;= B.latchTime)
+      dueLastFrame?             -&gt; YES (C.expectedPresent &lt; B.expectedPresent)
+      -&gt; mJankType |= JankType::BufferStuffing
+      -&gt; adjustedDeadline = B.latchTime + 1 vsync
+      -&gt; C re-evaluated: OnTimeFinish in stuffed context
+           |          |          |          |          |          |          |
+
+Stats:                                            totalAppBufferStuffing++
+</code></pre><h3 id=42-recovery-状态机>4.2 Recovery 状态机<a hidden class=anchor aria-hidden=true href=#42-recovery-状态机>#</a></h3><pre tabindex=0><code>                          +--------------+
+                          |    IDLE      |
+                          | isRecovering |
+                          |    = false   |
+                          +------+-------+
+                                 |
+                    onWaitForBufferRelease()
+                    durationNanos &gt; frameInterval/2
+                                 |
+                          isStuffed = true
+                                 |
+                    +------------v-----------+
+                    |   DELAY_FRAME          |
+                    |   (Recovery Start)     |
+                    |                        |
+                    | isRecovering = true    |
+                    | isStuffed    = false   |
+                    | numberWaitsForNextVsync++|
+                    | scheduleVsyncLocked()  |
+                    | return (skip frame)    |
+                    +------------+-----------+
+                                 |
+                          next doFrame()
+                                 |
+                    +------------v-----------+
+                    |      OFFSET            |
+                    |  (Recovery Ongoing)    |
+                    |                        |
+                    | offsetFrameTimeNanos = |
+                    |   frameTimeNanos       |
+                    |   - frameIntervalNanos |
+                    |                        |
+                    | Negative offset to     |
+                    | animation timeline     |
+                    +------------+-----------+
+                                 |
+                    +------------v-----------+
+                    |  Check Idle            |
+                    |                        |
+                    | vsyncsSinceLastCallback|
+                    | &gt; totalFrameDelays?    |
+                    |                        |
+                    | NO --&gt; continue OFFSET |
+                    | YES -&gt; reset()         |
+                    |         return NONE    |
+                    +------------------------+
+</code></pre><h3 id=43-multi-recovery-对比>4.3 Multi-Recovery 对比<a hidden class=anchor aria-hidden=true href=#43-multi-recovery-对比>#</a></h3><pre tabindex=0><code>Single Recovery (bufferStuffingRecovery):
+  --- DELAY_FRAME --- OFFSET --- OFFSET --- idle --- END
+       (once only)    (continuous)             (cannot re-trigger)
+
+Multi Recovery (bufferStuffingMultiRecovery):
+  --- DELAY_FRAME --- OFFSET --- DELAY_FRAME --- OFFSET --- idle --- END
+       (1st)                       (2nd, isStuffed set again)
+</code></pre><hr><h2 id=五核心代码分析>五、核心代码分析<a hidden class=anchor aria-hidden=true href=#五核心代码分析>#</a></h2><h3 id=51-bufferstuffingstate-状态结构>5.1 BufferStuffingState 状态结构<a hidden class=anchor aria-hidden=true href=#51-bufferstuffingstate-状态结构>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// Choreographer.java:236-270</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>private</span> <span style=color:#66d9ef>static</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>BufferStuffingState</span> {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>enum</span> RecoveryAction {
+</span></span><span style=display:flex><span>        NONE,        <span style=color:#75715e>// No recovery</span>
+</span></span><span style=display:flex><span>        OFFSET,      <span style=color:#75715e>// Apply negative offset to animation timeline</span>
+</span></span><span style=display:flex><span>        DELAY_FRAME  <span style=color:#75715e>// Skip frame to free a buffer slot</span>
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// true when dequeue blocked for more than half a frame interval</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>public</span> AtomicBoolean isStuffed <span style=color:#f92672>=</span> <span style=color:#66d9ef>new</span> AtomicBoolean(<span style=color:#66d9ef>false</span>);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// whether recovery has started</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>public</span> <span style=color:#66d9ef>boolean</span> isRecovering <span style=color:#f92672>=</span> <span style=color:#66d9ef>false</span>;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// accumulated frame skips during recovery</span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// (+ 1 expected vsync delay from natural scheduling)</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>public</span> <span style=color:#66d9ef>int</span> numberWaitsForNextVsync <span style=color:#f92672>=</span> 0;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>reset</span>() {
+</span></span><span style=display:flex><span>        isStuffed.<span style=color:#a6e22e>set</span>(<span style=color:#66d9ef>false</span>);
+</span></span><span style=display:flex><span>        isRecovering <span style=color:#f92672>=</span> <span style=color:#66d9ef>false</span>;
+</span></span><span style=display:flex><span>        numberWaitsForNextVsync <span style=color:#f92672>=</span> 0;
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h3 id=52-dequeue-阻塞触发>5.2 dequeue 阻塞触发<a hidden class=anchor aria-hidden=true href=#52-dequeue-阻塞触发>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// Choreographer.java:280-283</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>onWaitForBufferRelease</span>(<span style=color:#66d9ef>long</span> durationNanos) {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (durationNanos <span style=color:#f92672>&gt;</span> mLastFrameIntervalNanos <span style=color:#f92672>/</span> 2) {
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// Blocked for &gt; half frame interval -&gt; buffer stuffing detected</span>
+</span></span><span style=display:flex><span>        mBufferStuffingState.<span style=color:#a6e22e>isStuffed</span>.<span style=color:#a6e22e>set</span>(<span style=color:#66d9ef>true</span>);
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h3 id=53-surfaceflinger-侧检测>5.3 SurfaceFlinger 侧检测<a hidden class=anchor aria-hidden=true href=#53-surfaceflinger-侧检测>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// FrameTimeline.cpp:650-672
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// classifyJankLocked() -- BufferStuffing classification branch
+</span></span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// FramePresentMetadata::LatePresent:
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// Frame was presented late
+</span></span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>const</span> <span style=color:#66d9ef>bool</span> readyBeforePreviousLatch <span style=color:#f92672>=</span>
+</span></span><span style=display:flex><span>    mLastFrameTimestamps.latchTime <span style=color:#f92672>!=</span> <span style=color:#ae81ff>0</span> <span style=color:#f92672>&amp;&amp;</span>
+</span></span><span style=display:flex><span>    mPredictions.endTime <span style=color:#f92672>&lt;=</span> mLastFrameTimestamps.latchTime;
+</span></span><span style=display:flex><span><span style=color:#75715e>// Condition: frame finished before previous frame&#39;s latch time
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// Meaning: this frame was ready early, but stuck waiting in queue
+</span></span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>const</span> <span style=color:#66d9ef>bool</span> dueLastFrame <span style=color:#f92672>=</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>!</span>FlagManager<span style=color:#f92672>::</span>getInstance().buffer_stuffing_fix() <span style=color:#f92672>||</span>
+</span></span><span style=display:flex><span>    (mLastFrameTimestamps.expectedPresentTime <span style=color:#f92672>!=</span> <span style=color:#ae81ff>0</span> <span style=color:#f92672>&amp;&amp;</span>
+</span></span><span style=display:flex><span>     mPredictions.presentTime <span style=color:#f92672>-</span> presentThreshold <span style=color:#f92672>&lt;</span>
+</span></span><span style=display:flex><span>         mLastFrameTimestamps.expectedPresentTime);
+</span></span><span style=display:flex><span><span style=color:#75715e>// Condition: current frame&#39;s expected present time &lt; previous frame&#39;s
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// Meaning: previous frame stole this frame&#39;s vsync slot
+</span></span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> (readyBeforePreviousLatch <span style=color:#f92672>&amp;&amp;</span> dueLastFrame) {
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// Classified as Buffer Stuffing
+</span></span></span><span style=display:flex><span>    mJankType <span style=color:#f92672>|=</span> JankType<span style=color:#f92672>::</span>BufferStuffing;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// Use adjusted deadline to re-evaluate if app finished on time
+</span></span></span><span style=display:flex><span>    <span style=color:#75715e>// In stuffed state, frame may be delayed by dequeue wait.
+</span></span></span><span style=display:flex><span>    <span style=color:#75715e>// Use previous latch time + 1 vsync period as the adjusted deadline.
+</span></span></span><span style=display:flex><span>    nsecs_t adjustedDeadline <span style=color:#f92672>=</span>
+</span></span><span style=display:flex><span>        mLastFrameTimestamps.latchTime <span style=color:#f92672>+</span> displayFrameRenderRate.getPeriodNsecs();
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (adjustedDeadline <span style=color:#f92672>&gt;</span> mActuals.endTime) {
+</span></span><span style=display:flex><span>        mFrameReadyMetadata <span style=color:#f92672>=</span> FrameReadyMetadata<span style=color:#f92672>::</span>OnTimeFinish;
+</span></span><span style=display:flex><span>    } <span style=color:#66d9ef>else</span> {
+</span></span><span style=display:flex><span>        mFrameReadyMetadata <span style=color:#f92672>=</span> FrameReadyMetadata<span style=color:#f92672>::</span>LateFinish;
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h3 id=54-recovery-决策逻辑>5.4 Recovery 决策逻辑<a hidden class=anchor aria-hidden=true href=#54-recovery-决策逻辑>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// Choreographer.java:942-1019</span>
+</span></span><span style=display:flex><span>BufferStuffingState.<span style=color:#a6e22e>RecoveryAction</span> <span style=color:#a6e22e>updateBufferStuffingState</span>(
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>long</span> frameTimeNanos,
+</span></span><span style=display:flex><span>        DisplayEventReceiver.<span style=color:#a6e22e>VsyncEventData</span> vsyncEventData) {
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (bufferStuffingMultiRecovery()) {
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// --- Multi-Recovery Mode ---</span>
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>if</span> (mBufferStuffingState.<span style=color:#a6e22e>isStuffed</span>.<span style=color:#a6e22e>getAndSet</span>(<span style=color:#66d9ef>false</span>)) {
+</span></span><span style=display:flex><span>            <span style=color:#75715e>// isStuffed == true -&gt; start a new recovery round</span>
+</span></span><span style=display:flex><span>            <span style=color:#66d9ef>if</span> (<span style=color:#f92672>!</span>mBufferStuffingState.<span style=color:#a6e22e>isRecovering</span>) {
+</span></span><span style=display:flex><span>                <span style=color:#75715e>// First entry into recovery, record trace</span>
+</span></span><span style=display:flex><span>                Trace.<span style=color:#a6e22e>asyncTraceForTrackBegin</span>(
+</span></span><span style=display:flex><span>                    TRACE_TAG_VIEW, <span style=color:#e6db74>&#34;Buffer stuffing recovery&#34;</span>,
+</span></span><span style=display:flex><span>                    <span style=color:#e6db74>&#34;Thread &#34;</span> <span style=color:#f92672>+</span> Process.<span style=color:#a6e22e>myTid</span>() <span style=color:#f92672>+</span> <span style=color:#e6db74>&#34;, recover frame&#34;</span>, 0);
+</span></span><span style=display:flex><span>                mBufferStuffingState.<span style=color:#a6e22e>isRecovering</span> <span style=color:#f92672>=</span> <span style=color:#66d9ef>true</span>;
+</span></span><span style=display:flex><span>            }
+</span></span><span style=display:flex><span>            <span style=color:#66d9ef>return</span> BufferStuffingState.<span style=color:#a6e22e>RecoveryAction</span>.<span style=color:#a6e22e>DELAY_FRAME</span>;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>        } <span style=color:#66d9ef>else</span> <span style=color:#66d9ef>if</span> (<span style=color:#f92672>!</span>mBufferStuffingState.<span style=color:#a6e22e>isRecovering</span>) {
+</span></span><span style=display:flex><span>            <span style=color:#75715e>// Neither stuffed nor recovering -&gt; normal path</span>
+</span></span><span style=display:flex><span>            <span style=color:#66d9ef>return</span> BufferStuffingState.<span style=color:#a6e22e>RecoveryAction</span>.<span style=color:#a6e22e>NONE</span>;
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>    } <span style=color:#66d9ef>else</span> {
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// --- Single-Recovery Mode ---</span>
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>if</span> (<span style=color:#f92672>!</span>mBufferStuffingState.<span style=color:#a6e22e>isRecovering</span>) {
+</span></span><span style=display:flex><span>            <span style=color:#66d9ef>if</span> (<span style=color:#f92672>!</span>mBufferStuffingState.<span style=color:#a6e22e>isStuffed</span>.<span style=color:#a6e22e>getAndSet</span>(<span style=color:#66d9ef>false</span>)) {
+</span></span><span style=display:flex><span>                <span style=color:#66d9ef>return</span> BufferStuffingState.<span style=color:#a6e22e>RecoveryAction</span>.<span style=color:#a6e22e>NONE</span>;
+</span></span><span style=display:flex><span>            }
+</span></span><span style=display:flex><span>            mBufferStuffingState.<span style=color:#a6e22e>isRecovering</span> <span style=color:#f92672>=</span> <span style=color:#66d9ef>true</span>;
+</span></span><span style=display:flex><span>            <span style=color:#75715e>// Only ONE DELAY_FRAME allowed at recovery start</span>
+</span></span><span style=display:flex><span>            <span style=color:#66d9ef>return</span> BufferStuffingState.<span style=color:#a6e22e>RecoveryAction</span>.<span style=color:#a6e22e>DELAY_FRAME</span>;
+</span></span><span style=display:flex><span>        }
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// --- Recovery In Progress ---</span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// Check if we have entered idle state</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>final</span> <span style=color:#66d9ef>int</span> totalFrameDelays <span style=color:#f92672>=</span> mBufferStuffingState.<span style=color:#a6e22e>numberWaitsForNextVsync</span> <span style=color:#f92672>+</span> 1;
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>final</span> <span style=color:#66d9ef>long</span> vsyncsSinceLastCallback <span style=color:#f92672>=</span> mLastFrameIntervalNanos <span style=color:#f92672>&gt;</span> 0
+</span></span><span style=display:flex><span>            <span style=color:#f92672>?</span> (frameTimeNanos <span style=color:#f92672>-</span> mLastNoOffsetFrameTimeNanos)
+</span></span><span style=display:flex><span>                <span style=color:#f92672>/</span> mLastFrameIntervalNanos
+</span></span><span style=display:flex><span>            : 0;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// Idle detection: vsyncs elapsed since last callback &gt; total frame delays</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> (vsyncsSinceLastCallback <span style=color:#f92672>&gt;</span> totalFrameDelays) {
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// Recovery ends</span>
+</span></span><span style=display:flex><span>        Trace.<span style=color:#a6e22e>asyncTraceForTrackEnd</span>(TRACE_TAG_VIEW, <span style=color:#e6db74>&#34;Buffer stuffing recovery&#34;</span>, 0);
+</span></span><span style=display:flex><span>        mBufferStuffingState.<span style=color:#a6e22e>reset</span>();
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span> BufferStuffingState.<span style=color:#a6e22e>RecoveryAction</span>.<span style=color:#a6e22e>NONE</span>;
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// Continue recovery: apply negative offset</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> BufferStuffingState.<span style=color:#a6e22e>RecoveryAction</span>.<span style=color:#a6e22e>OFFSET</span>;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><h3 id=55-doframe-中的恢复执行>5.5 doFrame 中的恢复执行<a hidden class=anchor aria-hidden=true href=#55-doframe-中的恢复执行>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// Choreographer.java:1033-1051</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>switch</span> (updateBufferStuffingState(frameTimeNanos, vsyncEventData)) {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>case</span> NONE:
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// Normal path, offsetFrameTimeNanos = frameTimeNanos</span>
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>break</span>;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>case</span> OFFSET:
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// Shift animation timeline back by one frame</span>
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// Purpose: compensate for the frame lost during stuffing</span>
+</span></span><span style=display:flex><span>        offsetFrameTimeNanos <span style=color:#f92672>=</span> frameTimeNanos <span style=color:#f92672>-</span> frameIntervalNanos;
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>break</span>;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>case</span> DELAY_FRAME:
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// Intentional frame skip</span>
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// Purpose: reduce buffer queue depth, unblock dequeue</span>
+</span></span><span style=display:flex><span>        mBufferStuffingState.<span style=color:#a6e22e>numberWaitsForNextVsync</span><span style=color:#f92672>++</span>;
+</span></span><span style=display:flex><span>        scheduleVsyncLocked();
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>return</span>;  <span style=color:#75715e>// &lt;-- Skip ALL callbacks for this frame</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><hr><h2 id=六feature-flags>六、Feature Flags<a hidden class=anchor aria-hidden=true href=#六feature-flags>#</a></h2><table><thead><tr><th>Flag</th><th>定义文件</th><th>说明</th></tr></thead><tbody><tr><td><code>buffer_stuffing_recovery</code></td><td><code>view_flags.aconfig</code></td><td>启用 Buffer Stuffing 恢复功能</td></tr><tr><td><code>buffer_stuffing_multi_recovery</code></td><td><code>view_flags.aconfig</code></td><td>允许同一动画内多次触发恢复</td></tr><tr><td><code>buffer_stuffing_fix</code></td><td><code>FlagManager.cpp:313</code></td><td>FrameTimeline 侧修复：增加 <code>dueLastFrame</code> 的 <code>expectedPresentTime</code> 校验</td></tr></tbody></table><hr><h2 id=七telemetry-与-trace>七、Telemetry 与 Trace<a hidden class=anchor aria-hidden=true href=#七telemetry-与-trace>#</a></h2><h3 id=71-perfetto-trace>7.1 Perfetto Trace<a hidden class=anchor aria-hidden=true href=#71-perfetto-trace>#</a></h3><p>BufferStuffing 被映射为 <code>JANK_BUFFER_STUFFING (128)</code>，在 Perfetto FrameTimeline 面板中显示为 <strong>&ldquo;Buffer Stuffing&rdquo;</strong>。</p><pre tabindex=0><code>FrameTimeline::classifyJankLocked()
+    |
+    +--&gt; mJankType |= JankType::BufferStuffing (0x40)
+    |
+    +--&gt; toProto()
+         +--&gt; FrameTimelineEvent::JANK_BUFFER_STUFFING (128)
+              +--&gt; Perfetto: &#34;Buffer Stuffing&#34;
+</code></pre><h3 id=72-statsd-统计>7.2 statsd 统计<a hidden class=anchor aria-hidden=true href=#72-statsd-统计>#</a></h3><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span><span style=color:#75715e>// TimeStats.cpp
+</span></span></span><span style=display:flex><span><span style=color:#66d9ef>if</span> (reasons <span style=color:#f92672>&amp;</span> JankType<span style=color:#f92672>::</span>BufferStuffing) {
+</span></span><span style=display:flex><span>    t.jankPayload.totalAppBufferStuffing<span style=color:#f92672>++</span>;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>statsd atom: <code>total_jank_frames_app_buffer_stuffing</code></p><p>用于 Android 性能面板和系统健康度监控。</p><h3 id=73-choreographer-trace>7.3 Choreographer Trace<a hidden class=anchor aria-hidden=true href=#73-choreographer-trace>#</a></h3><pre tabindex=0><code>Buffer stuffing recovery  --- begin ---
+  Thread 42, recover frame             |
+                          &#34;buffer stuffed&#34;  instant
+                          &#34;Negative offset of 16666666 ns&#34;  instant
+                          &#34;Negative offset of 16666666 ns&#34;  instant
+                          ... (OFFSET repeats each vsync while animating)
+                          offset
+                          offset
+                          idle detected (vsync gap -&gt; reset)
+Buffer stuffing recovery  --- end -----
+
+Note: DELAY_FRAME (1x) + OFFSET (repeats every doFrame during active animation).
+OFFSET only stops when animation goes idle (no doFrame call for several vsyncs).
+</code></pre><hr><h2 id=八源代码索引>八、源代码索引<a hidden class=anchor aria-hidden=true href=#八源代码索引>#</a></h2><table><thead><tr><th>文件</th><th>关键内容</th></tr></thead><tbody><tr><td><code>frameworks/native/libs/gui/include/gui/JankInfo.h:42</code></td><td><code>BufferStuffing = 0x40</code> 枚举定义</td></tr><tr><td><code>frameworks/native/libs/gui/include/gui/LayerState.h:199</code></td><td><code>eRecoverableFromBufferStuffing = 0x2000</code> 标志</td></tr><tr><td><code>frameworks/base/core/java/android/view/SurfaceControl.java:862</code></td><td>Java 层 flag 常量</td></tr><tr><td><code>frameworks/base/core/java/android/view/SurfaceControl.java:5533</code></td><td><code>setRecoverableFromBufferStuffing()</code> API</td></tr><tr><td><code>frameworks/base/core/java/android/view/ViewRootImpl.java:2865</code></td><td>注册 <code>onWaitForBufferRelease</code> 回调</td></tr><tr><td><code>frameworks/base/core/java/android/view/ViewRootImpl.java:2874</code></td><td>设置 <code>eRecoverableFromBufferStuffing</code> 标志</td></tr><tr><td><code>frameworks/base/core/java/android/view/Choreographer.java:236-270</code></td><td><code>BufferStuffingState</code> 内部类</td></tr><tr><td><code>frameworks/base/core/java/android/view/Choreographer.java:280-283</code></td><td><code>onWaitForBufferRelease()</code></td></tr><tr><td><code>frameworks/base/core/java/android/view/Choreographer.java:942-1019</code></td><td><code>updateBufferStuffingState()</code> 恢复状态机</td></tr><tr><td><code>frameworks/base/core/java/android/view/Choreographer.java:1033-1051</code></td><td><code>doFrame()</code> 中的恢复执行</td></tr><tr><td><code>frameworks/native/libs/gui/BLASTBufferQueue.cpp:1245-1283</code></td><td>Native 层 wait 回调与 duration 计算</td></tr><tr><td><code>frameworks/native/libs/gui/BufferQueueProducer.cpp:425-446</code></td><td><code>dequeueBuffer</code> 阻塞等待</td></tr><tr><td><code>frameworks/native/services/surfaceflinger/Scheduler/FrameTimeline.cpp:650-672</code></td><td>BufferStuffing 检测核心逻辑</td></tr><tr><td><code>frameworks/native/services/surfaceflinger/Scheduler/FrameTimeline.cpp:262-264</code></td><td>转换到 Perfetto proto</td></tr><tr><td><code>frameworks/native/services/surfaceflinger/Scheduler/FrameTimeline.h:291-294</code></td><td><code>LastFrameTimestamps</code> 用于检测</td></tr><tr><td><code>frameworks/native/services/surfaceflinger/TimeStats/TimeStats.cpp:126,226</code></td><td>statsd 统计</td></tr><tr><td><code>frameworks/native/services/surfaceflinger/common/FlagManager.cpp:313</code></td><td><code>buffer_stuffing_fix</code> 标志</td></tr><tr><td><code>frameworks/base/core/java/android/view/flags/view_flags.aconfig</code></td><td><code>buffer_stuffing_recovery</code> / <code>multi_recovery</code></td></tr></tbody></table><hr><h2 id=九总结>九、总结<a hidden class=anchor aria-hidden=true href=#九总结>#</a></h2><p><strong>RECOVERABLE_FROM_BUFFER_STUFFING</strong> 是 Android 图形系统对 <strong>Buffer Stuffing 卡顿的端到端解决方案</strong>，由三层协作完成：</p><table><thead><tr><th>层</th><th>职责</th></tr></thead><tbody><tr><td><strong>FrameTimeline (SF)</strong></td><td>事后检测：分析帧时序，识别 JANK_BUFFER_STUFFING</td></tr><tr><td><strong>BLASTBufferQueue</strong></td><td>事件传递：dequeue 阻塞时通知 Choreographer</td></tr><tr><td><strong>Choreographer</strong></td><td>主动恢复：跳帧释放缓冲 + 时间轴偏移补偿动画</td></tr></tbody></table><p>其核心思路是：<strong>当检测到管线拥堵时，不要让 App 被动等待。主动跳帧释放一个缓冲槽位，同时用时间轴偏移让动画计算平滑过渡，最后通过空闲检测优雅退出恢复状态。</strong></p></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/><span class=title>« Prev</span>
+<span></span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/><span class=title>Next »</span>
+<span></span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href="https://gohugo.io/?utm_source=papermod" rel=noopener target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top id=top-link class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey=g><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");if(menu){const e=localStorage.getItem("menu-scroll-position");e&&(menu.scrollLeft=parseInt(e,10)),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}}document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var toplink=document.getElementById("top-link");window.onscroll=function(){const e=window.innerHeight;document.body.scrollTop>e||document.documentElement.scrollTop>e?toplink.classList.remove("hidden"):toplink.classList.add("hidden")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{const e=document.querySelector("html");e.dataset.theme==="dark"?(e.dataset.theme="light",localStorage.setItem("pref-theme","light")):(e.dataset.theme="dark",localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
