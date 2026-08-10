@@ -115,17 +115,18 @@ K -- Yes --&gt; L[选择当前 score 下占用内存最多的进程]
 K -- No --&gt; M[选择链表尾部最旧的进程]
 end
 subgraph Execution ["4. 击杀执行与清理"]
-L --&gt; N[防 PID 复用: 获取 pidfd]
+L --&gt; N[epoll 注册 pidfd 等待进程死亡]
 M --&gt; N
 N --&gt; O[将击杀任务投递给 Reaper 异步线程池]
-O --&gt; P[调用 pidfd_send_signal / kill]
-P --&gt; Q[更新状态、记录日志并上报 statsd]
-Q --&gt; H
+O --&gt; P[Reaper 线程调用 pidfd_send_signal SIGKILL]
+P --&gt; Q[process_mrelease 回收内存]
+Q --&gt; R[更新状态、记录日志并上报 statsd]
+R --&gt; H
 end
 &lt;/div&gt;&lt;h3 id="1-初始化与配置-initialization"&gt;1. 初始化与配置 (Initialization)&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;启动方式&lt;/strong&gt;: lmkd 通过 &lt;code&gt;lmkd.rc&lt;/code&gt; 配置文件被 &lt;code&gt;init&lt;/code&gt; 进程启动，具有较高的权限（例如 &lt;code&gt;CAP_KILL&lt;/code&gt;、&lt;code&gt;CAP_IPC_LOCK&lt;/code&gt;、&lt;code&gt;CAP_SYS_NICE&lt;/code&gt;），并设置为了 &lt;code&gt;critical&lt;/code&gt; 服务。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;调度优先级&lt;/strong&gt;: 为了保证即使在系统极度卡顿、资源耗尽时也能优先响应并进行杀进程释放内存，lmkd 在 &lt;code&gt;main()&lt;/code&gt; 函数中会将自身调度策略设为 &lt;code&gt;SCHED_FIFO&lt;/code&gt; 实时优先级。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;启动方式&lt;/strong&gt;: lmkd 通过 &lt;code&gt;lmkd.rc&lt;/code&gt; 配置文件被 &lt;code&gt;init&lt;/code&gt; 进程启动，具有较高的权限（&lt;code&gt;DAC_OVERRIDE KILL IPC_LOCK SYS_NICE SYS_RESOURCE&lt;/code&gt;），并设置为了 &lt;code&gt;critical&lt;/code&gt; 服务（&lt;code&gt;class core&lt;/code&gt;）。其中 &lt;code&gt;SYS_NICE&lt;/code&gt; 用于设置 &lt;code&gt;SCHED_FIFO&lt;/code&gt;，&lt;code&gt;IPC_LOCK&lt;/code&gt; 用于 &lt;code&gt;mlockall&lt;/code&gt; 锁定内存，&lt;code&gt;KILL&lt;/code&gt; 用于发送信号，&lt;code&gt;DAC_OVERRIDE&lt;/code&gt; 用于绕过文件权限检查，&lt;code&gt;SYS_RESOURCE&lt;/code&gt; 用于提升资源限制。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;调度优先级&lt;/strong&gt;: 为了保证即使在系统极度卡顿、资源耗尽时也能优先响应并进行杀进程释放内存，lmkd 在不使用内核态 lowmemorykiller 接口时（&lt;code&gt;use_inkernel_interface == false&lt;/code&gt;），会通过 &lt;code&gt;sched_setscheduler(0, SCHED_FIFO, &amp;amp;param)&lt;/code&gt; 将自身调度策略设为 &lt;code&gt;SCHED_FIFO&lt;/code&gt; 实时优先级（priority = 1）。若内核 lowmemorykiller 可用（&lt;code&gt;use_inkernel_interface == true&lt;/code&gt;，默认值），则不会设置实时优先级。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;通信套接字&lt;/strong&gt;: 初始化期间通过 &lt;code&gt;android_get_control_socket(&amp;quot;lmkd&amp;quot;)&lt;/code&gt; 获取到 &lt;code&gt;ActivityManagerService&lt;/code&gt; (AMS) 用来与其通信的 Unix Domain Socket (&lt;code&gt;/dev/socket/lmkd&lt;/code&gt;)。AMS 会通过此套接字更新各个进程的 &lt;code&gt;oom_score_adj&lt;/code&gt;。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id="2-内存压力监控-memory-pressure-monitoring"&gt;2. 内存压力监控 (Memory Pressure Monitoring)&lt;/h3&gt;
