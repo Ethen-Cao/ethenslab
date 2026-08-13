@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<!-- saved from url=(0093)file:///home/ethen/Downloads/ivi_polaris_db_1785630541/someip_communication_architecture.html -->
+<html lang="zh-CN"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>SOME/IP 通信原理与 BASE_E_TIMEOUT 定位</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --bg-deep: #040a13;
+      --panel: rgba(15, 30, 49, 0.88);
+      --panel-2: rgba(21, 42, 65, 0.82);
+      --line: rgba(157, 188, 215, 0.2);
+      --text: #eef7ff;
+      --muted: #9db2c7;
+      --cyan: #43d6d0;
+      --blue: #5aa7ff;
+      --green: #79df9a;
+      --amber: #ffbe55;
+      --red: #ff6875;
+      --purple: #bb8cff;
+      --shadow: 0 18px 55px rgba(0, 0, 0, 0.28);
+      --radius: 22px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 0%, rgba(67, 214, 208, 0.12), transparent 34rem),
+        radial-gradient(circle at 95% 18%, rgba(90, 167, 255, 0.13), transparent 32rem),
+        linear-gradient(160deg, var(--bg) 0%, var(--bg-deep) 100%);
+      line-height: 1.55;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.18;
+      background-image:
+        linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: linear-gradient(to bottom, black, transparent 76%);
+    }
+
+    button { font: inherit; }
+
+    .page {
+      width: min(1480px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 38px 0 72px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 16px var(--cyan);
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 900px;
+      font-size: clamp(30px, 4vw, 58px);
+      line-height: 1.08;
+      letter-spacing: -.035em;
+    }
+
+    .subtitle {
+      max-width: 900px;
+      margin: 15px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 9px;
+      min-width: 300px;
+      padding-top: 6px;
+    }
+
+    .control {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 10px 15px;
+      color: var(--muted);
+      background: rgba(7, 17, 31, .62);
+      cursor: pointer;
+      transition: .2s ease;
+    }
+
+    .control:hover { color: var(--text); border-color: rgba(67, 214, 208, .48); }
+
+    .control.active {
+      color: #06151b;
+      border-color: transparent;
+      background: var(--cyan);
+      box-shadow: 0 8px 24px rgba(67, 214, 208, .2);
+      font-weight: 800;
+    }
+
+    body[data-mode="fault"] .control[data-mode-button="fault"] {
+      color: white;
+      background: var(--red);
+      box-shadow: 0 8px 24px rgba(255, 104, 117, .24);
+    }
+
+    body[data-mode="fault"] .control[data-mode-button="normal"] {
+      color: var(--muted);
+      background: rgba(7, 17, 31, .62);
+      box-shadow: none;
+      font-weight: 400;
+    }
+
+    .surface {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(18, 37, 58, .92), rgba(8, 18, 31, .9));
+      box-shadow: var(--shadow);
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+      margin: 0 0 18px;
+    }
+
+    .section-heading h2 {
+      margin: 0;
+      font-size: clamp(22px, 2vw, 31px);
+      letter-spacing: -.02em;
+    }
+
+    .section-heading p {
+      max-width: 640px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .architecture { padding: 25px; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      margin-bottom: 20px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+
+    .legend i {
+      display: inline-block;
+      width: 19px;
+      height: 3px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .legend .network { color: var(--blue); }
+    .legend .local { color: var(--amber); }
+    .legend .vm { color: var(--purple); }
+    .legend .fault { color: var(--red); }
+
+    .architecture-flow {
+      display: grid;
+      grid-template-columns: minmax(155px, .82fr) minmax(110px, .48fr) minmax(560px, 2.5fr) minmax(130px, .55fr) minmax(220px, 1fr);
+      align-items: stretch;
+      min-height: 430px;
+    }
+
+    .zone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 17px;
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 18px;
+      background: rgba(7, 18, 31, .72);
+    }
+
+    .zone-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .zone-label b {
+      padding: 3px 8px;
+      border-radius: 999px;
+      color: var(--cyan);
+      background: rgba(67, 214, 208, .1);
+      font-size: 10px;
+      letter-spacing: 0;
+    }
+
+    .device-title {
+      margin: 0 0 7px;
+      font-size: 20px;
+      line-height: 1.18;
+    }
+
+    .device-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .ecu-stack {
+      display: grid;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .ecu {
+      padding: 12px;
+      border: 1px solid rgba(90, 167, 255, .22);
+      border-radius: 12px;
+      background: rgba(90, 167, 255, .07);
+    }
+
+    .ecu strong { display: block; font-size: 13px; }
+    .ecu small { color: var(--muted); font-size: 10px; }
+
+    .link {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      color: var(--blue);
+    }
+
+    .link-rail {
+      position: absolute;
+      left: 7px;
+      right: 7px;
+      top: 50%;
+      height: 3px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, currentColor 0 48%, transparent 48% 52%, currentColor 52%);
+      box-shadow: 0 0 12px color-mix(in srgb, currentColor 28%, transparent);
+    }
+
+    .link-rail::before,
+    .link-rail::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      width: 9px;
+      height: 9px;
+      border-top: 3px solid currentColor;
+      border-right: 3px solid currentColor;
+    }
+
+    .link-rail::before { left: -1px; transform: translateY(-50%) rotate(-135deg); }
+    .link-rail::after { right: -1px; transform: translateY(-50%) rotate(45deg); }
+
+    .link-label {
+      position: relative;
+      z-index: 2;
+      width: calc(100% - 12px);
+      padding: 8px 5px;
+      border: 1px solid rgba(90, 167, 255, .23);
+      border-radius: 10px;
+      color: var(--text);
+      background: #0a1929;
+      font-size: 10px;
+      text-align: center;
+      line-height: 1.45;
+    }
+
+    .link-label strong { display: block; color: currentColor; font-size: 11px; }
+
+    .packet {
+      position: absolute;
+      z-index: 3;
+      top: calc(50% - 4px);
+      left: 9px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 0 12px currentColor;
+      animation: packetMove 2.8s linear infinite;
+    }
+
+    .packet.return { animation-delay: -1.4s; animation-direction: reverse; }
+
+    @keyframes packetMove {
+      from { transform: translateX(0); opacity: .2; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      to { transform: translateX(calc(100% - 24px)); opacity: .2; }
+    }
+
+    .pvm-zone {
+      border-color: rgba(67, 214, 208, .2);
+      background: linear-gradient(145deg, rgba(11, 35, 46, .9), rgba(8, 21, 34, .86));
+    }
+
+    .pvm-inner {
+      display: grid;
+      grid-template-columns: 1fr 105px 1.12fr;
+      align-items: stretch;
+      flex: 1;
+      min-height: 315px;
+    }
+
+    .component {
+      position: relative;
+      padding: 15px;
+      border: 1px solid rgba(67, 214, 208, .18);
+      border-radius: 15px;
+      background: rgba(12, 29, 44, .78);
+    }
+
+    .component h3 { margin: 0; font-size: 17px; }
+    .component > p { margin: 5px 0 13px; color: var(--muted); font-size: 11px; }
+
+    .instance-list,
+    .module-list {
+      display: grid;
+      gap: 7px;
+    }
+
+    .instance,
+    .module {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 9px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 9px;
+      background: rgba(255,255,255,.026);
+      font-size: 11px;
+    }
+
+    .instance strong,
+    .module strong { color: var(--cyan); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+    .module.incident {
+      border-color: rgba(255, 104, 117, .34);
+      background: rgba(255, 104, 117, .08);
+    }
+
+    .module.incident strong { color: var(--red); }
+
+    .local-ipc {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--amber);
+    }
+
+    .local-ipc .link-rail {
+      left: 10px;
+      right: 10px;
+      background: repeating-linear-gradient(90deg, currentColor 0 8px, transparent 8px 13px);
+    }
+
+    .local-ipc .link-label {
+      width: 92px;
+      border-color: rgba(255, 190, 85, .3);
+      color: var(--amber);
+    }
+
+    .fault-pin {
+      display: none;
+      position: absolute;
+      z-index: 8;
+      left: 50%;
+      top: calc(50% + 52px);
+      width: 118px;
+      transform: translateX(-50%);
+      padding: 8px;
+      border: 1px solid var(--red);
+      border-radius: 10px;
+      color: white;
+      background: rgba(105, 22, 34, .96);
+      box-shadow: 0 0 0 8px rgba(255, 104, 117, .08), 0 10px 30px rgba(0,0,0,.35);
+      font-size: 10px;
+      text-align: center;
+    }
+
+    body[data-mode="fault"] .fault-pin { display: block; animation: faultPulse 1.6s ease-in-out infinite; }
+    body[data-mode="fault"] .local-ipc .link-rail { color: var(--red); }
+    body[data-mode="fault"] .local-ipc .packet { animation-play-state: paused; left: 63%; background: var(--red); }
+
+    @keyframes faultPulse {
+      50% { box-shadow: 0 0 0 15px rgba(255, 104, 117, 0), 0 10px 30px rgba(0,0,0,.35); }
+    }
+
+    .vm-link { color: var(--purple); }
+    .vm-link .link-label { border-color: rgba(187, 140, 255, .26); }
+
+    .gvm-zone { border-color: rgba(187, 140, 255, .22); }
+
+    .android-stack {
+      display: grid;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .android-layer {
+      position: relative;
+      padding: 13px;
+      border: 1px solid rgba(187, 140, 255, .18);
+      border-radius: 12px;
+      background: rgba(187, 140, 255, .07);
+    }
+
+    .android-layer + .android-layer::before {
+      content: "↕";
+      position: absolute;
+      top: -18px;
+      left: 50%;
+      color: var(--purple);
+      transform: translateX(-50%);
+      font-weight: 800;
+    }
+
+    .android-layer strong { display: block; font-size: 13px; }
+    .android-layer small { color: var(--muted); font-size: 10px; }
+
+    .mode-explanation {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 14px;
+      margin-top: 18px;
+      padding: 13px 15px;
+      border: 1px solid rgba(121, 223, 154, .18);
+      border-radius: 14px;
+      background: rgba(121, 223, 154, .05);
+    }
+
+    .mode-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 18px var(--green);
+    }
+
+    .mode-explanation strong { display: block; color: var(--green); font-size: 13px; }
+    .mode-explanation p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+    .mode-explanation code { color: var(--green); font-size: 11px; }
+
+    body[data-mode="fault"] .mode-explanation {
+      border-color: rgba(255, 104, 117, .3);
+      background: rgba(255, 104, 117, .07);
+    }
+
+    body[data-mode="fault"] .mode-dot { background: var(--red); box-shadow: 0 0 18px var(--red); }
+    body[data-mode="fault"] .mode-explanation strong,
+    body[data-mode="fault"] .mode-explanation code { color: var(--red); }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 18px 0 30px;
+    }
+
+    .metric {
+      padding: 17px 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(10, 24, 39, .72);
+    }
+
+    .metric small { display: block; color: var(--muted); font-size: 11px; }
+    .metric strong { display: block; margin-top: 5px; font-size: 21px; }
+    .metric strong em { color: var(--cyan); font-style: normal; }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(330px, .65fr);
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .card { padding: 24px; }
+    .card h2 { margin: 0 0 5px; font-size: 24px; }
+    .card-intro { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
+
+    .sequence {
+      position: relative;
+      overflow-x: auto;
+      padding-bottom: 6px;
+    }
+
+    .sequence-canvas {
+      position: relative;
+      min-width: 770px;
+      padding: 0 4px 8px;
+    }
+
+    .participants {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 9px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .participant {
+      padding: 10px 6px;
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 10px;
+      background: #0b1b2c;
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .lifelines {
+      position: absolute;
+      inset: 43px 4px 10px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 9px;
+      pointer-events: none;
+    }
+
+    .lifelines i {
+      justify-self: center;
+      width: 1px;
+      height: 100%;
+      background: repeating-linear-gradient(to bottom, rgba(157,188,215,.24) 0 5px, transparent 5px 10px);
+    }
+
+    .messages { position: relative; z-index: 2; margin-top: 18px; }
+
+    .message-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      min-height: 46px;
+      align-items: center;
+    }
+
+    .message {
+      position: relative;
+      height: 2px;
+      margin: 0 17px;
+      color: var(--cyan);
+      background: currentColor;
+      box-shadow: 0 0 8px color-mix(in srgb, currentColor 28%, transparent);
+    }
+
+    .message::after {
+      content: "";
+      position: absolute;
+      right: -1px;
+      top: -4px;
+      width: 8px;
+      height: 8px;
+      border-top: 2px solid currentColor;
+      border-right: 2px solid currentColor;
+      transform: rotate(45deg);
+    }
+
+    .message.left::after {
+      left: -1px;
+      right: auto;
+      transform: rotate(-135deg);
+    }
+
+    .message-label {
+      position: absolute;
+      left: 50%;
+      bottom: 7px;
+      width: max-content;
+      max-width: 250px;
+      transform: translateX(-50%);
+      padding: 3px 7px;
+      border-radius: 6px;
+      color: var(--text);
+      background: #0a1726;
+      font-size: 9px;
+      text-align: center;
+    }
+
+    .span-1-2 { grid-column: 1 / 3; }
+    .span-2-3 { grid-column: 2 / 4; }
+    .span-3-4 { grid-column: 3 / 5; }
+    .span-4-5 { grid-column: 4 / 6; }
+    .response { color: var(--blue); }
+
+    .fault-message { color: var(--amber); }
+    body[data-mode="fault"] .fault-message { color: var(--red); height: 3px; }
+    body[data-mode="fault"] .fault-message .message-label {
+      color: white;
+      background: rgba(113, 23, 36, .98);
+      outline: 5px solid rgba(255, 104, 117, .08);
+    }
+
+    .function-box {
+      padding: 16px;
+      border: 1px solid rgba(255,190,85,.22);
+      border-radius: 14px;
+      background: rgba(255,190,85,.055);
+    }
+
+    .function-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 11px;
+    }
+
+    .function-title strong { color: var(--amber); font-size: 14px; }
+
+    .tag {
+      padding: 3px 8px;
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    pre {
+      overflow-x: auto;
+      margin: 0;
+      padding: 13px;
+      border-radius: 10px;
+      color: #d9ebf7;
+      background: rgba(2, 8, 14, .68);
+      font: 11px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    .return-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 11px;
+    }
+
+    .return-case {
+      padding: 10px;
+      border-radius: 10px;
+      background: rgba(255,255,255,.035);
+      font-size: 10px;
+    }
+
+    .return-case b { display: block; margin-bottom: 2px; }
+    .return-case.ok b { color: var(--green); }
+    .return-case.timeout b { color: var(--red); }
+    .return-case.error b { color: var(--amber); }
+
+    .reason-list {
+      display: grid;
+      gap: 9px;
+      margin: 15px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .reason-list li {
+      display: grid;
+      grid-template-columns: 25px 1fr;
+      gap: 9px;
+      align-items: start;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .reason-list span {
+      display: grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      border-radius: 8px;
+      color: var(--red);
+      background: rgba(255,104,117,.1);
+      font-weight: 800;
+    }
+
+    .reason-list strong { display: block; color: var(--text); font-size: 12px; }
+
+    .evidence {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .mapping-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      font-size: 12px;
+    }
+
+    .mapping-table th,
+    .mapping-table td {
+      padding: 11px 9px;
+      border-bottom: 1px solid rgba(255,255,255,.075);
+      text-align: left;
+    }
+
+    .mapping-table th { color: var(--muted); font-size: 10px; font-weight: 700; }
+    .mapping-table code { color: var(--cyan); }
+    .mapping-table .hot { color: var(--red); font-weight: 800; }
+
+    .fact-list {
+      display: grid;
+      gap: 10px;
+      margin: 15px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .fact-list li {
+      padding: 11px 12px;
+      border-left: 3px solid var(--cyan);
+      border-radius: 0 10px 10px 0;
+      color: var(--muted);
+      background: rgba(67,214,208,.045);
+      font-size: 11px;
+    }
+
+    .fact-list li.warning {
+      border-color: var(--amber);
+      background: rgba(255,190,85,.045);
+    }
+
+    .fact-list strong { color: var(--text); }
+
+    .verdict {
+      display: flex;
+      gap: 15px;
+      align-items: flex-start;
+      margin-top: 18px;
+      padding: 18px;
+      border: 1px solid rgba(255,104,117,.28);
+      border-radius: 15px;
+      background: linear-gradient(120deg, rgba(255,104,117,.09), rgba(255,190,85,.045));
+    }
+
+    .verdict-icon {
+      display: grid;
+      place-items: center;
+      flex: 0 0 38px;
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      color: white;
+      background: var(--red);
+      font-size: 19px;
+      font-weight: 900;
+    }
+
+    .verdict strong { display: block; margin-bottom: 4px; }
+    .verdict p { margin: 0; color: var(--muted); font-size: 12px; }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-top: 22px;
+      color: #70869c;
+      font-size: 10px;
+    }
+
+    @media (max-width: 1180px) {
+      .architecture-flow {
+        grid-template-columns: minmax(140px,.7fr) 90px minmax(500px,2.2fr) 105px minmax(190px,.9fr);
+        overflow-x: auto;
+        padding-bottom: 8px;
+      }
+      .content-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 850px) {
+      .page { width: min(100% - 22px, 720px); padding-top: 24px; }
+      .topbar { display: block; }
+      .controls { justify-content: flex-start; min-width: 0; margin-top: 18px; }
+      .section-heading { display: block; }
+      .section-heading p { margin-top: 7px; text-align: left; }
+      .architecture { padding: 17px; }
+      .architecture-flow {
+        display: flex;
+        flex-direction: column;
+        overflow: visible;
+      }
+      .link { height: 95px; }
+      .link-rail { left: 50%; right: auto; top: 8px; bottom: 8px; width: 3px; height: auto; transform: translateX(-50%); background: currentColor; }
+      .link-rail::before { left: -3px; top: 1px; transform: rotate(-45deg); }
+      .link-rail::after { right: -3px; top: auto; bottom: 1px; transform: rotate(135deg); }
+      .packet { top: 10px; left: calc(50% - 4px); animation: packetMoveVertical 2.8s linear infinite; }
+      @keyframes packetMoveVertical {
+        from { transform: translateY(0); opacity: .2; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        to { transform: translateY(70px); opacity: .2; }
+      }
+      .pvm-inner { grid-template-columns: 1fr; }
+      .local-ipc { height: 104px; }
+      .local-ipc .link-rail { left: 50%; right: auto; top: 10px; bottom: 10px; }
+      .fault-pin { left: calc(50% + 110px); top: 32px; }
+      .metrics { grid-template-columns: 1fr 1fr; }
+      .evidence { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 520px) {
+      h1 { font-size: 34px; }
+      .metrics { grid-template-columns: 1fr; }
+      .return-grid { grid-template-columns: 1fr; }
+      .mode-explanation { grid-template-columns: auto 1fr; }
+      .mode-explanation code { grid-column: 2; }
+      .card { padding: 18px; }
+      footer { display: block; }
+    }
+
+    @media print {
+      :root { color-scheme: light; }
+      body { color: #102437; background: white; }
+      body::before, .controls, .packet { display: none !important; }
+      .page { width: 100%; padding: 0; }
+      .surface, .metric { break-inside: avoid; color: #102437; background: white; box-shadow: none; }
+      .subtitle, .section-heading p, .device-subtitle, .component > p, .card-intro,
+      .mode-explanation p, .reason-list li, .fact-list li, .verdict p { color: #526b80; }
+      .architecture-flow { transform: scale(.82); transform-origin: left top; width: 122%; margin-bottom: -70px; }
+    }
+  </style>
+</head>
+<body data-mode="normal">
+  <main class="page">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">PVM / GVM · SOME/IP Communication Map</div>
+        <h1>SOME/IP 通信原理<br>与本次超时故障定位</h1>
+        <p class="subtitle">
+          以当前台架为业务模型：外部 ECU 通过车载以太网与 PVM 通信，PVM 将服务转换为本地业务调用，
+          再经 VIPC/VSOCK 与 GVM Android 交换车辆数据。
+        </p>
+      </div>
+      <div class="controls" aria-label="视图切换">
+        <button class="control active" type="button" data-mode-button="normal">正常通信</button>
+        <button class="control" type="button" data-mode-button="fault">突出故障点</button>
+        <button class="control" type="button" onclick="window.print()">打印 / 导出 PDF</button>
+      </div>
+    </header>
+
+    <section class="surface architecture" aria-labelledby="architecture-title">
+      <div class="section-heading">
+        <h2 id="architecture-title">端到端业务架构</h2>
+        <p>蓝色是车载以太网，黄色是 PVM 进程内/本地 IPC，紫色是虚拟机通道；箭头表示双向业务数据。</p>
+      </div>
+      <div class="legend" aria-label="图例">
+        <span class="network"><i></i> SOME/IP UDP/TCP</span>
+        <span class="local"><i></i> AF_UNIX 本地 IPC</span>
+        <span class="vm"><i></i> VIPC / VSOCK</span>
+        <span class="fault"><i></i> 本次报错位置</span>
+      </div>
+
+      <div class="architecture-flow">
+        <article class="zone">
+          <div class="zone-label">Vehicle Network <b>物理侧</b></div>
+          <h3 class="device-title">外部 ECU</h3>
+          <p class="device-subtitle">服务提供者 / 消费者</p>
+          <div class="ecu-stack">
+            <div class="ecu"><strong>车身与空调 ECU</strong><small>门窗、座椅、灯光、空调</small></div>
+            <div class="ecu"><strong>动力与底盘 ECU</strong><small>车速、里程、悬架、泊车</small></div>
+            <div class="ecu"><strong>ADAS / TBOX</strong><small>场景、定位、网络、OTA</small></div>
+          </div>
+        </article>
+
+        <div class="link" aria-label="车载以太网双向链路">
+          <div class="link-rail"></div>
+          <i class="packet"></i><i class="packet return"></i>
+          <div class="link-label"><strong>SOME/IP</strong>SD: UDP 30490<br>业务: UDP / TCP<br>VLAN 10–14, 19</div>
+        </div>
+
+        <article class="zone pvm-zone">
+          <div class="zone-label">PVM Linux <b>服务路由与业务桥</b></div>
+          <div class="pvm-inner">
+            <div class="component">
+              <h3>someipd</h3>
+              <p>每个 VLAN 一个路由实例；完成 SD、网络收发和本地应用路由。</p>
+              <div class="instance-list">
+                <div class="instance"><span>eth1.10</span><strong>VLAN10</strong></div>
+                <div class="instance"><span>eth1.11</span><strong>VLAN11</strong></div>
+                <div class="instance"><span>eth1.12</span><strong>VLAN12</strong></div>
+                <div class="instance"><span>eth1.13</span><strong>VLAN13</strong></div>
+                <div class="instance"><span>eth1.14</span><strong>VLAN14</strong></div>
+                <div class="instance"><span>eth0.19</span><strong>VLAN19</strong></div>
+              </div>
+            </div>
+
+            <div class="local-ipc" aria-label="someipd 到 coreservice 的本地 Unix IPC">
+              <div class="link-rail"></div>
+              <i class="packet"></i>
+              <div class="link-label"><strong>AF_UNIX</strong>/tmp/x4vlanXX-<br>app-&lt;appid&gt;</div>
+              <div class="fault-pin">select() 等待可写<br>超时 → BASE_E_TIMEOUT</div>
+            </div>
+
+            <div class="component">
+              <h3>coreservice <span class="tag">PID 4600</span></h3>
+              <p>一个进程承载大量生成式 SOME/IP client/server 模块；端点不等于独立进程。</p>
+              <div class="module-list">
+                <div class="module incident"><span>VehicleDrivingInfo</span><strong>0x2000</strong></div>
+                <div class="module incident"><span>PowerSysInfo</span><strong>0x3000</strong></div>
+                <div class="module incident"><span>VehicleModeManager</span><strong>0x4000</strong></div>
+                <div class="module"><span>其余业务模块</span><strong>73 个端点</strong></div>
+                <div class="module"><span>本地活动总数</span><strong>76</strong></div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <div class="link vm-link" aria-label="PVM 与 GVM 的 VSOCK 链路">
+          <div class="link-rail"></div>
+          <i class="packet"></i><i class="packet return"></i>
+          <div class="link-label"><strong>VIPC / VSOCK</strong>port base 17100<br>PVM peer CID 3<br>GVM peer CID 2</div>
+        </div>
+
+        <article class="zone gvm-zone">
+          <div class="zone-label">GVM Android <b>应用侧</b></div>
+          <h3 class="device-title">车辆数据消费</h3>
+          <p class="device-subtitle">当前主链路不是 Android vsomeip</p>
+          <div class="android-stack">
+            <div class="android-layer"><strong>Vehicle HAL</strong><small>libvoyah_vehiclehal_h47a.so<br>VIPC VSOCK transport</small></div>
+            <div class="android-layer"><strong>Binder / CarService</strong><small>车辆属性与系统服务</small></div>
+            <div class="android-layer"><strong>Android App</strong><small>座舱 HMI、车辆设置、状态展示</small></div>
+          </div>
+        </article>
+      </div>
+
+      <div class="mode-explanation" aria-live="polite">
+        <i class="mode-dot"></i>
+        <div>
+          <strong id="mode-title">正常模式：本地 socket 可写</strong>
+          <p id="mode-copy">someipd 收到网络响应后，通过 AF_UNIX 将 RPC Response 交给 coreservice，再按业务需要送往 Android。</p>
+        </div>
+        <code id="mode-code">select() &gt; 0 → BASE_E_OK</code>
+      </div>
+    </section>
+
+    <div class="metrics" aria-label="当前台架关键数据">
+      <div class="metric"><small>PVM 路由实例</small><strong><em>6</em> 个 someipd</strong></div>
+      <div class="metric"><small>本地活动端点</small><strong><em>76</em> 个 appid</strong></div>
+      <div class="metric"><small>故障涉及 VLAN</small><strong><em>12 / 14</em></strong></div>
+      <div class="metric"><small>Android 网络诊断</small><strong><em>Normal</em> · 0% loss</strong></div>
+    </div>
+
+    <div class="content-grid">
+      <section class="surface card" aria-labelledby="sequence-title">
+        <h2 id="sequence-title">一次 RPC 调用怎样走</h2>
+        <p class="card-intro">以下以 Android 发起车辆业务请求、外部 ECU 返回响应为例；事件通知可沿相反方向进入 Android。</p>
+        <div class="sequence">
+          <div class="sequence-canvas">
+            <div class="participants">
+              <div class="participant">Android App</div>
+              <div class="participant">VHAL / VIPC</div>
+              <div class="participant">coreservice</div>
+              <div class="participant">someipd</div>
+              <div class="participant">外部 ECU</div>
+            </div>
+            <div class="lifelines"><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="messages">
+              <div class="message-row"><div class="message span-1-2"><span class="message-label">① Binder：车辆功能调用</span></div></div>
+              <div class="message-row"><div class="message span-2-3"><span class="message-label">② VIPC / VSOCK：跨 VM 传输</span></div></div>
+              <div class="message-row"><div class="message span-3-4"><span class="message-label">③ AF_UNIX：本地 RPC Request</span></div></div>
+              <div class="message-row"><div class="message span-4-5"><span class="message-label">④ Ethernet：SOME/IP Request</span></div></div>
+              <div class="message-row"><div class="message left response span-4-5"><span class="message-label">⑤ Ethernet：SOME/IP Response</span></div></div>
+              <div class="message-row"><div class="message left fault-message span-3-4"><span class="message-label">⑥ SOMEIP_CMD_RPC_RRMSG_RESP</span></div></div>
+              <div class="message-row"><div class="message left response span-2-3"><span class="message-label">⑦ VIPC：业务结果回到 GVM</span></div></div>
+              <div class="message-row"><div class="message left response span-1-2"><span class="message-label">⑧ Binder 回调 / 属性更新</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="verdict">
+          <div class="verdict-icon">!</div>
+          <div>
+            <strong>本次错误发生在第 ⑥ 步</strong>
+            <p>网络 Response 已经到达 someipd；失败的是 someipd 向 PVM 本地业务端点投递响应。它不是“向 Android 网卡发包超时”。</p>
+          </div>
+        </div>
+      </section>
+
+      <aside class="surface card" aria-labelledby="timeout-title">
+        <h2 id="timeout-title">为什么返回 BASE_E_TIMEOUT</h2>
+        <p class="card-intro"><code>netsock_readytosend(fd, us)</code> 检查的是 fd 在指定时间内是否可写。</p>
+        <div class="function-box">
+          <div class="function-title"><strong>writefds + select()</strong><span class="tag">PVM local fd</span></div>
+          <pre>FD_ZERO(&amp;wfds);
+FD_SET(fd, &amp;wfds);
+
+ret = select(fd + 1,
+             NULL, &amp;wfds, NULL, &amp;tout);
+
+if (ret &gt; 0) return BASE_E_OK;
+if (ret &lt; 0) return ...;
+return BASE_E_TIMEOUT;  // ret == 0</pre>
+          <div class="return-grid">
+            <div class="return-case ok"><b>ret &gt; 0</b>发送缓冲区可写</div>
+            <div class="return-case timeout"><b>ret == 0</b>等待期内一直不可写</div>
+            <div class="return-case error"><b>ret &lt; 0</b>EBADF 或其他系统错误</div>
+          </div>
+        </div>
+        <ul class="reason-list">
+          <li><span>1</span><div><strong>本地发送队列积压</strong>AF_UNIX send buffer 被突发 RPC Response 填满。</div></li>
+          <li><span>2</span><div><strong>coreservice 未及时读取</strong>业务线程阻塞、调度延迟或回调处理过慢。</div></li>
+          <li><span>3</span><div><strong>瞬时系统性卡顿</strong>多个 VLAN 在相近时间报错，更值得检查公共消费者和 CPU 调度。</div></li>
+        </ul>
+      </aside>
+    </div>
+
+    <div class="evidence">
+      <section class="surface card" aria-labelledby="mapping-title">
+        <h2 id="mapping-title">故障 appid 的业务含义</h2>
+        <p class="card-intro">appid 来自生成库的 client/service 数据，并与实时 Unix socket 名称一致。</p>
+        <table class="mapping-table">
+          <thead><tr><th>时间 / VLAN</th><th>dst/appid</th><th>PVM 本地模块</th><th>日志 fd</th></tr></thead>
+          <tbody>
+            <tr><td>08:00:24 · VLAN12</td><td><code>0x3000</code></td><td>PowerSysInfo</td><td class="hot">20</td></tr>
+            <tr><td>08:00:24 · VLAN12</td><td><code>0x2000</code></td><td>VehicleDrivingInfo</td><td class="hot">24</td></tr>
+            <tr><td>08:00:24 · VLAN14</td><td><code>0x4000</code></td><td>VI_MN_VehicleModeManager</td><td class="hot">9</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="surface card" aria-labelledby="judgement-title">
+        <h2 id="judgement-title">如何理解 Android 网络正常</h2>
+        <p class="card-intro">网络诊断与本次错误并不矛盾，因为它们观察的不是同一段链路。</p>
+        <ul class="fact-list">
+          <li><strong>Android 诊断：</strong>isNormal=true、hasProblem=0、ipv4Available=1、目标丢包率 0%。说明被检测的 GVM IP 网络当时正常。</li>
+          <li><strong>本次错误：</strong>someipd 对本地 AF_UNIX fd 做可写检查时超时，直接故障域位于 PVM 内部。</li>
+          <li class="warning"><strong>边界：</strong>这不能证明整车所有网络在任何瞬间都绝对正常，但足以说明该条 <code>BASE_E_TIMEOUT</code> 不是 Android 丢包日志。</li>
+        </ul>
+      </section>
+    </div>
+
+    <footer>
+      <span>现场模型：PVM someipd × 6 · coreservice · VIPC/VSOCK · GVM Vehicle HAL</span>
+      <span>诊断重点：先检查 coreservice 消费速度、Unix socket 队列和线程调度，再扩大到物理网络。</span>
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      const body = document.body;
+      const title = document.getElementById('mode-title');
+      const copy = document.getElementById('mode-copy');
+      const code = document.getElementById('mode-code');
+      const buttons = [...document.querySelectorAll('[data-mode-button]')];
+
+      const content = {
+        normal: {
+          title: '正常模式：本地 socket 可写',
+          copy: 'someipd 收到网络响应后，通过 AF_UNIX 将 RPC Response 交给 coreservice，再按业务需要送往 Android。',
+          code: 'select() > 0 → BASE_E_OK'
+        },
+        fault: {
+          title: '故障模式：PVM 本地 IPC 在超时时间内不可写',
+          copy: 'someipd 无法及时把 RPC Response 投递给 coreservice；更像本地队列背压或消费者卡顿，而不是 GVM IP 网络丢包。',
+          code: 'select() == 0 → BASE_E_TIMEOUT'
+        }
+      };
+
+      buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const mode = button.dataset.modeButton;
+          body.dataset.mode = mode;
+          buttons.forEach((item) => item.classList.toggle('active', item === button));
+          title.textContent = content[mode].title;
+          copy.textContent = content[mode].copy;
+          code.textContent = content[mode].code;
+        });
+      });
+    })();
+  </script>
+
+
+</body></html>

@@ -194,49 +194,42 @@ Web --&amp;gt; User: 时间线、层级树、属性和画面
 @enduml
 &lt;/code&gt;&lt;/pre&gt;&lt;h3 id="21-web-前端"&gt;2.1 Web 前端&lt;/h3&gt;
 &lt;p&gt;Winscope 前端是 Angular/TypeScript 应用，主要负责：&lt;/p&gt;</description></item><item><title>Android Low Memory Killer Daemon (LMKD) 源码机制与策略分析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/lmkd/</link><pubDate>Sun, 07 Jun 2026 22:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/lmkd/</guid><description>&lt;h2 id="简介"&gt;简介&lt;/h2&gt;
-&lt;p&gt;Android 系统的 Low Memory Killer Daemon (lmkd) 是一个运行在用户空间的守护进程，主要负责监控 Android 系统的内存状态。当系统内存压力较高时，lmkd 会根据一定的策略杀死最不重要的进程，以保证系统能够维持在可接受的性能水平。&lt;/p&gt;
+&lt;p&gt;Android 系统的 Low Memory Killer Daemon（lmkd）是一个用户空间守护进程。它接收内核内存压力信号，结合 zone watermark、Swap、page-cache refault、reclaim 状态和进程 &lt;code&gt;oom_score_adj&lt;/code&gt;，在系统进入不可接受的内存回收延迟前终止相对不重要的进程。&lt;/p&gt;
 &lt;p&gt;在 Linux Kernel 4.12 之前，该工作通常由内核态的 &lt;code&gt;lowmemorykiller&lt;/code&gt; 驱动完成。随着内核的发展，该内核驱动被移除，相关的逻辑被完全迁移到了用户空间的 &lt;code&gt;lmkd&lt;/code&gt; 守护进程中。&lt;/p&gt;
-&lt;p&gt;AOSP 源码路径：&lt;code&gt;system/memory/lmkd&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;AOSP 源码路径：&lt;code&gt;system/memory/lmkd&lt;/code&gt;。本文的实现细节以 8397 QSSI 中该仓库的 &lt;code&gt;6591d1e&lt;/code&gt; 版本为基准；其他 Android 分支可能在属性、memevent 或厂商 hook 上存在差异。&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id="核心机制与架构"&gt;核心机制与架构&lt;/h2&gt;
-&lt;p&gt;lmkd 的工作流程可以分为以下几个核心环节：&lt;strong&gt;初始化与配置解析&lt;/strong&gt;、&lt;strong&gt;内存压力监控&lt;/strong&gt;、&lt;strong&gt;受害者选择策略&lt;/strong&gt;以及&lt;strong&gt;进程击杀执行&lt;/strong&gt;。&lt;/p&gt;
-&lt;div class="mermaid"&gt;graph TD
-subgraph Initialization ["1. 初始化与配置"]
-A[解析 lmkd.rc 属性配置] --&gt; B[建立 AMS 通信 Socket]
-B --&gt; C[设置 SCHED_FIFO 实时优先级]
-C --&gt; D[初始化 epoll 与 Reaper 线程池]
-end
-subgraph Monitoring ["2. 内存压力监控"]
-D --&gt; E{内核支持 PSI?}
-E -- Yes --&gt; F[注册 PSI 压力事件监听]
-E -- No --&gt; G[注册 vmpressure 压力事件监听]
-F --&gt; H((epoll_wait 等待唤醒))
-G --&gt; H
-end
-subgraph Strategy ["3. 杀进程策略与决策"]
-H -- 触发内存压力事件 --&gt; I[评估可用内存 / Swap / Thrashing]
-I --&gt; J[从 OOM_SCORE_ADJ_MAX 向下遍历 procadjslot_list]
-J --&gt; K{开启 kill_heaviest_task &lt;br&gt; 或 为感知级进程?}
-K -- Yes --&gt; L[选择当前 score 下占用内存最多的进程]
-K -- No --&gt; M[选择链表尾部最旧的进程]
-end
-subgraph Execution ["4. 击杀执行与清理"]
-L --&gt; N[epoll 注册 pidfd 等待进程死亡]
+&lt;p&gt;lmkd 的工作流程可以分为四个环节：初始化、压力监控、决策与受害者选择、进程终止与回收。现代内核上的主路径是 PSI 驱动的新策略；vmpressure 和 minfree 属于兼容路径，不能与新策略混为一谈。&lt;/p&gt;
+&lt;div class="mermaid"&gt;flowchart TD
+A[init 根据 lmkd.rc 启动服务] --&gt; B[update_props 读取配置]
+B --&gt; C[初始化 epoll 与控制 Socket]
+C --&gt; D{存在可写的内核 LMK 接口?}
+D -- 是 --&gt; E[使用内核 LMK 接口]
+D -- 否 --&gt; F{PSI 已启用且初始化成功?}
+F -- 新 PSI 策略 --&gt; G[mp_event_psi → __mp_event_psi]
+F -- PSI 旧策略 --&gt; H[mp_event_common]
+F -- 否，回退 vmpressure --&gt; H
+G --&gt; I[每次评估至多选择一个受害者]
+H --&gt; I
+I --&gt; J[注册 pidfd 死亡等待并调用 reaper.kill]
+J --&gt; K[主线程记录结果并通知订阅客户端]
+J -. 线程池可用 .-&gt; L[Reaper: SIGKILL → process_mrelease]
+J -. 线程池忙或不支持异步 .-&gt; M[主线程同步发送 SIGKILL]
+L --&gt; N[pidfd 事件或 /proc 轮询确认进程死亡]
 M --&gt; N
-N --&gt; O[将击杀任务投递给 Reaper 异步线程池]
-O --&gt; P[Reaper 线程调用 pidfd_send_signal SIGKILL]
-P --&gt; Q[process_mrelease 回收内存]
-Q --&gt; R[更新状态、记录日志并上报 statsd]
-R --&gt; H
-end
+K --&gt; O[继续 epoll 或 PSI 窗口轮询]
+N --&gt; O
 &lt;/div&gt;&lt;h3 id="1-初始化与配置-initialization"&gt;1. 初始化与配置 (Initialization)&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;启动方式&lt;/strong&gt;: lmkd 通过 &lt;code&gt;lmkd.rc&lt;/code&gt; 配置文件被 &lt;code&gt;init&lt;/code&gt; 进程启动，具有较高的权限（&lt;code&gt;DAC_OVERRIDE KILL IPC_LOCK SYS_NICE SYS_RESOURCE&lt;/code&gt;），并设置为了 &lt;code&gt;critical&lt;/code&gt; 服务（&lt;code&gt;class core&lt;/code&gt;）。其中 &lt;code&gt;SYS_NICE&lt;/code&gt; 用于设置 &lt;code&gt;SCHED_FIFO&lt;/code&gt;，&lt;code&gt;IPC_LOCK&lt;/code&gt; 用于 &lt;code&gt;mlockall&lt;/code&gt; 锁定内存，&lt;code&gt;KILL&lt;/code&gt; 用于发送信号，&lt;code&gt;DAC_OVERRIDE&lt;/code&gt; 用于绕过文件权限检查，&lt;code&gt;SYS_RESOURCE&lt;/code&gt; 用于提升资源限制。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;调度优先级&lt;/strong&gt;: 为了保证即使在系统极度卡顿、资源耗尽时也能优先响应并进行杀进程释放内存，lmkd 在不使用内核态 lowmemorykiller 接口时（&lt;code&gt;use_inkernel_interface == false&lt;/code&gt;），会通过 &lt;code&gt;sched_setscheduler(0, SCHED_FIFO, &amp;amp;param)&lt;/code&gt; 将自身调度策略设为 &lt;code&gt;SCHED_FIFO&lt;/code&gt; 实时优先级（priority = 1）。若内核 lowmemorykiller 可用（&lt;code&gt;use_inkernel_interface == true&lt;/code&gt;，默认值），则不会设置实时优先级。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;通信套接字&lt;/strong&gt;: 初始化期间通过 &lt;code&gt;android_get_control_socket(&amp;quot;lmkd&amp;quot;)&lt;/code&gt; 获取到 &lt;code&gt;ActivityManagerService&lt;/code&gt; (AMS) 用来与其通信的 Unix Domain Socket (&lt;code&gt;/dev/socket/lmkd&lt;/code&gt;)。AMS 会通过此套接字更新各个进程的 &lt;code&gt;oom_score_adj&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;服务启动&lt;/strong&gt;：&lt;code&gt;init&lt;/code&gt; 解析 &lt;code&gt;lmkd.rc&lt;/code&gt; 并启动 lmkd；lmkd 本身不解析 rc 文件。服务属于 &lt;code&gt;class core&lt;/code&gt;，被标记为 &lt;code&gt;critical&lt;/code&gt;，并获得 &lt;code&gt;DAC_OVERRIDE KILL IPC_LOCK SYS_NICE SYS_RESOURCE&lt;/code&gt; capabilities。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;属性读取&lt;/strong&gt;：&lt;code&gt;update_props()&lt;/code&gt; 读取 &lt;code&gt;ro.lmk.&amp;lt;name&amp;gt;&lt;/code&gt;。若存在 &lt;code&gt;persist.device_config.lmkd_native.&amp;lt;name&amp;gt;&lt;/code&gt;，后者优先，用于运行时实验和重新初始化监控器。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;控制通道&lt;/strong&gt;：&lt;code&gt;init&lt;/code&gt; 预先创建 &lt;code&gt;/dev/socket/lmkd&lt;/code&gt;。lmkd 通过 &lt;code&gt;android_get_control_socket(&amp;quot;lmkd&amp;quot;)&lt;/code&gt; 取得监听 socket，AMS 等客户端连接后发送 &lt;code&gt;LMK_TARGET&lt;/code&gt;、&lt;code&gt;LMK_PROCPRIO&lt;/code&gt;、订阅和属性更新命令。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;内核接口探测&lt;/strong&gt;：&lt;code&gt;use_inkernel_interface&lt;/code&gt; 虽然在静态初始化时为 &lt;code&gt;true&lt;/code&gt;，但运行时会根据内核 lowmemorykiller 的 &lt;code&gt;minfree&lt;/code&gt; 节点是否可写重新赋值。因此它不是现代设备的实际默认工作模式。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;调度与锁页&lt;/strong&gt;：未使用内核 LMK 接口时，主线程调用 &lt;code&gt;mlockall(MCL_CURRENT | MCL_FUTURE | MCL_ONFAULT)&lt;/code&gt;，并设置为 &lt;code&gt;SCHED_FIFO&lt;/code&gt;、实时优先级 1，以降低严重内存压力下的调度延迟。Reaper 工作线程随后被显式设置为 &lt;code&gt;SCHED_OTHER&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;事件循环&lt;/strong&gt;：控制 socket、压力监控 FD、pidfd、Reaper 通信管道和 memevent ring buffer 都注册到同一个 epoll 实例。Reaper、watchdog 初始化完成后，主线程进入 &lt;code&gt;mainloop()&lt;/code&gt;。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id="2-内存压力监控-memory-pressure-monitoring"&gt;2. 内存压力监控 (Memory Pressure Monitoring)&lt;/h3&gt;
-&lt;p&gt;lmkd 使用 &lt;code&gt;epoll&lt;/code&gt; 来监听内存压力事件。当前 lmkd 支持两种主要的内存压力监测方式：&lt;/p&gt;</description></item><item><title>Android 13 AudioPlaybackCapture 技术原理与实现</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</link><pubDate>Sun, 07 Jun 2026 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;lmkd 使用 &lt;code&gt;epoll&lt;/code&gt; 监听压力事件。PSI 和 vmpressure 是两种互斥的主压力触发器，BPF memevent 则补充 reclaim 状态、厂商事件和 watermark 更新通知。&lt;/p&gt;</description></item><item><title>Android 13 AudioPlaybackCapture 技术原理与实现</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</link><pubDate>Sun, 07 Jun 2026 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;&lt;strong&gt;AudioPlaybackCapture&lt;/strong&gt; 是 Android 10 (API 29) 引入的 API,允许 App 捕获其他 App 正在播放的音频。典型场景包括:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;屏幕录制时同时录制内部音频 (SystemUI 的 ScreenRecord)&lt;/li&gt;
