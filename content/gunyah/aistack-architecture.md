@@ -6,8 +6,6 @@ categories = ['Qualcomm', 'AI', 'QNN', 'FastRPC', '虚拟化']
 tags = ['SA8397', 'ONNX Runtime', 'QNN EP', 'QNN', 'FastRPC', 'HTP', 'NPU', 'qcrosvm', 'GVM', 'PVM', 'debug']
 +++
 
-# AI Stack 架构解析（SA8397 双虚拟机平台实测）
-
 > 本文所有内容来自真机实测：Android GVM（`adb -s d7df5883 shell`，`SA8397 Cockpit`）与 Linux PVM（`adb -s e66b06ea shell`，`Linux sa8797 6.6.110-rt61-debug PREEMPT_RT`）。组件名、路径、进程参数均为实采值；涉及 OEM 的组件名已脱敏。
 
 ## 1. 软件架构总图
