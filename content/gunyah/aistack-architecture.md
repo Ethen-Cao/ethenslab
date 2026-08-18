@@ -3,7 +3,7 @@ date = '2026-08-18T10:00:00+08:00'
 draft = false
 title = 'AI Stack 架构解析（SA8397 双虚拟机平台实测）'
 categories = ['Qualcomm', 'AI', 'QNN', 'FastRPC', '虚拟化']
-tags = ['SA8397', 'QNN', 'FastRPC', 'HTP', 'NPU', 'qcrosvm', 'GVM', 'PVM', 'debug']
+tags = ['SA8397', 'ONNX Runtime', 'QNN EP', 'QNN', 'FastRPC', 'HTP', 'NPU', 'qcrosvm', 'GVM', 'PVM', 'debug']
 +++
 
 # AI Stack 架构解析（SA8397 双虚拟机平台实测）
@@ -130,8 +130,8 @@ tags = ['SA8397', 'QNN', 'FastRPC', 'HTP', 'NPU', 'qcrosvm', 'GVM', 'PVM', 'debu
   <line x1="1195" y1="620" x2="1195" y2="52" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arrDash)"/>
   <text x="1206" y="340" font-size="11" fill="#6b7280" transform="rotate(90 1206 340)">应答/回调（signal · notification）</text>
   <!-- ===== 控制流（虚线） ===== -->
-  <line x1="560" y1="414" x2="560" y2="772" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arrDash)"/>
-  <text x="572" y="600" font-size="11" fill="#6b7280">SCMI 电源管理（nsp0~3）</text>
+  <line x1="340" y1="470" x2="340" y2="772" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arrDash)"/>
+  <text x="330" y="600" text-anchor="end" font-size="11" fill="#6b7280">SCMI 电源管理（nsp0~3）</text>
   <line x1="610" y1="202" x2="630" y2="202" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arrDash)"/>
   <text x="618" y="194" font-size="11" fill="#6b7280">PD 生命周期协作</text>
 </svg>
@@ -226,9 +226,179 @@ SA8397 提供四个 HTP/NSP 计算实例。GVM 将它们暴露为四个独立的
 - **作用**：承载 GVM（`--vm=autoghgvm`）的虚拟机管理器，为 GVM 提供全部虚拟设备。
 - **工作原理**：AI 栈相关的是 `--vhost-user-frpc`（FastRPC 虚拟化，label 45）与 `--vhost-user-glinkpassthrough`（GLink 直通）；其余 `--vhost-user-hab`（显示/音频/视频/相机等外设）、`--vhost-user-scmi`（电源管理）、`--vhost-user-ssr`（子系统重启事件）与 AI 栈共同构成完整座舱虚拟化环境。
 
-## 4. 运行观察与调试
+## 4. 应用内调用链：ONNX Runtime × QNN EP
 
-### 4.1 分层观察模型
+本章描述单个应用进程中，ONNX Runtime 如何通过 QNN Execution Provider 驱动 HTP。这是 §1 总图中 GVM“应用层 → QNN 执行引擎”一段的放大视图。
+
+这条链路的关键是**控制面与数据面分离**：
+
+- **控制面**：模型分区、backend/context/graph 生命周期和 Execute 指令通过 QNN Stub 与 FastRPC 跨处理器传递；
+- **数据面**：输入输出 tensor 通过注册的 DMA-BUF/共享内存交换，是否达到零拷贝取决于 allocator、I/O Binding 和 buffer 注册方式。
+
+### 4.1 进程内全链路图
+
+图的上半部分说明组件物理落点，下半部分按时间顺序展示初始化、Skel 侧载和高频推理三条路径。
+
+<div style="max-width:100%;overflow-x:auto;">
+<svg viewBox="0 0 1240 800" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="onnx-qnn-flow-title" style="display:block;width:100%;height:auto;min-width:960px;font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">
+  <title id="onnx-qnn-flow-title">ONNX Runtime × QNN EP 全生命周期架构图</title>
+  <rect width="1240" height="800" fill="#ffffff"/>
+  <defs>
+    <marker id="oq-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626"/></marker>
+    <marker id="oq-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/></marker>
+    <marker id="oq-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#16a34a"/></marker>
+  </defs>
+  <text x="620" y="28" text-anchor="middle" font-size="17" font-weight="bold" fill="#111827">ONNX Runtime × QNN EP：从模型到 HTP 的完整生命周期</text>
+  <g font-size="11" fill="#374151">
+    <line x1="820" y1="48" x2="852" y2="48" stroke="#dc2626" stroke-width="2.5" marker-end="url(#oq-red)"/>
+    <text x="860" y="52">初始化与建图</text>
+    <line x1="950" y1="48" x2="982" y2="48" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#oq-blue)"/>
+    <text x="990" y="52">Skel 侧载</text>
+    <line x1="1080" y1="48" x2="1112" y2="48" stroke="#16a34a" stroke-width="2.5" marker-end="url(#oq-green)"/>
+    <text x="1120" y="52">推理执行</text>
+  </g>
+  <!-- 组件落点 -->
+  <rect x="30" y="70" width="360" height="180" rx="8" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.5"/>
+  <text x="210" y="94" text-anchor="middle" font-size="13" font-weight="bold" fill="#1d4ed8">应用进程空间（GVM 用户态）</text>
+  <rect x="50" y="108" width="320" height="36" rx="5" fill="#ffffff" stroke="#60a5fa"/>
+  <text x="210" y="131" text-anchor="middle" font-size="11.5" font-weight="bold">App Code · model.onnx</text>
+  <rect x="50" y="154" width="320" height="36" rx="5" fill="#ffffff" stroke="#60a5fa"/>
+  <text x="210" y="177" text-anchor="middle" font-size="11.5" font-weight="bold">ONNX Runtime · QNN EP</text>
+  <rect x="50" y="200" width="320" height="36" rx="5" fill="#ffffff" stroke="#60a5fa"/>
+  <text x="210" y="223" text-anchor="middle" font-size="11.5" font-weight="bold">libQnnHtp.so · libQnnHtpV81Stub.so</text>
+  <rect x="420" y="70" width="400" height="180" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="620" y="94" text-anchor="middle" font-size="13" font-weight="bold" fill="#7c3aed">系统层与虚拟化传输</text>
+  <rect x="440" y="108" width="360" height="36" rx="5" fill="#ffffff" stroke="#a78bfa"/>
+  <text x="620" y="131" text-anchor="middle" font-size="11.5" font-weight="bold">libcdsprpc.so → hfastrpc</text>
+  <rect x="440" y="154" width="360" height="36" rx="5" fill="#ffffff" stroke="#a78bfa"/>
+  <text x="620" y="177" text-anchor="middle" font-size="11.5" font-weight="bold">virtio → qcrosvm → vhost-user-frpc</text>
+  <rect x="440" y="200" width="360" height="36" rx="5" fill="#ffffff" stroke="#a78bfa"/>
+  <text x="620" y="223" text-anchor="middle" font-size="11.5" font-weight="bold">fastrpc-rm → glink_service_lrm → GLink</text>
+  <rect x="850" y="70" width="360" height="180" rx="8" fill="#ecfdf5" stroke="#0f6b43" stroke-width="1.5"/>
+  <text x="1030" y="94" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f6b43">DSP / HTP 域</text>
+  <rect x="870" y="108" width="320" height="36" rx="5" fill="#ffffff" stroke="#34d399"/>
+  <text x="1030" y="131" text-anchor="middle" font-size="11.5" font-weight="bold">QuRT OS · Signed PD</text>
+  <rect x="870" y="154" width="320" height="36" rx="5" fill="#ffffff" stroke="#34d399"/>
+  <text x="1030" y="177" text-anchor="middle" font-size="11.5" font-weight="bold">Skel Instance（DSP 侧服务实现）</text>
+  <rect x="870" y="200" width="320" height="36" rx="5" fill="#ffffff" stroke="#34d399"/>
+  <text x="1030" y="223" text-anchor="middle" font-size="11.5" font-weight="bold">HTP（NPU 张量计算单元）</text>
+  <!-- Phase 1 -->
+  <rect x="30" y="276" width="1180" height="112" rx="8" fill="#fff1f2" stroke="#fca5a5"/>
+  <text x="48" y="300" font-size="12.5" font-weight="bold" fill="#b91c1c">Phase 1 · 初始化与建图（一次性控制流）</text>
+  <rect x="55" y="316" width="300" height="52" rx="6" fill="#ffffff" stroke="#dc2626"/>
+  <text x="205" y="337" text-anchor="middle" font-size="11.5" font-weight="bold">1. CreateSession · 解析 model.onnx</text>
+  <text x="205" y="354" text-anchor="middle" font-size="10.5" fill="#4b5563">ORT 分区，支持的子图委托给 QNN EP</text>
+  <rect x="470" y="316" width="300" height="52" rx="6" fill="#ffffff" stroke="#dc2626"/>
+  <text x="620" y="337" text-anchor="middle" font-size="11.5" font-weight="bold">2. 初始化 Backend/Stub · Open Session</text>
+  <text x="620" y="354" text-anchor="middle" font-size="10.5" fill="#4b5563">FastRPC 建立 context/domain 通道</text>
+  <rect x="885" y="316" width="300" height="52" rx="6" fill="#ffffff" stroke="#dc2626"/>
+  <text x="1035" y="337" text-anchor="middle" font-size="11.5" font-weight="bold">3. 唤醒 DSP · 创建 Signed PD</text>
+  <text x="1035" y="354" text-anchor="middle" font-size="10.5" fill="#4b5563">为 Skel 和 graph 准备远端执行环境</text>
+  <line x1="355" y1="342" x2="470" y2="342" stroke="#dc2626" stroke-width="2.5" marker-end="url(#oq-red)"/>
+  <line x1="770" y1="342" x2="885" y2="342" stroke="#dc2626" stroke-width="2.5" marker-end="url(#oq-red)"/>
+  <!-- Phase 2 -->
+  <rect x="30" y="410" width="1180" height="170" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="48" y="434" font-size="12.5" font-weight="bold" fill="#1d4ed8">Phase 2 · Skel 侧载回环（反向请求 + 共享内存加载）</text>
+  <rect x="885" y="450" width="300" height="42" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="1035" y="476" text-anchor="middle" font-size="11.5" font-weight="bold">4. Signed PD 请求加载 Skel</text>
+  <rect x="470" y="450" width="300" height="42" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="620" y="469" text-anchor="middle" font-size="11.5" font-weight="bold">5. reverse-RPC / Upcall</text>
+  <text x="620" y="484" text-anchor="middle" font-size="10.5" fill="#4b5563">经虚拟化 FastRPC 链路返回 CPU</text>
+  <rect x="55" y="450" width="300" height="42" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="205" y="469" text-anchor="middle" font-size="11.5" font-weight="bold">6. 定位 libQnnHtpV81Skel.so</text>
+  <text x="205" y="484" text-anchor="middle" font-size="10.5" fill="#4b5563">ADSP_LIBRARY_PATH / 系统搜索路径</text>
+  <line x1="885" y1="471" x2="770" y2="471" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#oq-blue)"/>
+  <line x1="470" y1="471" x2="355" y2="471" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#oq-blue)"/>
+  <rect x="55" y="516" width="300" height="42" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="205" y="542" text-anchor="middle" font-size="11.5" font-weight="bold">7. 读取 Skel 磁盘产物</text>
+  <rect x="470" y="516" width="300" height="42" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="620" y="535" text-anchor="middle" font-size="11.5" font-weight="bold">8. 映射到 DMA-BUF</text>
+  <text x="620" y="550" text-anchor="middle" font-size="10.5" fill="#4b5563">共享 CPU/DSP 可访问的物理页</text>
+  <rect x="885" y="516" width="300" height="42" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="1035" y="542" text-anchor="middle" font-size="11.5" font-weight="bold">9. DSP 映射并装载 Skel</text>
+  <line x1="355" y1="537" x2="470" y2="537" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#oq-blue)"/>
+  <line x1="770" y1="537" x2="885" y2="537" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#oq-blue)"/>
+  <!-- Phase 3 -->
+  <rect x="30" y="602" width="1180" height="168" rx="8" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="48" y="626" font-size="12.5" font-weight="bold" fill="#15803d">Phase 3 · 推理执行（高频控制面 + 数据面）</text>
+  <rect x="55" y="642" width="300" height="42" rx="6" fill="#ffffff" stroke="#16a34a"/>
+  <text x="205" y="668" text-anchor="middle" font-size="11.5" font-weight="bold">10. Run · QNN EP 提交 graph</text>
+  <rect x="470" y="642" width="300" height="42" rx="6" fill="#ffffff" stroke="#16a34a"/>
+  <text x="620" y="668" text-anchor="middle" font-size="11.5" font-weight="bold">11. FastRPC Execute invoke</text>
+  <rect x="885" y="642" width="300" height="42" rx="6" fill="#ffffff" stroke="#16a34a"/>
+  <text x="1035" y="660" text-anchor="middle" font-size="11.5" font-weight="bold">12. Skel 调度 HTP 计算</text>
+  <text x="1035" y="675" text-anchor="middle" font-size="10.5" fill="#4b5563">completion 沿控制路径返回</text>
+  <line x1="355" y1="663" x2="470" y2="663" stroke="#16a34a" stroke-width="2.5" marker-end="url(#oq-green)"/>
+  <line x1="770" y1="663" x2="885" y2="663" stroke="#16a34a" stroke-width="2.5" marker-end="url(#oq-green)"/>
+  <rect x="55" y="708" width="300" height="40" rx="6" fill="#ffffff" stroke="#16a34a" stroke-dasharray="5 4"/>
+  <text x="205" y="733" text-anchor="middle" font-size="11" font-weight="bold">注册的输入/输出 Buffer</text>
+  <rect x="470" y="708" width="300" height="40" rx="6" fill="#ffffff" stroke="#16a34a" stroke-dasharray="5 4"/>
+  <text x="620" y="733" text-anchor="middle" font-size="11" font-weight="bold">DMA-BUF 共享映射（数据面）</text>
+  <rect x="885" y="708" width="300" height="40" rx="6" fill="#ffffff" stroke="#16a34a" stroke-dasharray="5 4"/>
+  <text x="1035" y="733" text-anchor="middle" font-size="11" font-weight="bold">Skel/HTP 直接访问 Tensor</text>
+  <line x1="355" y1="728" x2="470" y2="728" stroke="#16a34a" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#oq-green)"/>
+  <line x1="770" y1="728" x2="885" y2="728" stroke="#16a34a" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#oq-green)"/>
+  <text x="620" y="789" text-anchor="middle" font-size="10.5" fill="#4b5563">零拷贝是可实现的数据通路能力；普通 CPU tensor 未注册为共享 Buffer 时仍可能发生额外拷贝。</text>
+</svg>
+</div>
+
+### 4.2 三阶段生命周期
+
+**第一阶段：初始化与建图（红色，一次性）**
+
+1. 应用调用 `CreateSession`，ORT 在 CPU 侧读取并解析 `model.onnx`，完成图优化和能力分区；受 QNN EP 支持的子图才会交给 QNN，模型文件本体不会整体发送到 DSP。
+2. QNN EP 初始化 Backend Manager（`libQnnHtp.so`）和 Stub（`libQnnHtpV81Stub.so`），通过 FastRPC 建立 context/domain 通道。
+3. 远端 QuRT 环境被唤醒并创建 Signed PD，为加载 Skel、创建 graph 和执行推理准备隔离的运行环境。
+
+**第二阶段：Skel 侧载回环（蓝色，反向请求）**
+
+1. Signed PD 请求加载 HTP 的 DSP 侧服务实现（步骤 4）。
+2. 请求通过 reverse-RPC/Upcall 返回 CPU 侧；在本平台上逻辑链路跨越 GLink、PVM FastRPC 后端、virtio 和 GVM hfastrpc（步骤 5）。
+3. FastRPC 按 `ADSP_LIBRARY_PATH` 或平台默认搜索路径定位 `libQnnHtpV81Skel.so`，读取文件并映射到 DMA-BUF；DSP 随后映射该共享内存并把 Skel 装载到 Signed PD（步骤 6-9）。
+
+> 本平台已确认虚拟化 FastRPC 和 DMA-BUF 参与链路；Skel reverse-RPC 的每个内部跳点仍需结合 FastRPC trace 或 DSP 侧日志验证，图中按 QNN/FastRPC 逻辑语义表达。
+
+**第三阶段：推理执行（绿色，高频路径）**
+
+1. 应用调用 `Run()`，ORT 将已分区的 QNN 子图及输入输出提交给 QNN EP（步骤 10）。
+2. Stub 通过 FastRPC 发送轻量的 Execute 控制指令，Skel 接收后调度 HTP 执行，completion 沿原控制路径返回（步骤 11-12）。
+3. 大块 tensor 通过已注册的 DMA-BUF 在 CPU 与 DSP 间共享。使用 QNN EP allocator、I/O Binding 并正确注册 buffer 时可以避免或减少拷贝；普通 CPU tensor 仍可能先复制到共享 buffer，因此不能把所有 `Run()` 路径都概括为“全程零拷贝”。
+
+### 4.3 组件物理隔离
+
+| 组件 | 存储位置 | 运行位置 |
+|---|---|---|
+| `model.onnx` | 应用 Assets 或私有目录 | 仅在 CPU 侧解析，不传 DSP |
+| `libQnnHtpV81Stub.so` | 应用 Native 库目录 | CPU 侧（参数编组、FastRPC 客户端） |
+| `libQnnHtpV81Skel.so` | 应用 Native 库目录（磁盘产物） | 经 FastRPC 侧载到 DSP 内存后运行 |
+| `libQnnHtp.so`（Backend Manager） | 系统库目录 | CPU 侧 |
+| `libcdsprpc.so` | 系统库目录 | CPU 侧 |
+| Signed PD / Skel Instance | —— | DSP 域（QuRT 下） |
+
+### 4.4 在本平台的物理落点映射
+
+ONNX/QNN 逻辑组件在本平台的真实位置（对照 §1 总图）：
+
+| 逻辑组件 | 本平台落点 |
+|---|---|
+| 应用进程 / ORT / QNN EP | GVM 用户态（Android 应用进程） |
+| Backend Manager / Stub | GVM `/vendor/lib64/libQnnHtp*.so` |
+| FastRPC 客户端（原文称 libadsprpc，为旧命名） | `libcdsprpc.so`（GVM/PVM 两侧均有） |
+| FastRPC 驱动（原文"唤醒 DSP/创建 PD"） | GVM `hfastrpc` → virtio → Hypervisor → PVM `vhost-user-frpc`；PD/context 由 PVM `fastrpc-rm` 管理 |
+| 共享内存（原文 ION/DMA-BUF） | DMA-BUF（PVM FRPC 日志实证参与传输）；ION 为旧命名 |
+| QuRT / Signed PD / HTP | SoC 硬件 DSP 域（待本平台侧载路径逐跳验证） |
+
+### 4.5 应用侧集成要点
+
+1. **先确定 Skel 的部署方式**：若 `libQnnHtpV81Skel.so` 随 APK 分发，应放入匹配 ABI 的 `jniLibs`，并在初始化 ORT/QNN 前让 `ADSP_LIBRARY_PATH` 包含应用 Native 库目录；若由系统镜像统一提供，则使用平台约定的搜索路径。
+2. **Stub/Skel 版本必须匹配**：CPU 侧 Stub 与 DSP 侧 Skel 应来自兼容的 QNN SDK/HTP 版本；错配可能导致接口解析、签名校验或 graph 创建失败。
+3. **不要默认获得零拷贝**：要结合 QNN EP allocator、I/O Binding、tensor 类型和 DMA-BUF 注册方式验证实际拷贝次数，并用 profiling 数据确认收益。
+4. **显式规划 graph 放置**：四颗 NSP 不等于自动全局负载均衡。应用和平台需要共同定义模型放置、并发上限、优先级及失败隔离策略。
+5. **生命周期必须成对**：backend、device、context、graph、注册 buffer 和 FastRPC domain 的创建/释放顺序应明确，并为跨处理器操作设置有界等待和可观测状态。
+
+## 5. 运行观察与调试
+
+### 5.1 分层观察模型
 
 一次推理跨越多个进程、虚拟机和处理器，排查时应沿固定层次定位：
 
@@ -243,7 +413,7 @@ SA8397 提供四个 HTP/NSP 计算实例。GVM 将它们暴露为四个独立的
 ⑧ DSP/NPU（硬件）         HTP 执行、NSP 状态、电源与时钟
 ```
 
-### 4.2 一次请求如何跨层关联
+### 5.2 一次请求如何跨层关联
 
 排查的关键不是先搜索某个错误字符串，而是确认同一次 graph execute 走到了哪一层、在哪个边界失去应答：
 
@@ -258,7 +428,7 @@ SA8397 提供四个 HTP/NSP 计算实例。GVM 将它们暴露为四个独立的
 
 关联时优先使用 context/domain、目标 NSP 和时间窗口。用户态 fd 号与线程号只在单次采样中有效，不应作为跨进程或跨启动的长期标识。
 
-### 4.3 常见问题的分层定位
+### 5.3 常见问题的分层定位
 
 1. **graph 创建或执行失败**：先检查模型格式、backend 配置和 tensor，再确认 QNN 是否成功创建 context/graph；只有请求已进入 `libcdsprpc.so` 才继续向 FastRPC 层排查。
 2. **invoke 延迟异常或无应答**：依次核对 GVM ioctl、virtio queue、`vhost-user-frpc`、`fastrpc-rm` 和 GLink 的请求/完成事件，找出最后一个“请求已到达”的边界。
@@ -266,7 +436,7 @@ SA8397 提供四个 HTP/NSP 计算实例。GVM 将它们暴露为四个独立的
 4. **初始化或释放耗时过长**：分别观察 QNN context、FastRPC domain、PD 和 GLink endpoint 的生命周期，确认创建/销毁操作在 GVM 与 PVM 两侧是否成对完成。
 5. **PVM 本地 AI 与 GVM AI 相互影响**：两条路径在 PVM 的 GLink/NSP 资源层汇合，需要同时观察本地 `/dev/shm/lrmc_*` 客户端与 GVM vhost-user 客户端的并发和优先级。
 
-### 4.4 排查命令
+### 5.4 排查命令
 
 ```bash
 # GVM
@@ -282,7 +452,7 @@ adb -s <pvm-serial> shell "ls -l /dev/scmi_nsp*"                # 四颗 NSP 的
 adb -s <pvm-serial> shell "journalctl --since 'HH:MM' | grep -E 'FRPC|glink|nsp'"
 ```
 
-### 4.5 AI Stack 可靠性设计原则
+### 5.5 AI Stack 可靠性设计原则
 
 - **明确资源归属**：model、graph、QNN context、FastRPC domain 和 PD 的创建者同时负责销毁；跨线程或跨进程共享时必须定义所有权和释放顺序。
 - **有界等待**：graph execute、context teardown、domain deinit 和远端 completion 都应有 deadline、超时状态和上报路径，避免上层只能无限等待。
@@ -291,7 +461,7 @@ adb -s <pvm-serial> shell "journalctl --since 'HH:MM' | grep -E 'FRPC|glink|nsp'
 - **分层恢复**：恢复动作从 graph/context 重建、PD/domain reset、GLink endpoint 重建到虚拟机或整机恢复逐级升级，并明确每一级对其他 AI 业务的影响。
 - **端到端可观测性**：至少记录 graph/context 标识、目标 NSP、invoke 开始/完成、vhost-user context、PD/domain 和 GLink 子系统，使一次请求能够跨 GVM、PVM 和 DSP 关联。
 
-## 5. 关键组件速查表
+## 6. 关键组件速查表
 
 | 组件 | 位置 | 角色 |
 |---|---|---|
