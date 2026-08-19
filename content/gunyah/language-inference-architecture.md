@@ -1,5 +1,5 @@
 +++
-date = '2026-08-19T16:00:00+08:00'
+date = '2026-08-19T14:00:00+08:00'
 draft = false
 title = '语言推理技术原理与运行时框架'
 categories = ['AI', '语音', 'ASR', 'QNN', 'ONNX Runtime']
