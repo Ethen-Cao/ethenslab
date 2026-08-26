@@ -167,7 +167,68 @@ sd-bus 线程读取由 udev 线程保存的 `guestos_exit_reason`，再通过 `v
 
 udev 负责解释 Guest 退出原因；sd-bus 负责确认承载 VM 的 systemd unit 状态，两者共同构成状态机输入。
 
-## 6. systemd 集成
+## 6. GVM kernel panic 后的自动恢复时序
+
+在启用 `vmm_boot_lcm_enable` 和 minidump 的配置下，GVM kernel panic 会使旧的 qcrosvm 进程退出。PVM 不需要重启；`vmm-drv` 在完成 watchdog 事件通知和 Ramdump ACK 后，将 VM 转入 stopped 状态，再由 `vmm-boot-lcm` 请求启动新的 qcrosvm 实例。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant GVM as GVM Kernel
+    participant GH as Gunyah
+    participant QC as qcrosvm
+    participant SD as systemd
+    participant VMM as vmm-drv
+    participant RD as vmm-ramdump
+    participant LCM as vmm-boot-lcm
+
+    GVM->>GVM: Kernel panic
+    GVM-->>GH: Guest exits
+    GH-->>QC: vCPU exit reason
+    QC-->>SD: Old qcrosvm process exits
+    GH-->>VMM: destroy uevent with vm_exit
+    SD-->>VMM: qcrosvm.service failed
+    VMM->>VMM: Map exit to GVM_WDOG_BITE
+
+    par Ramdump callback
+        VMM->>RD: GVM_WDOG_BITE
+        RD->>GH: Read minidump from debugfs
+        GH-->>RD: Dump entries
+        RD->>RD: Create tar.gz archive
+        RD-->>VMM: NOTIF_ACK_MSG
+    and Lifecycle callback
+        VMM->>LCM: GVM_WDOG_BITE
+        LCM-->>VMM: NOTIF_ACK_MSG
+    end
+    Note over VMM,RD: Wait for all subscribed client ACKs
+
+    VMM->>VMM: VM_HANG to VM_PRE_RESTART to VM_STOPPED
+    VMM->>LCM: GVM_EVENT_DOWN
+    LCM-->>VMM: NOTIF_ACK_MSG
+    LCM->>LCM: Check la_misc and retry counter
+    LCM->>VMM: VM_CONTROL_START
+    VMM->>SD: StartUnit(qcrosvm.service)
+    SD->>QC: Start new qcrosvm process
+    QC->>GH: Create GVM
+    SD-->>VMM: ActiveState active and SubState running
+    VMM->>VMM: VM_HEALTHY
+    VMM->>LCM: GVM_EVENT_UP
+    LCM-->>VMM: NOTIF_ACK_MSG
+    GH->>GVM: Boot firmware, kernel and userspace
+    GVM->>GVM: Android boot completes
+
+    Note over SD,LCM: PVM remains running throughout recovery
+```
+
+这里有三个需要区分的完成点：
+
+1. `vmm-ramdump` 返回 ACK，表示 minidump 已归档，VMM 可以继续执行状态转换。
+2. `VM_HEALTHY` 表示新 qcrosvm unit 已进入 active/running，并不表示 Android userspace 已完成启动。
+3. Android 的 `sys.boot_completed=1` 才表示 Guest userspace 完成启动。
+
+当前 `qcrosvm.service` 使用 `Restart=no`。因此新 qcrosvm 不是由 systemd 的自动重启策略拉起，而是 `vmm-boot-lcm` 收到 `GVM_EVENT_DOWN` 后发送 `VM_CONTROL_START`，再由 `vmm-drv` 调用 systemd `StartUnit()` 显式启动。
+
+## 7. systemd 集成
 
 `vmm_drv.service` 使用 `Type=notify`，主进程完成初始化后调用 `sd_notify("READY=1")`。
 
@@ -195,7 +256,7 @@ systemd-modules-load.service + tmp.mount
 
 关机时，systemd 在进入 `shutdown.target` 前停止 `vmm_drv`。服务关闭监听 socket 并移除 Unix socket 路径；启用重连功能的客户端在连接断开后重新连接。
 
-## 7. 相关文档
+## 8. 相关文档
 
 - [VMM Service 架构总览](vmm-service-architecture.md)
 - [VMM Service 配置](vmm-service-configuration.md)
