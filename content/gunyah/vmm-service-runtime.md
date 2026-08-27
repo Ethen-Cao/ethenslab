@@ -126,6 +126,21 @@ VM_HEALTHY
 | `VMM_SM_EVENT_CTRL_STOP_GVM` | IPC client | 外部停止命令 |
 | `VMM_SM_EVENT_CTRL_START_GVM` | IPC client | 外部启动命令 |
 
+`guestos_exit_reason_t` 定义了 8 个有效退出原因（不含 `GUESTOS_EXIT_CAUSE_MAX` 哨兵），但 `vmm_convert_vm_exit_reason_to_sm_event()` 只对其中 4 个提供了显式映射：
+
+| Guest 退出原因 | 状态机事件 | 映射方式 |
+|----------------|------------|----------|
+| `GUESTOS_EXIT_CAUSE_SHUTDOWN` | `VMM_SM_EVENT_GVM_SHUTDOWN_SELF` | 显式分支 |
+| `GUESTOS_EXIT_CAUSE_RESTART` | `VMM_SM_EVENT_GVM_RESTART_SELF` | 显式分支 |
+| `GUESTOS_EXIT_CAUSE_NSWD` | `VMM_SM_EVENT_GVM_WDOG_BITE` | 显式分支 |
+| `GUESTOS_EXIT_CAUSE_HYP_ERR` | `VMM_SM_EVENT_GUNYA_HYP_ERR` | 显式分支 |
+| `GUESTOS_EXIT_CAUSE_UNKNOWN` | `VMM_SM_EVENT_QCROSVM_CONTAINER_CRASH` | `default` 分支 |
+| `GUESTOS_EXIT_CAUSE_PANIC` | `VMM_SM_EVENT_QCROSVM_CONTAINER_CRASH` | `default` 分支 |
+| `GUESTOS_EXIT_CAUSE_ASYNC_EXT_ABORT` | `VMM_SM_EVENT_QCROSVM_CONTAINER_CRASH` | `default` 分支 |
+| `GUESTOS_EXIT_CAUSE_FORCE_STOP` | `VMM_SM_EVENT_QCROSVM_CONTAINER_CRASH` | `default` 分支 |
+
+因此，公共状态机事件只能单独识别 shutdown、restart、watchdog 和 hypervisor error；panic、异步外部异常、强制停止及未知原因都会被收敛为通用的 qcrosvm container crash。若客户端需要保留原始退出原因，必须扩展 VMM 通知消息，不能仅依赖现有 `event` 字段。
+
 ### 4.3 主循环
 
 ```text
