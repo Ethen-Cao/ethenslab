@@ -662,8 +662,8 @@ vendor/qcom/proprietary/audio-service/
 
 ## 15. 相关文档
 
-- [Gunyah VMM Service IPC 与客户端模型](vmm-service-ipc.md)
-- [Gunyah VMM Service 运行时架构](vmm-service-runtime.md)
-- [PVM 图形栈](pvm-graphics-stack.md)
+- [Gunyah VMM Service IPC 与客户端模型]({{< relref "vmm-service-ipc.md" >}})
+- [Gunyah VMM Service 运行时架构]({{< relref "vmm-service-runtime.md" >}})
+- [PVM 图形栈]({{< relref "pvm-graphics-stack.md" >}})
 
 `pm-notify` 与 VMM Service 都使用本地 IPC，但两者协议、服务端和生命周期完全独立。不要把 `/run/qcom_pm/*.sock` 与 VMM control/event socket 混用。
