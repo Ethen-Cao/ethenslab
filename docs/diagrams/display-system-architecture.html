@@ -1,0 +1,1252 @@
+<!doctype html>
+<html lang="zh-CN" data-visualize-standalone>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Display 系统架构</title>
+<style>:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 14px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, "Segoe UI", sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --icon-size: 16px;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --corner-shape: round;
+  --radius: var(--border-radius-lg, 10px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 17'%3E%3Cpath d='M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z'/%3E%3C/svg%3E");
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html > body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: var(--visualize-paint-gutter, 0px);
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium, 500);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive > .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align="right"]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align="center"]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: var(--corner-shape);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget > :not(.card, .progress) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+hr {
+  width: 100%;
+  height: 1px;
+  margin-block: 6px;
+  border: 0;
+  background: var(--border);
+}
+
+.nav {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress {
+  display: flex;
+  height: 8px;
+  margin-block: calc((var(--line-height-normal, 1.5em) - 8px) / 2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.progress-bar:only-child {
+  border-radius: var(--radius-full);
+}
+
+.progress-bar {
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: var(--viz-series-1);
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls > .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls > .form-label > :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.nav-link,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn,
+.nav-link {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover,
+.nav-link:not(:disabled):not([aria-disabled="true"]):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.nav-pills .nav-link {
+  min-width: 0;
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.nav-justified .nav-link {
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.nav-pills .nav-link.active {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.btn:disabled,
+.nav-link:disabled,
+.nav-link[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type="file"] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type="file"]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type="file"]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type="color"] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: var(--corner-shape);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type="checkbox"]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: "";
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type="radio"]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: "";
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+  [aria-pressed="true"],
+  [aria-selected="true"],
+  .is-selected
+) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed="true"], [aria-selected="true"], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible,
+.nav-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .btn,
+  .nav-link,
+  .form-control,
+  .form-select {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Keep small-screen WebKit from zooming when a text field receives focus. */
+  .form-control,
+  .form-select {
+    font-size: max(16px, var(--font-size-normal));
+  }
+
+  .form-control[type="file"]::file-selector-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .form-control-color[type="color"] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .form-control:is(
+    [type="date"],
+    [type="datetime-local"],
+    [type="month"],
+    [type="time"],
+    [type="week"]
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    padding-block: 8px;
+  }
+
+  .form-check {
+    min-height: 44px;
+    padding-inline: 15px;
+  }
+
+  .form-check-input {
+    position: relative;
+  }
+
+  .form-check-input::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    content: "";
+    transform: translate(-50%, -50%);
+  }
+
+  .form-check-label {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .form-range {
+    height: 44px;
+    touch-action: pan-y;
+  }
+
+  .form-range::-webkit-slider-runnable-track {
+    height: 44px;
+  }
+
+  .form-range::-moz-range-track {
+    height: 44px;
+  }
+
+  .form-range::-webkit-slider-thumb {
+    margin-top: 12px;
+  }
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget > svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: var(--icon-size) !important;
+  height: var(--icon-size) !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html>body{padding:0;display:flow-root}</style>
+</head>
+<body>
+<div id="display-architecture">
+  <style>
+    #display-architecture { width:100%; position:relative; display:flow-root; }
+    #display-architecture .legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin:12px 0; }
+    #display-architecture .key { display:inline-flex; align-items:center; gap:7px; }
+    #display-architecture .swatch { width:24px; height:0; border-top:2px solid currentColor; }
+    #display-architecture .video { color:var(--viz-series-6); }
+    #display-architecture .control { color:var(--viz-series-5); }
+    #display-architecture .power { color:var(--viz-series-2); }
+    #display-architecture .unknown { border-top-style:dashed; }
+    #display-architecture .selection { margin:12px 0 18px; min-height:4em; }
+    #display-architecture .stage { position:relative; width:100%; }
+    #display-architecture .wires { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+    #display-architecture .node { position:absolute; }
+    #display-architecture .domain { position:absolute; left:0; right:0; padding-top:10px; border-top:1px solid var(--border); font-weight:500; }
+    #display-architecture .domain-label { background:var(--background); padding-right:8px; }
+    #display-architecture .wires .connection { fill:none; stroke-width:1.5; }
+    #display-architecture .wires .uncertain { stroke-dasharray:5 4; }
+    #display-architecture .wires text { fill:var(--foreground); font-size:var(--font-size-small); stroke:var(--background); stroke-width:5; paint-order:stroke; stroke-linejoin:round; }
+    #display-architecture .mobile { display:none; }
+    #display-architecture .mobile section { margin:24px 0; }
+    #display-architecture .mobile-chain { display:grid; gap:0; }
+    #display-architecture .mobile-link { text-align:center; margin:7px 0; }
+    #display-architecture .mobile-link .uncertain-line { text-decoration:underline dashed; text-underline-offset:5px; }
+    @media (max-width:599px) {
+      #display-architecture .stage { display:none; }
+      #display-architecture .mobile { display:block; }
+      #display-architecture .selection { min-height:0; }
+    }
+  </style>
+  <h2>Display 系统架构</h2>
+  <div class="text-small text-muted">仪表主显示链路 · 背光控制 · 供电使能</div>
+  <div class="legend text-small" aria-label="连线图例">
+    <span class="key"><span class="swatch video"></span>视频数据</span>
+    <span class="key"><span class="swatch control"></span>请求 / 状态</span>
+    <span class="key"><span class="swatch power"></span>使能 / 供电 / 照明</span>
+    <span class="key"><span class="swatch unknown"></span>屏内连接依具体设计</span>
+  </div>
+  <div class="selection" role="status" aria-live="polite" aria-atomic="true">
+    <span id="display-detail-title"></span><br>
+    <span id="display-detail-text" class="text-small"></span>
+  </div>
+  <div class="stage" aria-label="Display 系统架构。点击组件查看职责及检测边界。">
+    <svg class="wires" aria-hidden="true"></svg>
+  </div>
+  <div class="mobile" aria-label="按路径排列的 Display 系统架构"></div>
+  <script>
+  (() => {
+    const root = document.getElementById('display-architecture');
+    const stage = root.querySelector('.stage');
+    const svg = root.querySelector('.wires');
+    const mobile = root.querySelector('.mobile');
+    const title = root.querySelector('#display-detail-title');
+    const description = root.querySelector('#display-detail-text');
+    const ns = 'http://www.w3.org/2000/svg';
+    const nodes = [
+      {id:'app', c:0, y:70, lines:['仪表应用','LVGL / EGL'], detail:'应用生成像素 Buffer，并通过 Wayland 提交到 Surface。源像素采样可以发现渲染结果中的黑内容与部分花屏特征。'},
+      {id:'guest', c:1, y:70, lines:['GVM 显示后端（PVM）','接收 Guest 显示请求','独立 OpenWFD client'], detail:'位于 PVM 的 Guest 显示后端使用独立 OpenWFD pipeline，绕过 Weston。该路径的内容不在 Weston 源像素探针的采样范围内。'},
+      {id:'policy', c:2, y:70, lines:['电源策略','电源状态 / 亮灭意图'], detail:'根据电源状态与车辆显示策略生成亮灭意图。检测器以该意图为输入，区分应显示、允许黑场和预期未知。'},
+      {id:'weston', c:0, y:190, lines:['Weston / IVI / SDM','布局 · Buffer · fence','GPU 合成 / 硬件 overlay'], detail:'IVI、SDM 与 GL renderer 位于 Weston 进程内。SDM 选择 GPU 合成或硬件 overlay；源采样观察应用内容，布局检查观察显隐和层级。'},
+      {id:'brightness', c:2, y:190, lines:['背光策略','亮灭意图 / 亮度目标'], detail:'将亮灭意图转换为背光目标：关闭时目标置零，开启时恢复目标亮度。背光目标为零不等于切断屏总成主电源。'},
+      {id:'client', c:0, y:325, lines:['DRM-FE','OpenWFD client'], detail:'接收 SDM 提交，将显示配置与 Buffer 交给 OpenWFD。需关联提交序号与完成反馈；反馈不等于像素正确。'},
+      {id:'ipc', c:2, y:325, lines:['通信与状态分发','请求下发 / 状态上报'], detail:'将背光目标经 SPI 发给座舱 MCU，并向策略服务分发 MCU 上报的状态。接收确认、硬件状态和实测亮度应使用不同字段。'},
+      {id:'server', c:0, y:445, lines:['OpenWFD server','显示资源 / pipeline'], detail:'PVM 中的 OpenWFD 服务进程管理显示资源与 pipeline，加载用户态显示桥接驱动并驱动 DPU。独立客户端可在 Weston 合成域之外叠加内容。'},
+      {id:'driver', c:1, y:445, lines:['显示桥接驱动','OpenWFD server 进程内','用户态 OEM 模块'], detail:'作为 OpenWFD 服务进程内的用户态 OEM 模块提供回调，通过 I²C 配置本地串行器、读取诊断状态，通过 GPIO 控制其供电使能和 PDB（掉电控制）。这一路控制本地器件，不代表面板已上电。'},
+      {id:'dpu', c:0, y:590, lines:['SoC 显示控制器','DPU / DP 输出'], detail:'DPU 从 Buffer 取数、缩放、混合并扫描输出。源像素正常时，取数、格式或混合配置错误仍可能在这一阶段产生异常。'},
+      {id:'mcu', c:2, y:590, lines:['座舱 MCU','SPI / CAN / GPIO'], detail:'通过 SPI 接收 PVM 请求并上报状态，经 CAN 下发背光调节报文，经 GPIO 控制远端屏使能输出。三种接口承担不同职责。'},
+      {id:'ser', c:0, y:725, lines:['本地串行器','DP 输入 / FPD-Link 输出'], detail:'将 DP 视频送往远端屏，并维护链路、视频同步等状态寄存器。I²C 可读取诊断状态，不能读取实体屏是否发光或像素是否正确。'},
+      {id:'enable', c:1, y:725, lines:['远端屏使能输出','MCU 硬线控制'], detail:'将 MCU 的控制信号送往屏端使能接口。输出端已使能只能证明控制意图已执行到这里，屏端供电仍需电源正常标志或实测电压确认。'},
+      {id:'can', c:2, y:725, lines:['座舱 CAN 收发器','发送背光调节报文'], detail:'座舱 MCU 经 CAN 收发器和总线向屏端发送背光调节报文。此处画出请求路径；屏端反馈需按协议字段的来源和含义另行接入。'},
+      {id:'des', c:0, y:945, lines:['屏端解串器','接收 FPD-Link 视频'], detail:'将串行视频转换为面板侧接口。通用示例包括 OpenLDI（基于 LVDS）、eDP、MIPI DSI，另有并行 RGB；接口类型取决于解串器输出与 TCON／面板输入的匹配。'},
+      {id:'screen-can', c:2, y:945, lines:['屏端 CAN 接收器','接收背光调节报文'], detail:'接收座舱 MCU 通过 CAN 总线发送的背光调节报文，将请求交给屏内背光控制。屏内报文解析与背光驱动实现未展开。'},
+      {id:'panel', c:0, y:1055, lines:['TCON / 面板','像素时序与显示'], detail:'此处按功能分解屏内显示链路，不指定芯片或接口。检测需要初始化、复位、刷新及电源等反馈；上游正常不能证明面板显示正确。'},
+      {id:'screenpower', c:1, y:1055, lines:['屏内供电 / 复位','电源轨与上电时序'], detail:'屏内电路执行电源轨控制、面板复位和上电时序。图中虚线按功能表示关系，具体接法取决于屏端电路；检测需要电源正常标志、故障位及实际复位状态。'},
+      {id:'backlight', c:2, y:1055, lines:['背光执行 / 灯串','根据 CAN 请求调节亮度'], detail:'屏端依据 CAN 请求调节背光，为面板提供照明。诊断需要使能与调光输入、驱动保护状态、灯串开短路等反馈；命令值不能代替实测值。'}
+    ];
+    const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+    let selected = 'app';
+    const selectNode = id => {
+      selected = id;
+      const n = byId[id];
+      title.textContent = n.lines[0];
+      description.textContent = n.detail;
+      root.querySelectorAll('button[data-node]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.node === id)));
+    };
+    const makeButton = id => {
+      const n = byId[id];
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn btn-block'; b.dataset.node = id;
+      b.setAttribute('aria-pressed', String(id === selected));
+      b.setAttribute('aria-label', n.lines.join('，') + '。查看职责及检测边界');
+      const label = document.createElement('span');
+      n.lines.forEach((line, i) => {
+        if (i) label.appendChild(document.createElement('br'));
+        const s = document.createElement('span');
+        if (i) s.className = 'text-small';
+        s.textContent = line; label.appendChild(s);
+      });
+      b.appendChild(label); b.addEventListener('click', () => selectNode(id));
+      return b;
+    };
+    nodes.forEach(n => {
+      const el = document.createElement('div'); el.className = 'node'; el.dataset.box = n.id;
+      el.appendChild(makeButton(n.id)); stage.appendChild(el); n.el = el;
+    });
+    const domains = [['PVM · 渲染与显示服务',0],['座舱硬件 · SoC 输出与外部接口',540],['仪表屏总成 · 内部按功能划分',900]];
+    domains.forEach(([text,y]) => {
+      const el = document.createElement('div'); el.className='domain'; el.style.top=y+'px';
+      const label=document.createElement('span');label.className='domain-label';label.textContent=text;el.appendChild(label);stage.appendChild(el);
+    });
+    const mobileFlows = [
+      {title:'视频数据路径',kind:'video',ids:['app','weston','client','server','dpu','ser','des','panel'],links:['Wayland · Buffer / fence','SDM Commit','显示提交','扫描配置','DP','FPD-Link','屏内视频接口（如 LVDS / eDP / MIPI DSI）']},
+      {title:'独立显示路径',kind:'video',ids:['guest','server'],links:['独立 pipeline；在此汇入显示输出']},
+      {title:'背光请求与状态',kind:'control',ids:['policy','brightness','ipc','mcu','can','screen-can','backlight'],links:['亮灭策略','目标 / CAN 状态事件','SPI：请求下发 / 状态上报','CAN 背光请求','CAN 总线','背光调节请求'],both:[1,2]},
+      {title:'远端屏使能',kind:'power',ids:['mcu','enable','screenpower','panel'],links:['GPIO 输出使能','屏端使能接口','供电 / 复位，接法依屏端设计'],unknown:[1,2]},
+      {title:'本地串行器控制',kind:'control',ids:['server','driver','ser'],links:['进程内回调','I²C 配置 / 状态；GPIO 供电使能 / PDB']},
+      {title:'屏内背光供电',kind:'power',ids:['screenpower','backlight'],links:['供电，接法依屏端设计'],unknown:[0]},
+      {title:'背光与面板',kind:'power',ids:['backlight','panel'],links:['照明']}
+    ];
+    mobileFlows.forEach(flow => {
+      const section=document.createElement('section'); const h=document.createElement('h3'); h.textContent=flow.title; section.appendChild(h);
+      const chain=document.createElement('div'); chain.className='mobile-chain';
+      flow.ids.forEach((id,i) => {
+        chain.appendChild(makeButton(id));
+        if(i<flow.links.length){
+          const link=document.createElement('div'); link.className='mobile-link text-small';
+          const arrow=document.createElement('span'); arrow.className=flow.kind; arrow.textContent=(flow.both||[]).includes(i)?'↕ ':'↓ '; link.appendChild(arrow);
+          const label=document.createElement('span'); label.textContent=flow.links[i];
+          if((flow.unknown||[]).includes(i)) label.className='uncertain-line';
+          link.appendChild(label); chain.appendChild(link);
+        }
+      });section.appendChild(chain);mobile.appendChild(section);
+    });
+    function element(tag, attrs, text) {
+      const e=document.createElementNS(ns,tag); Object.entries(attrs||{}).forEach(([k,v])=>e.setAttribute(k,String(v)));
+      if(text !== undefined)e.textContent=text; return e;
+    }
+    function draw(){
+      const w=stage.clientWidth; if(!w)return;
+      const nw=Math.min(202,(w-96)/3), centers=[12+nw/2,w/2,w-12-nw/2];
+      stage.style.height='1190px';
+      nodes.forEach(n=>{n.el.style.width=nw+'px';n.el.style.left=(centers[n.c]-nw/2)+'px';n.el.style.top=n.y+'px';});
+      svg.replaceChildren();svg.setAttribute('viewBox',`0 0 ${w} 1190`);
+      const defs=element('defs'); const colors={video:'var(--viz-series-6)',control:'var(--viz-series-5)',power:'var(--viz-series-2)'};
+      Object.entries(colors).forEach(([k,col])=>{
+        const marker=element('marker',{id:`display-arrow-${k}`,viewBox:'0 0 8 8',refX:7,refY:4,markerWidth:6,markerHeight:6,orient:'auto-start-reverse'});
+        marker.appendChild(element('path',{d:'M 0 0 L 8 4 L 0 8 Z',fill:col}));defs.appendChild(marker);
+      });svg.appendChild(defs);
+      const lines=element('g'),labels=element('g');svg.append(lines,labels);
+      const box=id=>{const n=byId[id];return{x:centers[n.c]-nw/2,y:n.y,w:nw,h:n.el.offsetHeight,cx:centers[n.c]};};
+      const point=(id,side,offset=0)=>{const b=box(id);return side==='t'?[b.cx+offset,b.y-3]:side==='b'?[b.cx+offset,b.y+b.h+3]:side==='l'?[b.x-3,b.y+b.h/2+offset]:[b.x+b.w+3,b.y+b.h/2+offset];};
+      const line=(pts,kind='video',unknown=false,both=false,id)=>{
+        const p=element('path',{d:pts.map((p,i)=>(i?'L':'M')+p[0]+' '+p[1]).join(' '),class:'connection'+(unknown?' uncertain':''),stroke:colors[kind],'marker-end':`url(#display-arrow-${kind})`});
+        if(id)p.dataset.connection=id;
+        if(both)p.setAttribute('marker-start',`url(#display-arrow-${kind})`);lines.appendChild(p);
+      };
+      const label=(x,y,text,anchor='middle')=>{
+        const t=element('text',{x,y,'text-anchor':anchor});
+        if(Array.isArray(text))text.forEach((s,i)=>t.appendChild(element('tspan',{x,dy:i?'1.4em':0},s)));
+        else t.textContent=text;
+        labels.appendChild(t);
+      };
+      const down=(a,b,text,kind='video',unknown=false,both=false)=>{const p=point(a,'b'),q=point(b,'t');line([p,q],kind,unknown,both,a+'-'+b);if(text)label(p[0],(p[1]+q[1])/2-(Array.isArray(text)?15:6),text);};
+      down('app','weston','Wayland · Buffer / fence');
+      down('weston','client','SDM Commit'); down('client','server','显示提交');
+      down('server','dpu','扫描配置');down('dpu','ser','DP');
+      down('ser','des','FPD-Link');down('des','panel',['屏内视频接口','如 LVDS / eDP / MIPI DSI']);
+      down('policy','brightness','亮灭策略','control');
+      down('brightness','ipc','目标 / 状态事件','control',false,true);
+      down('ipc','mcu','SPI：请求 / 状态','control',false,true);
+      down('mcu','can','CAN 背光请求','control');
+      down('can','screen-can','CAN 总线','control');
+      down('screen-can','backlight','背光调节请求','control');
+      const guestStart=point('guest','b'),serverRight=point('server','r',-7),rail=(box('server').x+nw+box('driver').x)/2;
+      line([guestStart,[guestStart[0],410],[rail,410],[rail,serverRight[1]],serverRight]);label(guestStart[0],280,'独立 pipeline');
+      const callbackStart=point('server','r',12),callbackEnd=point('driver','l',12);
+      line([callbackStart,[rail,callbackStart[1]],[rail,callbackEnd[1]],callbackEnd],'control',false,false,'server-driver');
+      label(rail,Math.min(callbackStart[1],callbackEnd[1])-8,'回调');
+      const ib=point('driver','b',-62),sr=point('ser','r',-16);
+      line([ib,[ib[0],670],[rail-6,670],[rail-6,sr[1]],sr],'control',false,true,'driver-ser-i2c');label(ib[0]-8,642,'I²C','end');
+      const gb=point('driver','b',-32),pr=point('ser','r',4);
+      line([gb,[gb[0],695],[rail+6,695],[rail+6,pr[1]],pr],'power',false,false,'driver-ser-gpio');label(gb[0]+10,683,'使能 / PDB','start');
+      const ml=point('mcu','l'),et=point('enable','t',70);
+      line([ml,[et[0],ml[1]],et],'power');label(et[0]+12,660,'输出使能','start');
+      const er=point('enable','r'),spt=point('screenpower','t',40),ex=(box('enable').x+nw+box('can').x)/2;
+      line([er,[ex,er[1]],[ex,989],[spt[0],989],spt],'power',true);label(ex-9,1018,'屏端使能接口','end');
+      const pp=point('screenpower','l'),pa=point('panel','r');
+      line([pp,pa],'power',true);label((pp[0]+pa[0])/2,1041,'供电 / 复位');
+      const bp=point('screenpower','r'),bl=point('backlight','l');
+      line([bp,bl],'power',true);label((bp[0]+bl[0])/2,1041,'供电');
+      const bb=point('backlight','b'),pb=point('panel','b');
+      line([bb,[bb[0],1157],[pb[0],1157],pb],'power');label(w/2,1150,'照明');
+    }
+    selectNode(selected);
+    new ResizeObserver(draw).observe(stage);
+    draw();
+    if(document.fonts)document.fonts.ready.then(draw);
+  })();
+  </script>
+</div>
+<script>
+(() => {
+  if (window.parent === window) return;
+  const root = document.getElementById('display-architecture');
+  const reportHeight = () => window.parent.postMessage({
+    type: 'display-architecture-height',
+    height: Math.ceil(root.getBoundingClientRect().bottom + window.scrollY + 16)
+  }, '*');
+  window.addEventListener('message', event => {
+    if (event.source !== window.parent || event.data?.type !== 'display-architecture-theme') return;
+    const { theme, background, foreground } = event.data;
+    if (theme !== 'light' && theme !== 'dark') return;
+    document.documentElement.style.colorScheme = theme;
+    if (typeof background === 'string' && CSS.supports('color', background))
+      document.documentElement.style.setProperty('--background', background);
+    if (typeof foreground === 'string' && CSS.supports('color', foreground))
+      document.documentElement.style.setProperty('--foreground', foreground);
+    requestAnimationFrame(reportHeight);
+  });
+  new ResizeObserver(reportHeight).observe(root);
+  if (document.fonts) document.fonts.ready.then(reportHeight);
+  reportHeight();
+})();
+</script>
+</body>
+</html>
