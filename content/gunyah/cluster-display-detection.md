@@ -178,6 +178,50 @@ flowchart TB
 
 首版选择**源内容采样 + 基本布局检查 + 串行器快速状态采样**。输出执行反馈可用于后续定位补充；最终输出回读和屏端诊断须先验证接口，不计入首版覆盖。
 
+```mermaid
+flowchart TD
+    App["仪表应用 / LVGL<br/>处理车速、挡位等数据"]
+    Source["EGL / GPU 渲染<br/>生成源像素 Buffer"]
+    Weston["Wayland commit<br/>Weston 持有并导入<br/>目标 Surface 的 Buffer"]
+    Layout["IVI 管理位置、显隐和层级<br/>SDM Prepare 选择合成方式"]
+    Overlay["硬件 overlay<br/>使用应用 Buffer"]
+    Compose["GPU 合成<br/>生成新的合成 Buffer"]
+    Submit["SDM Commit<br/>DRM-FE → OpenWFD"]
+    DPU["DPU<br/>取数 / 缩放 / 混合<br/>扫描输出"]
+    Ser["本地串行器<br/>DP 视频输入 / 诊断状态"]
+    Des["屏端解串器<br/>接收并转换视频"]
+    Panel["TCON / 面板<br/>形成可见画面"]
+    Light["背光执行 / 灯串"]
+
+    App --> Source --> Weston --> Layout
+    Layout --> Overlay --> Submit
+    Layout --> Compose --> Submit
+    Submit --> DPU
+    DPU -->|"DP 视频"| Ser
+    Ser -->|"FPD-Link"| Des
+    Des -->|"屏内视频接口"| Panel
+    Light -->|"照明"| Panel
+
+    PA["探针 A · Weston 进程内<br/>源黑内容 / 疑似花屏<br/>布局异常"]
+    PB["探针 B<br/>OpenWFD 服务进程内<br/>视频同步 / 链路状态<br/>锁定寄存器原值"]
+    Health["独立监督进程<br/>探针停滞 / 有效样本缺失"]
+
+    Weston -. "源 fence 就绪后<br/>异步缩采样" .-> PA
+    Layout -. "逐轮独立检查布局" .-> PA
+    Ser -. "I²C 读取状态寄存器" .-> PB
+    PA -. "循环与有效采样时间" .-> Health
+    PB -. "循环与有效采样时间" .-> Health
+
+    classDef probe fill:#e7f3ff,stroke:#2878bd,color:#183b56,stroke-width:2px;
+    class PA,PB probe;
+```
+
+*图 4：首版探针在显示链路中的位置。实线为显示路径，虚线为检测数据与健康快照。*
+
+- **探针 A 看源内容和布局。** 采样对象是应用源 Buffer，采样 fence 完成后结合显示预期判定内容；布局检查独立执行。硬件 overlay 路径仍需确认源纹理可读，不能用“没有 GPU 重画”作为停采条件。
+- **探针 B 看传输状态。** 检测线程位于 OpenWFD 服务进程的显示桥接驱动内，经本地串行器读取视频同步、链路状态及锁定寄存器原值；锁定位定义确认后才参与判定。它不读取最终像素，也不测量背光。
+- **监督进程看探针是否持续工作。** 两处探针发布循环进展和有效采样时间；超时记录健康异常，不能当作画面正常或已确认黑屏。
+
 | 修改位置 | 最小改动 |
 |---|---|
 | Weston `gl-renderer-internal.h`、`gl-renderer.c` | 增加采样状态、200 ms timer、异步完成回调和统计；采样时关联基本布局状态 |
