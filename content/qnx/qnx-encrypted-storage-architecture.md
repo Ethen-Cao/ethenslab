@@ -32,157 +32,150 @@ TocOpen = false
 
 ## 2. 软件架构图
 
-上层将 **QNX host 与 Android guest 左右并列**，下层依次为 **Hypervisor** 与 **Hardware**。虚线表示加密控制通路，实线表示块数据请求通路；箭头只展示 Android 发起请求的方向，应答和读数据沿相反方向返回。
+上层将 **QNX host 与 Android guest 左右并列**，下层依次为 **Hypervisor** 与 **Hardware**。虚线表示加密控制与生命周期操作，实线表示数据请求通路；箭头展示请求发起方向，应答和读数据的返回方向未展开。
 
 <figure id="qnx-storage-architecture" aria-labelledby="qsa-caption">
 <style>
-#qnx-storage-architecture { margin: 28px 0; }
-#qnx-storage-architecture * { box-sizing: border-box; }
-#qnx-storage-architecture .qsa-scroll { overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 14px; background: #f8fafc; }
-#qnx-storage-architecture .qsa-canvas { min-width: 820px; padding: 22px; color: #172b45; font: 14px/1.5 system-ui, -apple-system, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
-#qnx-storage-architecture .qsa-intro { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 16px; }
-#qnx-storage-architecture .qsa-title { font-size: 18px; font-weight: 750; }
-#qnx-storage-architecture .qsa-legend { display: flex; gap: 20px; color: #475569; font-size: 12px; }
-#qnx-storage-architecture .qsa-legend span { display: flex; align-items: center; gap: 7px; }
-#qnx-storage-architecture .qsa-sample { width: 28px; border-top: 2px solid #c2410c; }
-#qnx-storage-architecture .qsa-sample-control { border-top: 2px dashed #2563eb; }
-#qnx-storage-architecture .qsa-os-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
-#qnx-storage-architecture .qsa-os { overflow: hidden; border: 1px solid #b8cde2; border-radius: 10px; background: #fff; }
-#qnx-storage-architecture .qsa-os-head { display: flex; align-items: center; justify-content: space-between; padding: 15px 18px; background: #eaf2fb; border-bottom: 1px solid #cbddec; }
-#qnx-storage-architecture .qsa-os-head strong { color: #123c63; font-size: 26px; letter-spacing: 0.02em; }
-#qnx-storage-architecture .qsa-os-head span { color: #42627d; font-size: 13px; }
-#qnx-storage-architecture .qsa-android { border-color: #b8d7cb; }
-#qnx-storage-architecture .qsa-android .qsa-os-head { background: #eaf5ef; border-color: #c3dfd0; }
-#qnx-storage-architecture .qsa-android .qsa-os-head strong { color: #176048; }
-#qnx-storage-architecture .qsa-android .qsa-os-head span { color: #426a5d; }
-#qnx-storage-architecture .qsa-modules { display: grid; grid-template-rows: minmax(116px, auto) minmax(150px, auto) minmax(130px, auto); gap: 10px; padding: 14px; }
-#qnx-storage-architecture .qsa-module { padding: 12px 14px; border: 1px solid #d8e1eb; border-radius: 7px; background: #f8fafc; }
-#qnx-storage-architecture .qsa-label { margin-bottom: 5px; color: #5c6f83; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
-#qnx-storage-architecture .qsa-name { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
-#qnx-storage-architecture .qsa-detail { margin-top: 5px; color: #516377; font-size: 12px; line-height: 1.5; }
-#qnx-storage-architecture .qsa-control { border-left: 3px dashed #2563eb; background: #f3f7ff; }
-#qnx-storage-architecture .qsa-data { border-left: 3px solid #c2410c; background: #fff8f2; }
-#qnx-storage-architecture .qsa-split { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-#qnx-storage-architecture .qsa-split .qsa-module { padding: 10px; }
-#qnx-storage-architecture .qsa-split .qsa-name { font-size: 13px; }
-#qnx-storage-architecture .qsa-routes { margin: 14px 0 18px; padding: 12px 16px; border: 1px solid #d8e1eb; border-radius: 8px; background: #fff; }
-#qnx-storage-architecture .qsa-route { display: grid; grid-template-columns: 1fr 230px 1fr; gap: 15px; align-items: center; text-align: center; }
-#qnx-storage-architecture .qsa-route + .qsa-route { margin-top: 12px; }
-#qnx-storage-architecture .qsa-endpoint { font-size: 12px; font-weight: 650; }
-#qnx-storage-architecture .qsa-bus { color: #2563eb; font-size: 12px; font-weight: 650; }
-#qnx-storage-architecture .qsa-bus-line { position: relative; display: block; margin-top: 5px; border-top: 2px dashed currentColor; }
-#qnx-storage-architecture .qsa-bus-line::before { content: ""; position: absolute; left: -1px; top: -5px; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-right: 8px solid currentColor; }
-#qnx-storage-architecture .qsa-data-bus { color: #c2410c; }
-#qnx-storage-architecture .qsa-data-bus .qsa-bus-line { border-top-style: solid; }
-#qnx-storage-architecture .qsa-layer { padding: 16px 18px; border: 1px solid #b8c4d7; border-radius: 10px; }
-#qnx-storage-architecture .qsa-layer-head { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; }
-#qnx-storage-architecture .qsa-layer-head strong { font-size: 22px; letter-spacing: 0.01em; }
-#qnx-storage-architecture .qsa-layer-head span { font-size: 12px; color: #52617a; }
-#qnx-storage-architecture .qsa-hypervisor { background: #edf0fa; border-color: #bec8e5; }
-#qnx-storage-architecture .qsa-capabilities { display: flex; gap: 8px; margin-top: 12px; }
-#qnx-storage-architecture .qsa-capabilities span { flex: 1; padding: 7px 5px; text-align: center; border: 1px solid #d1d8ea; border-radius: 5px; background: #fff; font-size: 12px; }
-#qnx-storage-architecture .qsa-divider { height: 18px; margin: 0 28px; border-left: 1px solid #c3ccd9; border-right: 1px solid #c3ccd9; }
-#qnx-storage-architecture .qsa-hardware { background: #f4f1eb; border-color: #d8d0c1; }
-#qnx-storage-architecture .qsa-hw-grid { display: grid; grid-template-columns: 1fr 1.25fr 28px 1fr; align-items: stretch; gap: 10px; margin-top: 12px; }
-#qnx-storage-architecture .qsa-hw-grid .qsa-module { background: #fff; border-color: #ded6c7; }
-#qnx-storage-architecture .qsa-hw-arrow { align-self: center; text-align: center; color: #c2410c; font-size: 23px; }
-#qnx-storage-architecture .qsa-note { margin-top: 13px; color: #52617a; font-size: 12px; line-height: 1.6; }
-#qnx-storage-architecture figcaption { margin-top: 9px; font-size: 13px; line-height: 1.6; color: inherit; opacity: 0.8; text-align: left; }
-@media (max-width: 860px) {
-  #qnx-storage-architecture .qsa-canvas { padding: 16px; }
-  #qnx-storage-architecture .qsa-modules { padding: 10px; }
-  #qnx-storage-architecture .qsa-route { grid-template-columns: 1fr 190px 1fr; gap: 10px; }
-}
+#qnx-storage-architecture { margin: 24px 0; }
+@media (min-width: 1200px) { #qnx-storage-architecture { width: 1120px; margin-left: calc(50% - 560px); } }
+#qnx-storage-architecture .qsa-scroll { overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; }
+#qnx-storage-architecture svg { display: block; width: 100%; min-width: 1000px; height: auto; background: #fff; }
+#qnx-storage-architecture text { fill: #172b45; font-family: system-ui, -apple-system, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
+#qnx-storage-architecture .qsa-title { font-size: 23px; font-weight: 700; }
+#qnx-storage-architecture .qsa-head { font-size: 19px; font-weight: 700; }
+#qnx-storage-architecture .qsa-name { font-size: 17px; font-weight: 600; }
+#qnx-storage-architecture .qsa-detail { font-size: 14px; fill: #40546b; }
+#qnx-storage-architecture .qsa-label { font-size: 14px; fill: #245d8d; }
+#qnx-storage-architecture .qsa-control-label { font-size: 14px; fill: #7f632d; }
+#qnx-storage-architecture .qsa-os { fill: #eff6ff; stroke: #a9bfd5; stroke-width: 1.4; }
+#qnx-storage-architecture .qsa-android { fill: #f0f9f4; stroke: #aacdb8; stroke-width: 1.4; }
+#qnx-storage-architecture .qsa-process { fill: #fff; stroke: #7088a1; stroke-width: 1.4; }
+#qnx-storage-architecture .qsa-library { fill: #fff5e7; stroke: #d6b783; stroke-width: 1; }
+#qnx-storage-architecture .qsa-hypervisor { fill: #f3f4fa; stroke: #abb5cd; stroke-width: 1.4; }
+#qnx-storage-architecture .qsa-hardware { fill: #fff8f0; stroke: #c7b18e; stroke-width: 1.4; }
+#qnx-storage-architecture .qsa-flow { fill: none; stroke: #245d8d; stroke-width: 2; marker-end: url(#qsa-arrow); }
+#qnx-storage-architecture .qsa-call { fill: none; stroke: #7f632d; stroke-width: 1.6; stroke-dasharray: 5 4; marker-end: url(#qsa-call-arrow); }
+#qnx-storage-architecture figcaption { margin-top: 10px; font-size: 14px; line-height: 1.7; }
 </style>
 <div class="qsa-scroll" role="region" aria-label="加密存储架构图，窄屏可横向滚动" tabindex="0">
-<div class="qsa-canvas">
-  <div class="qsa-intro">
-    <div class="qsa-title">加密存储：策略、控制与数据分层</div>
-    <div class="qsa-legend"><span><i class="qsa-sample qsa-sample-control" aria-hidden="true"></i>控制</span><span><i class="qsa-sample" aria-hidden="true"></i>数据</span></div>
-  </div>
-  <div class="qsa-os-grid">
-    <section class="qsa-os" aria-label="QNX host">
-      <div class="qsa-os-head"><strong>QNX</strong><span>Host · 存储与虚拟设备服务</span></div>
-      <div class="qsa-modules">
-        <div class="qsa-module">
-          <div class="qsa-label">生命周期与平台服务</div>
-          <div class="qsa-name">VMM / 安全服务接口</div>
-          <div class="qsa-detail">guest 启停与重启通知；通知 FDE 清理 VM 密钥资源。安全操作经平台接口访问 TEE。</div>
-        </div>
-        <div class="qsa-module qsa-control">
-          <div class="qsa-label">加密控制后端</div>
-          <div class="qsa-name">fde_be + libfde_lib</div>
-          <div class="qsa-detail">处理 HAB 能力查询、wrapped key、虚拟槽位与清理请求；通过块设备 devctl 和安全接口完成操作。</div>
-          <div class="qsa-detail">不承担逐块文件数据的软件 AES。</div>
-        </div>
-        <div class="qsa-module qsa-data">
-          <div class="qsa-label">块数据后端与存储驱动</div>
-          <div class="qsa-name">qvm 虚拟块后端 → devb_ufs_qualcomm</div>
-          <div class="qsa-detail">接收 virtqueue 请求，将块 I/O 与加密上下文交给 UFS / ICE 硬件路径。</div>
-        </div>
-      </div>
-    </section>
-    <section class="qsa-os qsa-android" aria-label="Android guest">
-      <div class="qsa-os-head"><strong>Android</strong><span>Guest · 文件策略与块请求</span></div>
-      <div class="qsa-modules">
-        <div class="qsa-module">
-          <div class="qsa-label">用户空间</div>
-          <div class="qsa-name">应用 / init / vold / KeyMint</div>
-          <div class="qsa-detail">应用发起文件读写；vold 管理挂载、FBE 密钥和目录策略，KeyMint 提供安全密钥能力。</div>
-        </div>
-        <div class="qsa-module">
-          <div class="qsa-label">Linux 文件系统与块层</div>
-          <div class="qsa-name">ext4 + fscrypt / dm-default-key</div>
-          <div class="qsa-detail">按请求选择文件内容或 metadata 加密上下文。</div>
-          <div class="qsa-name">↓ blk-crypto + keyslot manager</div>
-          <div class="qsa-detail">管理密钥槽、算法与 DUN。</div>
-        </div>
-        <div class="qsa-split">
-          <div class="qsa-module qsa-data">
-            <div class="qsa-label">数据前端</div>
-            <div class="qsa-name">virtio-blk</div>
-            <div class="qsa-detail">块请求 + ICE slot / DUN 扩展</div>
-          </div>
-          <div class="qsa-module qsa-control">
-            <div class="qsa-label">控制前端</div>
-            <div class="qsa-name">QTI crypto + HAB</div>
-            <div class="qsa-detail">能力检查、设置密钥、清槽、派生秘密</div>
-          </div>
-        </div>
-      </div>
-    </section>
-  </div>
-  <div class="qsa-routes" aria-label="QNX 与 Android 之间的两条逻辑通路">
-    <div class="qsa-route">
-      <span class="qsa-endpoint">QNX · fde_be</span>
-      <span class="qsa-bus">← HAB · 加密控制<span class="qsa-bus-line" aria-hidden="true"></span></span>
-      <span class="qsa-endpoint">Android · crypto-qti-virt</span>
-    </div>
-    <div class="qsa-route">
-      <span class="qsa-endpoint">QNX · qvm 虚拟块后端</span>
-      <span class="qsa-bus qsa-data-bus">← virtqueue · 块请求<span class="qsa-bus-line" aria-hidden="true"></span></span>
-      <span class="qsa-endpoint">Android · virtio-blk</span>
-    </div>
-  </div>
-  <section class="qsa-layer qsa-hypervisor" aria-label="Hypervisor 层">
-    <div class="qsa-layer-head"><strong>Hypervisor</strong><span>虚拟化基础 · 不执行文件 AES 或用户密钥策略</span></div>
-    <div class="qsa-capabilities"><span>VM 隔离</span><span>vCPU / 中断虚拟化</span><span>内存映射与访问控制</span><span>跨域通信基础</span></div>
-    <div class="qsa-note">共享内存与通知机制支撑前后端协作；HAB / virtio 协议由对应前后端实现，并非都在 Hypervisor 内处理。</div>
-  </section>
-  <div class="qsa-divider" aria-hidden="true"></div>
-  <section class="qsa-layer qsa-hardware" aria-label="Hardware 层">
-    <div class="qsa-layer-head"><strong>Hardware</strong><span>计算、隔离、DMA 与内联加解密</span></div>
-    <div class="qsa-hw-grid">
-      <div class="qsa-module"><div class="qsa-name">CPU / MMU / 内存</div><div class="qsa-detail">计算、地址隔离、共享缓冲区与硬件安全能力</div></div>
-      <div class="qsa-module"><div class="qsa-name">UFS Controller + ICE</div><div class="qsa-detail">依据密钥槽与 DUN，在存储数据路径执行加解密</div></div>
-      <div class="qsa-hw-arrow" aria-label="双向存储数据">⇄</div>
-      <div class="qsa-module"><div class="qsa-name">UFS 存储介质</div><div class="qsa-detail">持久化保存受保护数据的密文</div></div>
-    </div>
-  </section>
-  <div class="qsa-note">安全世界说明：KeyMint 与 FDE 的安全操作通过平台接口访问 TEE。TEE 是依托硬件安全能力的软件 / 固件，不属于图中的普通 OS 或 Hypervisor，也不是一块独立的“加密硬件”。</div>
+<svg viewBox="0 0 1120 1265" width="1120" height="1265" role="img" aria-labelledby="qsa-title qsa-desc" xmlns="http://www.w3.org/2000/svg">
+<title id="qsa-title">QNX 与 Android 加密存储架构</title>
+<desc id="qsa-desc">上层左侧是 QNX host，右侧是 Android guest，下方依次为 Hypervisor 和 Hardware。Android 文件系统与块加密层分出两条通路：QTI crypto 经 HAB 向 QNX fde_be 发起加密控制请求；virtio-blk 经 virtqueue 向 qvm 后端提交块请求。fde_be 进程内的 libfde_lib 与存储驱动及安全服务协作。qvm 将数据请求交给 UFS 驱动，再由 UFS Controller 和 ICE 执行内联加解密，介质保存密文。TEE 的内部调用未展开。</desc>
+<defs>
+<marker id="qsa-arrow" viewBox="0 0 10 10" markerWidth="7" markerHeight="7" refX="9" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#245d8d"/></marker>
+<marker id="qsa-call-arrow" viewBox="0 0 10 10" markerWidth="7" markerHeight="7" refX="9" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#7f632d"/></marker>
+</defs>
+<text class="qsa-title" x="40" y="35">加密存储：控制通路与数据通路</text>
+<path class="qsa-flow" d="M670 29 H710"/>
+<text class="qsa-detail" x="724" y="34">数据 I/O</text>
+<path class="qsa-call" d="M840 29 H880"/>
+<text class="qsa-detail" x="894" y="34">控制 / 生命周期</text>
+
+<!-- OS 边界：QNX 与 Android 并列，前后端位于各自 OS 中。 -->
+<rect class="qsa-os" x="40" y="70" width="450" height="780" rx="9"/>
+<text class="qsa-head" x="65" y="104">QNX · Host</text>
+<text class="qsa-detail" x="65" y="129">存储后端与平台服务</text>
+<rect class="qsa-android" x="640" y="70" width="460" height="780" rx="9"/>
+<text class="qsa-head" x="665" y="104">Android · Guest</text>
+<text class="qsa-detail" x="665" y="129">文件策略与块请求</text>
+
+<!-- QNX：生命周期与 FDE 服务；动态库嵌套在进程内部。 -->
+<rect class="qsa-process" x="70" y="155" width="390" height="85" rx="6"/>
+<text class="qsa-name" x="265" y="185" text-anchor="middle">VMM · guest 生命周期</text>
+<text class="qsa-detail" x="265" y="215" text-anchor="middle">启停、重启通知与资源回收</text>
+<rect class="qsa-process" x="70" y="310" width="390" height="180" rx="8"/>
+<text class="qsa-name" x="265" y="339" text-anchor="middle">fde_be · 加密控制服务</text>
+<text class="qsa-detail" x="265" y="364" text-anchor="middle">HAB 请求处理 / 安全服务适配</text>
+<rect class="qsa-library" x="90" y="382" width="350" height="85" rx="5"/>
+<text class="qsa-name" x="265" y="410" text-anchor="middle">libfde_lib</text>
+<text class="qsa-detail" x="265" y="434" text-anchor="middle">能力检查 · wrapped key · 虚拟槽位</text>
+<text class="qsa-detail" x="265" y="456" text-anchor="middle">清槽 / 派生秘密 · 块设备 devctl</text>
+<path class="qsa-call" d="M265 240 V310"/>
+<text class="qsa-control-label" x="278" y="281">guest 重启 / 资源清理</text>
+
+<!-- Android：文件系统与块加密层；在驱动侧分开控制与数据。 -->
+<rect class="qsa-process" x="670" y="155" width="410" height="85" rx="6"/>
+<text class="qsa-name" x="875" y="182" text-anchor="middle">应用 / init / vold / KeyMint</text>
+<text class="qsa-detail" x="875" y="207" text-anchor="middle">文件读写 · 挂载 /data · FBE 密钥与策略</text>
+<text class="qsa-detail" x="875" y="228" text-anchor="middle">KeyMint 提供安全密钥接口</text>
+<rect class="qsa-process" x="670" y="300" width="410" height="110" rx="6"/>
+<text class="qsa-name" x="875" y="333" text-anchor="middle">ext4 + fscrypt / dm-default-key</text>
+<text class="qsa-detail" x="875" y="361" text-anchor="middle">按请求选择 FBE 或 metadata 加密上下文</text>
+<text class="qsa-detail" x="875" y="386" text-anchor="middle">普通文件内容不重复叠加两次加密</text>
+<path class="qsa-flow" d="M875 240 V300"/>
+<text class="qsa-label" x="889" y="277">文件 I/O</text>
+<rect class="qsa-process" x="670" y="465" width="410" height="75" rx="6"/>
+<text class="qsa-name" x="875" y="495" text-anchor="middle">blk-crypto + keyslot manager</text>
+<text class="qsa-detail" x="875" y="521" text-anchor="middle">密钥槽管理 · 算法 · DUN</text>
+<path class="qsa-flow" d="M875 410 V465"/>
+<text class="qsa-label" x="889" y="443">加密上下文</text>
+<rect class="qsa-process" x="670" y="600" width="190" height="90" rx="6"/>
+<text class="qsa-name" x="765" y="629" text-anchor="middle">QTI crypto + HAB</text>
+<text class="qsa-detail" x="765" y="652" text-anchor="middle">crypto-qti-virt</text>
+<text class="qsa-detail" x="765" y="675" text-anchor="middle">能力查询 / 设置密钥</text>
+<rect class="qsa-process" x="890" y="600" width="190" height="90" rx="6"/>
+<text class="qsa-name" x="985" y="629" text-anchor="middle">virtio-blk</text>
+<text class="qsa-detail" x="985" y="652" text-anchor="middle">块数据前端</text>
+<text class="qsa-detail" x="985" y="675" text-anchor="middle">slot / DUN 扩展</text>
+<path class="qsa-call" d="M765 540 V600"/>
+<text class="qsa-control-label" x="687" y="578">密钥操作</text>
+<path class="qsa-flow" d="M985 540 V600"/>
+<text class="qsa-label" x="999" y="578">块 I/O</text>
+
+<!-- QNX：qvm 数据后端与存储驱动独立于 FDE 控制服务。 -->
+<rect class="qsa-process" x="150" y="600" width="310" height="90" rx="6"/>
+<text class="qsa-name" x="305" y="629" text-anchor="middle">qvm · 虚拟块设备后端</text>
+<text class="qsa-detail" x="305" y="655" text-anchor="middle">接收 guest 块 I/O</text>
+<text class="qsa-detail" x="305" y="678" text-anchor="middle">转交 host 存储栈</text>
+<rect class="qsa-process" x="150" y="745" width="310" height="80" rx="6"/>
+<text class="qsa-name" x="305" y="775" text-anchor="middle">devb_ufs_qualcomm</text>
+<text class="qsa-detail" x="305" y="802" text-anchor="middle">UFS 驱动 · I/O 与加密上下文</text>
+<path class="qsa-flow" d="M305 690 V745"/>
+<text class="qsa-label" x="319" y="723">块请求</text>
+<path class="qsa-call" d="M105 490 V785 H150"/>
+<text class="qsa-control-label" x="117" y="543">块设备 devctl</text>
+
+<!-- 跨 OS 链路直接连接前后端；两条线分开布线，不穿过无关组件。 -->
+<path class="qsa-call" d="M670 645 H570 V355 H460"/>
+<text class="qsa-control-label" x="515" y="340" text-anchor="middle">HAB</text>
+<text class="qsa-control-label" x="515" y="380" text-anchor="middle">加密控制</text>
+<path class="qsa-flow" d="M985 690 V725 H530 V645 H460"/>
+<text class="qsa-label" x="690" y="714">virtqueue · 块请求 + slot / DUN</text>
+<text class="qsa-name" x="670" y="780">两条通路，职责分离</text>
+<text class="qsa-detail" x="670" y="804">HAB 管密钥，virtio 传块请求。</text>
+<text class="qsa-detail" x="670" y="827">文件数据不交给 fde_be 做软件 AES。</text>
+
+<!-- Hypervisor 是共享基础层，不是文件数据的 AES 处理节点。 -->
+<rect class="qsa-hypervisor" x="40" y="885" width="1060" height="120" rx="9"/>
+<text class="qsa-head" x="70" y="920">Hypervisor</text>
+<text class="qsa-name" x="330" y="920">VM 隔离 · vCPU / 中断虚拟化 · 内存映射与访问控制</text>
+<text class="qsa-detail" x="70" y="951">共享内存与通知机制支撑前后端协作；HAB / virtio 协议由对应前后端实现。</text>
+<text class="qsa-detail" x="70" y="977">虚拟化基础层，不执行文件 AES，也不管理 Android 用户密钥策略。</text>
+
+<!-- Hardware：存储 I/O 路径与其他计算 / 隔离硬件。 -->
+<rect class="qsa-hardware" x="40" y="1040" width="1060" height="145" rx="9"/>
+<text class="qsa-head" x="70" y="1071">Hardware</text>
+<text class="qsa-detail" x="330" y="1070">存储内联加解密、计算与隔离；硬件安全能力支撑安全世界</text>
+<rect class="qsa-process" x="70" y="1090" width="390" height="75" rx="6"/>
+<text class="qsa-name" x="265" y="1119" text-anchor="middle">UFS Controller + ICE</text>
+<text class="qsa-detail" x="265" y="1146" text-anchor="middle">依密钥槽与 DUN 执行内联加解密</text>
+<rect class="qsa-process" x="550" y="1090" width="215" height="75" rx="6"/>
+<text class="qsa-name" x="657" y="1119" text-anchor="middle">UFS 存储介质</text>
+<text class="qsa-detail" x="657" y="1146" text-anchor="middle">持久化保存密文</text>
+<path class="qsa-flow" d="M460 1125 H550"/>
+<text class="qsa-label" x="505" y="1112" text-anchor="middle">密文</text>
+<rect class="qsa-process" x="810" y="1090" width="265" height="75" rx="6"/>
+<text class="qsa-name" x="942" y="1119" text-anchor="middle">CPU / MMU / 内存</text>
+<text class="qsa-detail" x="942" y="1146" text-anchor="middle">计算、隔离与共享缓冲区</text>
+
+<!-- host 驱动的设备 I/O 绕过 Hypervisor 内容框，避免暗示其执行加密。 -->
+<path class="qsa-flow" d="M305 825 V875 H20 V1125 H70"/>
+<text class="qsa-label" x="130" y="869">宿主设备 I/O</text>
+<text class="qsa-detail" x="40" y="1220">安全世界（图外）：TEE 是依托硬件的软件 / 固件；KeyMint 与 FDE 通过平台接口访问。</text>
+<text class="qsa-detail" x="40" y="1245">图中省略安全世界内部调用、应答与读数据返回方向；共享内存并非天然的密文通道。</text>
+</svg>
 </div>
-</div>
-<figcaption id="qsa-caption">QNX 与 Android 并列，Hypervisor 与 Hardware 依次位于下方。图中层次表示职责与依赖；横向通路表示逻辑连接，不代表新增进程或物理总线。窄屏可横向滚动查看。</figcaption>
+<figcaption id="qsa-caption">QNX 与 Android 并列，下方依次为 Hypervisor 和 Hardware。浅色大框表示架构层次，橙色模块为进程内动态库；虚线连接控制与生命周期操作，实线连接块请求路径。窄屏可横向滚动查看。</figcaption>
 </figure>
 
 图中的“块请求”可能携带尚未由 ICE 变换的内存数据，不能把 guest 与 host 之间的共享内存理解成天然的密文通道。KeyMint 到安全世界、FDE 到安全服务以及安全世界到 ICE 的内部调用与密钥装载细节，应由目标 BSP/安全固件文档确认。
