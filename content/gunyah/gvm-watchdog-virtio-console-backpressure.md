@@ -372,8 +372,6 @@ qcrosvm 从 guest descriptor 复制数据到 host 自有的有界内存队列后
 
 ## 九、代码索引
 
-以下路径均相对于本地代码根目录 `/home/ethen/workspace/voyah/projects/8397/code`：
-
 | 模块 | 文件与关键位置 |
 |---|---|
 | GVM watchdog 参数 | `vendor/kernel_platform/qcom/opensource/devicetree/qcom/sa8797p-v2-gunyah-vm-voyah-common.dtsi:11-22` |
