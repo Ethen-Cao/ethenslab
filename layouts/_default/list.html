@@ -1,5 +1,4 @@
 {{ define "main" }}
-<main class="main">
   {{ $sections := .Sections }}
   {{ if gt (len $sections) 0 }}
     {{/* 如果有子目錄，就顯示「卡片列表」 */}}
@@ -27,5 +26,4 @@
       {{ end }}
     </div>
   {{ end }}
-</main>
 {{ end }}
