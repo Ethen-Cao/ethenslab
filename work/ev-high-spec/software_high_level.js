@@ -1,31 +1,32 @@
 const softwareModules = new Map(
   [...DATA.software.modules, ...DATA.software.ota.modules,
-   ...DATA.software.diagnostics.modules].map(module => [module.id, module])
+   ...DATA.software.diagnostics.modules, ...DATA.software.audio.modules].map(module => [module.id, module])
 );
-let selectedOtaModule = null;
-let selectedDiagModule = null;
+const softwareDetailViews = {ota: 'OTA', diag: 'Diagnostic', audio: 'Audio'};
+const selectedSoftwareModules = {ota: null, diag: null, audio: null};
 
 function activeSoftwareDetailView() {
-  if (!$('sw-diag-view').hidden) return 'diag';
-  if (!$('sw-ota-view').hidden) return 'ota';
+  for (const view of Object.keys(softwareDetailViews)) {
+    if (!$(`sw-${view}-view`).hidden) return view;
+  }
   return 'high';
 }
 
 function setSoftwareArchitectureView(view) {
   $('sw-high-level-view').hidden = view !== 'high';
-  $('sw-ota-view').hidden = view !== 'ota';
-  $('sw-diag-view').hidden = view !== 'diag';
+  for (const key of Object.keys(softwareDetailViews)) {
+    $(`sw-${key}-view`).hidden = view !== key;
+  }
   showTab('software');
   $('software-panel').scrollTop = 0;
-  $('live').textContent = view === 'ota' ? 'OTA software architecture' :
-    view === 'diag' ? 'Diagnostic software architecture' : 'High-Level software architecture';
+  $('live').textContent = `${softwareDetailViews[view] || 'High-Level'} software architecture`;
 }
 
 function refreshInteractionGraph(view) {
-  const prefix = view === 'ota' ? 'sw-ota' : 'sw-diag';
-  const attr = view === 'ota' ? 'data-ota-focus' : 'data-diag-focus';
-  const focus = document.querySelector(`#${prefix}-view [${attr}][aria-pressed="true"]`)?.dataset[view === 'ota' ? 'otaFocus' : 'diagFocus'] || 'all';
-  const selected = view === 'ota' ? selectedOtaModule : selectedDiagModule;
+  const prefix = `sw-${view}`;
+  const attr = `data-${view}-focus`;
+  const focus = document.querySelector(`#${prefix}-view [${attr}][aria-pressed="true"]`)?.dataset[`${view}Focus`] || 'all';
+  const selected = selectedSoftwareModules[view];
   document.querySelectorAll(`#${prefix}-diagram .ota-edge`).forEach(edge => {
     const flows = edge.dataset.otaFlow.split(',');
     const inFocus = focus === 'all' || flows.includes(focus) ||
@@ -48,14 +49,13 @@ function refreshOtaGraph() { refreshInteractionGraph('ota'); }
 function refreshDiagGraph() { refreshInteractionGraph('diag'); }
 
 function clearSoftwareSelection() {
-  selectedOtaModule = null;
-  selectedDiagModule = null;
+  for (const view of Object.keys(softwareDetailViews)) selectedSoftwareModules[view] = null;
   document.querySelectorAll('#software-panel [data-sw-module]').forEach(node => {
     node.setAttribute('aria-pressed', 'false');
   });
-  for (const view of ['ota', 'diag']) {
-    const prefix = view === 'ota' ? 'sw-ota' : 'sw-diag';
-    const attr = view === 'ota' ? 'data-ota-focus' : 'data-diag-focus';
+  for (const view of Object.keys(softwareDetailViews)) {
+    const prefix = `sw-${view}`;
+    const attr = `data-${view}-focus`;
     const focusButton = document.querySelector(`#${prefix}-view [${attr}][aria-pressed="true"]`);
     const focusName = focusButton?.textContent.trim() || 'All';
     $(`${prefix}-inspector`).textContent = `Showing ${focusName} interaction path. Select a component to highlight its connections. Right-click to clear selection.`;
@@ -71,10 +71,11 @@ function selectSoftwareModule(id) {
     button.setAttribute('aria-pressed', String(button.dataset.swModule === id));
   });
   const view = activeSoftwareDetailView();
-  selectedOtaModule = view === 'ota' ? id : null;
-  selectedDiagModule = view === 'diag' ? id : null;
+  for (const key of Object.keys(softwareDetailViews)) {
+    selectedSoftwareModules[key] = view === key ? id : null;
+  }
   if (view !== 'high') {
-    const inspector = $(view === 'ota' ? 'sw-ota-inspector' : 'sw-diag-inspector');
+    const inspector = $(`sw-${view}-inspector`);
     inspector.replaceChildren();
     const name = document.createElement('strong');
     name.textContent = module.name;
@@ -88,13 +89,13 @@ function selectSoftwareModule(id) {
 }
 
 $('software-panel').addEventListener('click', event => {
-  const back = event.target.closest('#sw-ota-back, #sw-diag-back');
+  const back = event.target.closest('#sw-ota-back, #sw-diag-back, #sw-audio-back');
   if (back) { setSoftwareArchitectureView('high'); return; }
-  const focusButton = event.target.closest('[data-ota-focus], [data-diag-focus]');
+  const focusButton = event.target.closest('[data-ota-focus], [data-diag-focus], [data-audio-focus]');
   if (focusButton) {
     const view = activeSoftwareDetailView();
     if (view === 'high') return;
-    const selector = view === 'ota' ? '#sw-ota-view [data-ota-focus]' : '#sw-diag-view [data-diag-focus]';
+    const selector = `#sw-${view}-view [data-${view}-focus]`;
     document.querySelectorAll(selector).forEach(button => {
       button.setAttribute('aria-pressed', String(button === focusButton));
     });
@@ -106,6 +107,11 @@ $('software-panel').addEventListener('click', event => {
   if (button.dataset.detailPage) return;
   const id = button.dataset.swModule;
   if (button.classList.contains('sw-module')) {
+    if (id === 'audio-system' || id === 'bsp-audio') {
+      clearSoftwareSelection();
+      setSoftwareArchitectureView('audio');
+      return;
+    }
     if (id === 'ota-update' || id === 'mcu-ota') {
       clearSoftwareSelection();
       setSoftwareArchitectureView('ota');
@@ -125,13 +131,13 @@ $('software-panel').addEventListener('click', event => {
 
 $('software-panel').addEventListener('contextmenu', event => {
   const view = activeSoftwareDetailView();
-  const pane = $(view === 'ota' ? 'sw-ota-view' : view === 'diag' ? 'sw-diag-view' : 'sw-high-level-view');
+  const pane = $(view === 'high' ? 'sw-high-level-view' : `sw-${view}-view`);
   if (!pane.querySelector('[data-sw-module][aria-pressed="true"]')) return;
   event.preventDefault();
   clearSoftwareSelection();
 });
 
-for (const id of ['sw-ota-diagram', 'sw-diag-diagram']) {
+for (const id of Object.keys(softwareDetailViews).map(view => `sw-${view}-diagram`)) {
   $(id).addEventListener('keydown', event => {
     const node = event.target.closest('.ota-node');
     if (node?.dataset.detailPage && event.key === 'Enter') return;
@@ -143,6 +149,6 @@ for (const id of ['sw-ota-diagram', 'sw-diag-diagram']) {
 }
 
 const requestedSoftwareView = new URLSearchParams(window.location.search).get('view');
-if (requestedSoftwareView === 'ota' || requestedSoftwareView === 'diag') {
+if (Object.hasOwn(softwareDetailViews, requestedSoftwareView)) {
   setSoftwareArchitectureView(requestedSoftwareView);
 }
