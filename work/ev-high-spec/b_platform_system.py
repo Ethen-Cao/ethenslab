@@ -126,7 +126,8 @@ def create_b_system():
             if c == 1 and i == 0: xx=x+10
             if c == 1 and i == 1: xx=x+85
             if c == 1 and i == 2: xx=x+85
-            if c == 2 and i == 1: xx=x+103
+            if c == 2:
+                xx = (x+15, x+84, x+78)[i]
             card(name, xx, yy, bw, 38 if i!=2 else 39, fill=fill, size=8)
         card('DP In 投屏盒子', x+45, 231, 74, 23,
              fill=DARK if c==1 else RESERVED, size=8)
@@ -317,11 +318,11 @@ def create_b_system():
              note=('车载 CAN 收发器。' if i<3 else '车载 LIN 收发器。'))
         path([(1328,y+15),(1357,y+15)], both=True)
         path([(1452,y+15),(1472,y+15),(1472,720+i*19),(1490,720+i*19)], arrow=True)
-    label(1468, 806, 'CAN2', 8, 'end')
-    label(1468, 844, 'CAN1', 8, 'end')
-    label(1468, 883, 'CAN0', 8, 'end')
-    label(1468, 921, 'LIN #1', 8, 'end')
-    label(1468, 960, 'LIN #2', 8, 'end')
+    # Put bus names in the clear margin beyond the connector. The narrow
+    # transceiver-to-connector traces must remain visible at this scale.
+    for bus_name, bus_y in (('CAN2',806), ('CAN1',844), ('CAN0',883),
+                            ('LIN #1',921), ('LIN #2',960)):
+        label(1568, bus_y, bus_name, 8, 'start')
     card('16M晶体', 1156, 965, 49, 28, fill=RESERVED,
          note='MCU 时钟晶体。', size=7.5)
     path([(1205,978),(1209,978)], arrow=True)
