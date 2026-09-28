@@ -20,7 +20,7 @@ NODES = {
     'audio-a2b-driver': (70,1200,205,64),
     'audio-gpr': (315,1200,205,64),
     'audio-pcm-driver': (550,1200,205,64),
-    'audio-apps': (1020,210,220,64),
+    'audio-apps': (1020,210,740,64),
     'audio-audio-manager': (1280,380,220,64),
     'audio-car': (1540,380,220,64),
     'audio-bt-hfp': (1900,380,260,64),
@@ -91,7 +91,7 @@ def make_routes():
     r.add('audio-hal','audio-hfp-ext',[(1240,1052),(1280,1052)],flow='phone',note='AudioDevice -> AudioExtn -> libhfp_pal::hfp_set_parameters')
     r.add('audio-hfp-ext','audio-pal',[(1390,1084),(1390,1155),(1200,1155),(1200,1200)],flow='phone',label='PAL HFP RX / TX',at=(1300,1155),note='pal_stream_open/start/stop/close; HFP RX and TX loopback streams and volume')
     # Media PCM and automotive policy follow their own anchors and channels.
-    r.add('audio-apps','audio-flinger',[(1195,274),(1195,700)],kind='install',flow='media',both=True,label='AudioTrack / AudioRecord',at=(1195,570))
+    r.add('audio-apps','audio-flinger',[(1195,274),(1195,620),(1080,620),(1080,700)],kind='install',flow='media',both=True,label='AudioTrack / AudioRecord',at=(1195,570))
     r.add('audio-apps','audio-car',[(1220,274),(1220,330),(1650,330),(1650,380)],flow='policy',label='Car audio API',at=(1490,330))
     r.add('audio-car','audio-policy',[(1650,444),(1650,700)],flow='policy',label='Policy configuration',at=(1650,610))
     r.add('audio-policy','audio-flinger',[(1540,732),(1240,732)],flow='policy',label='Route / port gain',at=(1390,732))
