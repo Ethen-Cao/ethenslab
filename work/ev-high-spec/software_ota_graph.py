@@ -12,15 +12,15 @@ NODES = {
     'ota-qnx-lcd': (250, 322, 164, 54),
     'ota-qnx-dms': (440, 322, 164, 54),
     'ota-qnx-script': (60, 482, 164, 54),
-    'ota-qnx-slot': (250, 482, 164, 54),
+    'ota-qnx-slot': (250, 872, 164, 54),
     'ota-qnx-mcu': (440, 482, 164, 54),
     'ota-qnx-fifo': (60, 630, 164, 54),
     'ota-qnx-mcu-progress': (440, 630, 164, 54),
-    'ota-qnx-banks': (250, 734, 164, 54),
+    'ota-qnx-banks': (250, 1116, 164, 54),
     'ota-qnx-network': (60, 872, 164, 54),
-    'ota-qnx-rpcif': (440, 872, 164, 54),
-    'ota-qnx-rpcd': (440, 972, 164, 54),
-    'ota-qnx-os': (60, 1116, 164, 54),
+    'ota-qnx-rpcif': (250, 482, 164, 54),
+    'ota-qnx-rpcd': (250, 630, 164, 54),
+    'ota-qnx-os': (60, 986, 164, 54),
     'ota-aaos-ui': (792, 202, 180, 54),
     'ota-aaos-sdk': (1012, 202, 180, 54),
     'ota-aaos-doip': (792, 326, 180, 54),
@@ -50,8 +50,8 @@ NODES = {
 LAYERS = {
     'qnx': [(160, 245, 'Vehicle Domain Services'),
             (417, 383, 'Platform Services'),
-            (812, 248, 'Device Integration & BSP'),
-            (1072, 114, 'QNX Neutrino Core')],
+            (812, 120, 'Device Integration & BSP'),
+            (944, 118, 'QNX Neutrino Core')],
     'aaos': [(160, 112, 'Applications'),
              (284, 658, 'Framework'),
              (954, 106, 'Native / HAL'),
@@ -71,7 +71,7 @@ DISPLAY = {
     'ota-aaos-slot': ('Android A/B Slot', 'inactive target'),
     'ota-qnx-fifo': ('fifo_progress', 'QNX progress file'),
     'ota-qnx-mcu-progress': ('mcu_update_process', 'MCU progress file'),
-    'ota-qnx-banks': ('QNX BANK_A / BANK_B', 'system · ifs2 · hyp'),
+    'ota-qnx-banks': ('System Image Banks (A/B)', 'system · ifs2 · hyp'),
     'ota-aaos-notifier': ('UpdateNotifier', 'client callbacks'),
     'ota-aaos-device': ('DeviceManager', 'target routing'),
     'ota-aaos-sdk': ('VoyahOtaUpdateImpl', 'client SDK'),
@@ -199,6 +199,11 @@ def render_graph(modules):
                        for mid,(_,ny,_,nh) in NODES.items()):
                 raise ValueError(f'Empty OTA layer: {domain}/{title}')
             frame.append(_layer(x,y,w,h,title,palette))
+    # Image banks are storage targets, not a software service or an OS layer.
+    frame.append('<g class="ota-storage-region" data-region="Image Storage">'
+                 '<rect x="42" y="1074" width="584" height="112" rx="12" fill="#f8f5fd" '
+                 'stroke="#cbbce4" stroke-dasharray="5 4"/>'
+                 + _text(56,1097,'Image Storage',12,'#675284',700) + '</g>')
     frame.extend([
         _layer(30,1212,1468,54,'VIRTUALIZATION',('#f2f0fc','#ded9ef')),
         _text(240,1244,'QNX / Android isolation · virtual network I/O',11,'#5b6075'),
@@ -242,21 +247,21 @@ def render_graph(modules):
         r.add('ota-qnx-updater',target,pts,kind='install',flow='qnx')
     r.label('ota-qnx-updater','ota-qnx-ipc','install','qnx','IPC start · 0xA1',(252,286))
     r.add('ota-qnx-ipc','ota-qnx-script',[(142,379),(142,396),(236,396),(236,459),(142,459),(142,479)],kind='install',flow='qnx',label='run script',at=(236,441))
-    r.add('ota-qnx-updater','ota-qnx-slot',[(437,246),(428,246),(428,509),(417,509)],flow='qnx',label='bank request',at=(428,454))
-    r.add('ota-qnx-slot','ota-qnx-banks',[(332,539),(332,731)],kind='storage',flow='qnx',label='select bank',at=(332,590))
-    r.add('ota-qnx-script','ota-qnx-banks',[(227,509),(236,509),(236,761),(247,761)],kind='install',flow='qnx',label='write image',at=(236,700))
+    r.add('ota-qnx-updater','ota-qnx-slot',[(437,246),(428,246),(428,899),(417,899)],flow='qnx',label='bank request',at=(428,836))
+    r.add('ota-qnx-slot','ota-qnx-banks',[(332,929),(332,1113)],kind='storage',flow='qnx',label='select bank',at=(332,1040))
+    r.add('ota-qnx-script','ota-qnx-banks',[(227,509),(236,509),(236,1143),(247,1143)],kind='install',flow='qnx',label='write image',at=(236,700))
     r.add('ota-qnx-updater','ota-qnx-mcu',[(590,259),(590,270),(620,270),(620,509),(607,509)],kind='install',flow='mcu',label='launch',at=(620,433))
     r.add('ota-qnx-script','ota-qnx-fifo',[(142,539),(142,627)],kind='status',flow='feedback',label='write progress',at=(142,590))
     r.add('ota-qnx-mcu','ota-qnx-mcu-progress',[(522,539),(522,627)],kind='status',flow='feedback',label='write progress',at=(522,590))
     for mid,cx in [('ota-qnx-fifo',142),('ota-qnx-mcu-progress',522)]:
         r.add(mid,'ota-qnx-updater',[(cx,687),(cx,710),(46,710),(46,222),(437,222)],kind='status',flow='feedback')
     r.label('ota-qnx-fifo','ota-qnx-updater','status','feedback','read / poll progress files',(248,222))
-    r.add('ota-qnx-mcu','ota-qnx-rpcif',[(437,523),(428,523),(428,899),(437,899)],flow='mcu',label='API call',at=(428,830))
-    r.add('ota-qnx-rpcif','ota-qnx-rpcd',[(522,929),(522,969)],flow='mcu',label='local IPC',at=(522,951))
+    r.add('ota-qnx-mcu','ota-qnx-rpcif',[(522,479),(522,457),(332,457),(332,479)],flow='mcu',label='API call',at=(366,457))
+    r.add('ota-qnx-rpcif','ota-qnx-rpcd',[(332,539),(332,627)],flow='mcu',label='local IPC',at=(332,590))
     # Physical SPI is a matched interface pair, not a path through AAOS or SoC hardware.
     spi_note = 'Matched SPI ports: QNX rpcd ↔ MCU SPI Driver; physical SPI message blocks'
-    r.add('ota-qnx-rpcd','ota-mcu-spi',[(607,999),(629,999)],kind='storage',flow='mcu',both=True,note=spi_note)
-    r.port('ota-qnx-rpcd','ota-mcu-spi',658,999,'SPI','mcu',spi_note)
+    r.add('ota-qnx-rpcd','ota-mcu-spi',[(332,687),(332,759)],kind='storage',flow='mcu',both=True,note=spi_note)
+    r.port('ota-qnx-rpcd','ota-mcu-spi',332,774,'SPI','mcu',spi_note)
     r.add('ota-qnx-rpcd','ota-mcu-spi',[(1680,535),(1680,521)],kind='storage',flow='mcu',both=True,note=spi_note)
     r.port('ota-qnx-rpcd','ota-mcu-spi',1680,550,'SPI','mcu',spi_note)
     # MCU internals follow the supplied reference; their spacing is content-driven.
@@ -295,13 +300,19 @@ def render_graph(modules):
         module = by_id[mid]
         name,sub = DISPLAY.get(mid,(module['name'],module['short']))
         fill,stroke = {'qnx':('#fff','#91b1ed'),'aaos':('#fff','#9fceb0'),'mcu':('#fffaf5','#d7aa83')}[module['domain']]
+        storage = module.get('kind') == 'storage'
+        if storage:
+            fill,stroke = '#f5effc','#a18bc2'
         dash = ' stroke-dasharray="5 4"' if module.get('reference') else ''
+        kind = 'storage' if storage else 'component'
+        # A double base line distinguishes a stored image object from a service.
+        detail = (f'<path d="M{x+1},{y+h-6} H{x+w-1}" stroke="{stroke}" fill="none"/>' if storage else '')
         name_size = 10.5 if len(name)>22 else 11.5
         sub_size = 9 if len(sub)>24 else 10
-        nodes.append(f'<g class="ota-node" data-sw-module="{mid}" role="button" tabindex="0" aria-label="{escape(module["name"],quote=True)}" aria-pressed="false">'
+        nodes.append(f'<g class="ota-node" data-sw-module="{mid}" data-node-kind="{kind}" role="button" tabindex="0" aria-label="{escape(module["name"],quote=True)}" aria-pressed="false">'
                      f'<title>{escape(module["name"])}</title><rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{fill}" stroke="{stroke}" stroke-width="1.4"{dash}/>'
                      + _text(x+12,y+23,name,name_size,'#1f2e40',700)
-                     + _text(x+12,y+42,sub,sub_size,'#647184')+'</g>')
+                     + _text(x+12,y+42,sub,sub_size,'#647184')+detail+'</g>')
     defs = ['<defs>']
     for kind,color in COLORS.items():
         defs.append(f'<marker id="ota-arrow-{kind}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
