@@ -13,7 +13,7 @@ The build also refreshes `architecture.svg`, `ivi-hardware.svg`, and `b-platform
 The B-platform diagram is a vector redraw of the supplied system overview and enlarged detail images. It preserves the three configuration columns, component part numbers, connector positions, branch topology, load matrix, and state colors. Project identifiers and SoC signal-level labels are intentionally omitted.
 
 
-Click **System Image Banks (A/B)** in the OTA graph or its responsibility list to open `storage-partitions.html`. The partition page is self-contained and supports search, alias-to-device links, and a return link to the OTA view. Keep both HTML files together when copying the viewer. `storage-8295.json` is a portable diagnostic snapshot; the page labels alias state and filesystem usage separately from block-device capacity. Truncated device names are matched only when unique; unknown sizes remain unknown.
+Click **System Image Banks (A/B)** in the OTA graph or its responsibility list to open `storage-partitions.html`. The partition page is a single static table of partition names, device nodes, A/B states, capacities, filesystems, and mount points, with a return link to the OTA view. Keep both HTML files together when copying the viewer. `storage-8295.json` is the portable diagnostic snapshot used to generate it. The table lists partition nodes only, excluding whole LUs, RAM disks, and in-memory IFS mounts. Truncated device names are matched only when unique; unknown partition capacities remain unknown and are never replaced by filesystem sizes.
 
 To import another diagnostic run, pass its directory containing `parsed/` and `raw/`:
 

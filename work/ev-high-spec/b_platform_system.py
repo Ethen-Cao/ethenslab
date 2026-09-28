@@ -197,13 +197,15 @@ def create_b_system():
              ['USB', str(i)], LIGHT_GREEN,
              note='主芯片 USB0/USB1/USB2 接口；仅保留端口编号，不展开 SoC 信号。', size=7.5)
     # Top-left radio and video adapter chain.
-    connector('J4600(PB)', 672, 245, face=GREEN, label_pos='above', label_size=18)
-    path([(705,266),(746,266),(746,201)], sw=1.2)
-    path([(746,266),(746,277)], sw=1.2)
+    connector('J4600(PB)', 672, 218, face=GREEN, label_pos='above', label_size=18)
+    # The connector center and middle tuner share the same horizontal axis.
+    path([(705,239.5),(746,239.5)], note='J4600 center aligned with TEF3100')
+    path([(746,201.5),(746,277.5)], sw=1.2)
     for y, name, fill in [(188, 'TEF3200', BLUE), (226, 'TEF3100', BLUE),
                           (264, 'SAF4000EL', BLUE)]:
         card(name, 774, y, 70, 27, fill=fill, note='参考图中的广播接收/调谐器件。', size=8)
-        path([(746,y+13),(769,y+13)], arrow=True)
+        path([(746,y+13.5),(774,y+13.5)], arrow=True,
+             note='J4600 branch to ' + name)
         path([(844,y+13),(965,y+13),(965,231),(1046,231)], arrow=True)
     # J7's narrow projection connector is distinct from the four-pin plugs.
     label(668, 370, 'J7', 21, 'end', 700)
@@ -340,9 +342,9 @@ def create_b_system():
         path([(1328,y+15),(1357,y+15)], both=True)
         path([(1530,y+15),(1456,y+15)], arrow=True)
         label(1460, y+10, bus_name, 8, 'start')
-    card('16M晶体', 1156, 965, 49, 28, fill=RESERVED,
+    card('16M晶体', 1146, 965, 49, 28, fill=RESERVED,
          note='MCU 时钟晶体。', size=7.5)
-    path([(1205,978),(1209,978)], arrow=True)
+    path([(1195,979),(1212,979)], arrow=True, note='16 MHz crystal → S32K324')
     # Three thick load control traces are a distinctive feature of the source.
     for start_y, turn_x, end_y, title in (
         (790,1368,571,'Display EN ×8'),
@@ -380,7 +382,8 @@ def create_b_system():
     # reserved device at the center of its left edge.
     path([(1269.5,1057),(1269.5,1097),(1342,1097)], arrow=True,
          note='RTL9071CP → RTL9021ASA reserved Ethernet path')
-    path([(1436,1096),(1473,1096),(1473,1063),(1508,1063)], dash='3 3')
+    path([(1436,1097),(1473,1097),(1473,1063),(1529.5,1063),(1529.5,1057)],
+         dash='3 3', arrow=True, note='RTL9021ASA → J1(MB) bottom center')
     # USB0 runs to the USB 3.0 connector J8. USB1 reaches J6 through the
     # BC1.2 charger; USB2 runs directly to J5. Keep the three routes separate.
     usb='#ddb765'
