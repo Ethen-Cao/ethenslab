@@ -376,7 +376,10 @@ def create_b_system():
         path([(1314,y),(1508,y)], both=True,
              note='RTL9071CP ↔ J1(MB) ' + title)
         label(1408, y-5, title, 8, 'start')
-    path([(1314,1044),(1343,1044),(1343,1096)], arrow=True)
+    # Reserved 2.5G link leaves the PHY at its bottom center and enters the
+    # reserved device at the center of its left edge.
+    path([(1269.5,1057),(1269.5,1097),(1342,1097)], arrow=True,
+         note='RTL9071CP → RTL9021ASA reserved Ethernet path')
     path([(1436,1096),(1473,1096),(1473,1063),(1508,1063)], dash='3 3')
     # USB0 runs to the USB 3.0 connector J8. USB1 reaches J6 through the
     # BC1.2 charger; USB2 runs directly to J5. Keep the three routes separate.
