@@ -193,3 +193,7 @@
 .sw-hv-modules .sw-module{min-height:50px}.sw-hv-modules .sw-module-name{font-size:11px}
 .sw-hardware-band span:last-child{text-align:right}
 .software-panel a.sw-index-entry,.sw-ota-diagram a.ota-node{text-decoration:none}
+
+/* The diagnostic child view shares OTA interaction styles and diagram width. */
+.sw-diag-diagram{height:1450px}
+#sw-high-level-view .sw-module[data-sw-module="diagnostics"]::after,#sw-high-level-view .sw-module[data-sw-module="mcu-mfg-diag"]::after,#sw-high-level-view .sw-module[data-sw-module="mcu-dcm"]::after{content:"Open Diagnostic view →";display:block;margin-top:5px;color:#315eb1;font-size:10px;font-weight:800}
