@@ -12,11 +12,11 @@
 <header><h1>QNX 8295 · Storage Partitions</h1><p>Snapshot · <!-- CAPTURED --></p></header>
 <div class="table-wrap">
 <table aria-label="QNX 8295 partition table">
-<thead><tr><th scope="col">Partition</th><th scope="col">Device node</th><th scope="col">A/B state</th><th scope="col">Partition capacity</th><th scope="col">Filesystem</th><th scope="col">Mount point</th></tr></thead>
+<thead><tr><th scope="col">Partition</th><th scope="col">Device node</th><th scope="col">A/B state</th><th scope="col">Partition capacity</th><th scope="col">QNX filesystem</th><th scope="col">QNX mount point</th><th scope="col" lang="zh-CN">说明</th></tr></thead>
 <tbody><!-- ROWS --></tbody>
 </table>
 </div>
-<p class="note" lang="zh-CN">A/B 状态按采集时的设备别名判定。Not reported 表示原始记录未能确认分区容量；文件系统容量不作为分区容量。— 表示无对应记录。</p>
+<p class="note" lang="zh-CN">A/B 状态按采集时的设备别名判定。Not reported 表示原始记录未能确认分区容量；文件系统容量不作为分区容量。— 表示未观察到对应的 QNX 挂载记录或无 A/B 配对。说明依据项目配置及 <a href="https://source.android.com/docs/core/architecture/partitions">AOSP 分区</a>、<a href="https://source.android.com/docs/core/architecture/partitions/generic-boot">启动镜像</a>和<a href="https://source.android.com/docs/core/ota/dynamic_partitions/implement">动态分区</a>文档，未确认的用途写 unknown。</p>
 </main>
 </body>
 </html>

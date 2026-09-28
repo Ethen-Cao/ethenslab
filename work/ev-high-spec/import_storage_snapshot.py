@@ -6,7 +6,8 @@ import argparse, hashlib, json, re
 def import_snapshot(run):
     run = Path(run)
     names = ['manifest.json', 'parsed/qnx-storage.json', 'parsed/qnx-partitions.json',
-             'raw/qnx/dev-disk-ls.txt', 'raw/qnx/df-P.txt', 'raw/qnx/df-n.txt']
+             'raw/qnx/dev-disk-ls.txt', 'raw/qnx/df-P.txt', 'raw/qnx/df-n.txt',
+             'raw/qnx/mount-f.txt', 'parsed/android-partitions.json']
     raw = {name: (run/name).read_text() for name in names}
     storage = json.loads(raw['parsed/qnx-storage.json'])
     mounts = json.loads(raw['parsed/qnx-partitions.json'])

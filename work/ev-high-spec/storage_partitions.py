@@ -22,13 +22,14 @@ def code(value):
 
 def render_storage():
     data = json.loads((ROOT / 'storage-8295.json').read_text())
+    descriptions = json.loads((ROOT / 'storage_partition_descriptions.json').read_text())['partitions']
     slots = {}
     for pair in data['pairs']:
         for slot in ('a', 'b'):
             bank = pair['slot' + slot.upper()]
             active = pair['activeSlot']
             state = ('Active' if active == slot else 'Inactive') if active in ('a', 'b') else 'Unknown'
-            slots[bank['target']] = (bank['alias'], slot.upper() + ' · ' + state)
+            slots[bank['target']] = (bank['alias'], slot.upper() + ' · ' + state, pair['name'])
 
     mounts = {}
     for mount in data['mounted']:
@@ -40,7 +41,9 @@ def render_storage():
     rows = []
     for device in partitions:
         node = device['node']
-        name, state = slots.get(node, (', '.join(device['aliases']) or 'Unnamed', '—'))
+        name = ', '.join(device['aliases']) or 'Unnamed'
+        name, state, base_name = slots.get(node, (name, '—', name))
+        description = descriptions.get(base_name, {}).get('description', 'unknown')
         mounted = mounts.get('/dev/disk/' + node, [])
         filesystems = ', '.join(dict.fromkeys(m['fsType'] for m in mounted)) or '—'
         points = list(dict.fromkeys(
@@ -54,7 +57,8 @@ def render_storage():
             f'<td>{code("/dev/disk/" + node)}</td>'
             f'<td class="state">{escape(state)}</td>'
             f'<td class="capacity">{size(device["capacityBytes"])}</td>'
-            f'<td>{escape(filesystems)}</td><td>{mount_points}</td></tr>'
+            f'<td>{escape(filesystems)}</td><td>{mount_points}</td>'
+            f'<td class="description" lang="zh-CN">{escape(description)}</td></tr>'
         )
     captured = datetime.fromisoformat(data['capturedAt'].replace('Z', '+00:00'))
     captured = captured.astimezone(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S UTC+08:00')

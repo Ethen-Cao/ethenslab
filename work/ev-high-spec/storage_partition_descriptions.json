@@ -1,0 +1,355 @@
+{
+  "reviewedAt": "2026-09-28",
+  "policy": "Descriptions require cited project or platform evidence. Unlisted or unresolved purposes render exactly as unknown. A/B slots share a base-label purpose. Live sizes are never inferred from build layout files.",
+  "sources": {
+    "layout": {
+      "path": "build/scripts/projects/HBEZ/build_overlay/partition_la_ext_SDP.xml",
+      "detail": "Partition labels, image filenames, and layout comments; used for purpose only, not live capacity."
+    },
+    "boot-images": {
+      "path": "QNX/HQX-4-5-5-0_TEST_DEVICE/contents.xml",
+      "detail": "BOOT_BINARY, BOOT_CONFIG and DDRFW_BINARY mappings."
+    },
+    "host-mounts": {
+      "path": "bsp/apps/qnx_ap/target/filesets/launcher_scripts/devb-host.c",
+      "detail": "system → /mnt; modem → /firmware; persist → /persist."
+    },
+    "host-data": {
+      "path": "bsp/apps/qnx_ap/target/filesets/shell_scripts/voyah_partitions.sh",
+      "detail": "Mounts factory, calibration, qnx_log and qnx_ota; prepares QNX logs and OTA staging directories; handles Raw_Dmp! on the OTA partition."
+    },
+    "host-vbmeta": {
+      "path": "bsp/apps/qnx_ap/target/hypervisor/host/create_images.sh",
+      "detail": "make_vbmeta_image creates host_vbmeta and chains guest la_vbmeta."
+    },
+    "ota-script": {
+      "path": "build/scripts/tools/update-script/update_ic.sh",
+      "detail": "Writes system, ifs2 and hyp image patches into the selected bank."
+    },
+    "guest-map": {
+      "path": "bsp/apps/qnx_ap/target/hypervisor/gvm/ivi/la/la_dp_enabled_b.config",
+      "detail": "VirtIO hostdev mappings, including rawdump → guest OTA disk."
+    },
+    "guest-init": {
+      "path": "android/android/device/voyah/nurburgring/init.target.rc",
+      "detail": "Guest persist directories, map directories, camera media/DVR permissions."
+    },
+    "guest-fstab": {
+      "path": "android/android/device/voyah/nurburgring/fstab.qcom",
+      "detail": "Android guest filesystem roles."
+    },
+    "qnx-diagnostic": {
+      "path": "parsed/qnx-partitions.json",
+      "root": "latest storage-diagnostic run",
+      "detail": "Observed host mounts; snapshot capture time is recorded in storage-8295.json."
+    },
+    "android-diagnostic": {
+      "path": "parsed/android-partitions.json",
+      "root": "latest storage-diagnostic run",
+      "detail": "Observed guest mounts used with guest-map; guest mount points are mentioned only in descriptions, not the QNX mount columns."
+    },
+    "aosp-partitions": {
+      "url": "https://source.android.com/docs/core/architecture/partitions",
+      "detail": "Standard Android partition responsibilities; project la_ prefixes are confirmed separately in guest-map."
+    },
+    "aosp-boot": {
+      "url": "https://source.android.com/docs/core/architecture/partitions/generic-boot",
+      "detail": "boot, init_boot and vendor_boot image contents."
+    },
+    "aosp-super": {
+      "url": "https://source.android.com/docs/core/ota/dynamic_partitions/implement",
+      "detail": "super contains Android dynamic logical partitions."
+    }
+  },
+  "partitions": {
+    "ALIGN_TO_128K_1": {
+      "description": "分区布局中的 128 KiB 对齐填充区。",
+      "sources": [
+        "layout"
+      ]
+    },
+    "ALIGN_TO_128K_2": {
+      "description": "分区布局中的 128 KiB 对齐填充区。",
+      "sources": [
+        "layout"
+      ]
+    },
+    "ALIGN_TO_128K_3": {
+      "description": "分区布局中的 128 KiB 对齐填充区。",
+      "sources": [
+        "layout"
+      ]
+    },
+    "ALIGN_TO_128K_4": {
+      "description": "分区布局中的 128 KiB 对齐填充区。",
+      "sources": [
+        "layout"
+      ]
+    },
+    "system": {
+      "description": "QNX 主机系统镜像；活动分区以只读方式挂载到 /mnt。",
+      "sources": [
+        "layout",
+        "host-mounts",
+        "qnx-diagnostic"
+      ]
+    },
+    "ifs2": {
+      "description": "QNX 第二级 IFS 镜像（ifs2），用于系统启动装载，也是 QNX OTA 更新目标。",
+      "sources": [
+        "layout",
+        "ota-script"
+      ]
+    },
+    "hyp": {
+      "description": "Hypervisor 启动镜像（mifs_hyp），用于虚拟化环境启动，也是 QNX OTA 更新目标。",
+      "sources": [
+        "layout",
+        "ota-script"
+      ]
+    },
+    "vbmeta": {
+      "description": "QNX 主机侧的启动校验元数据，并链接 Android 来宾的 la_vbmeta 校验链。",
+      "sources": [
+        "host-vbmeta",
+        "layout"
+      ]
+    },
+    "boot": {
+      "description": "平台启动镜像 boot_la_qcc6.img；Android 来宾的启动镜像另存于 la_boot。",
+      "sources": [
+        "layout"
+      ]
+    },
+    "xbl": {
+      "description": "平台启动加载程序 XBL 的镜像分区。",
+      "sources": [
+        "boot-images",
+        "layout"
+      ]
+    },
+    "xbl_bkup": {
+      "description": "XBL 启动加载程序的备份镜像。",
+      "sources": [
+        "boot-images",
+        "layout"
+      ]
+    },
+    "xbl_config": {
+      "description": "XBL 启动阶段使用的配置镜像。",
+      "sources": [
+        "boot-images",
+        "layout"
+      ]
+    },
+    "shrm": {
+      "description": "DDR 固件镜像分区，烧录 shrm.elf。",
+      "sources": [
+        "boot-images",
+        "layout"
+      ]
+    },
+    "abl": {
+      "description": "Fastboot 启动加载程序镜像，烧录 abl_fastboot.elf。",
+      "sources": [
+        "layout"
+      ]
+    },
+    "dsp": {
+      "description": "DSP 软件镜像分区，烧录 dspso.bin，并映射给 Android 来宾。",
+      "sources": [
+        "layout",
+        "guest-map"
+      ]
+    },
+    "bluetooth": {
+      "description": "蓝牙固件镜像（BTFM.bin）；Android 将活动侧挂载为 /vendor/bt_firmware。",
+      "sources": [
+        "layout",
+        "guest-map",
+        "android-diagnostic"
+      ]
+    },
+    "modem": {
+      "description": "NON-HLOS 固件镜像；QNX 活动侧挂载为 /firmware，Android 映射为 /vendor/firmware_mnt。",
+      "sources": [
+        "layout",
+        "host-mounts",
+        "guest-map",
+        "android-diagnostic"
+      ]
+    },
+    "la_boot": {
+      "description": "Android 来宾的启动镜像，包含用于启动 Android 的内核。",
+      "sources": [
+        "layout",
+        "guest-map",
+        "aosp-boot"
+      ]
+    },
+    "la_init_boot": {
+      "description": "Android 来宾的通用 ramdisk 镜像，包含初始启动环境。",
+      "sources": [
+        "layout",
+        "guest-map",
+        "aosp-boot"
+      ]
+    },
+    "la_vendor_boot": {
+      "description": "Android 来宾的 vendor 启动镜像，包含设备相关 ramdisk 和设备树数据。",
+      "sources": [
+        "layout",
+        "guest-map",
+        "aosp-boot"
+      ]
+    },
+    "la_dtbo": {
+      "description": "Android 来宾的设备树覆盖镜像，用于补充或调整设备硬件描述。",
+      "sources": [
+        "layout",
+        "guest-map"
+      ]
+    },
+    "la_vbmeta": {
+      "description": "Android 来宾的 Verified Boot 校验元数据，用于验证系统镜像。",
+      "sources": [
+        "layout",
+        "guest-map",
+        "aosp-partitions"
+      ]
+    },
+    "la_misc": {
+      "description": "Android 来宾的 misc 分区，供启动加载程序与 recovery 交换启动、恢复控制信息。",
+      "sources": [
+        "guest-map",
+        "guest-fstab",
+        "aosp-partitions"
+      ]
+    },
+    "la_super": {
+      "description": "Android 动态分区容器，存放 system、vendor 等逻辑分区及其布局元数据。",
+      "sources": [
+        "layout",
+        "guest-map",
+        "aosp-super"
+      ]
+    },
+    "la_userdata": {
+      "description": "Android 来宾的用户和应用数据区，对应 /data。",
+      "sources": [
+        "layout",
+        "guest-map",
+        "android-diagnostic",
+        "aosp-partitions"
+      ]
+    },
+    "la_metadata": {
+      "description": "Android 元数据区，对应 /metadata；启用元数据加密时用于保存相关密钥。",
+      "sources": [
+        "layout",
+        "guest-map",
+        "android-diagnostic",
+        "aosp-partitions"
+      ]
+    },
+    "la_persist": {
+      "description": "Android 持久数据区，对应 /mnt/vendor/persist，保存需要跨重启保留的设备、服务数据。",
+      "sources": [
+        "guest-map",
+        "guest-init",
+        "android-diagnostic"
+      ]
+    },
+    "la_log": {
+      "description": "Android 日志存储区，对应 /log，也用于 ANR、tombstone 和系统 dropbox 日志。",
+      "sources": [
+        "guest-map",
+        "android-diagnostic"
+      ]
+    },
+    "la_map": {
+      "description": "Android 地图数据存储区，对应 /map，含 user 与 persist 子目录。",
+      "sources": [
+        "guest-map",
+        "guest-init",
+        "android-diagnostic"
+      ]
+    },
+    "la_avm_cali": {
+      "description": "Android AVM 标定数据区，对应 /avm_cali。",
+      "sources": [
+        "layout",
+        "guest-map",
+        "android-diagnostic"
+      ]
+    },
+    "cam_dvr": {
+      "description": "Android 摄像头 DVR 数据存储区，对应 /camera/dvr。",
+      "sources": [
+        "guest-map",
+        "guest-init",
+        "android-diagnostic"
+      ]
+    },
+    "cam_media": {
+      "description": "Android 摄像头媒体数据存储区，对应 /camera/media。",
+      "sources": [
+        "guest-map",
+        "guest-init",
+        "android-diagnostic"
+      ]
+    },
+    "rawdump": {
+      "description": "当前项目映射为 Android OTA 暂存区，对应来宾 /ota；分区定义还保留 full dump 用途。",
+      "sources": [
+        "layout",
+        "guest-map",
+        "android-diagnostic"
+      ]
+    },
+    "qnx_ota": {
+      "description": "QNX OTA 升级包暂存区，对应 /ota；项目配置还注明与 minidump 共用。",
+      "sources": [
+        "layout",
+        "host-data",
+        "qnx-diagnostic"
+      ]
+    },
+    "qnx_log": {
+      "description": "QNX 日志区，对应 /log，保存 qlog、内核和 DLT 等日志。",
+      "sources": [
+        "host-data",
+        "qnx-diagnostic"
+      ]
+    },
+    "persist": {
+      "description": "QNX 持久数据区，对应 /persist，保存跨重启保留的配置和服务数据。",
+      "sources": [
+        "host-mounts",
+        "host-data",
+        "qnx-diagnostic"
+      ]
+    },
+    "userdata": {
+      "description": "QNX 可写运行数据区，对应 /var；Android 用户数据另存于 la_userdata。",
+      "sources": [
+        "layout",
+        "qnx-diagnostic"
+      ]
+    },
+    "factory": {
+      "description": "QNX 工厂数据存储区，对应 /factory。",
+      "sources": [
+        "host-data",
+        "qnx-diagnostic"
+      ]
+    },
+    "calibration": {
+      "description": "QNX 标定数据存储区，对应 /cal。",
+      "sources": [
+        "host-data",
+        "qnx-diagnostic"
+      ]
+    }
+  }
+}
