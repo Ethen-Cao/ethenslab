@@ -74,13 +74,18 @@ def create_b_system():
         parts.append(shape+'</g>')
         return id_
 
-    def connector(title, x, y, dark=False, face=None):
+    def connector(title, x, y, dark=False, face=None, label_pos='left', label_size=22):
         fill = face or ('#1f2425' if dark else '#f4f6f7')
         rect(x, y, 33, 43, fill, INK, 1.8, 6, where=parts)
         for xx in (x+10, x+23):
             for yy in (y+12, y+31):
                 parts.append(f'<circle cx="{xx}" cy="{yy}" r="3.5" fill="#d0ae52" stroke="{INK}"/>')
-        label(x-8, y+26, title, 22, 'end', 700)
+        if label_pos == 'above':
+            label(x+16.5, y-12, title, label_size, weight=700)
+        elif label_pos == 'right':
+            label(x+43, y+27, title, label_size, 'start', 700)
+        else:
+            label(x-8, y+26, title, label_size, 'end', 700)
         return (x+33, y+21.5)
 
     def antenna(x, y, title):
@@ -191,7 +196,7 @@ def create_b_system():
              ['USB', str(i+1)], LIGHT_GREEN,
              note='主芯片 USB 控制器；SoC 端口号已省略。', size=7.5)
     # Top-left radio and video adapter chain.
-    connector('J4600(PB)', 672, 245, face=GREEN)
+    connector('J4600(PB)', 672, 245, face=GREEN, label_pos='above', label_size=18)
     path([(705,266),(746,266),(746,201)], sw=1.2)
     path([(746,266),(746,277)], sw=1.2)
     for y, name, fill in [(188, 'TEF3200', BLUE), (226, 'TEF3100', BLUE),
@@ -339,7 +344,7 @@ def create_b_system():
          note='原图中划掉的预留 2.5G-T1 方案。', size=8, kind='reserved')
     path([(1351,1108),(1432,1084)], '#c8645e', 2.2)
     label(1379, 1123, '预留', 8)
-    connector('J1(MB)', 1513, 1014)
+    connector('J1(MB)', 1513, 1014, label_pos='right', label_size=18)
     # J8 is the distinct USB 3.0 board connector between Ethernet and USB 2.0.
     rect(1520, 1074, 13, 27, PAPER, INK, 1.5, 6, where=parts)
     for py in (1081, 1088, 1095):
@@ -358,8 +363,8 @@ def create_b_system():
     path([(1127,1090),(1170,1090),(1170,1128),(1229,1128)], usb, 1.25, arrow=True)
     path([(1127,1137),(1274,1137),(1274,1180),(1511,1180)], usb, 1.25, arrow=True)
     path([(1311,1135),(1511,1135)], usb, 1.25, arrow=True)
-    connector('J6(PB)', 1514, 1111)
-    connector('J5(PB)', 1514, 1160)
+    connector('J6(PB)', 1514, 1111, label_pos='right', label_size=18)
+    connector('J5(PB)', 1514, 1160, label_pos='right', label_size=18)
     label(1382, 1130, 'USB 2.0', 8)
     label(1382, 1180, 'USB 2.0', 8)
     label(1450, 1069, 'USB 3.0', 8, color='#b39348')
