@@ -214,7 +214,7 @@ def create_hardware():
     for k,c in SIGNALS.items():
         defs+=f'<marker id="hw-arrow-{k}" viewBox="0 0 8 10" refX="7" refY="5" markerWidth="6" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L7 5L1 9" fill="none" stroke="{c}" stroke-width="1.3"/></marker>'
     defs+='</defs>'
-    svg='<svg id="hardware-drawing" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1827 1344" role="group" aria-labelledby="hardwareTitle hardwareDesc"><title id="hardwareTitle">IVI硬件架构图</title><desc id="hardwareDesc">根据所附图纸重绘，展示 QAM 8295P 与 MCU，以及视频、音频、无线通信、以太网、USB 和电源接口。灰色表示预留功能。</desc>'+defs
+    svg='<svg id="hardware-drawing" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1827 1344" role="group" aria-labelledby="hardwareTitle hardwareDesc"><title id="hardwareTitle">A平台IVI硬件架构图</title><desc id="hardwareDesc">根据所附图纸重绘，展示 QAM 8295P 与 MCU，以及视频、音频、无线通信、以太网、USB 和电源接口。灰色表示预留功能。</desc>'+defs
     svg+='<style>#hardware-drawing text{pointer-events:none;font-family:Arial,"Microsoft YaHei","Noto Sans CJK SC",sans-serif}#hardware-drawing .hardware-module{cursor:pointer}#hardware-drawing .hardware-module:hover .hw-box,#hardware-drawing .hardware-module:focus .hw-box{stroke:#2454af;stroke-width:2}#hardware-drawing .hardware-module.found .hw-box{stroke:#da8409;stroke-width:2.5}#hardware-drawing .hardware-module.selected .hw-box{stroke:#1454b8;stroke-width:2.5}</style><rect width="1827" height="1344" fill="white"/>'
     svg+=''.join(shapes+wires+node_parts+labels)+'</svg>'
     return svg,dict(width=WIDTH,height=HEIGHT,nodes=nodes)

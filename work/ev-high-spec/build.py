@@ -2,6 +2,7 @@ from pathlib import Path
 from html import escape as esc
 import json, re
 from ivi_hardware import create_hardware
+from b_platform_system import create_b_system
 from software_high_level import render_software
 
 ROOT = Path(__file__).parent
@@ -314,13 +315,15 @@ for b,pts in lines:
     svg.append(f'<path class="wire" data-net="{b}" d="{p}" stroke="{BC[nn["kind"]]}" {"stroke-dasharray='2.5 2'" if nn['kind']=='LIN' else ""}><title>{esc(nn["title"])}</title></path>')
 svg += [node_svg(n) for n in nodes]+decorations+annotations+legend+['</svg>']
 hardware_svg,hardware_data=create_hardware()
+b_system_svg,b_system_data=create_b_system()
 software_html,software_data=render_software()
-data=dict(nodes=nodes,nets=nets,glossary=glossary,domains=DOMAINS,colors=COLORS,hardware=hardware_data,software=software_data)
+data=dict(nodes=nodes,nets=nets,glossary=glossary,domains=DOMAINS,colors=COLORS,hardware=hardware_data,bSystem=b_system_data,software=software_data)
 template=(ROOT/'template.html').read_text()
-svg[0]=svg[0].replace('role="img"','role="group"').replace('.wire{','.module.selected.found .node-box{stroke:#075cbb;stroke-width:2.4}.wire{')
-template=template.replace('<!-- DRAWING -->',''.join(svg)).replace('<!-- HARDWARE_DRAWING -->',hardware_svg).replace('<!-- SOFTWARE_CONTENT -->',software_html).replace('/* SOFTWARE_STYLE */',(ROOT/'software_high_level.css').read_text()).replace('/* DIAGRAM_DATA */ null',json.dumps(data,ensure_ascii=False).replace('</',r'<\/'))
+svg[0]=svg[0].replace('role="img"','role="group"').replace('<title id="diagramTitle">电子电气架构</title>','<title id="diagramTitle">A平台电子电器架构图</title>').replace('.wire{','.module.selected.found .node-box{stroke:#075cbb;stroke-width:2.4}.wire{')
+template=template.replace('<!-- DRAWING -->',''.join(svg)).replace('<!-- HARDWARE_DRAWING -->',hardware_svg).replace('<!-- B_SYSTEM_DRAWING -->',b_system_svg).replace('<!-- SOFTWARE_CONTENT -->',software_html).replace('/* SOFTWARE_STYLE */',(ROOT/'software_high_level.css').read_text()).replace('/* DIAGRAM_DATA */ null',json.dumps(data,ensure_ascii=False).replace('</',r'<\/'))
 template=template.replace('/* APP_SCRIPT */',(ROOT/'app.js').read_text()).replace('/* SOFTWARE_SCRIPT */',(ROOT/'software_high_level.js').read_text())
 (ROOT/'index.html').write_text(template)
 (ROOT/'architecture.svg').write_text(''.join(svg))
 (ROOT/'ivi-hardware.svg').write_text(hardware_svg)
-print(json.dumps(dict(nodes=len(nodes),nets=len(nets),segments=len(lines),glossary=len(glossary),html_bytes=len(template.encode())),ensure_ascii=False))
+(ROOT/'b-platform-system.svg').write_text(b_system_svg)
+print(json.dumps(dict(nodes=len(nodes),nets=len(nets),segments=len(lines),b_system_nodes=len(b_system_data["nodes"]),glossary=len(glossary),html_bytes=len(template.encode())),ensure_ascii=False))

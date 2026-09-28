@@ -4,9 +4,11 @@ const glossaryMap = new Map(DATA.glossary.map(g => [norm(g.abbr), g]));
 const palette = {CANFD:'#27ac49', CAN:'#ff4338', LIN:'#efb517', Ethernet:'#287ad5', LVDS:'#834cb4', DSI:'#e8b52d', Signal:'#555'};
 const kindNames = {base:'基础配置', external:'外部设备', reserved:'预留功能', power:'供电电源'};
 const kindColors = {base:'#ffecd7', external:'#dfe7fb', reserved:'#bdc1c6', power:'#f56566'};
-const tabNames = ['diagram', 'hardware', 'software', 'glossary'];
-const queries = {diagram:'', hardware:'', software:'', glossary:''};
-const tabSubtitles = {diagram:'车载网络拓扑', hardware:'IVI 硬件连接与接口', software:'High-Level 软件架构', glossary:'控制器与传感器缩写'};
+const bKindNames = {base:'IVI 主机模块', external:'外部设备', reserved:'可选 / 预留', power:'电源与控制'};
+const bKindColors = {base:'#4285f4', external:'#34a853', reserved:'#9aa7b8', power:'#ea4335'};
+const tabNames = ['diagram', 'hardware', 'b-system', 'software', 'glossary'];
+const queries = {diagram:'', hardware:'', 'b-system':'', software:'', glossary:''};
+const tabSubtitles = {diagram:'车载网络拓扑', hardware:'IVI 硬件连接与接口', 'b-system':'系统级硬件模块与外部负载', software:'High-Level 软件架构', glossary:'控制器与传感器缩写'};
 let activeTab = 'diagram';
 
 function makeScene(id, svgId, viewportId, width, height, nodes) {
@@ -20,7 +22,8 @@ function makeScene(id, svgId, viewportId, width, height, nodes) {
 }
 const scenes = {
   diagram:makeScene('diagram','drawing','viewport',1946,800,DATA.nodes),
-  hardware:makeScene('hardware','hardware-drawing','hardware-viewport',DATA.hardware.width,DATA.hardware.height,DATA.hardware.nodes)
+  hardware:makeScene('hardware','hardware-drawing','hardware-viewport',DATA.hardware.width,DATA.hardware.height,DATA.hardware.nodes),
+  'b-system':makeScene('b-system','b-system-drawing','b-system-viewport',DATA.bSystem.width,DATA.bSystem.height,DATA.bSystem.nodes)
 };
 const currentScene = () => scenes[activeTab];
 
@@ -29,7 +32,7 @@ function cn(n) {
   return definition(n)?.cn || (n.name.startsWith('VIU_') ? '区域控制单元（全称待核对）' : n.name.startsWith('To ') ? '跨区域网络引用端口' : '所附缩写表未列出对应释义');
 }
 function defaultStatus() {
-  return activeTab === 'hardware' ? '按提供的 IVI 硬件图纸重绘' : activeTab === 'software' ? 'High-Level 软件架构' : '按提供的图纸重绘';
+  return activeTab === 'b-system' ? 'B平台系统级硬件架构' : activeTab === 'hardware' ? '按提供的 IVI 硬件图纸重绘' : activeTab === 'software' ? 'High-Level 软件架构' : '按提供的图纸重绘';
 }
 function syncZoom(s) {
   if (s.id !== activeTab) return;
@@ -101,11 +104,11 @@ function selectNode(id, center = false, s = currentScene()) {
   $('detail-domain').replaceChildren();
   $('detail-status').replaceChildren();
   $('detail-nets').replaceChildren();
-  const isHardware = s.id === 'hardware';
+  const isHardware = s.id === 'hardware' || s.id === 'b-system';
   const dot = document.createElement('span');
   dot.className = 'domain-dot';
-  dot.style.background = isHardware ? kindColors[n.kind] : DATA.colors[n.domain];
-  $('detail-domain').append(dot, isHardware ? kindNames[n.kind] : DATA.domains[n.domain]);
+  dot.style.background = s.id === 'b-system' ? bKindColors[n.kind] : isHardware ? kindColors[n.kind] : DATA.colors[n.domain];
+  $('detail-domain').append(dot, s.id === 'b-system' ? bKindNames[n.kind] : isHardware ? kindNames[n.kind] : DATA.domains[n.domain]);
   $('detail-connection-label').hidden = isHardware;
   $('detail-nets').hidden = isHardware;
   if (isHardware) {
@@ -172,12 +175,12 @@ function search() {
   panel.replaceChildren();
   panel.hidden = !query;
   if (!query) return;
-  const hits = s.nodes.filter(n => norm(s.id === 'hardware' ? `${n.name} ${n.lines.join(' ')} ${n.note}` : `${n.name} ${n.key} ${cn(n)} ${definition(n)?.en || ''}`).includes(query));
+  const hits = s.nodes.filter(n => norm(s.id !== 'diagram' ? `${n.name} ${n.lines.join(' ')} ${n.note}` : `${n.name} ${n.key} ${cn(n)} ${definition(n)?.en || ''}`).includes(query));
   for (const n of hits) {
     $(n.id).classList.add('found');
     const button = document.createElement('button'), small = document.createElement('small');
     button.append(n.name);
-    small.textContent = s.id === 'hardware' ? n.lines.join(' · ') : cn(n);
+    small.textContent = s.id !== 'diagram' ? n.lines.join(' · ') : cn(n);
     button.append(small);
     button.onclick = () => { selectNode(n.id, true, s); panel.hidden = true; };
     panel.append(button);
@@ -203,17 +206,17 @@ function showTab(tab) {
     $(name + '-tab').setAttribute('aria-selected', String(name === tab));
     $(name + '-tab').tabIndex = name === tab ? 0 : -1;
   }
-  const graph = tab === 'diagram' || tab === 'hardware';
+  const graph = tab === 'diagram' || tab === 'hardware' || tab === 'b-system';
   $('global-toolbar').hidden = tab === 'software';
   $('zoom-tools').hidden = !graph;
   $('gesture-hint').hidden = !graph;
   $('export-svg').hidden = !graph;
   $('search-results').hidden = true;
   $('search').value = queries[tab];
-  $('search').placeholder = tab === 'hardware' ? '搜索芯片或接口，如 8295、USB、MCU' : tab === 'diagram' ? '搜索模块或中文名称，如 VIU、座椅' : '搜索缩写、英文或中文名称';
-  $('counts').textContent = tab === 'software' ? `${DATA.software.modules.length} 个逻辑模块 · ${DATA.software.flows.length} 类链路` : tab === 'hardware' ? `${DATA.hardware.nodes.length} 个模块 / 连接器` : `${DATA.nodes.length} 个节点 · ${DATA.glossary.length} 项缩写`;
+  $('search').placeholder = tab === 'b-system' ? '搜索系统模块，如 MCU、Display、USB' : tab === 'hardware' ? '搜索芯片或接口，如 8295、USB、MCU' : tab === 'diagram' ? '搜索模块或中文名称，如 VIU、座椅' : '搜索缩写、英文或中文名称';
+  $('counts').textContent = tab === 'software' ? `${DATA.software.modules.length} 个逻辑模块 · ${DATA.software.flows.length} 类链路` : tab === 'b-system' ? `${DATA.bSystem.nodes.length} 个系统模块` : tab === 'hardware' ? `${DATA.hardware.nodes.length} 个模块 / 连接器` : `${DATA.nodes.length} 个节点 · ${DATA.glossary.length} 项缩写`;
   $('selection-status').textContent = defaultStatus();
-  $('footnote').textContent = tab === 'software' ? 'QNX 模块基于镜像与预置服务；AAOS/MCU 映射待项目镜像核对。' : tab === 'hardware' ? '图中芯片型号、接口与参数按所附硬件图纸标注。' : '细小总线编号、部分批注及未列出的缩写待原始设计文件核对。';
+  $('footnote').textContent = tab === 'software' ? 'QNX 模块基于镜像与预置服务；AAOS/MCU 映射待项目镜像核对。' : tab === 'b-system' ? '系统级视图省略 SoC 端口信号与项目编号；预留路径以虚线标注。' : tab === 'hardware' ? '图中芯片型号、接口与参数按所附硬件图纸标注。' : '细小总线编号、部分批注及未列出的缩写待原始设计文件核对。';
   if (graph) {
     const s = scenes[tab];
     requestAnimationFrame(() => { if (!s.initialized || s.fitted) fit(s); else apply(s); });
@@ -323,7 +326,7 @@ $('export-svg').onclick = () => {
   const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n',new XMLSerializer().serializeToString(clone)], {type:'image/svg+xml;charset=utf-8'});
   const url = URL.createObjectURL(blob), a = document.createElement('a');
   a.href = url;
-  a.download = s.id === 'hardware' ? 'ivi-hardware-architecture.svg' : 'vehicle-network-architecture.svg';
+  a.download = s.id === 'b-system' ? 'b-platform-system-architecture.svg' : s.id === 'hardware' ? 'a-platform-ivi-hardware-architecture.svg' : 'a-platform-vehicle-network-architecture.svg';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
