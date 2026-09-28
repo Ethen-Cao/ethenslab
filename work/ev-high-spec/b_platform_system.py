@@ -260,12 +260,21 @@ def create_b_system():
     card('BT5.2', 1218, 267, 139, 43,
          ['BT5.2','MODULE-AH20CAAMD'], CREAM,
          note='原图独立蓝牙模块及独立天线。', size=8.7)
-    path([(1195,84),(1195,141),(1248,180)], sw=1.25)
-    path([(1291,84),(1291,180)], sw=1.25)
-    path([(1390,84),(1390,235),(1330,265)], sw=1.25)
-    path([(1127,218),(1174,218),(1174,205),(1214,205)], arrow=True)
-    path([(1127,239),(1174,239),(1174,288),(1214,288)], arrow=True)
-    path([(1358,207),(1414,207),(1414,229),(1094,229)], arrow=True)
+    # Two antennas belong to the combined Wi-Fi/BT module; the third belongs
+    # only to the separate BT module. Arrowheads point toward the antennas.
+    path([(1248,184),(1195,141),(1195,84)], sw=1.25, arrow=True,
+         note='Combined wireless module to left Bluetooth antenna')
+    path([(1291,184),(1291,84)], sw=1.25, arrow=True,
+         note='Combined wireless module to Wi-Fi antenna')
+    path([(1330,267),(1390,235),(1390,84)], sw=1.25, arrow=True,
+         note='BT 5.2 module to right Bluetooth antenna')
+    label(1380, 245, 'BT', 8)
+    # Two independent bidirectional audio links leave the ADSP right edge.
+    # They do not form a return loop through the wireless module.
+    path([(1094,226),(1158,226),(1158,207),(1214,207)], both=True,
+         note='ADSP ↔ combined Wi-Fi/Bluetooth audio')
+    path([(1094,226),(1144,226),(1144,288),(1214,288)], both=True,
+         note='ADSP ↔ separate Bluetooth 5.2 audio')
 
     # Audio front end, external A2B and microphone fan-out.
     card('AD2433', 1212, 350, 146, 40, fill=PINK,
@@ -274,18 +283,25 @@ def create_b_system():
          note='第二条 A2B 音频总线收发链路。', size=9)
     card('PCM6360', 1212, 468, 146, 40, fill=PINK,
          note='麦克风采集 ADC。', size=9)
+    # The original branches all three audio front ends from the ADSP lower
+    # trunk. Each external audio path has its own route to J1(PB).
+    path([(1070,488),(1070,250)], arrow=True, note='Audio front ends to ADSP')
     for yy in (370,429,488):
-        path([(1094,237),(1160,237),(1160,yy),(1208,yy)], arrow=True)
-        path([(1358,yy),(1411,yy),(1411,yy+3),(1488,yy+3)], arrow=True)
+        path([(1070,yy),(1208,yy)], arrow=True)
+    path([(1358,370),(1490,370)], both=True, note='A2B channel 1 ↔ J1(PB)')
+    path([(1358,429),(1425,429),(1425,412),(1490,412)], both=True,
+         note='A2B channel 2 ↔ J1(PB)')
+    path([(1358,488),(1428,488),(1428,469),(1490,469)], both=True,
+         note='Microphone ADC ↔ J1(PB)')
     card('IVI主电源连接器', 1494, 250, 66, 383,
          ['IVI主电源连接器'], PALE,
          note='原图 J1(PB)：承载外部电源、A2B、显示使能和静音等连接。', vertical=True, size=16)
     label(1566, 466, 'J1(PB)', 19, 'start', 700)
-    label(1513, 227, '×6 MIC', 14, weight=600)
-    for i in range(6):
-        x=1497+(i%3)*12
-        back.append(f'<circle cx="{x}" cy="{201+(i//3)*11}" r="3" fill="none" stroke="{INK}"/>')
-    path([(1470,216),(1470,477),(1489,477)], arrow=True)
+    # Six-microphone bundle enters the top of the J1 connector.
+    parts.append(f'<rect x="1521" y="200" width="12" height="20" rx="6" fill="none" stroke="{INK}" stroke-width="1.6"/>')
+    parts.append(f'<path d="M1517 211 Q1517 225 1527 225 Q1537 225 1537 211 M1527 225 V232 M1520 232 H1534" fill="none" stroke="{INK}" stroke-width="1.6"/>')
+    label(1545, 218, '×6 MIC', 12, 'start', 600)
+    path([(1527,232),(1527,250)], arrow=True, note='Six microphone inputs into J1(PB)')
     card('AMPLIFIERS', 1479, 93, 107, 36, fill=CREAM,
          note='平台规划的外置放大器负载。', size=9)
     label(1480, 77, '平台规划负载', 16, 'start', 700)
