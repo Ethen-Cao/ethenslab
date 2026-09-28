@@ -11,3 +11,15 @@ python3 build.py
 The build also refreshes `architecture.svg`, `ivi-hardware.svg`, and `b-platform-system.svg`. Commit the edited sources and regenerated outputs together. `template.html` is a build template; open `index.html` for the finished page.
 
 The B-platform diagram is a vector redraw of the supplied system overview and enlarged detail images. It preserves the three configuration columns, component part numbers, connector positions, branch topology, load matrix, and state colors. Project identifiers and SoC signal-level labels are intentionally omitted.
+
+
+Click **System Image Banks (A/B)** in the OTA graph or its responsibility list to open `storage-partitions.html`. The partition page is self-contained and supports search, alias-to-device links, and a return link to the OTA view. Keep both HTML files together when copying the viewer. `storage-8295.json` is a portable diagnostic snapshot; the page labels alias state and filesystem usage separately from block-device capacity. Truncated device names are matched only when unique; unknown sizes remain unknown.
+
+To import another diagnostic run, pass its directory containing `parsed/` and `raw/`:
+
+```sh
+python3 import_storage_snapshot.py /path/to/storage-diagnostic/runs/<run>
+python3 build.py
+```
+
+The virtualization overview now separates VM management, vCPU scheduling, memory isolation, VirtIO devices, shared memory, and event notification. The OTA view includes only relevant platform facilities. Project evidence is in `bsp/apps/qnx_ap/target/hypervisor/gvm/ivi/la/linux-la.config` and `la_dp_enabled_b.config` in the HBEZ source workspace. Doorbell is described as a notification mechanism; no independent deployed Doorbell device is claimed. SoC hardware labels identify controllers and interfaces, not TCP/IP.

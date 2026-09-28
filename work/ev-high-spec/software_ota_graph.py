@@ -44,6 +44,10 @@ NODES = {
     'ota-mcu-flash': (1580, 584, 200, 54),
     'ota-mcu-boot': (1580, 716, 200, 54),
     'ota-mcu-hw': (1580, 848, 200, 54),
+    'ota-vm-isolation': (230, 1220, 292, 38),
+    'ota-vdev-net': (548, 1220, 292, 38),
+    'ota-vdev-blk': (866, 1220, 292, 38),
+    'ota-vdev-interrupts': (1184, 1220, 292, 38),
 }
 
 # Domain envelopes preserve the high-level view; layer heights fit their content.
@@ -71,7 +75,7 @@ DISPLAY = {
     'ota-aaos-slot': ('Android A/B Slot', 'inactive target'),
     'ota-qnx-fifo': ('fifo_progress', 'QNX progress file'),
     'ota-qnx-mcu-progress': ('mcu_update_process', 'MCU progress file'),
-    'ota-qnx-banks': ('System Image Banks (A/B)', 'system · ifs2 · hyp'),
+    'ota-qnx-banks': ('System Image Banks (A/B)', 'Open partition details ↗'),
     'ota-aaos-notifier': ('UpdateNotifier', 'client callbacks'),
     'ota-aaos-device': ('DeviceManager', 'target routing'),
     'ota-aaos-sdk': ('VoyahOtaUpdateImpl', 'client SDK'),
@@ -206,9 +210,8 @@ def render_graph(modules):
                  + _text(56,1097,'Image Storage',12,'#675284',700) + '</g>')
     frame.extend([
         _layer(30,1212,1468,54,'VIRTUALIZATION',('#f2f0fc','#ded9ef')),
-        _text(240,1244,'QNX / Android isolation · virtual network I/O',11,'#5b6075'),
         _layer(30,1278,1468,48,'SoC Hardware',('#fff','#dce1e8')),
-        _text(240,1308,'CPU · storage · TCP/IP · SPI',11,'#5b6075'),
+        _text(240,1308,'CPU · Memory Controller · UFS Controller · Ethernet MAC · SPI Controller',11,'#5b6075'),
         _text(1554,980,'CONNECTION KEY',11,'#526179',700),
         _text(1554,1004,'SPI / PKG: matched link ports',11,'#526179'),
         _text(1554,1024,'Crossings with gaps are not junctions.',10,'#738092'),
@@ -299,7 +302,7 @@ def render_graph(modules):
     for mid,(x,y,w,h) in NODES.items():
         module = by_id[mid]
         name,sub = DISPLAY.get(mid,(module['name'],module['short']))
-        fill,stroke = {'qnx':('#fff','#91b1ed'),'aaos':('#fff','#9fceb0'),'mcu':('#fffaf5','#d7aa83')}[module['domain']]
+        fill,stroke = {'qnx':('#fff','#91b1ed'),'aaos':('#fff','#9fceb0'),'mcu':('#fffaf5','#d7aa83'),'platform':('#fff','#c8bde6')}[module['domain']]
         storage = module.get('kind') == 'storage'
         if storage:
             fill,stroke = '#f5effc','#a18bc2'
@@ -309,10 +312,14 @@ def render_graph(modules):
         detail = (f'<path d="M{x+1},{y+h-6} H{x+w-1}" stroke="{stroke}" fill="none"/>' if storage else '')
         name_size = 10.5 if len(name)>22 else 11.5
         sub_size = 9 if len(sub)>24 else 10
-        nodes.append(f'<g class="ota-node" data-sw-module="{mid}" data-node-kind="{kind}" role="button" tabindex="0" aria-label="{escape(module["name"],quote=True)}" aria-pressed="false">'
+        target = module.get('detailPage')
+        tag = 'a' if target else 'g'
+        attrs = f'href="{escape(target)}" data-detail-page="{escape(target)}" role="link"' if target else 'role="button" aria-pressed="false"'
+        name_y,sub_y = (16,30) if h<54 else (23,42)
+        nodes.append(f'<{tag} class="ota-node" data-sw-module="{mid}" data-node-kind="{kind}" {attrs} tabindex="0" aria-label="{escape(module["name"],quote=True)}">'
                      f'<title>{escape(module["name"])}</title><rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{fill}" stroke="{stroke}" stroke-width="1.4"{dash}/>'
-                     + _text(x+12,y+23,name,name_size,'#1f2e40',700)
-                     + _text(x+12,y+42,sub,sub_size,'#647184')+detail+'</g>')
+                     + _text(x+12,y+name_y,name,name_size,'#1f2e40',700)
+                     + _text(x+12,y+sub_y,sub,sub_size,'#647184')+detail+f'</{tag}>')
     defs = ['<defs>']
     for kind,color in COLORS.items():
         defs.append(f'<marker id="ota-arrow-{kind}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">'

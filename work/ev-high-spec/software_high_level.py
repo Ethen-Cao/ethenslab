@@ -80,7 +80,12 @@ MODULES = [
     dict(id="mcu-adc-driver", name="ADC Driver", domain="mcu", short="Analog input", duty="采集并转换 MCU 模拟输入信号。"),
     dict(id="mcu-bootloader", name="Bootloader", domain="mcu", short="Start · update", duty="启动 MCU 应用并承接固件升级切换；校验及回滚策略需按实现核对。"),
     dict(id="mcu-hardware", name="Automotive MCU", domain="mcu", short="Compute · peripherals", duty="提供处理器、片内存储器和外设硬件资源；具体供应商与型号已脱敏。"),
-    dict(id="hypervisor", name="Hypervisor & Virtual I/O", domain="platform", short="Isolation · VirtIO devices", duty="隔离 QNX 与 Android 虚拟机，并提供受控的 VirtIO 虚拟设备、共享 I/O 和域间通信基础。", evidence="QNX hypervisor image/QVM configuration"),
+    dict(id="hypervisor", name="VM Management", domain="platform", short="VM lifecycle · qvm", duty="创建、启动、配置与停止来宾虚拟机。当前平台由 QNX 主机承载 Android 来宾，qvm 配置定义 VM 的资源边界。", evidence="QVM configuration and runtime qvm process"),
+    dict(id="hv-vcpu", name="vCPU Scheduling", domain="platform", short="Priority · CPU affinity", duty="管理来宾 vCPU 的调度优先级及物理 CPU 亲和性；配置中使用 cpu sched 与 runmask。"),
+    dict(id="hv-memory", name="Memory Isolation & Mapping", domain="platform", short="Guest mappings · access control", duty="建立来宾内存映射并实施访问边界；内存范围与访问权限由 VM 配置定义。"),
+    dict(id="hv-devices", name="Virtual Devices (VirtIO)", domain="platform", short="Network · block · console", duty="提供虚拟设备后端与来宾设备接口。当前配置包含 virtio-net、virtio-blk、virtio-console；各域中的前端驱动和主机网络栈保留在所属域。"),
+    dict(id="hv-shmem", name="Shared Memory", domain="platform", short="Shared regions · peer access", duty="建立受控共享内存区域供域间交换数据。项目配置中 vdev-shmem 的 allow vm2-hab_* 约束 HAB 共享区；不将所有共享内存实现统称为 VirtIO。"),
+    dict(id="hv-events", name="Interrupt & Event Notification", domain="platform", short="Virtual IRQ · notifications", duty="向来宾投递设备事件和共享内存通知。Doorbell 可作为该能力的实现机制；当前配置已确认 intr gic 虚拟中断，尚未确认独立 Doorbell 设备，不能将它标为已启用模块。"),
 ]
 
 LAYERS = [
@@ -169,6 +174,7 @@ def render_software():
         ("QNX Cluster", [m for m in MODULES if m["domain"] == "qnx"]),
         ("AAOS IVI", [m for m in MODULES if m["domain"] == "aaos"]),
         ("MCU", [m for m in MODULES if m["domain"] == "mcu"]),
+        ("Virtualization", [m for m in MODULES if m["domain"] == "platform"]),
     ]
     index = "".join(
         f'<section class="sw-index-group"><h4>{escape(title)}</h4><ul class="sw-index-list">'
@@ -176,6 +182,7 @@ def render_software():
         + '</ul></section>'
         for title, items in groups
     )
+    virtualization = "".join(_module_button(m) for m in MODULES if m["domain"] == "platform")
     flow_rows = "".join(
         '<tr>' + ''.join(f'<td>{escape(cell)}</td>' for cell in row) + '</tr>'
         for row in FLOWS
@@ -205,8 +212,8 @@ def render_software():
           </section>
         </div>
         <div class="sw-platform-bands">
-          <div class="sw-hypervisor-band"><div class="sw-band-lead"><span>VIRTUALIZATION</span><small>VM isolation · VirtIO devices</small></div>{_module_button(lookup["hypervisor"])}</div>
-          <div class="sw-hardware-band"><span>SoC Hardware</span><span>CPU · GPU · ADSP · display · audio · network I/O</span></div>
+          <div class="sw-hypervisor-band"><div class="sw-band-lead"><span>VIRTUALIZATION</span><small>Hypervisor capabilities</small></div><div class="sw-hv-modules">{virtualization}</div></div>
+          <div class="sw-hardware-band"><span>SoC Hardware</span><span>CPU · GPU · ADSP · Memory Controller · Display Controller · Audio Interfaces · Ethernet MAC</span></div>
         </div>
       </div>
       <div class="sw-mcu-bridge"><div class="sw-bridge-line">↔</div><strong>SoC ⇄ MCU</strong><span>SPI / UART</span><small>Service mapping to be verified</small></div>
@@ -222,7 +229,7 @@ def render_software():
   <section class="sw-index" id="sw-module-index" aria-labelledby="sw-index-title">
     <div class="sw-section-heading"><div><h3 id="sw-index-title">Module responsibilities</h3></div><p lang="zh-CN">点击架构块可定位对应职责；模块名称保持英文，解释按业务边界编写。</p></div>
     {index}
-    <p class="sw-platform-explainer" lang="zh-CN"><strong>Hypervisor & Virtual I/O</strong>：隔离 QNX 与 Android 虚拟机，并提供受控的虚拟设备、共享 I/O 和域间通信基础。</p>
+    <p class="sw-platform-explainer" lang="zh-CN"><strong>Virtualization</strong> 展示 VM 管理、资源隔离、虚拟设备、共享内存与事件通知等基础能力。HAB、TCP/IP、VSOCK 保留在跨域通信层；Doorbell 属于通知机制，其具体实现需由平台配置确认。参考 <a href="https://www.qnx.com/developers/docs/7.1/com.qnx.doc.hypervisor.user/topic/virt/vdevs.html">QNX Virtual devices</a>。</p>
   </section>
 
   <section class="sw-interfaces" aria-labelledby="sw-interfaces-title">

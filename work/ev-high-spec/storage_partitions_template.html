@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QNX 8295 · Storage Partitions</title><style><!-- CSS --></style></head>
+<body>
+<header><a class="back" href="index.html?tab=software&amp;view=ota">← OTA software architecture</a><span class="snapshot">Diagnostic snapshot · <!-- CAPTURED --></span></header>
+<main>
+<div class="page-title"><h1>QNX 8295 · Storage Partitions</h1><a href="storage-8295.json" download>Download snapshot JSON ↓</a></div>
+<p class="intro" lang="zh-CN">基于设备诊断记录，查看系统镜像 A/B 别名、挂载文件系统和 UFS 设备节点。以下状态对应采集时刻。</p>
+<div class="facts"><span><strong><!-- PAIR_COUNT --></strong> A/B pairs</span><span><strong><!-- PARTITION_COUNT --></strong> partition nodes</span><span><strong><!-- LU_COUNT --></strong> UFS LUs</span><span><strong><!-- ACTIVE_CORE --></strong> system / ifs2 / hyp active aliases</span></div>
+<nav aria-label="Partition sections"><a href="#image-banks">System image banks</a><a href="#ab-pairs">A/B pairs</a><a href="#filesystems">Mounted filesystems</a><a href="#ufs-inventory">UFS inventory</a><a href="#sources">Sources</a></nav>
+<section id="image-banks"><div class="section-heading"><h2>System Image Banks (A/B)</h2><span class="badge">Active alias → <!-- ACTIVE_CORE --></span></div>
+<p lang="zh-CN">无后缀别名指向当前活动侧；<code>_inactive</code> 指向非活动侧。<!-- CORE_STATE_NOTE -->后续启动 bank 由 <code>swdl_utils</code> 按请求选择。</p>
+<div class="bank-map"><div class="bank-head"><span>Image</span><strong>Bank A</strong><strong>Bank B</strong></div><!-- BANK_ROWS --></div>
+<p class="note" lang="zh-CN">A/B 是多组分区的逻辑配对，不等同于两个物理 LUN。UFS 启动配置另报 <code><!-- BOOT_LU --></code>；本页活动侧依据 <code>/dev/disk</code> 别名目标判定，未用启动 LUN 代替系统 bank 判断。</p>
+</section>
+<section id="ab-pairs"><div class="section-heading"><h2>A/B Partition Pairs</h2><span id="pairs-count" class="count" role="status"></span></div>
+<div class="tools"><label>Search pairs<input id="pairs-query" type="search" placeholder="Image, alias or device node…" aria-controls="pairs"></label><label>Scope<select id="pairs-scope"><option value="all">All observed pairs</option><option value="core">OTA system images</option></select></label></div>
+<!-- PAIR_TABLE -->
+<p class="note" lang="zh-CN">此表包含 QNX 主机可见的固件与 Android 相关分区，不代表所有条目都由 QNX OTA 更新。当前图中的 <code>update_ic.sh</code> 只对应 system、ifs2、hyp。</p>
+</section>
+<section id="filesystems"><div class="section-heading"><h2>Mounted Filesystems</h2><span id="mounts-count" class="count" role="status"></span></div>
+<div class="tools"><label>Search mounts<input id="mounts-query" type="search" placeholder="Mount point, label or filesystem…" aria-controls="mounts"></label></div>
+<!-- MOUNT_TABLE -->
+<p class="note" lang="zh-CN">容量与使用率来自已挂载文件系统，不能当成分区原始容量。IFS 与 RAM 记录单独标识；多个 <code>/ifs</code> 条目保留原始记录，未合并为磁盘分区。</p>
+</section>
+<section id="ufs-inventory"><div class="section-heading"><h2>UFS Device Inventory</h2><span id="devices-count" class="count" role="status"></span></div>
+<div class="lus"><!-- LUN_CARDS --></div>
+<p class="note" lang="zh-CN">下方按节点列出逻辑清单，未推断分区偏移或物理排列。容量仅采用 <code>df -P</code> 中可唯一匹配的块设备记录；截断名称存在歧义时显示 Not reported。块设备记录的 100% 不作为文件系统已用率。</p>
+<div class="tools"><label>Search devices<input id="devices-query" type="search" placeholder="uda0, system_a, qnx_ota…" aria-controls="devices"></label></div>
+<!-- DEVICE_TABLE -->
+</section>
+<section id="sources"><h2>Snapshot Sources</h2><p lang="zh-CN">来源：<code>~/Downloads/polaris_downloads_8295/storage-diagnostic/</code>。页面及 JSON 已包含所需数据，可离线打开；更新诊断快照后需重新生成。</p><ul class="sources"><!-- SOURCES --></ul></section>
+</main><script><!-- JS --></script></body></html>

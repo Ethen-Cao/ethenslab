@@ -31,7 +31,7 @@ MODULES = [
     dict(id='ota-qnx-rpcd', name='rpcd', domain='qnx', short='SPI bridge', duty='Platform Services 层的 RPC 通信服务，接收 QNX 本地 IPC 通知，并通过板级 SPI 与 MCU 交换消息帧；此处才是物理 SPI 链路。'),
     dict(id='ota-qnx-fifo', name='fifo_progress', domain='qnx', short='QNX progress file', duty='QNX 镜像更新脚本写入进度，updater 读取后通过 ZeroMQ 请求应答提供给 Android。'),
     dict(id='ota-qnx-mcu-progress', name='mcu_update_process', domain='qnx', short='MCU progress file', duty='upgrademcu 写入 MCU 固件传输进度，updater 读取并响应 Android 轮询。'),
-    dict(id='ota-qnx-banks', name='System Image Banks (A/B)', domain='qnx', kind='storage', short='system · ifs2 · hyp', duty='存储对象，表示两组可切换的系统镜像分区（system、ifs2、hyp）。update_ic.sh 写入非活动侧；BSP 工具 swdl_utils 按请求 slot 选择下次启动 bank。'),
+    dict(id='ota-qnx-banks', name='System Image Banks (A/B)', domain='qnx', kind='storage', detailPage='storage-partitions.html', short='system · ifs2 · hyp', duty='存储对象，表示两组可切换的系统镜像分区（system、ifs2、hyp）。update_ic.sh 写入非活动侧；BSP 工具 swdl_utils 按请求 slot 选择下次启动 bank。'),
     dict(id='ota-qnx-network', name='TCP/IP & Block I/O', domain='qnx', short='Network · storage', duty='为 ZeroMQ 服务和升级文件访问提供 QNX 网络、文件系统与块设备接口。'),
     dict(id='ota-qnx-os', name='QNX Neutrino', domain='qnx', short='Processes · I/O', duty='为 updater、升级任务和设备接口提供进程、线程、文件系统与设备 I/O 运行环境。'),
     dict(id='ota-mcu-task', name='OTA Task', domain='mcu', short='Firmware session', duty='参考图中的 MCU 应用任务，负责接收升级会话、管理固件传输状态；当前工作区没有 MCU 固件源码可验证细节。', reference=True),
@@ -40,6 +40,10 @@ MODULES = [
     dict(id='ota-mcu-flash', name='Flash Driver', domain='mcu', short='Firmware write', duty='参考图中的片内 Flash 访问接口；写入与校验细节待 MCU 源码核实。', reference=True),
     dict(id='ota-mcu-boot', name='Bootloader', domain='mcu', short='Image startup', duty='参考图中的启动程序，承接固件启动与升级切换；回滚策略待 MCU 源码核实。', reference=True),
     dict(id='ota-mcu-hw', name='Automotive MCU', domain='mcu', short='Flash · SPI', duty='提供 MCU 处理器、Flash 与 SPI 硬件资源；供应商与型号已脱敏。', reference=True),
+    dict(id='ota-vm-isolation', name='VM Isolation', domain='platform', short='QNX host · Android guest', duty='OTA 的运行环境基础：QNX 主机承载 qvm，Android 运行于来宾 VM；隔离与资源边界由虚拟化配置提供。'),
+    dict(id='ota-vdev-net', name='VirtIO Network', domain='platform', short='virtio-net · host peer', duty='为跨域 TCP/IP 提供虚拟网卡与主机对端通路。来宾 vdev-virtio-net 属于虚拟设备；主机 devnp-vdevpeer-net 与 io-pkt 属于 QNX 网络软件，不能视作硬件。'),
+    dict(id='ota-vdev-blk', name='VirtIO Block', domain='platform', short='virtio-blk · guest disks', duty='通过虚拟块设备向 Android 来宾提供主机块设备映射，配置中明确列出 hostdev。它是来宾磁盘访问基础，不表示所有 QNX 镜像写入都经过 VirtIO。'),
+    dict(id='ota-vdev-interrupts', name='Virtual Interrupts', domain='platform', short='Device event delivery', duty='通过 vdev 的 intr gic 配置向来宾投递设备事件。当前资料确认虚拟中断；没有把尚未确认的独立 Doorbell 实现标为已启用模块。'),
 ]
 
 
@@ -58,17 +62,17 @@ FLOWS = [
 
 
 def render_ota():
-    groups = [('QNX Cluster', 'qnx'), ('AAOS IVI', 'aaos'), ('MCU', 'mcu')]
+    groups = [('QNX Cluster', 'qnx'), ('AAOS IVI', 'aaos'), ('MCU', 'mcu'), ('Virtualization', 'platform')]
+    def entry(m):
+        target = m.get('detailPage')
+        tag = 'a' if target else 'button'
+        attrs = f'href="{escape(target)}" data-detail-page="{escape(target)}"' if target else 'type="button" aria-pressed="false"'
+        return (f'<li><{tag} class="sw-index-entry" id="sw-index-{escape(m["id"])}" {attrs} data-sw-module="{escape(m["id"])}">'
+                f'<span class="sw-index-name">{escape(m["name"])}{" ↗" if target else ""}</span>'
+                f'<span class="sw-index-duty" lang="zh-CN">{escape(m["duty"])}</span></{tag}></li>')
     index = ''.join(
         f'<section class="sw-index-group"><h4>{title}</h4><ul class="sw-index-list">'
-        + ''.join(
-            f'<li><button class="sw-index-entry" id="sw-index-{escape(m["id"])}" type="button" '
-            f'data-sw-module="{escape(m["id"])}" aria-pressed="false">'
-            f'<span class="sw-index-name">{escape(m["name"])}</span>'
-            f'<span class="sw-index-duty" lang="zh-CN">{escape(m["duty"])}</span>'
-            '</button></li>'
-            for m in MODULES if m['domain'] == domain
-        ) + '</ul></section>'
+        + ''.join(entry(m) for m in MODULES if m['domain'] == domain) + '</ul></section>'
         for title, domain in groups
     )
     rows = ''.join('<tr>' + ''.join(f'<td>{escape(cell)}</td>' for cell in row) + '</tr>' for row in FLOWS)

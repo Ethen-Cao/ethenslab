@@ -5,6 +5,7 @@ from ivi_hardware import create_hardware
 from b_platform_system import create_b_system
 from software_high_level import render_software
 from software_ota import render_ota
+from storage_partitions import render_storage
 
 ROOT = Path(__file__).parent
 glossary = []
@@ -326,6 +327,7 @@ svg[0]=svg[0].replace('role="img"','role="group"').replace('<title id="diagramTi
 template=template.replace('<!-- DRAWING -->',''.join(svg)).replace('<!-- HARDWARE_DRAWING -->',hardware_svg).replace('<!-- B_SYSTEM_DRAWING -->',b_system_svg).replace('<!-- SOFTWARE_CONTENT -->',software_html+ota_html).replace('/* SOFTWARE_STYLE */',(ROOT/'software_high_level.css').read_text()).replace('/* DIAGRAM_DATA */ null',json.dumps(data,ensure_ascii=False).replace('</',r'<\/'))
 template=template.replace('/* APP_SCRIPT */',(ROOT/'app.js').read_text()).replace('/* SOFTWARE_SCRIPT */',(ROOT/'software_high_level.js').read_text())
 (ROOT/'index.html').write_text(template)
+(ROOT/'storage-partitions.html').write_text(render_storage())
 (ROOT/'architecture.svg').write_text(''.join(svg))
 (ROOT/'ivi-hardware.svg').write_text(hardware_svg)
 (ROOT/'b-platform-system.svg').write_text(b_system_svg)

@@ -79,6 +79,7 @@ $('software-panel').addEventListener('click', event => {
   }
   const button = event.target.closest('[data-sw-module]');
   if (!button || !$('software-panel').contains(button)) return;
+  if (button.dataset.detailPage) return; // Keep native link, new-tab and browser history behavior.
   const id = button.dataset.swModule;
   if (button.classList.contains('sw-module') && (id === 'ota-update' || id === 'mcu-ota')) {
     setSoftwareArchitectureView('ota');
@@ -99,6 +100,7 @@ $('software-panel').addEventListener('contextmenu', event => {
 
 $('sw-ota-diagram').addEventListener('keydown', event => {
   const node = event.target.closest('.ota-node');
+  if (node?.dataset.detailPage && event.key === 'Enter') return;
   if (node && (event.key === 'Enter' || event.key === ' ')) {
     event.preventDefault();
     node.dispatchEvent(new MouseEvent('click', {bubbles:true}));
