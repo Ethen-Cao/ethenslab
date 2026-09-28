@@ -21,7 +21,7 @@ NODES = {
     'audio-gpr': (315,925,205,64),
     'audio-pcm-driver': (550,925,205,64),
     'audio-apps': (1020,210,220,64),
-    'audio-bt-hfp': (1540,210,220,64),
+    'audio-bt-hfp': (1280,380,220,64),
     'audio-car': (1540,380,220,64),
     'audio-flinger': (1020,490,220,64),
     'audio-policy': (1280,490,220,64),
@@ -41,7 +41,7 @@ NODES = {
 }
 LAYERS = {
     'qnx': [(150,145,'Vehicle Domain Services'), (315,425,'Platform Services'), (760,255,'Device Integration & BSP')],
-    'aaos': [(150,145,'Applications'), (315,295,'Framework'), (630,385,'Native / HAL')],
+    'aaos': [(150,145,'Applications'), (315,295,'Framework / System Services'), (630,385,'Native / HAL')],
 }
 
 
@@ -65,14 +65,14 @@ def make_routes():
         r.port(driver,device,px,1348,label,'device',note)
         r.add(driver,device,[(px,1360),(px,1380)],flow='device',both=True,note=note)
     # Framework policy and PCM use separate columns and separate anchors.
-    r.add('audio-apps','audio-flinger',[(1080,274),(1080,490)],kind='install',flow='media',both=True,label='AudioTrack / AudioRecord',at=(1080,426))
+    r.add('audio-apps','audio-flinger',[(1200,274),(1200,490)],kind='install',flow='media',both=True,label='AudioTrack / AudioRecord',at=(1200,426))
     r.add('audio-apps','audio-car',[(1180,274),(1180,348),(1650,348),(1650,380)],flow='policy',label='Focus / zones / volume',at=(1380,348))
-    r.add('audio-car','audio-policy',[(1540,412),(1390,412),(1390,490)],flow='policy',label='Audio policy API',at=(1390,460))
+    r.add('audio-car','audio-policy',[(1540,412),(1520,412),(1520,465),(1390,465),(1390,490)],flow='policy',label='Audio policy API',at=(1425,465))
     r.add('audio-policy','audio-flinger',[(1280,522),(1240,522)],flow='policy',note='Route and port configuration through AudioFlinger')
     r.add('audio-flinger','audio-hal',[(1130,554),(1130,675)],kind='install',flow='media,radio',both=True,label='HAL stream I/O',at=(1130,605))
     r.add('audio-car','audio-control',[(1650,444),(1650,675)],flow='policy',label='AudioControl AIDL',at=(1650,570))
     r.add('audio-control','audio-hal',[(1540,707),(1240,707)],flow='policy',label='Mute callback',at=(1390,707))
-    r.add('audio-bt-hfp','audio-hal',[(1710,274),(1790,274),(1790,770),(1220,770),(1220,739)],flow='phone',label='HFP parameters',at=(1460,770))
+    r.add('audio-bt-hfp','audio-hal',[(1500,398),(1510,398),(1510,770),(1220,770),(1220,739)],flow='phone',label='AudioManager HFP control',at=(1370,770),note='HeadsetClientStateMachine configures HFP through AudioManager and the framework; intermediate calls are collapsed')
     r.add('audio-hal','audio-pal',[(1130,739),(1130,835)],kind='install',flow='media,phone,policy,radio',both=True,label='PAL stream API',at=(1130,806))
     r.add('audio-pal','audio-agm',[(1240,867),(1280,867)],kind='install',flow='media,phone,policy,radio',both=True,note='SessionAgm: session configuration, read/write and events')
     r.add('audio-agm','audio-gsl-fe',[(1500,867),(1540,867)],kind='install',flow='media,phone,policy,radio',both=True,note='AGM graph.c: gsl_open, gsl_ioctl, read/write')
