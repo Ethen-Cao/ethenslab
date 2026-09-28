@@ -194,7 +194,7 @@ function search() {
   }
   $('live').textContent = `找到 ${hits.length} 个模块`;
 }
-function showTab(tab) {
+function showTab(tab, {syncUrl = true} = {}) {
   if (!tabNames.includes(tab)) return;
   queries[activeTab] = $('search').value;
   closeDetail();
@@ -204,6 +204,14 @@ function showTab(tab) {
   const isOtaView = tab === 'software' && !$('sw-ota-view')?.hidden;
   const isAudioView = tab === 'software' && !$('sw-audio-view')?.hidden;
   const isDiagView = tab === 'software' && !$('sw-diag-view')?.hidden;
+  if (syncUrl) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    const view = isAudioView ? 'audio' : isOtaView ? 'ota' : isDiagView ? 'diag' : null;
+    if (view) url.searchParams.set('view', view);
+    else url.searchParams.delete('view');
+    window.history.replaceState(null, '', url);
+  }
   $('page-subtitle').textContent = isAudioView ? 'Audio 软件架构' : isOtaView ? 'OTA 软件架构' : isDiagView ? '诊断软件架构' : tabSubtitles[tab];
   document.title = tabTitle;
   for (const name of tabNames) {
@@ -228,7 +236,12 @@ function showTab(tab) {
   } else if (tab === 'glossary') renderGlossary(queries.glossary);
 }
 
-for (const name of tabNames) $(name + '-tab').onclick = () => showTab(name);
+// Top-level navigation always enters the software overview.
+function activateTab(tab) {
+  if (tab === 'software') setSoftwareArchitectureView('high');
+  else showTab(tab);
+}
+for (const name of tabNames) $(name + '-tab').onclick = () => activateTab(name);
 document.querySelector('.tabs').addEventListener('keydown', e => {
   const index = tabNames.indexOf(activeTab);
   let next;
@@ -236,7 +249,7 @@ document.querySelector('.tabs').addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft') next = tabNames[(index + tabNames.length - 1) % tabNames.length];
   if (e.key === 'Home') next = tabNames[0];
   if (e.key === 'End') next = tabNames[tabNames.length - 1];
-  if (next) { e.preventDefault(); showTab(next); $(next + '-tab').focus(); }
+  if (next) { e.preventDefault(); activateTab(next); $(next + '-tab').focus(); }
 });
 $('search').addEventListener('input', search);
 $('search').addEventListener('focus', () => { if ($('search').value) search(); });
@@ -337,4 +350,5 @@ $('export-svg').onclick = () => {
 };
 renderGlossary();
 const requestedTab = new URLSearchParams(window.location.search).get('tab');
-showTab(tabNames.includes(requestedTab) ? requestedTab : 'diagram');
+// Preserve the initial deep-link query until the software script has read it.
+showTab(tabNames.includes(requestedTab) ? requestedTab : 'diagram', {syncUrl:false});
