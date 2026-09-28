@@ -155,7 +155,7 @@
 .sw-vehicle-flow{margin-top:8px;padding-top:8px}
 @media print{.sw-board{grid-template-columns:minmax(0,1fr) 70px 330px}.sw-mcu-bsw .sw-layer-modules{grid-template-columns:55px minmax(0,1fr) 90px}.sw-mcu .sw-module-name{font-size:8px}}
 
-/* OTA component graph keeps the same QNX / AAOS / MCU domains and layers. */
+/* OTA retains the QNX / AAOS / MCU frame and shows only populated layers. */
 .sw-page[hidden]{display:none}
 .sw-ota-nav{display:flex;align-items:center;gap:16px;margin:1px 0 12px;color:#202124;font-size:17px;font-weight:700}
 .software-panel .sw-back{border:1px solid #dce3ea;border-radius:9px;background:#fff;padding:7px 11px;color:#315eb1;font-size:12px;font-weight:700;cursor:pointer;box-shadow:none}
@@ -169,13 +169,14 @@
 .software-panel .sw-ota-controls button[aria-pressed=true]{border-color:#4285f4;background:#e8f0fe;color:#1d5bb4}
 .software-panel .sw-ota-controls button:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}
 .sw-ota-scroll{background:#fff;border-radius:18px}
-.sw-ota-diagram{display:block;max-width:none;width:1850px;height:1465px;font-family:Arial,Roboto,"Microsoft YaHei",sans-serif}
+.sw-ota-diagram{display:block;max-width:none;width:1850px;height:1480px;font-family:Arial,Roboto,"Microsoft YaHei",sans-serif}
 .sw-ota-diagram text{pointer-events:none}
 .sw-ota-diagram .ota-edge{transition:opacity .18s,stroke-width .18s;opacity:.78}
 .sw-ota-diagram .ota-edge.is-dim{opacity:.10}
 .sw-ota-diagram .ota-edge.is-active{opacity:1;stroke-width:3.3}
 .sw-ota-diagram .ota-edge-label{pointer-events:none;opacity:.97}
 .sw-ota-diagram .ota-edge-label.is-dim{opacity:.18}
+.sw-ota-diagram .ota-link-port{pointer-events:all;cursor:help}
 .sw-ota-diagram .ota-return-lane{transition:opacity .18s}
 .sw-ota-diagram .ota-return-lane.is-dim{opacity:.12}
 .sw-ota-diagram .ota-node{cursor:pointer;outline:none}

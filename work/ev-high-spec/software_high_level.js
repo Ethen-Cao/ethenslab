@@ -25,7 +25,9 @@ function refreshOtaGraph() {
   $('sw-ota-diagram').querySelector('.ota-return-lane').classList.toggle('is-dim', focus !== 'all' && focus !== 'feedback');
   document.querySelectorAll('#sw-ota-diagram .ota-edge-label').forEach(label => {
     const flows = label.dataset.otaFlow.split(',');
-    label.classList.toggle('is-dim', focus !== 'all' && !flows.includes(focus) && !(focus !== 'feedback' && flows.includes('shared')));
+    const inFocus = focus === 'all' || flows.includes(focus) || (focus !== 'feedback' && flows.includes('shared'));
+    const adjacent = !selected || label.dataset.otaFrom === selected || label.dataset.otaTo === selected;
+    label.classList.toggle('is-dim', !inFocus || !adjacent);
   });
 }
 
