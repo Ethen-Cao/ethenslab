@@ -87,7 +87,7 @@ def make_routes():
     r.add('audio-bt-hfp','audio-audio-manager',[(1900,412),(1850,412),(1850,358),(1390,358),(1390,380)],flow='phone',label='HFP enable / rate / volume',at=(1740,358))
     r.add('audio-audio-manager','audio-framework-system',[(1390,444),(1390,540)],flow='phone',label='AudioSystem JNI',at=(1390,505))
     r.add('audio-framework-system','audio-flinger',[(1390,604),(1390,654),(1130,654),(1130,700)],flow='phone',label='Binder: setParameters',at=(1280,654))
-    r.add('audio-flinger','audio-hal',[(1220,764),(1220,1020)],flow='phone,policy',label='HAL setParameters',at=(1220,890))
+    r.add('audio-flinger','audio-hal',[(1180,764),(1180,980),(1130,980),(1130,1020)],flow='phone,policy',label='HAL setParameters',at=(1180,890))
     r.add('audio-hal','audio-hfp-ext',[(1240,1052),(1280,1052)],flow='phone',note='AudioDevice -> AudioExtn -> libhfp_pal::hfp_set_parameters')
     r.add('audio-hfp-ext','audio-pal',[(1390,1084),(1390,1155),(1200,1155),(1200,1200)],flow='phone',label='PAL HFP RX / TX',at=(1300,1155),note='pal_stream_open/start/stop/close; HFP RX and TX loopback streams and volume')
     # Media PCM and automotive policy follow their own anchors and channels.
@@ -96,8 +96,8 @@ def make_routes():
     r.add('audio-car','audio-policy',[(1650,444),(1650,700)],flow='policy',label='Policy configuration',at=(1650,610))
     r.add('audio-policy','audio-flinger',[(1540,732),(1240,732)],flow='policy',label='Route / port gain',at=(1390,732))
     r.add('audio-car','audio-control',[(1760,412),(1820,412),(1820,1052),(1760,1052)],flow='policy',label='AudioControl AIDL',at=(1820,860))
-    r.add('audio-control','audio-hal',[(1650,1084),(1650,1128),(1040,1128),(1040,1084)],flow='policy',label='Mute callback',at=(1570,1128))
-    r.add('audio-flinger','audio-hal',[(1130,764),(1130,940),(1190,940),(1190,1020)],kind='install',flow='media,radio',both=True,label='HAL stream I/O',at=(1130,825))
+    r.add('audio-control','audio-hal',[(1650,1020),(1650,950),(1200,950),(1200,1020)],flow='policy',label='Mute callback',at=(1450,950))
+    r.add('audio-flinger','audio-hal',[(1080,764),(1080,1020)],kind='install',flow='media,radio',both=True,label='HAL stream I/O',at=(1080,825))
     r.add('audio-hal','audio-pal',[(1130,1084),(1130,1200)],kind='install',flow='media,policy,radio',both=True,label='PAL stream API',at=(1130,1178))
     r.add('audio-pal','audio-agm',[(1240,1232),(1280,1232)],kind='install',flow='media,phone,policy,radio',both=True,note='SessionAgm: session configuration, read/write and events')
     r.add('audio-agm','audio-gsl-fe',[(1500,1232),(1540,1232)],kind='install',flow='media,phone,policy,radio',both=True,note='AGM graph.c: gsl_open, gsl_ioctl, read/write')
@@ -160,7 +160,7 @@ def render_graph(modules):
     frame.extend([
         '<g class="audio-implementation" data-container="Audio HAL Implementation">'
         +_rect(*AUDIO_HAL_CONTAINER,'#f1f7f2','#bdd8c4',10)
-        +_text(1020,996,'Audio HAL Implementation',12,'#366547',700)+'</g>',
+        +_text(1280,996,'Audio HAL Implementation',12,'#366547',700)+'</g>',
         _layer(30,1415,2190,82,'VIRTUALIZATION',('#f2f0fc','#ded9ef')),
         _layer(30,1515,2190,140,'ADSP Firmware',('#fff8e5','#ead8a6')),
         _layer(30,1665,2190,42,'SoC Hardware',('#fff','#dce1e8')),
