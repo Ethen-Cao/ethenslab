@@ -154,3 +154,28 @@
 .sw-mcu-legend{margin:6px 2px 0;color:#7b7480;font-size:10px}
 .sw-vehicle-flow{margin-top:8px;padding-top:8px}
 @media print{.sw-board{grid-template-columns:minmax(0,1fr) 70px 330px}.sw-mcu-bsw .sw-layer-modules{grid-template-columns:55px minmax(0,1fr) 90px}.sw-mcu .sw-module-name{font-size:8px}}
+
+/* OTA child view preserves the High-Level domain and layer grid. */
+.sw-page[hidden]{display:none}
+.sw-ota-nav{display:flex;align-items:center;gap:16px;margin:1px 0 12px;color:#202124;font-size:17px;font-weight:700}
+.software-panel .sw-back{border:1px solid #dce3ea;border-radius:9px;background:#fff;padding:7px 11px;color:#315eb1;font-size:12px;font-weight:700;cursor:pointer;box-shadow:none}
+.software-panel .sw-back:hover{background:#e8f0fe;border-color:#8aafea}
+.software-panel .sw-back:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}
+#sw-high-level-view .sw-module[data-sw-module="ota-update"]::after,#sw-high-level-view .sw-module[data-sw-module="mcu-ota"]::after{content:"Open OTA view →";display:block;margin-top:5px;color:#315eb1;font-size:10px;font-weight:800}
+.sw-ota-board .sw-soc-domains{grid-template-columns:minmax(560px,1.75fr) 118px minmax(300px,.9fr)}
+.sw-ota-board .sw-domain-aaos .sw-layer-modules{grid-template-columns:repeat(2,minmax(0,1fr))}
+.sw-ota-board .sw-domain-aaos .sw-layer-modules .sw-module{min-height:55px}
+.sw-ota-board .sw-domain-qnx .sw-layer-modules{grid-template-columns:repeat(2,minmax(0,1fr))}
+.sw-ota-board .sw-ota-layer-empty{min-height:43px}
+.sw-ota-board .sw-ota-layer-empty .sw-layer-modules{display:none}
+.sw-ota-board .sw-mcu .sw-layer-modules{grid-template-columns:repeat(2,minmax(0,1fr))}
+.sw-ota-board .sw-mcu .sw-layer-mcu:nth-child(n+4) .sw-layer-modules{grid-template-columns:1fr}
+.sw-ota-board .sw-mcu{align-self:stretch}
+.sw-ota-board .sw-module-reference{border-style:dashed;border-color:#c8a88e}
+.sw-ota-band-text{font-size:11px;color:#5b6572;font-weight:700}
+.sw-ota-paths{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;border-top:1px solid #e1e5e9;padding-top:12px}
+.sw-ota-paths>div{display:flex;align-items:center;flex-wrap:wrap;gap:5px 7px;min-width:0;padding:9px 10px;border:1px solid #e1e5e9;border-radius:11px;background:#fff;color:#4b5563;font-size:10px}
+.sw-ota-paths strong{min-width:67px;color:#26384e;font-size:10px}
+.sw-ota-paths span{white-space:nowrap}
+.sw-ota-paths b{color:#4285f4;font-size:14px}
+@media(max-width:700px){.sw-ota-nav{align-items:flex-start;flex-direction:column;gap:7px}.sw-ota-paths{grid-template-columns:1fr}}

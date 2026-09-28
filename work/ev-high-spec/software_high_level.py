@@ -182,7 +182,7 @@ def render_software():
     )
 
     html = f'''
-<div class="sw-page">
+<div class="sw-page" id="sw-high-level-view">
   <div class="sw-board-scroll" aria-label="High-level software architecture diagram; scroll horizontally if needed">
     <div class="sw-board" lang="en" aria-label="High-level cockpit software architecture">
       <div class="sw-soc">
