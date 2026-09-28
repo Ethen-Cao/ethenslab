@@ -1,8 +1,8 @@
 # EV high-spec architecture diagrams
 
-`index.html` is a self-contained page with the A-platform electrical/electronic and IVI hardware views, the B-platform system view, the high-level software view, and its OTA child architecture. Open it directly in a browser. Click **OTA & Update Management** or **OTA Service** in the high-level software view to open the OTA architecture; `?tab=software&view=ota` opens that child view directly.
+`index.html` is a self-contained page with the A-platform electrical/electronic and IVI hardware views, the B-platform system view, the high-level software view, and its OTA child architecture. Open it directly in a browser. Click **OTA & Update Management** or **OTA Service** in the high-level software view to open the OTA architecture; `?tab=software&view=ota` opens that child view directly. The OTA diagram now shows directed component interactions and status return; its path controls highlight QNX, Android, MCU, or feedback routes. MCU internals are marked as reference-only because the firmware source is not present in this workspace.
 
-Edit the Python (including `software_ota.py`), HTML, CSS, JavaScript, or TSV sources in this directory, then regenerate the page:
+Edit the Python (including `software_ota.py` and `software_ota_graph.py`), HTML, CSS, JavaScript, or TSV sources in this directory, then regenerate the page:
 
 ```sh
 python3 build.py

@@ -155,27 +155,33 @@
 .sw-vehicle-flow{margin-top:8px;padding-top:8px}
 @media print{.sw-board{grid-template-columns:minmax(0,1fr) 70px 330px}.sw-mcu-bsw .sw-layer-modules{grid-template-columns:55px minmax(0,1fr) 90px}.sw-mcu .sw-module-name{font-size:8px}}
 
-/* OTA child view preserves the High-Level domain and layer grid. */
+/* OTA component graph keeps the same QNX / AAOS / MCU domains and layers. */
 .sw-page[hidden]{display:none}
 .sw-ota-nav{display:flex;align-items:center;gap:16px;margin:1px 0 12px;color:#202124;font-size:17px;font-weight:700}
 .software-panel .sw-back{border:1px solid #dce3ea;border-radius:9px;background:#fff;padding:7px 11px;color:#315eb1;font-size:12px;font-weight:700;cursor:pointer;box-shadow:none}
 .software-panel .sw-back:hover{background:#e8f0fe;border-color:#8aafea}
 .software-panel .sw-back:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}
 #sw-high-level-view .sw-module[data-sw-module="ota-update"]::after,#sw-high-level-view .sw-module[data-sw-module="mcu-ota"]::after{content:"Open OTA view →";display:block;margin-top:5px;color:#315eb1;font-size:10px;font-weight:800}
-.sw-ota-board .sw-soc-domains{grid-template-columns:minmax(560px,1.75fr) 118px minmax(300px,.9fr)}
-.sw-ota-board .sw-domain-aaos .sw-layer-modules{grid-template-columns:repeat(2,minmax(0,1fr))}
-.sw-ota-board .sw-domain-aaos .sw-layer-modules .sw-module{min-height:55px}
-.sw-ota-board .sw-domain-qnx .sw-layer-modules{grid-template-columns:repeat(2,minmax(0,1fr))}
-.sw-ota-board .sw-ota-layer-empty{min-height:43px}
-.sw-ota-board .sw-ota-layer-empty .sw-layer-modules{display:none}
-.sw-ota-board .sw-mcu .sw-layer-modules{grid-template-columns:repeat(2,minmax(0,1fr))}
-.sw-ota-board .sw-mcu .sw-layer-mcu:nth-child(n+4) .sw-layer-modules{grid-template-columns:1fr}
-.sw-ota-board .sw-mcu{align-self:stretch}
-.sw-ota-board .sw-module-reference{border-style:dashed;border-color:#c8a88e}
-.sw-ota-band-text{font-size:11px;color:#5b6572;font-weight:700}
-.sw-ota-paths{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;border-top:1px solid #e1e5e9;padding-top:12px}
-.sw-ota-paths>div{display:flex;align-items:center;flex-wrap:wrap;gap:5px 7px;min-width:0;padding:9px 10px;border:1px solid #e1e5e9;border-radius:11px;background:#fff;color:#4b5563;font-size:10px}
-.sw-ota-paths strong{min-width:67px;color:#26384e;font-size:10px}
-.sw-ota-paths span{white-space:nowrap}
-.sw-ota-paths b{color:#4285f4;font-size:14px}
-@media(max-width:700px){.sw-ota-nav{align-items:flex-start;flex-direction:column;gap:7px}.sw-ota-paths{grid-template-columns:1fr}}
+.sw-ota-controls{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin:0 0 10px;font-size:11px;color:#5f6876}
+.sw-ota-controls>span{font-weight:800;letter-spacing:.03em;margin-right:5px}
+.software-panel .sw-ota-controls button{border:1px solid #d9e0e9;border-radius:20px;background:#fff;color:#4b5a6d;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;box-shadow:none}
+.software-panel .sw-ota-controls button:hover{border-color:#7fa7e8;background:#f6f9ff}
+.software-panel .sw-ota-controls button[aria-pressed=true]{border-color:#4285f4;background:#e8f0fe;color:#1d5bb4}
+.software-panel .sw-ota-controls button:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}
+.sw-ota-scroll{background:#fff;border-radius:18px}
+.sw-ota-diagram{display:block;max-width:none;width:1850px;height:1465px;font-family:Arial,Roboto,"Microsoft YaHei",sans-serif}
+.sw-ota-diagram text{pointer-events:none}
+.sw-ota-diagram .ota-edge{transition:opacity .18s,stroke-width .18s;opacity:.78}
+.sw-ota-diagram .ota-edge.is-dim{opacity:.10}
+.sw-ota-diagram .ota-edge.is-active{opacity:1;stroke-width:3.3}
+.sw-ota-diagram .ota-edge-label{pointer-events:none;opacity:.97}
+.sw-ota-diagram .ota-edge-label.is-dim{opacity:.18}
+.sw-ota-diagram .ota-return-lane{transition:opacity .18s}
+.sw-ota-diagram .ota-return-lane.is-dim{opacity:.12}
+.sw-ota-diagram .ota-node{cursor:pointer;outline:none}
+.sw-ota-diagram .ota-node rect{transition:stroke-width .16s,filter .16s}
+.sw-ota-diagram .ota-node:hover rect,.sw-ota-diagram .ota-node:focus-visible rect{stroke-width:2.8;filter:drop-shadow(0 2px 5px #3e6fb135)}
+.sw-ota-diagram .ota-node[aria-pressed=true] rect{stroke:#1a73e8;stroke-width:3;filter:drop-shadow(0 3px 7px #3e6fb14a)}
+.sw-ota-inspector{min-height:39px;margin:10px 0 0;padding:9px 12px;border-left:3px solid #4285f4;border-radius:0 8px 8px 0;background:#f5f8ff;color:#45556e;font-size:12px}
+.sw-ota-inspector strong{color:#243b5c;margin-right:10px}
+@media(max-width:700px){.sw-ota-nav{align-items:flex-start;flex-direction:column;gap:7px}.sw-ota-controls>span{width:100%}}
