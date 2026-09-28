@@ -4,11 +4,11 @@ const glossaryMap = new Map(DATA.glossary.map(g => [norm(g.abbr), g]));
 const palette = {CANFD:'#27ac49', CAN:'#ff4338', LIN:'#efb517', Ethernet:'#287ad5', LVDS:'#834cb4', DSI:'#e8b52d', Signal:'#555'};
 const kindNames = {base:'基础配置', external:'外部设备', reserved:'预留功能', power:'供电电源'};
 const kindColors = {base:'#ffecd7', external:'#dfe7fb', reserved:'#bdc1c6', power:'#f56566'};
-const bKindNames = {base:'IVI 主机模块', external:'外部设备', reserved:'可选 / 预留', power:'电源与控制'};
-const bKindColors = {base:'#4285f4', external:'#34a853', reserved:'#9aa7b8', power:'#ea4335'};
+const bKindNames = {base:'硬件模块', config:'配置对照项', load:'平台规划负载', reserved:'预留功能'};
+const bKindColors = {base:'#617dc0', config:'#6ba379', load:'#6e7279', reserved:'#9aa7b8'};
 const tabNames = ['diagram', 'hardware', 'b-system', 'software', 'glossary'];
 const queries = {diagram:'', hardware:'', 'b-system':'', software:'', glossary:''};
-const tabSubtitles = {diagram:'车载网络拓扑', hardware:'IVI 硬件连接与接口', 'b-system':'系统级硬件模块与外部负载', software:'High-Level 软件架构', glossary:'控制器与传感器缩写'};
+const tabSubtitles = {diagram:'车载网络拓扑', hardware:'IVI 硬件连接与接口', 'b-system':'配置对照、硬件连接与外部负载', software:'High-Level 软件架构', glossary:'控制器与传感器缩写'};
 let activeTab = 'diagram';
 
 function makeScene(id, svgId, viewportId, width, height, nodes) {
@@ -32,7 +32,7 @@ function cn(n) {
   return definition(n)?.cn || (n.name.startsWith('VIU_') ? '区域控制单元（全称待核对）' : n.name.startsWith('To ') ? '跨区域网络引用端口' : '所附缩写表未列出对应释义');
 }
 function defaultStatus() {
-  return activeTab === 'b-system' ? 'B平台系统级硬件架构' : activeTab === 'hardware' ? '按提供的 IVI 硬件图纸重绘' : activeTab === 'software' ? 'High-Level 软件架构' : '按提供的图纸重绘';
+  return activeTab === 'b-system' ? '按所附系统架构原图重绘' : activeTab === 'hardware' ? '按提供的 IVI 硬件图纸重绘' : activeTab === 'software' ? 'High-Level 软件架构' : '按提供的图纸重绘';
 }
 function syncZoom(s) {
   if (s.id !== activeTab) return;
@@ -214,9 +214,9 @@ function showTab(tab) {
   $('search-results').hidden = true;
   $('search').value = queries[tab];
   $('search').placeholder = tab === 'b-system' ? '搜索系统模块，如 MCU、Display、USB' : tab === 'hardware' ? '搜索芯片或接口，如 8295、USB、MCU' : tab === 'diagram' ? '搜索模块或中文名称，如 VIU、座椅' : '搜索缩写、英文或中文名称';
-  $('counts').textContent = tab === 'software' ? `${DATA.software.modules.length} 个逻辑模块 · ${DATA.software.flows.length} 类链路` : tab === 'b-system' ? `${DATA.bSystem.nodes.length} 个系统模块` : tab === 'hardware' ? `${DATA.hardware.nodes.length} 个模块 / 连接器` : `${DATA.nodes.length} 个节点 · ${DATA.glossary.length} 项缩写`;
+  $('counts').textContent = tab === 'software' ? `${DATA.software.modules.length} 个逻辑模块 · ${DATA.software.flows.length} 类链路` : tab === 'b-system' ? `${DATA.bSystem.nodes.length} 个可查看元素` : tab === 'hardware' ? `${DATA.hardware.nodes.length} 个模块 / 连接器` : `${DATA.nodes.length} 个节点 · ${DATA.glossary.length} 项缩写`;
   $('selection-status').textContent = defaultStatus();
-  $('footnote').textContent = tab === 'software' ? 'QNX 模块基于镜像与预置服务；AAOS/MCU 映射待项目镜像核对。' : tab === 'b-system' ? '系统级视图省略 SoC 端口信号与项目编号；预留路径以虚线标注。' : tab === 'hardware' ? '图中芯片型号、接口与参数按所附硬件图纸标注。' : '细小总线编号、部分批注及未列出的缩写待原始设计文件核对。';
+  $('footnote').textContent = tab === 'software' ? 'QNX 模块基于镜像与预置服务；AAOS/MCU 映射待项目镜像核对。' : tab === 'b-system' ? '依据所附原图重绘；项目代号与 SoC 端口信号已省略。' : tab === 'hardware' ? '图中芯片型号、接口与参数按所附硬件图纸标注。' : '细小总线编号、部分批注及未列出的缩写待原始设计文件核对。';
   if (graph) {
     const s = scenes[tab];
     requestAnimationFrame(() => { if (!s.initialized || s.fitted) fit(s); else apply(s); });

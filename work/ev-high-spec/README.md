@@ -10,4 +10,4 @@ python3 build.py
 
 The build also refreshes `architecture.svg`, `ivi-hardware.svg`, and `b-platform-system.svg`. Commit the edited sources and regenerated outputs together. `template.html` is a build template; open `index.html` for the finished page.
 
-The B-platform diagram is a functional system view based on supplied hardware drawings. It intentionally omits project variant identifiers and SoC signal-level labels; dashed endpoint boxes indicate optional or reserved paths.
+The B-platform diagram is a vector redraw of the supplied system overview and enlarged detail images. It preserves the three configuration columns, component part numbers, connector positions, branch topology, load matrix, and state colors. Project identifiers and SoC signal-level labels are intentionally omitted.
