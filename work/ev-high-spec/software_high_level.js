@@ -31,6 +31,18 @@ function refreshOtaGraph() {
   });
 }
 
+function clearSoftwareSelection() {
+  selectedOtaModule = null;
+  document.querySelectorAll('#software-panel [data-sw-module]').forEach(node => {
+    node.setAttribute('aria-pressed', 'false');
+  });
+  const focusButton = document.querySelector('#sw-ota-view [data-ota-focus][aria-pressed="true"]');
+  const focusName = focusButton?.textContent.trim() || 'All';
+  $('sw-ota-inspector').textContent = `Showing ${focusName} interaction path. Select a component to highlight its connections. Right-click to clear selection.`;
+  refreshOtaGraph();
+  $('live').textContent = 'Software component selection cleared.';
+}
+
 function selectSoftwareModule(id) {
   const module = softwareModules.get(id);
   if (!module) return;
@@ -62,10 +74,7 @@ $('software-panel').addEventListener('click', event => {
     document.querySelectorAll('#sw-ota-view [data-ota-focus]').forEach(button => {
       button.setAttribute('aria-pressed', String(button === focusButton));
     });
-    selectedOtaModule = null;
-    document.querySelectorAll('#sw-ota-view [data-sw-module]').forEach(node => node.setAttribute('aria-pressed', 'false'));
-    $('sw-ota-inspector').textContent = `Showing ${focusButton.textContent.trim()} interaction path. Select a component to highlight its connections.`;
-    refreshOtaGraph();
+    clearSoftwareSelection();
     return;
   }
   const button = event.target.closest('[data-sw-module]');
@@ -79,6 +88,13 @@ $('software-panel').addEventListener('click', event => {
   if (button.classList.contains('sw-module')) {
     $('sw-index-' + id)?.scrollIntoView({behavior:'smooth', block:'center'});
   }
+});
+
+$('software-panel').addEventListener('contextmenu', event => {
+  const view = $('sw-ota-view').hidden ? $('sw-high-level-view') : $('sw-ota-view');
+  if (!view.querySelector('[data-sw-module][aria-pressed="true"]')) return;
+  event.preventDefault();
+  clearSoftwareSelection();
 });
 
 $('sw-ota-diagram').addEventListener('keydown', event => {

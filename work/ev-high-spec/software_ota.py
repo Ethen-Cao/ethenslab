@@ -85,7 +85,7 @@ def render_ota():
     <button type="button" data-ota-focus="feedback" aria-pressed="false">Status return</button>
   </div>
   <div class="sw-board-scroll sw-ota-scroll" aria-label="OTA component interaction architecture; scroll horizontally if needed">{graph}</div>
-  <div class="sw-ota-inspector" id="sw-ota-inspector" role="status" aria-live="polite">Select a component to highlight its connections.</div>
+  <div class="sw-ota-inspector" id="sw-ota-inspector" role="status" aria-live="polite">Select a component to highlight its connections. Right-click to clear selection.</div>
   <section class="sw-index" aria-labelledby="sw-ota-index-title">
     <div class="sw-section-heading"><div><h3 id="sw-ota-index-title">Module responsibilities</h3></div><p lang="zh-CN">点击图中组件可高亮其连线；下方按域列出职责。MCU 内部模块为参考结构。</p></div>
     {index}
