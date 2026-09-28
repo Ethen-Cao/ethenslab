@@ -39,7 +39,7 @@ def create_b_system():
 
     def path(points, color=INK, sw=1.2, arrow=False, both=False, dash=None, note=None):
         d = 'M' + ' L'.join(f'{x},{y}' for x, y in points)
-        m = f' marker-end="url(#bp-arrow-{color[1:]})"' if arrow else ''
+        m = f' marker-end="url(#bp-arrow-{color[1:]})"' if (arrow or both) else ''
         n = f' marker-start="url(#bp-arrow-{color[1:]})"' if both else ''
         ds = f' stroke-dasharray="{dash}"' if dash else ''
         title = f'<title>{escape(note)}</title>' if note else ''
@@ -74,7 +74,7 @@ def create_b_system():
         parts.append(shape+'</g>')
         return id_
 
-    def connector(title, x, y, dark=False, face=None, label_pos='left', label_size=22):
+    def connector(title, x, y, dark=False, face=None, label_pos='left', label_size=22, label_dy=27):
         fill = face or ('#1f2425' if dark else '#f4f6f7')
         rect(x, y, 33, 43, fill, INK, 1.8, 6, where=parts)
         for xx in (x+10, x+23):
@@ -83,7 +83,7 @@ def create_b_system():
         if label_pos == 'above':
             label(x+16.5, y-12, title, label_size, weight=700)
         elif label_pos == 'right':
-            label(x+43, y+27, title, label_size, 'start', 700)
+            label(x+43, y+label_dy, title, label_size, 'start', 700)
         else:
             label(x-8, y+26, title, label_size, 'end', 700)
         return (x+33, y+21.5)
@@ -193,9 +193,9 @@ def create_b_system():
              ['Camera', str(i+1)], LIGHT_GREEN if i<4 else CREAM,
              note='摄像头输入通道；SoC 端口号已省略。', size=7.4)
     for i in range(3):
-        card('USB controller', 1087, 966+i*49, 36, 42,
-             ['USB', str(i+1)], LIGHT_GREEN,
-             note='主芯片 USB 控制器；SoC 端口号已省略。', size=7.5)
+        card('USB controller', 1087, 1040+i*36, 36, 30,
+             ['USB', str(i)], LIGHT_GREEN,
+             note='主芯片 USB0/USB1/USB2 接口；仅保留端口编号，不展开 SoC 信号。', size=7.5)
     # Top-left radio and video adapter chain.
     connector('J4600(PB)', 672, 245, face=GREEN, label_pos='above', label_size=18)
     path([(705,266),(746,266),(746,201)], sw=1.2)
@@ -323,35 +323,40 @@ def create_b_system():
          ['IVI主信号连接器'], PALE,
          note='原图 J7501(PB) 信号连接器。', vertical=True, size=13)
     label(1567, 752, 'J7501 (PB)', 18, 'start', 700)
-    card('S32K324', 1212, 781, 112, 217, fill=PALE,
+    card('S32K324', 1212, 781, 112, 233, fill=PALE,
          note='IVI 控制 MCU：车载总线、显示使能、电源和静音控制。', size=14)
     path([(1127,798),(1208,798)], both=True)
     path([(1127,841),(1208,841)], both=True)
     path([(1127,887),(1208,887)], both=True)
-    for i,(name,y) in enumerate((('TPT1043',797),('TPT1445',836),
-                                 ('TPT1445',875),('TPT1021',914),('TPT1021',953))):
+    # The five CAN/LIN branches meet the connector harness at one vertical
+    # trunk; each bus name sits beside its own horizontal transceiver link.
+    buses = (('TPT1043','CAN2',820), ('TPT1445','CAN1',858),
+             ('TPT1445','CAN0',896), ('TPT1021','LIN #1',934),
+             ('TPT1021','LIN #2',970))
+    path([(1530,985),(1530,817)], arrow=True, note='CAN and LIN harness to J7501(PB)')
+    for i,(name,bus_name,y) in enumerate(buses):
         card(name, 1361, y, 91, 31, fill=RESERVED, size=9,
              note=('车载 CAN 收发器。' if i<3 else '车载 LIN 收发器。'))
         path([(1328,y+15),(1357,y+15)], both=True)
-        path([(1452,y+15),(1472,y+15),(1472,720+i*19),(1490,720+i*19)], arrow=True)
-    # Put bus names in the clear margin beyond the connector. The narrow
-    # transceiver-to-connector traces must remain visible at this scale.
-    for bus_name, bus_y in (('CAN2',806), ('CAN1',844), ('CAN0',883),
-                            ('LIN #1',921), ('LIN #2',960)):
-        label(1568, bus_y, bus_name, 8, 'start')
+        path([(1530,y+15),(1456,y+15)], arrow=True)
+        label(1460, y+10, bus_name, 8, 'start')
     card('16M晶体', 1156, 965, 49, 28, fill=RESERVED,
          note='MCU 时钟晶体。', size=7.5)
     path([(1205,978),(1209,978)], arrow=True)
     # Three thick load control traces are a distinctive feature of the source.
     for start_y, turn_x, end_y, title in (
-        (814,1430,571,'Display EN ×8'),
-        (836,1455,591,'AMP MUTE IN'),
-        (858,1478,610,'TBOX MUTE IN')):
+        (790,1368,571,'Display EN ×8'),
+        (802,1438,591,'AMP MUTE IN'),
+        (814,1480,610,'TBOX MUTE IN')):
         path([(1324,start_y),(turn_x,start_y),(turn_x,end_y),(1490,end_y)],
-             sw=2.4, arrow=True, note=title)
-        label(turn_x-8, end_y-8, title, 9, 'end')
-    path([(1560,786),(1590,786),(1590,986),(1328,986)], '#c76962', 1.8, arrow=True)
-    label(1402, 1000, 'KL15 (ACC)', 8, color='#b35c55')
+             sw=2.4, both=True, note=title)
+    # Keep the control labels beside their vertical stems, away from the
+    # connector arrowheads and CAN/LIN fan-out.
+    label(1360, 686, 'Display EN ×8', 8.5, 'end')
+    label(1430, 752, 'AMP MUTE IN', 8.5, 'end')
+    label(1486, 655, 'TBOX MUTE IN', 8.5, 'start')
+    path([(1548,817),(1548,1007),(1328,1007)], '#c76962', 1.8, arrow=True)
+    label(1350, 1020, 'KL15 (ACC)', 8, 'start', color='#b35c55')
 
     # Ethernet PHY, two live gigabit lines, crossed-out reserved 2.5G part.
     card('RTL9071CP', 1225, 1020, 89, 37, fill=BLUE,
@@ -361,30 +366,38 @@ def create_b_system():
          note='原图中划掉的预留 2.5G-T1 方案。', size=8, kind='reserved')
     path([(1351,1108),(1432,1084)], '#c8645e', 2.2)
     label(1379, 1123, '预留', 8)
-    connector('J1(MB)', 1513, 1014, label_pos='right', label_size=18)
+    connector('J1(MB)', 1513, 1014, label_pos='right', label_size=18, label_dy=5)
     # J8 is the distinct USB 3.0 board connector between Ethernet and USB 2.0.
     rect(1520, 1074, 13, 27, PAPER, INK, 1.5, 6, where=parts)
     for py in (1081, 1088, 1095):
         parts.append(f'<circle cx="1526.5" cy="{py}" r="1.5" fill="{INK}"/>')
     label(1545, 1092, 'J8(MB)', 16, 'start', 700)
-    for yy in (1026,1047):
-        path([(1314,1039),(1445,1039),(1445,yy),(1508,yy)], arrow=True)
+    for y, title in ((1032, '1G-T1 #1'), (1047, '1G-T1 #0')):
+        path([(1314,y),(1508,y)], both=True,
+             note='RTL9071CP ↔ J1(MB) ' + title)
+        label(1408, y-5, title, 8, 'start')
     path([(1314,1044),(1343,1044),(1343,1096)], arrow=True)
-    path([(1127,1083),(1481,1083),(1481,1087),(1515,1087)], '#ddb765', 1.25, arrow=True)
     path([(1436,1096),(1473,1096),(1473,1063),(1508,1063)], dash='3 3')
-    # USB branch and the charger, using the source's pale gold line treatment.
+    # USB0 runs to the USB 3.0 connector J8. USB1 reaches J6 through the
+    # BC1.2 charger; USB2 runs directly to J5. Keep the three routes separate.
     usb='#ddb765'
     card('BC1.2 Charger', 1233, 1110, 78, 46,
          ['BC1.2','Charger'], BLUE,
          note='USB 充电控制。', size=9)
-    path([(1127,1090),(1170,1090),(1170,1128),(1229,1128)], usb, 1.25, arrow=True)
-    path([(1127,1137),(1274,1137),(1274,1180),(1511,1180)], usb, 1.25, arrow=True)
-    path([(1311,1135),(1511,1135)], usb, 1.25, arrow=True)
+    path([(1123,1055),(1162,1055),(1162,1070),(1480,1070),
+          (1480,1087),(1516,1087)], usb, 1.25, both=True,
+         note='USB0 ↔ J8(MB), USB 3.0')
+    path([(1123,1091),(1190,1091),(1190,1133),(1229,1133)], usb, 1.25,
+         both=True, note='USB1 ↔ BC1.2 charger')
+    path([(1311,1133),(1511,1133)], usb, 1.25, both=True,
+         note='BC1.2 charger ↔ J6(PB), USB 2.0')
+    path([(1123,1127),(1158,1127),(1158,1181),(1511,1181)], usb, 1.25,
+         both=True, note='USB2 ↔ J5(PB), USB 2.0')
     connector('J6(PB)', 1514, 1111, label_pos='right', label_size=18)
     connector('J5(PB)', 1514, 1160, label_pos='right', label_size=18)
-    label(1382, 1130, 'USB 2.0', 8)
-    label(1382, 1180, 'USB 2.0', 8)
-    label(1450, 1069, 'USB 3.0', 8, color='#b39348')
+    label(1465, 1129, 'USB 2.0', 8)
+    label(1465, 1177, 'USB 2.0', 8)
+    label(1450, 1065, 'USB 3.0', 8, color='#b39348')
 
     # Rightmost load matrix. The column reflects the source's placement,
     # state colors, and individual endpoints, without its project identifier.
