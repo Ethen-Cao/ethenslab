@@ -201,3 +201,46 @@
 /* Audio uses the same interactions as OTA with a domain-specific SVG grid. */
 .sw-audio-diagram{width:100%;min-width:1850px;height:auto;aspect-ratio:2250/1930}
 #sw-high-level-view .sw-module[data-sw-module="audio-system"]::after,#sw-high-level-view .sw-module[data-sw-module="bsp-audio"]::after{content:"Open Audio view →";display:block;margin-top:5px;color:#315eb1;font-size:10px;font-weight:800}
+
+
+/* Diagnostic README: compact offline reading panel, independent of path selection. */
+.software-panel .sw-ota-controls .diag-readme-trigger{margin-left:auto;border-color:#b8cbed;color:#2459a9;border-radius:7px}
+.diag-readme{padding:0;width:min(1450px,calc(100vw - 40px));max-width:none;height:min(1050px,calc(100dvh - 40px));max-height:none;margin:auto;border:1px solid #d9e1ec;border-radius:14px;background:#fff;color:#253140;box-shadow:0 22px 90px #1d2e4b33;overflow:hidden;font:14px/1.75 Arial,Roboto,"Microsoft YaHei",sans-serif}
+.diag-readme::backdrop{background:#182b4766}
+.diag-readme-shell{height:100%;display:flex;flex-direction:column;min-height:0}
+.diag-readme-header{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-shrink:0;padding:16px 24px;border-bottom:1px solid #e2e7ee;background:#fff}
+.diag-readme-header h2{font-size:19px;line-height:1.3;margin:0;font-weight:700;color:#202124}
+.diag-readme-header p{font-size:12px;line-height:1.4;color:#6a7482;margin:4px 0 0}
+.diag-readme-header button{font-size:13px;padding:6px 12px;border-radius:7px}
+.diag-readme-layout{display:grid;grid-template-columns:190px minmax(0,1fr);flex:1;min-height:0}
+.diag-readme-toc{display:flex;flex-direction:column;gap:7px;padding:22px 14px;overflow:auto;border-right:1px solid #e5eaf0;background:#f8faff}
+.diag-readme-toc a{padding:8px 10px;font-size:13px;line-height:1.5;text-decoration:none;color:#45617e;border-radius:6px}
+.diag-readme-toc a:hover,.diag-readme-toc a:focus-visible{background:#e8f0fe;color:#2156ad}
+.diag-readme-body{min-width:0;overflow:auto;overscroll-behavior:contain;padding:10px 28px 36px;scrollbar-color:#c2cddd #fafbfc}
+.diag-readme-body section{padding:15px 0 23px;border-bottom:1px solid #e4e9ef;scroll-margin-top:14px}
+.diag-readme-body section:last-child{border-bottom:0}
+.diag-readme-body section:focus{outline:none}
+.diag-readme-body h3{font-size:19px;line-height:1.45;letter-spacing:0;margin:4px 0 14px;color:#202124}
+.diag-readme-body p{margin:12px 0}
+.diag-readme-body ol,.diag-readme-body ul{padding-left:24px;margin:12px 0}
+.diag-readme-body li{padding-left:3px;margin:7px 0}
+.diag-readme-body a{color:#245daf;text-underline-offset:3px}
+.diag-readme-body code{font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;background:#f0f4f8;border-radius:4px;padding:2px 4px;overflow-wrap:anywhere}
+.diag-readme-body pre{padding:14px 16px;overflow:auto;font:12px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace;color:#244c7b;background:#f5f8fd;border:1px solid #dde6f1;border-radius:8px;max-width:100%;tab-size:2}
+.diag-readme-callout{padding:12px 15px;border-left:3px solid #759ddc;background:#f4f8fe;color:#48617f;font-size:13px;margin:16px 0}
+.diag-readme-tag{display:inline-block;padding:1px 7px;margin-right:7px;border-radius:4px;background:#e8f3ec;color:#287148;font-size:11px;vertical-align:1px;white-space:nowrap}
+.diag-readme-tag.is-reference{background:#fff2de;color:#926123}
+.diag-readme-table{overflow:auto;margin:16px 0;border:1px solid #dfe6ee;border-radius:8px}
+.diag-readme-table table{min-width:580px;font-size:13px;line-height:1.7}
+.diag-readme-table th{position:static;background:#f3f6fa;font-size:12px;padding:10px 12px;color:#405775}
+.diag-readme-table td{padding:10px 12px;vertical-align:top;color:#475569;width:auto}
+.diag-readme-table td:first-child{width:25%;min-width:160px;color:#294768;font-weight:600}
+.diag-readme-table td:nth-child(2){width:auto;color:#475569}
+.diag-readme-table tr:last-child td{border-bottom:0}
+.diag-readme-sequence{overflow:auto;margin:18px 0;border:1px solid #dfe6ee;border-radius:9px;background:#fff}
+.diag-readme-sequence svg{display:block;width:100%;min-width:900px;height:auto;font-family:Arial,Roboto,sans-serif;color:#31445d;fill:#31445d}
+.diag-readme-sequence text{user-select:text}
+.diag-readme-sequence .diag-seq-label{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+.diag-readme a:focus-visible,.diag-readme-sequence:focus-visible{outline:2px solid #4285f4;outline-offset:2px}
+.diag-readme-sources{font-size:12px;color:#5e6c7e}
+@media(max-width:900px){.diag-readme{width:calc(100vw - 16px);height:calc(100dvh - 16px);border-radius:10px}.diag-readme-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.diag-readme-toc{flex-direction:row;gap:5px;padding:8px 12px;border-right:0;border-bottom:1px solid #e5eaf0;overflow:auto}.diag-readme-toc a{white-space:nowrap;padding:6px 9px;font-size:12px}.diag-readme-body{padding:6px 16px 28px}.diag-readme-header{padding:12px 16px}.diag-readme-header h2{font-size:17px}}

@@ -130,6 +130,7 @@ $('software-panel').addEventListener('click', event => {
 });
 
 $('software-panel').addEventListener('contextmenu', event => {
+  if (event.target.closest('#sw-diag-readme')) return;
   const view = activeSoftwareDetailView();
   const pane = $(view === 'high' ? 'sw-high-level-view' : `sw-${view}-view`);
   if (!pane.querySelector('[data-sw-module][aria-pressed="true"]')) return;
@@ -151,4 +152,35 @@ for (const id of Object.keys(softwareDetailViews).map(view => `sw-${view}-diagra
 const requestedSoftwareView = new URLSearchParams(window.location.search).get('view');
 if (Object.hasOwn(softwareDetailViews, requestedSoftwareView)) {
   setSoftwareArchitectureView(requestedSoftwareView);
+}
+
+// The guide is embedded in index.html so local/offline viewing needs no fetch or CDN.
+const diagnosticReadme = $('sw-diag-readme');
+const diagnosticReadmeTrigger = $('sw-diag-readme-open');
+function openDiagnosticReadme() {
+  if (diagnosticReadme.open) return;
+  diagnosticReadme.showModal();
+  diagnosticReadme.querySelector('.diag-readme-body').scrollTop = 0;
+  diagnosticReadmeTrigger.setAttribute('aria-expanded', 'true');
+  $('live').textContent = 'Diagnostic README opened.';
+}
+diagnosticReadmeTrigger.addEventListener('click', openDiagnosticReadme);
+$('sw-diag-readme-close').addEventListener('click', () => diagnosticReadme.close());
+diagnosticReadme.addEventListener('close', () => {
+  diagnosticReadmeTrigger.setAttribute('aria-expanded', 'false');
+  diagnosticReadmeTrigger.focus({preventScroll:true});
+  $('live').textContent = 'Diagnostic README closed. Architecture selection preserved.';
+});
+diagnosticReadme.querySelector('.diag-readme-toc').addEventListener('click', event => {
+  const link = event.target.closest('a[href^="#"]');
+  if (!link) return;
+  const section = diagnosticReadme.querySelector(link.getAttribute('href'));
+  if (!section) return;
+  event.preventDefault();
+  section.scrollIntoView({block:'start'});
+  section.tabIndex = -1;
+  section.focus({preventScroll:true});
+});
+if (requestedSoftwareView === 'diag' && new URLSearchParams(window.location.search).get('readme') === '1') {
+  openDiagnosticReadme();
 }

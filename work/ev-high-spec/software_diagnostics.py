@@ -1,10 +1,11 @@
 """Source-checked diagnostic components plus the supplied MCU reference view."""
 from html import escape
 from software_diagnostics_graph import render_graph
+from diagnostic_readme import render_readme
 
 MODULES = [
-    # QNX image and SLM configuration; binary strings corroborate rpcif and DTC interfaces.
-    dict(id='diag-qnx-dtc', name='dtcagent', domain='qnx', short='DTC collection', duty='QNX 故障码代理。已打包并由 SLM 启动；预置二进制包含板级状态读取、rpcif 客户端和 DTC 发布接口。'),
+    # QNX source verifies DTC reporting and SPI; image/SLM corroborate deployed services.
+    dict(id='diag-qnx-dtc', name='dtcagent', domain='qnx', short='DTC collection', duty='QNX 故障状态代理。源码确认主动采集板级状态与温度，并接收 Android DTC 主题；经内部 RPC 消息 0x4345 向 MCU 上报。该路径不等待诊断仪的 0x19 请求。'),
     dict(id='diag-qnx-did', name='ecuinfobe', domain='qnx', short='DID backend', duty='按 ecu_info_be.json 管理诊断数据标识符；配置包含 UDS 请求/响应主题，二进制中可核实 rpcif 与 VSOCK 端点。'),
     dict(id='diag-qnx-log', name='vlogmanager', domain='qnx', short='QNX log files', duty='收集 QNX 系统日志并按配置轮转、压缩及保存；预置配置指定 /log/qlog/syslog。'),
     dict(id='diag-qnx-rpcif', name='librpcif', domain='qnx', short='Local RPC client', duty='为 dtcagent 和 ecuinfobe 提供到 rpcd 的 RPC 客户端接口；两者的二进制均引用该库。'),
@@ -31,7 +32,7 @@ MODULES = [
     dict(id='diag-mcu-spi-ivi', name='SPI IVI Task', domain='mcu', short='IVI messages', duty='参考图中的 IVI 侧 SPI 消息任务；图中实际绑定的 SoC 软件端点尚未核实。', reference=True),
     dict(id='diag-mcu-spi-ic', name='SPI IC Task', domain='mcu', short='Cluster messages', duty='参考图中的仪表侧 SPI 消息任务；图中实际绑定的 SoC 软件端点尚未核实。', reference=True),
     dict(id='diag-mcu-dcm', name='Dcm', domain='mcu', short='Diagnostic sessions', duty='参考图中的 MCU 诊断通信管理，处理 UDS 会话及服务请求。', reference=True),
-    dict(id='diag-mcu-dem', name='Dem', domain='mcu', short='DTC events', duty='参考图中的故障事件管理，维护 MCU 故障状态。', reference=True),
+    dict(id='diag-mcu-dem', name='Dem', domain='mcu', short='DTC events', duty='参考图中的诊断事件管理，维护事件与 DTC 状态、记录及存储接口；SoC 上报消息到 Dem 的映射和具体策略待 MCU 固件核实。', reference=True),
     dict(id='diag-mcu-cantp', name='CanTp', domain='mcu', short='ISO 15765-2', duty='参考图中的 CAN 诊断分段与重组传输层。', reference=True),
     dict(id='diag-mcu-canif', name='CanIf', domain='mcu', short='CAN abstraction', duty='参考图中的 CAN 报文接口，连接上层通信服务和 CAN FD 驱动。', reference=True),
     dict(id='diag-mcu-nvm', name='NvM', domain='mcu', short='Persistent data', duty='参考图中的非易失性数据管理，为故障数据保存提供接口。', reference=True),
@@ -50,10 +51,10 @@ FLOWS = [
     ('Diagnostic Tester ↔ CAN FD Driver ↔ CanIf ↔ CanTp ↔ Dcm', 'UDS request / response', 'CAN FD · ISO 15765-2', 'MCU 路径依据参考图；具体固件实现待核实。'),
     ('Diagnostic Tester ↔ doip_server ↔ DcmManager', 'DoIP / UDS request and response', 'Ethernet TCP/IP · DoIP', 'Android vendor 源码中的 DcmManager 注册 UDS 回调并启动服务。'),
     ('DcmManager ↔ DoipServiceImpl', 'Routine command / result', 'AIDL callback', 'DoIP 原生服务向注册客户端发送回调，客户端返回操作结果。'),
-    ('DiagService → DtcEventHandler → VehicleManager → Vehicle HAL', 'Device DTC status', 'Android local call · IVehicle', 'Wi-Fi/蓝牙与 USB 节点每 3 秒读取；车辆属性 TOPIC_DTC_UPDATE 承载状态。'),
+    ('DiagService → DtcEventHandler → VehicleManager → Vehicle HAL', 'Device DTC status', 'Android local call · IVehicle', '每轮读取并分发 Wi-Fi/蓝牙与 USB 状态后休眠 3 秒；车辆属性 TOPIC_DTC_UPDATE 承载数据。'),
     ('DiagService → McuDiagEventHandler ↔ VehicleManager', 'MCU routine / PKI / factory events', 'Vehicle HAL property callback', '订阅 MCU 例程控制、证书状态与工厂模式属性，并返回处理结果。'),
     ('Vehicle HAL ⇢ QNX dtcagent', 'DTC delivery to QNX', 'Vehicle property; peer mapping unverified', 'Android 上报车辆属性与 QNX dtcagent 接收 DTC 均可核实；HAL 到 QNX 代理的完整映射仍需核实。'),
-    ('dtcagent / ecuinfobe ↔ librpcif ↔ rpcd ↔ MCU SPI Driver', 'Board DTC / DID data', 'QNX RPC client · local IPC · SPI', 'QNX 服务依赖与二进制接口可核实；MCU 内部任务和数据语义来自参考图。'),
+    ('dtcagent / ecuinfobe ↔ librpcif ↔ rpcd ↔ MCU SPI Driver', 'Board DTC / DID data', 'QNX RPC client · local IPC · SPI', 'dtcagent 源码确认 0x4345 的 DTC 上报，rpcd 的 QNX SPI 分支使用 /dev/spi9；DID 路径由配置与接口佐证，MCU 内部映射待核实。'),
     ('MCU SPI Tasks ↔ SPI Driver', 'IVI / cluster messages', 'MCU internal SPI task path', '参考图显示两条任务链；具体消息映射待 MCU 固件验证。'),
     ('Dem ↔ NvM → Flash Driver', 'DTC persistence', 'MCU BSW · Flash I/O', '参考图表达的 MCU 存储链路，持久化策略待固件源码验证。'),
     ('Slog2 I/O → vlogmanager', 'Diagnostic logs', 'QNX slog2 · file rotation', '预置二进制和配置确认 vlogmanager 从 slog2 收集日志并保存。'),
@@ -83,6 +84,7 @@ def render_diagnostics():
     <button type="button" data-diag-focus="dtc" aria-pressed="false">DTC reporting</button>
     <button type="button" data-diag-focus="spi" aria-pressed="false">SoC ↔ MCU</button>
     <button type="button" data-diag-focus="logs" aria-pressed="false">Logs</button>
+    <button type="button" class="diag-readme-trigger" id="sw-diag-readme-open" aria-haspopup="dialog" aria-controls="sw-diag-readme" aria-expanded="false">README</button>
   </div>
   <div class="sw-board-scroll sw-ota-scroll" aria-label="Diagnostic component interaction architecture; scroll horizontally if needed">{graph}</div>
   <div class="sw-ota-inspector" id="sw-diag-inspector" role="status" aria-live="polite">Select a component to highlight its connections. Right-click to clear selection.</div>
@@ -94,6 +96,7 @@ def render_diagnostics():
     <div class="sw-section-heading"><div><h3 id="sw-diag-flows-title">Interface &amp; data-flow register</h3></div><p lang="zh-CN">请求、响应和状态链路按实际证据范围标注。</p></div>
     <div class="sw-flow-table-wrap"><table class="sw-flow-table"><thead><tr><th>Components</th><th>Data flow</th><th>Transport</th><th>Implementation note</th></tr></thead><tbody>{rows}</tbody></table></div>
   </section>
-  <div class="sw-provenance" lang="zh-CN">QNX 进程与依赖依据 HBEZ 预置镜像和 SLM 配置；Android 诊断组件依据 vendor 源码。MCU 软件分层和任务来自所附参考图，当前工作区没有对应 MCU 固件源码。Vehicle HAL 到 QNX dtcagent 的完整映射及 MCU 两个 SPI 任务的 SoC 端点未被当前源码确认；图中以虚线表示。</div>
+  <div class="sw-provenance" lang="zh-CN">QNX DTC 采集与 RPC / SPI 上报依据 cluster_source_code 源码，进程与依赖由预置镜像和 SLM 配置佐证；Android 诊断组件依据 vendor 源码。MCU 软件分层和任务来自所附参考图，当前工作区没有对应 MCU 固件源码。Vehicle HAL 到 QNX dtcagent 的完整映射及 MCU 两个 SPI 任务的 SoC 端点未被当前源码确认；图中以虚线表示。</div>
+{render_readme()}
 </div>'''
     return html, {'modules':MODULES, 'flows':FLOWS}
