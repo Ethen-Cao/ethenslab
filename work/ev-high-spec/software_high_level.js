@@ -184,3 +184,42 @@ diagnosticReadme.querySelector('.diag-readme-toc').addEventListener('click', eve
 if (requestedSoftwareView === 'diag' && new URLSearchParams(window.location.search).get('readme') === '1') {
   openDiagnosticReadme();
 }
+
+
+// Audio route exploration is independent of component adjacency highlighting.
+function setAudioPanel(panel) {
+  if (!['components', 'routing'].includes(panel)) return;
+  $('sw-audio-components').hidden = panel !== 'components';
+  $('sw-audio-routing').hidden = panel !== 'routing';
+  document.querySelectorAll('[data-audio-panel]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.audioPanel === panel));
+  });
+}
+function selectAudioRoute(address) {
+  const route = DATA.software.audio.routing.routes.find(item => item.address === address);
+  if (!route) return;
+  $('audio-route-select').value = address;
+  const fields = {
+    bus: route.address, stream: 'STREAMRX = ' + route.streamKey,
+    pp: 'DEVICEPP_RX = ' + route.ppKey, device: route.device,
+    devicekey: 'DEVICERX = ' + route.deviceKey,
+    backend: route.backend, format: route.format
+  };
+  for (const [key, value] of Object.entries(fields)) $('audio-route-' + key).textContent = value;
+  $('audio-route-status').textContent = route.status;
+  document.querySelectorAll('[data-audio-route]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.audioRoute === address));
+  });
+  document.querySelectorAll('[data-route-row]').forEach(row => {
+    row.classList.toggle('is-selected', row.dataset.routeRow === address);
+  });
+  $('live').textContent = `${address}: ${route.device}; backend ${route.backend}. Business-to-slot mapping unknown.`;
+}
+document.querySelectorAll('[data-audio-panel]').forEach(button => {
+  button.addEventListener('click', () => setAudioPanel(button.dataset.audioPanel));
+});
+$('audio-route-select').addEventListener('change', event => selectAudioRoute(event.target.value));
+$('sw-audio-routing').addEventListener('click', event => {
+  const button = event.target.closest('[data-audio-route]');
+  if (button) selectAudioRoute(button.dataset.audioRoute);
+});

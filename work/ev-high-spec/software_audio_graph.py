@@ -99,7 +99,7 @@ def make_routes():
     r.add('audio-control','audio-hal',[(1650,1020),(1650,950),(1200,950),(1200,1020)],flow='policy',label='Mute callback',at=(1450,950))
     r.add('audio-flinger','audio-hal',[(1080,764),(1080,1020)],kind='install',flow='media,radio',both=True,label='HAL stream I/O',at=(1080,825))
     r.add('audio-hal','audio-pal',[(1130,1084),(1130,1200)],kind='install',flow='media,policy,radio',both=True,label='PAL stream API',at=(1130,1178))
-    r.add('audio-pal','audio-agm',[(1240,1232),(1280,1232)],kind='install',flow='media,phone,policy,radio',both=True,note='SessionAgm: session configuration, read/write and events')
+    r.add('audio-pal','audio-agm',[(1240,1232),(1280,1232)],kind='install',flow='media,phone,policy,radio',both=True,note='SessionAlsaPcm / AGM plugin: metadata and FE/BE binding')
     r.add('audio-agm','audio-gsl-fe',[(1500,1232),(1540,1232)],kind='install',flow='media,phone,policy,radio',both=True,note='AGM graph.c: gsl_open, gsl_ioctl, read/write')
     r.add('audio-gsl-fe','audio-gsl-be',[(1650,1264),(1650,1370),(870,1370),(870,712),(755,712)],kind='storage',flow='media,phone,policy,radio',both=True,label='HAB',at=(870,1000),note='Commands, replies and events; audio buffers shared using habmm_import/export')
     # I2S is a data path between the controller and DSP, independent of the HCI control branch.

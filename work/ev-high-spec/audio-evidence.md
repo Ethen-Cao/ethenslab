@@ -41,7 +41,7 @@ Source: `/home/ethen/Documents/TechnologyDocuments/voyah/岚图8295 Audio 设计
 | Audio HAL HFP extension | `android/android/vendor/qcom/opensource/audio-hal-ar/primary-hal/hal-pal/audio_extn/AudioExtn.cpp`; `audio_extn/Hfp.cpp`; `audio_extn/Android.mk` in the same HAL directory | AudioDevice::SetParameters calls AudioExtn; it loads libhfp_pal.so and dispatches hfp_set_parameters. Hfp.cpp builds PAL_STREAM_LOOPBACK_HFP_RX/TX. AudioDevice and HFP Extension are enclosed by Audio HAL Implementation, not depicted as independent HAL services. |
 | HAL and PAL | `android/android/vendor/qcom/opensource/audio-hal-ar/primary-hal/hal-pal/AudioDevice.cpp`; `audio_extn/AudioExtn.cpp` | Stream/parameter APIs, HFP parameters, PAL calls and output-stream mute callback. |
 | AudioControl AIDL | `android/android/vendor/voyah/hardware/common/audiocontrol/aidl/default/AudioControl.cpp`; `aidl/client/AudioControlClient.cpp` | `onDevicesToMuteChange` invokes `onAudioMuteChanged`; `AudioExtn::onAudioMuteChangedInfo` calls `SetOutputMute`. |
-| PAL → AGM | `android/android/vendor/qcom/opensource/pal/session/src/SessionAgm.cpp`; `pal/Android.mk` | AGM session metadata/open/config/read-write callback APIs; client library dependency. |
+| PAL → AGM | `android/android/vendor/qcom/opensource/pal/session/src/Session.cpp`; `SessionAlsaPcm.cpp`; `SessionAlsaUtils.cpp`; AGM tinyalsa plugin | PLAYBACK_BUS uses SessionAlsaPcm and AGM plugin metadata/FE-BE connection APIs. SessionAgm is used for NON_TUNNEL. |
 | AGM → GSL | `android/android/vendor/qcom/opensource/agm/service/src/graph.c` | `gsl_open`, `gsl_ioctl`, graph read/write. Guest MMHAB transport is supported by the design and QNX peer implementation; guest library internals are not fully audited. |
 
 ## Explicit limits
@@ -57,3 +57,43 @@ Source: `/home/ethen/Documents/TechnologyDocuments/voyah/岚图8295 Audio 设计
 ## Diagram dependency checks
 
 The HFP Client has two outgoing dependency branches: JNI/Profile → native Bluetooth Stack → HCI HAL → Bluetooth Controller, and AudioManager → native AudioSystem → AudioFlinger → AudioDevice → HFP Extension → PAL. HCI command/event traffic and I2S speech samples use different controller ports. Both Bluetooth control and I2S speech are included in the Bluetooth Call filter. The existing Audio System parent entry keeps its own identifier, separate from the newly added native AudioSystem module.
+
+## Bus / BE / TDM audit (2026-09-29)
+
+The Audio page now separates **Component interactions** from **Bus / BE / TDM routing**. The routing panel is a source/configuration audit, not a route dump from a running target. Its frozen input is `audio-routing-data.json`; each source has its repository-relative path and SHA-256. The generated HTML embeds the snapshot and needs no network request.
+
+### Bus identity, backend identity, and graph identity
+
+- `configs/nurburgring/nurburgring.mk:59` selects the HBEZ `car_audio_configuration.xml` when `VEHICLE_MODEL=HBEZ`. The selected Car configuration defines contexts/zones; `configs/nurburgring/audio_policy_configuration.xml:263` declares 13 output bus devicePorts and two input bus devicePorts.
+- `hal-pal/AudioStream.cpp:3807` passes the address when initially resolving output devices. `AudioDevice.cpp:2337` maps the ordinary output buses to `PAL_DEVICE_OUT_SPEAKER`, front passenger to `PAL_DEVICE_OUT_A2B_SPKR`, and rear seat to `PAL_DEVICE_OUT_A2B2_SPKR`. Other routing overrides, including AG SCO and external-device changes, can alter the runtime route; the register describes the default bus opening path.
+- `auto-casa-xml/usecaseKvManager.xml:307` maps the bus to STREAMRX (`0xA1000000`); the device table maps PAL devices to DEVICERX (`0xA2000000`). The speaker devicepp table at line 535 supplies bus-specific DEVICEPP_RX (`0xAC000000`). Notification and navigation intentionally have the same processing value in the actual XML (`0xAC000007`) while retaining different STREAMRX values. Comments with mismatched bus names are not used as values.
+- The audited `resourcemanager_gvmauto8295_adp_star.xml` maps `PAL_DEVICE_OUT_SPEAKER` to `TDM-LPAIF_RXTX-RX-PRIMARY`, 48 kHz, 32-bit, 16 channels. **The file does not define the two A2B output device profiles.** Their BE names and formats remain unknown. ResourceManager's default LUT entries for those devices are empty. This is a configuration gap in this candidate profile, not proof that all deployed variants have broken routing.
+- BUS2001_VENDOR_CALL_RING is declared in policy/KV but not assigned in the selected HBEZ Car configuration, where `call_ring` belongs to BUS03_PHONE. These are kept distinct from the older document's simplified bus labels.
+- Input bus default resolution uses `PAL_DEVICE_IN_HANDSET_MIC` (`AudioDevice.cpp:2291`); the audited profile assigns `TDM-LPAIF_AUD-TX-PRIMARY`. ECHO_REFERENCE maps to `PAL_DEVICE_IN_ASR_MIC` and shares that BE name but has a different device graph key. Application capture extraction/ordering is not derived from the profile's 16-channel transport format.
+
+### Corrected session and ADSP route model
+
+The earlier PAL evidence row generalized `SessionAgm` too broadly. `Session::makeSession` (`pal/session/src/Session.cpp:109`) selects `SessionAlsaPcm` for ordinary PLAYBACK_BUS and loopback types; `SessionAgm` is selected for NON_TUNNEL. `SessionAlsaPcm::open` gets backend names from ResourceManager. `SessionAlsaUtils.cpp:359–513` constructs stream/device metadata and selects the BE with FE Connect; `agm/plugins/tinyalsa/src/agm_mixer_plugin.c:967–1167` forwards metadata and connection operations into AGM. These are library/plugin calls, not proof of a physical Linux ALSA audio device in the guest.
+
+`agm/service/src/session_obj.c:701` merges session, session-AIF and device metadata before opening the graph; `graph.c:652` calls `gsl_open` with graph and calibration vectors. GSL/HAB reaches the QNX backend and DSP. The document's mixing/demux and reference paths are architectural intent; exact ACDB graph topology, coefficients, active algorithms and per-bus output slot matrix have not been decoded in this audit.
+
+`VendorAudioExtn.cpp` adds runtime routing parameters: `CustomVersion` enables the ALS branch only for V3. `AlsSyncSpeakerMode` applies speaker-mode tags to navigation/assistant/phone paths and media parameters such as EQ/fader/balance to media. `send_kv_payload` sends TKV via `PAL_PARAM_ID_UIEFFECT`. `SyncMicMode` sends CHANNELS with DEVICE_MUX_DEMUX when micMode is nonzero; that value is not treated as a physical slot bitmask. `SyncRefMode` has a voice-recognition path; its HFP reference branch is commented out. The existence of these calls does not confirm the target's active feature flags or algorithm state.
+
+`Hfp.cpp:295–379` pairs HFP downlink input with speaker output and handset MIC input with HFP uplink output. BUS99_HFP_DOWNLINK/BUS98_HFP_UPLINK are internal labels for parameter synchronization here, not additional Car policy devicePorts. PayloadBuilder skips bus-address selection for loopback streams. Therefore the HFP speech loopback is not modeled as application PCM on BUS03_PHONE.
+
+### Verified peripheral slot configuration
+
+- Board file `boards/core/dalconfig/sa8295P_qam_pats_v1.0.3/local_config/devcfg_audio.xml:85–113`: ASI format 0 (TDM), slot width 3 (32-bit), channel switch `0x3F`, slot mapping `0x542310`.
+- `pcm6xx0.c:714–730` extracts one nibble per hardware MIC channel. MIC1–6 map to slots **0, 1, 3, 2, 4, 5**. Slot order is MIC1, MIC2, MIC4, MIC3, MIC5, MIC6. The source document page 6 likewise swaps the two second-row hardware MIC labels. Neither establishes the final application-visible channel layout without DSP graph evidence.
+- `a2bapp_callback.c:9–37` currently returns `0x3`; the ECU-selection code is inside `#if 0`. The default branch at line 79 selects the TDM16 configuration audited in the snapshot. The alternate branch is not claimed active.
+- Its BCF sets the master and slave to TDM16/32-bit. Stream declarations at lines 1289–1465 define 16 downstream slots and four upstream slots, 48 kHz, start index 0, 32-bit data. Source/sink stream declarations agree. **No business or physical loudspeaker meaning is assigned to those slot numbers without the ChannelMap.** The alternate configuration filename containing “tdm8” is not used to overwrite the selected master's mode.
+- `audio_oem.cfg` contains startup clk_id 4/7/17, each 48 kHz / 32-bit / 16 channels. These IDs are not TDM slot indices.
+- SPF's `pcm_tdm_api.h:368–470` defines `PARAM_ID_TDM_INTF_CFG`, active slot mask, slots per frame, width and lane configuration. API defaults are not project settings. ACDB/delta/workspace files are binary; their actual endpoint parameters and mixer matrices were not decoded. A 24.576 MHz BCLK is shown only as the conditional calculation 48 kHz × 16 × 32 for a full single-lane frame, not a measurement.
+
+### Still required for a complete business-to-speaker mapping
+
+1. The A2B input/output ChannelMap referenced by the design document, section 2.2.
+2. Export of the matching ACDB graph/channel matrices and effective TDM endpoint/lane parameters.
+3. Runtime-selected resource profile and AIF/graph-key/tag information, plus firmware/ACDB versions and peripheral register readback.
+
+Until those are available, the page deliberately shows `unknown` for bus-to-slot/speaker allocation, BT slot numbers, A2B upstream signal purpose and the missing zonal backend bindings.

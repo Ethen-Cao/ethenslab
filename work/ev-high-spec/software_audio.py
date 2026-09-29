@@ -1,6 +1,7 @@
 """Audio design v1.5 mapped to the current QNX and Android source tree."""
 from html import escape
 from software_audio_graph import render_graph
+from software_audio_routing import render_routing, DATA as ROUTING_DATA
 
 MODULES = [
     dict(id='audio-client', name='libaudiomgr_if', domain='qnx', short='Cluster audio client API', duty='仪表业务使用的音频客户端库，通过项目本地 IPC 请求 audiomgr 播放、停止或调整提示音，并接收播放状态；客户端库与服务进程分别构建。'),
@@ -27,12 +28,12 @@ MODULES = [
     dict(id='audio-policy', name='AudioPolicyService', domain='aaos', short='Device routing · port gain', duty='Android 原生策略服务；依据策略配置和动态策略选择输入输出设备、路由及端口增益，经 AudioFlinger/HAL 执行。CarAudioService 不承担所有 Android 基础音频框架职责。'),
     dict(id='audio-hal', name='AudioDevice', domain='aaos', short='Stream I/O · AudioExtn dispatch', duty='实现输出/输入流打开关闭、端口增益与参数接口，转换为 PAL 流和设备操作；HFP 参数经 AudioExtn 分发至 libhfp_pal 插件。AudioExtn 注册 AudioControl 客户端，静音回调按设备地址定位输出流并调用 SetOutputMute。'),
     dict(id='audio-control', name='AudioControl HAL', domain='aaos', short='AIDL · mute callback', duty='AAOS 音频控制 AIDL 服务。当前 onDevicesToMuteChange 确实向已注册 Audio HAL 回调发送静音；onDevicesToDuckChange 在核对文件中仅记录日志，不能据此声称已执行降音。'),
-    dict(id='audio-pal', name='PAL', domain='aaos', short='Streams · devices · sessions', duty='Platform Abstraction Layer 管理音频流、设备与会话，SessionAgm 使用 agm_session_open、配置和事件回调等 AGM API。'),
-    dict(id='audio-agm', name='AGM', domain='aaos', short='Session / graph / device objects', duty='Audio Graph Manager 将音频会话映射为图和设备对象；graph.c 调用 gsl_open、gsl_ioctl 及读写接口。平台构建可通过 AGM IPC 客户端封装访问服务。'),
+    dict(id='audio-pal', name='PAL', domain='aaos', short='SessionAlsaPcm · device routing', duty='Platform Abstraction Layer 管理流、设备和会话。普通 PLAYBACK_BUS 使用 SessionAlsaPcm，经 tinyalsa AGM 插件设置 stream/device metadata 与 FE Connect；NON_TUNNEL 才使用 SessionAgm。bus_addr、PAL device 和 resource profile 共同决定 graph key 与后端接口，详见 Bus / BE / TDM routing。'),
+    dict(id='audio-agm', name='AGM', domain='aaos', short='FE / BE · graph metadata', duty='Audio Graph Manager 将音频会话映射为图和设备对象；graph.c 调用 gsl_open、gsl_ioctl 及读写接口。平台构建可通过 AGM IPC 客户端封装访问服务。'),
     dict(id='audio-gsl-fe', name='GSL / MMHAB Frontend', domain='aaos', short='Guest audio graph endpoint', duty='AGM 的 GSL 接口后续跨域端点；文档称 MMHAB，QNX 后端源码明确实现对应 HAB 命令和共享缓冲机制。前端内部实现未完全展开，不额外假设跨域套接字地址或端口。'),
     dict(id='audio-hypervisor', name='QNX Hypervisor', domain='platform', short='Host / guest isolation', duty='维持 QNX 主机与 Android 来宾的执行和内存边界。HAB 是音频跨域通信方案；此处只展示相关虚拟化基础，不重复画成一个业务服务。'),
     dict(id='audio-shmem', name='Shared Memory / Events', domain='platform', short='HAB transport foundation', duty='支撑跨域缓冲映射和事件通知；gsl_be 的 habmm_import/export 可核实共享缓冲使用。不据此宣称存在一个独立部署的 Doorbell 进程或设备。'),
-    dict(id='audio-dsp', name='ADSP Audio Graphs', domain='dsp', short='Mixing · routing · capture · HFP loopback', duty='依据图配置处理播放混音、通道分配、采集和蓝牙通话回路；通过 LPASS 音频接口连接外部设备。文档表示 ECNS 当时处于 bypass，当前镜像虽打包 capi_ecns.so，也不足以证明算法在运行时启用。'),
+    dict(id='audio-dsp', name='ADSP Audio Graphs', domain='dsp', short='Mixing · routing · capture · HFP loopback', duty='按 session、session-AIF 与 device 元数据和 ACDB 配置构建播放、采集及 HFP 图；通过端点配置连接 LPASS。bus 到 BE 映射、条件化路由参数与已证实 slot 配置见路由视图；播放混音矩阵和具体 bus 到 slot 的关系仍为 unknown。文档表示 ECNS 当时处于 bypass，当前镜像虽打包 capi_ecns.so，也不足以证明算法在运行时启用。'),
     dict(id='audio-a2b-hw', name='A2B Transceiver', domain='hardware', short='TDM / A2B audio link', duty='通过 TDM 与 ADSP 交换音频，通过 A2B 连接功放端节点。软件驱动使用 I2C/GPIO 配置与读取状态；不把配置线等同音频数据线。'),
     dict(id='audio-amp', name='Amplifier / Speakers', domain='hardware', short='A2B endpoint', duty='消费 A2B 下行播放音频；文档中媒体音量由外部功放调节。当前未核实媒体音量命令完整的车辆总线和 MCU 映射，因此不绘制臆测的 MCU 或 CAN 控制链。'),
     dict(id='audio-mic', name='Microphones / PCM6xx0', domain='hardware', short='Analog capture → TDM', duty='模拟麦克风经 ADC 数字化，再以 TDM 向 ADSP 提供采集音频；按实际产品配置决定通道顺序和使用范围。图中不强制采用其他平台的麦克风数量。'),
@@ -69,10 +70,14 @@ def render_audio():
     return f'''
 <div class="sw-page sw-audio-page" id="sw-audio-view" hidden>
   <div class="sw-ota-nav"><button class="sw-back" id="sw-audio-back" type="button">← High-Level software architecture</button><span>Audio software architecture</span></div>
+  <div class="audio-panel-tabs" role="group" aria-label="Audio architecture view"><button type="button" data-audio-panel="components" aria-pressed="true" aria-controls="sw-audio-components">Component interactions</button><button type="button" data-audio-panel="routing" aria-pressed="false" aria-controls="sw-audio-routing">Bus / BE / TDM routing</button></div>
+  <div id="sw-audio-components">
   <div class="sw-ota-controls" role="group" aria-label="Highlight audio interaction path"><span>Interaction paths</span>{controls}</div>
   <div class="sw-board-scroll sw-ota-scroll" aria-label="Audio component interactions; scroll horizontally if needed">{render_graph(MODULES)}</div>
   <div class="sw-ota-inspector" id="sw-audio-inspector" role="status" aria-live="polite">Select a component to highlight its connections. Right-click to clear selection.</div>
+  </div>
+  {render_routing()}
   <section class="sw-index" aria-labelledby="sw-audio-index-title"><div class="sw-section-heading"><h3 id="sw-audio-index-title">Module responsibilities</h3><p lang="zh-CN">实线表示已核对的接口或文档明确的设备通路；棕色虚线表示仅文档确认、实现待核实。</p></div>{index}</section>
   <section class="sw-interfaces" aria-labelledby="sw-audio-flows-title"><div class="sw-section-heading"><h3 id="sw-audio-flows-title">Interface &amp; data-flow register</h3></div><div class="sw-flow-table-wrap"><table class="sw-flow-table"><thead><tr><th>Components</th><th>Data flow</th><th>Transport</th><th>Implementation note</th></tr></thead><tbody>{rows}</tbody></table></div></section>
   <div class="sw-provenance" lang="zh-CN">依据 Audio 设计文档 v1.5 与当前 QNX/Android 源码、镜像清单整理。图中 GSL 后端是 audio_service 内的组件，框图不等同进程划分。AVAS、广播完整实现、功放音量的 MCU 映射与 ECNS 运行启用状态尚未核实；不绘制空 MCU 域。详细证据见 <a href="audio-evidence.md">Audio evidence notes</a>。</div>
-</div>''', {'modules':MODULES, 'flows':FLOWS}
+</div>''', {'modules':MODULES, 'flows':FLOWS, 'routing':ROUTING_DATA}

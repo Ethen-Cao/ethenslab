@@ -244,3 +244,27 @@
 .diag-readme a:focus-visible,.diag-readme-sequence:focus-visible{outline:2px solid #4285f4;outline-offset:2px}
 .diag-readme-sources{font-size:12px;color:#5e6c7e}
 @media(max-width:900px){.diag-readme{width:calc(100vw - 16px);height:calc(100dvh - 16px);border-radius:10px}.diag-readme-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.diag-readme-toc{flex-direction:row;gap:5px;padding:8px 12px;border-right:0;border-bottom:1px solid #e5eaf0;overflow:auto}.diag-readme-toc a{white-space:nowrap;padding:6px 9px;font-size:12px}.diag-readme-body{padding:6px 16px 28px}.diag-readme-header{padding:12px 16px}.diag-readme-header h2{font-size:17px}}
+
+/* Source/configuration route detail within the Audio child architecture. */
+.audio-panel-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.audio-panel-tabs button,.audio-route-choice{font:inherit;cursor:pointer;border:1px solid #c6d6ec;border-radius:7px;background:#fff;color:#255c9d;padding:8px 12px}
+.audio-panel-tabs button[aria-pressed="true"]{background:#e9f0fe;border-color:#80a3f0;color:#174ea6;font-weight:600}
+.audio-panel-tabs button:focus-visible,.audio-route-choice:focus-visible,.audio-route-picker select:focus-visible{outline:2px solid #3974d9;outline-offset:3px}
+.audio-routing{margin:12px 0 24px;padding:20px;background:#fff;border:1px solid #dce3ed;border-radius:14px}
+.audio-routing h4{margin:28px 0 12px;font-size:15px;color:#24364a}
+.audio-route-picker{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0}
+.audio-route-picker label{font-weight:600;color:#24364a}
+.audio-route-picker select{max-width:100%;padding:9px 12px;border:1px solid #aabfd5;border-radius:7px;background:white;color:#24364a;font:inherit}
+#audio-route-status{color:#647184;font-size:12px}
+.audio-routing-scroll{overflow-x:auto}
+.audio-routing-scroll svg{display:block;width:100%;min-width:1400px;height:auto}
+.audio-routing-note{font-size:13px;line-height:1.8;color:#536379;margin:12px 0}
+.audio-routing-note a{color:#255c9d}
+.audio-routing .sw-flow-table{min-width:1100px}
+.audio-routing .sw-flow-table td{vertical-align:top;line-height:1.65;overflow-wrap:anywhere}
+.audio-bus-table{min-width:1400px!important}
+.audio-bus-table small{display:block;color:#647184;margin-top:7px}
+.audio-bus-table .is-selected td{background:#edf4ff}
+.audio-route-choice{font-size:12px;padding:6px 8px;text-align:left;overflow-wrap:anywhere}
+.audio-route-choice[aria-pressed="true"]{border-color:#3974d9;background:#e8f0fe}
+.audio-routing[hidden],#sw-audio-components[hidden]{display:none}
