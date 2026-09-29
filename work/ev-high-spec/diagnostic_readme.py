@@ -107,13 +107,26 @@ def render_readme():
     return '''
 <dialog class="diag-readme" id="sw-diag-readme" aria-labelledby="diag-readme-title" aria-describedby="diag-readme-description">
   <div class="diag-readme-shell">
-    <div class="diag-readme-header"><div><h2 id="diag-readme-title">Diagnostic README</h2><p id="diag-readme-description">诊断工作原理 · 请求派发 · 故障上报 · DTC 存储</p></div><button type="button" id="sw-diag-readme-close" autofocus aria-label="关闭诊断介绍，返回架构图">关闭 ×</button></div>
+    <div class="diag-readme-header"><div><h2 id="diag-readme-title">Diagnostic README</h2><p id="diag-readme-description">UDS 基本协议 → 项目代码实现 → 交互时序</p></div><button type="button" id="sw-diag-readme-close" autofocus aria-label="关闭诊断介绍，返回架构图">关闭 ×</button></div>
     <div class="diag-readme-layout">
       <nav class="diag-readme-toc" aria-label="诊断介绍目录">
-        <a href="#diag-guide-overview">职责与标准</a><a href="#diag-guide-routing">请求如何到达 MCU</a><a href="#diag-guide-request">MCU 如何处理请求</a><a href="#diag-guide-reporting">QNX / Android 故障上报</a><a href="#diag-guide-storage">DTC 存放在哪里</a><a href="#diag-guide-evidence">实现证据与待确认项</a>
+        <a href="#diag-guide-protocol">UDS 基本协议</a><a href="#diag-guide-overview">软件组件</a><a href="#diag-guide-routing">项目拓扑与寻址</a><a href="#diag-guide-request">MCU 请求处理</a><a href="#diag-guide-reporting">项目代码实现</a><a href="#diag-guide-storage">DTC 存储</a><a href="#diag-guide-sequences">交互时序</a><a href="#diag-guide-evidence">证据与待确认项</a>
       </nav>
       <article class="diag-readme-body" lang="zh-CN">
-        <section id="diag-guide-overview"><h3>诊断包含两条独立的工作链路</h3>
+
+        <section id="diag-guide-protocol"><h3>UDS 基本协议</h3>
+          <p>UDS（ISO 14229）规定诊断仪（客户端）向 ECU（服务端）请求的服务及响应，不限定物理连接器。经 CAN 传输时，ISO-TP（ISO 15765-2）提供分段、流控与重组；经以太网传输时可使用 DoIP。OBD 在本项目拓扑中是诊断连接器，不等同于 UDS 协议。</p>
+          <div class="diag-readme-table"><table><thead><tr><th>字段</th><th>用途</th><th>所在层</th></tr></thead><tbody>
+            <tr><td>CAN ID</td><td>识别该总线上的报文及诊断通道；跨网关后可能映射成另一 ID。</td><td>CAN 帧</td></tr>
+            <tr><td>PCI</td><td>单帧 / 首帧 / 连续帧 / 流控帧标记及长度、序号。</td><td>ISO-TP</td></tr>
+            <tr><td>SID、可选子功能、请求参数</td><td>服务操作及其对象，例如 DID、DTC 或状态掩码。</td><td>UDS 有效载荷</td></tr>
+            <tr><td>Padding</td><td>按链路配置填充数据区；不是诊断业务参数。</td><td>传输封装</td></tr>
+          </tbody></table></div>
+          <p><strong>读数据：</strong><code>22 F1 90</code> 中，<code>22</code> 是 ReadDataByIdentifier，<code>F190</code> 是 VIN 的两字节 DID；<code>0x22</code> 没有子功能。经典 CAN 普通寻址、填充为零时，单帧数据区可写作 <code>03 22 F1 90 00 00 00 00</code>，开头的 <code>03</code> 是 ISO-TP 长度，不属于 UDS。肯定响应以 <code>62 F1 90</code> 开始，后接 VIN；否定响应为 <code>7F 22 NRC</code>。VIN 回复较长，可由 ISO-TP 的首帧、流控帧和连续帧传输。示例不代表本项目 CAN ID 或填充配置。</p>
+          <p><strong>读故障：</strong><code>19 02 08</code> 中，<code>19</code> 是 ReadDTCInformation，<code>02</code> 是按状态筛选的子功能，<code>08</code> 是 confirmedDTC 状态掩码。DTC 编号通常为三字节，查询结果中的后一字节是状态位。状态位是八个可组合的标志：当前测试失败 <code>01</code>、本运行周期失败 <code>02</code>、待确认 <code>04</code>、已确认 <code>08</code>、清除后尚未完成测试 <code>10</code>、清除后曾失败 <code>20</code>、本周期尚未完成测试 <code>40</code>、请求故障指示 <code>80</code>。筛选条件是 <code>(status &amp; mask) != 0</code>，因此 <code>09</code> 表示 01 或 08 任意一位匹配，不要求同时成立；<code>FF</code> 还可能返回尚未完成测试的 DTC。<code>19 0A</code> 用于列出 ECU 支持的 DTC；已配置的快照和扩展数据可用 <code>19 04</code> / <code>19 06</code> 查询。</p>
+          <p><strong>其他常用服务：</strong><code>10</code> 切换会话、<code>14</code> 清故障、<code>22</code> 读 DID、<code>27</code> 访问授权、<code>31</code> 执行例程、<code>3E</code> 维持诊断会话。某些操作受会话、权限和执行条件限制。DID、DTC、返回字段与解释必须由 ECU 诊断描述和项目配置约定，不能仅凭服务号推断。本文的概念顺序参考 <a href="https://www.csselectronics.com/pages/uds-protocol-tutorial-unified-diagnostic-services" target="_blank" rel="noopener noreferrer">CSS Electronics 的 UDS 入门文章</a>；以下再区分本项目源码证据与尚待确认的 MCU 实现。</p>
+        </section>
+        <section id="diag-guide-overview"><h3>项目软件组件及职责</h3>
           <p><strong>后台监测与记录</strong>在设备运行期间采集故障状态；<strong>诊断请求与响应</strong>由诊断仪发起，读取数据、查询故障或执行指定动作。读取 DTC 通常查询已经维护的记录，不要求重新检查所有设备。</p>
           <div class="diag-readme-callout">本文使用三类证据：<strong>源码确认</strong>表示已核对本项目代码；<strong>通用机制</strong>表示标准或典型实现；<strong>参考 / 待确认</strong>表示只有所附架构图或证据尚不完整。时序图中的棕色虚线表示未确认的实现映射，绿色虚线表示返回数据。</div>
           <div class="diag-readme-table"><table><thead><tr><th>组件 / 数据</th><th>职责</th></tr></thead><tbody>
@@ -139,11 +152,10 @@ def render_readme():
           </tbody></table></div>
           <p>DoIP 网关可以把请求路由到 CAN ECU，但本项目是否采用这条桥接路径及其逻辑地址映射，需要另外核实。普通 TCP 或 SPI 消息也不能仅凭传输方式就称为 DoIP 或 UDS。</p>
         </section>
-        <section id="diag-guide-request"><h3>MCU 如何处理诊断请求</h3>
+        <section id="diag-guide-request"><h3>MCU 侧典型请求处理</h3>
           <p><span class="diag-readme-tag">通用机制</span>采用典型 AUTOSAR CAN 诊断栈时，请求经过 <code>CAN Driver → CanIf → CanTp → PduR → Dcm</code>。CanTp 将分段重组为完整 UDS 消息；PduR 是典型路由组件，所附 MCU 图未单列它，因此不宣称项目已有该模块。</p>
           <ol><li><strong>校验：</strong>Dcm 检查服务、子功能、长度、参数和配置要求的会话 / 访问条件。</li><li><strong>派发：</strong><code>0x19</code> 查询 Dem；<code>0x14</code> 请求清除；<code>0x22</code> 调用 DID 数据提供者；<code>0x31</code> 调用 RID 对应例程。Dcm 通过配置和回调映射识别业务。</li><li><strong>执行：</strong>本地数据可直接获取；跨处理器数据按业务接口请求 QNX / Android。服务编号本身不决定必须访问哪个域。</li><li><strong>响应：</strong>返回肯定响应或 <code>7F + SID + NRC</code> 否定响应；异步处理遵循配置时序，必要时可发送 <code>7F 19 78</code> 表示处理中。</li></ol>
           <p>以下以 <code>19 02 08</code> 为例：服务 <code>0x19</code> 读取 DTC，子功能 <code>0x02</code> 按状态筛选，掩码 <code>0x08</code> 选择 confirmedDTC。已确认不等于当前仍然失败。</p>
-          <!-- UDS_SEQUENCE -->
           <div class="diag-readme-table"><table><thead><tr><th>报文 / 操作</th><th>解释</th></tr></thead><tbody>
             <tr><td><code>19 02 08</code></td><td>UDS 请求有效载荷。经典 CAN 普通寻址、填充为 00 的示例数据区：<code>03 19 02 08 00 00 00 00</code>；03 是 ISO-TP 单帧长度，不是 UDS 服务。</td></tr>
             <tr><td>Dem 查询</td><td>典型接口：<code>Dem_GetDTCStatusAvailabilityMask</code> → <code>Dem_SetDTCFilter</code> → 循环 <code>Dem_GetNextFilteredDTC</code>；版本不同接口可能变化。</td></tr>
@@ -153,9 +165,15 @@ def render_readme():
           </tbody></table></div>
           <p><code>19 02 FF</code> 表示按所有支持的状态位筛选；只要匹配任一位即可，并不等价于“列出所有当前故障”。<code>19 0A</code> 用于报告支持的 DTC；<code>19 04</code> / <code>19 06</code> 可读取快照 / 扩展数据，支持范围以 ECU 配置为准。</p>
         </section>
-        <section id="diag-guide-reporting"><h3>QNX / Android 的故障何时上报</h3>
+        <section id="diag-guide-reporting"><h3>QNX / Android 故障上报的代码实现</h3>
           <p><span class="diag-readme-tag">源码确认</span>这条链路独立于诊断仪读取：QNX 的 <code>dtcagent</code> 主动读取板级设备状态并检查 SoC 温度；其发送批次设置至少 3000 ms 的间隔控制，每条再间隔 3 ms，因此不能理解为严格每 3 秒一次。Android 的 <code>DtcEventHandler</code> 读取 Wi-Fi / 蓝牙和 USB 充电状态，分发本轮维护的数据后休眠 3000 ms。两者都不只在诊断仪发送 0x19 时才采集。</p>
-          <!-- REPORTING_SEQUENCE -->
+
+          <div class="diag-readme-table"><table><thead><tr><th>源码位置 / 函数</th><th>已确认的处理</th></tr></thead><tbody>
+            <tr><td>Android <code>DtcEventHandler</code> → <code>VehicleManager.sendDtc</code></td><td>采集 Wi-Fi / 蓝牙、USB 充电状态；把内部状态放到高 8 位、DTC 编号放到低 24 位，再写 <code>TOPIC_DTC_UPDATE</code>。</td></tr>
+            <tr><td>QNX <code>convert_qnxVipc2todtc</code></td><td>解析 <code>dtc/Update/Set</code> 的值数组，将每个 32 位值重排为 <code>[DTC 高、中、低字节, status]</code> 的独立 4 字节内部帧。</td></tr>
+            <tr><td>QNX <code>convert_qnxBsp2dtc</code></td><td>将板级监测结果转换为 <code>bus_id=1</code>、<code>frame_dlc=4</code> 的内部 RPC 帧。</td></tr>
+            <tr><td><code>dtc_clientRpcd</code> → <code>rpcd_mcu_spi</code></td><td>调用 <code>rpcif_update_clusterstate</code>；QNX rpcd 通过 SPI 路径发送。源码未证明 MCU 接收后如何进入 Dem。</td></tr>
+          </tbody></table></div>
           <p>Android 通过 <code>VehicleManager</code> 写 <code>TOPIC_DTC_UPDATE</code>，每个值打包为 <code>(status &lt;&lt; 24) | DTC</code>。QNX 订阅 <code>dtc/Update/Set</code> 并重排字段，通过 <code>librpcif → rpcd → SPI</code> 向 MCU 发送内部消息：</p>
           <pre>RPC message ID: 0x4345     bus_id: 1     payload length: 4
 Payload: [DTC high byte] [DTC middle byte] [DTC low byte] [status]</pre>
@@ -170,9 +188,17 @@ Payload: [DTC high byte] [DTC middle byte] [DTC low byte] [status]</pre>
             <tr><td>NvM</td><td>管理诊断数据块、读写请求和完成状态；下层可能有 MemIf、Fee / Ea 等抽象组件。</td><td>自身是软件模块，不是存储介质。</td></tr>
             <tr><td>Flash / EEPROM</td><td>持久化的诊断数据块，布局和内容依配置与实现而定。</td><td>已经成功写入的数据可保留。</td></tr>
           </tbody></table></div>
-          <!-- STORAGE_SEQUENCE -->
           <p>保存可在首次记录、相关数据更新或正常关机等配置时机触发，并非每次接收状态或读取 0x19 都写 Flash。掉电前尚未完成写入的数据不保证保留。故障恢复后，当前状态和历史记录按规则更新；历史记录可能等待老化或 0x14 清除。清除时也要保持 RAM 与持久化记录一致，响应完成时机由配置决定。</p>
           <p><span class="diag-readme-tag is-reference">MCU 参考图</span>所附图明确画出 <code>Dem → NvM → Flash Driver</code>。这支持 Flash 存储路径的设计意图，但还不能确定使用哪块 Flash、地址范围、块大小、容量或写入策略；也不能把它等同于 QNX / Android 的 UFS 分区。</p>
+        </section>
+
+        <section id="diag-guide-sequences"><h3>交互时序</h3>
+          <p>先看外部诊断仪主动读取：示例使用 <code>19 02 08</code> 查询已确认 DTC。图中的 VCM 路由与 MCU Dem 行为按通用机制和参考架构表达，实际 CAN ID、服务配置及网关实现仍待核实。</p>
+          <!-- UDS_SEQUENCE -->
+          <p>再看项目源码确认的后台上报：Android 和 QNX 监测任务在诊断仪未接入时也会运行。棕色虚线表示缺少 Vehicle HAL 中间映射或 MCU 固件证据，不能将它解释为已确认的 Dem 写入。</p>
+          <!-- REPORTING_SEQUENCE -->
+          <p>最后是典型持久化生命周期：事件状态在运行时由 Dem 管理，配置要求保留的记录经 NvM 存入非易失介质。具体存储布局与写入策略需要 MCU 配置证据。</p>
+          <!-- STORAGE_SEQUENCE -->
         </section>
         <section id="diag-guide-evidence"><h3>实现证据与待确认项</h3>
           <div class="diag-readme-table"><table><thead><tr><th>证据</th><th>可以确认的范围</th></tr></thead><tbody>
@@ -184,6 +210,7 @@ Payload: [DTC high byte] [DTC middle byte] [DTC low byte] [status]</pre>
           <p><strong>待补齐：</strong>诊断请求 / 响应 CAN ID、VCM 路由表、MCU 服务与 DID / RID 配置、0x4345 到 Dem Event ID 的映射、DTC 判定 / 老化 / 清除规则、NvM 数据块与 Flash 地址配置、Android Vehicle HAL 到 QNX 的完整桥接。</p>
           <p>验收应覆盖请求正常返回、错误参数、访问条件、长报文、故障注入与恢复、掉电重启和清除后再次检测。没有配置和测试证据，不能仅凭架构图认定满足某个标准版本。</p>
           <ul class="diag-readme-sources">
+            <li><a href="https://www.csselectronics.com/pages/uds-protocol-tutorial-unified-diagnostic-services" target="_blank" rel="noopener noreferrer">CSS Electronics — UDS Explained</a>：基本协议、报文、响应及 ISO-TP 入门示例。</li>
             <li><a href="https://www.iso.org/standard/87962.html" target="_blank" rel="noopener noreferrer">ISO 14229-1 — UDS</a>：诊断服务；具体采用版本以项目基线为准。</li>
             <li><a href="https://docs.kernel.org/networking/iso15765-2.html" target="_blank" rel="noopener noreferrer">Linux Kernel — ISO-TP</a>：CAN 诊断寻址、分段与重组。</li>
             <li><a href="https://www.iso.org/standard/13400-2" target="_blank" rel="noopener noreferrer">ISO 13400-2 — DoIP</a>：IP 网络上的诊断传输与路由。</li>
