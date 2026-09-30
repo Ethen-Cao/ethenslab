@@ -6,7 +6,7 @@ title = '高通平台 Widevine L1 认证实施流程'
 
 ## 整体流程
 
-![](/ethenslab/images/widevine-L1-verification-process.png)
+![](../../../static/images/widevine-L1-verification-process.png)
 
 1. **项目启动与平台选型**
    * OEM（整车厂）或主导系统的 Tier1 根据车型、市场需求和 DRM 策略，决定采用 Widevine L1。
@@ -44,7 +44,6 @@ title = '高通平台 Widevine L1 认证实施流程'
    * 在量产软件中集成 Widevine L1 证书，并跑通产线 Keybox 烧录流程。
    * 执行最终的功能验证和回归测试，确保 DRM 功能正常工作，完成量产准备。
 
----
 
 ## 角色与分工
 
@@ -92,7 +91,6 @@ title = '高通平台 Widevine L1 认证实施流程'
 * **典型互动**：
   * 签署 CWIP 协议，主要与实验室保持正式沟通，基于报告结论颁发资质。
 
----
 
 ## 认证实验室与合作伙伴
 
@@ -109,7 +107,6 @@ title = '高通平台 Widevine L1 认证实施流程'
 * 针对车载设备独有的架构（如 Hypervisor 跨域传输）进行定制化的安全评估。
 * 协助申请测试及生产用密钥资料。
 
----
 
 ## 第三方实验室 (3PL) 的作用与必要性
 
@@ -127,6 +124,6 @@ Google 本身并不直接测试海量的生态设备，而是委托授权的 3PL
 * OEM 或 Tier1 可以在内部进行预测试（Self-Test），但这**不能直接作为正式认证依据**。
 * Google 强制要求高等级保护（L1）的正式认证必须通过 3PL 提交，以确保标准不打折扣。只有通过 3PL 审核后的设备，才能最终获得 L1 证书与进入产线 Provisioning 环节的资格。
 
----
+
 [1]: https://www.widevine.com/solutions/widevine-3pl "Widevine Third Party Labs (3PL)"
 [2]: https://castlabs.com/widevine-certification/ "Widevine CDM Device & App Certification - castLabs"
