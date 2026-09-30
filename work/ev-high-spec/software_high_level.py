@@ -216,7 +216,7 @@ def render_software():
           <div class="sw-hardware-band"><span>SoC Hardware</span><span>CPU · GPU · ADSP · Memory Controller · Display Controller · Audio Interfaces · Ethernet MAC</span></div>
         </div>
       </div>
-      <div class="sw-mcu-bridge"><div class="sw-bridge-line">↔</div><strong>SoC ⇄ MCU</strong><span>SPI / UART</span><small>Service mapping to be verified</small></div>
+      <div class="sw-mcu-bridge"><div class="sw-bridge-line">↔</div><span>SPI / UART</span></div>
       <section class="sw-mcu" aria-label="MCU domain">
         <div class="sw-system-heading"><div><strong>MCU</strong><small>FreeRTOS · BSW · drivers</small></div></div>
         <div class="sw-mcu-layers">{mcu}</div>
