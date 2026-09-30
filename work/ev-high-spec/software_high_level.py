@@ -233,7 +233,7 @@ def render_software():
   </section>
 
   <section class="sw-interfaces" aria-labelledby="sw-interfaces-title">
-    <div class="sw-section-heading"><div><h3 id="sw-interfaces-title">Interface & data-flow register</h3></div><p lang="zh-CN">表中业务是已核实的代表性例子，并不穷尽同一方案承载的接口；SoC–MCU 和车载网络行标注物理链路能力。</p></div>
+    <div class="sw-section-heading"><div><h3 id="sw-interfaces-title">Interface & data-flow register</h3></div></div>
     <div class="sw-flow-table-wrap"><table class="sw-flow-table"><thead><tr><th>Boundary</th><th>Data flow</th><th>Transport</th><th>Scope note</th></tr></thead><tbody>{flow_rows}</tbody></table></div>
   </section>
 

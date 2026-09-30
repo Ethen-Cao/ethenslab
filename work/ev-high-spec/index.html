@@ -367,7 +367,7 @@ header{flex-wrap:wrap}.en-name{white-space:pre-line}.diagram-svg{max-width:none}
   </section>
 
   <section class="sw-interfaces" aria-labelledby="sw-interfaces-title">
-    <div class="sw-section-heading"><div><h3 id="sw-interfaces-title">Interface & data-flow register</h3></div><p lang="zh-CN">表中业务是已核实的代表性例子，并不穷尽同一方案承载的接口；SoC–MCU 和车载网络行标注物理链路能力。</p></div>
+    <div class="sw-section-heading"><div><h3 id="sw-interfaces-title">Interface & data-flow register</h3></div></div>
     <div class="sw-flow-table-wrap"><table class="sw-flow-table"><thead><tr><th>Boundary</th><th>Data flow</th><th>Transport</th><th>Scope note</th></tr></thead><tbody><tr><td>QNX Cluster ↔ AAOS IVI</td><td>ECU configuration read</td><td>HAB</td><td>HAB 业务示例：ecuconfig 接收 Android 读取请求并返回 vehicle_config；这不代表 HAB 的全部用途，写入路径尚未实现。</td></tr><tr><td>QNX Cluster ↔ AAOS IVI</td><td>RPC / service data</td><td>TCP/IP over virtual LAN</td><td>已在项目跨域服务源码中核实；不能仅凭类名认定为 Vsock。</td></tr><tr><td>QNX Cluster → AAOS IVI</td><td>CPU thermal status</td><td>VSOCK</td><td>powermgr 通过 VSOCK.POWERMGR 向 Android 发布 CPU 温度；VirtIO 虚拟设备归于 Virtualization 层。</td></tr><tr><td>SoC ↔ MCU</td><td>Control / status</td><td>SPI / UART hardware links</td><td>硬件图标注物理链路；业务消息到链路的映射仍待核实。</td></tr><tr><td>MCU ↔ Vehicle Networks</td><td>Vehicle signals</td><td>CAN FD / CAN / LIN</td><td>硬件图列出接口能力；实际网络配置以 MCU 固件为准。</td></tr></tbody></table></div>
   </section>
 
