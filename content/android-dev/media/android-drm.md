@@ -51,7 +51,57 @@ Widevine DRM（数字版权管理）实现了一套从内容打包、分发到�
 > 在此模式下，设备私钥永不离开 TEE，OEM 也不持有 Google 的根私钥。但由于工厂环境仍需处理极少量的中间认证过程，存在一定的供应链管理成本。
 
 ### 2.2 远程密钥预置 (RKP)
-![](../../../static/images/drm-rkp.png)
+```plantuml
+@startuml
+!theme plain
+hide footbox
+autonumber "<b>[00]"
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam sequenceMessageAlign center
+skinparam sequence {
+  ArrowColor #3974D9
+  LifeLineBorderColor #C5CDD8
+  ParticipantBorderColor #BDD0EE
+  ParticipantBackgroundColor #EDF4FF
+  ParticipantFontColor #243348
+  GroupBorderColor #CBD5E1
+  GroupBackgroundColor #F8FAFC
+  NoteBackgroundColor #FFF8E7
+  NoteBorderColor #E5CB86
+}
+title 远程密钥预置 (RKP) 流程
+
+box "工厂生产线 (一次性操作)" #F8FAFC
+participant "OEM 工厂工具" as Factory
+participant "设备 TEE\n(生成硬件绑定密钥)" as TEE
+end box
+participant "Google RKP 服务器" as RKP
+
+== 阶段一：工厂端公钥提取 ==
+Factory -> TEE: 发起公钥提取请求
+TEE -> TEE: 内部生成唯一密钥对\n(私钥永不导出)
+TEE --> Factory: 仅返回设备公钥 (DK_PUB)
+Factory -> RKP: 批量上传 DK_PUB 进行云端注册
+RKP -> RKP: 校验合法性并保存设备公钥
+RKP --> Factory: 注册成功响应
+
+== 阶段二：用户端远程激活 (首次使用) ==
+box "用户端 (首次联网 OTA)" #F4F8FD
+participant "App / MediaDrm" as App
+end box
+
+App -> TEE: 触发 DRM 操作\n(发现尚未具备合法凭证)
+TEE -> TEE: 生成 CSR 并使用内部私钥签名
+TEE --> App: 返回签名的 CSR (凭证签名请求)
+App -> RKP: 通过 HTTPS 透传 CSR
+RKP -> RKP: 验证签名并与云端注册的公钥比对
+RKP --> App: 动态颁发短期设备证书链
+App -> TEE: 注入设备证书
+TEE -> TEE: 验证并激活 Widevine L1 资格
+@enduml
+```
 
 从 Android 12 开始，Google 引入了 RKP (Remote Key Provisioning) 机制。RKP 彻底改变了凭证下发方式：**私钥无需在工厂进行任何形式的预置**。
 
