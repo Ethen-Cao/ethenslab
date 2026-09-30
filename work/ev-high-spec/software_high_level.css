@@ -203,6 +203,32 @@
 #sw-high-level-view .sw-module[data-sw-module="audio-system"]::after,#sw-high-level-view .sw-module[data-sw-module="bsp-audio"]::after{content:"Open Audio view →";display:block;margin-top:5px;color:#315eb1;font-size:10px;font-weight:800}
 
 
+/* Widevine reuses the OTA interaction grammar; its SVG defines the domain layout. */
+.sw-widevine-diagram{display:block;width:100%;min-width:0;max-width:100%;height:auto;background:#fff}
+.sw-widevine-page{min-width:0;width:100%}
+.sw-widevine-page .sw-board-scroll{overflow:visible;min-width:0;max-width:100%;border-radius:16px}
+#sw-widevine-diagram{width:100%;min-width:0}
+.sw-widevine-page .sw-flow-table-wrap{overflow:visible}
+.sw-widevine-page .sw-flow-table{min-width:0;width:100%;table-layout:fixed}
+.sw-widevine-page .sw-flow-table th,.sw-widevine-page .sw-flow-table td{min-width:0;width:auto;overflow-wrap:anywhere;word-break:normal}
+.sw-widevine-page .sw-index-entry{min-width:0}
+.sw-widevine-page .sw-index-name,.sw-widevine-page .sw-index-duty{overflow-wrap:anywhere}
+.wv-process{padding:20px 0 12px;color:#42536a;font-size:14px;line-height:1.85}
+.wv-process h3{margin:0 0 10px;font-size:19px;color:#202124;letter-spacing:0}
+.wv-process strong{color:#263c57}
+#wv-playback-sequence{display:grid;gap:20px;min-width:0;width:100%}
+.wv-sequence-diagram{display:block;width:100%;height:auto;min-width:0;max-width:100%;background:#fff}
+.wv-sequence-panel{margin:0;min-width:0;border:1px solid #dce3ed;border-radius:16px;overflow:hidden;background:#fff}
+.wv-sequence-panel figcaption{padding:12px 18px;font-size:14px;line-height:1.75;color:#526179;background:#f8faff;border-top:1px solid #e7ecf3}
+.wv-sequence-intro{margin:0;font-size:14px;color:#526179;line-height:1.85}
+.wv-sequence-intro code,.wv-sequence-panel code{overflow-wrap:anywhere}
+.wv-source{display:block;margin-top:6px;color:#718096;font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+.sw-widevine-diagram .ota-node:hover>path,.sw-widevine-diagram .ota-node:focus-visible>path,.sw-widevine-diagram .ota-node[aria-pressed="true"]>path{stroke:#1a73e8;stroke-width:3}
+.sw-widevine-diagram .ota-edge[data-edge-kind="data"]{stroke-width:3.4}
+.sw-widevine-diagram .ota-edge[data-edge-kind="data"].is-active{stroke-width:4.8}
+@media(max-width:900px){.sw-widevine-page .sw-flow-table{font-size:11px}.sw-widevine-page .sw-flow-table th,.sw-widevine-page .sw-flow-table td{padding:8px 6px}}
+#sw-high-level-view .sw-module[data-sw-module="widevine-drm"]::after{content:"Open Widevine DRM view →";display:block;margin-top:5px;color:#315eb1;font-size:10px;font-weight:800}
+
 /* Diagnostic README: compact offline reading panel, independent of path selection. */
 .software-panel .sw-ota-controls .diag-readme-trigger{margin-left:auto;border-color:#b8cbed;color:#2459a9;border-radius:7px}
 .diag-readme{padding:0;width:min(1450px,calc(100vw - 40px));max-width:none;height:min(1050px,calc(100dvh - 40px));max-height:none;margin:auto;border:1px solid #d9e1ec;border-radius:14px;background:#fff;color:#253140;box-shadow:0 22px 90px #1d2e4b33;overflow:hidden;font:14px/1.75 Arial,Roboto,"Microsoft YaHei",sans-serif}

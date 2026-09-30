@@ -7,6 +7,7 @@ from software_high_level import render_software
 from software_ota import render_ota
 from software_diagnostics import render_diagnostics
 from software_audio import render_audio
+from software_widevine import render_widevine
 from storage_partitions import render_storage
 
 ROOT = Path(__file__).parent
@@ -324,13 +325,15 @@ software_html,software_data=render_software()
 ota_html,ota_data=render_ota()
 diag_html,diag_data=render_diagnostics()
 audio_html,audio_data=render_audio()
+widevine_html,widevine_data=render_widevine()
 software_data["ota"]=ota_data
 software_data["diagnostics"]=diag_data
 software_data["audio"]=audio_data
+software_data["widevine"]=widevine_data
 data=dict(nodes=nodes,nets=nets,glossary=glossary,domains=DOMAINS,colors=COLORS,hardware=hardware_data,bSystem=b_system_data,software=software_data)
 template=(ROOT/'template.html').read_text()
 svg[0]=svg[0].replace('role="img"','role="group"').replace('<title id="diagramTitle">电子电气架构</title>','<title id="diagramTitle">A平台电子电器架构图</title>').replace('.wire{','.module.selected.found .node-box{stroke:#075cbb;stroke-width:2.4}.wire{')
-template=template.replace('<!-- DRAWING -->',''.join(svg)).replace('<!-- HARDWARE_DRAWING -->',hardware_svg).replace('<!-- B_SYSTEM_DRAWING -->',b_system_svg).replace('<!-- SOFTWARE_CONTENT -->',software_html+ota_html+diag_html+audio_html).replace('/* SOFTWARE_STYLE */',(ROOT/'software_high_level.css').read_text()).replace('/* DIAGRAM_DATA */ null',json.dumps(data,ensure_ascii=False).replace('</',r'<\/'))
+template=template.replace('<!-- DRAWING -->',''.join(svg)).replace('<!-- HARDWARE_DRAWING -->',hardware_svg).replace('<!-- B_SYSTEM_DRAWING -->',b_system_svg).replace('<!-- SOFTWARE_CONTENT -->',software_html+ota_html+diag_html+audio_html+widevine_html).replace('/* SOFTWARE_STYLE */',(ROOT/'software_high_level.css').read_text()).replace('/* DIAGRAM_DATA */ null',json.dumps(data,ensure_ascii=False).replace('</',r'<\/'))
 template=template.replace('/* APP_SCRIPT */',(ROOT/'app.js').read_text()).replace('/* SOFTWARE_SCRIPT */',(ROOT/'software_high_level.js').read_text())
 (ROOT/'index.html').write_text(template)
 (ROOT/'storage-partitions.html').write_text(render_storage())

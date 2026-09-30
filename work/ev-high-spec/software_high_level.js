@@ -1,9 +1,10 @@
 const softwareModules = new Map(
   [...DATA.software.modules, ...DATA.software.ota.modules,
-   ...DATA.software.diagnostics.modules, ...DATA.software.audio.modules].map(module => [module.id, module])
+   ...DATA.software.diagnostics.modules, ...DATA.software.audio.modules,
+   ...DATA.software.widevine.modules].map(module => [module.id, module])
 );
-const softwareDetailViews = {ota: 'OTA', diag: 'Diagnostic', audio: 'Audio'};
-const selectedSoftwareModules = {ota: null, diag: null, audio: null};
+const softwareDetailViews = {ota: 'OTA', diag: 'Diagnostic', audio: 'Audio', widevine: 'Widevine DRM'};
+const selectedSoftwareModules = {ota: null, diag: null, audio: null, widevine: null};
 
 function activeSoftwareDetailView() {
   for (const view of Object.keys(softwareDetailViews)) {
@@ -83,15 +84,21 @@ function selectSoftwareModule(id) {
     duty.lang = 'zh-CN';
     duty.textContent = module.duty;
     inspector.append(name, duty);
+    if (view === 'widevine' && module.source) {
+      const source = document.createElement('span');
+      source.className = 'wv-source';
+      source.textContent = '证据：' + module.source;
+      inspector.append(source);
+    }
     refreshInteractionGraph(view);
   }
   $('live').textContent = `Selected software module: ${module.name}`;
 }
 
 $('software-panel').addEventListener('click', event => {
-  const back = event.target.closest('#sw-ota-back, #sw-diag-back, #sw-audio-back');
+  const back = event.target.closest('#sw-ota-back, #sw-diag-back, #sw-audio-back, #sw-widevine-back');
   if (back) { setSoftwareArchitectureView('high'); return; }
-  const focusButton = event.target.closest('[data-ota-focus], [data-diag-focus], [data-audio-focus]');
+  const focusButton = event.target.closest('[data-ota-focus], [data-diag-focus], [data-audio-focus], [data-widevine-focus]');
   if (focusButton) {
     const view = activeSoftwareDetailView();
     if (view === 'high') return;
@@ -107,6 +114,11 @@ $('software-panel').addEventListener('click', event => {
   if (button.dataset.detailPage) return;
   const id = button.dataset.swModule;
   if (button.classList.contains('sw-module')) {
+    if (id === 'widevine-drm') {
+      clearSoftwareSelection();
+      setSoftwareArchitectureView('widevine');
+      return;
+    }
     if (id === 'audio-system' || id === 'bsp-audio') {
       clearSoftwareSelection();
       setSoftwareArchitectureView('audio');

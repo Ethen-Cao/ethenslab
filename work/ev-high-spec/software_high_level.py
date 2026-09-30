@@ -2,7 +2,7 @@
 
 The blocks deliberately describe responsibilities, not project process names.  The
 QNX side is grounded in the inspected HBEZ image and staged services; AAOS and MCU
-blocks remain reference-level until their software images are reviewed.
+blocks remain reference-level unless a module records more specific evidence.
 """
 
 from html import escape
@@ -40,6 +40,7 @@ MODULES = [
     dict(id="android-framework", name="Android Framework", domain="aaos", short="system_server · APIs", duty="提供通用 Android 应用框架 API 和系统服务，例如由 system_server 承载的进程、窗口及包管理服务。", evidence="AAOS reference-level grouping"),
     dict(id="car-framework", name="Car Framework", domain="aaos", short="CarService · Car APIs", duty="提供汽车专用 API 与服务边界，向应用开放车辆属性及座舱功能。", evidence="AAOS reference-level grouping"),
     dict(id="android-native-hal", name="Android Native Services & HAL", domain="aaos", short="Vehicle · audio · graphics", duty="通过原生服务与硬件抽象层连接车辆、音频和图形设备；实际 HAL 清单需按项目镜像核对。", evidence="AAOS reference-level grouping"),
+    dict(id="widevine-drm", name="Widevine DRM", domain="aaos", short="License · secure playback", duty="协调 DRM 会话、许可证与受保护媒体播放，连接 Android MediaDrm、Widevine CDM / OEMCrypto、安全解码和输出保护；子视图依据高通集成文档与播放日志区分已确认行为和待核实部署。", evidence="Qualcomm Automotive Widevine Integration Guide + observed MediaDrm / secure decoder logs"),
     dict(id="android-os", name="Android OS & Runtime", domain="aaos", short="Runtime · kernel", duty="提供 Android 应用运行时、系统服务基础、进程隔离和内核能力。", evidence="AAOS reference-level grouping"),
     # MCU functional view from the supplied architecture reference. Supplier and chip names are generalized.
     dict(id="mcu-debug-shell", name="Debug Shell", domain="mcu", short="Commands", duty="提供 MCU 调试命令交互，辅助状态查询与问题定位。"),
@@ -99,7 +100,7 @@ LAYERS = [
 AAOS_LAYERS = [
     ("Applications", ["ivi-applications"]),
     ("Framework", ["android-framework", "car-framework"]),
-    ("Native / HAL", ["android-native-hal"]),
+    ("Native / HAL", ["android-native-hal", "widevine-drm"]),
     ("Android OS", ["android-os"]),
 ]
 
@@ -237,6 +238,6 @@ def render_software():
     <div class="sw-flow-table-wrap"><table class="sw-flow-table"><thead><tr><th>Boundary</th><th>Data flow</th><th>Transport</th><th>Scope note</th></tr></thead><tbody>{flow_rows}</tbody></table></div>
   </section>
 
-  <div class="sw-provenance" lang="zh-CN">QNX 域依据已检查的 HBEZ IFS 镜像、启动脚本及预置服务归纳。AAOS 软件块目前为功能级参考边界；MCU 模块依据用户提供的架构资料绘制，尚未通过 MCU 镜像核实，供应商与芯片型号已脱敏。层级表达职责，不代表进程均运行在同一特权级。</div>
+  <div class="sw-provenance" lang="zh-CN">QNX 域依据已检查的 HBEZ IFS 镜像、启动脚本及预置服务归纳。AAOS 软件块主要为功能级参考边界，Widevine 子视图另依据集成文档与播放日志标注证据；MCU 模块依据用户提供的架构资料绘制，尚未通过 MCU 镜像核实，供应商与芯片型号已脱敏。层级表达职责，不代表进程均运行在同一特权级。</div>
 </div>'''
     return html, {"modules": MODULES, "flows": FLOWS}

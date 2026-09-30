@@ -95,93 +95,196 @@ title = 'Android DRM 框架'
 
 ## Widevine L1 DRM 播放流程解读
 
-下面的时序图展示了 **Android 平台 Widevine L1 DRM** 的核心工作原理，涵盖了 **设备注册、许可证获取、视频解密与安全渲染** 三个阶段，并特别标注了 **安全关键点（Secure Path）**。
+下面以 **Android 原生播放器的在线流式播放**为例，说明 Widevine L1 的会话、许可证和受保护媒体路径。前提是设备具备相应能力，并成功建立满足内容要求的安全会话；L1 能力本身不等于内容平台已经允许高清播放，也不等于当前显示链路已经满足许可证的输出保护要求。
 
-![](/ethenslab/images/drm-contentkey.png)
+图中的 `MediaDrm`、DRM HAL 和 CDM 按职责合并展示，不代表同一个进程。网页播放器使用 EME，由 Chromium 等浏览器适配到底层 DRM；网页并不直接调用这些 Android Java API。
 
----
+### 阶段1：初始化会话与按需 Provisioning
 
-### 阶段1：设备首次注册 / 公钥上报
+1. App 创建 `MediaDrm(WIDEVINE_UUID)`，再调用 `openSession()`。创建 `MediaDrm` 对象与打开会话是两个操作；`openSession()` 成功后返回 **sessionId**。
+2. 如果设备需要配置凭据，`openSession()` 等操作可能抛出 `NotProvisionedException`。App 获取 `getProvisionRequest()` 返回的 **不透明请求数据**，提交到相应的 **Provisioning Server**，再通过 `provideProvisionResponse(response)` 应用响应，并重试原操作。
+3. Provisioning 不必在每次播放时执行，也不只可能发生在首次使用时。`getProvisionRequest()` 返回的是请求，不是已经生成的设备证书；不能把这个过程画成“向 License Server 上报公钥，让它登记设备”。
 
-1. **App 初始化 DRM**
+设备凭据如何生成、注入和更新取决于具体 Widevine provisioning 方案。不能统一假定所有设备都在首次播放时由 TEE 现场生成设备密钥对，也不能把受保护密钥的封装存储与明文私钥导出混为一谈。
 
-   * 应用调用 `MediaDrm`，系统初始化 DRM 会话。
+### 阶段2：许可证请求、验证与内容密钥加载
 
-2. **TEE 生成设备密钥对**
+1. 播放器从清单或媒体初始化数据中取得 DRM 初始化信息，例如 CENC 的 PSSH，然后调用 `getKeyRequest(sessionId, initData, mimeType, KEY_TYPE_STREAMING, …)`。
+2. CDM 生成不透明的许可证请求。**App 负责 HTTP 交互**：向站点许可证端点发送请求，并携带站点要求的身份信息。站点代理处理业务规则，后端许可证服务负责签发许可证。
+3. App 将许可证响应交给 **`provideKeyResponse(sessionId, response)`**。它与设备配置用的 `provideProvisionResponse()` 是两套不同接口。
+4. CDM 可以在普通执行环境解析许可证外层结构；需要保护的密钥验证、派生和加载操作，通过 OEMCrypto 与平台安全调用链交给可信实现。应用不取得明文内容密钥。
+5. 对在线流式播放，`provideKeyResponse()` 返回空字节数组，不是新的 `sessionId`。离线许可可能返回用于后续恢复密钥的 `keySetId`，它也不是会话 ID。密钥状态通过独立回调通知，只有所需密钥处于可用状态时，后续样本解密才能成功。
 
-   * 设备在 TEE 内部生成 **Device Key Pair**（公钥/私钥）。
-   * **私钥仅存在于 TEE 内部，绝不导出**。
+**许可证不是“用设备公钥直接 RSA 加密的 Content Key”。** 在本项目审阅的 OEMCrypto RSA 分支中，设备公钥包装的是 **session key**；可信实现恢复它后，再派生用于内容密钥解包和消息认证的密钥。接口也包含 ECC 分支。因此不能把整个许可证写成 `RSA_Encrypt(ContentKey, DevicePublicKey)`，也不能声称整个许可证只能在 TEE 内解析。这属于 CDM/OEMCrypto 的协议处理，App 应将请求和响应视为不透明消息。
 
-3. **设备证书生成**
+```plantuml
+@startuml
+!theme plain
+hide footbox
+autonumber "<b>[00]"
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam sequenceMessageAlign center
+skinparam sequence {
+  ArrowColor #3974D9
+  LifeLineBorderColor #C5CDD8
+  ParticipantBorderColor #BDD0EE
+  ParticipantBackgroundColor #EDF4FF
+  ParticipantFontColor #243348
+  GroupBorderColor #CBD5E1
+  GroupBackgroundColor #F8FAFC
+  NoteBackgroundColor #FFF8E7
+  NoteBorderColor #E5CB86
+}
+title Widevine L1：会话、按需配置与许可证
 
-   * TEE 通过 `generateProvisioningRequest()` 生成设备证书，包含设备公钥和签名。
+participant "播放器 App" as App #EEF7F0
+participant "MediaDrm / DRM HAL\nWidevine CDM" as DRM
+participant "Provisioning Server" as Prov
+participant "License Proxy / Service\n站点端点与许可证后端" as Lic
 
-4. **上传设备证书**
+== 会话与按需配置 ==
+App -> DRM: new MediaDrm(WIDEVINE_UUID)
+App -> DRM: openSession()
+opt 需要配置凭据
+  DRM --> App: NotProvisionedException
+  App -> DRM: getProvisionRequest()
+  DRM --> App: 不透明 provisioning 请求及目标 URL
+  App -> Prov: HTTPS 提交 provisioning 请求
+  Prov --> App: provisioning 响应
+  App -> DRM: provideProvisionResponse(response)
+  DRM -> DRM: 校验并应用设备凭据\n必要安全操作经平台安全调用链处理
+  App -> DRM: 重试 openSession()
+end
+DRM --> App: sessionId
+note over App, DRM
+sessionId 在许可证获取之前已创建。
+其他 DRM 操作也可能要求 provisioning，处理后重试原操作。
+end note
 
-   * App 将证书发送给 License Server。
-   * License Server 验证签名，并保存设备公钥，用于后续加密 Content Key。
+== 许可证获取与加载 ==
+App -> App: 从清单 / 媒体初始化段取得 initData
+App -> DRM: getKeyRequest(sessionId, initData,\nmimeType, KEY_TYPE_STREAMING, ...)
+DRM -> DRM: 生成许可证请求\n必要安全操作经 OEMCrypto / 平台安全调用链处理
+DRM --> App: KeyRequest：不透明 challenge
+App -> Lic: HTTPS 提交 challenge\n附站点要求的身份信息
+Lic -> Lic: 校验请求、应用业务规则\n签发许可证或拒绝授权
+Lic --> App: 许可证响应
+App -> DRM: provideKeyResponse(sessionId, response)
+DRM -> DRM: CDM 解析外层结构\n可信实现验证并加载受保护密钥
+par API 调用返回
+  DRM --> App: streaming：空字节数组\n不返回新的 sessionId 或明文密钥
+else 独立密钥状态事件
+  DRM ->> App: OnKeyStatusChangeListener\n可用 / 受限 / 过期等状态
+end
+note over App, DRM
+回调与调用返回没有固定的先后顺序。
+所需内容密钥可用后才可成功解密；必要时继续多轮 DRM 消息交换。
+end note
+@enduml
+```
 
----
+### 阶段3：安全解密、解码与显示
 
-### 阶段2：许可证请求与 Content Key 加密
+App 创建 `MediaCrypto(WIDEVINE_UUID, sessionId)`，将 DRM 会话关联到 crypto 上下文，再通过 `MediaCodec.configure(format, surface, mediaCrypto, flags)` 配置输出 Surface 与解码器。**MediaCrypto 不是视频样本提交接口**；播放器应使用 `MediaCodec.queueSecureInputBuffer()` 提交加密样本及 `CryptoInfo`，其中包含 key ID、IV、subsamples 等信息。解码器配置可以提前进行，也可以与许可证准备重叠。
 
-5. **生成许可证请求**
+以本项目的 CCodec 路径为例，`CCodecBufferChannel` 将密文源与安全解密目标交给 Crypto HAL / Widevine crypto plugin。安全目标使用 **`NATIVE_HANDLE`** 标识，区别于应用可写的密文输入缓冲。解密完成后，codec 接收对应受保护 block 的引用，而不是把明文内容复制回 App。
 
-   * App 调用 `getLicenseRequest(Content ID)`。
-   * TEE 使用设备私钥对请求进行签名，保证请求合法性。
+后续数据形态依次为：
 
-6. **发送许可证请求**
+- **密文样本 → 安全解密 → 受保护的压缩视频码流**。
+- **受保护压缩码流 → 安全解码器 / VPU → 受保护的像素帧**。
+- **受保护像素帧 → Surface / 合成 / 显示链路 → 满足输出保护要求的显示输出**。
 
-   * App 将签名请求发送给 License Server。
+下面将通用的用户库、驱动和可信入口合为“平台安全调用链”。在 H56EZ 对应实现中，这一路径展开为 QSEECom 或 Mink/SMCInvoke 分支，经 `qcom_scm / qcom_scm_hab`、HAB、QNX `qcpe_service` 和安全监控入口到达 TA。视频与显示也经过各自的 guest/host 前后端；这些是平台实现，不能当作所有 Android 设备的固定结构。
 
-7. **许可证生成**
+```plantuml
+@startuml
+!theme plain
+hide footbox
+autonumber "<b>[00]"
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam sequenceMessageAlign center
+skinparam sequence {
+  ArrowColor #3974D9
+  LifeLineBorderColor #C5CDD8
+  ParticipantBorderColor #BDD0EE
+  ParticipantBackgroundColor #EDF4FF
+  ParticipantFontColor #243348
+  GroupBorderColor #CBD5E1
+  GroupBackgroundColor #F8FAFC
+  NoteBackgroundColor #FFF8E7
+  NoteBorderColor #E5CB86
+}
+title Widevine L1：受保护解密、解码与显示
 
-   * License Server 验证签名。
-   * 使用设备公钥加密 Content Key，并生成许可证响应。
-   * 加密后的许可证 = RSA_Encrypt(内容密钥, 设备公钥)
+box "普通执行环境" #F4F8FD
+participant "播放器 App" as App #EEF7F0
+participant "MediaCodec /\nCCodecBufferChannel" as Codec
+participant "Crypto HAL / CDM\nOEMCrypto 普通侧" as Crypto
+participant "平台安全调用链\n用户库 / 驱动" as Transport
+end box
+participant "TEE / Widevine TA\n可信解密实现" as TEE #FFF8E7
+collections "Secure buffers\n受保护内存对象" as Buffer #EAF6EF
+participant "Secure decoder / VPU" as VPU #EAF6EF
+participant "Surface / 合成 / 显示链路\nSurfaceFlinger / HWC / 显示控制器" as Display
 
-8. **许可证下发**
+App -> App: MediaCrypto(uuid, sessionId)\n关联已有 DRM 会话
+App -> Codec: configure(format, Surface, MediaCrypto, flags)
+note over App, Codec
+此准备可与许可证获取重叠。
+MediaCrypto 提供会话关联，样本送入 MediaCodec。
+end note
 
-   * App 收到加密许可证，通过 `provideProvisionResponse()` 交给 MediaDrm/TEE。
+loop 加密视频样本；所需密钥可用
+  App -> Codec: queueSecureInputBuffer(...)\n密文 + key ID / IV / subsamples
+  Codec -> Crypto: decrypt(source, NATIVE_HANDLE target, ...)
+  Crypto -> Transport: 发起安全解密操作
+  Transport -> TEE: 经安全入口进入可信实现
+  TEE -[#23845B]> Buffer: 通过安全解密实现写入\n受保护的压缩码流
+  TEE --> Transport: 安全操作结果
+  Transport --> Crypto: 返回操作结果
+  Crypto --> Codec: 解密结果 / 写入字节数\n不回传明文视频
+  Codec -> VPU: 经 Codec2 / vendor HAL / 驱动\n提交安全解码工作与 block 引用
+  Buffer -[#23845B]> VPU: 读取受保护的压缩码流
+  VPU -[#23845B]> Buffer: 写入受保护的解码像素帧
+  VPU --> Codec: 经驱动和 codec 返回\n完成状态 / 输出 buffer 引用
+  Codec --> App: 输出 buffer 就绪通知
+  App -> Codec: releaseOutputBuffer(index, true)
+  Codec -[#8364B7]> Display: 经输出 Surface 提交\nGraphicBuffer / fence
+  Display -> Display: 合成与显示准备\n应用当前输出保护策略
+  alt 输出保护要求已满足
+    Buffer -[#23845B]> Display: 读取受保护的扫描缓冲并输出
+  else 保护不足或状态失效
+    Display -> Display: 限制不满足要求的受保护输出
+  end
+end
 
-9. **TEE 内部解密许可证**
+note over Crypto, TEE
+OEMCrypto 普通侧不是 TA，也不直接跳过平台传输进入 TEE。
+图中展开的是解密；会话、凭据和密钥操作也可复用安全调用链。
+end note
+note over Buffer, Display
+压缩码流与像素帧是不同 buffer；受保护合成还可能产生中间帧。
+安全缓冲可位于受保护 DDR 中，handle 不赋予普通 CPU 明文读取权限。
+输出保护与播放协同进行；HDCP 按许可证和实际链路要求执行，
+不表示每帧都重新进行 HDCP 认证。
+end note
+@enduml
+```
 
-   * TEE 使用设备私钥解密，取出 Content Key。
-    当设备收到加密的许可证后，CDM 会将其传递给 TEE。在 TEE 内部：
-    TEE 直接使用唯一的设备私钥来解密整个许可证，从而直接得到明文的内容密钥。
-    内容密钥 = RSA_Decrypt(加密后的许可证, 设备私钥)
-   * 返回一个 **会话句柄** 给 MediaDrm，而不是返回明文 Content Key。
----
+### 安全边界与核验要点
 
+- **设备凭据与内容密钥不同。** 设备凭据用于设备身份及 DRM 协议处理；内容密钥用于解密媒体样本。应保护明文密钥不泄露给非可信环境，不能把封装后的密钥材料、证书或 handle 当作明文密钥。
+- **OEMCrypto 普通侧与可信实现不同。** 普通侧库、Android DRM HAL、平台安全传输和 TEE 内的 TA 有不同职责，不能统称为“全部运行在 TEE 的 OEMCrypto HAL”。
+- **安全内存仍然是内存。** 受保护码流、像素和扫描缓冲可以位于系统 DDR；保护依靠访问权限与安全硬件路径，而不是“不进入系统内存”。
+- **安全解码不等于显示保护已经完成。** 还要满足实际合成、输出链路和许可证要求。可能使用受保护 GPU 合成；需要 HDCP 时，应检查真实认证与加密状态，不能只看解码器名称或 secure 标志。
+- **保护目标不是无条件的绝对保证。** L1 路径旨在阻止非授权环境读取密钥或明文媒体；它本身不能证明整机已取得内容平台认证，也不能单凭示意图断言所有截图、录屏和输出场景均已验证。
 
-### 阶段3：视频解密与 Secure Path 渲染
-
-10. **MediaCrypto 初始化**
-
-    * App 创建 `MediaCrypto` 实例，绑定 Content Key 会话。
-
-11. **视频解码配置**
-
-    * App 配置 `MediaCodec`，准备播放加密视频流。
-
-12. **播放循环**
-
-    * **(21)** App 将加密视频片段交给 `MediaCrypto`。
-    * **(22)** `MediaCrypto` 把加密数据传给 TEE。
-    * **(23)** TEE 使用 Content Key 解密。
-    * **(24)** 解密后的帧不会返回 App，而是直接传递到 **SecureDecoder**（安全硬件解码器）。
-
-      * **关键点：** 解密后数据通过 **Secure Buffer / Secure Path**，不会暴露到普通内存或应用层。
-    * **(25)** SecureDecoder 渲染视频帧到屏幕。
-
----
-
-### 安全关键点总结
-
-* **设备私钥 (Device Private Key)** 永远存储在 TEE 内部，避免泄露。
-* **Content Key** 只在 TEE 内部解密，并通过会话句柄访问，App 永远看不到明文密钥。
-* **解密视频帧** 通过 **Secure Buffer** 直接进入 SecureDecoder，保证数据不会泄露到应用层或系统内存。
-* **Secure Path 渲染** 确保视频帧只能显示，不能被截屏、拷贝或录制。
+接口依据：[MediaDrm](https://developer.android.com/reference/android/media/MediaDrm)、[MediaCrypto](https://developer.android.com/reference/android/media/MediaCrypto)、[MediaCodec](https://developer.android.com/reference/android/media/MediaCodec)、[Widevine Overview](https://developers.google.com/widevine/drm/overview)。项目实现依据为 `OEMCryptoCENC.h`、CDM 的 `license.cpp` 及 `CCodecBufferChannel.cpp`；其中的具体平台路径不替代设备运行时核验。
 
 ---
 
