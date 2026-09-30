@@ -6,7 +6,7 @@ title = 'Android DRM 框架'
 
 ## Widevine Overview
 
-![](/ethenslab/images/Widevine_architect.png)
+![](../../../static/images/Widevine_architect.png)
 
 这张图是 **Widevine DRM（数字版权管理）视频播放流程** 的整体架构图，展示了从内容打包、分发到终端设备解密播放的完整链路。分步骤解读：
 
@@ -91,7 +91,7 @@ title = 'Android DRM 框架'
 
 ## Android DRM Software Stack
 
-![](/ethenslab/images/widevine-software-architect.png)
+![](../../../static/images/widevine-software-architect.png)
 
 ## Widevine L1 DRM 播放流程解读
 
@@ -406,7 +406,7 @@ Widevine L1 的生产预置流程是设备从出厂到获得正式身份认证�
 
 #### **4. RKP 流程 PlantUML 时序图**
 
-![](/ethenslab/images/drm-rkp.png)
+![](../../../static/images/drm-rkp.png)
 
 传统的工厂预置私钥方式（Factory-Provisioned Keys）
 在Android早期版本（如Android 11及之前）的密钥认证（Key Attestation）机制中，采用的是工厂预置私钥的方式。具体过程如下：
