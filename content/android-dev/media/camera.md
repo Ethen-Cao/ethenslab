@@ -114,7 +114,7 @@ activate AS
 AS -> SubMgr: getActiveSubscriptionIdList()
 SubMgr --> AS: return 活跃 SIM 卡列表
 AS --> AS: 根据系统属性与 SIM 状态进行综合裁决
-de务 deactivate AS
+deactivate AS
 
 alt cameraSoundForced == true (强制发声)
     AS -> AS: 移出静音管控列表并最大化音量
