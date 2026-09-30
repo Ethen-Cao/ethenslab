@@ -676,7 +676,8 @@ N --&gt; O
 │ r_submix HAL (虚拟软件模块, 非真实硬件) │
 │ StreamOut ──→ StreamIn (进程内软件 pipe) │
 └──────────────────────────────────────────────────────┘
-&lt;/code&gt;&lt;/pre&gt;&lt;blockquote&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;blockquote&gt;
 &lt;p&gt;下面是同一条链路的&lt;strong&gt;交互式动画版&lt;/strong&gt;（分层 App → HAL，动画粒子表示流动的 PCM 数据）。若未显示，请直接打开 &lt;a href="https://ethen-cao.github.io/ethenslab/diagrams/audioflinger-playback-capture-arch.html"&gt;架构图&lt;/a&gt;
 。&lt;/p&gt;</description></item><item><title>Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</link><pubDate>Sun, 07 Jun 2026 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（&lt;code&gt;WindowInfo&lt;/code&gt;：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。&lt;/p&gt;
@@ -3538,48 +3539,8 @@ deactivate Starter
 &lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Chromium + Android Widevine：L1/L3 选择与视频播放架构</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link><pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid><description>&lt;h2 id="概述"&gt;概述&lt;/h2&gt;
 &lt;p&gt;在 Android 端的 Chromium (或 WebView) 中播放受 Widevine 保护的加密视频，涉及到网页前端 (JavaScript EME API)、浏览器内核 (Chromium Media)、Android 原生媒体框架 (MediaDrm / MediaCodec) 以及底层安全环境 (TEE) 的多方协同。&lt;/p&gt;
 &lt;p&gt;本文档梳理了 Chromium 在 Android 上处理 Widevine DRM 的核心交互流程，重点解析 &lt;strong&gt;L1/L3 安全等级的协商机制&lt;/strong&gt;、&lt;strong&gt;会话生命周期&lt;/strong&gt; 以及 &lt;strong&gt;排错指南&lt;/strong&gt;。&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;[!NOTE]
-设备硬件支持 Widevine L1，并不意味着每次网页播放都会自动启用 L1。实际使用的安全等级由&lt;strong&gt;网页播放器提出的候选配置&lt;/strong&gt;、&lt;strong&gt;Chromium 的安全策略约束&lt;/strong&gt; 以及 &lt;strong&gt;Android 框架能力&lt;/strong&gt; 共同协商决定。&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h2 id="参与者与职责边界"&gt;参与者与职责边界&lt;/h2&gt;
-&lt;p&gt;在完整的 DRM 播放链路中，各参与者的职责界限明确：&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th style="text-align: left"&gt;参与者&lt;/th&gt;
-&lt;th style="text-align: left"&gt;职责&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;网站业务后台&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;提供播放器前端代码、视频 Manifest 以及内容授权策略。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;网页播放器 (JS)&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;通过 EME (Encrypted Media Extensions) API 请求 DRM 能力、创建和绑定对象、处理 DRM 消息、向 License 服务器发起网络请求。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;Chromium / WebView&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;响应网页 EME 请求，综合系统 DRM 能力、编码格式和安全约束进行配置选择，并负责桥接 Android 原生 &lt;code&gt;MediaDrm&lt;/code&gt; 接口。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;MediaDrm / Widevine CDM&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;Android 框架层的 DRM 接口与底层 CDM 插件。负责管理原生 DRM 会话、生成 Challenge、解析 License 并强制执行内容使用限制。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;MediaCrypto / MediaCodec&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;将解码器与 DRM 会话关联。安全解码 (Secure Decode) 路径下，解密与解码均在底层安全硬件中进行。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;License Server&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;处理客户端的 DRM 请求，验证身份与授权策略，下发包含内容密钥 (Content Key) 的 License。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id="drm-会话与播放时序"&gt;DRM 会话与播放时序&lt;/h2&gt;
-&lt;p&gt;完整的 DRM 播放协商通常包含以下关键阶段。&lt;/p&gt;</description></item><item><title>OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</link><pubDate>Fri, 08 Aug 2025 19:49:26 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</guid><description>&lt;h1 id="oem-多品牌多使用者動態主題引擎技術方案"&gt;OEM 多品牌多使用者動態主題引擎技術方案&lt;/h1&gt;
+&lt;div class="github-alert github-alert-note"&gt;
+&lt;p class="github-alert-title"&gt;&lt;svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-info"&gt;&lt;path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"&gt;&lt;/path&gt;&lt;/svg&gt; Note&lt;/p&gt;</description></item><item><title>OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</link><pubDate>Fri, 08 Aug 2025 19:49:26 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</guid><description>&lt;h1 id="oem-多品牌多使用者動態主題引擎技術方案"&gt;OEM 多品牌多使用者動態主題引擎技術方案&lt;/h1&gt;
 &lt;table&gt;
 &lt;thead&gt;
 &lt;tr&gt;
@@ -3934,26 +3895,9 @@ Splitter -up--&amp;gt; Secondary : 分发 Buffer 句柄
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (mSoundPlayer[SOUND_SHUTTER] &lt;span style="color:#f92672"&gt;==&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;nullptr&lt;/span&gt;) {
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; mSoundPlayer[SOUND_SHUTTER] &lt;span style="color:#f92672"&gt;=&lt;/span&gt; newMediaPlayer(&lt;span style="color:#e6db74"&gt;&amp;#34;/system/media/audio/ui/camera_click.ogg&amp;#34;&lt;/span&gt;);
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
-&lt;p&gt;[!TIP]
-&lt;strong&gt;无侵入替换方案&lt;/strong&gt;：得益于双分区机制，定制开发时无需修改框架源码。只需在 &lt;code&gt;device.mk&lt;/code&gt; 中通过 &lt;code&gt;PRODUCT_COPY_FILES&lt;/code&gt; 将自定义音频文件拷贝至 &lt;code&gt;product&lt;/code&gt; 分区目录（&lt;code&gt;/product/media/audio/ui/camera_click.ogg&lt;/code&gt;），即可实现拦截覆盖。&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h2 id="2-动态合规裁决-audioservice"&gt;2. 动态合规裁决 (AudioService)&lt;/h2&gt;
-&lt;p&gt;&lt;code&gt;AudioService.java&lt;/code&gt; 是快门音策略的核心枢纽。系统会在初始化阶段以及配置发生变更（如插拔 SIM 卡、网络切换）时，动态评估当前是否必须强制发声。&lt;/p&gt;
-&lt;p&gt;&lt;strong&gt;核心代码路径&lt;/strong&gt;：&lt;code&gt;frameworks/base/services/core/java/com/android/server/audio/AudioService.java&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;触发逻辑 &lt;code&gt;readCameraSoundForced()&lt;/code&gt; 会依次评估以下条件（满足其一即视为强制发声）：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;系统底层属性 &lt;code&gt;audio.camerasound.force&lt;/code&gt; 设为 &lt;code&gt;true&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;框架层全局资源 &lt;code&gt;config_camera_sound_forced&lt;/code&gt; 设为 &lt;code&gt;true&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;当前活跃的任意 SIM 卡所在区域配置（基于 MCC/MNC）要求强制发声。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h3 id="音量与路由策略"&gt;音量与路由策略&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;强制发声生效&lt;/strong&gt;：AudioService 会将 &lt;code&gt;STREAM_SYSTEM_ENFORCED&lt;/code&gt; 类型的音频流移出受静音模式控制的列表，将其音量固定为最大，并通知 &lt;code&gt;AudioPolicyManager&lt;/code&gt; 强行路由至外放扬声器。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;允许静音（未强制）&lt;/strong&gt;：该流类型会被保留在受控列表中。当设备处于静音或震动模式时，该流类型的实际下发音量 (Volume Index) 会被直接置为 0。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id="3-底层防静音拦截-audioflinger"&gt;3. 底层防静音拦截 (AudioFlinger)&lt;/h2&gt;
-&lt;p&gt;相机的播放请求带有特殊的流类型标签 &lt;code&gt;AUDIO_STREAM_ENFORCED_AUDIBLE&lt;/code&gt;。当底层音频引擎识别到该标签时，会严格拒绝执行应用层的物理 Mute 请求。&lt;/p&gt;</description></item><item><title>使用AndroidStudio调试AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid><description>&lt;h2 id="调试java进程"&gt;调试Java进程&lt;/h2&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;div class="github-alert github-alert-tip"&gt;
+&lt;p class="github-alert-title"&gt;&lt;svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-light-bulb"&gt;&lt;path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"&gt;&lt;/path&gt;&lt;/svg&gt; Tip&lt;/p&gt;</description></item><item><title>使用AndroidStudio调试AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid><description>&lt;h2 id="调试java进程"&gt;调试Java进程&lt;/h2&gt;
 &lt;p&gt;本文介绍如何在 Android Studio 中调试 AOSP (Android Open Source Project) 进程，尤其是像 system_server 这样的系统进程。调试 AOSP 与普通应用调试有所不同，需要借助 JDWP 协议和 adb 端口转发。&lt;/p&gt;
 &lt;h3 id="前置条件"&gt;前置条件&lt;/h3&gt;
 &lt;p&gt;环境准备：&lt;/p&gt;
