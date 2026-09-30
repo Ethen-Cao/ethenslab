@@ -1,41 +1,136 @@
 @startuml
 !theme plain
-skinparam defaultFontName "Roboto, sans-serif"
-skinparam defaultFontColor #000000
-skinparam sequenceArrowColor #555555
-skinparam participantBorderColor #333333
-skinparam participantBackgroundColor #f9f9f9
+title Android Chromium / Widevine：配置选择、会话与授权
+autonumber 1 "<b>[0]</b>"
+hide footbox
+skinparam defaultFontName Noto Sans CJK SC
+skinparam defaultFontSize 13
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 240
 
-title Chromium + Android DRM 视频安全渲染流程
+participant "网站业务后台" as S
+participant "网页播放器\nJS / HTMLMediaElement" as P
+participant "Chromium / WebView" as B
+participant "Android DRM\nMediaDrm / Widevine CDM" as D
+participant "网站许可证代理 / 服务" as L
+participant "MediaCodec" as C
 
-actor User
-participant "Chromium Browser" as Chromium
-participant "Encrypted Media Extensions (EME)" as EME
-participant "Android MediaDRM API" as MediaDRM
-participant "License Server" as LicenseServer
-participant "TEE / Widevine L1" as TEE
-participant "MediaCodec + Secure Path" as MediaCodec
-participant "GPU / Display" as Display
-
-== 用户播放视频 ==
-User -> Chromium : 1. 点击播放 DRM 视频
-Chromium -> EME : 2. 请求解密会话\n(InitData, Key System)
-EME -> MediaDRM : 3. 创建 DRM 会话
-MediaDRM -> TEE : 4. 请求生成许可证请求
-TEE --> MediaDRM : 5. 返回加密的许可证请求
-MediaDRM --> Chromium : 6. 返回许可证请求\n(需通过网络发送)
-Chromium -> LicenseServer : 7. 发送许可证请求
-LicenseServer --> Chromium : 8. 返回加密的许可证\n(含 Content Key)
-Chromium -> MediaDRM : 9. 提供加密的许可证
-MediaDRM -> TEE : 10. 处理许可证(解密 Content Key)
-note right of TEE
-  Content Key 永远保存在TEE内部
+note over S,C
+标准流程叠加本次日志，展示成功播放主干；带时间的注释才是日志事实。
+网页调用、完整配置和 HTTP 交互未被完整记录。
+多次 DRM bridge 与 JS 对象、sid6 的一一对应关系仍待采集。
 end note
-MediaDRM -> MediaCodec : 11. 提供加密流与会话句柄
-MediaCodec -> TEE : 12. 硬件解码并解密
-note right of TEE
-  解密后的帧通过安全路径\n直接传输，不返回给App
-end note
-MediaCodec -> Display : 13. 渲染到 Surface
-User -> Display : 14. 看到视频画面
+
+group 播放策略与配置协商：重点待查
+    S --> P: 提供播放器代码和播放策略
+    P -> B: requestMediaKeySystemAccess(keySystem, configs)
+    B -> D: 查询 DRM 能力（也可能使用缓存）
+    D --> B: 返回 DRM 能力
+    B -> B: 检查格式、编码及安全解码能力\n综合 MediaCodec 能力与其他约束
+    B -> B: 按候选顺序选择首个满足条件的配置\n确定 use_hw_secure_codecs
+    B --> P: Promise 完成，返回 MediaKeySystemAccess\n网页可调用 access.getConfiguration()
+    note over P,B #FFF1D6
+    待查：候选数组、顺序、选中配置、拒绝原因。
+    16:38:56.882 等存在未指定 robustness 的提示，
+    但不能证明实际播放所用配置的 robustness 为空。
+    end note
+end
+
+group 创建 DRM 对象并绑定视频
+    P -> B: access.createMediaKeys()
+    B -> D: 初始化 DRM bridge / CDM\n硬件安全配置 true → L1，false → L3
+    note over B,D #E6F1FF
+    日志：16:38:56.898 / 57.130
+    Create MediaDrmBridge with level L3 ... for User
+    此阶段已明确传入 L3，早于内容授权响应。
+    end note
+    B --> P: Promise 完成，返回 MediaKeys
+    P -> B: video.setMediaKeys(mediaKeys)
+    B --> P: Promise 完成，绑定成功
+    P -> B: mediaKeys.createSession("temporary")
+    B --> P: 同步返回未初始化的 MediaKeySession\nsessionId 初始为空
+    note over P,D
+    先绑定、后创建会话是本图采用的常见顺序，并非 EME 统一强制顺序。
+    JS createSession() 不等于立即打开原生内容会话。
+    DRM 初始化时可能另有 MediaCrypto 辅助会话，此处不展开。
+    end note
+end
+
+group 获得 initData 并初始化内容会话
+    alt 浏览器从媒体数据发现初始化数据
+        B --> P: video 的 encrypted 事件\n携带 initDataType 和 initData
+    else 网页已从清单等来源获得初始化数据
+        P -> P: 准备 initDataType 和 initData
+    end
+    note over P,B
+    MP4/CENC 的 initData 是一个或多个 PSSH box。
+    initData 可提前获得，不要求必须等待 encrypted 事件。
+    end note
+    P -> B: session.generateRequest(initDataType, initData)
+    B -> D: 打开原生内容会话：openSession()
+    note over B,D #E6F1FF
+    16:38:59.445 requested_security_level = L3
+    16:38:59.449 创建内容会话 sid6
+    end note
+    B -> D: getKeyRequest()：生成初始 DRM 请求
+    note right of D
+    16:38:59.454 GenerateKeyRequest(sid6)
+    end note
+end
+
+group DRM 消息交换与密钥加载
+    loop 按 CDM 消息进行一轮或多轮交换
+        D --> B: DRM 请求消息
+        B --> P: session 的 message 事件
+        P -> L: HTTPS 提交消息及业务所需身份信息
+        L -> L: 处理消息，应用认证与授权策略
+        L --> P: 返回 DRM 响应（此处展示成功路径）
+        P -> B: session.update(response)
+        B -> D: provideKeyResponse()：提交响应
+        D -> D: 处理服务证书或许可证\n按安全等级和策略加载密钥、执行限制
+        opt 还需要后续消息交换
+            D -> D: 准备后续消息交换
+            note right of D
+            后续请求也可能通过 MediaDrm 事件通知，
+            再由桥接层调用 getKeyRequest() 取得。
+            end note
+        end
+    end
+    note over B,D #E6F1FF
+    16:38:59.472：服务证书加载成功，尚未添加内容密钥。
+    16:38:59.482：再次 GenerateKeyRequest。
+    16:39:00.043：再次 updateSession(sid6)。
+    16:39:00.085：内容密钥添加成功。
+    end note
+    D --> B: 报告内容密钥状态变化
+    B --> P: session 的 keystatuseschange 事件
+    note over B,D #E6F1FF
+    16:39:00.088 KeysStatusChange(sid6): true
+    end note
+    note right of D
+    L1：明文内容密钥及敏感操作由硬件安全环境保护。
+    许可证结构解析可涉及普通软件层；
+    不能将整个 CDM 或所有许可证处理等同于 TEE。
+    end note
+end
+
+group 解码与播放
+    B -> C: 关联 MediaCrypto，按格式及安全要求配置解码器
+    C -> C: 按协商结果使用相应解码路径
+    note over B,C #E6F1FF
+    16:39:00.446：c2.qti.avc.decoder
+    16:39:00.489：feature-secure-playback = 0
+    end note
+    B -> B: 浏览器 App 观察并报告播放状态
+    note over P,B #E6F1FF
+    16:39:05.835：videoIsPlay = true
+    16:39:06.180：isPlaying = true
+    end note
+end
+
+legend bottom
+浅橙色注释：关键证据缺口。
+浅蓝色注释：本次日志直接记录的结果。
+L3 在 DRM 初始化、打开内容会话时已选定；后续许可证响应不是此次选择 L3 的起点。
+endlegend
 @enduml

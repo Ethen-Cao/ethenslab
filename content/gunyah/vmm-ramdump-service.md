@@ -441,6 +441,7 @@ LEVEL_4: monitoring and reporting clients
 
 ## 14. 相关文档
 
+- [PVM panic 后的启动固件 Minidump 与 rawdump](pvm-panic-boot-firmware-minidump-rawdump.md)
 - [VMM Service 架构总览](vmm-service-architecture.md)
 - [VMM Service IPC](vmm-service-ipc.md)
 - [VMM Service 运行时架构](vmm-service-runtime.md)
