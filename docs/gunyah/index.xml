@@ -1,26 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
-  <channel>
-    <title>Gunyah开发笔记 on Ethen 的实验室</title>
-    <link>https://ethen-cao.github.io/ethenslab/gunyah/</link>
-    <description>Recent content in Gunyah开发笔记 on Ethen 的实验室</description>
-    <generator>Hugo</generator>
-    <language>en</language>
-    <lastBuildDate>Mon, 28 Sep 2026 00:00:00 +0000</lastBuildDate>
-    <atom:link href="https://ethen-cao.github.io/ethenslab/gunyah/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>SA8797 PVM panic 后的 Minidump 与 rawdump 流程</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/pvm-panic-boot-firmware-minidump-rawdump/</link>
-      <pubDate>Mon, 28 Sep 2026 00:00:00 +0000</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/pvm-panic-boot-firmware-minidump-rawdump/</guid>
-      <description>从 PVM 内核登记转储区域、panic 与复位，到启动固件写 rawdump 和下次启动提取的源码链</description>
-    </item>
-    <item>
-      <title>GVM Watchdog 原理：la_gvm 串口文件阻塞如何演变为 Watchdog Bite</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/gvm-watchdog-virtio-console-backpressure/</link>
-      <pubDate>Sun, 20 Sep 2026 13:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/gvm-watchdog-virtio-console-backpressure/</guid>
-      <description>&lt;h2 id=&#34;一结论先行&#34;&gt;一、结论先行&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Gunyah开发笔记 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/gunyah/</link><description>Recent content in Gunyah开发笔记 on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Mon, 28 Sep 2026 00:00:00 +0000</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/gunyah/index.xml" rel="self" type="application/rss+xml"/><item><title>SA8797 PVM panic 后的 Minidump 与 rawdump 流程</title><link>https://ethen-cao.github.io/ethenslab/gunyah/pvm-panic-boot-firmware-minidump-rawdump/</link><pubDate>Mon, 28 Sep 2026 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/pvm-panic-boot-firmware-minidump-rawdump/</guid><description>从 PVM 内核登记转储区域、panic 与复位，到启动固件写 rawdump 和下次启动提取的源码链</description></item><item><title>GVM Watchdog 原理：la_gvm 串口文件阻塞如何演变为 Watchdog Bite</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gvm-watchdog-virtio-console-backpressure/</link><pubDate>Sun, 20 Sep 2026 13:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gvm-watchdog-virtio-console-backpressure/</guid><description>&lt;h2 id="一结论先行"&gt;一、结论先行&lt;/h2&gt;
 &lt;p&gt;SA8797 的 GVM watchdog 不只检查 watchdog 内核线程是否还能调度，还会逐个检查所有在线 vCPU 能否执行一次 IPI 回调。当前实现使用同步调用：只要一个 vCPU 迟迟不响应，watchdog 线程就停在该 vCPU 上，无法执行本轮硬件喂狗。&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;la_gvm.txt&lt;/code&gt; 是 GVM virtio-console 在 PVM 侧的文件后端。GVM 的 hvc console 发送不是“把字符交给队列就返回”，而是把描述符放入 virtqueue 后，关闭本地中断并忙等 PVM 返回 used descriptor。PVM 的 qcrosvm 又是在 &lt;code&gt;/log/la_gvm/la_gvm.txt&lt;/code&gt; 的 &lt;code&gt;write_all()&lt;/code&gt; 返回之后才归还这个描述符。因此，PVM 文件写入的长尾延迟会跨过虚拟机边界，直接延长 GVM vCPU 的关中断等待时间。&lt;/p&gt;
 &lt;p&gt;当下面三个条件同时成立时，普通的日志写入延迟就可能升级成 GVM watchdog：&lt;/p&gt;
@@ -29,95 +7,11 @@
 &lt;li&gt;某个 GVM vCPU 正在 hvc console 的同步发送路径中，等待 PVM 归还 virtqueue 描述符；&lt;/li&gt;
 &lt;li&gt;watchdog 在剩余喂狗窗口内向这个 vCPU 发出同步 IPI，而该 vCPU 因本地中断关闭而不能执行心跳回调。&lt;/li&gt;
 &lt;/ol&gt;
-&lt;p&gt;这条链路关注的是&lt;strong&gt;最坏延迟和时序重叠&lt;/strong&gt;。平均 CPU 使用率低、GVM 与 PVM 的 CPU 已隔离、UFS 平均吞吐量正常，都不能排除它。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>仪表黑屏、花屏诊断：故障分析与检测方案</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/cluster-display-detection/</link>
-      <pubDate>Fri, 11 Sep 2026 00:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/cluster-display-detection/</guid>
-      <description>沿应用渲染、布局合成、显示输出、视频传输和面板链路分析故障，并说明各检测方法的原理、可行性与限制。</description>
-    </item>
-    <item>
-      <title>电子后视镜架构与时序：RTSP、VIDC 和跨虚拟机图像交付</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/electronic-mirror-architecture/</link>
-      <pubDate>Mon, 07 Sep 2026 00:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/electronic-mirror-architecture/</guid>
-      <description>介绍 Linux PVM 接收并硬解网络视频、通过 HAB 共享图像、由 Android GVM 的 V4L2 与 EVS 交付显示的架构，以及首帧、稳态和停止释放时序。</description>
-    </item>
-    <item>
-      <title>Qualcomm pm-notify 用户态休眠通知机制</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/pm-notify-power-management/</link>
-      <pubDate>Fri, 04 Sep 2026 15:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/pm-notify-power-management/</guid>
-      <description>说明 pm-notify、systemd sleep target、Unix Domain Socket 与业务服务回调如何协同完成休眠和恢复</description>
-    </item>
-    <item>
-      <title>GVM A/B Slot 管理机制</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/gvm-slot-management/</link>
-      <pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/gvm-slot-management/</guid>
-      <description>PVM 与 GVM 的 A/B Slot、current/bak 分区装配及 ActiveSlot 机制</description>
-    </item>
-    <item>
-      <title>la_misc 分区接口与 BCB 机制</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/la-misc-interface/</link>
-      <pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/la-misc-interface/</guid>
-      <description>la_misc 分区布局、Slot 元数据、启动成功握手及 recovery BCB 接口</description>
-    </item>
-    <item>
-      <title>VMM Boot Lifecycle Manager</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-boot-lifecycle/</link>
-      <pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-boot-lifecycle/</guid>
-      <description>GVM 首次启动、启动成功握手、重试及 recovery 管理机制</description>
-    </item>
-    <item>
-      <title>VMM Ramdump 服务</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-ramdump-service/</link>
-      <pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-ramdump-service/</guid>
-      <description>GVM Minidump 内存导出、VMM 事件订阅与归档机制</description>
-    </item>
-    <item>
-      <title>VMM Service IPC 与客户端模型</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-ipc/</link>
-      <pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-ipc/</guid>
-      <description>VMM Service 的消息协议、事件订阅、ACK、优先级和重连机制</description>
-    </item>
-    <item>
-      <title>VMM Service 架构总览</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-architecture/</link>
-      <pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-architecture/</guid>
-      <description>VMM Service 的系统边界、核心组件、主要数据流及专题 Wiki 导航</description>
-    </item>
-    <item>
-      <title>VMM Service 运行时架构</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-runtime/</link>
-      <pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-runtime/</guid>
-      <description>VMM Service 的运行时数据结构、线程模型、状态机及事件源</description>
-    </item>
-    <item>
-      <title>VMM Service 配置机制</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-configuration/</link>
-      <pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-configuration/</guid>
-      <description>vm_config.xml 的生成方式、字段语义及组件消费关系</description>
-    </item>
-    <item>
-      <title>虚拟化 Camera 架构设计</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/camera-virtualization-architecture/</link>
-      <pubDate>Wed, 26 Aug 2026 10:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/camera-virtualization-architecture/</guid>
-      <description>&lt;blockquote&gt;
+&lt;p&gt;这条链路关注的是&lt;strong&gt;最坏延迟和时序重叠&lt;/strong&gt;。平均 CPU 使用率低、GVM 与 PVM 的 CPU 已隔离、UFS 平均吞吐量正常，都不能排除它。&lt;/p&gt;</description></item><item><title>仪表黑屏、花屏诊断：故障分析与检测方案</title><link>https://ethen-cao.github.io/ethenslab/gunyah/cluster-display-detection/</link><pubDate>Fri, 11 Sep 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/cluster-display-detection/</guid><description>沿应用渲染、布局合成、显示输出、视频传输和面板链路分析故障，并说明各检测方法的原理、可行性与限制。</description></item><item><title>电子后视镜架构与时序：RTSP、VIDC 和跨虚拟机图像交付</title><link>https://ethen-cao.github.io/ethenslab/gunyah/electronic-mirror-architecture/</link><pubDate>Mon, 07 Sep 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/electronic-mirror-architecture/</guid><description>介绍 Linux PVM 接收并硬解网络视频、通过 HAB 共享图像、由 Android GVM 的 V4L2 与 EVS 交付显示的架构，以及首帧、稳态和停止释放时序。</description></item><item><title>Qualcomm pm-notify 用户态休眠通知机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/pm-notify-power-management/</link><pubDate>Fri, 04 Sep 2026 15:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/pm-notify-power-management/</guid><description>说明 pm-notify、systemd sleep target、Unix Domain Socket 与业务服务回调如何协同完成休眠和恢复</description></item><item><title>GVM A/B Slot 管理机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gvm-slot-management/</link><pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gvm-slot-management/</guid><description>PVM 与 GVM 的 A/B Slot、current/bak 分区装配及 ActiveSlot 机制</description></item><item><title>la_misc 分区接口与 BCB 机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/la-misc-interface/</link><pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/la-misc-interface/</guid><description>la_misc 分区布局、Slot 元数据、启动成功握手及 recovery BCB 接口</description></item><item><title>VMM Boot Lifecycle Manager</title><link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-boot-lifecycle/</link><pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-boot-lifecycle/</guid><description>GVM 首次启动、启动成功握手、重试及 recovery 管理机制</description></item><item><title>VMM Ramdump 服务</title><link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-ramdump-service/</link><pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-ramdump-service/</guid><description>GVM Minidump 内存导出、VMM 事件订阅与归档机制</description></item><item><title>VMM Service IPC 与客户端模型</title><link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-ipc/</link><pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-ipc/</guid><description>VMM Service 的消息协议、事件订阅、ACK、优先级和重连机制</description></item><item><title>VMM Service 架构总览</title><link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-architecture/</link><pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-architecture/</guid><description>VMM Service 的系统边界、核心组件、主要数据流及专题 Wiki 导航</description></item><item><title>VMM Service 运行时架构</title><link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-runtime/</link><pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-runtime/</guid><description>VMM Service 的运行时数据结构、线程模型、状态机及事件源</description></item><item><title>VMM Service 配置机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-configuration/</link><pubDate>Wed, 26 Aug 2026 16:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/vmm-service-configuration/</guid><description>vm_config.xml 的生成方式、字段语义及组件消费关系</description></item><item><title>虚拟化 Camera 架构设计</title><link>https://ethen-cao.github.io/ethenslab/gunyah/camera-virtualization-architecture/</link><pubDate>Wed, 26 Aug 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/camera-virtualization-architecture/</guid><description>&lt;blockquote&gt;
 &lt;p&gt;本文描述 AVM Camera 在 PVM、GVM、Hypervisor 和 Camera Hardware 之间的分层架构、组件职责、接口契约、数据路径及 Buffer 生命周期。文中的产品、项目、车辆及设备唯一标识均使用通用角色名。&lt;/p&gt;
 &lt;/blockquote&gt;
-&lt;h2 id=&#34;1-设计目标与范围&#34;&gt;1. 设计目标与范围&lt;/h2&gt;
-&lt;h3 id=&#34;11-设计目标&#34;&gt;1.1 设计目标&lt;/h3&gt;
+&lt;h2 id="1-设计目标与范围"&gt;1. 设计目标与范围&lt;/h2&gt;
+&lt;h3 id="11-设计目标"&gt;1.1 设计目标&lt;/h3&gt;
 &lt;p&gt;虚拟化 Camera 架构需要在保持 Camera Hardware 由 PVM 统一管理的前提下，向 Android GVM 提供符合 V4L2 和 Automotive EVS 模型的 Camera stream。架构设计目标包括：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;明确 PVM、GVM、Hypervisor 与 Camera Hardware 的职责边界；&lt;/li&gt;
@@ -126,227 +20,199 @@
 &lt;li&gt;通过显式 Buffer ownership 保证生产者和消费者不会并发改写同一 Buffer；&lt;/li&gt;
 &lt;li&gt;保持 GVM 上层符合 Android Car EVS 的标准分层和接口模型。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;12-设计范围&#34;&gt;1.2 设计范围&lt;/h3&gt;
-&lt;p&gt;本文覆盖前、后、左、右四路 Camera 从物理采集、PVM 四路聚合、HAB 跨 VM 共享、GVM V4L2/EVS 消费到 Android 客户端的完整架构。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>SA8797 Gunyah PVM 高温自动关机原理与实现</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-pvm-thermal-emergency-shutdown/</link>
-      <pubDate>Thu, 20 Aug 2026 12:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-pvm-thermal-emergency-shutdown/</guid>
-      <description>SA8797 PVM 从 TSENS 温度采集、thermal trip 分级处理到 Linux 保护性关机的实现</description>
-    </item>
-    <item>
-      <title>语言推理技术原理与运行时框架</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/language-inference-architecture/</link>
-      <pubDate>Wed, 19 Aug 2026 14:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/language-inference-architecture/</guid>
-      <description>&lt;blockquote&gt;
+&lt;h3 id="12-设计范围"&gt;1.2 设计范围&lt;/h3&gt;
+&lt;p&gt;本文覆盖前、后、左、右四路 Camera 从物理采集、PVM 四路聚合、HAB 跨 VM 共享、GVM V4L2/EVS 消费到 Android 客户端的完整架构。&lt;/p&gt;</description></item><item><title>SA8797 Gunyah PVM 高温自动关机原理与实现</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-pvm-thermal-emergency-shutdown/</link><pubDate>Thu, 20 Aug 2026 12:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-pvm-thermal-emergency-shutdown/</guid><description>SA8797 PVM 从 TSENS 温度采集、thermal trip 分级处理到 Linux 保护性关机的实现</description></item><item><title>语言推理技术原理与运行时框架</title><link>https://ethen-cao.github.io/ethenslab/gunyah/language-inference-architecture/</link><pubDate>Wed, 19 Aug 2026 14:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/language-inference-architecture/</guid><description>&lt;blockquote&gt;
 &lt;p&gt;本文从通用架构出发，解释车载语音系统如何把 PCM 音频转换为模型输出，以及应用、算法封装库、推理运行时和 NPU/DSP 之间如何协作。文中的 &lt;code&gt;libasr_inference.so&lt;/code&gt;、QNN 和 FastRPC 用作典型实现，不依赖某一次故障或某一个产品版本。&lt;/p&gt;
 &lt;/blockquote&gt;
-&lt;h2 id=&#34;1-什么是语言推理&#34;&gt;1. 什么是“语言推理”&lt;/h2&gt;
+&lt;h2 id="1-什么是语言推理"&gt;1. 什么是“语言推理”&lt;/h2&gt;
 &lt;p&gt;本文所说的语言推理，主要指&lt;strong&gt;语音语言链路的在线推理&lt;/strong&gt;，即对连续音频进行特征提取、神经网络执行和结果输出。它通常包含以下任务：&lt;/p&gt;
 &lt;table&gt;
-	&lt;thead&gt;
-			&lt;tr&gt;
-					&lt;th&gt;任务&lt;/th&gt;
-					&lt;th&gt;输入&lt;/th&gt;
-					&lt;th&gt;典型输出&lt;/th&gt;
-					&lt;th&gt;说明&lt;/th&gt;
-			&lt;/tr&gt;
-	&lt;/thead&gt;
-	&lt;tbody&gt;
-			&lt;tr&gt;
-					&lt;td&gt;ASR（自动语音识别）&lt;/td&gt;
-					&lt;td&gt;PCM 音频&lt;/td&gt;
-					&lt;td&gt;字符/词的概率、token、文本&lt;/td&gt;
-					&lt;td&gt;将语音转换成文字&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;KWS（关键词唤醒）&lt;/td&gt;
-					&lt;td&gt;PCM 音频&lt;/td&gt;
-					&lt;td&gt;唤醒分数、是否命中&lt;/td&gt;
-					&lt;td&gt;低延迟、持续运行&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;VAD（语音活动检测）&lt;/td&gt;
-					&lt;td&gt;PCM 音频&lt;/td&gt;
-					&lt;td&gt;speech/non-speech&lt;/td&gt;
-					&lt;td&gt;判断当前是否有人说话&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;说话人/声学分类&lt;/td&gt;
-					&lt;td&gt;PCM 或声学特征&lt;/td&gt;
-					&lt;td&gt;embedding、类别分数&lt;/td&gt;
-					&lt;td&gt;例如说话人确认、场景识别&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;NLU/对话模型&lt;/td&gt;
-					&lt;td&gt;文本或 token&lt;/td&gt;
-					&lt;td&gt;意图、槽位、回复 token&lt;/td&gt;
-					&lt;td&gt;一般位于 ASR 之后，可能使用 CPU、GPU 或 NPU&lt;/td&gt;
-			&lt;/tr&gt;
-	&lt;/tbody&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;任务&lt;/th&gt;
+&lt;th&gt;输入&lt;/th&gt;
+&lt;th&gt;典型输出&lt;/th&gt;
+&lt;th&gt;说明&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;ASR（自动语音识别）&lt;/td&gt;
+&lt;td&gt;PCM 音频&lt;/td&gt;
+&lt;td&gt;字符/词的概率、token、文本&lt;/td&gt;
+&lt;td&gt;将语音转换成文字&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;KWS（关键词唤醒）&lt;/td&gt;
+&lt;td&gt;PCM 音频&lt;/td&gt;
+&lt;td&gt;唤醒分数、是否命中&lt;/td&gt;
+&lt;td&gt;低延迟、持续运行&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;VAD（语音活动检测）&lt;/td&gt;
+&lt;td&gt;PCM 音频&lt;/td&gt;
+&lt;td&gt;speech/non-speech&lt;/td&gt;
+&lt;td&gt;判断当前是否有人说话&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;说话人/声学分类&lt;/td&gt;
+&lt;td&gt;PCM 或声学特征&lt;/td&gt;
+&lt;td&gt;embedding、类别分数&lt;/td&gt;
+&lt;td&gt;例如说话人确认、场景识别&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;NLU/对话模型&lt;/td&gt;
+&lt;td&gt;文本或 token&lt;/td&gt;
+&lt;td&gt;意图、槽位、回复 token&lt;/td&gt;
+&lt;td&gt;一般位于 ASR 之后，可能使用 CPU、GPU 或 NPU&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
 &lt;/table&gt;
 &lt;p&gt;训练阶段产生模型参数；推理阶段只执行已经训练好的图。一个完整的“语音推理”系统不只有神经网络，还包括音频缓冲、Fbank/Mel 特征、分块调度、缓存管理、后处理和结果队列。&lt;/p&gt;
 &lt;p&gt;本文重点是 ASR/KWS 这类&lt;strong&gt;连续流式推理&lt;/strong&gt;。它与一次性输入一段文本的 LLM 推理在数据形态上不同，但都遵循“准备输入 → 调度模型 → 读取输出”的基本模式。&lt;/p&gt;
-&lt;h2 id=&#34;2-端到端架构&#34;&gt;2. 端到端架构&lt;/h2&gt;
+&lt;h2 id="2-端到端架构"&gt;2. 端到端架构&lt;/h2&gt;
 &lt;p&gt;一次推理可以概括为：&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-text&#34; data-lang=&#34;text&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;麦克风/音频 HAL
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ↓ PCM 帧
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;VoiceService / SDK
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ↓ C API
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;libasr_inference.so
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ├─ FeaturePipeline / Fbank：PCM → 声学特征
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ├─ Manager：分帧、缓存、组 chunk、维护 cache
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    └─ QnnAsrModel 或 OnnxAsrModel：调度模型
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;          ├─ QNN → HTP/NPU
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;          └─ ONNX Runtime → CPU（或其他 ORT EP）
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ↓ tensor / InferenceChunk / score
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;上层解码器、唤醒状态机或对话业务
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;下图把“算法封装库”和“运行时 &lt;code&gt;.so&lt;/code&gt;”分开。实线表示主要数据流，虚线表示动态加载或控制关系。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>AI Stack 架构解析（SA8397 双虚拟机平台实测）</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</link>
-      <pubDate>Tue, 18 Aug 2026 10:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</guid>
-      <description>&lt;blockquote&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;麦克风/音频 HAL
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ↓ PCM 帧
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;VoiceService / SDK
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ↓ C API
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;libasr_inference.so
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ├─ FeaturePipeline / Fbank：PCM → 声学特征
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ├─ Manager：分帧、缓存、组 chunk、维护 cache
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; └─ QnnAsrModel 或 OnnxAsrModel：调度模型
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ├─ QNN → HTP/NPU
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; └─ ONNX Runtime → CPU（或其他 ORT EP）
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ↓ tensor / InferenceChunk / score
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;上层解码器、唤醒状态机或对话业务
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;下图把“算法封装库”和“运行时 &lt;code&gt;.so&lt;/code&gt;”分开。实线表示主要数据流，虚线表示动态加载或控制关系。&lt;/p&gt;</description></item><item><title>AI Stack 架构解析（SA8397 双虚拟机平台实测）</title><link>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</link><pubDate>Tue, 18 Aug 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</guid><description>&lt;blockquote&gt;
 &lt;p&gt;本文所有内容来自真机实测：Android GVM（&lt;code&gt;adb -s d7df5883 shell&lt;/code&gt;，&lt;code&gt;SA8397 Cockpit&lt;/code&gt;）与 Linux PVM（&lt;code&gt;adb -s e66b06ea shell&lt;/code&gt;，&lt;code&gt;Linux sa8797 6.6.110-rt61-debug PREEMPT_RT&lt;/code&gt;）。组件名、路径、进程参数均为实采值；涉及 OEM 的组件名已脱敏。&lt;/p&gt;
 &lt;/blockquote&gt;
-&lt;h2 id=&#34;1-软件架构总图&#34;&gt;1. 软件架构总图&lt;/h2&gt;
+&lt;h2 id="1-软件架构总图"&gt;1. 软件架构总图&lt;/h2&gt;
 &lt;p&gt;图中实线箭头为&lt;strong&gt;请求数据流&lt;/strong&gt;（自上而下），虚线箭头为&lt;strong&gt;应答/控制流&lt;/strong&gt;（自下而上）。&lt;/p&gt;
-&lt;div style=&#34;max-width:100%;overflow-x:auto;&#34;&gt;
-&lt;svg viewBox=&#34;0 0 1240 940&#34; xmlns=&#34;http://www.w3.org/2000/svg&#34; role=&#34;img&#34; aria-labelledby=&#34;aistack-architecture-title&#34; style=&#34;display:block;width:100%;height:auto;min-width:900px;font-family:-apple-system,&#39;Segoe UI&#39;,&#39;PingFang SC&#39;,&#39;Microsoft YaHei&#39;,sans-serif;&#34;&gt;
-  &lt;title id=&#34;aistack-architecture-title&#34;&gt;SA8397 双虚拟机 AI Stack 架构图&lt;/title&gt;
-  &lt;rect width=&#34;1240&#34; height=&#34;940&#34; fill=&#34;#ffffff&#34;/&gt;
-  &lt;defs&gt;
-    &lt;marker id=&#34;arr&#34; viewBox=&#34;0 0 10 10&#34; refX=&#34;9&#34; refY=&#34;5&#34; markerWidth=&#34;7&#34; markerHeight=&#34;7&#34; orient=&#34;auto-start-reverse&#34;&gt;
-      &lt;path d=&#34;M 0 0 L 10 5 L 0 10 z&#34; fill=&#34;#374151&#34;/&gt;
-    &lt;/marker&gt;
-    &lt;marker id=&#34;arrDash&#34; viewBox=&#34;0 0 10 10&#34; refX=&#34;9&#34; refY=&#34;5&#34; markerWidth=&#34;7&#34; markerHeight=&#34;7&#34; orient=&#34;auto-start-reverse&#34;&gt;
-      &lt;path d=&#34;M 0 0 L 10 5 L 0 10 z&#34; fill=&#34;#9ca3af&#34;/&gt;
-    &lt;/marker&gt;
-    &lt;marker id=&#34;arrBlue&#34; viewBox=&#34;0 0 10 10&#34; refX=&#34;9&#34; refY=&#34;5&#34; markerWidth=&#34;7&#34; markerHeight=&#34;7&#34; orient=&#34;auto-start-reverse&#34;&gt;
-      &lt;path d=&#34;M 0 0 L 10 5 L 0 10 z&#34; fill=&#34;#1d4ed8&#34;/&gt;
-    &lt;/marker&gt;
-  &lt;/defs&gt;
-  &lt;!-- ===== 列标题 ===== --&gt;
-  &lt;text x=&#34;150&#34; y=&#34;34&#34; text-anchor=&#34;middle&#34; font-size=&#34;16&#34; font-weight=&#34;bold&#34; fill=&#34;#0f6b43&#34;&gt;PVM · Linux 6.6.110-rt61 PREEMPT_RT（sa8797）&lt;/text&gt;
-  &lt;text x=&#34;1090&#34; y=&#34;34&#34; text-anchor=&#34;middle&#34; font-size=&#34;16&#34; font-weight=&#34;bold&#34; fill=&#34;#1d4ed8&#34;&gt;GVM · Android 16（SA8397 Cockpit）&lt;/text&gt;
-  &lt;!-- ===== PVM 左子列 ===== --&gt;
-  &lt;g&gt;
-    &lt;rect x=&#34;30&#34; y=&#34;52&#34; width=&#34;250&#34; height=&#34;66&#34; rx=&#34;6&#34; fill=&#34;#e8f7ef&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;1.5&#34;/&gt;
-    &lt;text x=&#34;155&#34; y=&#34;72&#34; text-anchor=&#34;middle&#34; font-size=&#34;13&#34; font-weight=&#34;bold&#34; fill=&#34;#0f6b43&#34;&gt;AI 服务层（本地推理）&lt;/text&gt;
-    &lt;text x=&#34;155&#34; y=&#34;90&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;qcxserver / oms_main / AIService&lt;/text&gt;
-    &lt;text x=&#34;155&#34; y=&#34;105&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;libarcsoft_qnnhtp.so&lt;/text&gt;
-    &lt;rect x=&#34;30&#34; y=&#34;146&#34; width=&#34;250&#34; height=&#34;56&#34; rx=&#34;6&#34; fill=&#34;#ffffff&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;1.2&#34;/&gt;
-    &lt;text x=&#34;155&#34; y=&#34;166&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34;&gt;QNN 库 / FastRPC 客户端&lt;/text&gt;
-    &lt;text x=&#34;155&#34; y=&#34;184&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;/usr/lib/libQnnHtp.so · libcdsprpc.so&lt;/text&gt;
-    &lt;rect x=&#34;30&#34; y=&#34;230&#34; width=&#34;250&#34; height=&#34;56&#34; rx=&#34;6&#34; fill=&#34;#ffffff&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;1.2&#34;/&gt;
-    &lt;text x=&#34;155&#34; y=&#34;250&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34;&gt;LRM 消息队列&lt;/text&gt;
-    &lt;text x=&#34;155&#34; y=&#34;268&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;/dev/shm/lrmc_rq_* / lrmc_sq_*&lt;/text&gt;
-  &lt;/g&gt;
-  &lt;!-- ===== PVM 右子列 ===== --&gt;
-  &lt;g&gt;
-    &lt;rect x=&#34;310&#34; y=&#34;52&#34; width=&#34;250&#34; height=&#34;66&#34; rx=&#34;6&#34; fill=&#34;#e8f7ef&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;1.5&#34;/&gt;
-    &lt;text x=&#34;435&#34; y=&#34;72&#34; text-anchor=&#34;middle&#34; font-size=&#34;13&#34; font-weight=&#34;bold&#34; fill=&#34;#0f6b43&#34;&gt;vhost-user-frpc（GVM 后端）&lt;/text&gt;
-    &lt;text x=&#34;435&#34; y=&#34;90&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;/usr/bin/vhost-user-frpc&lt;/text&gt;
-    &lt;text x=&#34;435&#34; y=&#34;105&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;-s /tmp/sock_file_frpc&lt;/text&gt;
-    &lt;rect x=&#34;310&#34; y=&#34;146&#34; width=&#34;250&#34; height=&#34;56&#34; rx=&#34;6&#34; fill=&#34;#ffffff&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;1.2&#34;/&gt;
-    &lt;text x=&#34;435&#34; y=&#34;166&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34;&gt;fastrpc-rm（资源管理）&lt;/text&gt;
-    &lt;text x=&#34;435&#34; y=&#34;184&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;PD 注册/反注册 · 上下文 · 在途 RPC 跟踪&lt;/text&gt;
-  &lt;/g&gt;
-  &lt;!-- ===== PVM 共享下层 ===== --&gt;
-  &lt;g&gt;
-    &lt;rect x=&#34;30&#34; y=&#34;330&#34; width=&#34;530&#34; height=&#34;56&#34; rx=&#34;6&#34; fill=&#34;#ffffff&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;1.5&#34;/&gt;
-    &lt;text x=&#34;295&#34; y=&#34;350&#34; text-anchor=&#34;middle&#34; font-size=&#34;13&#34; font-weight=&#34;bold&#34;&gt;glink_service_lrm（GLink 传输）&lt;/text&gt;
-    &lt;text x=&#34;295&#34; y=&#34;368&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;-s adsp0/cdsp0/cdsp1/adsp1/adsp2/cdsp2/cdsp3（7 子系统）&lt;/text&gt;
-    &lt;rect x=&#34;30&#34; y=&#34;414&#34; width=&#34;530&#34; height=&#34;56&#34; rx=&#34;6&#34; fill=&#34;#f3f4f6&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;1.2&#34;/&gt;
-    &lt;text x=&#34;295&#34; y=&#34;434&#34; text-anchor=&#34;middle&#34; font-size=&#34;13&#34; font-weight=&#34;bold&#34;&gt;PVM 内核驱动&lt;/text&gt;
-    &lt;text x=&#34;295&#34; y=&#34;452&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;umd_glink（irq/352-357）· scmi_nsp0~3 · umd_nsp_drv · nsp_sysmon&lt;/text&gt;
-  &lt;/g&gt;
-  &lt;!-- ===== GVM 列 ===== --&gt;
-  &lt;g&gt;
-    &lt;rect x=&#34;660&#34; y=&#34;52&#34; width=&#34;560&#34; height=&#34;66&#34; rx=&#34;6&#34; fill=&#34;#eaf1fd&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;1.5&#34;/&gt;
-    &lt;text x=&#34;940&#34; y=&#34;72&#34; text-anchor=&#34;middle&#34; font-size=&#34;13&#34; font-weight=&#34;bold&#34; fill=&#34;#1d4ed8&#34;&gt;AI 应用层&lt;/text&gt;
-    &lt;text x=&#34;940&#34; y=&#34;90&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;语音 AI 应用（ASR/NLU 多模型并发）· ADAS 感知应用&lt;/text&gt;
-    &lt;text x=&#34;940&#34; y=&#34;105&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;libasr_inference.so · libfaiss.so 等（包名/库名已脱敏）&lt;/text&gt;
-    &lt;rect x=&#34;660&#34; y=&#34;146&#34; width=&#34;560&#34; height=&#34;56&#34; rx=&#34;6&#34; fill=&#34;#ffffff&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;1.5&#34;/&gt;
-    &lt;text x=&#34;940&#34; y=&#34;166&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34;&gt;qnnx · QNN 执行引擎&lt;/text&gt;
-    &lt;text x=&#34;940&#34; y=&#34;184&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;/vendor/bin/qnn · libQnnHtp.so · libQnnHtpV81Stub.so · libQnnHtpPrepare.so&lt;/text&gt;
-    &lt;rect x=&#34;660&#34; y=&#34;230&#34; width=&#34;560&#34; height=&#34;56&#34; rx=&#34;6&#34; fill=&#34;#ffffff&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;1.2&#34;/&gt;
-    &lt;text x=&#34;940&#34; y=&#34;250&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34;&gt;FastRPC 客户端&lt;/text&gt;
-    &lt;text x=&#34;940&#34; y=&#34;268&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;libcdsprpc.so（remote_handle64_invoke / ioctl_invoke）&lt;/text&gt;
-    &lt;rect x=&#34;660&#34; y=&#34;314&#34; width=&#34;560&#34; height=&#34;56&#34; rx=&#34;6&#34; fill=&#34;#ffffff&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;1.2&#34;/&gt;
-    &lt;text x=&#34;940&#34; y=&#34;334&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34;&gt;FastRPC 设备节点&lt;/text&gt;
-    &lt;text x=&#34;940&#34; y=&#34;352&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;/dev/fastrpc-nsp1000 ~ nsp1003（4×NPU）· /dev/fastrpc-cdsp[1]&lt;/text&gt;
-    &lt;rect x=&#34;660&#34; y=&#34;398&#34; width=&#34;560&#34; height=&#34;50&#34; rx=&#34;6&#34; fill=&#34;#f3f4f6&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;1.2&#34;/&gt;
-    &lt;text x=&#34;940&#34; y=&#34;418&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34;&gt;hfastrpc 驱动（platform + misc）&lt;/text&gt;
-    &lt;text x=&#34;940&#34; y=&#34;435&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#374151&#34;&gt;/sys/class/misc/hfastrpc&lt;/text&gt;
-    &lt;rect x=&#34;660&#34; y=&#34;476&#34; width=&#34;560&#34; height=&#34;50&#34; rx=&#34;6&#34; fill=&#34;#fef3c7&#34; stroke=&#34;#b45309&#34; stroke-width=&#34;1.2&#34;/&gt;
-    &lt;text x=&#34;940&#34; y=&#34;496&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34;&gt;virtio9 → hfastrpc（vhost-user-frpc 虚拟设备）&lt;/text&gt;
-    &lt;text x=&#34;940&#34; y=&#34;512&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#92400e&#34;&gt;FastRPC 请求的虚拟化出口&lt;/text&gt;
-  &lt;/g&gt;
-  &lt;!-- ===== Hypervisor ===== --&gt;
-  &lt;rect x=&#34;30&#34; y=&#34;620&#34; width=&#34;1190&#34; height=&#34;66&#34; rx=&#34;6&#34; fill=&#34;#f6f2ff&#34; stroke=&#34;#7c3aed&#34; stroke-width=&#34;2&#34;/&gt;
-  &lt;text x=&#34;625&#34; y=&#34;642&#34; text-anchor=&#34;middle&#34; font-size=&#34;14&#34; font-weight=&#34;bold&#34; fill=&#34;#7c3aed&#34;&gt;Hypervisor · qcrosvm（--vm=autoghgvm）&lt;/text&gt;
-  &lt;text x=&#34;625&#34; y=&#34;662&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#4b5563&#34;&gt;--vhost-user-frpc /tmp/sock_file_frpc,label=45 ｜ --vhost-user-glinkpassthrough ｜ --vhost-user-hab（disp/aud/vid/cam…）｜ --vhost-user-scmi ｜ --vsock cid=100&lt;/text&gt;
-  &lt;!-- ===== Hardware ===== --&gt;
-  &lt;rect x=&#34;30&#34; y=&#34;736&#34; width=&#34;1190&#34; height=&#34;120&#34; rx=&#34;6&#34; fill=&#34;#fffbf2&#34; stroke=&#34;#d97706&#34; stroke-width=&#34;2&#34;/&gt;
-  &lt;text x=&#34;625&#34; y=&#34;758&#34; text-anchor=&#34;middle&#34; font-size=&#34;14&#34; font-weight=&#34;bold&#34; fill=&#34;#d97706&#34;&gt;Hardware · Qualcomm SA8397（sa8797）&lt;/text&gt;
-  &lt;rect x=&#34;60&#34; y=&#34;772&#34; width=&#34;360&#34; height=&#34;68&#34; rx=&#34;5&#34; fill=&#34;#ffffff&#34; stroke=&#34;#d97706&#34;/&gt;
-  &lt;text x=&#34;240&#34; y=&#34;794&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34; fill=&#34;#b45309&#34;&gt;4 × NPU（NSP0~NSP3，HTP V81）&lt;/text&gt;
-  &lt;text x=&#34;240&#34; y=&#34;812&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#6b7280&#34;&gt;scmi_nsp0~3 电源/配置 · nsp_sysmon 监控&lt;/text&gt;
-  &lt;rect x=&#34;450&#34; y=&#34;772&#34; width=&#34;360&#34; height=&#34;68&#34; rx=&#34;5&#34; fill=&#34;#ffffff&#34; stroke=&#34;#d97706&#34;/&gt;
-  &lt;text x=&#34;630&#34; y=&#34;794&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34; fill=&#34;#b45309&#34;&gt;DSP 子系统（7 个）&lt;/text&gt;
-  &lt;text x=&#34;630&#34; y=&#34;812&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#6b7280&#34;&gt;adsp0/1/2（音频）· cdsp0/1/2/3（计算）&lt;/text&gt;
-  &lt;rect x=&#34;840&#34; y=&#34;772&#34; width=&#34;350&#34; height=&#34;68&#34; rx=&#34;5&#34; fill=&#34;#ffffff&#34; stroke=&#34;#d97706&#34;/&gt;
-  &lt;text x=&#34;1015&#34; y=&#34;794&#34; text-anchor=&#34;middle&#34; font-size=&#34;12&#34; font-weight=&#34;bold&#34; fill=&#34;#b45309&#34;&gt;互连&lt;/text&gt;
-  &lt;text x=&#34;1015&#34; y=&#34;812&#34; text-anchor=&#34;middle&#34; font-size=&#34;11&#34; fill=&#34;#6b7280&#34;&gt;GLink / SMEM · SAIL mailbox&lt;/text&gt;
-  &lt;!-- ===== GVM 请求流（实线向下） ===== --&gt;
-  &lt;line x1=&#34;940&#34; y1=&#34;118&#34; x2=&#34;940&#34; y2=&#34;146&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arrBlue)&#34;/&gt;
-  &lt;line x1=&#34;940&#34; y1=&#34;202&#34; x2=&#34;940&#34; y2=&#34;230&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arrBlue)&#34;/&gt;
-  &lt;line x1=&#34;940&#34; y1=&#34;286&#34; x2=&#34;940&#34; y2=&#34;314&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arrBlue)&#34;/&gt;
-  &lt;line x1=&#34;940&#34; y1=&#34;370&#34; x2=&#34;940&#34; y2=&#34;398&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arrBlue)&#34;/&gt;
-  &lt;line x1=&#34;940&#34; y1=&#34;448&#34; x2=&#34;940&#34; y2=&#34;476&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arrBlue)&#34;/&gt;
-  &lt;!-- ===== GVM virtio9 → Hypervisor ===== --&gt;
-  &lt;line x1=&#34;940&#34; y1=&#34;526&#34; x2=&#34;940&#34; y2=&#34;620&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arrBlue)&#34;/&gt;
-  &lt;text x=&#34;952&#34; y=&#34;578&#34; font-size=&#34;11&#34; fill=&#34;#1d4ed8&#34;&gt;virtio 请求 ▼&lt;/text&gt;
-  &lt;!-- ===== Hypervisor → PVM vhost-user-frpc ===== --&gt;
-  &lt;path d=&#34;M 600 620 L 600 85 L 560 85&#34; fill=&#34;none&#34; stroke=&#34;#1d4ed8&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arrBlue)&#34;/&gt;
-  &lt;text x=&#34;612&#34; y=&#34;380&#34; font-size=&#34;11&#34; fill=&#34;#1d4ed8&#34; transform=&#34;rotate(90 612 380)&#34;&gt;vhost-user socket&lt;/text&gt;
-  &lt;text x=&#34;626&#34; y=&#34;380&#34; font-size=&#34;11&#34; fill=&#34;#1d4ed8&#34; transform=&#34;rotate(90 626 380)&#34;&gt;/tmp/sock_file_frpc&lt;/text&gt;
-  &lt;!-- ===== PVM frpc 路径 ===== --&gt;
-  &lt;line x1=&#34;435&#34; y1=&#34;118&#34; x2=&#34;435&#34; y2=&#34;146&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arr)&#34;/&gt;
-  &lt;line x1=&#34;435&#34; y1=&#34;202&#34; x2=&#34;435&#34; y2=&#34;330&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arr)&#34;/&gt;
-  &lt;line x1=&#34;435&#34; y1=&#34;386&#34; x2=&#34;435&#34; y2=&#34;414&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arr)&#34;/&gt;
-  &lt;!-- ===== PVM 本地路径 ===== --&gt;
-  &lt;line x1=&#34;155&#34; y1=&#34;118&#34; x2=&#34;155&#34; y2=&#34;146&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arr)&#34;/&gt;
-  &lt;line x1=&#34;155&#34; y1=&#34;202&#34; x2=&#34;155&#34; y2=&#34;230&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arr)&#34;/&gt;
-  &lt;path d=&#34;M 155 286 L 155 310 L 295 310 L 295 330&#34; fill=&#34;none&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arr)&#34;/&gt;
-  &lt;!-- ===== PVM 内核 → DSP 子系统 ===== --&gt;
-  &lt;path d=&#34;M 390 470 L 390 708 L 630 708 L 630 772&#34; fill=&#34;none&#34; stroke=&#34;#0f6b43&#34; stroke-width=&#34;2&#34; marker-end=&#34;url(#arr)&#34;/&gt;
-  &lt;text x=&#34;407&#34; y=&#34;520&#34; font-size=&#34;11&#34; fill=&#34;#0f6b43&#34; transform=&#34;rotate(90 407 520)&#34;&gt;GLink / SMEM&lt;/text&gt;
-  &lt;!-- ===== 应答流（虚线向上，右缘） ===== --&gt;
-  &lt;line x1=&#34;1195&#34; y1=&#34;620&#34; x2=&#34;1195&#34; y2=&#34;52&#34; stroke=&#34;#9ca3af&#34; stroke-width=&#34;1.5&#34; stroke-dasharray=&#34;6 4&#34; marker-end=&#34;url(#arrDash)&#34;/&gt;
-  &lt;text x=&#34;1206&#34; y=&#34;340&#34; font-size=&#34;11&#34; fill=&#34;#6b7280&#34; transform=&#34;rotate(90 1206 340)&#34;&gt;应答/回调（signal · notification）&lt;/text&gt;
-  &lt;!-- ===== 控制流（虚线） ===== --&gt;
-  &lt;line x1=&#34;340&#34; y1=&#34;470&#34; x2=&#34;340&#34; y2=&#34;772&#34; stroke=&#34;#9ca3af&#34; stroke-width=&#34;1.5&#34; stroke-dasharray=&#34;6 4&#34; marker-end=&#34;url(#arrDash)&#34;/&gt;
-  &lt;text x=&#34;330&#34; y=&#34;600&#34; text-anchor=&#34;end&#34; font-size=&#34;11&#34; fill=&#34;#6b7280&#34;&gt;SCMI 电源管理（nsp0~3）&lt;/text&gt;
-  &lt;line x1=&#34;610&#34; y1=&#34;202&#34; x2=&#34;630&#34; y2=&#34;202&#34; stroke=&#34;#9ca3af&#34; stroke-width=&#34;1.5&#34; stroke-dasharray=&#34;6 4&#34; marker-end=&#34;url(#arrDash)&#34;/&gt;
-  &lt;text x=&#34;618&#34; y=&#34;194&#34; font-size=&#34;11&#34; fill=&#34;#6b7280&#34;&gt;PD 生命周期协作&lt;/text&gt;
+&lt;div style="max-width:100%;overflow-x:auto;"&gt;
+&lt;svg viewBox="0 0 1240 940" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="aistack-architecture-title" style="display:block;width:100%;height:auto;min-width:900px;font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;"&gt;
+&lt;title id="aistack-architecture-title"&gt;SA8397 双虚拟机 AI Stack 架构图&lt;/title&gt;
+&lt;rect width="1240" height="940" fill="#ffffff"/&gt;
+&lt;defs&gt;
+&lt;marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"&gt;
+&lt;path d="M 0 0 L 10 5 L 0 10 z" fill="#374151"/&gt;
+&lt;/marker&gt;
+&lt;marker id="arrDash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"&gt;
+&lt;path d="M 0 0 L 10 5 L 0 10 z" fill="#9ca3af"/&gt;
+&lt;/marker&gt;
+&lt;marker id="arrBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"&gt;
+&lt;path d="M 0 0 L 10 5 L 0 10 z" fill="#1d4ed8"/&gt;
+&lt;/marker&gt;
+&lt;/defs&gt;
+&lt;!-- ===== 列标题 ===== --&gt;
+&lt;text x="150" y="34" text-anchor="middle" font-size="16" font-weight="bold" fill="#0f6b43"&gt;PVM · Linux 6.6.110-rt61 PREEMPT_RT（sa8797）&lt;/text&gt;
+&lt;text x="1090" y="34" text-anchor="middle" font-size="16" font-weight="bold" fill="#1d4ed8"&gt;GVM · Android 16（SA8397 Cockpit）&lt;/text&gt;
+&lt;!-- ===== PVM 左子列 ===== --&gt;
+&lt;g&gt;
+&lt;rect x="30" y="52" width="250" height="66" rx="6" fill="#e8f7ef" stroke="#0f6b43" stroke-width="1.5"/&gt;
+&lt;text x="155" y="72" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f6b43"&gt;AI 服务层（本地推理）&lt;/text&gt;
+&lt;text x="155" y="90" text-anchor="middle" font-size="11" fill="#374151"&gt;qcxserver / oms_main / AIService&lt;/text&gt;
+&lt;text x="155" y="105" text-anchor="middle" font-size="11" fill="#374151"&gt;libarcsoft_qnnhtp.so&lt;/text&gt;
+&lt;rect x="30" y="146" width="250" height="56" rx="6" fill="#ffffff" stroke="#0f6b43" stroke-width="1.2"/&gt;
+&lt;text x="155" y="166" text-anchor="middle" font-size="12" font-weight="bold"&gt;QNN 库 / FastRPC 客户端&lt;/text&gt;
+&lt;text x="155" y="184" text-anchor="middle" font-size="11" fill="#374151"&gt;/usr/lib/libQnnHtp.so · libcdsprpc.so&lt;/text&gt;
+&lt;rect x="30" y="230" width="250" height="56" rx="6" fill="#ffffff" stroke="#0f6b43" stroke-width="1.2"/&gt;
+&lt;text x="155" y="250" text-anchor="middle" font-size="12" font-weight="bold"&gt;LRM 消息队列&lt;/text&gt;
+&lt;text x="155" y="268" text-anchor="middle" font-size="11" fill="#374151"&gt;/dev/shm/lrmc_rq_* / lrmc_sq_*&lt;/text&gt;
+&lt;/g&gt;
+&lt;!-- ===== PVM 右子列 ===== --&gt;
+&lt;g&gt;
+&lt;rect x="310" y="52" width="250" height="66" rx="6" fill="#e8f7ef" stroke="#0f6b43" stroke-width="1.5"/&gt;
+&lt;text x="435" y="72" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f6b43"&gt;vhost-user-frpc（GVM 后端）&lt;/text&gt;
+&lt;text x="435" y="90" text-anchor="middle" font-size="11" fill="#374151"&gt;/usr/bin/vhost-user-frpc&lt;/text&gt;
+&lt;text x="435" y="105" text-anchor="middle" font-size="11" fill="#374151"&gt;-s /tmp/sock_file_frpc&lt;/text&gt;
+&lt;rect x="310" y="146" width="250" height="56" rx="6" fill="#ffffff" stroke="#0f6b43" stroke-width="1.2"/&gt;
+&lt;text x="435" y="166" text-anchor="middle" font-size="12" font-weight="bold"&gt;fastrpc-rm（资源管理）&lt;/text&gt;
+&lt;text x="435" y="184" text-anchor="middle" font-size="11" fill="#374151"&gt;PD 注册/反注册 · 上下文 · 在途 RPC 跟踪&lt;/text&gt;
+&lt;/g&gt;
+&lt;!-- ===== PVM 共享下层 ===== --&gt;
+&lt;g&gt;
+&lt;rect x="30" y="330" width="530" height="56" rx="6" fill="#ffffff" stroke="#0f6b43" stroke-width="1.5"/&gt;
+&lt;text x="295" y="350" text-anchor="middle" font-size="13" font-weight="bold"&gt;glink_service_lrm（GLink 传输）&lt;/text&gt;
+&lt;text x="295" y="368" text-anchor="middle" font-size="11" fill="#374151"&gt;-s adsp0/cdsp0/cdsp1/adsp1/adsp2/cdsp2/cdsp3（7 子系统）&lt;/text&gt;
+&lt;rect x="30" y="414" width="530" height="56" rx="6" fill="#f3f4f6" stroke="#0f6b43" stroke-width="1.2"/&gt;
+&lt;text x="295" y="434" text-anchor="middle" font-size="13" font-weight="bold"&gt;PVM 内核驱动&lt;/text&gt;
+&lt;text x="295" y="452" text-anchor="middle" font-size="11" fill="#374151"&gt;umd_glink（irq/352-357）· scmi_nsp0~3 · umd_nsp_drv · nsp_sysmon&lt;/text&gt;
+&lt;/g&gt;
+&lt;!-- ===== GVM 列 ===== --&gt;
+&lt;g&gt;
+&lt;rect x="660" y="52" width="560" height="66" rx="6" fill="#eaf1fd" stroke="#1d4ed8" stroke-width="1.5"/&gt;
+&lt;text x="940" y="72" text-anchor="middle" font-size="13" font-weight="bold" fill="#1d4ed8"&gt;AI 应用层&lt;/text&gt;
+&lt;text x="940" y="90" text-anchor="middle" font-size="11" fill="#374151"&gt;语音 AI 应用（ASR/NLU 多模型并发）· ADAS 感知应用&lt;/text&gt;
+&lt;text x="940" y="105" text-anchor="middle" font-size="11" fill="#374151"&gt;libasr_inference.so · libfaiss.so 等（包名/库名已脱敏）&lt;/text&gt;
+&lt;rect x="660" y="146" width="560" height="56" rx="6" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.5"/&gt;
+&lt;text x="940" y="166" text-anchor="middle" font-size="12" font-weight="bold"&gt;qnnx · QNN 执行引擎&lt;/text&gt;
+&lt;text x="940" y="184" text-anchor="middle" font-size="11" fill="#374151"&gt;/vendor/bin/qnn · libQnnHtp.so · libQnnHtpV81Stub.so · libQnnHtpPrepare.so&lt;/text&gt;
+&lt;rect x="660" y="230" width="560" height="56" rx="6" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.2"/&gt;
+&lt;text x="940" y="250" text-anchor="middle" font-size="12" font-weight="bold"&gt;FastRPC 客户端&lt;/text&gt;
+&lt;text x="940" y="268" text-anchor="middle" font-size="11" fill="#374151"&gt;libcdsprpc.so（remote_handle64_invoke / ioctl_invoke）&lt;/text&gt;
+&lt;rect x="660" y="314" width="560" height="56" rx="6" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.2"/&gt;
+&lt;text x="940" y="334" text-anchor="middle" font-size="12" font-weight="bold"&gt;FastRPC 设备节点&lt;/text&gt;
+&lt;text x="940" y="352" text-anchor="middle" font-size="11" fill="#374151"&gt;/dev/fastrpc-nsp1000 ~ nsp1003（4×NPU）· /dev/fastrpc-cdsp[1]&lt;/text&gt;
+&lt;rect x="660" y="398" width="560" height="50" rx="6" fill="#f3f4f6" stroke="#1d4ed8" stroke-width="1.2"/&gt;
+&lt;text x="940" y="418" text-anchor="middle" font-size="12" font-weight="bold"&gt;hfastrpc 驱动（platform + misc）&lt;/text&gt;
+&lt;text x="940" y="435" text-anchor="middle" font-size="11" fill="#374151"&gt;/sys/class/misc/hfastrpc&lt;/text&gt;
+&lt;rect x="660" y="476" width="560" height="50" rx="6" fill="#fef3c7" stroke="#b45309" stroke-width="1.2"/&gt;
+&lt;text x="940" y="496" text-anchor="middle" font-size="12" font-weight="bold"&gt;virtio9 → hfastrpc（vhost-user-frpc 虚拟设备）&lt;/text&gt;
+&lt;text x="940" y="512" text-anchor="middle" font-size="11" fill="#92400e"&gt;FastRPC 请求的虚拟化出口&lt;/text&gt;
+&lt;/g&gt;
+&lt;!-- ===== Hypervisor ===== --&gt;
+&lt;rect x="30" y="620" width="1190" height="66" rx="6" fill="#f6f2ff" stroke="#7c3aed" stroke-width="2"/&gt;
+&lt;text x="625" y="642" text-anchor="middle" font-size="14" font-weight="bold" fill="#7c3aed"&gt;Hypervisor · qcrosvm（--vm=autoghgvm）&lt;/text&gt;
+&lt;text x="625" y="662" text-anchor="middle" font-size="11" fill="#4b5563"&gt;--vhost-user-frpc /tmp/sock_file_frpc,label=45 ｜ --vhost-user-glinkpassthrough ｜ --vhost-user-hab（disp/aud/vid/cam…）｜ --vhost-user-scmi ｜ --vsock cid=100&lt;/text&gt;
+&lt;!-- ===== Hardware ===== --&gt;
+&lt;rect x="30" y="736" width="1190" height="120" rx="6" fill="#fffbf2" stroke="#d97706" stroke-width="2"/&gt;
+&lt;text x="625" y="758" text-anchor="middle" font-size="14" font-weight="bold" fill="#d97706"&gt;Hardware · Qualcomm SA8397（sa8797）&lt;/text&gt;
+&lt;rect x="60" y="772" width="360" height="68" rx="5" fill="#ffffff" stroke="#d97706"/&gt;
+&lt;text x="240" y="794" text-anchor="middle" font-size="12" font-weight="bold" fill="#b45309"&gt;4 × NPU（NSP0~NSP3，HTP V81）&lt;/text&gt;
+&lt;text x="240" y="812" text-anchor="middle" font-size="11" fill="#6b7280"&gt;scmi_nsp0~3 电源/配置 · nsp_sysmon 监控&lt;/text&gt;
+&lt;rect x="450" y="772" width="360" height="68" rx="5" fill="#ffffff" stroke="#d97706"/&gt;
+&lt;text x="630" y="794" text-anchor="middle" font-size="12" font-weight="bold" fill="#b45309"&gt;DSP 子系统（7 个）&lt;/text&gt;
+&lt;text x="630" y="812" text-anchor="middle" font-size="11" fill="#6b7280"&gt;adsp0/1/2（音频）· cdsp0/1/2/3（计算）&lt;/text&gt;
+&lt;rect x="840" y="772" width="350" height="68" rx="5" fill="#ffffff" stroke="#d97706"/&gt;
+&lt;text x="1015" y="794" text-anchor="middle" font-size="12" font-weight="bold" fill="#b45309"&gt;互连&lt;/text&gt;
+&lt;text x="1015" y="812" text-anchor="middle" font-size="11" fill="#6b7280"&gt;GLink / SMEM · SAIL mailbox&lt;/text&gt;
+&lt;!-- ===== GVM 请求流（实线向下） ===== --&gt;
+&lt;line x1="940" y1="118" x2="940" y2="146" stroke="#1d4ed8" stroke-width="2" marker-end="url(#arrBlue)"/&gt;
+&lt;line x1="940" y1="202" x2="940" y2="230" stroke="#1d4ed8" stroke-width="2" marker-end="url(#arrBlue)"/&gt;
+&lt;line x1="940" y1="286" x2="940" y2="314" stroke="#1d4ed8" stroke-width="2" marker-end="url(#arrBlue)"/&gt;
+&lt;line x1="940" y1="370" x2="940" y2="398" stroke="#1d4ed8" stroke-width="2" marker-end="url(#arrBlue)"/&gt;
+&lt;line x1="940" y1="448" x2="940" y2="476" stroke="#1d4ed8" stroke-width="2" marker-end="url(#arrBlue)"/&gt;
+&lt;!-- ===== GVM virtio9 → Hypervisor ===== --&gt;
+&lt;line x1="940" y1="526" x2="940" y2="620" stroke="#1d4ed8" stroke-width="2" marker-end="url(#arrBlue)"/&gt;
+&lt;text x="952" y="578" font-size="11" fill="#1d4ed8"&gt;virtio 请求 ▼&lt;/text&gt;
+&lt;!-- ===== Hypervisor → PVM vhost-user-frpc ===== --&gt;
+&lt;path d="M 600 620 L 600 85 L 560 85" fill="none" stroke="#1d4ed8" stroke-width="2" marker-end="url(#arrBlue)"/&gt;
+&lt;text x="612" y="380" font-size="11" fill="#1d4ed8" transform="rotate(90 612 380)"&gt;vhost-user socket&lt;/text&gt;
+&lt;text x="626" y="380" font-size="11" fill="#1d4ed8" transform="rotate(90 626 380)"&gt;/tmp/sock_file_frpc&lt;/text&gt;
+&lt;!-- ===== PVM frpc 路径 ===== --&gt;
+&lt;line x1="435" y1="118" x2="435" y2="146" stroke="#0f6b43" stroke-width="2" marker-end="url(#arr)"/&gt;
+&lt;line x1="435" y1="202" x2="435" y2="330" stroke="#0f6b43" stroke-width="2" marker-end="url(#arr)"/&gt;
+&lt;line x1="435" y1="386" x2="435" y2="414" stroke="#0f6b43" stroke-width="2" marker-end="url(#arr)"/&gt;
+&lt;!-- ===== PVM 本地路径 ===== --&gt;
+&lt;line x1="155" y1="118" x2="155" y2="146" stroke="#0f6b43" stroke-width="2" marker-end="url(#arr)"/&gt;
+&lt;line x1="155" y1="202" x2="155" y2="230" stroke="#0f6b43" stroke-width="2" marker-end="url(#arr)"/&gt;
+&lt;path d="M 155 286 L 155 310 L 295 310 L 295 330" fill="none" stroke="#0f6b43" stroke-width="2" marker-end="url(#arr)"/&gt;
+&lt;!-- ===== PVM 内核 → DSP 子系统 ===== --&gt;
+&lt;path d="M 390 470 L 390 708 L 630 708 L 630 772" fill="none" stroke="#0f6b43" stroke-width="2" marker-end="url(#arr)"/&gt;
+&lt;text x="407" y="520" font-size="11" fill="#0f6b43" transform="rotate(90 407 520)"&gt;GLink / SMEM&lt;/text&gt;
+&lt;!-- ===== 应答流（虚线向上，右缘） ===== --&gt;
+&lt;line x1="1195" y1="620" x2="1195" y2="52" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arrDash)"/&gt;
+&lt;text x="1206" y="340" font-size="11" fill="#6b7280" transform="rotate(90 1206 340)"&gt;应答/回调（signal · notification）&lt;/text&gt;
+&lt;!-- ===== 控制流（虚线） ===== --&gt;
+&lt;line x1="340" y1="470" x2="340" y2="772" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arrDash)"/&gt;
+&lt;text x="330" y="600" text-anchor="end" font-size="11" fill="#6b7280"&gt;SCMI 电源管理（nsp0~3）&lt;/text&gt;
+&lt;line x1="610" y1="202" x2="630" y2="202" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arrDash)"/&gt;
+&lt;text x="618" y="194" font-size="11" fill="#6b7280"&gt;PD 生命周期协作&lt;/text&gt;
 &lt;/svg&gt;
 &lt;/div&gt;
-&lt;h2 id=&#34;2-数据流总览&#34;&gt;2. 数据流总览&lt;/h2&gt;
-&lt;p&gt;&lt;strong&gt;一次 NPU 推理的完整往返&lt;/strong&gt;（按真机组件、设备节点和进程边界整理）：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>智能座舱中的 SOME/IP：协议、VLAN 与部署实践</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/someip-deployment-in-smart-cockpit/</link>
-      <pubDate>Tue, 04 Aug 2026 10:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/someip-deployment-in-smart-cockpit/</guid>
-      <description>&lt;h2 id=&#34;1-为什么用一个实际座舱来讲-someip&#34;&gt;1. 为什么用一个实际座舱来讲 SOME/IP&lt;/h2&gt;
+&lt;h2 id="2-数据流总览"&gt;2. 数据流总览&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;一次 NPU 推理的完整往返&lt;/strong&gt;（按真机组件、设备节点和进程边界整理）：&lt;/p&gt;</description></item><item><title>智能座舱中的 SOME/IP：协议、VLAN 与部署实践</title><link>https://ethen-cao.github.io/ethenslab/gunyah/someip-deployment-in-smart-cockpit/</link><pubDate>Tue, 04 Aug 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/someip-deployment-in-smart-cockpit/</guid><description>&lt;h2 id="1-为什么用一个实际座舱来讲-someip"&gt;1. 为什么用一个实际座舱来讲 SOME/IP&lt;/h2&gt;
 &lt;p&gt;SOME/IP 经常被概括成“跑在以太网上的汽车中间件协议”。这个说法没有错，但只记住这句话，仍然很难回答工程里的几个核心问题：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;一个车速服务到底由谁提供、由谁消费？&lt;/li&gt;
@@ -365,32 +231,18 @@
 &lt;li&gt;PVM 与 GVM 之间的 VIPC/VSOCK 通道；&lt;/li&gt;
 &lt;li&gt;Android Vehicle HAL、CarService 和座舱应用。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;在这套部署中，车载以太网侧使用 SOME/IP，PVM 内部使用 Unix Domain Socket，PVM 与 GVM 之间使用 VSOCK。运行态可观察到 6 个 VLAN 路由实例和 76 个本地 SOME/IP 应用端点。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>PVM 图形栈架构（SA8797 / Gunyah）</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/pvm-graphics-stack/</link>
-      <pubDate>Wed, 29 Jul 2026 00:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/pvm-graphics-stack/</guid>
-      <description>&lt;p&gt;本文描述 SA8797 座舱平台 Primary VM（PVM）的显示架构、OpenWFD 资源划分、LA-GVM（Android Guest）显示通路以及抓帧边界。结论由 PVM 源码、镜像配置与台架运行态交叉验证。&lt;/p&gt;
+&lt;p&gt;在这套部署中，车载以太网侧使用 SOME/IP，PVM 内部使用 Unix Domain Socket，PVM 与 GVM 之间使用 VSOCK。运行态可观察到 6 个 VLAN 路由实例和 76 个本地 SOME/IP 应用端点。&lt;/p&gt;</description></item><item><title>PVM 图形栈架构（SA8797 / Gunyah）</title><link>https://ethen-cao.github.io/ethenslab/gunyah/pvm-graphics-stack/</link><pubDate>Wed, 29 Jul 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/pvm-graphics-stack/</guid><description>&lt;p&gt;本文描述 SA8797 座舱平台 Primary VM（PVM）的显示架构、OpenWFD 资源划分、LA-GVM（Android Guest）显示通路以及抓帧边界。结论由 PVM 源码、镜像配置与台架运行态交叉验证。&lt;/p&gt;
 &lt;blockquote&gt;
 &lt;p&gt;核验基线：设备 &lt;code&gt;e8cc24da&lt;/code&gt;，&lt;code&gt;auto-oem_a 202607262327&lt;/code&gt;，Linux &lt;code&gt;6.6.110-rt61-debug&lt;/code&gt;（PREEMPT_RT，aarch64），Weston &lt;code&gt;13.0.1&lt;/code&gt;。&lt;br&gt;
 运行态采集日期：2026-07-29。VFIO group 编号、PID 等动态标识不作为固定接口。&lt;/p&gt;
 &lt;/blockquote&gt;
-&lt;h2 id=&#34;1-架构总览&#34;&gt;1. 架构总览&lt;/h2&gt;
+&lt;h2 id="1-架构总览"&gt;1. 架构总览&lt;/h2&gt;
 &lt;p&gt;PVM 上存在两条相互独立的显示提交路径：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;PVM 原生应用通过 Wayland 向 Weston 提交 surface。Weston 使用 SDM 选择 GPU 合成或 overlay，再经 DRM Front End（DRM-FE）和 OpenWFD 客户端协议提交。&lt;/li&gt;
 &lt;li&gt;LA-GVM 的显示帧经 VirtIO/HAB 到达 &lt;code&gt;VirtIOGPU2DBackendService&lt;/code&gt;，由该进程以独立 OpenWFD 客户端身份提交，不进入 Weston 的 scene graph。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;两条路径最终由 &lt;code&gt;openwfd_server -i 0/1&lt;/code&gt; 按静态配置的 Port、Pipeline 和 z-order 汇合。OpenWFD Server 直接持有 KIUMD、VFIO 与 SCMI MDSS 设备，是 PVM 中面向 DPU 硬件的服务端。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Android Guest DMA-buf 内存分配调查 (SA8397)</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</link>
-      <pubDate>Mon, 20 Apr 2026 14:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</guid>
-      <description>&lt;h2 id=&#34;1-背景与结论速览&#34;&gt;1. 背景与结论速览&lt;/h2&gt;
+&lt;p&gt;两条路径最终由 &lt;code&gt;openwfd_server -i 0/1&lt;/code&gt; 按静态配置的 Port、Pipeline 和 z-order 汇合。OpenWFD Server 直接持有 KIUMD、VFIO 与 SCMI MDSS 设备，是 PVM 中面向 DPU 硬件的服务端。&lt;/p&gt;</description></item><item><title>Android Guest DMA-buf 内存分配调查 (SA8397)</title><link>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</link><pubDate>Mon, 20 Apr 2026 14:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-dma-buf-memory/</guid><description>&lt;h2 id="1-背景与结论速览"&gt;1. 背景与结论速览&lt;/h2&gt;
 &lt;p&gt;本文回答一个问题：在 &lt;strong&gt;PVM (Yocto Linux) + GVM (qcrosvm + Android Guest)&lt;/strong&gt; 架构的 SA8397 Cockpit 平台上，Android Guest 里的 &lt;strong&gt;audio / video / camera / graphics&lt;/strong&gt; 子系统是否都使用 dma-buf，分别&amp;quot;分配了多大&amp;quot;。&lt;/p&gt;
 &lt;p&gt;结论：&lt;/p&gt;
 &lt;ol&gt;
@@ -398,15 +250,8 @@
 &lt;li&gt;&lt;strong&gt;大部分堆不是静态预分配&lt;/strong&gt;——&lt;code&gt;qcom,system&lt;/code&gt; / &lt;code&gt;system&lt;/code&gt; 等 system heap 是按需从内核 page allocator 取，上限就是 Guest 剩余可用内存；只有 &lt;strong&gt;secure / QSEE / CMA&lt;/strong&gt; 型的 carveout 才在 device-tree 里有固定大小。&lt;/li&gt;
 &lt;li&gt;本次取样（设备 &lt;code&gt;d7df5883&lt;/code&gt;，处于运行中的座舱工况）GVM 内活跃 dma-buf 合计 &lt;strong&gt;≈ 4.40 GB / 5922 个&lt;/strong&gt;，主要由 GPU (KGSL/HGSL) 占用。&lt;/li&gt;
 &lt;/ol&gt;
-&lt;h2 id=&#34;2-gvm-中可用的-dma-heap&#34;&gt;2. GVM 中可用的 DMA Heap&lt;/h2&gt;
-&lt;p&gt;GVM 的 Android 内核只暴露标准 &lt;code&gt;dma_heap&lt;/code&gt; 接口（&lt;strong&gt;没有&lt;/strong&gt; legacy ION，也&lt;strong&gt;没有&lt;/strong&gt; &lt;code&gt;debugfs/dma_heap&lt;/code&gt;）：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/</link>
-      <pubDate>Wed, 08 Apr 2026 21:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/</guid>
-      <description>&lt;p&gt;本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：&lt;/p&gt;
+&lt;h2 id="2-gvm-中可用的-dma-heap"&gt;2. GVM 中可用的 DMA Heap&lt;/h2&gt;
+&lt;p&gt;GVM 的 Android 内核只暴露标准 &lt;code&gt;dma_heap&lt;/code&gt; 接口（&lt;strong&gt;没有&lt;/strong&gt; legacy ION，也&lt;strong&gt;没有&lt;/strong&gt; &lt;code&gt;debugfs/dma_heap&lt;/code&gt;）：&lt;/p&gt;</description></item><item><title>SA8797 / Gunyah 下 Android Guest 的 vCPU 拓扑、Linux Host 观测口径与实际 CPU 分配</title><link>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/</link><pubDate>Wed, 08 Apr 2026 21:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/android-guest-cpu-allocation-and-top/</guid><description>&lt;p&gt;本文基于一次在 SA8797 车机上的实际排查，回答三个经常被混在一起的问题：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;Android guest 明明只跑了 &lt;code&gt;12&lt;/code&gt; 个 &lt;code&gt;yes&lt;/code&gt;，为什么 &lt;code&gt;top&lt;/code&gt; 头部还能看到 &lt;code&gt;1600%cpu&lt;/code&gt; 和较高的 &lt;code&gt;idle&lt;/code&gt;。&lt;/li&gt;
 &lt;li&gt;Android guest 内部已经接近满载，为什么 Linux host 侧看到的总 &lt;code&gt;steal&lt;/code&gt; 只有约 &lt;code&gt;30%&lt;/code&gt; 出头。&lt;/li&gt;
@@ -419,7 +264,7 @@
 &lt;li&gt;Gunyah / Resource Manager 的静态配置与运行时调度属性&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;本文只保留已经通过源码和实机确认过的内容，不再使用旧现场里的过期假设。&lt;/p&gt;
-&lt;h2 id=&#34;一结论摘要&#34;&gt;一、结论摘要&lt;/h2&gt;
+&lt;h2 id="一结论摘要"&gt;一、结论摘要&lt;/h2&gt;
 &lt;p&gt;当前车机环境下，可以先记住下面 8 个结论：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;Linux host 当前可见 &lt;code&gt;18&lt;/code&gt; 个 CPU，&lt;code&gt;0-17&lt;/code&gt; 全部 online。&lt;/li&gt;
@@ -431,14 +276,7 @@
 &lt;li&gt;upstream Gunyah RM 的调度模型里，guest 的 &lt;code&gt;sched-priority&lt;/code&gt; 是相对 owner VM 的偏移量。当前配置下，可以确定 Android guest 使用 &lt;code&gt;5ms&lt;/code&gt; 时间片，且其有效优先级与 owner VM 相同；结合 HLOS/root VM 的默认优先级 &lt;code&gt;32&lt;/code&gt;，当前场景下可将 guest 的有效优先级理解为 &lt;code&gt;32&lt;/code&gt;。&lt;/li&gt;
 &lt;li&gt;纯 CPU 压测时，guest 实际拿到的物理 CPU 时间主要体现在 Linux host 的 &lt;code&gt;cpu6-17&lt;/code&gt; 上，&lt;code&gt;steal&lt;/code&gt; 约 &lt;code&gt;33.31%&lt;/code&gt;，折算为约 &lt;code&gt;6&lt;/code&gt; 个 host-core 的 wall-clock。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;换句话说，现场现象不是一个问题，而是两个问题叠加：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>HAB 通信机制与原理</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/hab-communication-mechanism/</link>
-      <pubDate>Sun, 05 Apr 2026 16:30:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/hab-communication-mechanism/</guid>
-      <description>&lt;h2 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;换句话说，现场现象不是一个问题，而是两个问题叠加：&lt;/p&gt;</description></item><item><title>HAB 通信机制与原理</title><link>https://ethen-cao.github.io/ethenslab/gunyah/hab-communication-mechanism/</link><pubDate>Sun, 05 Apr 2026 16:30:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/hab-communication-mechanism/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;在 Qualcomm 虚拟化平台里，&lt;strong&gt;HAB (Hypervisor Abstraction)&lt;/strong&gt; 可以理解为一套面向跨 VM 通信的通用框架。它不是单纯的“发消息接口”，而是同时提供了三类能力：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;面向请求/响应的小消息通道&lt;/strong&gt;，接口形式接近 socket。&lt;/li&gt;
@@ -457,15 +295,8 @@
 &lt;p&gt;对底层传输来说，HAB 并不强绑定某一种 hypervisor transport。当前 SA8797 这套系统的运行形态是 &lt;code&gt;GVM side (Android Guest)&lt;/code&gt; 对接 &lt;code&gt;PVM side (Linux Host)&lt;/code&gt;，常见 transport 是 &lt;strong&gt;virtio + vhost&lt;/strong&gt;；但从 HAB 核心代码结构看，它本身是把“协议层”和“传输层”拆开的。&lt;/p&gt;
 &lt;p&gt;如果只保留一句最短定义，那么可以把 HAB 理解成：&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;让 &lt;code&gt;PVM side&lt;/code&gt; 和 &lt;code&gt;GVM side&lt;/code&gt; 像使用一条“跨 VM socket”那样通信；如果消息不够，还可以继续用同一套框架共享大块 buffer，或者触发 doorbell/virq。&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;在本文里，&lt;code&gt;GVM side&lt;/code&gt; 专指 Android Guest 代码基线 &lt;code&gt;/home/ethen/workspace/company/projects/8397/code/vendor&lt;/code&gt;，&lt;code&gt;PVM side&lt;/code&gt; 专指 Linux Host 代码基线 &lt;code&gt;/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc&lt;/code&gt;。两侧都各自带有 HAB 用户态库和 HAB 内核驱动，所以后文凡是引用具体实现，都会显式标出来自哪一侧。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>PREEMPT_RT 下 AF_UNIX close() 与定时器超时的底层原理</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/preempt-rt-af-unix-watchdog-timeout/</link>
-      <pubDate>Sat, 28 Mar 2026 18:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/preempt-rt-af-unix-watchdog-timeout/</guid>
-      <description>&lt;h2 id=&#34;一问题模型&#34;&gt;一、问题模型&lt;/h2&gt;
-&lt;h3 id=&#34;11-现象&#34;&gt;1.1 现象&lt;/h3&gt;
+&lt;p&gt;在本文里，&lt;code&gt;GVM side&lt;/code&gt; 专指 Android Guest 代码基线 &lt;code&gt;/home/ethen/workspace/company/projects/8397/code/vendor&lt;/code&gt;，&lt;code&gt;PVM side&lt;/code&gt; 专指 Linux Host 代码基线 &lt;code&gt;/home/ethen/workspace/company/projects/8397/code/linux/apps/apps_proc&lt;/code&gt;。两侧都各自带有 HAB 用户态库和 HAB 内核驱动，所以后文凡是引用具体实现，都会显式标出来自哪一侧。&lt;/p&gt;</description></item><item><title>PREEMPT_RT 下 AF_UNIX close() 与定时器超时的底层原理</title><link>https://ethen-cao.github.io/ethenslab/gunyah/preempt-rt-af-unix-watchdog-timeout/</link><pubDate>Sat, 28 Mar 2026 18:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/preempt-rt-af-unix-watchdog-timeout/</guid><description>&lt;h2 id="一问题模型"&gt;一、问题模型&lt;/h2&gt;
+&lt;h3 id="11-现象"&gt;1.1 现象&lt;/h3&gt;
 &lt;p&gt;在 PREEMPT_RT 内核 + 密集块设备 I/O 的系统上，可能同时观察到以下症状：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;多个 watchdog 几乎同一时刻报 timeout&lt;/li&gt;
@@ -473,66 +304,59 @@
 &lt;li&gt;业务主线程、watchdog 管理端本身调度正常，不存在 CPU 饥饿&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;表面上像是上层 timeout 逻辑有 bug，实际根因在内核锁语义变化。&lt;/p&gt;
-&lt;h3 id=&#34;12-同一根因的两种表现&#34;&gt;1.2 同一根因的两种表现&lt;/h3&gt;
+&lt;h3 id="12-同一根因的两种表现"&gt;1.2 同一根因的两种表现&lt;/h3&gt;
 &lt;p&gt;这类问题的根因是 &lt;strong&gt;per-CPU BH 锁饥饿&lt;/strong&gt;（BH 锁：PREEMPT_RT 下 &lt;code&gt;local_bh_disable()&lt;/code&gt; 获取的 per-CPU sleeping lock，详见第二节）。它通过两条路径表现为上层 timeout：&lt;/p&gt;
 &lt;table&gt;
-	&lt;thead&gt;
-			&lt;tr&gt;
-					&lt;th&gt;&lt;/th&gt;
-					&lt;th&gt;路径一：socket close 阻塞&lt;/th&gt;
-					&lt;th&gt;路径二：soft hrtimer 延迟&lt;/th&gt;
-			&lt;/tr&gt;
-	&lt;/thead&gt;
-	&lt;tbody&gt;
-			&lt;tr&gt;
-					&lt;td&gt;受害者&lt;/td&gt;
-					&lt;td&gt;用户线程的 &lt;code&gt;close()&lt;/code&gt; → &lt;code&gt;write_lock_bh()&lt;/code&gt;&lt;/td&gt;
-					&lt;td&gt;内核 softirq 线程（&lt;code&gt;ktimers/N&lt;/code&gt; 或 &lt;code&gt;ksoftirqd&lt;/code&gt;）&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;直接阻塞点&lt;/td&gt;
-					&lt;td&gt;&lt;code&gt;sock_orphan()&lt;/code&gt; → &lt;code&gt;write_lock_bh()&lt;/code&gt; → &lt;code&gt;local_bh_disable()&lt;/code&gt; → &lt;code&gt;rt_spin_lock&lt;/code&gt;（BH 锁）&lt;/td&gt;
-					&lt;td&gt;softirq 线程处理定时器时的 &lt;code&gt;local_bh_disable()&lt;/code&gt; → &lt;code&gt;rt_spin_lock&lt;/code&gt;（同一把 BH 锁）&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;上层表现&lt;/td&gt;
-					&lt;td&gt;心跳发送线程卡在 &lt;code&gt;close()&lt;/code&gt; 上，无法发出新心跳&lt;/td&gt;
-					&lt;td&gt;&lt;code&gt;futex_wait&lt;/code&gt; / &lt;code&gt;select&lt;/code&gt; / &lt;code&gt;poll&lt;/code&gt; 超时不准（偏差达数秒）&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;线程状态&lt;/td&gt;
-					&lt;td&gt;D（不可中断睡眠）&lt;/td&gt;
-					&lt;td&gt;softirq 线程 D 状态；用户线程 S 状态（等待 hrtimer 到期）&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;影响范围&lt;/td&gt;
-					&lt;td&gt;所有经过 &lt;code&gt;write_lock_bh()&lt;/code&gt; / &lt;code&gt;local_bh_disable()&lt;/code&gt; 的线程&lt;/td&gt;
-					&lt;td&gt;所有 SCHED_NORMAL 线程的超时定时器&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;共同根因&lt;/td&gt;
-					&lt;td&gt;IRQ handler 在 &lt;code&gt;irq_forced_thread_fn()&lt;/code&gt; 中持有 BH 锁，被内层 folio/writeback 锁阻塞，BH 锁长时间不释放&lt;/td&gt;
-					&lt;td&gt;&lt;/td&gt;
-			&lt;/tr&gt;
-	&lt;/tbody&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;&lt;/th&gt;
+&lt;th&gt;路径一：socket close 阻塞&lt;/th&gt;
+&lt;th&gt;路径二：soft hrtimer 延迟&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;受害者&lt;/td&gt;
+&lt;td&gt;用户线程的 &lt;code&gt;close()&lt;/code&gt; → &lt;code&gt;write_lock_bh()&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;内核 softirq 线程（&lt;code&gt;ktimers/N&lt;/code&gt; 或 &lt;code&gt;ksoftirqd&lt;/code&gt;）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;直接阻塞点&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;sock_orphan()&lt;/code&gt; → &lt;code&gt;write_lock_bh()&lt;/code&gt; → &lt;code&gt;local_bh_disable()&lt;/code&gt; → &lt;code&gt;rt_spin_lock&lt;/code&gt;（BH 锁）&lt;/td&gt;
+&lt;td&gt;softirq 线程处理定时器时的 &lt;code&gt;local_bh_disable()&lt;/code&gt; → &lt;code&gt;rt_spin_lock&lt;/code&gt;（同一把 BH 锁）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;上层表现&lt;/td&gt;
+&lt;td&gt;心跳发送线程卡在 &lt;code&gt;close()&lt;/code&gt; 上，无法发出新心跳&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;futex_wait&lt;/code&gt; / &lt;code&gt;select&lt;/code&gt; / &lt;code&gt;poll&lt;/code&gt; 超时不准（偏差达数秒）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;线程状态&lt;/td&gt;
+&lt;td&gt;D（不可中断睡眠）&lt;/td&gt;
+&lt;td&gt;softirq 线程 D 状态；用户线程 S 状态（等待 hrtimer 到期）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;影响范围&lt;/td&gt;
+&lt;td&gt;所有经过 &lt;code&gt;write_lock_bh()&lt;/code&gt; / &lt;code&gt;local_bh_disable()&lt;/code&gt; 的线程&lt;/td&gt;
+&lt;td&gt;所有 SCHED_NORMAL 线程的超时定时器&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;共同根因&lt;/td&gt;
+&lt;td&gt;IRQ handler 在 &lt;code&gt;irq_forced_thread_fn()&lt;/code&gt; 中持有 BH 锁，被内层 folio/writeback 锁阻塞，BH 锁长时间不释放&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
 &lt;/table&gt;
-&lt;p&gt;两条路径已分别通过 ftrace 验证：路径一确认了用户线程 D 状态的完整等待链和锁持有时序；路径二确认了 softirq 线程（&lt;code&gt;ktimers/5&lt;/code&gt;）进入 D 状态 1.4 秒，期间无法处理 soft hrtimer，导致 500ms 定时器延迟到 1803ms。&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>Android 图形渲染架构详解 (Gunyah Hypervisor)</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</link>
-      <pubDate>Tue, 13 Jan 2026 10:00:00 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</guid>
-      <description>&lt;h2 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;两条路径已分别通过 ftrace 验证：路径一确认了用户线程 D 状态的完整等待链和锁持有时序；路径二确认了 softirq 线程（&lt;code&gt;ktimers/5&lt;/code&gt;）进入 D 状态 1.4 秒，期间无法处理 soft hrtimer，导致 500ms 定时器延迟到 1803ms。&lt;/p&gt;</description></item><item><title>Android 图形渲染架构详解 (Gunyah Hypervisor)</title><link>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</link><pubDate>Tue, 13 Jan 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/graphics/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;本文档详细描述了在基于 &lt;strong&gt;Qualcomm SA8295/SA8255 (Gen5)&lt;/strong&gt; 智能座舱平台中，Android Guest VM 的图形渲染软件架构。&lt;/p&gt;
 &lt;p&gt;在该平台中，Android 运行在 &lt;strong&gt;Gunyah Hypervisor&lt;/strong&gt; 之上作为客户机（Guest VM）。图形系统采用&lt;strong&gt;前后端分离的虚拟化架构 (Split-Rendering Architecture)&lt;/strong&gt;。Android 侧（Guest）负责生成渲染指令，通过 &lt;strong&gt;HGSL (Hypervisor Graphics Service Layer)&lt;/strong&gt; 驱动栈穿透虚拟机边界，最终由 Host 端的物理驱动操控 Adreno GPU 硬件执行渲染。&lt;/p&gt;
 &lt;p&gt;本文档涵盖了从应用层 View 系统、Native 渲染管线、到内核虚拟化驱动的全链路技术细节。&lt;/p&gt;
-&lt;h2 id=&#34;2-整体架构图&#34;&gt;2. 整体架构图&lt;/h2&gt;
+&lt;h2 id="2-整体架构图"&gt;2. 整体架构图&lt;/h2&gt;
 &lt;p&gt;下图展示了从应用层 &lt;code&gt;ViewRootImpl&lt;/code&gt; 到底层内核驱动 &lt;code&gt;gh_dbl&lt;/code&gt; 的完整调用链路。架构清晰地展示了 &lt;strong&gt;BLASTBufferQueue&lt;/strong&gt; 的引入、&lt;strong&gt;OpenGL ES / Vulkan&lt;/strong&gt; 的双链路支持，以及内核态的&lt;strong&gt;快慢通道分离&lt;/strong&gt;设计。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/gunyah-graphics.png&#34; alt=&#34;&#34;  /&gt;&lt;/p&gt;
-&lt;h2 id=&#34;3-应用层从-ui-到渲染线程-application-ui-layer&#34;&gt;3. 应用层：从 UI 到渲染线程 (Application UI Layer)&lt;/h2&gt;
+&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/gunyah-graphics.png" alt="" /&gt;&lt;/p&gt;
+&lt;h2 id="3-应用层从-ui-到渲染线程-application-ui-layer"&gt;3. 应用层：从 UI 到渲染线程 (Application UI Layer)&lt;/h2&gt;
 &lt;p&gt;在 Android 16+ 架构中，应用层不仅负责 UI 逻辑，还直接参与图形缓冲区的管理。&lt;/p&gt;
-&lt;h3 id=&#34;viewrootimpl--blastbufferqueue&#34;&gt;&lt;strong&gt;ViewRootImpl &amp;amp; BLASTBufferQueue&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="viewrootimpl--blastbufferqueue"&gt;&lt;strong&gt;ViewRootImpl &amp;amp; BLASTBufferQueue&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;ViewRootImpl&lt;/strong&gt;：它是 View 树的管理者。在现代架构中，它直接持有并管理 &lt;strong&gt;&lt;code&gt;BLASTBufferQueue&lt;/code&gt;&lt;/strong&gt; 实例。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;BLASTBufferQueue (BBQ)&lt;/strong&gt;：
@@ -543,118 +367,88 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id=&#34;录制与同步-record--sync&#34;&gt;&lt;strong&gt;录制与同步 (Record &amp;amp; Sync)&lt;/strong&gt;&lt;/h3&gt;
+&lt;h3 id="录制与同步-record--sync"&gt;&lt;strong&gt;录制与同步 (Record &amp;amp; Sync)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;View / Canvas (RecordingCanvas)&lt;/strong&gt;：&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>高通 Gunyah Virtio-blk实现机制</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link>
-      <pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid>
-      <description>&lt;h4 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h4&gt;
+&lt;p&gt;&lt;strong&gt;View / Canvas (RecordingCanvas)&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>高通 Gunyah Virtio-blk实现机制</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-virtio-blk/</guid><description>&lt;h4 id="1-概述"&gt;1. 概述&lt;/h4&gt;
 &lt;p&gt;本图展示了在 Android 虚拟化场景下，Guest OS（Android 虚拟机）如何通过 &lt;strong&gt;Virtio-blk&lt;/strong&gt; 协议高效地访问 Host 侧的物理存储设备。该架构采用 &lt;strong&gt;Userspace Backend&lt;/strong&gt; 模式，即虚拟磁盘的后端处理逻辑集成在 VMM（此处为 &lt;code&gt;qcrosvm&lt;/code&gt;）的用户态进程中。&lt;/p&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;@startuml
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
 !theme plain
 skinparam componentStyle rectangle
 skinparam shadowing false
-
 top to bottom direction
-
 legend right
 &amp;lt;color:#1F77B4&amp;gt;━━ Shared Memory / Data Plane（共享内存，非数据流）&amp;lt;/color&amp;gt;
 &amp;lt;color:#FF7F0E&amp;gt;━━ Control Plane（kick / irq / 状态推进）&amp;lt;/color&amp;gt;
 endlegend
-
 &amp;#39; =======================
 &amp;#39; Guest
 &amp;#39; =======================
 frame &amp;#34;Android Guest (VM)&amp;#34; as G #E3F2FD {
-  component &amp;#34;Android App&amp;#34; as App
-  component &amp;#34;VFS / FS&amp;#34; as FS
-  component &amp;#34;Block Layer&amp;#34; as BL
-  component &amp;#34;virtio-blk\n(frontend driver)&amp;#34; as FE
-
-  App --&amp;gt; FS
-  FS --&amp;gt; BL
-  BL --&amp;gt; FE : submit block request
+component &amp;#34;Android App&amp;#34; as App
+component &amp;#34;VFS / FS&amp;#34; as FS
+component &amp;#34;Block Layer&amp;#34; as BL
+component &amp;#34;virtio-blk\n(frontend driver)&amp;#34; as FE
+App --&amp;gt; FS
+FS --&amp;gt; BL
+BL --&amp;gt; FE : submit block request
 }
-
 &amp;#39; =======================
 &amp;#39; Shared Memory (Guest-owned, Host-mapped)
 &amp;#39; =======================
 frame &amp;#34;Guest RAM (Shared Memory)&amp;#34; as RAM #ECEFF1 {
-  component &amp;#34;Virtqueue\n- Descriptor Table\n- Avail Ring\n- Used Ring&amp;#34; as VQ
-  component &amp;#34;Guest Data Buffers\n(Block I/O payload)&amp;#34; as BUF
+component &amp;#34;Virtqueue\n- Descriptor Table\n- Avail Ring\n- Used Ring&amp;#34; as VQ
+component &amp;#34;Guest Data Buffers\n(Block I/O payload)&amp;#34; as BUF
 }
-
 &amp;#39; =======================
 &amp;#39; Host
 &amp;#39; =======================
 frame &amp;#34;Linux Host&amp;#34; as H #E8F5E9 {
-
-  frame &amp;#34;User Space&amp;#34; as USER {
-    component &amp;#34;qcrosvm\n(VMM + virtio-blk backend)&amp;#34; as BE
-  }
-
-  frame &amp;#34;Linux Kernel&amp;#34; as KERNEL {
-    component &amp;#34;Host Block Layer / FS&amp;#34; as HBLK
-  }
+frame &amp;#34;User Space&amp;#34; as USER {
+component &amp;#34;qcrosvm\n(VMM + virtio-blk backend)&amp;#34; as BE
 }
-
+frame &amp;#34;Linux Kernel&amp;#34; as KERNEL {
+component &amp;#34;Host Block Layer / FS&amp;#34; as HBLK
+}
+}
 &amp;#39; =======================
 &amp;#39; Hardware
 &amp;#39; =======================
 frame &amp;#34;Hardware&amp;#34; as HW {
-  component &amp;#34;Physical Block Device\n(eMMC / UFS / NVMe)&amp;#34; as DISK
+component &amp;#34;Physical Block Device\n(eMMC / UFS / NVMe)&amp;#34; as DISK
 }
-
 &amp;#39; =======================
 &amp;#39; Hypervisor (mechanism only)
 &amp;#39; =======================
 rectangle &amp;#34;Gunyah Hypervisor\n(Memory Mapping, eventfd, irqfd)&amp;#34; as HV #F5F5F5
-
 &amp;#39; =======================
 &amp;#39; Data Plane (shared memory access, NOT data flow)
 &amp;#39; =======================
-FE ..[#1F77B4]..&amp;gt; VQ  : access
+FE ..[#1F77B4]..&amp;gt; VQ : access
 FE ..[#1F77B4]..&amp;gt; BUF : access
-
-BE ..[#1F77B4]..&amp;gt; VQ  : access
+BE ..[#1F77B4]..&amp;gt; VQ : access
 BE ..[#1F77B4]..&amp;gt; BUF : access
-
 &amp;#39; =======================
 &amp;#39; Control Plane
 &amp;#39; =======================
 FE -[#FF7F0E]-&amp;gt; HV : QueueNotify (kick)
 HV -[#FF7F0E]-&amp;gt; BE : eventfd wakeup
-
 BE -[#FF7F0E]-&amp;gt; HV : inject IRQ (irqfd)
 HV -[#FF7F0E]-&amp;gt; FE : virtual interrupt
-
 &amp;#39; =======================
 &amp;#39; Backend I/O Path
 &amp;#39; =======================
 BE --&amp;gt; HBLK : read / write
 HBLK --&amp;gt; DISK
-
 @enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;h4 id=&#34;2-核心组件与角色&#34;&gt;2. 核心组件与角色&lt;/h4&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;h4 id="2-核心组件与角色"&gt;2. 核心组件与角色&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;Guest (Android VM):&lt;/strong&gt;&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title>
-      <link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link>
-      <pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate>
-      <guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid>
-      <description>&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Guest (Android VM):&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
 &lt;p&gt;本文将深入解析其文件结构、编译配置、构建流程以及打包机制。&lt;/p&gt;
-&lt;h2 id=&#34;1-源码结构与文件路径&#34;&gt;1. 源码结构与文件路径&lt;/h2&gt;
+&lt;h2 id="1-源码结构与文件路径"&gt;1. 源码结构与文件路径&lt;/h2&gt;
 &lt;p&gt;在 Yocto 项目中，设备树源码通常独立于内核源码管理，位于 &lt;code&gt;vendor/qcom/opensource/base-devicetree&lt;/code&gt; 目录下。&lt;/p&gt;
-&lt;h3 id=&#34;关键文件类型与路径&#34;&gt;关键文件类型与路径&lt;/h3&gt;
+&lt;h3 id="关键文件类型与路径"&gt;关键文件类型与路径&lt;/h3&gt;
 &lt;p&gt;所有核心文件位于 &lt;code&gt;arch/arm64/boot/dts/qcom/&lt;/code&gt; 目录下：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
@@ -692,8 +486,5 @@ HBLK --&amp;gt; DISK
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;h2 id=&#34;2-编译配置-bitbake-recipe&#34;&gt;2. 编译配置 (Bitbake Recipe)&lt;/h2&gt;
-&lt;p&gt;Yocto 构建系统通过 Recipe 来管理编译过程。&lt;/p&gt;</description>
-    </item>
-  </channel>
-</rss>
+&lt;h2 id="2-编译配置-bitbake-recipe"&gt;2. 编译配置 (Bitbake Recipe)&lt;/h2&gt;
+&lt;p&gt;Yocto 构建系统通过 Recipe 来管理编译过程。&lt;/p&gt;</description></item></channel></rss>

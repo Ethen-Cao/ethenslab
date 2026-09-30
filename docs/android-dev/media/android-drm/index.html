@@ -1,18 +1,9 @@
-<!DOCTYPE html>
-<html lang="en" dir="auto" data-theme="auto">
-
-<head><meta charset="utf-8">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<meta name="robots" content="index, follow">
-<title>Android Widevine DRM 核心架构与核心流程解析 | Ethen 的实验室</title>
-<meta name="keywords" content="">
-<meta name="description" content="1. 架构总览 (Architecture Overview)
+<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android Widevine DRM 核心架构与核心流程解析 | Ethen 的实验室</title><meta name=keywords content><meta name=description content="1. 架构总览 (Architecture Overview)
 1.1 端到端媒体流转
 
 Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：
 
-内容准备与分发 (Content Preparation &amp; Distribution)
+内容准备与分发 (Content Preparation & Distribution)
 
 Source Media：未经加密的原始音视频源文件。
 Shaka Packager：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。
@@ -27,7 +18,7 @@ License Service / Proxy：云端后端服务，负责管理内容密钥（CEK/KI
 设备安全环境 (Device Security)
 
 Keysmith / Provisioning：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。
-OEMCrypto HAL &amp; TEE：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。
+OEMCrypto HAL & TEE：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。
 
 
 终端播放流程 (Client Playback)
@@ -40,285 +31,17 @@ Media Output：经过硬件解密的音视频流将经由安全视频路径（SV
 
 1.2 Android 软件栈 (Software Stack)
 
-在 Android 系统中，DRM 架构呈现出典型的垂直分层：">
-<meta name="author" content="">
-<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/">
-<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.7d3658a230b9b53c9b5a0e97fffc51585a6e6b9e3743fc0bac7b802ba076ac94.css" integrity="sha256-fTZYojC5tTybWg6X//xRWFpua543Q/wLrHuAK6B2rJQ=" rel="preload stylesheet" as="style">
-<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
-<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
-<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
-<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
-<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
-<meta name="theme-color" content="#2e2e33">
-<meta name="msapplication-TileColor" content="#2e2e33">
-<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/">
-<noscript>
-    <style>
-        #theme-toggle,
-        .top-link {
-            display: none;
-        }
-
-    </style>
-    <style>
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --theme: rgb(29, 30, 32);
-                --entry: rgb(46, 46, 51);
-                --primary: rgb(218, 218, 219);
-                --secondary: rgb(155, 156, 157);
-                --tertiary: rgb(65, 66, 68);
-                --content: rgb(196, 196, 197);
-                --code-block-bg: rgb(46, 46, 51);
-                --code-bg: rgb(55, 56, 62);
-                --border: rgb(51, 51, 51);
-                color-scheme: dark;
-            }
-
-            .list {
-                background: var(--theme);
-            }
-
-            .toc {
-                background: var(--entry);
-            }
-        }
-
-    </style>
-</noscript>
-<script>
-    if (localStorage.getItem("pref-theme") === "dark") {
-        document.querySelector("html").dataset.theme = 'dark';
-    } else if (localStorage.getItem("pref-theme") === "light") {
-       document.querySelector("html").dataset.theme = 'light';
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.querySelector("html").dataset.theme = 'dark';
-    } else {
-        document.querySelector("html").dataset.theme = 'light';
-    }
-
-</script><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/">
-  <meta property="og:site_name" content="Ethen 的实验室">
-  <meta property="og:title" content="Android Widevine DRM 核心架构与核心流程解析">
-  <meta property="og:description" content="1. 架构总览 (Architecture Overview) 1.1 端到端媒体流转 Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：
-内容准备与分发 (Content Preparation &amp; Distribution) Source Media：未经加密的原始音视频源文件。 Shaka Packager：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。 CDN：分发加密后的媒体分片及 MPD（Media Presentation Description）文件供终端拉取。 授权与密钥服务 (License Service) License Service / Proxy：云端后端服务，负责管理内容密钥（CEK/KID），并根据终端请求动态签发播放许可证（License）。 设备安全环境 (Device Security) Keysmith / Provisioning：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。 OEMCrypto HAL &amp; TEE：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。 终端播放流程 (Client Playback) Media Player：解析 MPD 并从 CDN 获取加密内容。 CDM (Content Decryption Module)：向外负责与 License Service 通信获取许可证，向内负责将密钥请求下发给 OEMCrypto HAL。 Media Output：经过硬件解密的音视频流将经由安全视频路径（SVP）送入显示链路。 1.2 Android 软件栈 (Software Stack) 在 Android 系统中，DRM 架构呈现出典型的垂直分层：">
-  <meta property="og:locale" content="en">
-  <meta property="og:type" content="article">
-    <meta property="article:section" content="android-dev">
-    <meta property="article:published_time" content="2025-08-08T11:36:11+08:00">
-    <meta property="article:modified_time" content="2025-08-08T11:36:11+08:00">
-
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Android Widevine DRM 核心架构与核心流程解析">
-  <meta name="twitter:description" content="1. 架构总览 (Architecture Overview) 1.1 端到端媒体流转 Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：
-内容准备与分发 (Content Preparation &amp; Distribution) Source Media：未经加密的原始音视频源文件。 Shaka Packager：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。 CDN：分发加密后的媒体分片及 MPD（Media Presentation Description）文件供终端拉取。 授权与密钥服务 (License Service) License Service / Proxy：云端后端服务，负责管理内容密钥（CEK/KID），并根据终端请求动态签发播放许可证（License）。 设备安全环境 (Device Security) Keysmith / Provisioning：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。 OEMCrypto HAL &amp; TEE：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。 终端播放流程 (Client Playback) Media Player：解析 MPD 并从 CDN 获取加密内容。 CDM (Content Decryption Module)：向外负责与 License Service 通信获取许可证，向内负责将密钥请求下发给 OEMCrypto HAL。 Media Output：经过硬件解密的音视频流将经由安全视频路径（SVP）送入显示链路。 1.2 Android 软件栈 (Software Stack) 在 Android 系统中，DRM 架构呈现出典型的垂直分层：">
-
-
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {
-      "@type": "ListItem",
-      "position":  1 ,
-      "name": "Android系统开发",
-      "item": "https://ethen-cao.github.io/ethenslab/android-dev/"
-    }, 
-    {
-      "@type": "ListItem",
-      "position":  2 ,
-      "name": "Android Media技术文档",
-      "item": "https://ethen-cao.github.io/ethenslab/android-dev/media/"
-    }, 
-    {
-      "@type": "ListItem",
-      "position":  3 ,
-      "name": "Android Widevine DRM 核心架构与核心流程解析",
-      "item": "https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/"
-    }
-  ]
-}
-</script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BlogPosting",
-  "headline": "Android Widevine DRM 核心架构与核心流程解析",
-  "name": "Android Widevine DRM 核心架构与核心流程解析",
-  "description": "1. 架构总览 (Architecture Overview) 1.1 端到端媒体流转 Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：\n内容准备与分发 (Content Preparation \u0026amp; Distribution) Source Media：未经加密的原始音视频源文件。 Shaka Packager：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。 CDN：分发加密后的媒体分片及 MPD（Media Presentation Description）文件供终端拉取。 授权与密钥服务 (License Service) License Service / Proxy：云端后端服务，负责管理内容密钥（CEK/KID），并根据终端请求动态签发播放许可证（License）。 设备安全环境 (Device Security) Keysmith / Provisioning：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。 OEMCrypto HAL \u0026amp; TEE：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。 终端播放流程 (Client Playback) Media Player：解析 MPD 并从 CDN 获取加密内容。 CDM (Content Decryption Module)：向外负责与 License Service 通信获取许可证，向内负责将密钥请求下发给 OEMCrypto HAL。 Media Output：经过硬件解密的音视频流将经由安全视频路径（SVP）送入显示链路。 1.2 Android 软件栈 (Software Stack) 在 Android 系统中，DRM 架构呈现出典型的垂直分层：\n",
-  "keywords": [
-    
-  ],
-  "articleBody": "1. 架构总览 (Architecture Overview) 1.1 端到端媒体流转 Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：\n内容准备与分发 (Content Preparation \u0026 Distribution) Source Media：未经加密的原始音视频源文件。 Shaka Packager：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。 CDN：分发加密后的媒体分片及 MPD（Media Presentation Description）文件供终端拉取。 授权与密钥服务 (License Service) License Service / Proxy：云端后端服务，负责管理内容密钥（CEK/KID），并根据终端请求动态签发播放许可证（License）。 设备安全环境 (Device Security) Keysmith / Provisioning：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。 OEMCrypto HAL \u0026 TEE：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。 终端播放流程 (Client Playback) Media Player：解析 MPD 并从 CDN 获取加密内容。 CDM (Content Decryption Module)：向外负责与 License Service 通信获取许可证，向内负责将密钥请求下发给 OEMCrypto HAL。 Media Output：经过硬件解密的音视频流将经由安全视频路径（SVP）送入显示链路。 1.2 Android 软件栈 (Software Stack) 在 Android 系统中，DRM 架构呈现出典型的垂直分层：\n应用层 (App/Browser)：通过 Android MediaDrm Java API 或浏览器 EME (Encrypted Media Extensions) 接口发起加密会话。 框架层 (Framework)：Android 媒体框架向下通过 HIDL/AIDL 接口与底层的 DRM HAL 进行通信。 硬件抽象层 (HAL)：Widevine 提供的核心 CDM 插件运行于此，负责实现具体的加解密逻辑协议。 可信执行环境 (TEE)：最底层的 OEMCrypto 模块部署在 TrustZone 等隔离环境中，直接操作物理加密引擎。 2. 设备安全凭证预置 (Device Provisioning) 设备要具备解密 Widevine 视频的能力，其前提是必须在出厂或激活时注入合法的安全身份（凭证）。\n2.1 传统工厂预置 (Factory Provisioning / Keybox) 传统模式下，设备的安全身份（包含私钥和证书的 Keybox）在工厂生产线上完成烧录。\n密钥对生成：工厂工具调用设备芯片内的 TEE，生成唯一的 Device Key Pair。私钥被安全写入 Fuse、RPMB 等不可见区域。 证书签名请求 (CSR)：工厂工具提取出公钥，附带 Device ID 生成 CSR，通过加密通道上传至 Google Widevine CA。 Google 云端签名：Google 验证工厂合法性后，使用 Root Private Key 对 CSR 签名，颁发 Device Certificate。 注入与激活：工厂工具将下发的证书写入设备 TEE 中。TEE 校验签名合法后，设备即获得 Widevine L1 资格。 [!NOTE] 在此模式下，设备私钥永不离开 TEE，OEM 也不持有 Google 的根私钥。但由于工厂环境仍需处理极少量的中间认证过程，存在一定的供应链管理成本。\n2.2 远程密钥预置 (RKP) @startuml !theme plain hide footbox autonumber \"[00]\" skinparam backgroundColor #FFFFFF skinparam shadowing false skinparam roundcorner 10 skinparam sequenceMessageAlign center skinparam sequence { ArrowColor #3974D9 LifeLineBorderColor #C5CDD8 ParticipantBorderColor #BDD0EE ParticipantBackgroundColor #EDF4FF ParticipantFontColor #243348 GroupBorderColor #CBD5E1 GroupBackgroundColor #F8FAFC NoteBackgroundColor #FFF8E7 NoteBorderColor #E5CB86 } title 远程密钥预置 (RKP) 流程 box \"工厂生产线 (一次性操作)\" #F8FAFC participant \"OEM 工厂工具\" as Factory participant \"设备 TEE\\n(生成硬件绑定密钥)\" as TEE end box participant \"Google RKP 服务器\" as RKP == 阶段一：工厂端公钥提取 == Factory -\u003e TEE: 发起公钥提取请求 TEE -\u003e TEE: 内部生成唯一密钥对\\n(私钥永不导出) TEE --\u003e Factory: 仅返回设备公钥 (DK_PUB) Factory -\u003e RKP: 批量上传 DK_PUB 进行云端注册 RKP -\u003e RKP: 校验合法性并保存设备公钥 RKP --\u003e Factory: 注册成功响应 == 阶段二：用户端远程激活 (首次使用) == box \"用户端 (首次联网 OTA)\" #F4F8FD participant \"App / MediaDrm\" as App end box App -\u003e TEE: 触发 DRM 操作\\n(发现尚未具备合法凭证) TEE -\u003e TEE: 生成 CSR 并使用内部私钥签名 TEE --\u003e App: 返回签名的 CSR (凭证签名请求) App -\u003e RKP: 通过 HTTPS 透传 CSR RKP -\u003e RKP: 验证签名并与云端注册的公钥比对 RKP --\u003e App: 动态颁发短期设备证书链 App -\u003e TEE: 注入设备证书 TEE -\u003e TEE: 验证并激活 Widevine L1 资格 @enduml 从 Android 12 开始，Google 引入了 RKP (Remote Key Provisioning) 机制。RKP 彻底改变了凭证下发方式：私钥无需在工厂进行任何形式的预置。\n工厂端提取 (一次性操作)：设备 TEE 生成基于硬件绑定的唯一密钥对。工厂仅提取公钥 (DK_PUB) 上传至 Google 服务器，私钥不导出、不预置。 远程激活 (首次使用)：设备开箱联网后，App 触发请求，TEE 生成 CSR（凭证签名请求），使用自身私钥签名并发送给 Google 服务器。服务器验证公钥匹配后，动态颁发短期证书链。 预置模式对比：\n特性比较 传统 Widevine L1 (Keybox) 远程密钥预置 (RKP) 密钥配置地点 工厂生产线 用户端 (首次联网 OTA) 关键交付物 包含永久性设备密钥的已烧录设备 已准备好进行远程配置的公钥注册设备 凭证类型 永久性、长生命周期密钥 短期、可再生的动态认证凭证 安全性与可恢复性 密钥泄露风险高，一旦泄露设备将永久失去信任 安全性极高，若出现漏洞，Google 停止签发新证书即可控制影响 3. Widevine L1 运行时播放流程 (Runtime Playback Flow) 在设备具备合法凭证后，Android 播放器即可启动基于 L1 硬件安全的在线流式播放。\n3.1 阶段 1：初始化会话与按需配置 App 实例化 MediaDrm(WIDEVINE_UUID)，调用 openSession()。若成功，返回 sessionId。 若设备尚未完成证书配置（如 RKP 未激活），openSession() 将抛出 NotProvisionedException。 App 捕获异常后，调用 getProvisionRequest() 获取不透明的请求数据，提交至 Provisioning Server。随后通过 provideProvisionResponse() 将响应回传底层，并重试 openSession()。 [!TIP] 凭证配置 (Provisioning) 并非必须在设备首次启动时立刻发生。它由实际的 DRM 操作触发，getProvisionRequest() 的本质是请求过程，而非“向服务器暴露私钥”。\n3.2 阶段 2：许可证请求、验证与密钥加载 播放器从清单文件 (如 MPD) 或码流 PSSH 中获取初始化数据，调用 getKeyRequest()。 CDM 生成加密的 Challenge。App 负责作为纯粹的网络管道，将 Challenge 通过 HTTP(S) 透传给站点 License Server。 License Server 验证业务规则后，返回许可证响应。App 调用 provideKeyResponse() 喂给底层。 CDM 解析许可证外层协议。受保护的内容密钥 (Content Key) 通过 OEMCrypto 传递到 TEE 中。 [!IMPORTANT] 许可证并不是简单地用设备公钥直接 RSA 加密内容密钥。通常，设备公钥包装的是 Session Key；TEE 恢复 Session Key 后，再派生出用于内容密钥解包和防篡改校验的派生密钥。整个许可证应被 App 视为不透明结构。\n@startuml !theme plain hide footbox autonumber \"[00]\" skinparam backgroundColor #FFFFFF skinparam shadowing false skinparam roundcorner 10 skinparam sequenceMessageAlign center skinparam sequence { ArrowColor #3974D9 LifeLineBorderColor #C5CDD8 ParticipantBorderColor #BDD0EE ParticipantBackgroundColor #EDF4FF ParticipantFontColor #243348 GroupBorderColor #CBD5E1 GroupBackgroundColor #F8FAFC NoteBackgroundColor #FFF8E7 NoteBorderColor #E5CB86 } title Widevine L1：会话、按需配置与许可证 participant \"播放器 App\" as App #EEF7F0 participant \"MediaDrm / DRM HAL\\nWidevine CDM\" as DRM participant \"Provisioning Server\" as Prov participant \"License Proxy / Service\" as Lic == 会话与按需配置 == App -\u003e DRM: new MediaDrm(WIDEVINE_UUID) App -\u003e DRM: openSession() opt 需要配置凭据 DRM --\u003e App: NotProvisionedException App -\u003e DRM: getProvisionRequest() DRM --\u003e App: 不透明 provisioning 请求 App -\u003e Prov: HTTPS 提交请求 Prov --\u003e App: provisioning 响应 App -\u003e DRM: provideProvisionResponse() DRM -\u003e DRM: 校验并应用设备凭据 App -\u003e DRM: 重试 openSession() end DRM --\u003e App: sessionId == 许可证获取与加载 == App -\u003e App: 获取 initData App -\u003e DRM: getKeyRequest(sessionId, initData...) DRM -\u003e DRM: 生成许可证请求 (由可信层介入) DRM --\u003e App: KeyRequest (不透明 Challenge) App -\u003e Lic: HTTPS 提交 Challenge Lic -\u003e Lic: 校验并签发许可证 Lic --\u003e App: 许可证响应 App -\u003e DRM: provideKeyResponse() DRM -\u003e DRM: CDM 解析结构\\nTEE 验证并加载内容密钥 par API 异步回调 DRM --\u003e App: streaming: 成功状态返回 else 独立密钥状态事件 DRM -\u003e\u003e App: OnKeyStatusChangeListener end @enduml 3.3 阶段 3：安全解密、解码与显示 当内容密钥就绪，播放器开始构建解码管道。\nApp 创建 MediaCrypto 实例，将先前的 sessionId 绑定至加解密上下文，并调用 MediaCodec.configure()。 播放器通过 queueSecureInputBuffer() 提交加密的媒体 Sample 以及元数据（Key ID, IV 等）。注意：MediaCrypto 本身不是数据提交接口。 在底层，Crypto HAL / CDM 将密文通过安全通道送入 TEE。 TEE 完成解密后，将受保护的压缩码流写入安全缓冲区 (Secure Buffers)，返回给宿主侧的仅是 Buffer 的 NATIVE_HANDLE 句柄，普通环境（包括 Android OS）无法访问明文内容。 MediaCodec 将引用句柄交给安全解码器 (VPU)，硬件解码输出受保护的像素帧，最终由 SurfaceFlinger 和 HWC 直接投递至显示硬件层。 @startuml !theme plain hide footbox autonumber \"[00]\" skinparam backgroundColor #FFFFFF skinparam shadowing false skinparam roundcorner 10 skinparam sequenceMessageAlign center skinparam sequence { ArrowColor #3974D9 LifeLineBorderColor #C5CDD8 ParticipantBorderColor #BDD0EE ParticipantBackgroundColor #EDF4FF ParticipantFontColor #243348 GroupBorderColor #CBD5E1 GroupBackgroundColor #F8FAFC NoteBackgroundColor #FFF8E7 NoteBorderColor #E5CB86 } title Widevine L1：受保护解密、解码与显示 box \"普通执行环境 (Android OS)\" #F4F8FD participant \"播放器 App\" as App #EEF7F0 participant \"MediaCodec\" as Codec participant \"Crypto HAL / CDM\" as Crypto participant \"平台传输层\" as Transport end box participant \"TEE / TA\\n(可信解密实现)\" as TEE #FFF8E7 collections \"Secure Buffers\\n(安全内存)\" as Buffer #EAF6EF participant \"Secure VPU\" as VPU #EAF6EF participant \"显示链路 (HWC/Display)\" as Display App -\u003e App: MediaCrypto(uuid, sessionId) App -\u003e Codec: configure(..., MediaCrypto, flags) loop 加密视频样本 App -\u003e Codec: queueSecureInputBuffer(密文) Codec -\u003e Crypto: decrypt(..., NATIVE_HANDLE) Crypto -\u003e Transport: 发起安全解密 Transport -\u003e TEE: 进入可信环境 TEE -[#23845B]\u003e Buffer: 写入**受保护压缩码流** TEE --\u003e Crypto: 成功 (仅返回状态) Crypto --\u003e Codec: 解密完成，返回句柄 Codec -\u003e VPU: 提交安全解码任务 Buffer -[#23845B]\u003e VPU: 读取受保护压缩码流 VPU -[#23845B]\u003e Buffer: 写入**受保护像素帧** VPU --\u003e Codec: 输出完毕 Codec --\u003e App: onOutputBufferAvailable App -\u003e Codec: releaseOutputBuffer(..., true) Codec -[#8364B7]\u003e Display: 提交 GraphicBuffer Display -\u003e Display: 校验输出保护协议 (如 HDCP) alt HDCP 要求满足 Buffer -[#23845B]\u003e Display: 读取渲染输出 else 保护不足 Display -\u003e Display: 阻断输出 end end @enduml 4. 安全边界与工程核验要点 (Security Boundaries) 在工程实践和技术调试中，明确 DRM 各组件的安全边界至关重要：\n设备凭据 ≠ 内容密钥：设备凭据用于确认设备的合法身份并完成 DRM 握手协议；内容密钥才是用来解密视频样本的数据。严禁将两者混淆，更不能错误认为“应用层可以接触明文密钥”。 OEMCrypto 普通侧 ≠ 可信实现：OEMCrypto 包含运行在 Android 侧的调用库以及运行在 TEE 内的 Trusted Application (TA)。不能笼统地说“OEMCrypto 完全运行在 TEE 内”。 安全内存仍然是系统内存：所谓的 Secure Buffers 通常仍然分配在系统的 DDR 物理内存中，其安全性依赖于 TrustZone 硬件级别的访问权限隔离，而非“数据不经过内存”。普通 CPU 持有的仅仅是 Handle 句柄，强制读取会导致系统异常。 解码完成 ≠ 输出保护 (HDCP) 已完成：视频被安全解码进入 Surface 队列后，显示控制器 (HWC) 还会强行校验当前的物理链路是否满足许可证要求（如 HDMI HDCP 认证级别），若不满足依然会引发黑屏。 架构保障与整机认证：L1 路径确保了系统层面的绝对隔离，但这不代表流媒体平台（如 Netflix）会自动放开 4K 画质。流媒体平台还需基于 Google 下发的设备白名单进行双向校验。 ",
-  "wordCount" : "935",
-  "inLanguage": "en",
-  "datePublished": "2025-08-08T11:36:11+08:00",
-  "dateModified": "2025-08-08T11:36:11+08:00",
-  "mainEntityOfPage": {
-    "@type": "WebPage",
-    "@id": "https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/"
-  },
-  "publisher": {
-    "@type": "Organization",
-    "name": "Ethen 的实验室",
-    "logo": {
-      "@type": "ImageObject",
-      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
-    }
-  }
-}
-</script>
-</head>
-<body id="top">
-    <header class="header">
-    <nav class="header-nav">
-        <div class="logo">
-            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
-            <div class="logo-switches">
-                <button id="theme-toggle" class="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
-                    <svg class="moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                    </svg>
-                    <svg class="sun" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="5"></circle>
-                        <line x1="12" y1="1" x2="12" y2="3"></line>
-                        <line x1="12" y1="21" x2="12" y2="23"></line>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                        <line x1="1" y1="12" x2="3" y2="12"></line>
-                        <line x1="21" y1="12" x2="23" y2="12"></line>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
-                </button>
-            </div>
-        </div>
-        <ul id="menu" class="menu">
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
-                    <span>Android系统开发</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
-                    <span>Android Automotive</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
-                    <span>QNX开发</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/gunyah/" title="Gunyah">
-                    <span>Gunyah</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
-                    <span>智能座舱方案</span>
-                </a>
-            </li>
-            <li>
-                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
-                    <span>Explore AI</span>
-                </a>
-            </li>
-        </ul>
-    </nav>
-</header>
-<main class="main">
-
-<article class="post-single">
-  <header class="post-header">
-    <nav class="breadcrumbs" role="navigation" aria-label="Breadcrumb">
-            <a href="/ethenslab/">Home</a>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
-                <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-            <a href="/ethenslab/android-dev/">Android系统开发</a>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
-                <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-            <a href="/ethenslab/android-dev/media/">Android Media技术文档</a>
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
-        <polyline points="9 18 15 12 9 6"></polyline>
-    </svg>
-</nav>
-    <h1 class="post-title entry-hint-parent">
-      Android Widevine DRM 核心架构与核心流程解析
-    </h1>
-    <div class="post-meta">
-
-<span title='2025-08-08 11:36:11 +0800 CST'>August 8, 2025</span>&nbsp;·&nbsp;<span>5 min</span>&nbsp;·&nbsp;<span>935 words</span>
-
-</div>
-  </header> 
-  <div class="post-content md-content"><h2 id="1-架构总览-architecture-overview">1. 架构总览 (Architecture Overview)<a hidden class="anchor" aria-hidden="true" href="#1-架构总览-architecture-overview">#</a></h2>
-<h3 id="11-端到端媒体流转">1.1 端到端媒体流转<a hidden class="anchor" aria-hidden="true" href="#11-端到端媒体流转">#</a></h3>
-<p><img src="/ethenslab/images/Widevine_architect.png" alt=""  /></p>
-<p>Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：</p>
-<ul>
-<li><strong>内容准备与分发 (Content Preparation &amp; Distribution)</strong>
-<ul>
-<li><strong>Source Media</strong>：未经加密的原始音视频源文件。</li>
-<li><strong>Shaka Packager</strong>：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。</li>
-<li><strong>CDN</strong>：分发加密后的媒体分片及 MPD（Media Presentation Description）文件供终端拉取。</li>
-</ul>
-</li>
-<li><strong>授权与密钥服务 (License Service)</strong>
-<ul>
-<li><strong>License Service / Proxy</strong>：云端后端服务，负责管理内容密钥（CEK/KID），并根据终端请求动态签发播放许可证（License）。</li>
-</ul>
-</li>
-<li><strong>设备安全环境 (Device Security)</strong>
-<ul>
-<li><strong>Keysmith / Provisioning</strong>：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。</li>
-<li><strong>OEMCrypto HAL &amp; TEE</strong>：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。</li>
-</ul>
-</li>
-<li><strong>终端播放流程 (Client Playback)</strong>
-<ul>
-<li><strong>Media Player</strong>：解析 MPD 并从 CDN 获取加密内容。</li>
-<li><strong>CDM (Content Decryption Module)</strong>：向外负责与 License Service 通信获取许可证，向内负责将密钥请求下发给 OEMCrypto HAL。</li>
-<li><strong>Media Output</strong>：经过硬件解密的音视频流将经由安全视频路径（SVP）送入显示链路。</li>
-</ul>
-</li>
-</ul>
-<h3 id="12-android-软件栈-software-stack">1.2 Android 软件栈 (Software Stack)<a hidden class="anchor" aria-hidden="true" href="#12-android-软件栈-software-stack">#</a></h3>
-<p><img src="/ethenslab/images/widevine-software-architect.png" alt=""  /></p>
-<p>在 Android 系统中，DRM 架构呈现出典型的垂直分层：</p>
-<ol>
-<li><strong>应用层 (App/Browser)</strong>：通过 Android <code>MediaDrm</code> Java API 或浏览器 EME (Encrypted Media Extensions) 接口发起加密会话。</li>
-<li><strong>框架层 (Framework)</strong>：Android 媒体框架向下通过 HIDL/AIDL 接口与底层的 DRM HAL 进行通信。</li>
-<li><strong>硬件抽象层 (HAL)</strong>：Widevine 提供的核心 CDM 插件运行于此，负责实现具体的加解密逻辑协议。</li>
-<li><strong>可信执行环境 (TEE)</strong>：最底层的 OEMCrypto 模块部署在 TrustZone 等隔离环境中，直接操作物理加密引擎。</li>
-</ol>
-<hr>
-<h2 id="2-设备安全凭证预置-device-provisioning">2. 设备安全凭证预置 (Device Provisioning)<a hidden class="anchor" aria-hidden="true" href="#2-设备安全凭证预置-device-provisioning">#</a></h2>
-<p>设备要具备解密 Widevine 视频的能力，其前提是必须在出厂或激活时注入合法的安全身份（凭证）。</p>
-<h3 id="21-传统工厂预置-factory-provisioning--keybox">2.1 传统工厂预置 (Factory Provisioning / Keybox)<a hidden class="anchor" aria-hidden="true" href="#21-传统工厂预置-factory-provisioning--keybox">#</a></h3>
-<p>传统模式下，设备的安全身份（包含私钥和证书的 Keybox）在工厂生产线上完成烧录。</p>
-<ol>
-<li><strong>密钥对生成</strong>：工厂工具调用设备芯片内的 TEE，生成唯一的 Device Key Pair。私钥被安全写入 Fuse、RPMB 等不可见区域。</li>
-<li><strong>证书签名请求 (CSR)</strong>：工厂工具提取出公钥，附带 Device ID 生成 CSR，通过加密通道上传至 Google Widevine CA。</li>
-<li><strong>Google 云端签名</strong>：Google 验证工厂合法性后，使用 Root Private Key 对 CSR 签名，颁发 Device Certificate。</li>
-<li><strong>注入与激活</strong>：工厂工具将下发的证书写入设备 TEE 中。TEE 校验签名合法后，设备即获得 Widevine L1 资格。</li>
-</ol>
-<blockquote>
-<p>[!NOTE]
-在此模式下，设备私钥永不离开 TEE，OEM 也不持有 Google 的根私钥。但由于工厂环境仍需处理极少量的中间认证过程，存在一定的供应链管理成本。</p>
-</blockquote>
-<h3 id="22-远程密钥预置-rkp">2.2 远程密钥预置 (RKP)<a hidden class="anchor" aria-hidden="true" href="#22-远程密钥预置-rkp">#</a></h3>
-<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml
+在 Android 系统中，DRM 架构呈现出典型的垂直分层："><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.7d3658a230b9b53c9b5a0e97fffc51585a6e6b9e3743fc0bac7b802ba076ac94.css integrity="sha256-fTZYojC5tTybWg6X//xRWFpua543Q/wLrHuAK6B2rJQ=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Android Widevine DRM 核心架构与核心流程解析"><meta property="og:description" content="1. 架构总览 (Architecture Overview) 1.1 端到端媒体流转 Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：
+内容准备与分发 (Content Preparation & Distribution) Source Media：未经加密的原始音视频源文件。 Shaka Packager：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。 CDN：分发加密后的媒体分片及 MPD（Media Presentation Description）文件供终端拉取。 授权与密钥服务 (License Service) License Service / Proxy：云端后端服务，负责管理内容密钥（CEK/KID），并根据终端请求动态签发播放许可证（License）。 设备安全环境 (Device Security) Keysmith / Provisioning：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。 OEMCrypto HAL & TEE：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。 终端播放流程 (Client Playback) Media Player：解析 MPD 并从 CDN 获取加密内容。 CDM (Content Decryption Module)：向外负责与 License Service 通信获取许可证，向内负责将密钥请求下发给 OEMCrypto HAL。 Media Output：经过硬件解密的音视频流将经由安全视频路径（SVP）送入显示链路。 1.2 Android 软件栈 (Software Stack) 在 Android 系统中，DRM 架构呈现出典型的垂直分层："><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2025-08-08T11:36:11+08:00"><meta property="article:modified_time" content="2025-08-08T11:36:11+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android Widevine DRM 核心架构与核心流程解析"><meta name=twitter:description content="1. 架构总览 (Architecture Overview) 1.1 端到端媒体流转 Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：
+内容准备与分发 (Content Preparation & Distribution) Source Media：未经加密的原始音视频源文件。 Shaka Packager：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。 CDN：分发加密后的媒体分片及 MPD（Media Presentation Description）文件供终端拉取。 授权与密钥服务 (License Service) License Service / Proxy：云端后端服务，负责管理内容密钥（CEK/KID），并根据终端请求动态签发播放许可证（License）。 设备安全环境 (Device Security) Keysmith / Provisioning：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。 OEMCrypto HAL & TEE：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。 终端播放流程 (Client Playback) Media Player：解析 MPD 并从 CDN 获取加密内容。 CDM (Content Decryption Module)：向外负责与 License Service 通信获取许可证，向内负责将密钥请求下发给 OEMCrypto HAL。 Media Output：经过硬件解密的音视频流将经由安全视频路径（SVP）送入显示链路。 1.2 Android 软件栈 (Software Stack) 在 Android 系统中，DRM 架构呈现出典型的垂直分层："><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Android Media技术文档","item":"https://ethen-cao.github.io/ethenslab/android-dev/media/"},{"@type":"ListItem","position":3,"name":"Android Widevine DRM 核心架构与核心流程解析","item":"https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android Widevine DRM 核心架构与核心流程解析","name":"Android Widevine DRM 核心架构与核心流程解析","description":"1. 架构总览 (Architecture Overview) 1.1 端到端媒体流转 Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：\n内容准备与分发 (Content Preparation \u0026amp; Distribution) Source Media：未经加密的原始音视频源文件。 Shaka Packager：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。 CDN：分发加密后的媒体分片及 MPD（Media Presentation Description）文件供终端拉取。 授权与密钥服务 (License Service) License Service / Proxy：云端后端服务，负责管理内容密钥（CEK/KID），并根据终端请求动态签发播放许可证（License）。 设备安全环境 (Device Security) Keysmith / Provisioning：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。 OEMCrypto HAL \u0026amp; TEE：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。 终端播放流程 (Client Playback) Media Player：解析 MPD 并从 CDN 获取加密内容。 CDM (Content Decryption Module)：向外负责与 License Service 通信获取许可证，向内负责将密钥请求下发给 OEMCrypto HAL。 Media Output：经过硬件解密的音视频流将经由安全视频路径（SVP）送入显示链路。 1.2 Android 软件栈 (Software Stack) 在 Android 系统中，DRM 架构呈现出典型的垂直分层：\n","keywords":[],"articleBody":"1. 架构总览 (Architecture Overview) 1.1 端到端媒体流转 Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：\n内容准备与分发 (Content Preparation \u0026 Distribution) Source Media：未经加密的原始音视频源文件。 Shaka Packager：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。 CDN：分发加密后的媒体分片及 MPD（Media Presentation Description）文件供终端拉取。 授权与密钥服务 (License Service) License Service / Proxy：云端后端服务，负责管理内容密钥（CEK/KID），并根据终端请求动态签发播放许可证（License）。 设备安全环境 (Device Security) Keysmith / Provisioning：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。 OEMCrypto HAL \u0026 TEE：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。 终端播放流程 (Client Playback) Media Player：解析 MPD 并从 CDN 获取加密内容。 CDM (Content Decryption Module)：向外负责与 License Service 通信获取许可证，向内负责将密钥请求下发给 OEMCrypto HAL。 Media Output：经过硬件解密的音视频流将经由安全视频路径（SVP）送入显示链路。 1.2 Android 软件栈 (Software Stack) 在 Android 系统中，DRM 架构呈现出典型的垂直分层：\n应用层 (App/Browser)：通过 Android MediaDrm Java API 或浏览器 EME (Encrypted Media Extensions) 接口发起加密会话。 框架层 (Framework)：Android 媒体框架向下通过 HIDL/AIDL 接口与底层的 DRM HAL 进行通信。 硬件抽象层 (HAL)：Widevine 提供的核心 CDM 插件运行于此，负责实现具体的加解密逻辑协议。 可信执行环境 (TEE)：最底层的 OEMCrypto 模块部署在 TrustZone 等隔离环境中，直接操作物理加密引擎。 2. 设备安全凭证预置 (Device Provisioning) 设备要具备解密 Widevine 视频的能力，其前提是必须在出厂或激活时注入合法的安全身份（凭证）。\n2.1 传统工厂预置 (Factory Provisioning / Keybox) 传统模式下，设备的安全身份（包含私钥和证书的 Keybox）在工厂生产线上完成烧录。\n密钥对生成：工厂工具调用设备芯片内的 TEE，生成唯一的 Device Key Pair。私钥被安全写入 Fuse、RPMB 等不可见区域。 证书签名请求 (CSR)：工厂工具提取出公钥，附带 Device ID 生成 CSR，通过加密通道上传至 Google Widevine CA。 Google 云端签名：Google 验证工厂合法性后，使用 Root Private Key 对 CSR 签名，颁发 Device Certificate。 注入与激活：工厂工具将下发的证书写入设备 TEE 中。TEE 校验签名合法后，设备即获得 Widevine L1 资格。 [!NOTE] 在此模式下，设备私钥永不离开 TEE，OEM 也不持有 Google 的根私钥。但由于工厂环境仍需处理极少量的中间认证过程，存在一定的供应链管理成本。\n2.2 远程密钥预置 (RKP) @startuml !theme plain hide footbox autonumber \"[00]\" skinparam backgroundColor #FFFFFF skinparam shadowing false skinparam roundcorner 10 skinparam sequenceMessageAlign center skinparam sequence { ArrowColor #3974D9 LifeLineBorderColor #C5CDD8 ParticipantBorderColor #BDD0EE ParticipantBackgroundColor #EDF4FF ParticipantFontColor #243348 GroupBorderColor #CBD5E1 GroupBackgroundColor #F8FAFC NoteBackgroundColor #FFF8E7 NoteBorderColor #E5CB86 } title 远程密钥预置 (RKP) 流程 box \"工厂生产线 (一次性操作)\" #F8FAFC participant \"OEM 工厂工具\" as Factory participant \"设备 TEE\\n(生成硬件绑定密钥)\" as TEE end box participant \"Google RKP 服务器\" as RKP == 阶段一：工厂端公钥提取 == Factory -\u003e TEE: 发起公钥提取请求 TEE -\u003e TEE: 内部生成唯一密钥对\\n(私钥永不导出) TEE --\u003e Factory: 仅返回设备公钥 (DK_PUB) Factory -\u003e RKP: 批量上传 DK_PUB 进行云端注册 RKP -\u003e RKP: 校验合法性并保存设备公钥 RKP --\u003e Factory: 注册成功响应 == 阶段二：用户端远程激活 (首次使用) == box \"用户端 (首次联网 OTA)\" #F4F8FD participant \"App / MediaDrm\" as App end box App -\u003e TEE: 触发 DRM 操作\\n(发现尚未具备合法凭证) TEE -\u003e TEE: 生成 CSR 并使用内部私钥签名 TEE --\u003e App: 返回签名的 CSR (凭证签名请求) App -\u003e RKP: 通过 HTTPS 透传 CSR RKP -\u003e RKP: 验证签名并与云端注册的公钥比对 RKP --\u003e App: 动态颁发短期设备证书链 App -\u003e TEE: 注入设备证书 TEE -\u003e TEE: 验证并激活 Widevine L1 资格 @enduml 从 Android 12 开始，Google 引入了 RKP (Remote Key Provisioning) 机制。RKP 彻底改变了凭证下发方式：私钥无需在工厂进行任何形式的预置。\n工厂端提取 (一次性操作)：设备 TEE 生成基于硬件绑定的唯一密钥对。工厂仅提取公钥 (DK_PUB) 上传至 Google 服务器，私钥不导出、不预置。 远程激活 (首次使用)：设备开箱联网后，App 触发请求，TEE 生成 CSR（凭证签名请求），使用自身私钥签名并发送给 Google 服务器。服务器验证公钥匹配后，动态颁发短期证书链。 预置模式对比：\n特性比较 传统 Widevine L1 (Keybox) 远程密钥预置 (RKP) 密钥配置地点 工厂生产线 用户端 (首次联网 OTA) 关键交付物 包含永久性设备密钥的已烧录设备 已准备好进行远程配置的公钥注册设备 凭证类型 永久性、长生命周期密钥 短期、可再生的动态认证凭证 安全性与可恢复性 密钥泄露风险高，一旦泄露设备将永久失去信任 安全性极高，若出现漏洞，Google 停止签发新证书即可控制影响 3. Widevine L1 运行时播放流程 (Runtime Playback Flow) 在设备具备合法凭证后，Android 播放器即可启动基于 L1 硬件安全的在线流式播放。\n3.1 阶段 1：初始化会话与按需配置 App 实例化 MediaDrm(WIDEVINE_UUID)，调用 openSession()。若成功，返回 sessionId。 若设备尚未完成证书配置（如 RKP 未激活），openSession() 将抛出 NotProvisionedException。 App 捕获异常后，调用 getProvisionRequest() 获取不透明的请求数据，提交至 Provisioning Server。随后通过 provideProvisionResponse() 将响应回传底层，并重试 openSession()。 [!TIP] 凭证配置 (Provisioning) 并非必须在设备首次启动时立刻发生。它由实际的 DRM 操作触发，getProvisionRequest() 的本质是请求过程，而非“向服务器暴露私钥”。\n3.2 阶段 2：许可证请求、验证与密钥加载 播放器从清单文件 (如 MPD) 或码流 PSSH 中获取初始化数据，调用 getKeyRequest()。 CDM 生成加密的 Challenge。App 负责作为纯粹的网络管道，将 Challenge 通过 HTTP(S) 透传给站点 License Server。 License Server 验证业务规则后，返回许可证响应。App 调用 provideKeyResponse() 喂给底层。 CDM 解析许可证外层协议。受保护的内容密钥 (Content Key) 通过 OEMCrypto 传递到 TEE 中。 [!IMPORTANT] 许可证并不是简单地用设备公钥直接 RSA 加密内容密钥。通常，设备公钥包装的是 Session Key；TEE 恢复 Session Key 后，再派生出用于内容密钥解包和防篡改校验的派生密钥。整个许可证应被 App 视为不透明结构。\n@startuml !theme plain hide footbox autonumber \"[00]\" skinparam backgroundColor #FFFFFF skinparam shadowing false skinparam roundcorner 10 skinparam sequenceMessageAlign center skinparam sequence { ArrowColor #3974D9 LifeLineBorderColor #C5CDD8 ParticipantBorderColor #BDD0EE ParticipantBackgroundColor #EDF4FF ParticipantFontColor #243348 GroupBorderColor #CBD5E1 GroupBackgroundColor #F8FAFC NoteBackgroundColor #FFF8E7 NoteBorderColor #E5CB86 } title Widevine L1：会话、按需配置与许可证 participant \"播放器 App\" as App #EEF7F0 participant \"MediaDrm / DRM HAL\\nWidevine CDM\" as DRM participant \"Provisioning Server\" as Prov participant \"License Proxy / Service\" as Lic == 会话与按需配置 == App -\u003e DRM: new MediaDrm(WIDEVINE_UUID) App -\u003e DRM: openSession() opt 需要配置凭据 DRM --\u003e App: NotProvisionedException App -\u003e DRM: getProvisionRequest() DRM --\u003e App: 不透明 provisioning 请求 App -\u003e Prov: HTTPS 提交请求 Prov --\u003e App: provisioning 响应 App -\u003e DRM: provideProvisionResponse() DRM -\u003e DRM: 校验并应用设备凭据 App -\u003e DRM: 重试 openSession() end DRM --\u003e App: sessionId == 许可证获取与加载 == App -\u003e App: 获取 initData App -\u003e DRM: getKeyRequest(sessionId, initData...) DRM -\u003e DRM: 生成许可证请求 (由可信层介入) DRM --\u003e App: KeyRequest (不透明 Challenge) App -\u003e Lic: HTTPS 提交 Challenge Lic -\u003e Lic: 校验并签发许可证 Lic --\u003e App: 许可证响应 App -\u003e DRM: provideKeyResponse() DRM -\u003e DRM: CDM 解析结构\\nTEE 验证并加载内容密钥 par API 异步回调 DRM --\u003e App: streaming: 成功状态返回 else 独立密钥状态事件 DRM -\u003e\u003e App: OnKeyStatusChangeListener end @enduml 3.3 阶段 3：安全解密、解码与显示 当内容密钥就绪，播放器开始构建解码管道。\nApp 创建 MediaCrypto 实例，将先前的 sessionId 绑定至加解密上下文，并调用 MediaCodec.configure()。 播放器通过 queueSecureInputBuffer() 提交加密的媒体 Sample 以及元数据（Key ID, IV 等）。注意：MediaCrypto 本身不是数据提交接口。 在底层，Crypto HAL / CDM 将密文通过安全通道送入 TEE。 TEE 完成解密后，将受保护的压缩码流写入安全缓冲区 (Secure Buffers)，返回给宿主侧的仅是 Buffer 的 NATIVE_HANDLE 句柄，普通环境（包括 Android OS）无法访问明文内容。 MediaCodec 将引用句柄交给安全解码器 (VPU)，硬件解码输出受保护的像素帧，最终由 SurfaceFlinger 和 HWC 直接投递至显示硬件层。 @startuml !theme plain hide footbox autonumber \"[00]\" skinparam backgroundColor #FFFFFF skinparam shadowing false skinparam roundcorner 10 skinparam sequenceMessageAlign center skinparam sequence { ArrowColor #3974D9 LifeLineBorderColor #C5CDD8 ParticipantBorderColor #BDD0EE ParticipantBackgroundColor #EDF4FF ParticipantFontColor #243348 GroupBorderColor #CBD5E1 GroupBackgroundColor #F8FAFC NoteBackgroundColor #FFF8E7 NoteBorderColor #E5CB86 } title Widevine L1：受保护解密、解码与显示 box \"普通执行环境 (Android OS)\" #F4F8FD participant \"播放器 App\" as App #EEF7F0 participant \"MediaCodec\" as Codec participant \"Crypto HAL / CDM\" as Crypto participant \"平台传输层\" as Transport end box participant \"TEE / TA\\n(可信解密实现)\" as TEE #FFF8E7 collections \"Secure Buffers\\n(安全内存)\" as Buffer #EAF6EF participant \"Secure VPU\" as VPU #EAF6EF participant \"显示链路 (HWC/Display)\" as Display App -\u003e App: MediaCrypto(uuid, sessionId) App -\u003e Codec: configure(..., MediaCrypto, flags) loop 加密视频样本 App -\u003e Codec: queueSecureInputBuffer(密文) Codec -\u003e Crypto: decrypt(..., NATIVE_HANDLE) Crypto -\u003e Transport: 发起安全解密 Transport -\u003e TEE: 进入可信环境 TEE -[#23845B]\u003e Buffer: 写入**受保护压缩码流** TEE --\u003e Crypto: 成功 (仅返回状态) Crypto --\u003e Codec: 解密完成，返回句柄 Codec -\u003e VPU: 提交安全解码任务 Buffer -[#23845B]\u003e VPU: 读取受保护压缩码流 VPU -[#23845B]\u003e Buffer: 写入**受保护像素帧** VPU --\u003e Codec: 输出完毕 Codec --\u003e App: onOutputBufferAvailable App -\u003e Codec: releaseOutputBuffer(..., true) Codec -[#8364B7]\u003e Display: 提交 GraphicBuffer Display -\u003e Display: 校验输出保护协议 (如 HDCP) alt HDCP 要求满足 Buffer -[#23845B]\u003e Display: 读取渲染输出 else 保护不足 Display -\u003e Display: 阻断输出 end end @enduml 4. 安全边界与工程核验要点 (Security Boundaries) 在工程实践和技术调试中，明确 DRM 各组件的安全边界至关重要：\n设备凭据 ≠ 内容密钥：设备凭据用于确认设备的合法身份并完成 DRM 握手协议；内容密钥才是用来解密视频样本的数据。严禁将两者混淆，更不能错误认为“应用层可以接触明文密钥”。 OEMCrypto 普通侧 ≠ 可信实现：OEMCrypto 包含运行在 Android 侧的调用库以及运行在 TEE 内的 Trusted Application (TA)。不能笼统地说“OEMCrypto 完全运行在 TEE 内”。 安全内存仍然是系统内存：所谓的 Secure Buffers 通常仍然分配在系统的 DDR 物理内存中，其安全性依赖于 TrustZone 硬件级别的访问权限隔离，而非“数据不经过内存”。普通 CPU 持有的仅仅是 Handle 句柄，强制读取会导致系统异常。 解码完成 ≠ 输出保护 (HDCP) 已完成：视频被安全解码进入 Surface 队列后，显示控制器 (HWC) 还会强行校验当前的物理链路是否满足许可证要求（如 HDMI HDCP 认证级别），若不满足依然会引发黑屏。 架构保障与整机认证：L1 路径确保了系统层面的绝对隔离，但这不代表流媒体平台（如 Netflix）会自动放开 4K 画质。流媒体平台还需基于 Google 下发的设备白名单进行双向校验。 ","wordCount":"935","inLanguage":"en","datePublished":"2025-08-08T11:36:11+08:00","dateModified":"2025-08-08T11:36:11+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=header-nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle class=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu class=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><nav class=breadcrumbs role=navigation aria-label=Breadcrumb><a href=/ethenslab/>Home</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
+<a href=/ethenslab/android-dev/>Android系统开发</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
+<a href=/ethenslab/android-dev/media/>Android Media技术文档</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg></nav><h1 class="post-title entry-hint-parent">Android Widevine DRM 核心架构与核心流程解析</h1><div class=post-meta><span title='2025-08-08 11:36:11 +0800 CST'>August 8, 2025</span>&nbsp;·&nbsp;<span>5 min</span>&nbsp;·&nbsp;<span>935 words</span></div></header><div class="post-content md-content"><h2 id=1-架构总览-architecture-overview>1. 架构总览 (Architecture Overview)<a hidden class=anchor aria-hidden=true href=#1-架构总览-architecture-overview>#</a></h2><h3 id=11-端到端媒体流转>1.1 端到端媒体流转<a hidden class=anchor aria-hidden=true href=#11-端到端媒体流转>#</a></h3><p><img src=/ethenslab/images/Widevine_architect.png alt></p><p>Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：</p><ul><li><strong>内容准备与分发 (Content Preparation & Distribution)</strong><ul><li><strong>Source Media</strong>：未经加密的原始音视频源文件。</li><li><strong>Shaka Packager</strong>：核心打包器，将原始文件加密、分片，并打包为自适应流媒体格式（如 DASH Presentation）。</li><li><strong>CDN</strong>：分发加密后的媒体分片及 MPD（Media Presentation Description）文件供终端拉取。</li></ul></li><li><strong>授权与密钥服务 (License Service)</strong><ul><li><strong>License Service / Proxy</strong>：云端后端服务，负责管理内容密钥（CEK/KID），并根据终端请求动态签发播放许可证（License）。</li></ul></li><li><strong>设备安全环境 (Device Security)</strong><ul><li><strong>Keysmith / Provisioning</strong>：针对设备的身份认证与密钥配置服务，确保只有合法的授权设备能接入网络。</li><li><strong>OEMCrypto HAL & TEE</strong>：设备制造商（OEM）提供的硬件级安全运行环境，确保所有加密和解密操作对操作系统其余部分不可见。</li></ul></li><li><strong>终端播放流程 (Client Playback)</strong><ul><li><strong>Media Player</strong>：解析 MPD 并从 CDN 获取加密内容。</li><li><strong>CDM (Content Decryption Module)</strong>：向外负责与 License Service 通信获取许可证，向内负责将密钥请求下发给 OEMCrypto HAL。</li><li><strong>Media Output</strong>：经过硬件解密的音视频流将经由安全视频路径（SVP）送入显示链路。</li></ul></li></ul><h3 id=12-android-软件栈-software-stack>1.2 Android 软件栈 (Software Stack)<a hidden class=anchor aria-hidden=true href=#12-android-软件栈-software-stack>#</a></h3><p><img src=/ethenslab/images/widevine-software-architect.png alt></p><p>在 Android 系统中，DRM 架构呈现出典型的垂直分层：</p><ol><li><strong>应用层 (App/Browser)</strong>：通过 Android <code>MediaDrm</code> Java API 或浏览器 EME (Encrypted Media Extensions) 接口发起加密会话。</li><li><strong>框架层 (Framework)</strong>：Android 媒体框架向下通过 HIDL/AIDL 接口与底层的 DRM HAL 进行通信。</li><li><strong>硬件抽象层 (HAL)</strong>：Widevine 提供的核心 CDM 插件运行于此，负责实现具体的加解密逻辑协议。</li><li><strong>可信执行环境 (TEE)</strong>：最底层的 OEMCrypto 模块部署在 TrustZone 等隔离环境中，直接操作物理加密引擎。</li></ol><hr><h2 id=2-设备安全凭证预置-device-provisioning>2. 设备安全凭证预置 (Device Provisioning)<a hidden class=anchor aria-hidden=true href=#2-设备安全凭证预置-device-provisioning>#</a></h2><p>设备要具备解密 Widevine 视频的能力，其前提是必须在出厂或激活时注入合法的安全身份（凭证）。</p><h3 id=21-传统工厂预置-factory-provisioning--keybox>2.1 传统工厂预置 (Factory Provisioning / Keybox)<a hidden class=anchor aria-hidden=true href=#21-传统工厂预置-factory-provisioning--keybox>#</a></h3><p>传统模式下，设备的安全身份（包含私钥和证书的 Keybox）在工厂生产线上完成烧录。</p><ol><li><strong>密钥对生成</strong>：工厂工具调用设备芯片内的 TEE，生成唯一的 Device Key Pair。私钥被安全写入 Fuse、RPMB 等不可见区域。</li><li><strong>证书签名请求 (CSR)</strong>：工厂工具提取出公钥，附带 Device ID 生成 CSR，通过加密通道上传至 Google Widevine CA。</li><li><strong>Google 云端签名</strong>：Google 验证工厂合法性后，使用 Root Private Key 对 CSR 签名，颁发 Device Certificate。</li><li><strong>注入与激活</strong>：工厂工具将下发的证书写入设备 TEE 中。TEE 校验签名合法后，设备即获得 Widevine L1 资格。</li></ol><blockquote><p>[!NOTE]
+在此模式下，设备私钥永不离开 TEE，OEM 也不持有 Google 的根私钥。但由于工厂环境仍需处理极少量的中间认证过程，存在一定的供应链管理成本。</p></blockquote><h3 id=22-远程密钥预置-rkp>2.2 远程密钥预置 (RKP)<a hidden class=anchor aria-hidden=true href=#22-远程密钥预置-rkp>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 hide footbox
 autonumber &#34;&lt;b&gt;[00]&#34;
@@ -367,68 +90,9 @@ RKP --&gt; App: 动态颁发短期设备证书链
 App -&gt; TEE: 注入设备证书
 TEE -&gt; TEE: 验证并激活 Widevine L1 资格
 @enduml
-</code></pre><p>从 Android 12 开始，Google 引入了 RKP (Remote Key Provisioning) 机制。RKP 彻底改变了凭证下发方式：<strong>私钥无需在工厂进行任何形式的预置</strong>。</p>
-<ol>
-<li><strong>工厂端提取 (一次性操作)</strong>：设备 TEE 生成基于硬件绑定的唯一密钥对。工厂<strong>仅提取公钥</strong> (DK_PUB) 上传至 Google 服务器，私钥不导出、不预置。</li>
-<li><strong>远程激活 (首次使用)</strong>：设备开箱联网后，App 触发请求，TEE 生成 CSR（凭证签名请求），使用自身私钥签名并发送给 Google 服务器。服务器验证公钥匹配后，动态颁发短期证书链。</li>
-</ol>
-<p><strong>预置模式对比：</strong></p>
-<table>
-	<thead>
-			<tr>
-					<th style="text-align: left">特性比较</th>
-					<th style="text-align: left">传统 Widevine L1 (Keybox)</th>
-					<th style="text-align: left">远程密钥预置 (RKP)</th>
-			</tr>
-	</thead>
-	<tbody>
-			<tr>
-					<td style="text-align: left"><strong>密钥配置地点</strong></td>
-					<td style="text-align: left">工厂生产线</td>
-					<td style="text-align: left">用户端 (首次联网 OTA)</td>
-			</tr>
-			<tr>
-					<td style="text-align: left"><strong>关键交付物</strong></td>
-					<td style="text-align: left">包含永久性设备密钥的已烧录设备</td>
-					<td style="text-align: left">已准备好进行远程配置的公钥注册设备</td>
-			</tr>
-			<tr>
-					<td style="text-align: left"><strong>凭证类型</strong></td>
-					<td style="text-align: left">永久性、长生命周期密钥</td>
-					<td style="text-align: left">短期、可再生的动态认证凭证</td>
-			</tr>
-			<tr>
-					<td style="text-align: left"><strong>安全性与可恢复性</strong></td>
-					<td style="text-align: left">密钥泄露风险高，一旦泄露设备将永久失去信任</td>
-					<td style="text-align: left">安全性极高，若出现漏洞，Google 停止签发新证书即可控制影响</td>
-			</tr>
-	</tbody>
-</table>
-<hr>
-<h2 id="3-widevine-l1-运行时播放流程-runtime-playback-flow">3. Widevine L1 运行时播放流程 (Runtime Playback Flow)<a hidden class="anchor" aria-hidden="true" href="#3-widevine-l1-运行时播放流程-runtime-playback-flow">#</a></h2>
-<p>在设备具备合法凭证后，Android 播放器即可启动基于 L1 硬件安全的在线流式播放。</p>
-<h3 id="31-阶段-1初始化会话与按需配置">3.1 阶段 1：初始化会话与按需配置<a hidden class="anchor" aria-hidden="true" href="#31-阶段-1初始化会话与按需配置">#</a></h3>
-<ol>
-<li>App 实例化 <code>MediaDrm(WIDEVINE_UUID)</code>，调用 <code>openSession()</code>。若成功，返回 <strong>sessionId</strong>。</li>
-<li>若设备尚未完成证书配置（如 RKP 未激活），<code>openSession()</code> 将抛出 <code>NotProvisionedException</code>。</li>
-<li>App 捕获异常后，调用 <code>getProvisionRequest()</code> 获取<strong>不透明的请求数据</strong>，提交至 Provisioning Server。随后通过 <code>provideProvisionResponse()</code> 将响应回传底层，并重试 <code>openSession()</code>。</li>
-</ol>
-<blockquote>
-<p>[!TIP]
-凭证配置 (Provisioning) 并非必须在设备首次启动时立刻发生。它由实际的 DRM 操作触发，<code>getProvisionRequest()</code> 的本质是请求过程，而非“向服务器暴露私钥”。</p>
-</blockquote>
-<h3 id="32-阶段-2许可证请求验证与密钥加载">3.2 阶段 2：许可证请求、验证与密钥加载<a hidden class="anchor" aria-hidden="true" href="#32-阶段-2许可证请求验证与密钥加载">#</a></h3>
-<ol>
-<li>播放器从清单文件 (如 MPD) 或码流 PSSH 中获取初始化数据，调用 <code>getKeyRequest()</code>。</li>
-<li>CDM 生成加密的 Challenge。App 负责作为纯粹的网络管道，将 Challenge 通过 HTTP(S) 透传给站点 License Server。</li>
-<li>License Server 验证业务规则后，返回许可证响应。App 调用 <strong><code>provideKeyResponse()</code></strong> 喂给底层。</li>
-<li>CDM 解析许可证外层协议。受保护的内容密钥 (Content Key) 通过 OEMCrypto 传递到 TEE 中。</li>
-</ol>
-<blockquote>
-<p>[!IMPORTANT]
-<strong>许可证并不是简单地用设备公钥直接 RSA 加密内容密钥</strong>。通常，设备公钥包装的是 Session Key；TEE 恢复 Session Key 后，再派生出用于内容密钥解包和防篡改校验的派生密钥。整个许可证应被 App 视为不透明结构。</p>
-</blockquote>
-<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml
+</code></pre><p>从 Android 12 开始，Google 引入了 RKP (Remote Key Provisioning) 机制。RKP 彻底改变了凭证下发方式：<strong>私钥无需在工厂进行任何形式的预置</strong>。</p><ol><li><strong>工厂端提取 (一次性操作)</strong>：设备 TEE 生成基于硬件绑定的唯一密钥对。工厂<strong>仅提取公钥</strong> (DK_PUB) 上传至 Google 服务器，私钥不导出、不预置。</li><li><strong>远程激活 (首次使用)</strong>：设备开箱联网后，App 触发请求，TEE 生成 CSR（凭证签名请求），使用自身私钥签名并发送给 Google 服务器。服务器验证公钥匹配后，动态颁发短期证书链。</li></ol><p><strong>预置模式对比：</strong></p><table><thead><tr><th style=text-align:left>特性比较</th><th style=text-align:left>传统 Widevine L1 (Keybox)</th><th style=text-align:left>远程密钥预置 (RKP)</th></tr></thead><tbody><tr><td style=text-align:left><strong>密钥配置地点</strong></td><td style=text-align:left>工厂生产线</td><td style=text-align:left>用户端 (首次联网 OTA)</td></tr><tr><td style=text-align:left><strong>关键交付物</strong></td><td style=text-align:left>包含永久性设备密钥的已烧录设备</td><td style=text-align:left>已准备好进行远程配置的公钥注册设备</td></tr><tr><td style=text-align:left><strong>凭证类型</strong></td><td style=text-align:left>永久性、长生命周期密钥</td><td style=text-align:left>短期、可再生的动态认证凭证</td></tr><tr><td style=text-align:left><strong>安全性与可恢复性</strong></td><td style=text-align:left>密钥泄露风险高，一旦泄露设备将永久失去信任</td><td style=text-align:left>安全性极高，若出现漏洞，Google 停止签发新证书即可控制影响</td></tr></tbody></table><hr><h2 id=3-widevine-l1-运行时播放流程-runtime-playback-flow>3. Widevine L1 运行时播放流程 (Runtime Playback Flow)<a hidden class=anchor aria-hidden=true href=#3-widevine-l1-运行时播放流程-runtime-playback-flow>#</a></h2><p>在设备具备合法凭证后，Android 播放器即可启动基于 L1 硬件安全的在线流式播放。</p><h3 id=31-阶段-1初始化会话与按需配置>3.1 阶段 1：初始化会话与按需配置<a hidden class=anchor aria-hidden=true href=#31-阶段-1初始化会话与按需配置>#</a></h3><ol><li>App 实例化 <code>MediaDrm(WIDEVINE_UUID)</code>，调用 <code>openSession()</code>。若成功，返回 <strong>sessionId</strong>。</li><li>若设备尚未完成证书配置（如 RKP 未激活），<code>openSession()</code> 将抛出 <code>NotProvisionedException</code>。</li><li>App 捕获异常后，调用 <code>getProvisionRequest()</code> 获取<strong>不透明的请求数据</strong>，提交至 Provisioning Server。随后通过 <code>provideProvisionResponse()</code> 将响应回传底层，并重试 <code>openSession()</code>。</li></ol><blockquote><p>[!TIP]
+凭证配置 (Provisioning) 并非必须在设备首次启动时立刻发生。它由实际的 DRM 操作触发，<code>getProvisionRequest()</code> 的本质是请求过程，而非“向服务器暴露私钥”。</p></blockquote><h3 id=32-阶段-2许可证请求验证与密钥加载>3.2 阶段 2：许可证请求、验证与密钥加载<a hidden class=anchor aria-hidden=true href=#32-阶段-2许可证请求验证与密钥加载>#</a></h3><ol><li>播放器从清单文件 (如 MPD) 或码流 PSSH 中获取初始化数据，调用 <code>getKeyRequest()</code>。</li><li>CDM 生成加密的 Challenge。App 负责作为纯粹的网络管道，将 Challenge 通过 HTTP(S) 透传给站点 License Server。</li><li>License Server 验证业务规则后，返回许可证响应。App 调用 <strong><code>provideKeyResponse()</code></strong> 喂给底层。</li><li>CDM 解析许可证外层协议。受保护的内容密钥 (Content Key) 通过 OEMCrypto 传递到 TEE 中。</li></ol><blockquote><p>[!IMPORTANT]
+<strong>许可证并不是简单地用设备公钥直接 RSA 加密内容密钥</strong>。通常，设备公钥包装的是 Session Key；TEE 恢复 Session Key 后，再派生出用于内容密钥解包和防篡改校验的派生密钥。整个许可证应被 App 视为不透明结构。</p></blockquote><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 hide footbox
 autonumber &#34;&lt;b&gt;[00]&#34;
@@ -485,16 +149,7 @@ else 独立密钥状态事件
   DRM -&gt;&gt; App: OnKeyStatusChangeListener
 end
 @enduml
-</code></pre><h3 id="33-阶段-3安全解密解码与显示">3.3 阶段 3：安全解密、解码与显示<a hidden class="anchor" aria-hidden="true" href="#33-阶段-3安全解密解码与显示">#</a></h3>
-<p>当内容密钥就绪，播放器开始构建解码管道。</p>
-<ol>
-<li>App 创建 <code>MediaCrypto</code> 实例，将先前的 <code>sessionId</code> 绑定至加解密上下文，并调用 <code>MediaCodec.configure()</code>。</li>
-<li>播放器通过 <code>queueSecureInputBuffer()</code> 提交加密的媒体 Sample 以及元数据（Key ID, IV 等）。<strong>注意：MediaCrypto 本身不是数据提交接口。</strong></li>
-<li>在底层，Crypto HAL / CDM 将密文通过安全通道送入 TEE。</li>
-<li>TEE 完成解密后，将<strong>受保护的压缩码流</strong>写入安全缓冲区 (Secure Buffers)，返回给宿主侧的仅是 Buffer 的 <code>NATIVE_HANDLE</code> 句柄，普通环境（包括 Android OS）无法访问明文内容。</li>
-<li><code>MediaCodec</code> 将引用句柄交给安全解码器 (VPU)，硬件解码输出<strong>受保护的像素帧</strong>，最终由 SurfaceFlinger 和 HWC 直接投递至显示硬件层。</li>
-</ol>
-<pre tabindex="0"><code class="language-plantuml" data-lang="plantuml">@startuml
+</code></pre><h3 id=33-阶段-3安全解密解码与显示>3.3 阶段 3：安全解密、解码与显示<a hidden class=anchor aria-hidden=true href=#33-阶段-3安全解密解码与显示>#</a></h3><p>当内容密钥就绪，播放器开始构建解码管道。</p><ol><li>App 创建 <code>MediaCrypto</code> 实例，将先前的 <code>sessionId</code> 绑定至加解密上下文，并调用 <code>MediaCodec.configure()</code>。</li><li>播放器通过 <code>queueSecureInputBuffer()</code> 提交加密的媒体 Sample 以及元数据（Key ID, IV 等）。<strong>注意：MediaCrypto 本身不是数据提交接口。</strong></li><li>在底层，Crypto HAL / CDM 将密文通过安全通道送入 TEE。</li><li>TEE 完成解密后，将<strong>受保护的压缩码流</strong>写入安全缓冲区 (Secure Buffers)，返回给宿主侧的仅是 Buffer 的 <code>NATIVE_HANDLE</code> 句柄，普通环境（包括 Android OS）无法访问明文内容。</li><li><code>MediaCodec</code> 将引用句柄交给安全解码器 (VPU)，硬件解码输出<strong>受保护的像素帧</strong>，最终由 SurfaceFlinger 和 HWC 直接投递至显示硬件层。</li></ol><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
 !theme plain
 hide footbox
 autonumber &#34;&lt;b&gt;[00]&#34;
@@ -554,194 +209,11 @@ loop 加密视频样本
   end
 end
 @enduml
-</code></pre><hr>
-<h2 id="4-安全边界与工程核验要点-security-boundaries">4. 安全边界与工程核验要点 (Security Boundaries)<a hidden class="anchor" aria-hidden="true" href="#4-安全边界与工程核验要点-security-boundaries">#</a></h2>
-<p>在工程实践和技术调试中，明确 DRM 各组件的安全边界至关重要：</p>
-<ul>
-<li><strong>设备凭据 ≠ 内容密钥</strong>：设备凭据用于确认设备的合法身份并完成 DRM 握手协议；内容密钥才是用来解密视频样本的数据。严禁将两者混淆，更不能错误认为“应用层可以接触明文密钥”。</li>
-<li><strong>OEMCrypto 普通侧 ≠ 可信实现</strong>：OEMCrypto 包含运行在 Android 侧的调用库以及运行在 TEE 内的 Trusted Application (TA)。不能笼统地说“OEMCrypto 完全运行在 TEE 内”。</li>
-<li><strong>安全内存仍然是系统内存</strong>：所谓的 Secure Buffers 通常仍然分配在系统的 DDR 物理内存中，其安全性依赖于 TrustZone 硬件级别的访问权限隔离，而非“数据不经过内存”。普通 CPU 持有的仅仅是 Handle 句柄，强制读取会导致系统异常。</li>
-<li><strong>解码完成 ≠ 输出保护 (HDCP) 已完成</strong>：视频被安全解码进入 Surface 队列后，显示控制器 (HWC) 还会强行校验当前的物理链路是否满足许可证要求（如 HDMI HDCP 认证级别），若不满足依然会引发黑屏。</li>
-<li><strong>架构保障与整机认证</strong>：L1 路径确保了系统层面的绝对隔离，但这不代表流媒体平台（如 Netflix）会自动放开 4K 画质。流媒体平台还需基于 Google 下发的设备白名单进行双向校验。</li>
-</ul>
-
-
-  </div>
-
-  <footer class="post-footer">
-    <ul class="post-tags">
-    </ul>
-<nav class="paginav">
-  <a class="prev" href="https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/">
-    <span class="title">« Prev</span>
-    <span>Android Theme</span>
-  </a>
-  <a class="next" href="https://ethen-cao.github.io/ethenslab/android-dev/media/camera/">
-    <span class="title">Next »</span>
-    <span>AOSP Camera 快门音播放控制机制</span>
-  </a>
-</nav>
-
-  </footer>
-</article>
-    </main>
-    
-<footer class="footer">
-        <span>&copy; 2026 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
-
-    
-    
-    <span>
-        Powered by
-        <a href="https://gohugo.io/?utm_source=papermod" rel="noopener" target="_blank">Hugo</a> &
-        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
-    </span>
-</footer>
-<a href="#top" id="top-link" class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey="g">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up">
-        <polyline points="17 11 12 6 7 11"></polyline>
-        <polyline points="17 18 12 13 7 18"></polyline>
-    </svg>
-</a><script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>
-    
-    mermaid.initialize({ startOnLoad: true, theme: 'default' });
-</script>
-
-<script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
-<script>
-    (function(){
-        
-        
-        const plantumlBlocks = document.querySelectorAll('pre > code.language-plantuml, pre > code.language-planuml');
-        
-        plantumlBlocks.forEach(codeBlock => {
-            const plantumlCode = codeBlock.innerText;
-            
-            const encoded = plantumlEncoder.encode(plantumlCode);
-            
-            const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
-            
-            
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.alt = "PlantUML Diagram";
-            img.style.maxWidth = "100%"; 
-            
-            
-            const preBlock = codeBlock.parentNode;
-            preBlock.parentNode.replaceChild(img, preBlock);
-        });
-    })();
-</script>
-
-<script>
-    let menu = document.getElementById('menu');
-    if (menu) {
-        
-        const scrollPosition = localStorage.getItem("menu-scroll-position");
-        if (scrollPosition) {
-            menu.scrollLeft = parseInt(scrollPosition, 10);
-        }
-        
-        menu.onscroll = function () {
-            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
-        }
-    }
-
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener("click", function (e) {
-            e.preventDefault();
-            var id = this.getAttribute("href").substr(1);
-            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
-                    behavior: "smooth"
-                });
-            } else {
-                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
-            }
-            if (id === "top") {
-                history.replaceState(null, null, " ");
-            } else {
-                history.pushState(null, null, `#${id}`);
-            }
-        });
-    });
-
-</script>
-<script>
-    var toplink = document.getElementById("top-link");
-    window.onscroll = function () {
-        const scrollThreshold = window.innerHeight;
-        if (document.body.scrollTop > scrollThreshold || document.documentElement.scrollTop > scrollThreshold) {
-            toplink.classList.remove("hidden");
-        } else {
-            toplink.classList.add("hidden");
-        }
-    };
-
-</script>
-<script>
-    document.getElementById("theme-toggle").addEventListener("click", () => {
-        const html = document.querySelector("html");
-        if (html.dataset.theme === "dark") {
-            html.dataset.theme = 'light';
-            localStorage.setItem("pref-theme", 'light');
-        } else {
-            html.dataset.theme = 'dark';
-            localStorage.setItem("pref-theme", 'dark');
-        }
-    })
-
-</script>
-<script>
-    document.querySelectorAll('pre > code').forEach((codeblock) => {
-        const container = codeblock.parentNode.parentNode;
-
-        const copybutton = document.createElement('button');
-        copybutton.classList.add('copy-code');
-        copybutton.innerHTML = 'copy';
-
-        function copyingDone() {
-            copybutton.innerHTML = 'copied!';
-            setTimeout(() => {
-                copybutton.innerHTML = 'copy';
-            }, 2000);
-        }
-
-        copybutton.addEventListener('click', (cb) => {
-            if ('clipboard' in navigator) {
-                navigator.clipboard.writeText(codeblock.textContent);
-                copyingDone();
-                return;
-            }
-
-            const range = document.createRange();
-            range.selectNodeContents(codeblock);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            try {
-                document.execCommand('copy');
-                copyingDone();
-            } catch (e) { };
-            selection.removeRange(range);
-        });
-
-        if (container.classList.contains("highlight")) {
-            container.appendChild(copybutton);
-        } else if (container.parentNode.firstChild == container) {
-            
-        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
-            
-            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
-        } else {
-            
-            codeblock.parentNode.appendChild(copybutton);
-        }
-    });
-</script>
-</body>
-
-</html>
+</code></pre><hr><h2 id=4-安全边界与工程核验要点-security-boundaries>4. 安全边界与工程核验要点 (Security Boundaries)<a hidden class=anchor aria-hidden=true href=#4-安全边界与工程核验要点-security-boundaries>#</a></h2><p>在工程实践和技术调试中，明确 DRM 各组件的安全边界至关重要：</p><ul><li><strong>设备凭据 ≠ 内容密钥</strong>：设备凭据用于确认设备的合法身份并完成 DRM 握手协议；内容密钥才是用来解密视频样本的数据。严禁将两者混淆，更不能错误认为“应用层可以接触明文密钥”。</li><li><strong>OEMCrypto 普通侧 ≠ 可信实现</strong>：OEMCrypto 包含运行在 Android 侧的调用库以及运行在 TEE 内的 Trusted Application (TA)。不能笼统地说“OEMCrypto 完全运行在 TEE 内”。</li><li><strong>安全内存仍然是系统内存</strong>：所谓的 Secure Buffers 通常仍然分配在系统的 DDR 物理内存中，其安全性依赖于 TrustZone 硬件级别的访问权限隔离，而非“数据不经过内存”。普通 CPU 持有的仅仅是 Handle 句柄，强制读取会导致系统异常。</li><li><strong>解码完成 ≠ 输出保护 (HDCP) 已完成</strong>：视频被安全解码进入 Surface 队列后，显示控制器 (HWC) 还会强行校验当前的物理链路是否满足许可证要求（如 HDMI HDCP 认证级别），若不满足依然会引发黑屏。</li><li><strong>架构保障与整机认证</strong>：L1 路径确保了系统层面的绝对隔离，但这不代表流媒体平台（如 Netflix）会自动放开 4K 画质。流媒体平台还需基于 Google 下发的设备白名单进行双向校验。</li></ul></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/resource/android-theme/><span class=title>« Prev</span>
+<span>Android Theme</span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/media/camera/><span class=title>Next »</span>
+<span>AOSP Camera 快门音播放控制机制</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href="https://gohugo.io/?utm_source=papermod" rel=noopener target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top id=top-link class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey=g><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");if(menu){const e=localStorage.getItem("menu-scroll-position");e&&(menu.scrollLeft=parseInt(e,10)),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}}document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var toplink=document.getElementById("top-link");window.onscroll=function(){const e=window.innerHeight;document.body.scrollTop>e||document.documentElement.scrollTop>e?toplink.classList.remove("hidden"):toplink.classList.add("hidden")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{const e=document.querySelector("html");e.dataset.theme==="dark"?(e.dataset.theme="light",localStorage.setItem("pref-theme","light")):(e.dataset.theme="dark",localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
