@@ -208,7 +208,7 @@ V2-&gt;V3:  C 完成 -&gt; queueBuffer -&gt; S2 QUEUED
          ^ 3 个 slot 各在不同状态——这是三缓冲满负荷运行的正常快照
 </code></pre><p>在三缓冲下，同时出现 <code>ACQUIRED × 1 + QUEUED × 1 + DEQUEUED × 1</code> 是<strong>正常满载状态</strong>。只有当 App 试图在 <code>FREE</code> 数量为 0 时 dequeue，才会触发 <code>tooManyBuffers</code> → 短暂阻塞。</p></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/><span class=title>« Prev</span>
 <span>Android Native Crash 处理机制深度解析</span>
-</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/display/hwc_setbrightness/><span class=title>Next »</span>
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/display/recoverable_from_buffer_stuffing/><span class=title>Next »</span>
 <span></span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
 <span>Powered by
 <a href="https://gohugo.io/?utm_source=papermod" rel=noopener target=_blank>Hugo</a> &
