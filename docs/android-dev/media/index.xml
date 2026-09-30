@@ -1,38 +1,60 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Android Media技术文档 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/</link><description>Recent content in Android Media技术文档 on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Tue, 29 Sep 2026 00:00:00 +0000</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/media/index.xml" rel="self" type="application/rss+xml"/><item><title>Qualcomm SA8295P OpenWFD 安全视频输出拦截分析与排查指南</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/qnx-openwfd-oem-secure-port-analysis/</link><pubDate>Sat, 01 Aug 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/qnx-openwfd-oem-secure-port-analysis/</guid><description>&lt;h2 id="背景概述"&gt;背景概述&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Android Media技术文档 on Ethen 的实验室</title>
+    <link>https://ethen-cao.github.io/ethenslab/android-dev/media/</link>
+    <description>Recent content in Android Media技术文档 on Ethen 的实验室</description>
+    <generator>Hugo</generator>
+    <language>en</language>
+    <lastBuildDate>Tue, 29 Sep 2026 00:00:00 +0000</lastBuildDate>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/media/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Qualcomm SA8295P OpenWFD 安全视频输出拦截分析与排查指南</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/qnx-openwfd-oem-secure-port-analysis/</link>
+      <pubDate>Sat, 01 Aug 2026 00:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/qnx-openwfd-oem-secure-port-analysis/</guid>
+      <description>&lt;h2 id=&#34;背景概述&#34;&gt;背景概述&lt;/h2&gt;
 &lt;p&gt;在基于 Qualcomm SA8295P (Makena) 平台架构的 QNX 系统中，处理诸如 Widevine DRM 等受保护的安全媒体流时，底层显示框架（OpenWFD）偶尔会抛出如下警告日志，并伴随视频输出黑屏现象：&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;[22][wfdBindSourceToPipeline:3302] DISPLAY_WARNING The source is secure, but the port 4 is not secure.The content is blocked
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-text&#34; data-lang=&#34;text&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;[22][wfdBindSourceToPipeline:3302] DISPLAY_WARNING The source is secure, but the port 4 is not secure.The content is blocked
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;此日志的直观含义是：某客户端试图将&lt;strong&gt;受硬件保护的安全视频源 (Secure Source)&lt;/strong&gt; 绑定至标号为 &lt;code&gt;eDisplayID=4&lt;/code&gt; 的有效输出端口，但在绑定时刻，该端口的 OEM 安全认证标志 (&lt;code&gt;bOEMSecure&lt;/code&gt;) 被判定为 &lt;code&gt;WFD_FALSE&lt;/code&gt;。出于版权保护协议的强制要求，OpenWFD 主动将该 Source 句柄置为无效，从而切断了通向显示管线 (Pipeline) 的数据流。&lt;/p&gt;
-&lt;p&gt;需要特别说明的是，日志中提及的 &lt;code&gt;port 4&lt;/code&gt; 是底层 &lt;code&gt;eDisplayID&lt;/code&gt; 参数，并非客户端 XML 配置中的私有 &lt;code&gt;&amp;lt;WFDPort ID='4'&amp;gt;&lt;/code&gt;。单凭该日志无法直接溯源至具体引发异常的 UI 进程，必须结合 TrustZone 与 QNX 侧的桥接链路进行系统级排查。&lt;/p&gt;
+&lt;p&gt;需要特别说明的是，日志中提及的 &lt;code&gt;port 4&lt;/code&gt; 是底层 &lt;code&gt;eDisplayID&lt;/code&gt; 参数，并非客户端 XML 配置中的私有 &lt;code&gt;&amp;lt;WFDPort ID=&#39;4&#39;&amp;gt;&lt;/code&gt;。单凭该日志无法直接溯源至具体引发异常的 UI 进程，必须结合 TrustZone 与 QNX 侧的桥接链路进行系统级排查。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h2 id="1-源码级日志模块定位"&gt;1. 源码级日志模块定位&lt;/h2&gt;
-&lt;h3 id="11-日志来源追踪"&gt;1.1 日志来源追踪&lt;/h3&gt;
+&lt;h2 id=&#34;1-源码级日志模块定位&#34;&gt;1. 源码级日志模块定位&lt;/h2&gt;
+&lt;h3 id=&#34;11-日志来源追踪&#34;&gt;1.1 日志来源追踪&lt;/h3&gt;
 &lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;属性&lt;/th&gt;
-&lt;th&gt;详细信息&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;归属模块&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;OpenWFD (&lt;code&gt;MDSS_MODULE_SW_WFD&lt;/code&gt;)&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;源文件&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;AMSS/multimedia/display/Hoya/openwfd/src/pipeline.c&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;异常触发函数&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;wfdBindSourceToPipeline&lt;/code&gt; (定义于第 3178 行)&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;告警抛出位置&lt;/strong&gt;&lt;/td&gt;
-&lt;td&gt;第 3300–3302 行&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;属性&lt;/th&gt;
+					&lt;th&gt;详细信息&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;strong&gt;归属模块&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;OpenWFD (&lt;code&gt;MDSS_MODULE_SW_WFD&lt;/code&gt;)&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;strong&gt;源文件&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;AMSS/multimedia/display/Hoya/openwfd/src/pipeline.c&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;strong&gt;异常触发函数&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;wfdBindSourceToPipeline&lt;/code&gt; (定义于第 3178 行)&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;strong&gt;告警抛出位置&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;第 3300–3302 行&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
 &lt;/table&gt;
-&lt;p&gt;该模块的日志域注册在 &lt;code&gt;pipeline.c:30&lt;/code&gt;：&lt;/p&gt;</description></item><item><title>Android 13 AudioPlaybackCapture 技术原理与实现</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</link><pubDate>Sun, 07 Jun 2026 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;p&gt;该模块的日志域注册在 &lt;code&gt;pipeline.c:30&lt;/code&gt;：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android 13 AudioPlaybackCapture 技术原理与实现</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</link>
+      <pubDate>Sun, 07 Jun 2026 10:22:54 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/audioflinger-playback-capture/</guid>
+      <description>&lt;h2 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;&lt;strong&gt;AudioPlaybackCapture&lt;/strong&gt; 是 Android 10 (API 29) 引入的 API,允许 App 捕获其他 App 正在播放的音频。典型场景包括:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;屏幕录制时同时录制内部音频 (SystemUI 的 ScreenRecord)&lt;/li&gt;
@@ -40,45 +62,52 @@
 &lt;li&gt;游戏直播时捕获游戏音效&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;&lt;strong&gt;技术方案核心思路&lt;/strong&gt;: 通过 &lt;strong&gt;Remote Submix 虚拟音频设备&lt;/strong&gt; + &lt;strong&gt;AudioPolicy 动态策略路由&lt;/strong&gt; + &lt;strong&gt;AudioFlinger 软件音频补丁&lt;/strong&gt; 三层协作,将播放音频流环回 (loopback) 到录制端,中间通过共享环形缓冲区实现高效的零拷贝传递。&lt;/p&gt;
-&lt;pre tabindex="0"&gt;&lt;code&gt;捕获App 播放App
-│ │
-│ AudioRecord │ AudioTrack
-│ source=REMOTE_SUBMIX │ usage=MEDIA
-│ │
-▼ ▼
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;捕获App                       播放App
+  │                            │
+  │ AudioRecord                │ AudioTrack
+  │ source=REMOTE_SUBMIX       │ usage=MEDIA
+  │                            │
+  ▼                            ▼
 ┌──────────────────────────────────────────────────────┐
-│ AudioPolicyManager │
-│ │
-│ registerPolicyMixes() ←── AudioMix │
-│ startOutput() → 路由到 REMOTE_SUBMIX_OUT │
-│ startInput() → 从 REMOTE_SUBMIX_IN 录制 │
+│                 AudioPolicyManager                    │
+│                                                      │
+│  registerPolicyMixes()  ←── AudioMix                 │
+│  startOutput()          →  路由到 REMOTE_SUBMIX_OUT  │
+│  startInput()           →  从 REMOTE_SUBMIX_IN 录制   │
 └──────────────────────────┬───────────────────────────┘
-│
-▼
+                           │
+                           ▼
 ┌──────────────────────────────────────────────────────┐
-│ AudioFlinger │
-│ │
-│ 主 MixerThread (播放 Track 所在, 非 Duplicating) │
-│ └─ Track::releaseBuffer() → interceptBuffer() │
-│ └─ TeePatches: memcpy → PatchRecord 环缓 ────┐│
-│ ││
-│ REMOTE_SUBMIX MixerThread ││
-│ └─ PatchTrack ←── 共享环缓 ───────────────────────┘│
-│ └─ Mixer → HAL StreamOut │
-│ │
-│ RecordThread ← HAL StreamIn │
-│ └─ AudioRecord::read() → 捕获App │
+│                   AudioFlinger                       │
+│                                                      │
+│  主 MixerThread (播放 Track 所在, 非 Duplicating)     │
+│    └─ Track::releaseBuffer() → interceptBuffer()     │
+│         └─ TeePatches: memcpy → PatchRecord 环缓 ────┐│
+│                                                      ││
+│  REMOTE_SUBMIX MixerThread                           ││
+│    └─ PatchTrack ←── 共享环缓 ───────────────────────┘│
+│         └─ Mixer → HAL StreamOut                     │
+│                                                      │
+│  RecordThread ← HAL StreamIn                         │
+│    └─ AudioRecord::read() → 捕获App                  │
 └──────────────────────┬───────────────────────────────┘
-│
-▼
+                       │
+                       ▼
 ┌──────────────────────────────────────────────────────┐
-│ r_submix HAL (虚拟软件模块, 非真实硬件) │
-│ StreamOut ──→ StreamIn (进程内软件 pipe) │
+│    r_submix HAL (虚拟软件模块, 非真实硬件)             │
+│    StreamOut ──→ StreamIn (进程内软件 pipe)           │
 └──────────────────────────────────────────────────────┘
 &lt;/code&gt;&lt;/pre&gt;&lt;blockquote&gt;
-&lt;p&gt;下面是同一条链路的&lt;strong&gt;交互式动画版&lt;/strong&gt;（分层 App → HAL，动画粒子表示流动的 PCM 数据）。若未显示，请直接打开 &lt;a href="https://ethen-cao.github.io/ethenslab/diagrams/audioflinger-playback-capture-arch.html"&gt;架构图&lt;/a&gt;
-。&lt;/p&gt;</description></item><item><title>高通平台 Widevine L1 认证实施流程</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid><description>&lt;h2 id="整体流程"&gt;整体流程&lt;/h2&gt;
-&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png" alt="" /&gt;&lt;/p&gt;
+&lt;p&gt;下面是同一条链路的&lt;strong&gt;交互式动画版&lt;/strong&gt;（分层 App → HAL，动画粒子表示流动的 PCM 数据）。若未显示，请直接打开 &lt;a href=&#34;https://ethen-cao.github.io/ethenslab/diagrams/audioflinger-playback-capture-arch.html&#34;&gt;架构图&lt;/a&gt;
+。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>高通平台 Widevine L1 认证实施流程</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</link>
+      <pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/</guid>
+      <description>&lt;h2 id=&#34;整体流程&#34;&gt;整体流程&lt;/h2&gt;
+&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/widevine-L1-verification-process.png&#34; alt=&#34;&#34;  /&gt;&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;项目启动与平台选型&lt;/strong&gt;&lt;/p&gt;
@@ -118,51 +147,65 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Chromium + Android Widevine：L1/L3 选择与视频播放架构</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link><pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid><description>&lt;h2 id="概述"&gt;概述&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;Google L1 认证审核&lt;/strong&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Chromium &#43; Android Widevine：L1/L3 选择与视频播放架构</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</link>
+      <pubDate>Mon, 25 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/chromium-drm/</guid>
+      <description>&lt;h2 id=&#34;概述&#34;&gt;概述&lt;/h2&gt;
 &lt;p&gt;在 Android 端的 Chromium (或 WebView) 中播放受 Widevine 保护的加密视频，涉及到网页前端 (JavaScript EME API)、浏览器内核 (Chromium Media)、Android 原生媒体框架 (MediaDrm / MediaCodec) 以及底层安全环境 (TEE) 的多方协同。&lt;/p&gt;
 &lt;p&gt;本文档梳理了 Chromium 在 Android 上处理 Widevine DRM 的核心交互流程，重点解析 &lt;strong&gt;L1/L3 安全等级的协商机制&lt;/strong&gt;、&lt;strong&gt;会话生命周期&lt;/strong&gt; 以及 &lt;strong&gt;排错指南&lt;/strong&gt;。&lt;/p&gt;
 &lt;blockquote&gt;
 &lt;p&gt;[!NOTE]
 设备硬件支持 Widevine L1，并不意味着每次网页播放都会自动启用 L1。实际使用的安全等级由&lt;strong&gt;网页播放器提出的候选配置&lt;/strong&gt;、&lt;strong&gt;Chromium 的安全策略约束&lt;/strong&gt; 以及 &lt;strong&gt;Android 框架能力&lt;/strong&gt; 共同协商决定。&lt;/p&gt;
 &lt;/blockquote&gt;
-&lt;h2 id="参与者与职责边界"&gt;参与者与职责边界&lt;/h2&gt;
+&lt;h2 id=&#34;参与者与职责边界&#34;&gt;参与者与职责边界&lt;/h2&gt;
 &lt;p&gt;在完整的 DRM 播放链路中，各参与者的职责界限明确：&lt;/p&gt;
 &lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th style="text-align: left"&gt;参与者&lt;/th&gt;
-&lt;th style="text-align: left"&gt;职责&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;网站业务后台&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;提供播放器前端代码、视频 Manifest 以及内容授权策略。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;网页播放器 (JS)&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;通过 EME (Encrypted Media Extensions) API 请求 DRM 能力、创建和绑定对象、处理 DRM 消息、向 License 服务器发起网络请求。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;Chromium / WebView&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;响应网页 EME 请求，综合系统 DRM 能力、编码格式和安全约束进行配置选择，并负责桥接 Android 原生 &lt;code&gt;MediaDrm&lt;/code&gt; 接口。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;MediaDrm / Widevine CDM&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;Android 框架层的 DRM 接口与底层 CDM 插件。负责管理原生 DRM 会话、生成 Challenge、解析 License 并强制执行内容使用限制。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;MediaCrypto / MediaCodec&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;将解码器与 DRM 会话关联。安全解码 (Secure Decode) 路径下，解密与解码均在底层安全硬件中进行。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;License Server&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;处理客户端的 DRM 请求，验证身份与授权策略，下发包含内容密钥 (Content Key) 的 License。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th style=&#34;text-align: left&#34;&gt;参与者&lt;/th&gt;
+					&lt;th style=&#34;text-align: left&#34;&gt;职责&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;网站业务后台&lt;/strong&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;提供播放器前端代码、视频 Manifest 以及内容授权策略。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;网页播放器 (JS)&lt;/strong&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;通过 EME (Encrypted Media Extensions) API 请求 DRM 能力、创建和绑定对象、处理 DRM 消息、向 License 服务器发起网络请求。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;Chromium / WebView&lt;/strong&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;响应网页 EME 请求，综合系统 DRM 能力、编码格式和安全约束进行配置选择，并负责桥接 Android 原生 &lt;code&gt;MediaDrm&lt;/code&gt; 接口。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;MediaDrm / Widevine CDM&lt;/strong&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;Android 框架层的 DRM 接口与底层 CDM 插件。负责管理原生 DRM 会话、生成 Challenge、解析 License 并强制执行内容使用限制。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;MediaCrypto / MediaCodec&lt;/strong&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;将解码器与 DRM 会话关联。安全解码 (Secure Decode) 路径下，解密与解码均在底层安全硬件中进行。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;License Server&lt;/strong&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;处理客户端的 DRM 请求，验证身份与授权策略，下发包含内容密钥 (Content Key) 的 License。&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h2 id="drm-会话与播放时序"&gt;DRM 会话与播放时序&lt;/h2&gt;
-&lt;p&gt;完整的 DRM 播放协商通常包含以下关键阶段。&lt;/p&gt;</description></item><item><title>Android Automotive Shared Camera (多客户端摄像头) 机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/aaos-shared-camera/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/aaos-shared-camera/</guid><description>&lt;h2 id="1-需求背景"&gt;1. 需求背景&lt;/h2&gt;
+&lt;h2 id=&#34;drm-会话与播放时序&#34;&gt;DRM 会话与播放时序&lt;/h2&gt;
+&lt;p&gt;完整的 DRM 播放协商通常包含以下关键阶段。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android Automotive Shared Camera (多客户端摄像头) 机制</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/aaos-shared-camera/</link>
+      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/aaos-shared-camera/</guid>
+      <description>&lt;h2 id=&#34;1-需求背景&#34;&gt;1. 需求背景&lt;/h2&gt;
 &lt;p&gt;在现代智能座舱架构中，单颗物理摄像头往往需要并发服务于多个业务场景。例如，舱内摄像头（In-cabin Camera）通常需要将视频流实时提供给后台的 DMS（驾驶员监测系统）算法进程进行疲劳状态追踪，同时可能还需要赋能 OMS（乘员监测系统）进行座舱行为识别；而在特定的座舱交互中，该摄像头还需要将画面投射到中控屏，供用户进行流畅的视频通话，或是捕捉高质量的车内多人合影。&lt;/p&gt;
 &lt;p&gt;传统的 Android Camera API 采用排他性设计，同一时间仅允许一个应用独占摄像头硬件资源。若通过应用层（如使用 AIDL、Socket 或共享内存）手动转发视频流，会面临以下挑战：&lt;/p&gt;
 &lt;ul&gt;
@@ -172,27 +215,32 @@
 &lt;/ul&gt;
 &lt;p&gt;Shared Camera 机制通过在 Android Camera Service 层引入底层的零拷贝（Zero-copy）流分发代理，解决了上述资源竞争与性能瓶颈。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h2 id="2-软件架构"&gt;2. 软件架构&lt;/h2&gt;
+&lt;h2 id=&#34;2-软件架构&#34;&gt;2. 软件架构&lt;/h2&gt;
 &lt;p&gt;Shared Camera 机制的核心思想是将“一对一”的硬件绑定，解耦为“一对多”的句柄分发。底层的 &lt;code&gt;libcameraservice&lt;/code&gt; 充当了数据流的“路由器”。&lt;/p&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;@startuml
 !theme plain
 skinparam defaultFontColor black
 skinparam componentStyle rectangle
+
 package &amp;#34;应用层 (App Layer)&amp;#34; {
-[主要客户端 (Primary Client)\n可控制相机参数] as Primary
-[次要客户端 (Secondary Client)\n仅接收视频流] as Secondary
+    [主要客户端 (Primary Client)\n可控制相机参数] as Primary
+    [次要客户端 (Secondary Client)\n仅接收视频流] as Secondary
 }
+
 package &amp;#34;框架层 (Framework Layer)&amp;#34; {
-[CameraManager\n(Java API)] as CM
+    [CameraManager\n(Java API)] as CM
 }
+
 package &amp;#34;原生服务层 (libcameraservice)&amp;#34; {
-[CameraService] as CS
-[Camera3SharedOutputStream] as SharedOut
-[Camera3StreamSplitter] as Splitter
+    [CameraService] as CS
+    [Camera3SharedOutputStream] as SharedOut
+    [Camera3StreamSplitter] as Splitter
 }
+
 package &amp;#34;硬件抽象层 (HAL)&amp;#34; {
-[Camera HAL] as HAL
+    [Camera HAL] as HAL
 }
+
 Primary -down--&amp;gt; CM : openSharedCamera()
 Secondary -down--&amp;gt; CM : openSharedCamera()
 CM -down--&amp;gt; CS : IPC Connect
@@ -201,10 +249,18 @@ SharedOut *-- Splitter : 实例化并控制
 Splitter &amp;lt;--&amp;gt; HAL : 获取/归还 GraphicBuffer
 Splitter -up--&amp;gt; Primary : 分发 Buffer 句柄
 Splitter -up--&amp;gt; Secondary : 分发 Buffer 句柄
+
 @enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;&lt;strong&gt;关键组件说明：&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Android MediaSession 管理与路由机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;&lt;strong&gt;关键组件说明：&lt;/strong&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android MediaSession 管理与路由机制</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/</link>
+      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android.media/</guid>
+      <description>&lt;h2 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;在 Android 系统中，&lt;strong&gt;MediaSessionService&lt;/strong&gt; 负责管理所有的媒体会话，并决定哪个应用应当接收媒体按键事件（如耳机线控的播放/暂停）。这一决策机制并非仅仅依赖应用自身的状态上报，而是深度结合了 &lt;strong&gt;AudioService&lt;/strong&gt; 的物理发声状态，实现了“所听即所得”的控制体验。&lt;/p&gt;
-&lt;h2 id="2-核心组件交互"&gt;2. 核心组件交互&lt;/h2&gt;
+&lt;h2 id=&#34;2-核心组件交互&#34;&gt;2. 核心组件交互&lt;/h2&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;AudioService &amp;amp; AudioPlayerStateMonitor (APSM)&lt;/strong&gt;:
 &lt;ul&gt;
@@ -223,7 +279,7 @@ Splitter -up--&amp;gt; Secondary : 分发 Buffer 句柄
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id="3-mediabuttonsession-的选择逻辑"&gt;3. MediaButtonSession 的选择逻辑&lt;/h2&gt;
+&lt;h2 id=&#34;3-mediabuttonsession-的选择逻辑&#34;&gt;3. MediaButtonSession 的选择逻辑&lt;/h2&gt;
 &lt;p&gt;系统通过 &lt;code&gt;MediaSessionStack.updateMediaButtonSessionIfNeeded()&lt;/code&gt; 方法选择接收按键的目标。选择优先级如下：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;Audio 驱动 (最高优先级)&lt;/strong&gt;:
@@ -239,11 +295,18 @@ Splitter -up--&amp;gt; Secondary : 分发 Buffer 句柄
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ol&gt;
-&lt;h2 id="4-典型场景流程解析"&gt;4. 典型场景流程解析&lt;/h2&gt;
+&lt;h2 id=&#34;4-典型场景流程解析&#34;&gt;4. 典型场景流程解析&lt;/h2&gt;
 &lt;p&gt;以下流程描述了用户从 App A 切换到 App B 并进行播放控制的完整生命周期。
-&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-MediaSessionService-updateMediaSession.png" alt="" /&gt;&lt;/p&gt;</description></item><item><title>Android Widevine DRM 核心架构与核心流程解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</guid><description>&lt;h2 id="1-架构总览-architecture-overview"&gt;1. 架构总览 (Architecture Overview)&lt;/h2&gt;
-&lt;h3 id="11-端到端媒体流转"&gt;1.1 端到端媒体流转&lt;/h3&gt;
-&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/Widevine_architect.png" alt="" /&gt;&lt;/p&gt;
+&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/android-MediaSessionService-updateMediaSession.png&#34; alt=&#34;&#34;  /&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Android Widevine DRM 核心架构与核心流程解析</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</link>
+      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drm/</guid>
+      <description>&lt;h2 id=&#34;1-架构总览-architecture-overview&#34;&gt;1. 架构总览 (Architecture Overview)&lt;/h2&gt;
+&lt;h3 id=&#34;11-端到端媒体流转&#34;&gt;1.1 端到端媒体流转&lt;/h3&gt;
+&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/Widevine_architect.png&#34; alt=&#34;&#34;  /&gt;&lt;/p&gt;
 &lt;p&gt;Widevine DRM（数字版权管理）实现了一套从内容打包、分发到终端设备解密播放的完整安全链路。整个流程涉及以下核心环节：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;内容准备与分发 (Content Preparation &amp;amp; Distribution)&lt;/strong&gt;
@@ -272,24 +335,31 @@ Splitter -up--&amp;gt; Secondary : 分发 Buffer 句柄
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h3 id="12-android-软件栈-software-stack"&gt;1.2 Android 软件栈 (Software Stack)&lt;/h3&gt;
-&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/widevine-software-architect.png" alt="" /&gt;&lt;/p&gt;
-&lt;p&gt;在 Android 系统中，DRM 架构呈现出典型的垂直分层：&lt;/p&gt;</description></item><item><title>AOSP Camera 快门音播放控制机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/camera/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/camera/</guid><description>&lt;h1 id="aosp-camera-快门音播放控制机制-android-16"&gt;AOSP Camera 快门音播放控制机制 (Android 16)&lt;/h1&gt;
+&lt;h3 id=&#34;12-android-软件栈-software-stack&#34;&gt;1.2 Android 软件栈 (Software Stack)&lt;/h3&gt;
+&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/widevine-software-architect.png&#34; alt=&#34;&#34;  /&gt;&lt;/p&gt;
+&lt;p&gt;在 Android 系统中，DRM 架构呈现出典型的垂直分层：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>AOSP Camera 快门音播放控制机制</title>
+      <link>https://ethen-cao.github.io/ethenslab/android-dev/media/camera/</link>
+      <pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/android-dev/media/camera/</guid>
+      <description>&lt;h1 id=&#34;aosp-camera-快门音播放控制机制-android-16&#34;&gt;AOSP Camera 快门音播放控制机制 (Android 16)&lt;/h1&gt;
 &lt;p&gt;在 Android (AOSP) 框架中，相机快门音（Shutter Sound）的播放受到一套严格的合规机制控制，以满足部分地区防偷拍的法律要求。其核心设计思想是将&lt;strong&gt;播放请求&lt;/strong&gt;与&lt;strong&gt;合规裁决&lt;/strong&gt;分离：相机服务层（Native）无条件发起强制播放请求，而音频服务层（Java）结合系统属性、全局配置和动态网络（SIM 卡）环境进行最终裁决与音量路由。&lt;/p&gt;
 &lt;p&gt;本文档基于 Android 16 源码，详述了快门音从资源加载、策略评估到底层硬件输出的完整生命周期。&lt;/p&gt;
-&lt;h2 id="1-资源加载与客制化替换-cameraservice"&gt;1. 资源加载与客制化替换 (CameraService)&lt;/h2&gt;
+&lt;h2 id=&#34;1-资源加载与客制化替换-cameraservice&#34;&gt;1. 资源加载与客制化替换 (CameraService)&lt;/h2&gt;
 &lt;p&gt;相机提示音文件硬编码在底层原生服务中，而非由上层 App 传递。资源加载遵循按需加载（Lazy Loading）和双分区回退（Fallback）机制。&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;核心代码路径&lt;/strong&gt;：&lt;code&gt;frameworks/av/services/camera/libcameraservice/CameraService.cpp&lt;/code&gt;&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// CameraService::loadSoundLocked()
-&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;mSoundPlayer[SOUND_SHUTTER] &lt;span style="color:#f92672"&gt;=&lt;/span&gt; newMediaPlayer(&lt;span style="color:#e6db74"&gt;&amp;#34;/product/media/audio/ui/camera_click.ogg&amp;#34;&lt;/span&gt;);
-&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (mSoundPlayer[SOUND_SHUTTER] &lt;span style="color:#f92672"&gt;==&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;nullptr&lt;/span&gt;) {
-&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; mSoundPlayer[SOUND_SHUTTER] &lt;span style="color:#f92672"&gt;=&lt;/span&gt; newMediaPlayer(&lt;span style="color:#e6db74"&gt;&amp;#34;/system/media/audio/ui/camera_click.ogg&amp;#34;&lt;/span&gt;);
-&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-cpp&#34; data-lang=&#34;cpp&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// CameraService::loadSoundLocked()
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;mSoundPlayer[SOUND_SHUTTER] &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; newMediaPlayer(&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;/product/media/audio/ui/camera_click.ogg&amp;#34;&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; (mSoundPlayer[SOUND_SHUTTER] &lt;span style=&#34;color:#f92672&#34;&gt;==&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;nullptr&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    mSoundPlayer[SOUND_SHUTTER] &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; newMediaPlayer(&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;/system/media/audio/ui/camera_click.ogg&amp;#34;&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
 &lt;p&gt;[!TIP]
 &lt;strong&gt;无侵入替换方案&lt;/strong&gt;：得益于双分区机制，定制开发时无需修改框架源码。只需在 &lt;code&gt;device.mk&lt;/code&gt; 中通过 &lt;code&gt;PRODUCT_COPY_FILES&lt;/code&gt; 将自定义音频文件拷贝至 &lt;code&gt;product&lt;/code&gt; 分区目录（&lt;code&gt;/product/media/audio/ui/camera_click.ogg&lt;/code&gt;），即可实现拦截覆盖。&lt;/p&gt;
 &lt;/blockquote&gt;
-&lt;h2 id="2-动态合规裁决-audioservice"&gt;2. 动态合规裁决 (AudioService)&lt;/h2&gt;
+&lt;h2 id=&#34;2-动态合规裁决-audioservice&#34;&gt;2. 动态合规裁决 (AudioService)&lt;/h2&gt;
 &lt;p&gt;&lt;code&gt;AudioService.java&lt;/code&gt; 是快门音策略的核心枢纽。系统会在初始化阶段以及配置发生变更（如插拔 SIM 卡、网络切换）时，动态评估当前是否必须强制发声。&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;核心代码路径&lt;/strong&gt;：&lt;code&gt;frameworks/base/services/core/java/com/android/server/audio/AudioService.java&lt;/code&gt;&lt;/p&gt;
 &lt;p&gt;触发逻辑 &lt;code&gt;readCameraSoundForced()&lt;/code&gt; 会依次评估以下条件（满足其一即视为强制发声）：&lt;/p&gt;
@@ -298,10 +368,13 @@ Splitter -up--&amp;gt; Secondary : 分发 Buffer 句柄
 &lt;li&gt;框架层全局资源 &lt;code&gt;config_camera_sound_forced&lt;/code&gt; 设为 &lt;code&gt;true&lt;/code&gt;。&lt;/li&gt;
 &lt;li&gt;当前活跃的任意 SIM 卡所在区域配置（基于 MCC/MNC）要求强制发声。&lt;/li&gt;
 &lt;/ol&gt;
-&lt;h3 id="音量与路由策略"&gt;音量与路由策略&lt;/h3&gt;
+&lt;h3 id=&#34;音量与路由策略&#34;&gt;音量与路由策略&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;强制发声生效&lt;/strong&gt;：AudioService 会将 &lt;code&gt;STREAM_SYSTEM_ENFORCED&lt;/code&gt; 类型的音频流移出受静音模式控制的列表，将其音量固定为最大，并通知 &lt;code&gt;AudioPolicyManager&lt;/code&gt; 强行路由至外放扬声器。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;允许静音（未强制）&lt;/strong&gt;：该流类型会被保留在受控列表中。当设备处于静音或震动模式时，该流类型的实际下发音量 (Volume Index) 会被直接置为 0。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id="3-底层防静音拦截-audioflinger"&gt;3. 底层防静音拦截 (AudioFlinger)&lt;/h2&gt;
-&lt;p&gt;相机的播放请求带有特殊的流类型标签 &lt;code&gt;AUDIO_STREAM_ENFORCED_AUDIBLE&lt;/code&gt;。当底层音频引擎识别到该标签时，会严格拒绝执行应用层的物理 Mute 请求。&lt;/p&gt;</description></item></channel></rss>
+&lt;h2 id=&#34;3-底层防静音拦截-audioflinger&#34;&gt;3. 底层防静音拦截 (AudioFlinger)&lt;/h2&gt;
+&lt;p&gt;相机的播放请求带有特殊的流类型标签 &lt;code&gt;AUDIO_STREAM_ENFORCED_AUDIBLE&lt;/code&gt;。当底层音频引擎识别到该标签时，会严格拒绝执行应用层的物理 Mute 请求。&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

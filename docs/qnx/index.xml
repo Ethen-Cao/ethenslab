@@ -1,8 +1,51 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>QNX基础原理 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/qnx/</link><description>Recent content in QNX基础原理 on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Mon, 21 Sep 2026 00:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/qnx/index.xml" rel="self" type="application/rss+xml"/><item><title>Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查</title><link>https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/</link><pubDate>Mon, 21 Sep 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/</guid><description>理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。</description></item><item><title>QNX + Android 加密存储：软件架构、工作原理与 Recovery 故障调试</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx-encrypted-storage-architecture/</link><pubDate>Wed, 16 Sep 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-encrypted-storage-architecture/</guid><description>介绍 QNX + Android 加密存储中 FBE、metadata encryption、HAB、virtio-blk 与 UFS/ICE 的协作，并通过匿名案例分析重启压力测试触发 Recovery 的故障链。</description></item><item><title>通用仪表通信架构：QNX、Android 与外域 ECU 的信号链路</title><link>https://ethen-cao.github.io/ethenslab/qnx/instrument-communication-architecture/</link><pubDate>Wed, 16 Sep 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/instrument-communication-architecture/</guid><description>从进程、动态库、操作系统与域控制器边界出发，介绍仪表应用、通信服务、SOME/IP、MCU 通信服务，以及 Android VHAL、CarService 和 App 的协作关系。</description></item><item><title>QNX RAM Dump 实战：现场获取、离线解析与 ASINFO 崩溃分析</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx-ram-dump-analysis/</link><pubDate>Mon, 14 Sep 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-ram-dump-analysis/</guid><description>区分 QNX 内核转储、SoC 全系统转储与 Guest 转储，理解调用栈和 actives 的来源，并通过匿名案例建立可验证的故障证据链。</description></item><item><title>QNX Screen 图形子系统：对象模型、缓冲区生命周期与显示流程</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen-graphics-subsystem/</link><pubDate>Thu, 27 Aug 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen-graphics-subsystem/</guid><description>&lt;p&gt;本文从应用开发者视角说明 QNX Screen 的对象模型，以及一帧图像从渲染缓冲区进入物理显示器的完整生命周期。内容以 QNX Screen 公共 API 契约为主，同时单独讨论 EGL/OpenGL ES 硬件渲染和 Qualcomm/OpenWFD 类平台的实现边界。&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>QNX基础原理 on Ethen 的实验室</title>
+    <link>https://ethen-cao.github.io/ethenslab/qnx/</link>
+    <description>Recent content in QNX基础原理 on Ethen 的实验室</description>
+    <generator>Hugo</generator>
+    <language>en</language>
+    <lastBuildDate>Mon, 21 Sep 2026 00:00:00 +0800</lastBuildDate>
+    <atom:link href="https://ethen-cao.github.io/ethenslab/qnx/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查</title>
+      <link>https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/</link>
+      <pubDate>Mon, 21 Sep 2026 00:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/</guid>
+      <description>理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。</description>
+    </item>
+    <item>
+      <title>QNX &#43; Android 加密存储：软件架构、工作原理与 Recovery 故障调试</title>
+      <link>https://ethen-cao.github.io/ethenslab/qnx/qnx-encrypted-storage-architecture/</link>
+      <pubDate>Wed, 16 Sep 2026 00:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-encrypted-storage-architecture/</guid>
+      <description>介绍 QNX &#43; Android 加密存储中 FBE、metadata encryption、HAB、virtio-blk 与 UFS/ICE 的协作，并通过匿名案例分析重启压力测试触发 Recovery 的故障链。</description>
+    </item>
+    <item>
+      <title>通用仪表通信架构：QNX、Android 与外域 ECU 的信号链路</title>
+      <link>https://ethen-cao.github.io/ethenslab/qnx/instrument-communication-architecture/</link>
+      <pubDate>Wed, 16 Sep 2026 00:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/qnx/instrument-communication-architecture/</guid>
+      <description>从进程、动态库、操作系统与域控制器边界出发，介绍仪表应用、通信服务、SOME/IP、MCU 通信服务，以及 Android VHAL、CarService 和 App 的协作关系。</description>
+    </item>
+    <item>
+      <title>QNX RAM Dump 实战：现场获取、离线解析与 ASINFO 崩溃分析</title>
+      <link>https://ethen-cao.github.io/ethenslab/qnx/qnx-ram-dump-analysis/</link>
+      <pubDate>Mon, 14 Sep 2026 00:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-ram-dump-analysis/</guid>
+      <description>区分 QNX 内核转储、SoC 全系统转储与 Guest 转储，理解调用栈和 actives 的来源，并通过匿名案例建立可验证的故障证据链。</description>
+    </item>
+    <item>
+      <title>QNX Screen 图形子系统：对象模型、缓冲区生命周期与显示流程</title>
+      <link>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen-graphics-subsystem/</link>
+      <pubDate>Thu, 27 Aug 2026 00:00:00 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/qnx/qnx-screen-graphics-subsystem/</guid>
+      <description>&lt;p&gt;本文从应用开发者视角说明 QNX Screen 的对象模型，以及一帧图像从渲染缓冲区进入物理显示器的完整生命周期。内容以 QNX Screen 公共 API 契约为主，同时单独讨论 EGL/OpenGL ES 硬件渲染和 Qualcomm/OpenWFD 类平台的实现边界。&lt;/p&gt;
 &lt;blockquote&gt;
 &lt;p&gt;&lt;strong&gt;适用范围&lt;/strong&gt;：本文主要依据 QNX SDP 7.1 与 QNX OS 8.0 的 Screen 文档整理。不同 SDP 版本、GPU 厂商和 BSP 可能具有不同的内部实现；使用前应以目标 SDK 的头文件、&lt;code&gt;graphics.conf&lt;/code&gt;、BSP 源码及设备运行态为准。&lt;/p&gt;
 &lt;/blockquote&gt;
-&lt;h2 id="1-核心结论"&gt;1. 核心结论&lt;/h2&gt;
+&lt;h2 id=&#34;1-核心结论&#34;&gt;1. 核心结论&lt;/h2&gt;
 &lt;p&gt;QNX Screen 是客户端/服务端图形框架。应用通过 &lt;code&gt;libscreen&lt;/code&gt; 创建窗口和缓冲区，使用 CPU、Screen blit、OpenGL ES 或 Vulkan 等方式生成内容，再将完成的帧提交给 Screen。Screen 根据窗口状态和平台能力选择合成、复制或硬件直显，最终由显示控制器扫描输出。&lt;/p&gt;
 &lt;p&gt;理解这条链路，需要先区分四件事：&lt;/p&gt;
 &lt;ol&gt;
@@ -11,198 +54,205 @@
 &lt;li&gt;&lt;strong&gt;呈现（presentation）&lt;/strong&gt;：Screen 选择合成或直显策略，使新内容进入显示管线。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;扫描输出（scanout）&lt;/strong&gt;：显示控制器按时序读取最终图像并发送到物理面板。&lt;/li&gt;
 &lt;/ol&gt;
-&lt;figure id="qnx-screen-frame-architecture" style="margin:1.5rem 0"&gt;
-&lt;div style="overflow-x:auto"&gt;
-&lt;svg class="qnx-screen-overview" width="1180" height="940" viewBox="0 0 1180 940" role="img" aria-labelledby="qso-title qso-desc" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,Microsoft YaHei,sans-serif" fill="#0f172a" style="display:block;min-width:900px;max-width:100%;height:auto;margin:0 auto;background:#ffffff;border:1px solid #cbd5e1;border-radius:12px"&gt;
-&lt;title id="qso-title"&gt;QNX Screen 单帧渲染与显示架构&lt;/title&gt;
-&lt;desc id="qso-desc"&gt;图中区分控制流、像素数据流、同步信号和缓冲区释放路径，展示应用、EGL、QNX Screen、GPU 驱动、OpenWFD、显示驱动、共享缓冲区、GPU、显示控制器和物理屏之间的一帧完整交互。&lt;/desc&gt;
-&lt;defs&gt;
-&lt;marker id="qso-arrow-control" viewBox="0 0 10 10" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"&gt;
-&lt;path d="M0,0 L10,5 L0,10 Z" fill="#2563eb"/&gt;
-&lt;/marker&gt;
-&lt;marker id="qso-arrow-data" viewBox="0 0 10 10" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"&gt;
-&lt;path d="M0,0 L10,5 L0,10 Z" fill="#ea580c"/&gt;
-&lt;/marker&gt;
-&lt;marker id="qso-arrow-sync" viewBox="0 0 10 10" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"&gt;
-&lt;path d="M0,0 L10,5 L0,10 Z" fill="#7c3aed"/&gt;
-&lt;/marker&gt;
-&lt;marker id="qso-arrow-release" viewBox="0 0 10 10" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"&gt;
-&lt;path d="M0,0 L10,5 L0,10 Z" fill="#059669"/&gt;
-&lt;/marker&gt;
-&lt;style&gt;
-.qnx-screen-overview text { fill:#0f172a; font-family:Inter,"Noto Sans CJK SC","Microsoft YaHei",sans-serif; }
-.qnx-screen-overview .title { font-size:24px; font-weight:700; }
-.qnx-screen-overview .lane-title { font-size:16px; font-weight:700; }
-.qnx-screen-overview .node { fill:#ffffff; stroke:#475569; stroke-width:1.5; }
-.qnx-screen-overview .node-title { font-size:16px; font-weight:700; }
-.qnx-screen-overview .node-detail { font-size:13px; fill:#475569; }
-.qnx-screen-overview .edge-label { font-size:12.5px; font-weight:600; }
-.qnx-screen-overview .small { font-size:11.5px; fill:#64748b; }
-.qnx-screen-overview .control { fill:none; stroke:#2563eb; stroke-width:2.4; marker-end:url(#qso-arrow-control); }
-.qnx-screen-overview .data { fill:none; stroke:#ea580c; stroke-width:3.2; marker-end:url(#qso-arrow-data); }
-.qnx-screen-overview .sync { fill:none; stroke:#7c3aed; stroke-width:2.2; stroke-dasharray:7 5; marker-end:url(#qso-arrow-sync); }
-.qnx-screen-overview .release { fill:none; stroke:#059669; stroke-width:2.2; stroke-dasharray:4 5; marker-end:url(#qso-arrow-release); }
-.qnx-screen-overview .association { fill:none; stroke:#64748b; stroke-width:1.6; stroke-dasharray:3 4; }
-.qnx-screen-overview .badge { fill:#0f172a; }
-.qnx-screen-overview .badge-text { fill:#ffffff; font-size:11px; font-weight:700; text-anchor:middle; dominant-baseline:middle; }
-&lt;/style&gt;
-&lt;/defs&gt;
-&lt;rect x="0" y="0" width="1180" height="940" rx="12" fill="#ffffff"/&gt;
-&lt;text class="title" x="590" y="34" text-anchor="middle"&gt;QNX Screen：一帧图像的控制流、数据流与同步关系&lt;/text&gt;
-&lt;!-- Legend --&gt;
-&lt;line x1="250" y1="59" x2="300" y2="59" class="control" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;text class="small" x="310" y="63"&gt;控制流 / API 调用&lt;/text&gt;
-&lt;line x1="445" y1="59" x2="495" y2="59" class="data" stroke="#ea580c" stroke-width="3.2" marker-end="url(#qso-arrow-data)"/&gt;
-&lt;text class="small" x="505" y="63"&gt;像素数据流&lt;/text&gt;
-&lt;line x1="625" y1="59" x2="675" y2="59" class="sync" stroke="#7c3aed" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#qso-arrow-sync)"/&gt;
-&lt;text class="small" x="685" y="63"&gt;同步 / 完成信号&lt;/text&gt;
-&lt;line x1="825" y1="59" x2="875" y2="59" class="release" stroke="#059669" stroke-width="2.2" stroke-dasharray="4 5" marker-end="url(#qso-arrow-release)"/&gt;
-&lt;text class="small" x="885" y="63"&gt;Buffer 释放 / 复用&lt;/text&gt;
-&lt;!-- Layer backgrounds --&gt;
-&lt;rect x="20" y="82" width="1140" height="172" rx="10" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.5"/&gt;
-&lt;text class="lane-title" x="38" y="107" fill="#1d4ed8"&gt;① 应用与图形 API（User Space）&lt;/text&gt;
-&lt;rect x="20" y="270" width="1140" height="174" rx="10" fill="#f0fdf4" stroke="#4ade80" stroke-width="1.5"/&gt;
-&lt;text class="lane-title" x="38" y="295" fill="#15803d"&gt;② QNX Screen 窗口系统&lt;/text&gt;
-&lt;rect x="20" y="460" width="1140" height="188" rx="10" fill="#fff7ed" stroke="#fb923c" stroke-width="1.5"/&gt;
-&lt;text class="lane-title" x="38" y="485" fill="#c2410c"&gt;③ 图形与显示服务（平台实现层）&lt;/text&gt;
-&lt;rect x="374" y="493" width="756" height="132" rx="8" fill="none" stroke="#f97316" stroke-width="1.3" stroke-dasharray="7 5"/&gt;
-&lt;text class="small" x="1120" y="511" text-anchor="end"&gt;OpenWFD / IPC / 进程边界由 BSP 决定&lt;/text&gt;
-&lt;rect x="20" y="664" width="1140" height="202" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/&gt;
-&lt;text class="lane-title" x="38" y="689"&gt;④ Hardware 与共享图形内存&lt;/text&gt;
-&lt;!-- Nodes: application layer --&gt;
-&lt;rect class="node" x="70" y="132" width="280" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="210" y="160" text-anchor="middle"&gt;QNX Application&lt;/text&gt;
-&lt;text class="node-detail" x="210" y="183" text-anchor="middle"&gt;HMI / Qt / Native Screen Client&lt;/text&gt;
-&lt;text class="node-detail" x="210" y="201" text-anchor="middle"&gt;窗口配置、业务逻辑、帧生产&lt;/text&gt;
-&lt;rect class="node" x="465" y="132" width="300" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="615" y="160" text-anchor="middle"&gt;Graphics API&lt;/text&gt;
-&lt;text class="node-detail" x="615" y="183" text-anchor="middle"&gt;OpenGL ES + EGL&lt;/text&gt;
-&lt;text class="node-detail" x="615" y="201" text-anchor="middle"&gt;GL 命令、Context、EGLSurface、Swap&lt;/text&gt;
-&lt;rect class="node" x="880" y="132" width="220" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="990" y="160" text-anchor="middle"&gt;Software / Blit&lt;/text&gt;
-&lt;text class="node-detail" x="990" y="183" text-anchor="middle"&gt;CPU 写像素或 Screen blit&lt;/text&gt;
-&lt;text class="node-detail" x="990" y="201" text-anchor="middle"&gt;与 EGL 路径二选一或混合&lt;/text&gt;
-&lt;!-- Nodes: Screen layer --&gt;
-&lt;rect class="node" x="390" y="316" width="400" height="94" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="590" y="345" text-anchor="middle"&gt;QNX Screen（libscreen + Screen Server）&lt;/text&gt;
-&lt;text class="node-detail" x="590" y="369" text-anchor="middle"&gt;Window / Buffer Queue / Scene State&lt;/text&gt;
-&lt;text class="node-detail" x="590" y="390" text-anchor="middle"&gt;可见性、z-order、合成或硬件直显决策&lt;/text&gt;
-&lt;rect class="node" x="865" y="316" width="245" height="94" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="987" y="345" text-anchor="middle"&gt;Present Scheduler&lt;/text&gt;
-&lt;text class="node-detail" x="987" y="369" text-anchor="middle"&gt;Swap Interval / VSYNC&lt;/text&gt;
-&lt;text class="node-detail" x="987" y="390" text-anchor="middle"&gt;选择待显示帧与提交时机&lt;/text&gt;
-&lt;!-- Nodes: implementation layer --&gt;
-&lt;rect class="node" x="75" y="522" width="245" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="197" y="550" text-anchor="middle"&gt;GPU Driver&lt;/text&gt;
-&lt;text class="node-detail" x="197" y="573" text-anchor="middle"&gt;命令队列、内存映射、同步&lt;/text&gt;
-&lt;text class="node-detail" x="197" y="591" text-anchor="middle"&gt;厂商 EGL / GLES 实现&lt;/text&gt;
-&lt;rect class="node" x="405" y="522" width="250" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="530" y="550" text-anchor="middle"&gt;OpenWFD Client&lt;/text&gt;
-&lt;text class="node-detail" x="530" y="573" text-anchor="middle"&gt;Device / Port / Pipeline API&lt;/text&gt;
-&lt;text class="node-detail" x="530" y="591" text-anchor="middle"&gt;平台存在时的显示适配层&lt;/text&gt;
-&lt;rect class="node" x="755" y="522" width="335" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="922" y="550" text-anchor="middle"&gt;OpenWFD Server / Display Driver&lt;/text&gt;
-&lt;text class="node-detail" x="922" y="573" text-anchor="middle"&gt;绑定 Source 与 Pipeline，提交图层状态&lt;/text&gt;
-&lt;text class="node-detail" x="922" y="591" text-anchor="middle"&gt;硬件资源分配、格式/缩放/混合配置&lt;/text&gt;
-&lt;!-- Nodes: hardware/data layer --&gt;
-&lt;rect class="node" x="80" y="724" width="210" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="185" y="754" text-anchor="middle"&gt;GPU&lt;/text&gt;
-&lt;text class="node-detail" x="185" y="778" text-anchor="middle"&gt;执行 shader 与光栅化&lt;/text&gt;
-&lt;text class="node-detail" x="185" y="796" text-anchor="middle"&gt;异步生成像素&lt;/text&gt;
-&lt;rect class="node" x="370" y="714" width="285" height="102" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="512" y="744" text-anchor="middle"&gt;Shared Graphics Buffers&lt;/text&gt;
-&lt;text class="node-detail" x="512" y="768" text-anchor="middle"&gt;screen_buffer_t / EGL Back Buffer&lt;/text&gt;
-&lt;text class="node-detail" x="512" y="789" text-anchor="middle"&gt;双缓冲或三缓冲；保存最终像素&lt;/text&gt;
-&lt;text class="small" x="512" y="806" text-anchor="middle"&gt;分配器、连续性与 DMA 映射由平台决定&lt;/text&gt;
-&lt;rect class="node" x="755" y="724" width="255" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="882" y="754" text-anchor="middle"&gt;Display Controller / DPU&lt;/text&gt;
-&lt;text class="node-detail" x="882" y="778" text-anchor="middle"&gt;Layer Mixer / Overlay / Scanout&lt;/text&gt;
-&lt;text class="node-detail" x="882" y="796" text-anchor="middle"&gt;按显示时序读取像素&lt;/text&gt;
-&lt;rect class="node" x="1050" y="724" width="90" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/&gt;
-&lt;text class="node-title" x="1095" y="754" text-anchor="middle"&gt;Panel&lt;/text&gt;
-&lt;text class="node-detail" x="1095" y="779" text-anchor="middle"&gt;DSI / DP&lt;/text&gt;
-&lt;text class="node-detail" x="1095" y="797" text-anchor="middle"&gt;HDMI&lt;/text&gt;
-&lt;!-- 1: create window and buffers --&gt;
-&lt;path class="control" d="M210 214 C210 270 390 269 445 316" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;circle class="badge" cx="243" cy="250" r="11"/&gt;&lt;text class="badge-text" x="243" y="250"&gt;1&lt;/text&gt;
-&lt;text class="edge-label" x="260" y="246" fill="#2563eb"&gt;创建 Window、设置属性&lt;/text&gt;
-&lt;text class="small" x="260" y="264"&gt;screen_create_window_buffers(n)&lt;/text&gt;
-&lt;!-- 2: return handles --&gt;
-&lt;path class="control" d="M390 345 C320 326 283 272 273 214" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;circle class="badge" cx="322" cy="306" r="11"/&gt;&lt;text class="badge-text" x="322" y="306"&gt;2&lt;/text&gt;
-&lt;text class="edge-label" x="108" y="304" fill="#2563eb"&gt;返回 Window / Buffer Handle&lt;/text&gt;
-&lt;!-- Buffer ownership association --&gt;
-&lt;path class="association" d="M590 410 L590 675 Q590 695 570 714" fill="none" stroke="#64748b" stroke-width="1.6" stroke-dasharray="3 4"/&gt;
-&lt;text class="small" x="600" y="649"&gt;Screen 管理 Window 与 Buffer 的关联&lt;/text&gt;
-&lt;!-- 3: application issues GL calls --&gt;
-&lt;path class="control" d="M350 173 L465 173" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;circle class="badge" cx="385" cy="153" r="11"/&gt;&lt;text class="badge-text" x="385" y="153"&gt;3&lt;/text&gt;
-&lt;text class="edge-label" x="375" y="196" fill="#2563eb"&gt;glDraw* / eglSwapBuffers()&lt;/text&gt;
-&lt;!-- 4: GL/EGL to GPU driver --&gt;
-&lt;path class="control" d="M535 214 C505 385 265 385 218 522" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;circle class="badge" cx="410" cy="358" r="11"/&gt;&lt;text class="badge-text" x="410" y="358"&gt;4&lt;/text&gt;
-&lt;text class="edge-label" x="210" y="438" fill="#2563eb"&gt;提交/刷新 GPU 命令&lt;/text&gt;
-&lt;!-- 5: driver programs GPU --&gt;
-&lt;path class="control" d="M185 604 L185 724" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;circle class="badge" cx="202" cy="648" r="11"/&gt;&lt;text class="badge-text" x="202" y="648"&gt;5&lt;/text&gt;
-&lt;text class="edge-label" x="213" y="683" fill="#2563eb"&gt;执行命令&lt;/text&gt;
-&lt;!-- 6: GPU writes pixels --&gt;
-&lt;path class="data" d="M290 765 L370 765" fill="none" stroke="#ea580c" stroke-width="3.2" marker-end="url(#qso-arrow-data)"/&gt;
-&lt;circle class="badge" cx="330" cy="743" r="11"/&gt;&lt;text class="badge-text" x="330" y="743"&gt;6&lt;/text&gt;
-&lt;text class="edge-label" x="303" y="794" fill="#ea580c"&gt;写入像素&lt;/text&gt;
-&lt;!-- 7A: EGL path posts frame --&gt;
-&lt;path class="control" d="M615 214 L615 316" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;circle class="badge" cx="632" cy="260" r="11"/&gt;&lt;text class="badge-text" x="632" y="260"&gt;7&lt;/text&gt;
-&lt;text class="edge-label" x="648" y="252" fill="#2563eb"&gt;EGL 窗口表面提交&lt;/text&gt;
-&lt;text class="small" x="648" y="270"&gt;eglSwapBuffers()&lt;/text&gt;
-&lt;!-- 7B: software path posts frame --&gt;
-&lt;path class="control" d="M930 214 C915 268 790 278 742 316" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;circle class="badge" cx="849" cy="270" r="11"/&gt;&lt;text class="badge-text" x="849" y="270"&gt;7&lt;/text&gt;
-&lt;text class="edge-label" x="875" y="291" fill="#2563eb"&gt;screen_post_window()&lt;/text&gt;
-&lt;!-- Screen to scheduler --&gt;
-&lt;path class="control" d="M790 363 L865 363" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;text class="small" x="802" y="350"&gt;场景更新 / present 请求&lt;/text&gt;
-&lt;!-- 8: Screen to OpenWFD --&gt;
-&lt;path class="control" d="M530 410 L530 522" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;circle class="badge" cx="547" cy="458" r="11"/&gt;&lt;text class="badge-text" x="547" y="458"&gt;8&lt;/text&gt;
-&lt;text class="edge-label" x="560" y="472" fill="#2563eb"&gt;显示提交&lt;/text&gt;
-&lt;!-- 9: OpenWFD client to server --&gt;
-&lt;path class="control" d="M655 563 L755 563" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;circle class="badge" cx="705" cy="542" r="11"/&gt;&lt;text class="badge-text" x="705" y="542"&gt;9&lt;/text&gt;
-&lt;text class="edge-label" x="675" y="590" fill="#2563eb"&gt;绑定 Source / Pipeline&lt;/text&gt;
-&lt;!-- 10: display service to controller --&gt;
-&lt;path class="control" d="M882 604 L882 724" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/&gt;
-&lt;circle class="badge" cx="899" cy="650" r="11"/&gt;&lt;text class="badge-text" x="899" y="650"&gt;10&lt;/text&gt;
-&lt;text class="edge-label" x="912" y="683" fill="#2563eb"&gt;提交硬件状态&lt;/text&gt;
-&lt;!-- 11: buffer scanout data --&gt;
-&lt;path class="data" d="M655 765 L755 765" fill="none" stroke="#ea580c" stroke-width="3.2" marker-end="url(#qso-arrow-data)"/&gt;
-&lt;circle class="badge" cx="705" cy="743" r="11"/&gt;&lt;text class="badge-text" x="705" y="743"&gt;11&lt;/text&gt;
-&lt;text class="edge-label" x="674" y="794" fill="#ea580c"&gt;读取图层像素&lt;/text&gt;
-&lt;!-- 12: pixel stream to panel --&gt;
-&lt;path class="data" d="M1010 765 L1050 765" fill="none" stroke="#ea580c" stroke-width="3.2" marker-end="url(#qso-arrow-data)"/&gt;
-&lt;circle class="badge" cx="1030" cy="743" r="11"/&gt;&lt;text class="badge-text" x="1030" y="743"&gt;12&lt;/text&gt;
-&lt;text class="edge-label" x="1005" y="827" fill="#ea580c"&gt;扫描输出到物理屏&lt;/text&gt;
-&lt;!-- Synchronization: render complete before consumption --&gt;
-&lt;path class="sync" d="M272 724 C315 655 420 642 486 604" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#qso-arrow-sync)"/&gt;
-&lt;text class="edge-label" x="300" y="640" fill="#7c3aed"&gt;渲染完成 / Acquire Fence&lt;/text&gt;
-&lt;text class="small" x="333" y="657"&gt;具体同步对象由平台决定&lt;/text&gt;
-&lt;!-- Present/release and buffer reuse --&gt;
-&lt;path class="release" d="M1008 724 C1142 687 1138 390 1110 364" fill="none" stroke="#059669" stroke-width="2.2" stroke-dasharray="4 5" marker-end="url(#qso-arrow-release)"/&gt;
-&lt;text class="edge-label" x="1000" y="654" fill="#059669"&gt;Present / Release&lt;/text&gt;
-&lt;path class="release" d="M865 390 C824 432 785 433 742 410" fill="none" stroke="#059669" stroke-width="2.2" stroke-dasharray="4 5" marker-end="url(#qso-arrow-release)"/&gt;
-&lt;path class="release" d="M420 410 C342 435 205 342 197 214" fill="none" stroke="#059669" stroke-width="2.2" stroke-dasharray="4 5" marker-end="url(#qso-arrow-release)"/&gt;
-&lt;text class="edge-label" x="87" y="420" fill="#059669"&gt;Buffer 释放后重新进入可渲染集合&lt;/text&gt;
-&lt;!-- Footer --&gt;
-&lt;rect x="38" y="884" width="1104" height="36" rx="6" fill="#f1f5f9"/&gt;
-&lt;text x="590" y="907" text-anchor="middle" class="node-detail"&gt;步骤 1–2 为初始化；步骤 3–12 为每帧循环。OpenWFD、IPC、Fence 与硬件 Pipeline 均需以目标 BSP 为准。&lt;/text&gt;
+&lt;figure id=&#34;qnx-screen-frame-architecture&#34; style=&#34;margin:1.5rem 0&#34;&gt;
+&lt;div style=&#34;overflow-x:auto&#34;&gt;
+&lt;svg class=&#34;qnx-screen-overview&#34; width=&#34;1180&#34; height=&#34;940&#34; viewBox=&#34;0 0 1180 940&#34; role=&#34;img&#34; aria-labelledby=&#34;qso-title qso-desc&#34; xmlns=&#34;http://www.w3.org/2000/svg&#34; font-family=&#34;Noto Sans CJK SC,Microsoft YaHei,sans-serif&#34; fill=&#34;#0f172a&#34; style=&#34;display:block;min-width:900px;max-width:100%;height:auto;margin:0 auto;background:#ffffff;border:1px solid #cbd5e1;border-radius:12px&#34;&gt;
+  &lt;title id=&#34;qso-title&#34;&gt;QNX Screen 单帧渲染与显示架构&lt;/title&gt;
+  &lt;desc id=&#34;qso-desc&#34;&gt;图中区分控制流、像素数据流、同步信号和缓冲区释放路径，展示应用、EGL、QNX Screen、GPU 驱动、OpenWFD、显示驱动、共享缓冲区、GPU、显示控制器和物理屏之间的一帧完整交互。&lt;/desc&gt;
+  &lt;defs&gt;
+    &lt;marker id=&#34;qso-arrow-control&#34; viewBox=&#34;0 0 10 10&#34; markerWidth=&#34;10&#34; markerHeight=&#34;10&#34; refX=&#34;9&#34; refY=&#34;5&#34; orient=&#34;auto&#34; markerUnits=&#34;userSpaceOnUse&#34;&gt;
+      &lt;path d=&#34;M0,0 L10,5 L0,10 Z&#34; fill=&#34;#2563eb&#34;/&gt;
+    &lt;/marker&gt;
+    &lt;marker id=&#34;qso-arrow-data&#34; viewBox=&#34;0 0 10 10&#34; markerWidth=&#34;10&#34; markerHeight=&#34;10&#34; refX=&#34;9&#34; refY=&#34;5&#34; orient=&#34;auto&#34; markerUnits=&#34;userSpaceOnUse&#34;&gt;
+      &lt;path d=&#34;M0,0 L10,5 L0,10 Z&#34; fill=&#34;#ea580c&#34;/&gt;
+    &lt;/marker&gt;
+    &lt;marker id=&#34;qso-arrow-sync&#34; viewBox=&#34;0 0 10 10&#34; markerWidth=&#34;10&#34; markerHeight=&#34;10&#34; refX=&#34;9&#34; refY=&#34;5&#34; orient=&#34;auto&#34; markerUnits=&#34;userSpaceOnUse&#34;&gt;
+      &lt;path d=&#34;M0,0 L10,5 L0,10 Z&#34; fill=&#34;#7c3aed&#34;/&gt;
+    &lt;/marker&gt;
+    &lt;marker id=&#34;qso-arrow-release&#34; viewBox=&#34;0 0 10 10&#34; markerWidth=&#34;10&#34; markerHeight=&#34;10&#34; refX=&#34;9&#34; refY=&#34;5&#34; orient=&#34;auto&#34; markerUnits=&#34;userSpaceOnUse&#34;&gt;
+      &lt;path d=&#34;M0,0 L10,5 L0,10 Z&#34; fill=&#34;#059669&#34;/&gt;
+    &lt;/marker&gt;
+    &lt;style&gt;
+      .qnx-screen-overview text { fill:#0f172a; font-family:Inter,&#34;Noto Sans CJK SC&#34;,&#34;Microsoft YaHei&#34;,sans-serif; }
+      .qnx-screen-overview .title { font-size:24px; font-weight:700; }
+      .qnx-screen-overview .lane-title { font-size:16px; font-weight:700; }
+      .qnx-screen-overview .node { fill:#ffffff; stroke:#475569; stroke-width:1.5; }
+      .qnx-screen-overview .node-title { font-size:16px; font-weight:700; }
+      .qnx-screen-overview .node-detail { font-size:13px; fill:#475569; }
+      .qnx-screen-overview .edge-label { font-size:12.5px; font-weight:600; }
+      .qnx-screen-overview .small { font-size:11.5px; fill:#64748b; }
+      .qnx-screen-overview .control { fill:none; stroke:#2563eb; stroke-width:2.4; marker-end:url(#qso-arrow-control); }
+      .qnx-screen-overview .data { fill:none; stroke:#ea580c; stroke-width:3.2; marker-end:url(#qso-arrow-data); }
+      .qnx-screen-overview .sync { fill:none; stroke:#7c3aed; stroke-width:2.2; stroke-dasharray:7 5; marker-end:url(#qso-arrow-sync); }
+      .qnx-screen-overview .release { fill:none; stroke:#059669; stroke-width:2.2; stroke-dasharray:4 5; marker-end:url(#qso-arrow-release); }
+      .qnx-screen-overview .association { fill:none; stroke:#64748b; stroke-width:1.6; stroke-dasharray:3 4; }
+      .qnx-screen-overview .badge { fill:#0f172a; }
+      .qnx-screen-overview .badge-text { fill:#ffffff; font-size:11px; font-weight:700; text-anchor:middle; dominant-baseline:middle; }
+    &lt;/style&gt;
+  &lt;/defs&gt;
+  &lt;rect x=&#34;0&#34; y=&#34;0&#34; width=&#34;1180&#34; height=&#34;940&#34; rx=&#34;12&#34; fill=&#34;#ffffff&#34;/&gt;
+  &lt;text class=&#34;title&#34; x=&#34;590&#34; y=&#34;34&#34; text-anchor=&#34;middle&#34;&gt;QNX Screen：一帧图像的控制流、数据流与同步关系&lt;/text&gt;
+  &lt;!-- Legend --&gt;
+  &lt;line x1=&#34;250&#34; y1=&#34;59&#34; x2=&#34;300&#34; y2=&#34;59&#34; class=&#34;control&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;text class=&#34;small&#34; x=&#34;310&#34; y=&#34;63&#34;&gt;控制流 / API 调用&lt;/text&gt;
+  &lt;line x1=&#34;445&#34; y1=&#34;59&#34; x2=&#34;495&#34; y2=&#34;59&#34; class=&#34;data&#34; stroke=&#34;#ea580c&#34; stroke-width=&#34;3.2&#34; marker-end=&#34;url(#qso-arrow-data)&#34;/&gt;
+  &lt;text class=&#34;small&#34; x=&#34;505&#34; y=&#34;63&#34;&gt;像素数据流&lt;/text&gt;
+  &lt;line x1=&#34;625&#34; y1=&#34;59&#34; x2=&#34;675&#34; y2=&#34;59&#34; class=&#34;sync&#34; stroke=&#34;#7c3aed&#34; stroke-width=&#34;2.2&#34; stroke-dasharray=&#34;7 5&#34; marker-end=&#34;url(#qso-arrow-sync)&#34;/&gt;
+  &lt;text class=&#34;small&#34; x=&#34;685&#34; y=&#34;63&#34;&gt;同步 / 完成信号&lt;/text&gt;
+  &lt;line x1=&#34;825&#34; y1=&#34;59&#34; x2=&#34;875&#34; y2=&#34;59&#34; class=&#34;release&#34; stroke=&#34;#059669&#34; stroke-width=&#34;2.2&#34; stroke-dasharray=&#34;4 5&#34; marker-end=&#34;url(#qso-arrow-release)&#34;/&gt;
+  &lt;text class=&#34;small&#34; x=&#34;885&#34; y=&#34;63&#34;&gt;Buffer 释放 / 复用&lt;/text&gt;
+  &lt;!-- Layer backgrounds --&gt;
+  &lt;rect x=&#34;20&#34; y=&#34;82&#34; width=&#34;1140&#34; height=&#34;172&#34; rx=&#34;10&#34; fill=&#34;#eff6ff&#34; stroke=&#34;#60a5fa&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;lane-title&#34; x=&#34;38&#34; y=&#34;107&#34; fill=&#34;#1d4ed8&#34;&gt;① 应用与图形 API（User Space）&lt;/text&gt;
+  &lt;rect x=&#34;20&#34; y=&#34;270&#34; width=&#34;1140&#34; height=&#34;174&#34; rx=&#34;10&#34; fill=&#34;#f0fdf4&#34; stroke=&#34;#4ade80&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;lane-title&#34; x=&#34;38&#34; y=&#34;295&#34; fill=&#34;#15803d&#34;&gt;② QNX Screen 窗口系统&lt;/text&gt;
+  &lt;rect x=&#34;20&#34; y=&#34;460&#34; width=&#34;1140&#34; height=&#34;188&#34; rx=&#34;10&#34; fill=&#34;#fff7ed&#34; stroke=&#34;#fb923c&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;lane-title&#34; x=&#34;38&#34; y=&#34;485&#34; fill=&#34;#c2410c&#34;&gt;③ 图形与显示服务（平台实现层）&lt;/text&gt;
+  &lt;rect x=&#34;374&#34; y=&#34;493&#34; width=&#34;756&#34; height=&#34;132&#34; rx=&#34;8&#34; fill=&#34;none&#34; stroke=&#34;#f97316&#34; stroke-width=&#34;1.3&#34; stroke-dasharray=&#34;7 5&#34;/&gt;
+  &lt;text class=&#34;small&#34; x=&#34;1120&#34; y=&#34;511&#34; text-anchor=&#34;end&#34;&gt;OpenWFD / IPC / 进程边界由 BSP 决定&lt;/text&gt;
+  &lt;rect x=&#34;20&#34; y=&#34;664&#34; width=&#34;1140&#34; height=&#34;202&#34; rx=&#34;10&#34; fill=&#34;#f8fafc&#34; stroke=&#34;#94a3b8&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;lane-title&#34; x=&#34;38&#34; y=&#34;689&#34;&gt;④ Hardware 与共享图形内存&lt;/text&gt;
+  &lt;!-- Nodes: application layer --&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;70&#34; y=&#34;132&#34; width=&#34;280&#34; height=&#34;82&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;210&#34; y=&#34;160&#34; text-anchor=&#34;middle&#34;&gt;QNX Application&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;210&#34; y=&#34;183&#34; text-anchor=&#34;middle&#34;&gt;HMI / Qt / Native Screen Client&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;210&#34; y=&#34;201&#34; text-anchor=&#34;middle&#34;&gt;窗口配置、业务逻辑、帧生产&lt;/text&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;465&#34; y=&#34;132&#34; width=&#34;300&#34; height=&#34;82&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;615&#34; y=&#34;160&#34; text-anchor=&#34;middle&#34;&gt;Graphics API&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;615&#34; y=&#34;183&#34; text-anchor=&#34;middle&#34;&gt;OpenGL ES + EGL&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;615&#34; y=&#34;201&#34; text-anchor=&#34;middle&#34;&gt;GL 命令、Context、EGLSurface、Swap&lt;/text&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;880&#34; y=&#34;132&#34; width=&#34;220&#34; height=&#34;82&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;990&#34; y=&#34;160&#34; text-anchor=&#34;middle&#34;&gt;Software / Blit&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;990&#34; y=&#34;183&#34; text-anchor=&#34;middle&#34;&gt;CPU 写像素或 Screen blit&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;990&#34; y=&#34;201&#34; text-anchor=&#34;middle&#34;&gt;与 EGL 路径二选一或混合&lt;/text&gt;
+  &lt;!-- Nodes: Screen layer --&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;390&#34; y=&#34;316&#34; width=&#34;400&#34; height=&#34;94&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;590&#34; y=&#34;345&#34; text-anchor=&#34;middle&#34;&gt;QNX Screen（libscreen + Screen Server）&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;590&#34; y=&#34;369&#34; text-anchor=&#34;middle&#34;&gt;Window / Buffer Queue / Scene State&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;590&#34; y=&#34;390&#34; text-anchor=&#34;middle&#34;&gt;可见性、z-order、合成或硬件直显决策&lt;/text&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;865&#34; y=&#34;316&#34; width=&#34;245&#34; height=&#34;94&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;987&#34; y=&#34;345&#34; text-anchor=&#34;middle&#34;&gt;Present Scheduler&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;987&#34; y=&#34;369&#34; text-anchor=&#34;middle&#34;&gt;Swap Interval / VSYNC&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;987&#34; y=&#34;390&#34; text-anchor=&#34;middle&#34;&gt;选择待显示帧与提交时机&lt;/text&gt;
+  &lt;!-- Nodes: implementation layer --&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;75&#34; y=&#34;522&#34; width=&#34;245&#34; height=&#34;82&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;197&#34; y=&#34;550&#34; text-anchor=&#34;middle&#34;&gt;GPU Driver&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;197&#34; y=&#34;573&#34; text-anchor=&#34;middle&#34;&gt;命令队列、内存映射、同步&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;197&#34; y=&#34;591&#34; text-anchor=&#34;middle&#34;&gt;厂商 EGL / GLES 实现&lt;/text&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;405&#34; y=&#34;522&#34; width=&#34;250&#34; height=&#34;82&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;530&#34; y=&#34;550&#34; text-anchor=&#34;middle&#34;&gt;OpenWFD Client&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;530&#34; y=&#34;573&#34; text-anchor=&#34;middle&#34;&gt;Device / Port / Pipeline API&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;530&#34; y=&#34;591&#34; text-anchor=&#34;middle&#34;&gt;平台存在时的显示适配层&lt;/text&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;755&#34; y=&#34;522&#34; width=&#34;335&#34; height=&#34;82&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;922&#34; y=&#34;550&#34; text-anchor=&#34;middle&#34;&gt;OpenWFD Server / Display Driver&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;922&#34; y=&#34;573&#34; text-anchor=&#34;middle&#34;&gt;绑定 Source 与 Pipeline，提交图层状态&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;922&#34; y=&#34;591&#34; text-anchor=&#34;middle&#34;&gt;硬件资源分配、格式/缩放/混合配置&lt;/text&gt;
+  &lt;!-- Nodes: hardware/data layer --&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;80&#34; y=&#34;724&#34; width=&#34;210&#34; height=&#34;82&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;185&#34; y=&#34;754&#34; text-anchor=&#34;middle&#34;&gt;GPU&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;185&#34; y=&#34;778&#34; text-anchor=&#34;middle&#34;&gt;执行 shader 与光栅化&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;185&#34; y=&#34;796&#34; text-anchor=&#34;middle&#34;&gt;异步生成像素&lt;/text&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;370&#34; y=&#34;714&#34; width=&#34;285&#34; height=&#34;102&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;512&#34; y=&#34;744&#34; text-anchor=&#34;middle&#34;&gt;Shared Graphics Buffers&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;512&#34; y=&#34;768&#34; text-anchor=&#34;middle&#34;&gt;screen_buffer_t / EGL Back Buffer&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;512&#34; y=&#34;789&#34; text-anchor=&#34;middle&#34;&gt;双缓冲或三缓冲；保存最终像素&lt;/text&gt;
+  &lt;text class=&#34;small&#34; x=&#34;512&#34; y=&#34;806&#34; text-anchor=&#34;middle&#34;&gt;分配器、连续性与 DMA 映射由平台决定&lt;/text&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;755&#34; y=&#34;724&#34; width=&#34;255&#34; height=&#34;82&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;882&#34; y=&#34;754&#34; text-anchor=&#34;middle&#34;&gt;Display Controller / DPU&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;882&#34; y=&#34;778&#34; text-anchor=&#34;middle&#34;&gt;Layer Mixer / Overlay / Scanout&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;882&#34; y=&#34;796&#34; text-anchor=&#34;middle&#34;&gt;按显示时序读取像素&lt;/text&gt;
+  &lt;rect class=&#34;node&#34; x=&#34;1050&#34; y=&#34;724&#34; width=&#34;90&#34; height=&#34;82&#34; rx=&#34;8&#34; fill=&#34;#ffffff&#34; stroke=&#34;#475569&#34; stroke-width=&#34;1.5&#34;/&gt;
+  &lt;text class=&#34;node-title&#34; x=&#34;1095&#34; y=&#34;754&#34; text-anchor=&#34;middle&#34;&gt;Panel&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;1095&#34; y=&#34;779&#34; text-anchor=&#34;middle&#34;&gt;DSI / DP&lt;/text&gt;
+  &lt;text class=&#34;node-detail&#34; x=&#34;1095&#34; y=&#34;797&#34; text-anchor=&#34;middle&#34;&gt;HDMI&lt;/text&gt;
+  &lt;!-- 1: create window and buffers --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M210 214 C210 270 390 269 445 316&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;243&#34; cy=&#34;250&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;243&#34; y=&#34;250&#34;&gt;1&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;260&#34; y=&#34;246&#34; fill=&#34;#2563eb&#34;&gt;创建 Window、设置属性&lt;/text&gt;
+  &lt;text class=&#34;small&#34; x=&#34;260&#34; y=&#34;264&#34;&gt;screen_create_window_buffers(n)&lt;/text&gt;
+  &lt;!-- 2: return handles --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M390 345 C320 326 283 272 273 214&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;322&#34; cy=&#34;306&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;322&#34; y=&#34;306&#34;&gt;2&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;108&#34; y=&#34;304&#34; fill=&#34;#2563eb&#34;&gt;返回 Window / Buffer Handle&lt;/text&gt;
+  &lt;!-- Buffer ownership association --&gt;
+  &lt;path class=&#34;association&#34; d=&#34;M590 410 L590 675 Q590 695 570 714&#34; fill=&#34;none&#34; stroke=&#34;#64748b&#34; stroke-width=&#34;1.6&#34; stroke-dasharray=&#34;3 4&#34;/&gt;
+  &lt;text class=&#34;small&#34; x=&#34;600&#34; y=&#34;649&#34;&gt;Screen 管理 Window 与 Buffer 的关联&lt;/text&gt;
+  &lt;!-- 3: application issues GL calls --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M350 173 L465 173&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;385&#34; cy=&#34;153&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;385&#34; y=&#34;153&#34;&gt;3&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;375&#34; y=&#34;196&#34; fill=&#34;#2563eb&#34;&gt;glDraw* / eglSwapBuffers()&lt;/text&gt;
+  &lt;!-- 4: GL/EGL to GPU driver --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M535 214 C505 385 265 385 218 522&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;410&#34; cy=&#34;358&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;410&#34; y=&#34;358&#34;&gt;4&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;210&#34; y=&#34;438&#34; fill=&#34;#2563eb&#34;&gt;提交/刷新 GPU 命令&lt;/text&gt;
+  &lt;!-- 5: driver programs GPU --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M185 604 L185 724&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;202&#34; cy=&#34;648&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;202&#34; y=&#34;648&#34;&gt;5&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;213&#34; y=&#34;683&#34; fill=&#34;#2563eb&#34;&gt;执行命令&lt;/text&gt;
+  &lt;!-- 6: GPU writes pixels --&gt;
+  &lt;path class=&#34;data&#34; d=&#34;M290 765 L370 765&#34; fill=&#34;none&#34; stroke=&#34;#ea580c&#34; stroke-width=&#34;3.2&#34; marker-end=&#34;url(#qso-arrow-data)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;330&#34; cy=&#34;743&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;330&#34; y=&#34;743&#34;&gt;6&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;303&#34; y=&#34;794&#34; fill=&#34;#ea580c&#34;&gt;写入像素&lt;/text&gt;
+  &lt;!-- 7A: EGL path posts frame --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M615 214 L615 316&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;632&#34; cy=&#34;260&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;632&#34; y=&#34;260&#34;&gt;7&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;648&#34; y=&#34;252&#34; fill=&#34;#2563eb&#34;&gt;EGL 窗口表面提交&lt;/text&gt;
+  &lt;text class=&#34;small&#34; x=&#34;648&#34; y=&#34;270&#34;&gt;eglSwapBuffers()&lt;/text&gt;
+  &lt;!-- 7B: software path posts frame --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M930 214 C915 268 790 278 742 316&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;849&#34; cy=&#34;270&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;849&#34; y=&#34;270&#34;&gt;7&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;875&#34; y=&#34;291&#34; fill=&#34;#2563eb&#34;&gt;screen_post_window()&lt;/text&gt;
+  &lt;!-- Screen to scheduler --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M790 363 L865 363&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;text class=&#34;small&#34; x=&#34;802&#34; y=&#34;350&#34;&gt;场景更新 / present 请求&lt;/text&gt;
+  &lt;!-- 8: Screen to OpenWFD --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M530 410 L530 522&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;547&#34; cy=&#34;458&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;547&#34; y=&#34;458&#34;&gt;8&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;560&#34; y=&#34;472&#34; fill=&#34;#2563eb&#34;&gt;显示提交&lt;/text&gt;
+  &lt;!-- 9: OpenWFD client to server --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M655 563 L755 563&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;705&#34; cy=&#34;542&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;705&#34; y=&#34;542&#34;&gt;9&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;675&#34; y=&#34;590&#34; fill=&#34;#2563eb&#34;&gt;绑定 Source / Pipeline&lt;/text&gt;
+  &lt;!-- 10: display service to controller --&gt;
+  &lt;path class=&#34;control&#34; d=&#34;M882 604 L882 724&#34; fill=&#34;none&#34; stroke=&#34;#2563eb&#34; stroke-width=&#34;2.4&#34; marker-end=&#34;url(#qso-arrow-control)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;899&#34; cy=&#34;650&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;899&#34; y=&#34;650&#34;&gt;10&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;912&#34; y=&#34;683&#34; fill=&#34;#2563eb&#34;&gt;提交硬件状态&lt;/text&gt;
+  &lt;!-- 11: buffer scanout data --&gt;
+  &lt;path class=&#34;data&#34; d=&#34;M655 765 L755 765&#34; fill=&#34;none&#34; stroke=&#34;#ea580c&#34; stroke-width=&#34;3.2&#34; marker-end=&#34;url(#qso-arrow-data)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;705&#34; cy=&#34;743&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;705&#34; y=&#34;743&#34;&gt;11&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;674&#34; y=&#34;794&#34; fill=&#34;#ea580c&#34;&gt;读取图层像素&lt;/text&gt;
+  &lt;!-- 12: pixel stream to panel --&gt;
+  &lt;path class=&#34;data&#34; d=&#34;M1010 765 L1050 765&#34; fill=&#34;none&#34; stroke=&#34;#ea580c&#34; stroke-width=&#34;3.2&#34; marker-end=&#34;url(#qso-arrow-data)&#34;/&gt;
+  &lt;circle class=&#34;badge&#34; cx=&#34;1030&#34; cy=&#34;743&#34; r=&#34;11&#34;/&gt;&lt;text class=&#34;badge-text&#34; x=&#34;1030&#34; y=&#34;743&#34;&gt;12&lt;/text&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;1005&#34; y=&#34;827&#34; fill=&#34;#ea580c&#34;&gt;扫描输出到物理屏&lt;/text&gt;
+  &lt;!-- Synchronization: render complete before consumption --&gt;
+  &lt;path class=&#34;sync&#34; d=&#34;M272 724 C315 655 420 642 486 604&#34; fill=&#34;none&#34; stroke=&#34;#7c3aed&#34; stroke-width=&#34;2.2&#34; stroke-dasharray=&#34;7 5&#34; marker-end=&#34;url(#qso-arrow-sync)&#34;/&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;300&#34; y=&#34;640&#34; fill=&#34;#7c3aed&#34;&gt;渲染完成 / Acquire Fence&lt;/text&gt;
+  &lt;text class=&#34;small&#34; x=&#34;333&#34; y=&#34;657&#34;&gt;具体同步对象由平台决定&lt;/text&gt;
+  &lt;!-- Present/release and buffer reuse --&gt;
+  &lt;path class=&#34;release&#34; d=&#34;M1008 724 C1142 687 1138 390 1110 364&#34; fill=&#34;none&#34; stroke=&#34;#059669&#34; stroke-width=&#34;2.2&#34; stroke-dasharray=&#34;4 5&#34; marker-end=&#34;url(#qso-arrow-release)&#34;/&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;1000&#34; y=&#34;654&#34; fill=&#34;#059669&#34;&gt;Present / Release&lt;/text&gt;
+  &lt;path class=&#34;release&#34; d=&#34;M865 390 C824 432 785 433 742 410&#34; fill=&#34;none&#34; stroke=&#34;#059669&#34; stroke-width=&#34;2.2&#34; stroke-dasharray=&#34;4 5&#34; marker-end=&#34;url(#qso-arrow-release)&#34;/&gt;
+  &lt;path class=&#34;release&#34; d=&#34;M420 410 C342 435 205 342 197 214&#34; fill=&#34;none&#34; stroke=&#34;#059669&#34; stroke-width=&#34;2.2&#34; stroke-dasharray=&#34;4 5&#34; marker-end=&#34;url(#qso-arrow-release)&#34;/&gt;
+  &lt;text class=&#34;edge-label&#34; x=&#34;87&#34; y=&#34;420&#34; fill=&#34;#059669&#34;&gt;Buffer 释放后重新进入可渲染集合&lt;/text&gt;
+  &lt;!-- Footer --&gt;
+  &lt;rect x=&#34;38&#34; y=&#34;884&#34; width=&#34;1104&#34; height=&#34;36&#34; rx=&#34;6&#34; fill=&#34;#f1f5f9&#34;/&gt;
+  &lt;text x=&#34;590&#34; y=&#34;907&#34; text-anchor=&#34;middle&#34; class=&#34;node-detail&#34;&gt;步骤 1–2 为初始化；步骤 3–12 为每帧循环。OpenWFD、IPC、Fence 与硬件 Pipeline 均需以目标 BSP 为准。&lt;/text&gt;
 &lt;/svg&gt;
 &lt;/div&gt;
-&lt;figcaption style="margin-top:.65rem;text-align:center;color:#64748b;font-size:.9rem"&gt;图 1　QNX Screen 单帧总览：蓝色表示 API/控制流，橙色表示真实像素数据流，紫色虚线表示渲染同步，绿色虚线表示显示完成后的 Buffer 释放与复用。&lt;/figcaption&gt;
+&lt;figcaption style=&#34;margin-top:.65rem;text-align:center;color:#64748b;font-size:.9rem&#34;&gt;图 1　QNX Screen 单帧总览：蓝色表示 API/控制流，橙色表示真实像素数据流，紫色虚线表示渲染同步，绿色虚线表示显示完成后的 Buffer 释放与复用。&lt;/figcaption&gt;
 &lt;/figure&gt;
-&lt;p&gt;需要特别注意：&lt;/p&gt;</description></item><item><title>QNX-Android IVI 架构中的 virtio-net 通信</title><link>https://ethen-cao.github.io/ethenslab/qnx/qnx_hypervisor_net/</link><pubDate>Sat, 15 Nov 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qnx_hypervisor_net/</guid><description>&lt;p&gt;本文基于一张 QNX Host + Android guest + Hypervisor + T-Box 的 virtio-net 架构图整理而成，图中展示了从 Android App 到车外 T-Box 的完整网络路径。&lt;/p&gt;
-&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/virtio-net.drawio.png" alt="" /&gt;&lt;/p&gt;
+&lt;p&gt;需要特别注意：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>QNX-Android IVI 架构中的 virtio-net 通信</title>
+      <link>https://ethen-cao.github.io/ethenslab/qnx/qnx_hypervisor_net/</link>
+      <pubDate>Sat, 15 Nov 2025 17:17:50 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/qnx/qnx_hypervisor_net/</guid>
+      <description>&lt;p&gt;本文基于一张 QNX Host + Android guest + Hypervisor + T-Box 的 virtio-net 架构图整理而成，图中展示了从 Android App 到车外 T-Box 的完整网络路径。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://ethen-cao.github.io/ethenslab/images/virtio-net.drawio.png&#34; alt=&#34;&#34;  /&gt;&lt;/p&gt;
 &lt;hr&gt;
-&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+&lt;h2 id=&#34;1-概述&#34;&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;在典型的 QNX-Android 车机（IVI）架构中：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;Android guest&lt;/strong&gt; 负责 UI、应用、车载 App；&lt;/li&gt;
@@ -211,7 +261,7 @@
 &lt;li&gt;&lt;strong&gt;virtio-net&lt;/strong&gt; 提供了一条高性能的“虚拟网线”，把 Android guest 的网络栈接入 QNX Host 的网络栈，再通过物理网卡连到车外 &lt;strong&gt;T-Box / 外部网络&lt;/strong&gt;。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h2 id="2-整体架构总览"&gt;2. 整体架构总览&lt;/h2&gt;
+&lt;h2 id=&#34;2-整体架构总览&#34;&gt;2. 整体架构总览&lt;/h2&gt;
 &lt;p&gt;按图的布局，从右到左是：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;Android guest&lt;/strong&gt;&lt;/li&gt;
@@ -231,18 +281,25 @@
 → QNX Host io-pkt 中的 vdevpeer
 → bridge / route / VLAN
 → 物理网卡驱动
-→ T-Box / 外部网络&lt;/p&gt;</description></item><item><title>build.py 技术原理详解</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid><description>&lt;h2 id="buildpy-技术原理详解"&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
-&lt;h3 id="核心定位声明式构建的执行引擎"&gt;核心定位：声明式构建的执行引擎&lt;/h3&gt;
+→ T-Box / 外部网络&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>build.py 技术原理详解</title>
+      <link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link>
+      <pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid>
+      <description>&lt;h2 id=&#34;buildpy-技术原理详解&#34;&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
+&lt;h3 id=&#34;核心定位声明式构建的执行引擎&#34;&gt;核心定位：声明式构建的执行引擎&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 脚本是高通平台 Meta-Build 系统的核心&lt;strong&gt;自动化执行引擎&lt;/strong&gt;。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的&lt;strong&gt;任务调度器和执行器&lt;/strong&gt;。&lt;/p&gt;
 &lt;p&gt;它的核心设计哲学是&lt;strong&gt;声明式驱动&lt;/strong&gt;：开发者在 &lt;code&gt;contents.xml&lt;/code&gt; 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 &lt;code&gt;build.py&lt;/code&gt; 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h3 id="1-输入-inputs"&gt;1. 输入 (Inputs)&lt;/h3&gt;
+&lt;h3 id=&#34;1-输入-inputs&#34;&gt;1. 输入 (Inputs)&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 的正常运行依赖于以下几类输入：&lt;/p&gt;
-&lt;h4 id="主要输入"&gt;&lt;strong&gt;主要输入&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id=&#34;主要输入&#34;&gt;&lt;strong&gt;主要输入&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;contents.xml&lt;/code&gt;&lt;/strong&gt;: 这是最核心的输入，是整个构建过程的&lt;strong&gt;配置清单和指令集&lt;/strong&gt;。&lt;code&gt;build.py&lt;/code&gt; 的所有行为都由该文件驱动。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id="次要输入"&gt;&lt;strong&gt;次要输入&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id=&#34;次要输入&#34;&gt;&lt;strong&gt;次要输入&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;命令行参数&lt;/strong&gt;: 用户在执行脚本时传入的参数，用于控制脚本的行为模式。
 &lt;ul&gt;
@@ -253,19 +310,19 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id="隐式输入"&gt;&lt;strong&gt;隐式输入&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id=&#34;隐式输入&#34;&gt;&lt;strong&gt;隐式输入&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;各组件的编译产物&lt;/strong&gt;: 脚本运行前，各个独立的软件模块（如 &lt;code&gt;boot_images&lt;/code&gt;, &lt;code&gt;tz_images&lt;/code&gt;, &lt;code&gt;mpss&lt;/code&gt;, &lt;code&gt;apps&lt;/code&gt; 等）必须已经完成各自的编译，并将其产物放置在 &lt;code&gt;contents.xml&lt;/code&gt; 中指定的路径下。&lt;code&gt;build.py&lt;/code&gt; 会去消费这些产物。&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;配置文件&lt;/strong&gt;: 如 &lt;code&gt;partition_la.xml&lt;/code&gt;，它定义了分区布局，是生成 &lt;code&gt;gpt_*.bin&lt;/code&gt; 和 &lt;code&gt;rawprogram.xml&lt;/code&gt; 的输入源。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id="2-输出-outputs"&gt;2. 输出 (Outputs)&lt;/h3&gt;
+&lt;h3 id=&#34;2-输出-outputs&#34;&gt;2. 输出 (Outputs)&lt;/h3&gt;
 &lt;p&gt;脚本成功执行后，会生成一个结构化、可直接用于刷机的软件包。&lt;/p&gt;
-&lt;h4 id="核心产物"&gt;&lt;strong&gt;核心产物&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id=&#34;核心产物&#34;&gt;&lt;strong&gt;核心产物&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;一个&lt;strong&gt;完整的、按产品风味（Flavor）和存储类型（Storage Type）组织的刷机包&lt;/strong&gt;。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id="具体文件清单"&gt;&lt;strong&gt;具体文件清单&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id=&#34;具体文件清单&#34;&gt;&lt;strong&gt;具体文件清单&lt;/strong&gt;&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;刷机指令文件&lt;/strong&gt;:
 &lt;ul&gt;
@@ -299,55 +356,62 @@
 &lt;/li&gt;
 &lt;/ul&gt;
 &lt;hr&gt;
-&lt;h3 id="3-依赖-dependencies"&gt;3. 依赖 (Dependencies)&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 的依赖可以分为四类：&lt;/p&gt;</description></item><item><title>contents.xml 属性与字段说明文档</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</guid><description>&lt;h2 id="contentsxml-属性与字段说明文档"&gt;&lt;code&gt;contents.xml&lt;/code&gt; 属性与字段说明文档&lt;/h2&gt;
-&lt;h3 id="1-文档引言"&gt;1. 文档引言&lt;/h3&gt;
+&lt;h3 id=&#34;3-依赖-dependencies&#34;&gt;3. 依赖 (Dependencies)&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 的依赖可以分为四类：&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>contents.xml 属性与字段说明文档</title>
+      <link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</link>
+      <pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_contents/</guid>
+      <description>&lt;h2 id=&#34;contentsxml-属性与字段说明文档&#34;&gt;&lt;code&gt;contents.xml&lt;/code&gt; 属性与字段说明文档&lt;/h2&gt;
+&lt;h3 id=&#34;1-文档引言&#34;&gt;1. 文档引言&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;contents.xml&lt;/code&gt; 文件是高通（Qualcomm）平台 Meta-Build 系统的核心配置文件。它作为一个&lt;strong&gt;元构建清单 (Meta-Build Manifest)&lt;/strong&gt;，以声明式 XML 的格式，精确定义了一个完整软件包从源代码到最终刷机包的&lt;strong&gt;所有环节&lt;/strong&gt;。&lt;/p&gt;
 &lt;p&gt;本说明文档旨在为开发者提供一份详尽的参考，解释 &lt;code&gt;contents.xml&lt;/code&gt; 文件中各个 XML 标签、属性及字段的含义，帮助开发者理解、调试和定制复杂的构建流程。&lt;/p&gt;
 &lt;hr&gt;
-&lt;h3 id="2-顶层结构标签"&gt;2. 顶层结构标签&lt;/h3&gt;
+&lt;h3 id=&#34;2-顶层结构标签&#34;&gt;2. 顶层结构标签&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;contents.xml&lt;/code&gt; 由多个顶层标签构成，每个标签负责一部分核心功能。&lt;/p&gt;
 &lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th style="text-align: left"&gt;标签&lt;/th&gt;
-&lt;th style="text-align: left"&gt;含义&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;定义产品的不同“风味”或变种。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;提供关于产品的元数据信息。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;定义与分区操作相关的信息。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;builds_flat&amp;gt;&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;&lt;strong&gt;核心部分&lt;/strong&gt;，定义所有独立软件组件的构建信息。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;build_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;（可选）定义构建系统内部使用的工具。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;external_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;声明构建或调试过程中依赖的外部工具。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td style="text-align: left"&gt;&lt;code&gt;&amp;lt;workflow&amp;gt;&lt;/code&gt;&lt;/td&gt;
-&lt;td style="text-align: left"&gt;定义构建完成后的自动化处理与打包流程。&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th style=&#34;text-align: left&#34;&gt;标签&lt;/th&gt;
+					&lt;th style=&#34;text-align: left&#34;&gt;含义&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;定义产品的不同“风味”或变种。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;提供关于产品的元数据信息。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;定义与分区操作相关的信息。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;builds_flat&amp;gt;&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;strong&gt;核心部分&lt;/strong&gt;，定义所有独立软件组件的构建信息。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;build_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;（可选）定义构建系统内部使用的工具。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;external_tools&amp;gt;&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;声明构建或调试过程中依赖的外部工具。&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;&lt;code&gt;&amp;lt;workflow&amp;gt;&lt;/code&gt;&lt;/td&gt;
+					&lt;td style=&#34;text-align: left&#34;&gt;定义构建完成后的自动化处理与打包流程。&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
 &lt;/table&gt;
 &lt;hr&gt;
-&lt;h3 id="3-标签与属性详解"&gt;3. 标签与属性详解&lt;/h3&gt;
-&lt;h4 id="31"&gt;&lt;strong&gt;3.1 &lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;h3 id=&#34;3-标签与属性详解&#34;&gt;3. 标签与属性详解&lt;/h3&gt;
+&lt;h4 id=&#34;31&#34;&gt;&lt;strong&gt;3.1 &lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;此区域用于定义不同的产品形态。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;&amp;lt;product_flavors cmm_pf_var=&amp;quot;...&amp;quot;&amp;gt;&lt;/code&gt;&lt;/strong&gt;
@@ -357,7 +421,7 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id="32"&gt;&lt;strong&gt;3.2 &lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id=&#34;32&#34;&gt;&lt;strong&gt;3.2 &lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;此区域提供构建的元数据信息。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;&amp;lt;chipid flavor=&amp;quot;...&amp;quot; cmm_var=&amp;quot;...&amp;quot;&amp;gt;&lt;/code&gt;&lt;/strong&gt;
@@ -369,13 +433,21 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id="33"&gt;&lt;strong&gt;3.3 &lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
-&lt;p&gt;此区域定义与分区操作相关的信息。&lt;/p&gt;</description></item><item><title>QNX/Android Rawdump 机制完全原理解析</title><link>https://ethen-cao.github.io/ethenslab/qnx/log_collector/</link><pubDate>Thu, 28 Aug 2025 16:25:03 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/log_collector/</guid><description>&lt;p&gt;本文档基于系统源码（QNX/Android/Bootloader）及实际配置分析，详细阐述了智能座舱系统中的内存转储（Crash Dump）机制。&lt;/p&gt;
-&lt;h2 id="1-全系统生命周期与时序总览"&gt;1. 全系统生命周期与时序总览&lt;/h2&gt;
+&lt;h4 id=&#34;33&#34;&gt;&lt;strong&gt;3.3 &lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;p&gt;此区域定义与分区操作相关的信息。&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>QNX/Android Rawdump 机制完全原理解析</title>
+      <link>https://ethen-cao.github.io/ethenslab/qnx/log_collector/</link>
+      <pubDate>Thu, 28 Aug 2025 16:25:03 +0800</pubDate>
+      <guid>https://ethen-cao.github.io/ethenslab/qnx/log_collector/</guid>
+      <description>&lt;p&gt;本文档基于系统源码（QNX/Android/Bootloader）及实际配置分析，详细阐述了智能座舱系统中的内存转储（Crash Dump）机制。&lt;/p&gt;
+&lt;h2 id=&#34;1-全系统生命周期与时序总览&#34;&gt;1. 全系统生命周期与时序总览&lt;/h2&gt;
 &lt;p&gt;此图描述了从系统启动注册、模式配置，到发生崩溃（分两种场景），最后到重启提取的完整闭环流程。&lt;/p&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code class=&#34;language-plantuml&#34; data-lang=&#34;plantuml&#34;&gt;@startuml
 !theme plain
 skinparam responseMessageBelowArrow true
+
 participant &amp;#34;User / Script&amp;#34; as User
 participant &amp;#34;memorydump\n(QNX Daemon)&amp;#34; as MD
 participant &amp;#34;Guest Kernel\n(Android)&amp;#34; as Guest
@@ -385,27 +457,32 @@ participant &amp;#34;Hardware Register\n(Boot MISC / IMEM)&amp;#34; as HW
 participant &amp;#34;Firmware\n(XBL / PBL)&amp;#34; as FW
 participant &amp;#34;Rawdump Partition\n(Storage)&amp;#34; as Disk
 participant &amp;#34;log_collector\n(QNX Daemon)&amp;#34; as LC
+
 == Phase 1: 系统启动与注册 (Registration) ==
 activate MD
 User -&amp;gt; MD: 启动服务
 MD -&amp;gt; SMEM: 初始化 Global TOC (ID 602)
 activate SMEM
 deactivate MD
+
 group Guest 注册 (Android Boot)
-Guest -&amp;gt; Guest: qcom_minidump_init()
-Guest -&amp;gt; SMEM: 注册 Region (dmesg, stack, etc.)
-Guest -&amp;gt; SMEM: 代理注册 ADSP/CDSP Regions
+    Guest -&amp;gt; Guest: qcom_minidump_init()
+    Guest -&amp;gt; SMEM: 注册 Region (dmesg, stack, etc.)
+    Guest -&amp;gt; SMEM: 代理注册 ADSP/CDSP Regions
 end
+
 group Host 注册 (QNX Boot)
-User -&amp;gt; MD: 驱动调用 md_ss_register_region()
-MD -&amp;gt; SMEM: 注册 QNX Regions (Audio Heap, etc.)
+    User -&amp;gt; MD: 驱动调用 md_ss_register_region()
+    MD -&amp;gt; SMEM: 注册 QNX Regions (Audio Heap, etc.)
 end
+
 == Phase 2: 模式配置 (Configuration) ==
 User -&amp;gt; MD: echo &amp;#34;mini_rawdump&amp;#34; &amp;gt; /dev/pdbg/.../dload_mode
 activate MD
 MD -&amp;gt; HW: set_wdog_dload_cookie(MINI_RAWDUMP)
 note right: 在硬件寄存器中插旗，\n告知固件崩溃后执行 Rawdump
 deactivate MD
+
 == Scene A: 在线采集流程 (Online Guest Dump) ==
 note over Guest, LC: 场景：仅 Guest VM 崩溃，Host 正常运行
 Guest -&amp;gt; Guest: Kernel Panic / Watchdog
@@ -421,33 +498,42 @@ note right of Disk: **OTA 分区安全** (未被覆盖)
 LC --&amp;gt; VDEV: 返回成功
 deactivate LC
 deactivate VDEV
+
 == Scene B: 全系统崩溃流程 (System Crash / Rawdump) ==
 note over User, Disk: 场景：Host 崩溃或 Watchdog 触发全系统重启
 User -&amp;gt; User: System Crash / Watchdog Bite
 User -&amp;gt; FW: CPU Reset &amp;amp; Jump to XBL
 activate FW
+
 FW -&amp;gt; HW: 读取 Boot Cookie
 alt Cookie == MINI_RAWDUMP
-FW -&amp;gt; SMEM: 读取 Global TOC &amp;amp; Region List
-loop 遍历所有注册的 Region
-FW -&amp;gt; Disk: 裸写物理内存数据到 Rawdump 分区
-note right of Disk: **OTA 数据被销毁**
+    FW -&amp;gt; SMEM: 读取 Global TOC &amp;amp; Region List
+    loop 遍历所有注册的 Region
+        FW -&amp;gt; Disk: 裸写物理内存数据到 Rawdump 分区
+        note right of Disk: **OTA 数据被销毁**
+    end
 end
-end
+
 FW -&amp;gt; FW: Cold Boot (Reboot OS)
 deactivate FW
+
 == Phase 3: 重启后提取 (Extraction) ==
 activate LC
 LC -&amp;gt; LC: 启动 (main)
 LC -&amp;gt; Disk: fopen(&amp;#34;/dev/disk/rawdump&amp;#34;)
 LC -&amp;gt; Disk: 读取 Header &amp;amp; 校验 Signature (&amp;#34;Raw_Dmp!&amp;#34;)
+
 alt Header 有效 (Previous Crash Found)
-LC -&amp;gt; Disk: 读取所有 Section 数据
-LC -&amp;gt; LC: 写入 /var/log/sbldump.bin
-LC -&amp;gt; Disk: fwrite(ZERO) 清空分区 Header
-note right: 清除标志防止重复提取
+    LC -&amp;gt; Disk: 读取所有 Section 数据
+    LC -&amp;gt; LC: 写入 /var/log/sbldump.bin
+    LC -&amp;gt; Disk: fwrite(ZERO) 清空分区 Header
+    note right: 清除标志防止重复提取
 end
 deactivate LC
+
 @enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;h2 id="2-核心组件架构详解"&gt;2. 核心组件架构详解&lt;/h2&gt;
-&lt;p&gt;整个 Rawdump 机制跨越了 Bootloader、Host OS (QNX)、Guest OS (Android) 和 硬件层。&lt;/p&gt;</description></item></channel></rss>
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;2-核心组件架构详解&#34;&gt;2. 核心组件架构详解&lt;/h2&gt;
+&lt;p&gt;整个 Rawdump 机制跨越了 Bootloader、Host OS (QNX)、Guest OS (Android) 和 硬件层。&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

@@ -1,92 +1,742 @@
-<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查 | Ethen 的实验室</title><meta name=keywords content="QNX,Hypervisor,GPU,HGSL,KGSL,PMEM,Android,故障分析"><meta name=description content="理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。"><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.7d3658a230b9b53c9b5a0e97fffc51585a6e6b9e3743fc0bac7b802ba076ac94.css integrity="sha256-fTZYojC5tTybWg6X//xRWFpua543Q/wLrHuAK6B2rJQ=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查"><meta property="og:description" content="理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。"><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="qnx"><meta property="article:published_time" content="2026-09-21T00:00:00+08:00"><meta property="article:modified_time" content="2026-09-21T00:00:00+08:00"><meta property="article:tag" content="QNX"><meta property="article:tag" content="Hypervisor"><meta property="article:tag" content="GPU"><meta property="article:tag" content="HGSL"><meta property="article:tag" content="KGSL"><meta property="article:tag" content="PMEM"><meta name=twitter:card content="summary"><meta name=twitter:title content="Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查"><meta name=twitter:description content="理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。"><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"QNX基础原理","item":"https://ethen-cao.github.io/ethenslab/qnx/"},{"@type":"ListItem","position":2,"name":"Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查","item":"https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查","name":"Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查","description":"理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。","keywords":["QNX","Hypervisor","GPU","HGSL","KGSL","PMEM","Android","故障分析"],"articleBody":"在 QNX Host 与 Android Guest 共用 GPU 的座舱系统架构中，Android 侧出现的界面黑屏，其根因未必源于 Android 自身的内存枯竭。尽管像素 Buffer 的物理存储可能完全分配在 Guest 侧，但只要触发创建新的 GPU 渲染上下文 (Context)，就必然依赖 Host 侧的底层资源。一旦 Host 侧某个关键的专用内存池耗尽，这种资源匮乏就会沿着跨虚拟机的调用链向上传递，最终导致 Android 渲染进程异常退出。\n本文旨在系统性地剖析 Graphics Hypervisor Architecture 的内存与控制链路，通过还原一次真实的桌面黑屏故障，并结合 pmemtbl_control.txt 快照，建立一套标准化的资源溯源与占用分析方法。\n[!NOTE] 适用范围声明：本文解析基于 Qualcomm GPU 虚拟化架构及特定软件版本的实现。常规、非受保护且无特殊 Heap 属性的 Android Buffer 遵循 Guest 默认分配路径；涉及安全内存 (Secure Memory)、特殊 Heap、以及 Camera/Video 的外部 Buffer，必须独立查证。\n1. 核心架构：GPU 虚拟化与职责划分 该虚拟化架构的核心思想是：将 Android 侧 (Guest) 的 GPU 前端请求，通过 HAB (Hypervisor Access Bus) 安全可靠地透传给 QNX 侧 (Host) 的 GPU 后端执行。理解这套架构的切入点，在于明确以下三大职责的归属：\n物理存储分配：由谁提供真实的物理页面？可能是 Guest 的页分配器，也可能是 QNX 侧的 PMEM 分配器。 GPU 映射与访问控制：由谁建立 GPU 对这些物理页的访问权限？QNX GPU 后端及相关的 SMMU 驱动负责地址的映射管理。 命令提交与执行同步：由谁负责发起和等待完成？Guest 前端与 Host 后端协作，最终将指令投递至底层的同一块物理 GPU。 [!IMPORTANT] “Host 后端能看到一个 Buffer”仅仅意味着 Host 参与了该 Buffer 的映射或管理，不能直接等同于该 Buffer 的物理存储是由 Host 侧内存池分配的。\n1.1 架构拓扑 路径 1：Guest 分配；路径 1.1：跨虚拟机导出与映射；路径 2：Host 分配。 在独立页面查看完整架构图 图中展示了 GPU 虚拟化环境下的逻辑交互关系，并非完整的显示合成流。需注意，图中的 KGSL 模块并非直接运行在 QNX 微内核空间，现场实际存在独立的 kgsl 用户态服务进程。\n1.2 核心模块职责矩阵 模块组件 架构职责 LA GVM Linux/Android Guest 系统，承载 Launcher、SystemUI、App 及其图形渲染前端。 QNX PVM Host 侧特权执行环境，不仅运行本地图形客户端，还承载着共享 GPU 的后端核心服务。 OpenGL ES / EGL GL 负责渲染状态与绘图命令的管理；EGL 负责 Context 与 Surface 的平台原生连接。 GSL Client / HGSL Guest 侧图形系统层及虚拟化前端，负责封装 GPU 操作、内存导出协议和 Context 请求。 KHAB / HAB / UHAB 跨虚拟机通信与内存共享的基础设施，负责高速传输请求、句柄及附带数据。 GSL HAB Server 运行于 Host 上接收 Guest 图形 RPC 的服务端代理，负责将请求路由给后端。 GSL / KGSL (RGS) GPU 后端资源核心管理者，掌控上下文、内存描述符、SMMU 映射、命令提交与时序同步。 Kernel / SMMU 负责建立和约束设备侧 (GPU) 的地址访问视图。 [!WARNING] Guest sysram、QNX /sysram 与 QNX /mm_dma 是截然不同的内存归属对象。虽然它们在硬件层面都位于同一块物理 DDR 内，但在架构排查时，绝不能混淆统计口径。\n2. 内存与控制路径解析 2.1 路径 1：Guest 分配普通图形内存 对于常规的 Android GraphicBuffer，Gralloc 通常将其标记为 qcom,system（Legacy 分支映射至 ION_SYSTEM_HEAP_ID）。这种 System Heap 优先消耗 Guest 系统本身的页池，当资源不足时才会向下调用 Android 内核的 alloc_pages()。\nAndroid GraphicBuffer / Gralloc → 选用 qcom,system / ION_SYSTEM_HEAP_ID → 消耗 Guest System Heap 页池 / 调用 alloc_pages() → 返回 DMA-BUF / fd HGSL 自行分配普通图形内存时，同样遵循 Guest 分配路径：\nhgsl_ioctl_mem_alloc() → hgsl_sharedmem_alloc() → hgsl_alloc_pages() / alloc_pages() → hgsl_hyp_mem_map_smmu() 在此路径下，物理页面完全从属于 LA Guest OS memory。\n2.2 路径 1.1：内存导出与 GPU 访问映射 Guest 虽然分配了物理内存，但这块内存要被底层物理 GPU 访问，必须通过 Host 后端在 SMMU 中建立映射。该路径的核心是将已有 Buffer 的描述信息（fd, size, offset）通过 HAB 总线导出。\nGuest 已持有 DMA-BUF / fd → HGSL 封装导出请求 → habmm_export() 发起跨域共享 → KHAB → Hypervisor → Host HAB / GSL HAB Server 接收请求 → RPC_MEMORY_MAP_EXT_FD_PURE → Host 后端指令 SMMU 建立 GPU 虚拟地址映射 这里传递的仅仅是共享与映射关系，Host 端绝不会为此再申请一份同等大小的像素存储。这就解释了排查中的两个核心现象：\nAndroid 的 Buffer 记录会出现在 Host 后端的客户端明细中，但这绝对不代表它是由 QNX /mm_dma 分配的。 同一份物理内存可能被 SurfaceFlinger、Launcher 甚至硬件合成器同时引用。若简单相加各个客户端的视角大小，必然导致统计严重失真。 2.3 路径 2：Host 本地 PMEM 分配 对于 QNX 本地的图形客户端，以及 GPU 后端（KGSL）在管理工作时自身必需的资源，分配请求将走向 Host 侧路径：\nQNX 侧本地客户端 / GPU 后端内部需求 → GSL / KGSL → PMEM Allocator 模块 → 依据 PMEM ID、Flags、VMID 与平台配置解析策略 → 从 Typed Memory / 普通物理页 / Carveout 提取内存 [!TIP] 概念澄清：PMEM 是一种分配与管理机制，而 /mm_dma 仅仅是该平台上存在的一个具体内存池。不能将所有的 PMEM 请求或所有的后端记录一概而论。在实际故障分析中，必须查阅日志明确当前失败申请的目标对象。\n2.4 Context 创建、命令提交与同步 除了像素数据 Buffer 外，GPU 还需要维持一份上下文状态 (Context)、命令队列及同步对象。当 Android 层发起 EGL Context 创建时，驱动会向 Host 侧发起跨域请求：\neglCreateContext() → Guest 侧 EGL / GSL 驱动打包请求 → HGSL_IOCTL_CTXT_CREATE → hgsl_hyp_ctxt_create_v1() (或 legacy 路径) → RPC_CONTEXT_CREATE → Host 侧执行 rgs_context_create_common() → 后端从本地池分配 Context 所需资源 Context 建立完毕后，Guest 的渲染命令及其资源引用进入提交流水线，由 Host GPU 后端统筹调度执行。\n3. 跨域资源依赖与耗尽连锁反应 基于上述架构，我们就能理解：一次成功的跨域渲染操作，往往强依赖于多个完全独立的资源域。\n资源类别 架构归属 是否属于像素存储范畴 常规 GraphicBuffer / HGSL 内存 LA Guest 分配器 是（承载实际画面像素） 跨域导出、导入及 GPU 地址映射 Guest 与 Host 协同维护 否（仅代表访问权限与映射表） GPU 后端 Context Records QNX 侧 /mm_dma 内存池 否（属于后端管理上下文资源） Context 队列、时间戳缓冲管理 按具体 FE/BE 分支策略分配 否（需要独立核算） 因此，哪怕 Guest 端拥有充沛的空闲内存页面，哪怕旧有的纹理完全可以正常访问，只要新建 Context 时宿主侧 (Host) 的专属管理池资源耗尽，该次渲染启动依然会遭遇滑铁卢。\n3.1 Context 的真实存储开销 在一次典型的分配失败现场中，日志清晰地指明了 QNX 后端的 Context Records 路径正试图请求 0x30000 (192 KiB) 的空间。\n提取本地 GSLKernel.so 的机器码进行逆向印证：\n0x1883c: mov x0, #196608 // 预装入此次分配的大小参数 (192 KiB) 0x18844: bl 0x339c8 // 跳转进入 PMEM 分配器封装 0x1884c: cbnz w0, 0x188f0 // 捕获非零返回码，跳转错误分支 而 Android HGSL 的源码侧还揭示了其他潜在开销（如 Shadow Timestamp 缓冲、Context Doorbell Queue 等）。这警示我们，Context 的开销并不是一个静态常量，不同驱动版本和队列模型下的资源消耗存在波动，且各部分的内存池归属也不尽相同。\n3.2 区分全局空闲与池级空闲 排查内存耗尽时，必须区分整机 RAM 剩余量与专属内存池的剩余量。即使系统级统计显示尚有 1.5 GiB 的空闲，但特定的 /mm_dma 内存池在连续或非连续块上的可分配余量极有可能已经归零。 因此，mmap64(sz=0x30000, non-contig) 宣告失败并抛出池容量枯竭是完全合理的底层行为，不能用“系统还有很多内存”来轻易否定。\n4. 故障还原：黑屏链路与错误传播机制 在一场真实的桌面黑屏故障中，一条完整的因果错误链被清晰地记录了下来：\nQNX /mm_dma 内存池无可用额度 ↓ GPU 后端试图申请 192 KiB Context Records 遭拒 ↓ RPC_CONTEXT_CREATE 跨域应答失败 ↓ Android EGL 返回 EGL_BAD_ALLOC 错误 ↓ Android HWUI 触发致命异常 (Fatal / Abort) ↓ com.tuanjie.voyahrenderservice 渲染进程非正常退出 ↓ Launcher 监听到渲染服务断连、SurfaceTexture 被强制销毁 ↓ 桌面 UI 组件丢失画面载体，陷入黑屏 4.1 QNX：物理资源分配防线的崩溃 提取关键的 QNX 侧现场日志：\n15:15:27.063 PMEM: mmap64(sz=0x30000,non-contig) id=PMEM_GRAPHICS_FRAMEBUFFER_ID fd=13(\"/mm_dma\"), err=Not enough memory 15:15:27.063 Free memory: 1599740 KB 15:15:27.063 info(/mm_dma): contig len=0 KB 15:15:27.063 info(/mm_dma): non-contig len=0 KB 15:15:27.063 rgs_context_create_common[785]: alloc_user_ctxt_records() FAILED, status=-4 15:15:27.066 [ahrenderservice|7069846|2]: RPC Fn 21 ('rpc_context_create') failed ret -1 日志证明：池名匹配 (/mm_dma)、分配尺寸匹配 (0x30000)、连续与非连续碎片耗尽。此处的 7069846 是后端侧虚拟化客户端 ID，绝非 Android 侧真实的 PID。\n4.2 Android：从分配异常到进程自杀 接收到跨域的失败应答后，Android 侧随即发生雪崩：\n15:15:27.072 3383 31702 Adreno-GSL_RPC: HGSL_IOCTL_CTXT_CREATE failed 15:15:27.073 3383 31702 OpenGLRenderer: Failed to create context, error = EGL_BAD_ALLOC 15:15:27.424 3383 31702 libc: Fatal signal 6 (SIGABRT), tid 31702 (RenderThread) 审查 HWUI 中的 EglManager::createContext() 机制，其对 EGL 失败配置了刚性的拦截策略：\nLOG_ALWAYS_FATAL_IF( mEglContext == EGL_NO_CONTEXT, \"Failed to create context, error = %s\", eglErrorString()); 这表明，并非“EGL 报错本身会杀进程”，而是高层框架 HWUI 判定 Context 缺失属于无法挽回的重症，主动通过 abort 终止了整个渲染进程。\n5. PMEM 资源溯源与快照分析方法 确认了 /mm_dma 发生 OOM，下一步则是精准定位资源的“持仓大户”。对于 GPU 资源，QNX 标准的系统内存分析工具只能将账目粗略算在 kgsl 进程名下，此时必须依赖驱动级的内部调试表盘 pmemtbl。\n5.1 捕获排查快照 在拥有较高系统权限的 QNX 控制台中触发快照转储：\necho pmemtbl \u003e /dev/kgsl-control 快照文件将安全落地至 QNX 文件系统：/var/log/pmemtbl_control.txt。\n为了构建绝对严谨的时间横断面证据链，建议执行以下标准作业组合指令：\n# 1. 抓取 QNX 侧各内存池的物理映射范围与当前水位 pidin syspage=asinfo showmem -t mm_dma # 2. 强制触发 GPU 后端客户端明细落盘 echo pmemtbl \u003e /dev/kgsl-control 5.2 多维统计口径辨析 快照文件的顶部记录了总览信息：\npmem table dump: total entries=21914, total size alloc'd=997956712(0x3b7b9c68), time=172026640.00ms RGS release: 0x74725000, GMU FW release: 0x30020006 随后输出按客户端聚合的宏观账单：\nindex process name host pid total size(bytes) peak size(bytes) 34 ClusterLVGL 979677219 943304784 943304784 21 ahrenderservice 11387026 621998160 623046736 在阅读此报告时，必须牢记三者不可混用：\nshowmem 池级统计：提供指定 /mm_dma 的确切物理容量使用率。 全局头部 total size alloc'd：表征底层驱动在该统计口径下的账面划拨总量。 客户端明细相加总和：该数值通常会大大多于全局 Alloc 量，这是因为其包含了大量从 Guest 映射过来的、甚至在多客户端间被重复引用的共享 Buffer。决不能将某客户端持有的总量直接等价于其对 /mm_dma 的独占消耗。 5.3 快照字段释义与高阶过滤 在快照的最底层明细中，包含了单笔资源的具体信息：\n关键字段 排查价值与应用禁忌 tbl[index] 直接关联至前文的客户端宏观账单，比短缺的进程名更精确可靠。 size 当前记录在案的字节数，请注意一笔记录不绝对对应上层的一个完整的纹理对象。 va / uva 位于不同域的虚拟地址游标，不具备推导物理池归属的证据效力。 pa 物理地址字段。当 PA 为 0 时并非意味着没有物理内存，而是该层级暂未记录。但通过非零 PA 的筛选，配合 asinfo 地址区间过滤，是逼近物理归属真相的最强手段。 da 设备地址视图，专供 GPU 侧定位，不应与 CPU 物理地址混淆。 pid GPU 后端内部的逻辑追踪号。 usage / info 提供资源分类的黄金线索，如 TEXTUR (纹理)、COMMAND (指令环)、ARRAY 等。 排查总结：要证实某进程掏空了特定的 /mm_dma，单凭一份表格是不够的。必须将调用栈、运行时的 asinfo 物理段范围、池级水位监控以及非零 PA 的精确过滤数据形成证据闭环。\n","wordCount":"822","inLanguage":"en","datePublished":"2026-09-21T00:00:00+08:00","dateModified":"2026-09-21T00:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=header-nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle class=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
-<svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-<svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu class=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><nav class=breadcrumbs role=navigation aria-label=Breadcrumb><a href=/ethenslab/>Home</a>
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
-<a href=/ethenslab/qnx/>QNX基础原理</a>
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg></nav><h1 class="post-title entry-hint-parent">Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查</h1><div class=post-description>理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。</div><div class=post-meta><span title='2026-09-21 00:00:00 +0800 CST'>September 21, 2026</span>&nbsp;·&nbsp;<span>4 min</span>&nbsp;·&nbsp;<span>822 words</span></div></header><details class=toc open><summary accesskey=c title="(Alt + C)"><span class=title>Table of Contents</span></summary><div class=inner><ul><li><a href=#1-%e6%a0%b8%e5%bf%83%e6%9e%b6%e6%9e%84gpu-%e8%99%9a%e6%8b%9f%e5%8c%96%e4%b8%8e%e8%81%8c%e8%b4%a3%e5%88%92%e5%88%86 aria-label="1. 核心架构：GPU 虚拟化与职责划分">1. 核心架构：GPU 虚拟化与职责划分</a><ul><li><a href=#11-%e6%9e%b6%e6%9e%84%e6%8b%93%e6%89%91 aria-label="1.1 架构拓扑">1.1 架构拓扑</a></li><li><a href=#12-%e6%a0%b8%e5%bf%83%e6%a8%a1%e5%9d%97%e8%81%8c%e8%b4%a3%e7%9f%a9%e9%98%b5 aria-label="1.2 核心模块职责矩阵">1.2 核心模块职责矩阵</a></li></ul></li><li><a href=#2-%e5%86%85%e5%ad%98%e4%b8%8e%e6%8e%a7%e5%88%b6%e8%b7%af%e5%be%84%e8%a7%a3%e6%9e%90 aria-label="2. 内存与控制路径解析">2. 内存与控制路径解析</a><ul><li><a href=#21-%e8%b7%af%e5%be%84-1guest-%e5%88%86%e9%85%8d%e6%99%ae%e9%80%9a%e5%9b%be%e5%bd%a2%e5%86%85%e5%ad%98 aria-label="2.1 路径 1：Guest 分配普通图形内存">2.1 路径 1：Guest 分配普通图形内存</a></li><li><a href=#22-%e8%b7%af%e5%be%84-11%e5%86%85%e5%ad%98%e5%af%bc%e5%87%ba%e4%b8%8e-gpu-%e8%ae%bf%e9%97%ae%e6%98%a0%e5%b0%84 aria-label="2.2 路径 1.1：内存导出与 GPU 访问映射">2.2 路径 1.1：内存导出与 GPU 访问映射</a></li><li><a href=#23-%e8%b7%af%e5%be%84-2host-%e6%9c%ac%e5%9c%b0-pmem-%e5%88%86%e9%85%8d aria-label="2.3 路径 2：Host 本地 PMEM 分配">2.3 路径 2：Host 本地 PMEM 分配</a></li><li><a href=#24-context-%e5%88%9b%e5%bb%ba%e5%91%bd%e4%bb%a4%e6%8f%90%e4%ba%a4%e4%b8%8e%e5%90%8c%e6%ad%a5 aria-label="2.4 Context 创建、命令提交与同步">2.4 Context 创建、命令提交与同步</a></li></ul></li><li><a href=#3-%e8%b7%a8%e5%9f%9f%e8%b5%84%e6%ba%90%e4%be%9d%e8%b5%96%e4%b8%8e%e8%80%97%e5%b0%bd%e8%bf%9e%e9%94%81%e5%8f%8d%e5%ba%94 aria-label="3. 跨域资源依赖与耗尽连锁反应">3. 跨域资源依赖与耗尽连锁反应</a><ul><li><a href=#31-context-%e7%9a%84%e7%9c%9f%e5%ae%9e%e5%ad%98%e5%82%a8%e5%bc%80%e9%94%80 aria-label="3.1 Context 的真实存储开销">3.1 Context 的真实存储开销</a></li><li><a href=#32-%e5%8c%ba%e5%88%86%e5%85%a8%e5%b1%80%e7%a9%ba%e9%97%b2%e4%b8%8e%e6%b1%a0%e7%ba%a7%e7%a9%ba%e9%97%b2 aria-label="3.2 区分全局空闲与池级空闲">3.2 区分全局空闲与池级空闲</a></li></ul></li><li><a href=#4-%e6%95%85%e9%9a%9c%e8%bf%98%e5%8e%9f%e9%bb%91%e5%b1%8f%e9%93%be%e8%b7%af%e4%b8%8e%e9%94%99%e8%af%af%e4%bc%a0%e6%92%ad%e6%9c%ba%e5%88%b6 aria-label="4. 故障还原：黑屏链路与错误传播机制">4. 故障还原：黑屏链路与错误传播机制</a><ul><li><a href=#41-qnx%e7%89%a9%e7%90%86%e8%b5%84%e6%ba%90%e5%88%86%e9%85%8d%e9%98%b2%e7%ba%bf%e7%9a%84%e5%b4%a9%e6%ba%83 aria-label="4.1 QNX：物理资源分配防线的崩溃">4.1 QNX：物理资源分配防线的崩溃</a></li><li><a href=#42-android%e4%bb%8e%e5%88%86%e9%85%8d%e5%bc%82%e5%b8%b8%e5%88%b0%e8%bf%9b%e7%a8%8b%e8%87%aa%e6%9d%80 aria-label="4.2 Android：从分配异常到进程自杀">4.2 Android：从分配异常到进程自杀</a></li></ul></li><li><a href=#5-pmem-%e8%b5%84%e6%ba%90%e6%ba%af%e6%ba%90%e4%b8%8e%e5%bf%ab%e7%85%a7%e5%88%86%e6%9e%90%e6%96%b9%e6%b3%95 aria-label="5. PMEM 资源溯源与快照分析方法">5. PMEM 资源溯源与快照分析方法</a><ul><li><a href=#51-%e6%8d%95%e8%8e%b7%e6%8e%92%e6%9f%a5%e5%bf%ab%e7%85%a7 aria-label="5.1 捕获排查快照">5.1 捕获排查快照</a></li><li><a href=#52-%e5%a4%9a%e7%bb%b4%e7%bb%9f%e8%ae%a1%e5%8f%a3%e5%be%84%e8%be%a8%e6%9e%90 aria-label="5.2 多维统计口径辨析">5.2 多维统计口径辨析</a></li><li><a href=#53-%e5%bf%ab%e7%85%a7%e5%ad%97%e6%ae%b5%e9%87%8a%e4%b9%89%e4%b8%8e%e9%ab%98%e9%98%b6%e8%bf%87%e6%bb%a4 aria-label="5.3 快照字段释义与高阶过滤">5.3 快照字段释义与高阶过滤</a></li></ul></li></ul></div></details><div class="post-content md-content"><p>在 QNX Host 与 Android Guest 共用 GPU 的座舱系统架构中，Android 侧出现的界面黑屏，其根因未必源于 Android 自身的内存枯竭。尽管像素 Buffer 的物理存储可能完全分配在 Guest 侧，但只要触发创建新的 GPU 渲染上下文 (Context)，就必然依赖 Host 侧的底层资源。一旦 Host 侧某个关键的专用内存池耗尽，这种资源匮乏就会沿着跨虚拟机的调用链向上传递，最终导致 Android 渲染进程异常退出。</p><p>本文旨在系统性地剖析 Graphics Hypervisor Architecture 的内存与控制链路，通过还原一次真实的桌面黑屏故障，并结合 <code>pmemtbl_control.txt</code> 快照，建立一套标准化的资源溯源与占用分析方法。</p><blockquote><p>[!NOTE]
-<strong>适用范围声明</strong>：本文解析基于 Qualcomm GPU 虚拟化架构及特定软件版本的实现。常规、非受保护且无特殊 Heap 属性的 Android Buffer 遵循 Guest 默认分配路径；涉及安全内存 (Secure Memory)、特殊 Heap、以及 Camera/Video 的外部 Buffer，必须独立查证。</p></blockquote><h2 id=1-核心架构gpu-虚拟化与职责划分>1. 核心架构：GPU 虚拟化与职责划分<a hidden class=anchor aria-hidden=true href=#1-核心架构gpu-虚拟化与职责划分>#</a></h2><p>该虚拟化架构的核心思想是：将 Android 侧 (Guest) 的 GPU 前端请求，通过 HAB (Hypervisor Access Bus) 安全可靠地透传给 QNX 侧 (Host) 的 GPU 后端执行。理解这套架构的切入点，在于明确以下三大职责的归属：</p><ol><li><strong>物理存储分配</strong>：由谁提供真实的物理页面？可能是 Guest 的页分配器，也可能是 QNX 侧的 PMEM 分配器。</li><li><strong>GPU 映射与访问控制</strong>：由谁建立 GPU 对这些物理页的访问权限？QNX GPU 后端及相关的 SMMU 驱动负责地址的映射管理。</li><li><strong>命令提交与执行同步</strong>：由谁负责发起和等待完成？Guest 前端与 Host 后端协作，最终将指令投递至底层的同一块物理 GPU。</li></ol><blockquote><p>[!IMPORTANT]
-“Host 后端能看到一个 Buffer”仅仅意味着 Host 参与了该 Buffer 的映射或管理，<strong>不能直接等同于该 Buffer 的物理存储是由 Host 侧内存池分配的</strong>。</p></blockquote><h3 id=11-架构拓扑>1.1 架构拓扑<a hidden class=anchor aria-hidden=true href=#11-架构拓扑>#</a></h3><style>.gha-figure{width:min(1600px,calc(100vw - 48px));position:relative;left:50%;transform:translateX(-50%);margin:28px 0}.gha-figure iframe{display:block;width:100%;height:auto;aspect-ratio:2048/1120;border:1px solid #cbd5e1;border-radius:8px;background:#fff}.gha-figure figcaption{font-size:14px;line-height:1.7;color:var(--secondary);margin-top:10px;text-align:center}@media(max-width:720px){.gha-figure{width:100%;left:auto;transform:none}.gha-figure iframe{aspect-ratio:auto;height:330px}}</style><figure class=gha-figure><iframe src=../../../static/diagrams/graphics-hypervisor-architecture.html title="Graphics Hypervisor Architecture 架构图" loading=lazy></iframe><figcaption>路径 1：Guest 分配；路径 1.1：跨虚拟机导出与映射；路径 2：Host 分配。</figcaption></figure><p><a href=/ethenslab/diagrams/graphics-hypervisor-architecture.html>在独立页面查看完整架构图</a></p><p>图中展示了 GPU 虚拟化环境下的逻辑交互关系，并非完整的显示合成流。需注意，图中的 KGSL 模块并非直接运行在 QNX 微内核空间，现场实际存在独立的 <code>kgsl</code> 用户态服务进程。</p><h3 id=12-核心模块职责矩阵>1.2 核心模块职责矩阵<a hidden class=anchor aria-hidden=true href=#12-核心模块职责矩阵>#</a></h3><table><thead><tr><th>模块组件</th><th>架构职责</th></tr></thead><tbody><tr><td><strong>LA GVM</strong></td><td>Linux/Android Guest 系统，承载 Launcher、SystemUI、App 及其图形渲染前端。</td></tr><tr><td><strong>QNX PVM</strong></td><td>Host 侧特权执行环境，不仅运行本地图形客户端，还承载着共享 GPU 的后端核心服务。</td></tr><tr><td><strong>OpenGL ES / EGL</strong></td><td>GL 负责渲染状态与绘图命令的管理；EGL 负责 Context 与 Surface 的平台原生连接。</td></tr><tr><td><strong>GSL Client / HGSL</strong></td><td>Guest 侧图形系统层及虚拟化前端，负责封装 GPU 操作、内存导出协议和 Context 请求。</td></tr><tr><td><strong>KHAB / HAB / UHAB</strong></td><td>跨虚拟机通信与内存共享的基础设施，负责高速传输请求、句柄及附带数据。</td></tr><tr><td><strong>GSL HAB Server</strong></td><td>运行于 Host 上接收 Guest 图形 RPC 的服务端代理，负责将请求路由给后端。</td></tr><tr><td><strong>GSL / KGSL (RGS)</strong></td><td>GPU 后端资源核心管理者，掌控上下文、内存描述符、SMMU 映射、命令提交与时序同步。</td></tr><tr><td><strong>Kernel / SMMU</strong></td><td>负责建立和约束设备侧 (GPU) 的地址访问视图。</td></tr></tbody></table><blockquote><p>[!WARNING]
-Guest sysram、QNX <code>/sysram</code> 与 QNX <code>/mm_dma</code> 是截然不同的内存归属对象。虽然它们在硬件层面都位于同一块物理 DDR 内，但在架构排查时，绝不能混淆统计口径。</p></blockquote><h2 id=2-内存与控制路径解析>2. 内存与控制路径解析<a hidden class=anchor aria-hidden=true href=#2-内存与控制路径解析>#</a></h2><h3 id=21-路径-1guest-分配普通图形内存>2.1 路径 1：Guest 分配普通图形内存<a hidden class=anchor aria-hidden=true href=#21-路径-1guest-分配普通图形内存>#</a></h3><p>对于常规的 Android <code>GraphicBuffer</code>，Gralloc 通常将其标记为 <code>qcom,system</code>（Legacy 分支映射至 <code>ION_SYSTEM_HEAP_ID</code>）。这种 System Heap 优先消耗 Guest 系统本身的页池，当资源不足时才会向下调用 Android 内核的 <code>alloc_pages()</code>。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>Android GraphicBuffer / Gralloc
-</span></span><span style=display:flex><span>    → 选用 qcom,system / ION_SYSTEM_HEAP_ID
-</span></span><span style=display:flex><span>    → 消耗 Guest System Heap 页池 / 调用 alloc_pages()
-</span></span><span style=display:flex><span>    → 返回 DMA-BUF / fd
-</span></span></code></pre></div><p>HGSL 自行分配普通图形内存时，同样遵循 Guest 分配路径：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>hgsl_ioctl_mem_alloc()
-</span></span><span style=display:flex><span>    → hgsl_sharedmem_alloc()
-</span></span><span style=display:flex><span>    → hgsl_alloc_pages() / alloc_pages()
-</span></span><span style=display:flex><span>    → hgsl_hyp_mem_map_smmu()
-</span></span></code></pre></div><p>在此路径下，物理页面完全从属于 <strong>LA Guest OS memory</strong>。</p><h3 id=22-路径-11内存导出与-gpu-访问映射>2.2 路径 1.1：内存导出与 GPU 访问映射<a hidden class=anchor aria-hidden=true href=#22-路径-11内存导出与-gpu-访问映射>#</a></h3><p>Guest 虽然分配了物理内存，但这块内存要被底层物理 GPU 访问，必须通过 Host 后端在 SMMU 中建立映射。该路径的核心是将已有 Buffer 的描述信息（fd, size, offset）通过 HAB 总线导出。</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>Guest 已持有 DMA-BUF / fd
-</span></span><span style=display:flex><span>    → HGSL 封装导出请求
-</span></span><span style=display:flex><span>    → habmm_export() 发起跨域共享
-</span></span><span style=display:flex><span>    → KHAB → Hypervisor → Host HAB / GSL HAB Server 接收请求
-</span></span><span style=display:flex><span>    → RPC_MEMORY_MAP_EXT_FD_PURE
-</span></span><span style=display:flex><span>    → Host 后端指令 SMMU 建立 GPU 虚拟地址映射
-</span></span></code></pre></div><p>这里传递的仅仅是<strong>共享与映射关系</strong>，Host 端绝不会为此再申请一份同等大小的像素存储。这就解释了排查中的两个核心现象：</p><ol><li>Android 的 Buffer 记录会出现在 Host 后端的客户端明细中，但这绝对不代表它是由 QNX <code>/mm_dma</code> 分配的。</li><li>同一份物理内存可能被 SurfaceFlinger、Launcher 甚至硬件合成器同时引用。若简单相加各个客户端的视角大小，必然导致统计严重失真。</li></ol><h3 id=23-路径-2host-本地-pmem-分配>2.3 路径 2：Host 本地 PMEM 分配<a hidden class=anchor aria-hidden=true href=#23-路径-2host-本地-pmem-分配>#</a></h3><p>对于 QNX 本地的图形客户端，以及 GPU 后端（KGSL）在管理工作时自身必需的资源，分配请求将走向 Host 侧路径：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>QNX 侧本地客户端 / GPU 后端内部需求
-</span></span><span style=display:flex><span>    → GSL / KGSL
-</span></span><span style=display:flex><span>    → PMEM Allocator 模块
-</span></span><span style=display:flex><span>    → 依据 PMEM ID、Flags、VMID 与平台配置解析策略
-</span></span><span style=display:flex><span>    → 从 Typed Memory / 普通物理页 / Carveout 提取内存
-</span></span></code></pre></div><blockquote><p>[!TIP]
-<strong>概念澄清</strong>：PMEM 是一种分配与管理机制，而 <code>/mm_dma</code> 仅仅是该平台上存在的一个具体内存池。不能将所有的 PMEM 请求或所有的后端记录一概而论。在实际故障分析中，必须查阅日志明确当前失败申请的目标对象。</p></blockquote><h3 id=24-context-创建命令提交与同步>2.4 Context 创建、命令提交与同步<a hidden class=anchor aria-hidden=true href=#24-context-创建命令提交与同步>#</a></h3><p>除了像素数据 Buffer 外，GPU 还需要维持一份上下文状态 (Context)、命令队列及同步对象。当 Android 层发起 EGL Context 创建时，驱动会向 Host 侧发起跨域请求：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>eglCreateContext()
-</span></span><span style=display:flex><span>    → Guest 侧 EGL / GSL 驱动打包请求
-</span></span><span style=display:flex><span>    → HGSL_IOCTL_CTXT_CREATE
-</span></span><span style=display:flex><span>    → hgsl_hyp_ctxt_create_v1() (或 legacy 路径)
-</span></span><span style=display:flex><span>    → RPC_CONTEXT_CREATE
-</span></span><span style=display:flex><span>    → Host 侧执行 rgs_context_create_common()
-</span></span><span style=display:flex><span>    → 后端从本地池分配 Context 所需资源
-</span></span></code></pre></div><p>Context 建立完毕后，Guest 的渲染命令及其资源引用进入提交流水线，由 Host GPU 后端统筹调度执行。</p><h2 id=3-跨域资源依赖与耗尽连锁反应>3. 跨域资源依赖与耗尽连锁反应<a hidden class=anchor aria-hidden=true href=#3-跨域资源依赖与耗尽连锁反应>#</a></h2><p>基于上述架构，我们就能理解：一次成功的跨域渲染操作，往往强依赖于多个完全独立的资源域。</p><table><thead><tr><th>资源类别</th><th>架构归属</th><th>是否属于像素存储范畴</th></tr></thead><tbody><tr><td>常规 GraphicBuffer / HGSL 内存</td><td>LA Guest 分配器</td><td>是（承载实际画面像素）</td></tr><tr><td>跨域导出、导入及 GPU 地址映射</td><td>Guest 与 Host 协同维护</td><td>否（仅代表访问权限与映射表）</td></tr><tr><td>GPU 后端 Context Records</td><td>QNX 侧 <code>/mm_dma</code> 内存池</td><td>否（属于后端管理上下文资源）</td></tr><tr><td>Context 队列、时间戳缓冲管理</td><td>按具体 FE/BE 分支策略分配</td><td>否（需要独立核算）</td></tr></tbody></table><p>因此，<strong>哪怕 Guest 端拥有充沛的空闲内存页面，哪怕旧有的纹理完全可以正常访问，只要新建 Context 时宿主侧 (Host) 的专属管理池资源耗尽，该次渲染启动依然会遭遇滑铁卢</strong>。</p><h3 id=31-context-的真实存储开销>3.1 Context 的真实存储开销<a hidden class=anchor aria-hidden=true href=#31-context-的真实存储开销>#</a></h3><p>在一次典型的分配失败现场中，日志清晰地指明了 QNX 后端的 Context Records 路径正试图请求 <strong><code>0x30000 (192 KiB)</code></strong> 的空间。</p><p>提取本地 <code>GSLKernel.so</code> 的机器码进行逆向印证：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-asm data-lang=asm><span style=display:flex><span><span style=color:#960050;background-color:#1e0010>0</span>x1883c: <span style=color:#a6e22e>mov</span>  <span style=color:#66d9ef>x0</span>, <span style=color:#75715e>#196608    // 预装入此次分配的大小参数 (192 KiB)
-</span></span></span><span style=display:flex><span><span style=color:#960050;background-color:#1e0010>0</span>x18844: <span style=color:#a6e22e>bl</span>   <span style=color:#ae81ff>0x339c8</span>        <span style=color:#75715e>// 跳转进入 PMEM 分配器封装
-</span></span></span><span style=display:flex><span><span style=color:#960050;background-color:#1e0010>0</span>x1884c: <span style=color:#a6e22e>cbnz</span> <span style=color:#66d9ef>w0</span>, <span style=color:#ae81ff>0x188f0</span>    <span style=color:#75715e>// 捕获非零返回码，跳转错误分支
-</span></span></span></code></pre></div><p>而 Android HGSL 的源码侧还揭示了其他潜在开销（如 Shadow Timestamp 缓冲、Context Doorbell Queue 等）。这警示我们，Context 的开销并不是一个静态常量，不同驱动版本和队列模型下的资源消耗存在波动，且各部分的内存池归属也不尽相同。</p><h3 id=32-区分全局空闲与池级空闲>3.2 区分全局空闲与池级空闲<a hidden class=anchor aria-hidden=true href=#32-区分全局空闲与池级空闲>#</a></h3><p>排查内存耗尽时，必须区分整机 RAM 剩余量与专属内存池的剩余量。即使系统级统计显示尚有 1.5 GiB 的空闲，但特定的 <code>/mm_dma</code> 内存池在连续或非连续块上的可分配余量极有可能已经归零。
-因此，<code>mmap64(sz=0x30000, non-contig)</code> 宣告失败并抛出池容量枯竭是完全合理的底层行为，不能用“系统还有很多内存”来轻易否定。</p><h2 id=4-故障还原黑屏链路与错误传播机制>4. 故障还原：黑屏链路与错误传播机制<a hidden class=anchor aria-hidden=true href=#4-故障还原黑屏链路与错误传播机制>#</a></h2><p>在一场真实的桌面黑屏故障中，一条完整的因果错误链被清晰地记录了下来：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>QNX /mm_dma 内存池无可用额度
-</span></span><span style=display:flex><span>    ↓
-</span></span><span style=display:flex><span>GPU 后端试图申请 192 KiB Context Records 遭拒
-</span></span><span style=display:flex><span>    ↓
-</span></span><span style=display:flex><span>RPC_CONTEXT_CREATE 跨域应答失败
-</span></span><span style=display:flex><span>    ↓
-</span></span><span style=display:flex><span>Android EGL 返回 EGL_BAD_ALLOC 错误
-</span></span><span style=display:flex><span>    ↓
-</span></span><span style=display:flex><span>Android HWUI 触发致命异常 (Fatal / Abort)
-</span></span><span style=display:flex><span>    ↓
-</span></span><span style=display:flex><span>com.tuanjie.voyahrenderservice 渲染进程非正常退出
-</span></span><span style=display:flex><span>    ↓
-</span></span><span style=display:flex><span>Launcher 监听到渲染服务断连、SurfaceTexture 被强制销毁
-</span></span><span style=display:flex><span>    ↓
-</span></span><span style=display:flex><span>桌面 UI 组件丢失画面载体，陷入黑屏
-</span></span></code></pre></div><h3 id=41-qnx物理资源分配防线的崩溃>4.1 QNX：物理资源分配防线的崩溃<a hidden class=anchor aria-hidden=true href=#41-qnx物理资源分配防线的崩溃>#</a></h3><p>提取关键的 QNX 侧现场日志：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>15:15:27.063 PMEM: mmap64(sz=0x30000,non-contig)
-</span></span><span style=display:flex><span>             id=PMEM_GRAPHICS_FRAMEBUFFER_ID
-</span></span><span style=display:flex><span>             fd=13(&#34;/mm_dma&#34;), err=Not enough memory
-</span></span><span style=display:flex><span>15:15:27.063 Free memory: 1599740 KB
-</span></span><span style=display:flex><span>15:15:27.063 info(/mm_dma): contig len=0 KB
-</span></span><span style=display:flex><span>15:15:27.063 info(/mm_dma): non-contig len=0 KB
-</span></span><span style=display:flex><span>15:15:27.063 rgs_context_create_common[785]:
-</span></span><span style=display:flex><span>             alloc_user_ctxt_records() FAILED, status=-4
-</span></span><span style=display:flex><span>15:15:27.066 [ahrenderservice|7069846|2]:
-</span></span><span style=display:flex><span>             RPC Fn 21 (&#39;rpc_context_create&#39;) failed ret -1
-</span></span></code></pre></div><p>日志证明：池名匹配 (<code>/mm_dma</code>)、分配尺寸匹配 (<code>0x30000</code>)、连续与非连续碎片耗尽。此处的 <code>7069846</code> 是后端侧虚拟化客户端 ID，绝非 Android 侧真实的 PID。</p><h3 id=42-android从分配异常到进程自杀>4.2 Android：从分配异常到进程自杀<a hidden class=anchor aria-hidden=true href=#42-android从分配异常到进程自杀>#</a></h3><p>接收到跨域的失败应答后，Android 侧随即发生雪崩：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>15:15:27.072 3383 31702 Adreno-GSL_RPC:
-</span></span><span style=display:flex><span>             HGSL_IOCTL_CTXT_CREATE failed
-</span></span><span style=display:flex><span>15:15:27.073 3383 31702 OpenGLRenderer:
-</span></span><span style=display:flex><span>             Failed to create context, error = EGL_BAD_ALLOC
-</span></span><span style=display:flex><span>15:15:27.424 3383 31702 libc:
-</span></span><span style=display:flex><span>             Fatal signal 6 (SIGABRT), tid 31702 (RenderThread)
-</span></span></code></pre></div><p>审查 HWUI 中的 <code>EglManager::createContext()</code> 机制，其对 EGL 失败配置了刚性的拦截策略：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-cpp data-lang=cpp><span style=display:flex><span>LOG_ALWAYS_FATAL_IF(
-</span></span><span style=display:flex><span>        mEglContext <span style=color:#f92672>==</span> EGL_NO_CONTEXT,
-</span></span><span style=display:flex><span>        <span style=color:#e6db74>&#34;Failed to create context, error = %s&#34;</span>,
-</span></span><span style=display:flex><span>        eglErrorString());
-</span></span></code></pre></div><p>这表明，并非“EGL 报错本身会杀进程”，而是高层框架 HWUI 判定 Context 缺失属于无法挽回的重症，主动通过 abort 终止了整个渲染进程。</p><h2 id=5-pmem-资源溯源与快照分析方法>5. PMEM 资源溯源与快照分析方法<a hidden class=anchor aria-hidden=true href=#5-pmem-资源溯源与快照分析方法>#</a></h2><p>确认了 <code>/mm_dma</code> 发生 OOM，下一步则是精准定位资源的“持仓大户”。对于 GPU 资源，QNX 标准的系统内存分析工具只能将账目粗略算在 <code>kgsl</code> 进程名下，此时必须依赖驱动级的内部调试表盘 <code>pmemtbl</code>。</p><h3 id=51-捕获排查快照>5.1 捕获排查快照<a hidden class=anchor aria-hidden=true href=#51-捕获排查快照>#</a></h3><p>在拥有较高系统权限的 QNX 控制台中触发快照转储：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>echo pmemtbl &gt; /dev/kgsl-control
-</span></span></code></pre></div><p>快照文件将安全落地至 QNX 文件系统：<code>/var/log/pmemtbl_control.txt</code>。</p><p>为了构建绝对严谨的时间横断面证据链，建议执行以下标准作业组合指令：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span><span style=color:#75715e># 1. 抓取 QNX 侧各内存池的物理映射范围与当前水位</span>
-</span></span><span style=display:flex><span>pidin syspage<span style=color:#f92672>=</span>asinfo
-</span></span><span style=display:flex><span>showmem -t mm_dma
-</span></span><span style=display:flex><span>
-</span></span><span style=display:flex><span><span style=color:#75715e># 2. 强制触发 GPU 后端客户端明细落盘</span>
-</span></span><span style=display:flex><span>echo pmemtbl &gt; /dev/kgsl-control
-</span></span></code></pre></div><h3 id=52-多维统计口径辨析>5.2 多维统计口径辨析<a hidden class=anchor aria-hidden=true href=#52-多维统计口径辨析>#</a></h3><p>快照文件的顶部记录了总览信息：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>pmem table dump: total entries=21914,
-</span></span><span style=display:flex><span> total size alloc&#39;d=997956712(0x3b7b9c68), time=172026640.00ms
-</span></span><span style=display:flex><span>RGS release: 0x74725000, GMU FW release: 0x30020006
-</span></span></code></pre></div><p>随后输出按客户端聚合的宏观账单：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>index process name       host pid   total size(bytes) peak size(bytes)
-</span></span><span style=display:flex><span>34    ClusterLVGL        979677219   943304784         943304784
-</span></span><span style=display:flex><span>21    ahrenderservice     11387026   621998160         623046736
-</span></span></code></pre></div><p>在阅读此报告时，必须牢记三者不可混用：</p><ul><li><strong><code>showmem</code> 池级统计</strong>：提供指定 <code>/mm_dma</code> 的确切物理容量使用率。</li><li><strong>全局头部 <code>total size alloc'd</code></strong>：表征底层驱动在该统计口径下的账面划拨总量。</li><li><strong>客户端明细相加总和</strong>：该数值通常会大大多于全局 Alloc 量，这是因为其包含了大量从 Guest 映射过来的、甚至在多客户端间被重复引用的共享 Buffer。<strong>决不能将某客户端持有的总量直接等价于其对 <code>/mm_dma</code> 的独占消耗</strong>。</li></ul><h3 id=53-快照字段释义与高阶过滤>5.3 快照字段释义与高阶过滤<a hidden class=anchor aria-hidden=true href=#53-快照字段释义与高阶过滤>#</a></h3><p>在快照的最底层明细中，包含了单笔资源的具体信息：</p><table><thead><tr><th>关键字段</th><th>排查价值与应用禁忌</th></tr></thead><tbody><tr><td><code>tbl[index]</code></td><td>直接关联至前文的客户端宏观账单，比短缺的进程名更精确可靠。</td></tr><tr><td><code>size</code></td><td>当前记录在案的字节数，请注意一笔记录不绝对对应上层的一个完整的纹理对象。</td></tr><tr><td><code>va</code> / <code>uva</code></td><td>位于不同域的虚拟地址游标，不具备推导物理池归属的证据效力。</td></tr><tr><td><code>pa</code></td><td><strong>物理地址字段</strong>。当 PA 为 0 时并非意味着没有物理内存，而是该层级暂未记录。<strong>但通过非零 PA 的筛选，配合 <code>asinfo</code> 地址区间过滤，是逼近物理归属真相的最强手段。</strong></td></tr><tr><td><code>da</code></td><td>设备地址视图，专供 GPU 侧定位，不应与 CPU 物理地址混淆。</td></tr><tr><td><code>pid</code></td><td>GPU 后端内部的逻辑追踪号。</td></tr><tr><td><code>usage</code> / <code>info</code></td><td>提供资源分类的黄金线索，如 <code>TEXTUR</code> (纹理)、<code>COMMAND</code> (指令环)、<code>ARRAY</code> 等。</td></tr></tbody></table><p><strong>排查总结</strong>：要证实某进程掏空了特定的 <code>/mm_dma</code>，单凭一份表格是不够的。必须将调用栈、运行时的 <code>asinfo</code> 物理段范围、池级水位监控以及非零 PA 的精确过滤数据形成证据闭环。</p></div><footer class=post-footer><ul class=post-tags><li><a href=https://ethen-cao.github.io/ethenslab/tags/qnx/>QNX</a></li><li><a href=https://ethen-cao.github.io/ethenslab/tags/hypervisor/>Hypervisor</a></li><li><a href=https://ethen-cao.github.io/ethenslab/tags/gpu/>GPU</a></li><li><a href=https://ethen-cao.github.io/ethenslab/tags/hgsl/>HGSL</a></li><li><a href=https://ethen-cao.github.io/ethenslab/tags/kgsl/>KGSL</a></li><li><a href=https://ethen-cao.github.io/ethenslab/tags/pmem/>PMEM</a></li><li><a href=https://ethen-cao.github.io/ethenslab/tags/android/>Android</a></li><li><a href=https://ethen-cao.github.io/ethenslab/tags/%E6%95%85%E9%9A%9C%E5%88%86%E6%9E%90/>故障分析</a></li></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
-<span>Powered by
-<a href="https://gohugo.io/?utm_source=papermod" rel=noopener target=_blank>Hugo</a> &
-<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top id=top-link class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey=g><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
-</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");if(menu){const e=localStorage.getItem("menu-scroll-position");e&&(menu.scrollLeft=parseInt(e,10)),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}}document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var toplink=document.getElementById("top-link");window.onscroll=function(){const e=window.innerHeight;document.body.scrollTop>e||document.documentElement.scrollTop>e?toplink.classList.remove("hidden"):toplink.classList.add("hidden")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{const e=document.querySelector("html");e.dataset.theme==="dark"?(e.dataset.theme="light",localStorage.setItem("pref-theme","light")):(e.dataset.theme="dark",localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查 | Ethen 的实验室</title>
+<meta name="keywords" content="QNX, Hypervisor, GPU, HGSL, KGSL, PMEM, Android, 故障分析">
+<meta name="description" content="理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。">
+<meta name="author" content="">
+<link rel="canonical" href="https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/">
+<link crossorigin="anonymous" href="/ethenslab/assets/css/stylesheet.7d3658a230b9b53c9b5a0e97fffc51585a6e6b9e3743fc0bac7b802ba076ac94.css" integrity="sha256-fTZYojC5tTybWg6X//xRWFpua543Q/wLrHuAK6B2rJQ=" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://ethen-cao.github.io/ethenslab/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://ethen-cao.github.io/ethenslab/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://ethen-cao.github.io/ethenslab/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://ethen-cao.github.io/ethenslab/apple-touch-icon.png">
+<link rel="mask-icon" href="https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/">
+  <meta property="og:site_name" content="Ethen 的实验室">
+  <meta property="og:title" content="Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查">
+  <meta property="og:description" content="理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。">
+  <meta property="og:locale" content="en">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="qnx">
+    <meta property="article:published_time" content="2026-09-21T00:00:00+08:00">
+    <meta property="article:modified_time" content="2026-09-21T00:00:00+08:00">
+    <meta property="article:tag" content="QNX">
+    <meta property="article:tag" content="Hypervisor">
+    <meta property="article:tag" content="GPU">
+    <meta property="article:tag" content="HGSL">
+    <meta property="article:tag" content="KGSL">
+    <meta property="article:tag" content="PMEM">
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查">
+  <meta name="twitter:description" content="理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "QNX基础原理",
+      "item": "https://ethen-cao.github.io/ethenslab/qnx/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查",
+      "item": "https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查",
+  "name": "Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查",
+  "description": "理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。",
+  "keywords": [
+    "QNX", "Hypervisor", "GPU", "HGSL", "KGSL", "PMEM", "Android", "故障分析"
+  ],
+  "articleBody": "在 QNX Host 与 Android Guest 共用 GPU 的座舱系统架构中，Android 侧出现的界面黑屏，其根因未必源于 Android 自身的内存枯竭。尽管像素 Buffer 的物理存储可能完全分配在 Guest 侧，但只要触发创建新的 GPU 渲染上下文 (Context)，就必然依赖 Host 侧的底层资源。一旦 Host 侧某个关键的专用内存池耗尽，这种资源匮乏就会沿着跨虚拟机的调用链向上传递，最终导致 Android 渲染进程异常退出。\n本文旨在系统性地剖析 Graphics Hypervisor Architecture 的内存与控制链路，通过还原一次真实的桌面黑屏故障，并结合 pmemtbl_control.txt 快照，建立一套标准化的资源溯源与占用分析方法。\n[!NOTE] 适用范围声明：本文解析基于 Qualcomm GPU 虚拟化架构及特定软件版本的实现。常规、非受保护且无特殊 Heap 属性的 Android Buffer 遵循 Guest 默认分配路径；涉及安全内存 (Secure Memory)、特殊 Heap、以及 Camera/Video 的外部 Buffer，必须独立查证。\n1. 核心架构：GPU 虚拟化与职责划分 该虚拟化架构的核心思想是：将 Android 侧 (Guest) 的 GPU 前端请求，通过 HAB (Hypervisor Access Bus) 安全可靠地透传给 QNX 侧 (Host) 的 GPU 后端执行。理解这套架构的切入点，在于明确以下三大职责的归属：\n物理存储分配：由谁提供真实的物理页面？可能是 Guest 的页分配器，也可能是 QNX 侧的 PMEM 分配器。 GPU 映射与访问控制：由谁建立 GPU 对这些物理页的访问权限？QNX GPU 后端及相关的 SMMU 驱动负责地址的映射管理。 命令提交与执行同步：由谁负责发起和等待完成？Guest 前端与 Host 后端协作，最终将指令投递至底层的同一块物理 GPU。 [!IMPORTANT] “Host 后端能看到一个 Buffer”仅仅意味着 Host 参与了该 Buffer 的映射或管理，不能直接等同于该 Buffer 的物理存储是由 Host 侧内存池分配的。\n1.1 架构拓扑 路径 1：Guest 分配；路径 1.1：跨虚拟机导出与映射；路径 2：Host 分配。 在独立页面查看完整架构图 图中展示了 GPU 虚拟化环境下的逻辑交互关系，并非完整的显示合成流。需注意，图中的 KGSL 模块并非直接运行在 QNX 微内核空间，现场实际存在独立的 kgsl 用户态服务进程。\n1.2 核心模块职责矩阵 模块组件 架构职责 LA GVM Linux/Android Guest 系统，承载 Launcher、SystemUI、App 及其图形渲染前端。 QNX PVM Host 侧特权执行环境，不仅运行本地图形客户端，还承载着共享 GPU 的后端核心服务。 OpenGL ES / EGL GL 负责渲染状态与绘图命令的管理；EGL 负责 Context 与 Surface 的平台原生连接。 GSL Client / HGSL Guest 侧图形系统层及虚拟化前端，负责封装 GPU 操作、内存导出协议和 Context 请求。 KHAB / HAB / UHAB 跨虚拟机通信与内存共享的基础设施，负责高速传输请求、句柄及附带数据。 GSL HAB Server 运行于 Host 上接收 Guest 图形 RPC 的服务端代理，负责将请求路由给后端。 GSL / KGSL (RGS) GPU 后端资源核心管理者，掌控上下文、内存描述符、SMMU 映射、命令提交与时序同步。 Kernel / SMMU 负责建立和约束设备侧 (GPU) 的地址访问视图。 [!WARNING] Guest sysram、QNX /sysram 与 QNX /mm_dma 是截然不同的内存归属对象。虽然它们在硬件层面都位于同一块物理 DDR 内，但在架构排查时，绝不能混淆统计口径。\n2. 内存与控制路径解析 2.1 路径 1：Guest 分配普通图形内存 对于常规的 Android GraphicBuffer，Gralloc 通常将其标记为 qcom,system（Legacy 分支映射至 ION_SYSTEM_HEAP_ID）。这种 System Heap 优先消耗 Guest 系统本身的页池，当资源不足时才会向下调用 Android 内核的 alloc_pages()。\nAndroid GraphicBuffer / Gralloc → 选用 qcom,system / ION_SYSTEM_HEAP_ID → 消耗 Guest System Heap 页池 / 调用 alloc_pages() → 返回 DMA-BUF / fd HGSL 自行分配普通图形内存时，同样遵循 Guest 分配路径：\nhgsl_ioctl_mem_alloc() → hgsl_sharedmem_alloc() → hgsl_alloc_pages() / alloc_pages() → hgsl_hyp_mem_map_smmu() 在此路径下，物理页面完全从属于 LA Guest OS memory。\n2.2 路径 1.1：内存导出与 GPU 访问映射 Guest 虽然分配了物理内存，但这块内存要被底层物理 GPU 访问，必须通过 Host 后端在 SMMU 中建立映射。该路径的核心是将已有 Buffer 的描述信息（fd, size, offset）通过 HAB 总线导出。\nGuest 已持有 DMA-BUF / fd → HGSL 封装导出请求 → habmm_export() 发起跨域共享 → KHAB → Hypervisor → Host HAB / GSL HAB Server 接收请求 → RPC_MEMORY_MAP_EXT_FD_PURE → Host 后端指令 SMMU 建立 GPU 虚拟地址映射 这里传递的仅仅是共享与映射关系，Host 端绝不会为此再申请一份同等大小的像素存储。这就解释了排查中的两个核心现象：\nAndroid 的 Buffer 记录会出现在 Host 后端的客户端明细中，但这绝对不代表它是由 QNX /mm_dma 分配的。 同一份物理内存可能被 SurfaceFlinger、Launcher 甚至硬件合成器同时引用。若简单相加各个客户端的视角大小，必然导致统计严重失真。 2.3 路径 2：Host 本地 PMEM 分配 对于 QNX 本地的图形客户端，以及 GPU 后端（KGSL）在管理工作时自身必需的资源，分配请求将走向 Host 侧路径：\nQNX 侧本地客户端 / GPU 后端内部需求 → GSL / KGSL → PMEM Allocator 模块 → 依据 PMEM ID、Flags、VMID 与平台配置解析策略 → 从 Typed Memory / 普通物理页 / Carveout 提取内存 [!TIP] 概念澄清：PMEM 是一种分配与管理机制，而 /mm_dma 仅仅是该平台上存在的一个具体内存池。不能将所有的 PMEM 请求或所有的后端记录一概而论。在实际故障分析中，必须查阅日志明确当前失败申请的目标对象。\n2.4 Context 创建、命令提交与同步 除了像素数据 Buffer 外，GPU 还需要维持一份上下文状态 (Context)、命令队列及同步对象。当 Android 层发起 EGL Context 创建时，驱动会向 Host 侧发起跨域请求：\neglCreateContext() → Guest 侧 EGL / GSL 驱动打包请求 → HGSL_IOCTL_CTXT_CREATE → hgsl_hyp_ctxt_create_v1() (或 legacy 路径) → RPC_CONTEXT_CREATE → Host 侧执行 rgs_context_create_common() → 后端从本地池分配 Context 所需资源 Context 建立完毕后，Guest 的渲染命令及其资源引用进入提交流水线，由 Host GPU 后端统筹调度执行。\n3. 跨域资源依赖与耗尽连锁反应 基于上述架构，我们就能理解：一次成功的跨域渲染操作，往往强依赖于多个完全独立的资源域。\n资源类别 架构归属 是否属于像素存储范畴 常规 GraphicBuffer / HGSL 内存 LA Guest 分配器 是（承载实际画面像素） 跨域导出、导入及 GPU 地址映射 Guest 与 Host 协同维护 否（仅代表访问权限与映射表） GPU 后端 Context Records QNX 侧 /mm_dma 内存池 否（属于后端管理上下文资源） Context 队列、时间戳缓冲管理 按具体 FE/BE 分支策略分配 否（需要独立核算） 因此，哪怕 Guest 端拥有充沛的空闲内存页面，哪怕旧有的纹理完全可以正常访问，只要新建 Context 时宿主侧 (Host) 的专属管理池资源耗尽，该次渲染启动依然会遭遇滑铁卢。\n3.1 Context 的真实存储开销 在一次典型的分配失败现场中，日志清晰地指明了 QNX 后端的 Context Records 路径正试图请求 0x30000 (192 KiB) 的空间。\n提取本地 GSLKernel.so 的机器码进行逆向印证：\n0x1883c: mov x0, #196608 // 预装入此次分配的大小参数 (192 KiB) 0x18844: bl 0x339c8 // 跳转进入 PMEM 分配器封装 0x1884c: cbnz w0, 0x188f0 // 捕获非零返回码，跳转错误分支 而 Android HGSL 的源码侧还揭示了其他潜在开销（如 Shadow Timestamp 缓冲、Context Doorbell Queue 等）。这警示我们，Context 的开销并不是一个静态常量，不同驱动版本和队列模型下的资源消耗存在波动，且各部分的内存池归属也不尽相同。\n3.2 区分全局空闲与池级空闲 排查内存耗尽时，必须区分整机 RAM 剩余量与专属内存池的剩余量。即使系统级统计显示尚有 1.5 GiB 的空闲，但特定的 /mm_dma 内存池在连续或非连续块上的可分配余量极有可能已经归零。 因此，mmap64(sz=0x30000, non-contig) 宣告失败并抛出池容量枯竭是完全合理的底层行为，不能用“系统还有很多内存”来轻易否定。\n4. 故障还原：黑屏链路与错误传播机制 在一场真实的桌面黑屏故障中，一条完整的因果错误链被清晰地记录了下来：\nQNX /mm_dma 内存池无可用额度 ↓ GPU 后端试图申请 192 KiB Context Records 遭拒 ↓ RPC_CONTEXT_CREATE 跨域应答失败 ↓ Android EGL 返回 EGL_BAD_ALLOC 错误 ↓ Android HWUI 触发致命异常 (Fatal / Abort) ↓ com.tuanjie.voyahrenderservice 渲染进程非正常退出 ↓ Launcher 监听到渲染服务断连、SurfaceTexture 被强制销毁 ↓ 桌面 UI 组件丢失画面载体，陷入黑屏 4.1 QNX：物理资源分配防线的崩溃 提取关键的 QNX 侧现场日志：\n15:15:27.063 PMEM: mmap64(sz=0x30000,non-contig) id=PMEM_GRAPHICS_FRAMEBUFFER_ID fd=13(\"/mm_dma\"), err=Not enough memory 15:15:27.063 Free memory: 1599740 KB 15:15:27.063 info(/mm_dma): contig len=0 KB 15:15:27.063 info(/mm_dma): non-contig len=0 KB 15:15:27.063 rgs_context_create_common[785]: alloc_user_ctxt_records() FAILED, status=-4 15:15:27.066 [ahrenderservice|7069846|2]: RPC Fn 21 ('rpc_context_create') failed ret -1 日志证明：池名匹配 (/mm_dma)、分配尺寸匹配 (0x30000)、连续与非连续碎片耗尽。此处的 7069846 是后端侧虚拟化客户端 ID，绝非 Android 侧真实的 PID。\n4.2 Android：从分配异常到进程自杀 接收到跨域的失败应答后，Android 侧随即发生雪崩：\n15:15:27.072 3383 31702 Adreno-GSL_RPC: HGSL_IOCTL_CTXT_CREATE failed 15:15:27.073 3383 31702 OpenGLRenderer: Failed to create context, error = EGL_BAD_ALLOC 15:15:27.424 3383 31702 libc: Fatal signal 6 (SIGABRT), tid 31702 (RenderThread) 审查 HWUI 中的 EglManager::createContext() 机制，其对 EGL 失败配置了刚性的拦截策略：\nLOG_ALWAYS_FATAL_IF( mEglContext == EGL_NO_CONTEXT, \"Failed to create context, error = %s\", eglErrorString()); 这表明，并非“EGL 报错本身会杀进程”，而是高层框架 HWUI 判定 Context 缺失属于无法挽回的重症，主动通过 abort 终止了整个渲染进程。\n5. PMEM 资源溯源与快照分析方法 确认了 /mm_dma 发生 OOM，下一步则是精准定位资源的“持仓大户”。对于 GPU 资源，QNX 标准的系统内存分析工具只能将账目粗略算在 kgsl 进程名下，此时必须依赖驱动级的内部调试表盘 pmemtbl。\n5.1 捕获排查快照 在拥有较高系统权限的 QNX 控制台中触发快照转储：\necho pmemtbl \u003e /dev/kgsl-control 快照文件将安全落地至 QNX 文件系统：/var/log/pmemtbl_control.txt。\n为了构建绝对严谨的时间横断面证据链，建议执行以下标准作业组合指令：\n# 1. 抓取 QNX 侧各内存池的物理映射范围与当前水位 pidin syspage=asinfo showmem -t mm_dma # 2. 强制触发 GPU 后端客户端明细落盘 echo pmemtbl \u003e /dev/kgsl-control 5.2 多维统计口径辨析 快照文件的顶部记录了总览信息：\npmem table dump: total entries=21914, total size alloc'd=997956712(0x3b7b9c68), time=172026640.00ms RGS release: 0x74725000, GMU FW release: 0x30020006 随后输出按客户端聚合的宏观账单：\nindex process name host pid total size(bytes) peak size(bytes) 34 ClusterLVGL 979677219 943304784 943304784 21 ahrenderservice 11387026 621998160 623046736 在阅读此报告时，必须牢记三者不可混用：\nshowmem 池级统计：提供指定 /mm_dma 的确切物理容量使用率。 全局头部 total size alloc'd：表征底层驱动在该统计口径下的账面划拨总量。 客户端明细相加总和：该数值通常会大大多于全局 Alloc 量，这是因为其包含了大量从 Guest 映射过来的、甚至在多客户端间被重复引用的共享 Buffer。决不能将某客户端持有的总量直接等价于其对 /mm_dma 的独占消耗。 5.3 快照字段释义与高阶过滤 在快照的最底层明细中，包含了单笔资源的具体信息：\n关键字段 排查价值与应用禁忌 tbl[index] 直接关联至前文的客户端宏观账单，比短缺的进程名更精确可靠。 size 当前记录在案的字节数，请注意一笔记录不绝对对应上层的一个完整的纹理对象。 va / uva 位于不同域的虚拟地址游标，不具备推导物理池归属的证据效力。 pa 物理地址字段。当 PA 为 0 时并非意味着没有物理内存，而是该层级暂未记录。但通过非零 PA 的筛选，配合 asinfo 地址区间过滤，是逼近物理归属真相的最强手段。 da 设备地址视图，专供 GPU 侧定位，不应与 CPU 物理地址混淆。 pid GPU 后端内部的逻辑追踪号。 usage / info 提供资源分类的黄金线索，如 TEXTUR (纹理)、COMMAND (指令环)、ARRAY 等。 排查总结：要证实某进程掏空了特定的 /mm_dma，单凭一份表格是不够的。必须将调用栈、运行时的 asinfo 物理段范围、池级水位监控以及非零 PA 的精确过滤数据形成证据闭环。\n",
+  "wordCount" : "822",
+  "inLanguage": "en",
+  "datePublished": "2026-09-21T00:00:00+08:00",
+  "dateModified": "2026-09-21T00:00:00+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ethen 的实验室",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ethen-cao.github.io/ethenslab/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="header-nav">
+        <div class="logo">
+            <a href="https://ethen-cao.github.io/ethenslab/" accesskey="h" title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" class="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg class="moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg class="sun" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu" class="menu">
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-dev/" title="Android系统开发">
+                    <span>Android系统开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/" title="Android Automotive">
+                    <span>Android Automotive</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/qnx/" title="QNX开发">
+                    <span>QNX开发</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/gunyah/" title="Gunyah">
+                    <span>Gunyah</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/ivi-solution/" title="智能座舱方案">
+                    <span>智能座舱方案</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://ethen-cao.github.io/ethenslab/explore-ai" title="Explore AI">
+                    <span>Explore AI</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <nav class="breadcrumbs" role="navigation" aria-label="Breadcrumb">
+            <a href="/ethenslab/">Home</a>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+            <a href="/ethenslab/qnx/">QNX基础原理</a>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
+        <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+</nav>
+    <h1 class="post-title entry-hint-parent">
+      Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查
+    </h1>
+    <div class="post-description">
+      理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。
+    </div>
+    <div class="post-meta">
+
+<span title='2026-09-21 00:00:00 +0800 CST'>September 21, 2026</span>&nbsp;·&nbsp;<span>4 min</span>&nbsp;·&nbsp;<span>822 words</span>
+
+</div>
+  </header> <details class="toc"  open>
+    <summary accesskey="c" title="(Alt + C)">
+        <span class="title">Table of Contents</span>
+    </summary>
+
+    <div class="inner"><ul>
+            <li>
+                <a href="#1-%e6%a0%b8%e5%bf%83%e6%9e%b6%e6%9e%84gpu-%e8%99%9a%e6%8b%9f%e5%8c%96%e4%b8%8e%e8%81%8c%e8%b4%a3%e5%88%92%e5%88%86" aria-label="1. 核心架构：GPU 虚拟化与职责划分">1. 核心架构：GPU 虚拟化与职责划分</a><ul>
+                    
+            <li>
+                <a href="#11-%e6%9e%b6%e6%9e%84%e6%8b%93%e6%89%91" aria-label="1.1 架构拓扑">1.1 架构拓扑</a></li>
+            <li>
+                <a href="#12-%e6%a0%b8%e5%bf%83%e6%a8%a1%e5%9d%97%e8%81%8c%e8%b4%a3%e7%9f%a9%e9%98%b5" aria-label="1.2 核心模块职责矩阵">1.2 核心模块职责矩阵</a></li></ul>
+            </li>
+            <li>
+                <a href="#2-%e5%86%85%e5%ad%98%e4%b8%8e%e6%8e%a7%e5%88%b6%e8%b7%af%e5%be%84%e8%a7%a3%e6%9e%90" aria-label="2. 内存与控制路径解析">2. 内存与控制路径解析</a><ul>
+                    
+            <li>
+                <a href="#21-%e8%b7%af%e5%be%84-1guest-%e5%88%86%e9%85%8d%e6%99%ae%e9%80%9a%e5%9b%be%e5%bd%a2%e5%86%85%e5%ad%98" aria-label="2.1 路径 1：Guest 分配普通图形内存">2.1 路径 1：Guest 分配普通图形内存</a></li>
+            <li>
+                <a href="#22-%e8%b7%af%e5%be%84-11%e5%86%85%e5%ad%98%e5%af%bc%e5%87%ba%e4%b8%8e-gpu-%e8%ae%bf%e9%97%ae%e6%98%a0%e5%b0%84" aria-label="2.2 路径 1.1：内存导出与 GPU 访问映射">2.2 路径 1.1：内存导出与 GPU 访问映射</a></li>
+            <li>
+                <a href="#23-%e8%b7%af%e5%be%84-2host-%e6%9c%ac%e5%9c%b0-pmem-%e5%88%86%e9%85%8d" aria-label="2.3 路径 2：Host 本地 PMEM 分配">2.3 路径 2：Host 本地 PMEM 分配</a></li>
+            <li>
+                <a href="#24-context-%e5%88%9b%e5%bb%ba%e5%91%bd%e4%bb%a4%e6%8f%90%e4%ba%a4%e4%b8%8e%e5%90%8c%e6%ad%a5" aria-label="2.4 Context 创建、命令提交与同步">2.4 Context 创建、命令提交与同步</a></li></ul>
+            </li>
+            <li>
+                <a href="#3-%e8%b7%a8%e5%9f%9f%e8%b5%84%e6%ba%90%e4%be%9d%e8%b5%96%e4%b8%8e%e8%80%97%e5%b0%bd%e8%bf%9e%e9%94%81%e5%8f%8d%e5%ba%94" aria-label="3. 跨域资源依赖与耗尽连锁反应">3. 跨域资源依赖与耗尽连锁反应</a><ul>
+                    
+            <li>
+                <a href="#31-context-%e7%9a%84%e7%9c%9f%e5%ae%9e%e5%ad%98%e5%82%a8%e5%bc%80%e9%94%80" aria-label="3.1 Context 的真实存储开销">3.1 Context 的真实存储开销</a></li>
+            <li>
+                <a href="#32-%e5%8c%ba%e5%88%86%e5%85%a8%e5%b1%80%e7%a9%ba%e9%97%b2%e4%b8%8e%e6%b1%a0%e7%ba%a7%e7%a9%ba%e9%97%b2" aria-label="3.2 区分全局空闲与池级空闲">3.2 区分全局空闲与池级空闲</a></li></ul>
+            </li>
+            <li>
+                <a href="#4-%e6%95%85%e9%9a%9c%e8%bf%98%e5%8e%9f%e9%bb%91%e5%b1%8f%e9%93%be%e8%b7%af%e4%b8%8e%e9%94%99%e8%af%af%e4%bc%a0%e6%92%ad%e6%9c%ba%e5%88%b6" aria-label="4. 故障还原：黑屏链路与错误传播机制">4. 故障还原：黑屏链路与错误传播机制</a><ul>
+                    
+            <li>
+                <a href="#41-qnx%e7%89%a9%e7%90%86%e8%b5%84%e6%ba%90%e5%88%86%e9%85%8d%e9%98%b2%e7%ba%bf%e7%9a%84%e5%b4%a9%e6%ba%83" aria-label="4.1 QNX：物理资源分配防线的崩溃">4.1 QNX：物理资源分配防线的崩溃</a></li>
+            <li>
+                <a href="#42-android%e4%bb%8e%e5%88%86%e9%85%8d%e5%bc%82%e5%b8%b8%e5%88%b0%e8%bf%9b%e7%a8%8b%e8%87%aa%e6%9d%80" aria-label="4.2 Android：从分配异常到进程自杀">4.2 Android：从分配异常到进程自杀</a></li></ul>
+            </li>
+            <li>
+                <a href="#5-pmem-%e8%b5%84%e6%ba%90%e6%ba%af%e6%ba%90%e4%b8%8e%e5%bf%ab%e7%85%a7%e5%88%86%e6%9e%90%e6%96%b9%e6%b3%95" aria-label="5. PMEM 资源溯源与快照分析方法">5. PMEM 资源溯源与快照分析方法</a><ul>
+                    
+            <li>
+                <a href="#51-%e6%8d%95%e8%8e%b7%e6%8e%92%e6%9f%a5%e5%bf%ab%e7%85%a7" aria-label="5.1 捕获排查快照">5.1 捕获排查快照</a></li>
+            <li>
+                <a href="#52-%e5%a4%9a%e7%bb%b4%e7%bb%9f%e8%ae%a1%e5%8f%a3%e5%be%84%e8%be%a8%e6%9e%90" aria-label="5.2 多维统计口径辨析">5.2 多维统计口径辨析</a></li>
+            <li>
+                <a href="#53-%e5%bf%ab%e7%85%a7%e5%ad%97%e6%ae%b5%e9%87%8a%e4%b9%89%e4%b8%8e%e9%ab%98%e9%98%b6%e8%bf%87%e6%bb%a4" aria-label="5.3 快照字段释义与高阶过滤">5.3 快照字段释义与高阶过滤</a>
+            </li>
+        </ul>
+        </li>
+        </ul>
+    </div>
+</details>
+
+  <div class="post-content md-content"><p>在 QNX Host 与 Android Guest 共用 GPU 的座舱系统架构中，Android 侧出现的界面黑屏，其根因未必源于 Android 自身的内存枯竭。尽管像素 Buffer 的物理存储可能完全分配在 Guest 侧，但只要触发创建新的 GPU 渲染上下文 (Context)，就必然依赖 Host 侧的底层资源。一旦 Host 侧某个关键的专用内存池耗尽，这种资源匮乏就会沿着跨虚拟机的调用链向上传递，最终导致 Android 渲染进程异常退出。</p>
+<p>本文旨在系统性地剖析 Graphics Hypervisor Architecture 的内存与控制链路，通过还原一次真实的桌面黑屏故障，并结合 <code>pmemtbl_control.txt</code> 快照，建立一套标准化的资源溯源与占用分析方法。</p>
+<blockquote>
+<p>[!NOTE]
+<strong>适用范围声明</strong>：本文解析基于 Qualcomm GPU 虚拟化架构及特定软件版本的实现。常规、非受保护且无特殊 Heap 属性的 Android Buffer 遵循 Guest 默认分配路径；涉及安全内存 (Secure Memory)、特殊 Heap、以及 Camera/Video 的外部 Buffer，必须独立查证。</p>
+</blockquote>
+<h2 id="1-核心架构gpu-虚拟化与职责划分">1. 核心架构：GPU 虚拟化与职责划分<a hidden class="anchor" aria-hidden="true" href="#1-核心架构gpu-虚拟化与职责划分">#</a></h2>
+<p>该虚拟化架构的核心思想是：将 Android 侧 (Guest) 的 GPU 前端请求，通过 HAB (Hypervisor Access Bus) 安全可靠地透传给 QNX 侧 (Host) 的 GPU 后端执行。理解这套架构的切入点，在于明确以下三大职责的归属：</p>
+<ol>
+<li><strong>物理存储分配</strong>：由谁提供真实的物理页面？可能是 Guest 的页分配器，也可能是 QNX 侧的 PMEM 分配器。</li>
+<li><strong>GPU 映射与访问控制</strong>：由谁建立 GPU 对这些物理页的访问权限？QNX GPU 后端及相关的 SMMU 驱动负责地址的映射管理。</li>
+<li><strong>命令提交与执行同步</strong>：由谁负责发起和等待完成？Guest 前端与 Host 后端协作，最终将指令投递至底层的同一块物理 GPU。</li>
+</ol>
+<blockquote>
+<p>[!IMPORTANT]
+“Host 后端能看到一个 Buffer”仅仅意味着 Host 参与了该 Buffer 的映射或管理，<strong>不能直接等同于该 Buffer 的物理存储是由 Host 侧内存池分配的</strong>。</p>
+</blockquote>
+<h3 id="11-架构拓扑">1.1 架构拓扑<a hidden class="anchor" aria-hidden="true" href="#11-架构拓扑">#</a></h3>
+<style>
+.gha-figure{width:min(1600px,calc(100vw - 48px));position:relative;left:50%;transform:translateX(-50%);margin:28px 0}.gha-figure iframe{display:block;width:100%;height:auto;aspect-ratio:2048/1120;border:1px solid #cbd5e1;border-radius:8px;background:white}.gha-figure figcaption{font-size:14px;line-height:1.7;color:var(--secondary);margin-top:10px;text-align:center}@media(max-width:720px){.gha-figure{width:100%;left:auto;transform:none}.gha-figure iframe{aspect-ratio:auto;height:330px}}
+</style>
+<figure class="gha-figure">
+<iframe src="../../../static/diagrams/graphics-hypervisor-architecture.html" title="Graphics Hypervisor Architecture 架构图" loading="lazy"></iframe>
+<figcaption>路径 1：Guest 分配；路径 1.1：跨虚拟机导出与映射；路径 2：Host 分配。</figcaption>
+</figure>
+<p><a href="/ethenslab/diagrams/graphics-hypervisor-architecture.html">在独立页面查看完整架构图</a>
+</p>
+<p>图中展示了 GPU 虚拟化环境下的逻辑交互关系，并非完整的显示合成流。需注意，图中的 KGSL 模块并非直接运行在 QNX 微内核空间，现场实际存在独立的 <code>kgsl</code> 用户态服务进程。</p>
+<h3 id="12-核心模块职责矩阵">1.2 核心模块职责矩阵<a hidden class="anchor" aria-hidden="true" href="#12-核心模块职责矩阵">#</a></h3>
+<table>
+	<thead>
+			<tr>
+					<th>模块组件</th>
+					<th>架构职责</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><strong>LA GVM</strong></td>
+					<td>Linux/Android Guest 系统，承载 Launcher、SystemUI、App 及其图形渲染前端。</td>
+			</tr>
+			<tr>
+					<td><strong>QNX PVM</strong></td>
+					<td>Host 侧特权执行环境，不仅运行本地图形客户端，还承载着共享 GPU 的后端核心服务。</td>
+			</tr>
+			<tr>
+					<td><strong>OpenGL ES / EGL</strong></td>
+					<td>GL 负责渲染状态与绘图命令的管理；EGL 负责 Context 与 Surface 的平台原生连接。</td>
+			</tr>
+			<tr>
+					<td><strong>GSL Client / HGSL</strong></td>
+					<td>Guest 侧图形系统层及虚拟化前端，负责封装 GPU 操作、内存导出协议和 Context 请求。</td>
+			</tr>
+			<tr>
+					<td><strong>KHAB / HAB / UHAB</strong></td>
+					<td>跨虚拟机通信与内存共享的基础设施，负责高速传输请求、句柄及附带数据。</td>
+			</tr>
+			<tr>
+					<td><strong>GSL HAB Server</strong></td>
+					<td>运行于 Host 上接收 Guest 图形 RPC 的服务端代理，负责将请求路由给后端。</td>
+			</tr>
+			<tr>
+					<td><strong>GSL / KGSL (RGS)</strong></td>
+					<td>GPU 后端资源核心管理者，掌控上下文、内存描述符、SMMU 映射、命令提交与时序同步。</td>
+			</tr>
+			<tr>
+					<td><strong>Kernel / SMMU</strong></td>
+					<td>负责建立和约束设备侧 (GPU) 的地址访问视图。</td>
+			</tr>
+	</tbody>
+</table>
+<blockquote>
+<p>[!WARNING]
+Guest sysram、QNX <code>/sysram</code> 与 QNX <code>/mm_dma</code> 是截然不同的内存归属对象。虽然它们在硬件层面都位于同一块物理 DDR 内，但在架构排查时，绝不能混淆统计口径。</p>
+</blockquote>
+<h2 id="2-内存与控制路径解析">2. 内存与控制路径解析<a hidden class="anchor" aria-hidden="true" href="#2-内存与控制路径解析">#</a></h2>
+<h3 id="21-路径-1guest-分配普通图形内存">2.1 路径 1：Guest 分配普通图形内存<a hidden class="anchor" aria-hidden="true" href="#21-路径-1guest-分配普通图形内存">#</a></h3>
+<p>对于常规的 Android <code>GraphicBuffer</code>，Gralloc 通常将其标记为 <code>qcom,system</code>（Legacy 分支映射至 <code>ION_SYSTEM_HEAP_ID</code>）。这种 System Heap 优先消耗 Guest 系统本身的页池，当资源不足时才会向下调用 Android 内核的 <code>alloc_pages()</code>。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Android GraphicBuffer / Gralloc
+</span></span><span style="display:flex;"><span>    → 选用 qcom,system / ION_SYSTEM_HEAP_ID
+</span></span><span style="display:flex;"><span>    → 消耗 Guest System Heap 页池 / 调用 alloc_pages()
+</span></span><span style="display:flex;"><span>    → 返回 DMA-BUF / fd
+</span></span></code></pre></div><p>HGSL 自行分配普通图形内存时，同样遵循 Guest 分配路径：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>hgsl_ioctl_mem_alloc()
+</span></span><span style="display:flex;"><span>    → hgsl_sharedmem_alloc()
+</span></span><span style="display:flex;"><span>    → hgsl_alloc_pages() / alloc_pages()
+</span></span><span style="display:flex;"><span>    → hgsl_hyp_mem_map_smmu()
+</span></span></code></pre></div><p>在此路径下，物理页面完全从属于 <strong>LA Guest OS memory</strong>。</p>
+<h3 id="22-路径-11内存导出与-gpu-访问映射">2.2 路径 1.1：内存导出与 GPU 访问映射<a hidden class="anchor" aria-hidden="true" href="#22-路径-11内存导出与-gpu-访问映射">#</a></h3>
+<p>Guest 虽然分配了物理内存，但这块内存要被底层物理 GPU 访问，必须通过 Host 后端在 SMMU 中建立映射。该路径的核心是将已有 Buffer 的描述信息（fd, size, offset）通过 HAB 总线导出。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Guest 已持有 DMA-BUF / fd
+</span></span><span style="display:flex;"><span>    → HGSL 封装导出请求
+</span></span><span style="display:flex;"><span>    → habmm_export() 发起跨域共享
+</span></span><span style="display:flex;"><span>    → KHAB → Hypervisor → Host HAB / GSL HAB Server 接收请求
+</span></span><span style="display:flex;"><span>    → RPC_MEMORY_MAP_EXT_FD_PURE
+</span></span><span style="display:flex;"><span>    → Host 后端指令 SMMU 建立 GPU 虚拟地址映射
+</span></span></code></pre></div><p>这里传递的仅仅是<strong>共享与映射关系</strong>，Host 端绝不会为此再申请一份同等大小的像素存储。这就解释了排查中的两个核心现象：</p>
+<ol>
+<li>Android 的 Buffer 记录会出现在 Host 后端的客户端明细中，但这绝对不代表它是由 QNX <code>/mm_dma</code> 分配的。</li>
+<li>同一份物理内存可能被 SurfaceFlinger、Launcher 甚至硬件合成器同时引用。若简单相加各个客户端的视角大小，必然导致统计严重失真。</li>
+</ol>
+<h3 id="23-路径-2host-本地-pmem-分配">2.3 路径 2：Host 本地 PMEM 分配<a hidden class="anchor" aria-hidden="true" href="#23-路径-2host-本地-pmem-分配">#</a></h3>
+<p>对于 QNX 本地的图形客户端，以及 GPU 后端（KGSL）在管理工作时自身必需的资源，分配请求将走向 Host 侧路径：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>QNX 侧本地客户端 / GPU 后端内部需求
+</span></span><span style="display:flex;"><span>    → GSL / KGSL
+</span></span><span style="display:flex;"><span>    → PMEM Allocator 模块
+</span></span><span style="display:flex;"><span>    → 依据 PMEM ID、Flags、VMID 与平台配置解析策略
+</span></span><span style="display:flex;"><span>    → 从 Typed Memory / 普通物理页 / Carveout 提取内存
+</span></span></code></pre></div><blockquote>
+<p>[!TIP]
+<strong>概念澄清</strong>：PMEM 是一种分配与管理机制，而 <code>/mm_dma</code> 仅仅是该平台上存在的一个具体内存池。不能将所有的 PMEM 请求或所有的后端记录一概而论。在实际故障分析中，必须查阅日志明确当前失败申请的目标对象。</p>
+</blockquote>
+<h3 id="24-context-创建命令提交与同步">2.4 Context 创建、命令提交与同步<a hidden class="anchor" aria-hidden="true" href="#24-context-创建命令提交与同步">#</a></h3>
+<p>除了像素数据 Buffer 外，GPU 还需要维持一份上下文状态 (Context)、命令队列及同步对象。当 Android 层发起 EGL Context 创建时，驱动会向 Host 侧发起跨域请求：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>eglCreateContext()
+</span></span><span style="display:flex;"><span>    → Guest 侧 EGL / GSL 驱动打包请求
+</span></span><span style="display:flex;"><span>    → HGSL_IOCTL_CTXT_CREATE
+</span></span><span style="display:flex;"><span>    → hgsl_hyp_ctxt_create_v1() (或 legacy 路径)
+</span></span><span style="display:flex;"><span>    → RPC_CONTEXT_CREATE
+</span></span><span style="display:flex;"><span>    → Host 侧执行 rgs_context_create_common()
+</span></span><span style="display:flex;"><span>    → 后端从本地池分配 Context 所需资源
+</span></span></code></pre></div><p>Context 建立完毕后，Guest 的渲染命令及其资源引用进入提交流水线，由 Host GPU 后端统筹调度执行。</p>
+<h2 id="3-跨域资源依赖与耗尽连锁反应">3. 跨域资源依赖与耗尽连锁反应<a hidden class="anchor" aria-hidden="true" href="#3-跨域资源依赖与耗尽连锁反应">#</a></h2>
+<p>基于上述架构，我们就能理解：一次成功的跨域渲染操作，往往强依赖于多个完全独立的资源域。</p>
+<table>
+	<thead>
+			<tr>
+					<th>资源类别</th>
+					<th>架构归属</th>
+					<th>是否属于像素存储范畴</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>常规 GraphicBuffer / HGSL 内存</td>
+					<td>LA Guest 分配器</td>
+					<td>是（承载实际画面像素）</td>
+			</tr>
+			<tr>
+					<td>跨域导出、导入及 GPU 地址映射</td>
+					<td>Guest 与 Host 协同维护</td>
+					<td>否（仅代表访问权限与映射表）</td>
+			</tr>
+			<tr>
+					<td>GPU 后端 Context Records</td>
+					<td>QNX 侧 <code>/mm_dma</code> 内存池</td>
+					<td>否（属于后端管理上下文资源）</td>
+			</tr>
+			<tr>
+					<td>Context 队列、时间戳缓冲管理</td>
+					<td>按具体 FE/BE 分支策略分配</td>
+					<td>否（需要独立核算）</td>
+			</tr>
+	</tbody>
+</table>
+<p>因此，<strong>哪怕 Guest 端拥有充沛的空闲内存页面，哪怕旧有的纹理完全可以正常访问，只要新建 Context 时宿主侧 (Host) 的专属管理池资源耗尽，该次渲染启动依然会遭遇滑铁卢</strong>。</p>
+<h3 id="31-context-的真实存储开销">3.1 Context 的真实存储开销<a hidden class="anchor" aria-hidden="true" href="#31-context-的真实存储开销">#</a></h3>
+<p>在一次典型的分配失败现场中，日志清晰地指明了 QNX 后端的 Context Records 路径正试图请求 <strong><code>0x30000 (192 KiB)</code></strong> 的空间。</p>
+<p>提取本地 <code>GSLKernel.so</code> 的机器码进行逆向印证：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-asm" data-lang="asm"><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">0</span>x1883c: <span style="color:#a6e22e">mov</span>  <span style="color:#66d9ef">x0</span>, <span style="color:#75715e">#196608    // 预装入此次分配的大小参数 (192 KiB)
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">0</span>x18844: <span style="color:#a6e22e">bl</span>   <span style="color:#ae81ff">0x339c8</span>        <span style="color:#75715e">// 跳转进入 PMEM 分配器封装
+</span></span></span><span style="display:flex;"><span><span style="color:#960050;background-color:#1e0010">0</span>x1884c: <span style="color:#a6e22e">cbnz</span> <span style="color:#66d9ef">w0</span>, <span style="color:#ae81ff">0x188f0</span>    <span style="color:#75715e">// 捕获非零返回码，跳转错误分支
+</span></span></span></code></pre></div><p>而 Android HGSL 的源码侧还揭示了其他潜在开销（如 Shadow Timestamp 缓冲、Context Doorbell Queue 等）。这警示我们，Context 的开销并不是一个静态常量，不同驱动版本和队列模型下的资源消耗存在波动，且各部分的内存池归属也不尽相同。</p>
+<h3 id="32-区分全局空闲与池级空闲">3.2 区分全局空闲与池级空闲<a hidden class="anchor" aria-hidden="true" href="#32-区分全局空闲与池级空闲">#</a></h3>
+<p>排查内存耗尽时，必须区分整机 RAM 剩余量与专属内存池的剩余量。即使系统级统计显示尚有 1.5 GiB 的空闲，但特定的 <code>/mm_dma</code> 内存池在连续或非连续块上的可分配余量极有可能已经归零。
+因此，<code>mmap64(sz=0x30000, non-contig)</code> 宣告失败并抛出池容量枯竭是完全合理的底层行为，不能用“系统还有很多内存”来轻易否定。</p>
+<h2 id="4-故障还原黑屏链路与错误传播机制">4. 故障还原：黑屏链路与错误传播机制<a hidden class="anchor" aria-hidden="true" href="#4-故障还原黑屏链路与错误传播机制">#</a></h2>
+<p>在一场真实的桌面黑屏故障中，一条完整的因果错误链被清晰地记录了下来：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>QNX /mm_dma 内存池无可用额度
+</span></span><span style="display:flex;"><span>    ↓
+</span></span><span style="display:flex;"><span>GPU 后端试图申请 192 KiB Context Records 遭拒
+</span></span><span style="display:flex;"><span>    ↓
+</span></span><span style="display:flex;"><span>RPC_CONTEXT_CREATE 跨域应答失败
+</span></span><span style="display:flex;"><span>    ↓
+</span></span><span style="display:flex;"><span>Android EGL 返回 EGL_BAD_ALLOC 错误
+</span></span><span style="display:flex;"><span>    ↓
+</span></span><span style="display:flex;"><span>Android HWUI 触发致命异常 (Fatal / Abort)
+</span></span><span style="display:flex;"><span>    ↓
+</span></span><span style="display:flex;"><span>com.tuanjie.voyahrenderservice 渲染进程非正常退出
+</span></span><span style="display:flex;"><span>    ↓
+</span></span><span style="display:flex;"><span>Launcher 监听到渲染服务断连、SurfaceTexture 被强制销毁
+</span></span><span style="display:flex;"><span>    ↓
+</span></span><span style="display:flex;"><span>桌面 UI 组件丢失画面载体，陷入黑屏
+</span></span></code></pre></div><h3 id="41-qnx物理资源分配防线的崩溃">4.1 QNX：物理资源分配防线的崩溃<a hidden class="anchor" aria-hidden="true" href="#41-qnx物理资源分配防线的崩溃">#</a></h3>
+<p>提取关键的 QNX 侧现场日志：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>15:15:27.063 PMEM: mmap64(sz=0x30000,non-contig)
+</span></span><span style="display:flex;"><span>             id=PMEM_GRAPHICS_FRAMEBUFFER_ID
+</span></span><span style="display:flex;"><span>             fd=13(&#34;/mm_dma&#34;), err=Not enough memory
+</span></span><span style="display:flex;"><span>15:15:27.063 Free memory: 1599740 KB
+</span></span><span style="display:flex;"><span>15:15:27.063 info(/mm_dma): contig len=0 KB
+</span></span><span style="display:flex;"><span>15:15:27.063 info(/mm_dma): non-contig len=0 KB
+</span></span><span style="display:flex;"><span>15:15:27.063 rgs_context_create_common[785]:
+</span></span><span style="display:flex;"><span>             alloc_user_ctxt_records() FAILED, status=-4
+</span></span><span style="display:flex;"><span>15:15:27.066 [ahrenderservice|7069846|2]:
+</span></span><span style="display:flex;"><span>             RPC Fn 21 (&#39;rpc_context_create&#39;) failed ret -1
+</span></span></code></pre></div><p>日志证明：池名匹配 (<code>/mm_dma</code>)、分配尺寸匹配 (<code>0x30000</code>)、连续与非连续碎片耗尽。此处的 <code>7069846</code> 是后端侧虚拟化客户端 ID，绝非 Android 侧真实的 PID。</p>
+<h3 id="42-android从分配异常到进程自杀">4.2 Android：从分配异常到进程自杀<a hidden class="anchor" aria-hidden="true" href="#42-android从分配异常到进程自杀">#</a></h3>
+<p>接收到跨域的失败应答后，Android 侧随即发生雪崩：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>15:15:27.072 3383 31702 Adreno-GSL_RPC:
+</span></span><span style="display:flex;"><span>             HGSL_IOCTL_CTXT_CREATE failed
+</span></span><span style="display:flex;"><span>15:15:27.073 3383 31702 OpenGLRenderer:
+</span></span><span style="display:flex;"><span>             Failed to create context, error = EGL_BAD_ALLOC
+</span></span><span style="display:flex;"><span>15:15:27.424 3383 31702 libc:
+</span></span><span style="display:flex;"><span>             Fatal signal 6 (SIGABRT), tid 31702 (RenderThread)
+</span></span></code></pre></div><p>审查 HWUI 中的 <code>EglManager::createContext()</code> 机制，其对 EGL 失败配置了刚性的拦截策略：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span>LOG_ALWAYS_FATAL_IF(
+</span></span><span style="display:flex;"><span>        mEglContext <span style="color:#f92672">==</span> EGL_NO_CONTEXT,
+</span></span><span style="display:flex;"><span>        <span style="color:#e6db74">&#34;Failed to create context, error = %s&#34;</span>,
+</span></span><span style="display:flex;"><span>        eglErrorString());
+</span></span></code></pre></div><p>这表明，并非“EGL 报错本身会杀进程”，而是高层框架 HWUI 判定 Context 缺失属于无法挽回的重症，主动通过 abort 终止了整个渲染进程。</p>
+<h2 id="5-pmem-资源溯源与快照分析方法">5. PMEM 资源溯源与快照分析方法<a hidden class="anchor" aria-hidden="true" href="#5-pmem-资源溯源与快照分析方法">#</a></h2>
+<p>确认了 <code>/mm_dma</code> 发生 OOM，下一步则是精准定位资源的“持仓大户”。对于 GPU 资源，QNX 标准的系统内存分析工具只能将账目粗略算在 <code>kgsl</code> 进程名下，此时必须依赖驱动级的内部调试表盘 <code>pmemtbl</code>。</p>
+<h3 id="51-捕获排查快照">5.1 捕获排查快照<a hidden class="anchor" aria-hidden="true" href="#51-捕获排查快照">#</a></h3>
+<p>在拥有较高系统权限的 QNX 控制台中触发快照转储：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>echo pmemtbl &gt; /dev/kgsl-control
+</span></span></code></pre></div><p>快照文件将安全落地至 QNX 文件系统：<code>/var/log/pmemtbl_control.txt</code>。</p>
+<p>为了构建绝对严谨的时间横断面证据链，建议执行以下标准作业组合指令：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># 1. 抓取 QNX 侧各内存池的物理映射范围与当前水位</span>
+</span></span><span style="display:flex;"><span>pidin syspage<span style="color:#f92672">=</span>asinfo
+</span></span><span style="display:flex;"><span>showmem -t mm_dma
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 2. 强制触发 GPU 后端客户端明细落盘</span>
+</span></span><span style="display:flex;"><span>echo pmemtbl &gt; /dev/kgsl-control
+</span></span></code></pre></div><h3 id="52-多维统计口径辨析">5.2 多维统计口径辨析<a hidden class="anchor" aria-hidden="true" href="#52-多维统计口径辨析">#</a></h3>
+<p>快照文件的顶部记录了总览信息：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>pmem table dump: total entries=21914,
+</span></span><span style="display:flex;"><span> total size alloc&#39;d=997956712(0x3b7b9c68), time=172026640.00ms
+</span></span><span style="display:flex;"><span>RGS release: 0x74725000, GMU FW release: 0x30020006
+</span></span></code></pre></div><p>随后输出按客户端聚合的宏观账单：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>index process name       host pid   total size(bytes) peak size(bytes)
+</span></span><span style="display:flex;"><span>34    ClusterLVGL        979677219   943304784         943304784
+</span></span><span style="display:flex;"><span>21    ahrenderservice     11387026   621998160         623046736
+</span></span></code></pre></div><p>在阅读此报告时，必须牢记三者不可混用：</p>
+<ul>
+<li><strong><code>showmem</code> 池级统计</strong>：提供指定 <code>/mm_dma</code> 的确切物理容量使用率。</li>
+<li><strong>全局头部 <code>total size alloc'd</code></strong>：表征底层驱动在该统计口径下的账面划拨总量。</li>
+<li><strong>客户端明细相加总和</strong>：该数值通常会大大多于全局 Alloc 量，这是因为其包含了大量从 Guest 映射过来的、甚至在多客户端间被重复引用的共享 Buffer。<strong>决不能将某客户端持有的总量直接等价于其对 <code>/mm_dma</code> 的独占消耗</strong>。</li>
+</ul>
+<h3 id="53-快照字段释义与高阶过滤">5.3 快照字段释义与高阶过滤<a hidden class="anchor" aria-hidden="true" href="#53-快照字段释义与高阶过滤">#</a></h3>
+<p>在快照的最底层明细中，包含了单笔资源的具体信息：</p>
+<table>
+	<thead>
+			<tr>
+					<th>关键字段</th>
+					<th>排查价值与应用禁忌</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>tbl[index]</code></td>
+					<td>直接关联至前文的客户端宏观账单，比短缺的进程名更精确可靠。</td>
+			</tr>
+			<tr>
+					<td><code>size</code></td>
+					<td>当前记录在案的字节数，请注意一笔记录不绝对对应上层的一个完整的纹理对象。</td>
+			</tr>
+			<tr>
+					<td><code>va</code> / <code>uva</code></td>
+					<td>位于不同域的虚拟地址游标，不具备推导物理池归属的证据效力。</td>
+			</tr>
+			<tr>
+					<td><code>pa</code></td>
+					<td><strong>物理地址字段</strong>。当 PA 为 0 时并非意味着没有物理内存，而是该层级暂未记录。<strong>但通过非零 PA 的筛选，配合 <code>asinfo</code> 地址区间过滤，是逼近物理归属真相的最强手段。</strong></td>
+			</tr>
+			<tr>
+					<td><code>da</code></td>
+					<td>设备地址视图，专供 GPU 侧定位，不应与 CPU 物理地址混淆。</td>
+			</tr>
+			<tr>
+					<td><code>pid</code></td>
+					<td>GPU 后端内部的逻辑追踪号。</td>
+			</tr>
+			<tr>
+					<td><code>usage</code> / <code>info</code></td>
+					<td>提供资源分类的黄金线索，如 <code>TEXTUR</code> (纹理)、<code>COMMAND</code> (指令环)、<code>ARRAY</code> 等。</td>
+			</tr>
+	</tbody>
+</table>
+<p><strong>排查总结</strong>：要证实某进程掏空了特定的 <code>/mm_dma</code>，单凭一份表格是不够的。必须将调用栈、运行时的 <code>asinfo</code> 物理段范围、池级水位监控以及非零 PA 的精确过滤数据形成证据闭环。</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="https://ethen-cao.github.io/ethenslab/tags/qnx/">QNX</a></li>
+      <li><a href="https://ethen-cao.github.io/ethenslab/tags/hypervisor/">Hypervisor</a></li>
+      <li><a href="https://ethen-cao.github.io/ethenslab/tags/gpu/">GPU</a></li>
+      <li><a href="https://ethen-cao.github.io/ethenslab/tags/hgsl/">HGSL</a></li>
+      <li><a href="https://ethen-cao.github.io/ethenslab/tags/kgsl/">KGSL</a></li>
+      <li><a href="https://ethen-cao.github.io/ethenslab/tags/pmem/">PMEM</a></li>
+      <li><a href="https://ethen-cao.github.io/ethenslab/tags/android/">Android</a></li>
+      <li><a href="https://ethen-cao.github.io/ethenslab/tags/%E6%95%85%E9%9A%9C%E5%88%86%E6%9E%90/">故障分析</a></li>
+    </ul>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://ethen-cao.github.io/ethenslab/">Ethen 的实验室</a></span> · 
+
+    
+    
+    <span>
+        Powered by
+        <a href="https://gohugo.io/?utm_source=papermod" rel="noopener" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" id="top-link" class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up">
+        <polyline points="17 11 12 6 7 11"></polyline>
+        <polyline points="17 18 12 13 7 18"></polyline>
+    </svg>
+</a><script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
+<script>
+    (function(){
+        
+        
+        const plantumlBlocks = document.querySelectorAll('pre > code.language-plantuml, pre > code.language-planuml');
+        
+        plantumlBlocks.forEach(codeBlock => {
+            const plantumlCode = codeBlock.innerText;
+            
+            const encoded = plantumlEncoder.encode(plantumlCode);
+            
+            const imageUrl = "https://www.plantuml.com/plantuml/svg/" + encoded;
+            
+            
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = "PlantUML Diagram";
+            img.style.maxWidth = "100%"; 
+            
+            
+            const preBlock = codeBlock.parentNode;
+            preBlock.parentNode.replaceChild(img, preBlock);
+        });
+    })();
+</script>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var toplink = document.getElementById("top-link");
+    window.onscroll = function () {
+        const scrollThreshold = window.innerHeight;
+        if (document.body.scrollTop > scrollThreshold || document.documentElement.scrollTop > scrollThreshold) {
+            toplink.classList.remove("hidden");
+        } else {
+            toplink.classList.add("hidden");
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>

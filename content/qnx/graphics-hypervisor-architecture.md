@@ -33,11 +33,11 @@ TocOpen = true
 </style>
 
 <figure class="gha-figure">
-<iframe src="../../../static/diagrams/graphics-hypervisor-architecture.html" title="Graphics Hypervisor Architecture 架构图" loading="lazy"></iframe>
+<iframe src="../../diagrams/graphics-hypervisor-architecture.html" title="Graphics Hypervisor Architecture 架构图" loading="lazy"></iframe>
 <figcaption>路径 1：Guest 分配；路径 1.1：跨虚拟机导出与映射；路径 2：Host 分配。</figcaption>
 </figure>
 
-[在独立页面查看完整架构图](../../static/diagrams/graphics-hypervisor-architecture.html)
+[在独立页面查看完整架构图](../../diagrams/graphics-hypervisor-architecture.html)
 
 图中展示了 GPU 虚拟化环境下的逻辑交互关系，并非完整的显示合成流。需注意，图中的 KGSL 模块并非直接运行在 QNX 微内核空间，现场实际存在独立的 `kgsl` 用户态服务进程。
 
