@@ -4,7 +4,7 @@ draft = false
 title = 'Netflix DRM 流程与白名单验证'
 +++
 
-![](/ethenslab/images/netflix-verification.png)
+![](../../static//images/netflix-verification.png)
 
 1.  **用户操作**：用户在浏览器中打开 Netflix 并点击播放。
 2.  **请求清单**：浏览器向 Netflix 服务器请求视频的元数据（Manifest 文件，如 MPD）。
