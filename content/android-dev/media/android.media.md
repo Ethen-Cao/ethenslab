@@ -32,7 +32,7 @@ title = 'Android MediaSession 管理与路由机制'
 ## 4. 典型场景流程解析
 
 以下流程描述了用户从 App A 切换到 App B 并进行播放控制的完整生命周期。
-![](/ethenslab/images/android-MediaSessionService-updateMediaSession.png)
+![](../../../static/images/android-MediaSessionService-updateMediaSession.png)
 ### 阶段 1: App A 启动与播放
 
   * App A 创建 Session 并 `setActive(true)`。
