@@ -27,15 +27,17 @@ TocOpen = true
 > “Host 后端能看到一个 Buffer”仅仅意味着 Host 参与了该 Buffer 的映射或管理，**不能直接等同于该 Buffer 的物理存储是由 Host 侧内存池分配的**。
 
 ### 1.1 架构拓扑
+
 <style>
 .gha-figure{width:min(1600px,calc(100vw - 48px));position:relative;left:50%;transform:translateX(-50%);margin:28px 0}.gha-figure iframe{display:block;width:100%;height:auto;aspect-ratio:2048/1120;border:1px solid #cbd5e1;border-radius:8px;background:white}.gha-figure figcaption{font-size:14px;line-height:1.7;color:var(--secondary);margin-top:10px;text-align:center}@media(max-width:720px){.gha-figure{width:100%;left:auto;transform:none}.gha-figure iframe{aspect-ratio:auto;height:330px}}
 </style>
+
 <figure class="gha-figure">
-<iframe src="../../diagrams/graphics-hypervisor-architecture.html" title="Graphics Hypervisor Architecture 架构图" loading="lazy"></iframe>
+<iframe src="../../../static/diagrams/graphics-hypervisor-architecture.html" title="Graphics Hypervisor Architecture 架构图" loading="lazy"></iframe>
 <figcaption>路径 1：Guest 分配；路径 1.1：跨虚拟机导出与映射；路径 2：Host 分配。</figcaption>
 </figure>
 
-[在独立页面查看完整架构图](../../diagrams/graphics-hypervisor-architecture.html)
+[在独立页面查看完整架构图](../../static/diagrams/graphics-hypervisor-architecture.html)
 
 图中展示了 GPU 虚拟化环境下的逻辑交互关系，并非完整的显示合成流。需注意，图中的 KGSL 模块并非直接运行在 QNX 微内核空间，现场实际存在独立的 `kgsl` 用户态服务进程。
 
