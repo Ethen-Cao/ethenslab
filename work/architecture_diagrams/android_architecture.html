@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Software Architecture - IVI Domain (SDV Style)</title>
+<style>
+  :root {
+    /* 深色主题 (默认) */
+    --bg-body: #202124;
+    --bg-ppt: #282A2D;
+    --bg-domain: #202124;
+    --bg-container: #282A2D;
+    --bg-header: #3C4043;
+    
+    --border-ppt: #3C4043;
+    --border-domain: #5F6368;
+    --border-block: rgba(255, 255, 255, 0.2);
+    
+    --text-title: #FFFFFF;
+    --text-domain: #E8EAED;
+    --text-header-sys: #FFFFFF;
+    
+    /* 核心语义颜色 (Google SDV) */
+    --c-oem: #4285F4;    /* Google Blue */
+    --c-sys: #34A853;    /* Google Green */
+    --c-opt: linear-gradient(90deg, #4285F4 0%, #34A853 100%); 
+    
+    --text-block: #FFFFFF;
+  }
+
+  /* 亮色主题 */
+  [data-theme="light"] {
+    --bg-body: #F8F9FA;
+    --bg-ppt: #FFFFFF;
+    --bg-domain: #F1F3F4;
+    --bg-container: #FFFFFF;
+    --bg-header: #E8EAED;
+    
+    --border-ppt: #DADCE0;
+    --border-domain: #BDC1C6;
+    --border-block: rgba(0, 0, 0, 0.15);
+    
+    --text-title: #202124;
+    --text-domain: #3C4043;
+    --text-header-sys: #202124;
+  }
+  
+  * { box-sizing: border-box; }
+  
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg-body);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    transition: background 0.3s ease;
+  }
+
+  .theme-toggle {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    padding: 10px 20px;
+    border-radius: 24px;
+    background: var(--bg-ppt);
+    border: 1px solid var(--border-ppt);
+    color: var(--text-title);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
+  .theme-toggle:hover {
+    background: var(--bg-domain);
+  }
+
+  /* ================= 通用大屏容器 ================= */
+  .ppt-wrapper {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+  }
+
+  .ppt-container {
+    width: 1280px;
+    min-height: 720px;
+    background: var(--bg-ppt);
+    border: 1px solid var(--border-ppt);
+    box-shadow: 0 24px 48px rgba(0,0,0,0.2);
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+  }
+
+  .header {
+    margin-bottom: 16px;
+  }
+  .header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-title);
+  }
+
+  .legend-panel {
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 80px;
+  }
+  .legend-item {
+    padding: 12px 16px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #fff;
+    border: 1px solid var(--border-block);
+  }
+  .l-oem { background: var(--c-oem); }
+  .l-sys { background: var(--c-sys); }
+  .l-opt { background: var(--c-opt); }
+
+  /* ================= IVI Domain ================= */
+  .domain-ivi {
+    flex: 1;
+    border: 2px solid var(--border-domain);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--bg-domain);
+  }
+  .domain-title {
+    font-size: 18px;
+    color: var(--text-domain);
+    margin-bottom: 4px;
+    margin-left: 4px;
+  }
+  .row { display: flex; gap: 8px; width: 100%; }
+
+  .container {
+    border: 1px solid var(--border-domain);
+    background: var(--bg-container);
+    display: flex;
+    flex-direction: column;
+  }
+  .container-header {
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border-domain);
+  }
+  .bg-header-sys { background: var(--bg-header); color: var(--text-header-sys); }
+  .bg-header-opt { background: var(--c-opt); color: #fff; }
+
+  .container-body { padding: 8px; flex: 1; }
+
+  .block {
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    font-size: 12px;
+    color: var(--text-block);
+    border: 1px solid var(--border-block);
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .block-title {
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-block);
+    width: 100%;
+  }
+  .block-content { font-size: 12px; line-height: 1.6; flex: 1; }
+  .block-center { align-items: center; justify-content: center; text-align: center; }
+  
+  .bg-oem { background: var(--c-oem); color:#fff; border: 1px solid rgba(255,255,255,0.2); }
+  .bg-sys { background: var(--c-sys); color:#fff; border: 1px solid rgba(255,255,255,0.2); }
+
+  .sub-container-oem {
+    border: 1px dashed var(--c-oem);
+    background: transparent;
+  }
+  .sub-container-oem > .block-title {
+    color: var(--c-oem);
+    background: transparent;
+    border-bottom: 1px dashed rgba(66, 133, 244, 0.4);
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+  }
+
+  .bar-block {
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-block);
+    border: 1px solid var(--border-block);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .row-app { flex: 0 0 230px; }
+  .app-grid { display: grid; grid-template-columns: 1fr 1.2fr 1fr 1fr 1.1fr 1.3fr; gap: 8px; height: 100%; }
+  .row-fw { flex: 0 0 130px; }
+  .fw-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px; height: 100%; }
+  .carfw-grid { display: grid; grid-template-rows: 1fr 1fr; gap: 6px; height: 100%; }
+  .extfw-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 6px; height: 100%; }
+  .extfw-col-left { display: grid; grid-template-rows: repeat(4, 1fr); gap: 6px; }
+  .extfw-col-right { display: grid; grid-template-rows: 1fr 1fr; gap: 6px; }
+  .row-rt { flex: 0 0 44px; }
+  .row-hal { flex: 0 0 80px; }
+  .hal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 100%; }
+  .exthal-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; height: 100%; }
+  .exthal-col-mid { display: grid; grid-template-rows: 1fr 1fr; gap: 6px; }
+  .row-kernel { flex: 0 0 44px; }
+
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()">☀️ 切换亮色模式</button>
+
+<div class="ppt-wrapper">
+  <div class="ppt-container">
+    <div class="header">
+      <h1>Software architecture - Android</h1>
+    </div>
+    <div class="domain-ivi">
+      <div class="domain-title">IVI Domain</div>
+      <!-- Row 1: Android App -->
+      <div class="container row-app">
+        <div class="container-header bg-header-sys">Android App</div>
+        <div class="container-body app-grid">
+          <div class="block bg-oem" style="justify-content: flex-start;">
+            <div class="block-title">基础应用</div>
+            <div class="block-content">Launcher<br>SystemUI<br>QuickSettings<br>Theme<br>VR/Navi<br>AppStore/...</div>
+          </div>
+          <div class="block bg-oem" style="justify-content: flex-start;">
+            <div class="block-title">多媒体</div>
+            <div class="block-content">Online audio/Video<br>Bluetooth audio<br>FM/AM/DAB<br>KTV<br>Gallery</div>
+          </div>
+          <div class="block bg-oem" style="justify-content: flex-start;">
+            <div class="block-title">通讯</div>
+            <div class="block-content">账号<br>个人中心<br>消息中心<br>X Call<br>通信录<br>天气<br>用户手册/...</div>
+          </div>
+          <div class="block bg-oem" style="justify-content: flex-start;">
+            <div class="block-title">车控</div>
+            <div class="block-content">车辆控制<br>能量管理<br>DMS/OMS<br>DVR<br>物流模式<br>迎宾模式<br>维修模式/...</div>
+          </div>
+          <div class="block bg-oem" style="justify-content: flex-start;">
+            <div class="block-title">场景</div>
+            <div class="block-content block-center" style="display:flex;">休憩/宠物/离车/观影/洗车/壁炉/露营/彩蛋等</div>
+          </div>
+          <div class="block sub-container-oem" style="justify-content: flex-start;">
+            <div class="block-title">3D应用</div>
+            <div class="block-content" style="display:flex; flex-direction:column; gap:6px; width: 100%;">
+              <div class="block bg-oem block-center" style="flex:1;">主交互/车控/地图/...</div>
+              <div class="block bg-oem block-center">3D Engine FW</div>
+              <div class="block bg-oem block-center">Middleware/adapter layer</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Row 2: Frameworks -->
+      <div class="row row-fw">
+        <div class="container" style="flex: 1.15;">
+          <div class="container-header bg-header-opt">Framework</div>
+          <div class="container-body fw-grid">
+            <div class="block bg-sys block-center">ActivityManager</div>
+            <div class="block bg-sys block-center">WindowManager</div>
+            <div class="block bg-sys block-center">Resources</div>
+            <div class="block bg-sys block-center">Audio</div>
+            <div class="block bg-sys block-center">Media</div>
+            <div class="block bg-sys block-center">Display /...</div>
+          </div>
+        </div>
+        <div class="container" style="flex: 1;">
+          <div class="container-header bg-header-opt">CarFW</div>
+          <div class="container-body carfw-grid">
+            <div class="block bg-sys block-center">AppFocus/Audio/MediaService</div>
+            <div class="block bg-sys block-center">CarProperty/Power/User /...</div>
+          </div>
+        </div>
+        <div class="container" style="flex: 1;">
+          <div class="container-header bg-header-sys">ExtFW</div>
+          <div class="container-body extfw-grid">
+            <div class="extfw-col-left">
+              <div class="block bg-oem block-center" style="padding:4px;">Performance</div>
+              <div class="block bg-oem block-center" style="padding:4px;">Scene/Config</div>
+              <div class="block bg-oem block-center" style="padding:4px;">Perf Engine</div>
+              <div class="block bg-oem block-center" style="padding:4px;">Actions</div>
+            </div>
+            <div class="extfw-col-right">
+              <div class="block bg-oem block-center">CarPlay/CarLife/<br>HiCar/...</div>
+              <div class="block bg-oem block-center">LifeCycle/Log/Power/<br>Persistent/...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Row 3: AndroidRuntime -->
+      <div class="row row-rt">
+        <div class="bar-block bg-sys">AndroidRuntime</div>
+      </div>
+      <!-- Row 4: HAL -->
+      <div class="row row-hal">
+        <div class="container" style="flex: 1.85;">
+          <div class="container-header bg-header-opt">Libs & HAL</div>
+          <div class="container-body hal-grid">
+            <div class="block bg-sys block-center">Media/Audio/SurfaceFlinger /...</div>
+            <div class="block bg-sys block-center">Graphics/HWC/Bluetooth/Wifi/Bootcontrol /.....</div>
+          </div>
+        </div>
+        <div class="container" style="flex: 1;">
+          <div class="container-header bg-header-sys">Ext HAL</div>
+          <div class="container-body exthal-grid">
+            <div class="block bg-oem block-center">Performance</div>
+            <div class="exthal-col-mid">
+              <div class="block bg-oem block-center" style="padding:2px;">VHAL</div>
+              <div class="block bg-oem block-center" style="padding:2px;">IPC</div>
+            </div>
+            <div class="block bg-oem block-center">Audio</div>
+          </div>
+        </div>
+      </div>
+      <!-- Row 5: Linux Kernel -->
+      <div class="row row-kernel">
+        <div class="bar-block bg-sys">Linux Kernel</div>
+      </div>
+    </div>
+  </div>
+  <div class="legend-panel">
+    <div class="legend-item l-oem">OEM 自研 (Apps/Ext)</div>
+    <div class="legend-item l-sys">Android Origin (Core/FW)</div>
+    <div class="legend-item l-opt">OEM Optimized (Custom)</div>
+  </div>
+</div>
+
+<script>
+function toggleTheme() {
+  const root = document.documentElement;
+  const btn = document.querySelector('.theme-toggle');
+  if (root.getAttribute('data-theme') === 'light') {
+    root.setAttribute('data-theme', 'dark');
+    btn.textContent = '☀️ 切换亮色模式';
+  } else {
+    root.setAttribute('data-theme', 'light');
+    btn.textContent = '🌙 切换暗色模式';
+  }
+}
+</script>
+
+</body>
+</html>

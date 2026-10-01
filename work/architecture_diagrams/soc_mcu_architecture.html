@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Software Architecture - SoC & MCU</title>
+<style>
+  :root {
+    --bg-main: #14161a;
+    --border-domain: #3C4043;
+    --bg-domain: #1c1e22;
+    
+    --c-oem: #4285F4; /* Blue */
+    --c-sys: #34A853; /* Green */
+    --c-car: #FBBC04; /* Yellow */
+    --c-hw:  #9AA0A6; /* Gray */
+    
+    --bg-oem-block: rgba(66, 133, 244, 0.15);
+    --border-oem-block: rgba(66, 133, 244, 0.4);
+    
+    --bg-sys-block: rgba(52, 168, 83, 0.15);
+    --border-sys-block: rgba(52, 168, 83, 0.4);
+
+    --bg-car-block: rgba(251, 188, 4, 0.15);
+    --border-car-block: rgba(251, 188, 4, 0.4);
+
+    --bg-hw-block: rgba(154, 160, 166, 0.15);
+    --border-hw-block: rgba(154, 160, 166, 0.4);
+    
+    --text-title: #E8EAED;
+    --text-domain: #9AA0A6;
+    --arrow-color: #9AA0A6;
+    
+    --qnx-border: rgba(66, 133, 244, 0.4);
+    --qnx-bg: rgba(66, 133, 244, 0.02);
+    --aaos-border: rgba(52, 168, 83, 0.4);
+    --aaos-bg: rgba(52, 168, 83, 0.02);
+    --mcu-border: rgba(251, 188, 4, 0.4);
+    --mcu-bg: rgba(251, 188, 4, 0.02);
+  }
+  
+  [data-theme="light"] {
+    --bg-main: #f8f9fa;
+    --border-domain: #dadce0;
+    --bg-domain: #ffffff;
+    
+    --bg-oem-block: rgba(66, 133, 244, 0.08);
+    --border-oem-block: rgba(66, 133, 244, 0.3);
+    
+    --bg-sys-block: rgba(52, 168, 83, 0.08);
+    --border-sys-block: rgba(52, 168, 83, 0.3);
+
+    --bg-car-block: rgba(251, 188, 4, 0.08);
+    --border-car-block: rgba(251, 188, 4, 0.3);
+
+    --bg-hw-block: rgba(154, 160, 166, 0.08);
+    --border-hw-block: rgba(154, 160, 166, 0.3);
+    
+    --text-title: #202124;
+    --text-domain: #3C4043;
+    --arrow-color: #202124;
+    
+    --qnx-bg: rgba(66, 133, 244, 0.03);
+    --aaos-bg: rgba(52, 168, 83, 0.03);
+    --mcu-bg: rgba(251, 188, 4, 0.03);
+  }
+
+  * { box-sizing: border-box; }
+  
+  body {
+    margin: 0;
+    padding: 40px;
+    background: var(--bg-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-title);
+    transition: background 0.3s, color 0.3s;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1600px;
+    margin: 0 auto 32px auto;
+  }
+  .header h1 {
+    margin: 0;
+    font-size: 28px;
+  }
+  .theme-toggle {
+    background: var(--bg-domain);
+    border: 1px solid var(--border-domain);
+    color: var(--text-title);
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .main-content {
+    display: flex;
+    gap: 32px;
+    max-width: 1600px;
+    margin: 0 auto;
+    align-items: stretch;
+    position: relative;
+  }
+
+  .domain-super {
+    border: 2px solid var(--border-domain);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-domain);
+  }
+
+  .super-title {
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 24px;
+    color: var(--text-title);
+  }
+  .super-title span {
+    font-size: 14px;
+    font-weight: normal;
+    color: var(--text-domain);
+  }
+
+  .os-sandbox {
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: relative;
+  }
+  .os-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--text-title);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .os-title span {
+    font-size: 12px;
+    font-weight: normal;
+    color: var(--text-domain);
+    background: rgba(128,128,128,0.1);
+    padding: 2px 8px;
+    border-radius: 12px;
+  }
+
+  .layer-container {
+    border: 1px solid var(--border-domain);
+    border-radius: 8px;
+    padding: 12px;
+    background: rgba(128, 128, 128, 0.02);
+  }
+  .layer-header {
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--text-domain);
+    margin-bottom: 8px;
+  }
+
+  .block-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+  }
+  
+  .block-flex {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .block {
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .block .desc {
+    font-size: 10px;
+    opacity: 0.7;
+    margin-top: 4px;
+    line-height: 1.2;
+  }
+
+  .bg-oem { background: var(--bg-oem-block); border: 1px solid var(--border-oem-block); color: var(--c-oem); }
+  .bg-sys { background: var(--bg-sys-block); border: 1px solid var(--border-sys-block); color: var(--c-sys); }
+  .bg-car { background: var(--bg-car-block); border: 1px solid var(--border-car-block); color: var(--c-car); }
+  .bg-hw  { background: var(--bg-hw-block);  border: 1px solid var(--border-hw-block);  color: var(--c-hw); }
+
+  .cross-domain-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    width: 120px;
+  }
+  .cross-domain-title {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--text-domain);
+    text-align: center;
+  }
+  .pill {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    background: var(--bg-main);
+    color: var(--text-title);
+  }
+  .pill.oem { border: 2px solid var(--c-oem); }
+  .pill.sys { border: 2px solid var(--c-sys); }
+  .pill.car { border: 2px solid var(--c-car); }
+  .pill.hw  { border: 2px solid var(--c-hw); }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-domain);
+  }
+  .legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+
+  #svg-layer {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>SoC & MCU Full Architecture</h1>
+    <div style="font-size: 14px; color: var(--text-domain); margin-top: 8px;">
+      Google SDV Color Semantics: Application (Blue), OS/Native (Green), Automotive (Yellow), Hardware/HAL (Gray)
+    </div>
+  </div>
+  <button class="theme-toggle" onclick="toggleTheme()">Switch Theme</button>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-color" style="background: var(--c-oem);"></div> OEM / Applications</div>
+  <div class="legend-item"><div class="legend-color" style="background: var(--c-sys);"></div> System / OS / Native</div>
+  <div class="legend-item"><div class="legend-color" style="background: var(--c-car);"></div> Car Specific / Automotive</div>
+  <div class="legend-item"><div class="legend-color" style="background: var(--c-hw);"></div> Hardware / HAL / Virt</div>
+</div>
+
+<div class="main-content">
+  <svg id="svg-layer"></svg>
+
+  <!-- LEFT: SoC Platform -->
+  <div class="domain-super" id="soc-domain" style="flex: 2.2;">
+    <div class="super-title">SoC Platform <br><span>QNX host + Android guest</span></div>
+    
+    <div style="display: flex; gap: 16px; flex: 1; margin-bottom: 24px;">
+      <!-- QNX Sandbox -->
+      <div class="os-sandbox" style="flex: 1; border: 2px dashed var(--qnx-border); background: var(--qnx-bg);">
+        <div class="os-title"><span style="font-size:18px; color:var(--text-title); background:none; padding:0;">Q QNX Cluster</span> <span>QNX Neutrino</span></div>
+        
+        <div class="layer-container">
+          <div class="layer-header">Product Experience</div>
+          <div class="block-grid">
+            <div class="block bg-oem">Cluster HMI<div class="desc">Driver-facing views</div></div>
+            <div class="block bg-oem">Animation Player<div class="desc">Boot • screen-off playback</div></div>
+          </div>
+        </div>
+
+        <div class="layer-container">
+          <div class="layer-header">Vehicle Domain Services</div>
+          <div class="block-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="block bg-car">Vehicle State & Alerts<div class="desc">Signals • alerts</div></div>
+            <div class="block bg-car">OTA & Update Mgmt<div class="desc">Open OTA view</div></div>
+            <div class="block bg-car">Ambient Lighting<div class="desc">Scenes • zones</div></div>
+          </div>
+        </div>
+
+        <div class="layer-container">
+          <div class="layer-header">Platform Services</div>
+          <div class="block-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <div class="block bg-sys">Audio System<div class="desc">Devices • routes • policy</div></div>
+            <div class="block bg-sys">Display System<div class="desc">Screens • composition</div></div>
+            <div class="block bg-sys">Animation Management<div class="desc">Scenes & transitions</div></div>
+            <div class="block bg-sys">Camera & Video Services<div class="desc">Capture • processing</div></div>
+            <div class="block bg-sys">Communication Services<div class="desc">Intra/cross-domain</div></div>
+            <div class="block bg-sys">Power Management<div class="desc">Power • sleep • wake</div></div>
+            <div class="block bg-sys">Time Management<div class="desc">Clock • synchronization</div></div>
+            <div class="block bg-sys">Diagnostics & Observability<div class="desc">DTC • logs • health</div></div>
+            <div class="block bg-sys">Security Services<div class="desc">Keys • trusted access</div></div>
+          </div>
+        </div>
+
+        <div class="layer-container">
+          <div class="layer-header">Device Integration & BSP</div>
+          <div class="block-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <div class="block bg-hw">Audio Device & DSP I/O<div class="desc">audio_service • A2B • ADSP</div></div>
+            <div class="block bg-hw">Display & GPU Drivers<div class="desc">MDSS • KGSL • WFD HAL</div></div>
+            <div class="block bg-hw">Camera Capture I/O<div class="desc">AIS • sensor links</div></div>
+            <div class="block bg-hw">Video Codec & Processing I/O<div class="desc">videoCore • VPP</div></div>
+            <div class="block bg-hw">Ethernet & Network I/O<div class="desc">in-pkt • EMAC • virtual NIC</div></div>
+            <div class="block bg-hw">Peripheral Bus I/O<div class="desc">SPI • I2C • UART • GPIO</div></div>
+            <div class="block bg-hw">Inter-VM Transport I/O<div class="desc">HAB • VSOCK</div></div>
+            <div class="block bg-hw">Storage & Filesystem I/O<div class="desc">UFS • eMMC • io-blk</div></div>
+            <div class="block bg-hw">Power & Thermal Devices<div class="desc">Sleep • DCVS • ADC</div></div>
+            <div class="block bg-hw">Trusted Hardware Interface<div class="desc">QSEECOM • Keymaster</div></div>
+          </div>
+        </div>
+
+        <div class="layer-container">
+          <div class="layer-header">QNX Neutrino Core</div>
+          <div class="block-flex">
+            <div class="block bg-sys" style="flex:1;">QNX Neutrino RTOS<div class="desc">Kernel • IPC • isolation</div></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Cross Domain Data Flow -->
+      <div class="cross-domain-col">
+        <div class="cross-domain-title">CROSS-DOMAIN<br>DATA FLOW</div>
+        <div class="pill oem">HAB</div>
+        <div class="pill sys">TCP/IP</div>
+        <div class="pill car">VSOCK</div>
+        <div style="font-size:10px; color:var(--text-domain); text-align:center;">Transport is selected per interface</div>
+      </div>
+
+      <!-- AAOS Sandbox -->
+      <div class="os-sandbox" style="flex: 1; border: 2px dashed var(--aaos-border); background: var(--aaos-bg);">
+        <div class="os-title"><span style="font-size:18px; color:var(--text-title); background:none; padding:0;">A AAOS IVI</span></div>
+
+        <div class="layer-container">
+          <div class="layer-header">Applications</div>
+          <div class="block-grid">
+            <div class="block bg-oem" style="min-height: 80px;">IVI Applications<div class="desc">Media • navigation • UX</div></div>
+          </div>
+        </div>
+
+        <div class="layer-container">
+          <div class="layer-header">Framework</div>
+          <div class="block-grid">
+            <div class="block bg-sys">Android Framework<div class="desc">system_server • APIs</div></div>
+            <div class="block bg-car">Car Framework<div class="desc">CarService • Car APIs</div></div>
+          </div>
+        </div>
+
+        <div class="layer-container">
+          <div class="layer-header">Native / HAL</div>
+          <div class="block-grid">
+            <div class="block bg-hw" style="min-height: 80px;">Widevine DRM<div class="desc">License • secure playback</div></div>
+          </div>
+        </div>
+
+        <div class="layer-container">
+          <div class="layer-header">Android OS</div>
+          <div class="block-flex">
+            <div class="block bg-sys" style="flex:1;">Android OS & Runtime<div class="desc">Runtime • kernel</div></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Virtualization -->
+    <div class="layer-container" style="border:none; background:none; padding:0; margin-bottom:16px;">
+      <div class="layer-header" style="text-transform:uppercase;">VIRTUALIZATION <span style="font-weight:normal; text-transform:none;">Hypervisor capabilities</span></div>
+      <div class="block-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="block bg-hw">VM Management<div class="desc">VM lifecycle • qvm</div></div>
+        <div class="block bg-hw">vCPU Scheduling<div class="desc">Priority • CPU affinity</div></div>
+        <div class="block bg-hw">Memory Isolation & Mapping<div class="desc">Guest mappings • access control</div></div>
+        <div class="block bg-hw">Virtual Devices (VirtIO)<div class="desc">Network • block • console</div></div>
+        <div class="block bg-hw">Shared Memory<div class="desc">Shared regions • peer access</div></div>
+        <div class="block bg-hw">Interrupt & Event Notification<div class="desc">Virtual IRQ • notifications</div></div>
+      </div>
+    </div>
+
+    <!-- Hardware -->
+    <div class="layer-container" style="border:none; background:none; padding:0;">
+      <div class="block bg-hw" id="soc-hardware" style="flex-direction:row; justify-content:space-between; align-items:center; font-weight:bold;">
+        SoC Hardware
+        <span style="font-weight:normal; font-size:11px; opacity:0.8;">CPU • GPU • ADSP • Memory Controller • Display Controller • Audio Interfaces • Ethernet MAC</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: MCU -->
+  <div class="domain-super" id="mcu-domain" style="flex: 1; border: 2px solid var(--mcu-border); background: var(--mcu-bg);">
+    <div class="super-title">MCU <br><span>FreeRTOS - BSW - drivers</span></div>
+    
+    <div class="layer-container" style="margin-bottom: 24px;">
+      <div class="layer-header">Applications</div>
+      <div class="block-flex">
+        <div class="block bg-car" style="flex: 1 1 45%;">Debug Shell</div>
+        <div class="block bg-car" style="flex: 1 1 45%;">CAN Application</div>
+        <div class="block bg-car" style="flex: 1 1 45%;">IVI SPI Service</div>
+        <div class="block bg-car" style="flex: 1 1 45%;">Cluster SPI Service</div>
+        <div class="block bg-car" style="flex: 1 1 45%;">System Monitor</div>
+        <div class="block bg-car" style="flex: 1 1 45%;">Power Management</div>
+        <div class="block bg-car" style="flex: 1 1 45%;">Manufacturing Diagnostics</div>
+        <div class="block bg-car" style="flex: 1 1 45%;">Periodic Services</div>
+        <div class="block bg-car" style="flex: 1 1 45%;">OTA Service</div>
+        <div class="block bg-car" style="flex: 1 1 45%;">Logging</div>
+      </div>
+    </div>
+
+    <div class="layer-container" style="margin-bottom: 24px;">
+      <div class="layer-header">BSW & RTOS</div>
+      <div style="display:flex; gap:12px;">
+        <div class="block bg-sys" style="flex: 0 0 80px; justify-content:center; align-items:center; font-weight:bold;">FreeRTOS</div>
+        <div style="display:flex; flex-direction:column; gap:8px; flex:1;">
+          <div class="block-flex">
+            <div class="block bg-sys" style="flex:1;">Com</div>
+            <div class="block bg-sys" style="flex:1;">Dcm</div>
+          </div>
+          <div class="block-flex">
+            <div class="block bg-sys" style="flex:1;">ComM</div>
+            <div class="block bg-sys" style="flex:1;">Dem</div>
+          </div>
+          <div class="block-flex">
+            <div class="block bg-sys" style="flex:1;">CanIf</div>
+            <div class="block bg-sys" style="flex:1;">CanTp</div>
+          </div>
+          <div class="block-flex">
+            <div class="block bg-sys" style="flex:1;">CanNm</div>
+            <div class="block bg-sys" style="flex:1;">NvM</div>
+          </div>
+          <div class="block-flex">
+            <div class="block bg-sys" style="flex:1;">BSW Configuration</div>
+          </div>
+        </div>
+        <div class="layer-container" style="flex: 0 0 100px; padding:8px; background:var(--bg-main);">
+          <div class="layer-header" style="font-size:10px;">CDD</div>
+          <div class="block-flex">
+            <div class="block bg-sys" style="font-size:10px; padding:4px;">Safety<br>PMIC</div>
+            <div class="block bg-sys" style="font-size:10px; padding:4px;">RTC</div>
+            <div class="block bg-sys" style="font-size:10px; padding:4px;">EEPROM</div>
+            <div class="block bg-sys" style="font-size:10px; padding:4px;">HSM</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="layer-container" style="margin-bottom: 24px;">
+      <div class="layer-header">Drivers</div>
+      <div class="block-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="block bg-hw">CAN FD Driver</div>
+        <div class="block bg-hw">SPI Driver</div>
+        <div class="block bg-hw">Port Driver</div>
+        <div class="block bg-hw">Watchdog Driver</div>
+        <div class="block bg-hw">MCU Driver</div>
+        <div class="block bg-hw">Flash Driver</div>
+        <div class="block bg-hw">LIN Driver</div>
+        <div class="block bg-hw">UART Driver</div>
+        <div class="block bg-hw">GPT Driver</div>
+        <div class="block bg-hw">I2C Driver</div>
+        <div class="block bg-hw">ADC Driver</div>
+      </div>
+    </div>
+
+    <div class="layer-container" style="margin-bottom: 24px;">
+      <div class="layer-header">Bootloader</div>
+      <div class="block bg-hw" style="align-items:center;">Bootloader</div>
+    </div>
+
+    <div class="layer-container" style="border:none; background:none; padding:0;">
+      <div class="layer-header">Hardware</div>
+      <div class="block bg-hw" id="mcu-hardware" style="align-items:center; font-weight:bold;">Automotive MCU</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    if (html.getAttribute('data-theme') === 'light') {
+      html.setAttribute('data-theme', 'dark');
+    } else {
+      html.setAttribute('data-theme', 'light');
+    }
+  }
+
+  // --- SVG Routing Logic ---
+  const svg = document.getElementById('svg-layer');
+
+  function getCenter(el) {
+    const rect = el.getBoundingClientRect();
+    const containerRect = document.querySelector('.main-content').getBoundingClientRect();
+    return {
+      x: rect.left - containerRect.left + rect.width / 2,
+      y: rect.top - containerRect.top + rect.height / 2,
+      left: rect.left - containerRect.left,
+      right: rect.right - containerRect.left,
+      top: rect.top - containerRect.top,
+      bottom: rect.bottom - containerRect.top,
+      width: rect.width,
+      height: rect.height
+    };
+  }
+
+  function drawConnection(id1, id2, color = 'var(--arrow-color)', label = '') {
+    const el1 = document.getElementById(id1);
+    const el2 = document.getElementById(id2);
+    if (!el1 || !el2) return;
+
+    const p1 = getCenter(el1);
+    const p2 = getCenter(el2);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    
+    // Draw a horizontal line between the two elements
+    let sx = p1.right;
+    let sy = p1.y;
+    let ex = p2.left;
+    let ey = p2.y;
+
+    let d = `M ${sx} ${sy} L ${sx + 16} ${sy} L ${sx + 16} ${ey} L ${ex} ${ey}`;
+    
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('marker-end', 'url(#arrowhead)');
+    path.setAttribute('marker-start', 'url(#arrowstart)');
+
+    // For SPI/UART we want arrows on both sides, so we create markers
+    svg.appendChild(path);
+
+    if (label) {
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', sx + (ex - sx) / 2);
+      text.setAttribute('y', sy + (ey - sy) / 2 - 8);
+      text.setAttribute('fill', color);
+      text.setAttribute('font-size', '12px');
+      text.setAttribute('font-weight', 'bold');
+      text.setAttribute('text-anchor', 'middle');
+      text.textContent = label;
+      svg.appendChild(text);
+    }
+  }
+
+  function renderArrows() {
+    svg.innerHTML = `
+      <defs>
+        <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <polygon points="0 0, 6 3, 0 6" fill="var(--c-car)" />
+        </marker>
+        <marker id="arrowstart" markerWidth="6" markerHeight="6" refX="1" refY="3" orient="auto">
+          <polygon points="6 0, 0 3, 6 6" fill="var(--c-car)" />
+        </marker>
+      </defs>
+    `;
+
+    // Connect SoC Hardware to MCU Hardware
+    drawConnection('soc-hardware', 'mcu-hardware', 'var(--c-car)', 'SPI / UART');
+  }
+
+  window.addEventListener('load', renderArrows);
+  window.addEventListener('resize', renderArrows);
+</script>
+
+</body>
+</html>
