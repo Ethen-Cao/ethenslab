@@ -221,8 +221,8 @@ bool -> Java boolean, C++ bool
 </span></span><span style=display:flex><span><span style=color:#66d9ef>reserved</span> <span style=color:#e6db74>&#34;old_field_name&#34;</span>;
 </span></span></code></pre></div></li></ul></li><li><strong>默认值 (Proto3)</strong>：<ul><li>Proto3 不再支持手动设置 default 值。</li><li>基础类型的默认值为：<code>int=0</code>, <code>bool=false</code>, <code>string=""</code>。</li><li><strong>注意</strong>：如果一个字段的值等于默认值（例如 speed=0），序列化时该字段<strong>不会</strong>被写入二进制流（为了节省空间）。反序列化时如果读不到该字段，会直接赋予默认值。</li></ul></li><li><strong>兼容性设计</strong>：<ul><li><strong>新增字段</strong>：旧代码读取新数据时，会忽略新字段（向后兼容）。</li><li><strong>删除字段</strong>：新代码读取旧数据时，已删除字段会获得默认值（向前兼容）。</li></ul></li></ol></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=prev href=https://ethen-cao.github.io/ethenslab/android-dev/build/selinux_compilation/><span class=title>« Prev</span>
 <span>Android SELinux 编译与加载机制解析（基于 AOSP 16）</span>
-</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/media/widevine-l1-verification-process/><span class=title>Next »</span>
-<span>高通平台 Widevine L1 认证实施流程</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+</a><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/media/cockpit-drm-video-playback-proposal/><span class=title>Next »</span>
+<span>智能座舱 DRM 视频播放方案建议书</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
 <span>Powered by
 <a href="https://gohugo.io/?utm_source=papermod" rel=noopener target=_blank>Hugo</a> &
 <a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top id=top-link class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey=g><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
