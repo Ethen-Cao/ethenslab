@@ -57,8 +57,6 @@ Netflix 官方已支持部分车载系统，但支持范围因车型、年款和
 
 ## 3. 系统总体架构
 
-总体图按 TEE、QNX、Android 分域，下方依次放置 Hypervisor、共享硬件和 Display Output。点击组件高亮相邻连线，右键或按 Esc 清除选择。图面适配窗口，放大后可拖动查看。
-
 绿色表示 QNX／AOSP 平台模块，黄色表示设备侧 Widevine 组件及供应商闭源实现，灰色表示硬件，蓝色表示云服务。Player／Browser 的交付来源待选型，使用白色。
 
 <iframe src="../../../diagrams/cockpit-drm-playback-architecture.html" title="Cockpit DRM Playback Architecture" loading="lazy" style="display:block;width:100%;height:850px;border:1px solid #dadce0;border-radius:8px;overflow:hidden;"></iframe>
