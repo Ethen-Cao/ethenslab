@@ -57,7 +57,7 @@ Netflix 官方已支持部分车载系统，但支持范围因车型、年款和
 
 ## 3. 系统总体架构
 
-总体图按 TEE、QNX、Android 分域，底部放置 Hypervisor 和共享硬件。点击组件高亮相邻连线，右键或按 Esc 清除选择。图面适配窗口，放大后可拖动查看。
+总体图按 TEE、QNX、Android 分域，下方依次放置 Hypervisor、共享硬件和 Display Output。点击组件高亮相邻连线，右键或按 Esc 清除选择。图面适配窗口，放大后可拖动查看。
 
 绿色表示 QNX／AOSP 平台模块，黄色表示设备侧 Widevine 组件及供应商闭源实现，灰色表示硬件，蓝色表示云服务。Player／Browser 的交付来源待选型，使用白色。
 
@@ -85,8 +85,10 @@ Netflix 官方已支持部分车载系统，但支持范围因车型、年款和
 | Android | Player / Browser | 客户端选型待定 | 获取内容和授权，转发 DRM 消息；取得 sessionId 后关联 MediaCrypto 并配置 MediaCodec |
 | Android | MediaDrm | AOSP | 管理 DRM 会话，取得许可证／配置请求，将网络响应交回插件 |
 | Android | MediaCodec / MediaCrypto | AOSP | 关联 DRM 会话与解码器，提交加密 Sample 及元数据，管理解码输出 |
-| Android | Widevine DRM Plugin | Google／Widevine 代码 | 处理许可证协议和会话状态，通过 OEMCrypto 调用安全实现 |
-| Android | Widevine Crypto Plugin | Google／Widevine 代码 | 衔接媒体解密请求与 OEMCrypto，支持安全目标 Buffer Handle |
+| Android | Widevine HAL / CDM | Google／Widevine 代码 | 本图采用本地 AIDL 构建定义的 `libwvaidl.so`，封装 DRM Plugin、Crypto Plugin 和共享 CDM Core，对接 AOSP DRM HAL |
+| Android | Widevine DRM Plugin | Google／Widevine 代码 | 实现 DRM HAL 接口，将会话、配置及许可证操作交给 CDM Core |
+| Android | Widevine Crypto Plugin | Google／Widevine 代码 | 实现 Crypto HAL 接口，将 Sample 解密请求及安全目标 Buffer Handle 交给 CDM Core |
+| Android | Widevine CDM Core | Google／Widevine 代码 | 处理许可证协议、会话与密钥状态、策略检查，通过动态 OEMCrypto 适配调用安全实现；以 `libcdm.a` 链接进 HAL 实现库 |
 | Android | OEMCrypto Client & Platform Libraries | 高通闭源库 | 提供普通侧安全调用入口及 TA 加载、输出保护等平台依赖；各库调用关系按交付版本核对 |
 | Android | SurfaceFlinger | AOSP | 管理图层和受保护表面，协调合成及显示提交 |
 | Android | Hardware Composer | AOSP 接口／BSP 实现 | 识别受保护图层，配置硬件合成并向显示后端提交 Buffer 引用 |
@@ -102,7 +104,22 @@ TEE 是 SoC 的安全执行环境。VPU、DPU 和受保护内存属于硬件能�
 
 图中的跨域线分别表示安全调用、显示控制及 Buffer 引用。受保护媒体数据在硬件允许的路径中流动，不能用一条普通 IPC 连线推导其安全性。
 
-### 3.2 当前证据与待确认边界
+### 3.2 Widevine 代码与动态库
+
+图中黄色的 Widevine HAL／CDM 是 Google/Widevine 的授权代码。当前源码的 AIDL 构建将两个 Plugin 和 CDM Core 链接为一个 `libwvaidl.so`；图内的三个子块表示逻辑职责，并非三个独立 `.so`。
+
+| 来源 | 交付／构建产物 | 说明 |
+| :--- | :--- | :--- |
+| Google／Widevine | `libwvaidl.so` | 本地 AIDL 构建的 HAL／CDM 实现库，包含两个 Plugin、CDM Core 及相关支持代码 |
+| Google／Widevine | `libwvhidl.so`、`libwvhidl@1.3.so` | 前者有 HIDL 共享库构建定义，后者有预编译文件与构建定义；与 AIDL 版本是不同方案，按目标镜像核对 |
+| Google／Widevine | `libcdm.a` | CDM Core 静态库，链接进入 HAL 实现库；此配置不单独安装 `libcdm.so` |
+| Google／Widevine | `android.hardware.drm-service.widevine` | 本地 AIDL 构建定义的服务可执行文件，链接依赖 `libwvaidl.so`；注册 `IDrmFactory/widevine`，由同一 Factory 创建 DRM／Crypto Plugin；不是 `.so` |
+| 高通 | `liboemcrypto.so` | 提供 L1 OEMCrypto 的平台实现，CDM 动态加载并调用，衔接 TEE 中的安全实现 |
+| 高通 | `libtrustedapploader.so`、`libops.so` | 安全应用加载及输出保护相关平台库；按 HQX／LA 交付版本核验实际依赖 |
+
+`libwvdrmengine` 是本地源码目录名，不能直接据此认定镜像中存在同名 `libwvdrmengine.so`。上述 AIDL 关系来自源码构建配置，量产设备实际加载的库仍需结合镜像和进程映射确认。Widevine 官方也区分设备侧授权代码与芯片方提供的 L1 OEMCrypto 库。[Widevine 代码访问说明](https://developers.google.com/widevine/access)
+
+### 3.3 当前证据与待确认边界
 
 | 路径 | 可确认的内容 | 尚需验证 |
 | :--- | :--- | :--- |
@@ -303,6 +320,7 @@ Widevine 资料访问与 L1 OEMCrypto 获取有各自要求。适用的许可、
 
 | 源码 | 核验内容 |
 | :--- | :--- |
+| `widevine/service.mk`、`libwvdrmengine/Android.bp`、`libwvdrmengine/cdm/Android.bp` | AIDL 服务选型、`libwvaidl.so`／`libwvhidl.so` 构建及 CDM／Plugin 静态链接关系 |
 | `libwvdrmengine/cdm/core/src/oemcrypto_adapter_dynamic.cpp` | 动态加载 OEMCrypto，初始化与回退 |
 | `libwvdrmengine/mediacrypto/src_hidl/WVCryptoPlugin.cpp` | 安全目标 Buffer Handle |
 | `libwvdrmengine/cdm/core/src/content_key_session.cpp` | `OEMCrypto_DecryptCENC` 调用 |
