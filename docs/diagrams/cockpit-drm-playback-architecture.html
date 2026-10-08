@@ -3,11 +3,14 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Cockpit DRM Playback Architecture</title>
 <style>:root{color-scheme:light;--page:#f8f9fa;--panel:#fff;--ink:#202124;--muted:#5f6368;--line:#d7dce2;--domain:#fafbfc;--native-fill:#e6f4ea;--native-stroke:#7eaf8c;--vendor-fill:#fff4cc;--vendor-stroke:#c4a04a;--hardware-fill:#e8eaed;--hardware-stroke:#a4a9b1;--external-fill:#e8f0fe;--external-stroke:#88a9df;--client-fill:#fff;--client-stroke:#aab2bd;--blue:#356dc9;--green:#28854d;--amber:#a77408;--fade:.16}
 [data-theme="dark"]{color-scheme:dark;--page:#202124;--panel:#282a2d;--ink:#e8eaed;--muted:#afb5be;--line:#4b5159;--domain:#2c2f33;--native-fill:#293f31;--native-stroke:#6b9c78;--vendor-fill:#453d25;--vendor-stroke:#ad9250;--hardware-fill:#3b3e44;--hardware-stroke:#777e89;--external-fill:#2c3b55;--external-stroke:#6a8dbf;--client-fill:#282a2d;--client-stroke:#8c95a3;--blue:#8ab4f8;--green:#81c995;--amber:#fdd663;--fade:.19}
-*{box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden}body{margin:0;padding:10px 12px;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--page);color:var(--ink)}main{display:flex;flex-direction:column;gap:8px;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:0 0 auto;min-width:0}h1{margin:0;font-size:18px;line-height:1.3;letter-spacing:-.25px}.tag{font-size:11px;color:var(--muted);white-space:nowrap}.tools{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}button{border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit;font-size:11px;line-height:1.4;padding:4px 9px;cursor:pointer}button:hover{border-color:var(--blue)}button:disabled{opacity:.4;cursor:default}button:focus-visible,.node:focus-visible{outline:2px solid var(--blue);outline-offset:2px}#zoom-level{width:38px;text-align:center;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}.diagram-shell{flex:1 1 0;min-width:0;min-height:0;display:flex;overflow:hidden;border:1px solid var(--line);border-radius:7px;background:var(--panel)}.canvas{display:block;width:100%;height:100%;overflow:hidden;background:var(--panel);touch-action:none;user-select:none}.canvas.zoomed{cursor:grab}.canvas.panning,.canvas.panning .node{cursor:grabbing}.canvas text{fill:var(--ink);font-family:inherit}.domain{fill:var(--domain);stroke:var(--line);stroke-width:1.3}.domain-title{font-size:21px;font-weight:700}.domain-sub{font-size:12px;fill:var(--muted)!important}.lane-title{font-size:12px;font-weight:700;fill:var(--muted)!important;letter-spacing:.5px}.edge{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:opacity .15s}.edge.control{stroke:var(--blue)}.edge.encrypted{stroke:var(--muted);stroke-width:2}.edge.media{stroke:var(--green);stroke-width:2.6}.edge.pending{stroke:var(--amber);stroke-dasharray:7 5}.edge-label rect{fill:var(--panel);opacity:.98}.edge-label text{font-size:12px;font-weight:500}.edge-label.control text{fill:var(--blue)}.edge-label.encrypted text{fill:var(--muted)}.edge-label.media text{fill:var(--green)}.edge-label.pending text{fill:var(--amber)}.node{cursor:pointer;transition:opacity .15s}.node rect{stroke-width:1.4}.node.native rect{fill:var(--native-fill);stroke:var(--native-stroke)}.node.vendor rect{fill:var(--vendor-fill);stroke:var(--vendor-stroke)}.node.hardware rect{fill:var(--hardware-fill);stroke:var(--hardware-stroke)}.node.external rect{fill:var(--external-fill);stroke:var(--external-stroke)}.node.client rect{fill:var(--client-fill);stroke:var(--client-stroke)}.node.pending rect{stroke-dasharray:5 4}.node:hover rect{stroke-width:2.4}.node.selected rect{stroke:var(--blue);stroke-width:3}.node-name{font-size:15px;font-weight:650}.node-sub{font-size:12px;fill:var(--muted)!important}.node-evidence{font-size:10px;fill:var(--muted)!important}.dim{opacity:var(--fade)}.edge.active{stroke-width:3}.legend{display:flex;flex-direction:column;gap:5px;flex:0 0 auto;font-size:11px;line-height:1.3;color:var(--muted)}.legend-row{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap}.legend-row b{font-size:10px;width:34px;flex-shrink:0;color:var(--ink);letter-spacing:.4px;text-transform:uppercase}.legend-row span{display:inline-flex;gap:6px;align-items:center;white-space:nowrap}.source-chip{display:inline-block;width:20px;height:12px;border:1px solid;border-radius:2px}.source-chip.native{background:var(--native-fill);border-color:var(--native-stroke)}.source-chip.vendor{background:var(--vendor-fill);border-color:var(--vendor-stroke)}.source-chip.hardware{background:var(--hardware-fill);border-color:var(--hardware-stroke)}.source-chip.external{background:var(--external-fill);border-color:var(--external-stroke)}.source-chip.client{background:var(--client-fill);border-color:var(--client-stroke)}.line-chip{display:inline-block;width:24px;height:0;border-top:2px solid var(--blue)}.line-chip.encrypted{border-color:var(--muted)}.line-chip.media{border-color:var(--green);border-top-width:3px}.line-chip.pending{border-color:var(--amber);border-top-style:dashed}.hint{margin-left:auto;font-size:10px;color:var(--muted)}@media(max-width:900px){body{padding:7px}h1{font-size:15px}.toolbar{gap:6px}.tools{gap:4px}button{padding:3px 7px}.legend-row{gap:5px 10px}.hint{display:none}}@media(max-width:600px){.tag{display:none}.tools{margin-left:0}.toolbar h1{width:100%}.legend{font-size:10px}.legend-row{gap:4px 8px}}@media print{body{padding:0;background:#fff}.tools,.tag,.hint{display:none}.diagram-shell{border:0}.toolbar h1{font-size:16px}}
+*{box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden}body{margin:0;padding:10px 12px;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--page);color:var(--ink)}main{display:flex;flex-direction:column;gap:8px;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:0 0 auto;min-width:0}h1{margin:0;font-size:18px;line-height:1.3;letter-spacing:-.25px}.tag{font-size:11px;color:var(--muted);white-space:nowrap}.tools{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}button{border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit;font-size:11px;line-height:1.4;padding:4px 9px;cursor:pointer}button:hover{border-color:var(--blue)}button:disabled{opacity:.4;cursor:default}button:focus-visible,.node:focus-visible{outline:2px solid var(--blue);outline-offset:2px}#zoom-level{width:38px;text-align:center;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}.diagram-shell{flex:1 1 0;min-width:0;min-height:0;display:flex;overflow:hidden;border:1px solid var(--line);border-radius:7px;background:var(--panel)}.canvas{display:block;width:100%;height:100%;overflow:hidden;background:var(--panel);touch-action:none;user-select:none}.canvas.zoomed{cursor:grab}.canvas.panning,.canvas.panning .node{cursor:grabbing}.canvas text{fill:var(--ink);font-family:inherit}.domain{fill:var(--domain);stroke:var(--line);stroke-width:1.3}.domain-title{font-size:21px;font-weight:700}.domain-sub{font-size:12px;fill:var(--muted)!important}.lane-title{font-size:12px;font-weight:700;fill:var(--muted)!important;letter-spacing:.5px}.edge{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:opacity .15s}.edge.control{stroke:var(--blue)}.edge.encrypted{stroke:var(--muted);stroke-width:2}.edge.media{stroke:var(--green);stroke-width:2.6}.edge.pending{stroke:var(--amber);stroke-dasharray:7 5}.edge-label rect{fill:var(--panel);opacity:.98}.edge-label text{font-size:12px;font-weight:500}.edge-label.control text{fill:var(--blue)}.edge-label.encrypted text{fill:var(--muted)}.edge-label.media text{fill:var(--green)}.edge-label.pending text{fill:var(--amber)}.node{cursor:pointer;transition:opacity .15s}.node rect{stroke-width:1.4}.node.native rect{fill:var(--native-fill);stroke:var(--native-stroke)}.node.vendor rect{fill:var(--vendor-fill);stroke:var(--vendor-stroke)}.node.hardware rect{fill:var(--hardware-fill);stroke:var(--hardware-stroke)}.node.external rect{fill:var(--external-fill);stroke:var(--external-stroke)}.node.client rect{fill:var(--client-fill);stroke:var(--client-stroke)}.node.pending rect{stroke-dasharray:5 4}.node:hover rect{stroke-width:2.4}.node.selected rect{stroke:var(--blue);stroke-width:3}.node-name{font-size:15px;font-weight:650}.node-sub{font-size:12px;fill:var(--muted)!important}.node-evidence{font-size:10px;fill:var(--muted)!important}.dim{opacity:var(--fade)}.edge.active{stroke-width:3}.legend{display:flex;flex-direction:column;gap:5px;flex:0 0 auto;font-size:11px;line-height:1.3;color:var(--muted)}.legend-row{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap}.legend-row b{font-size:10px;width:34px;flex-shrink:0;color:var(--ink);letter-spacing:.4px;text-transform:uppercase}.legend-row span{display:inline-flex;gap:6px;align-items:center;white-space:nowrap}.source-chip{display:inline-block;width:20px;height:12px;border:1px solid;border-radius:2px}.source-chip.native{background:var(--native-fill);border-color:var(--native-stroke)}.source-chip.vendor{background:var(--vendor-fill);border-color:var(--vendor-stroke)}.source-chip.hardware{background:var(--hardware-fill);border-color:var(--hardware-stroke)}.source-chip.external{background:var(--external-fill);border-color:var(--external-stroke)}.source-chip.client{background:var(--client-fill);border-color:var(--client-stroke)}.line-chip{display:inline-block;width:24px;height:0;border-top:2px solid var(--blue)}.line-chip.encrypted{border-color:var(--muted)}.line-chip.media{border-color:var(--green);border-top-width:3px}.line-chip.pending{border-color:var(--amber);border-top-style:dashed}.hint{margin-left:auto;font-size:10px;color:var(--muted)}
+.cdm-container{fill:var(--vendor-fill);fill-opacity:.33;stroke:var(--vendor-stroke);stroke-width:1.3}.service-title{font-size:14px;font-weight:650}.service-sub{font-size:11px;fill:var(--muted)!important}
+
+@media(max-width:900px){body{padding:7px}h1{font-size:15px}.toolbar{gap:6px}.tools{gap:4px}button{padding:3px 7px}.legend-row{gap:5px 10px}.hint{display:none}}@media(max-width:600px){.tag{display:none}.tools{margin-left:0}.toolbar h1{width:100%}.legend{font-size:10px}.legend-row{gap:4px 8px}}@media print{body{padding:0;background:#fff}.tools,.tag,.hint{display:none}.diagram-shell{border:0}.toolbar h1{font-size:16px}}
 </style></head>
 <body><main>
 <header class="toolbar"><h1>Cockpit DRM Playback Architecture</h1><span class="tag">Widevine L1 · Proposal</span><div class="tools"><button id="fit" type="button" title="Show the complete diagram">Fit</button><button id="zoom-out" type="button" aria-label="Zoom out">−</button><span id="zoom-level">100%</span><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="clear" type="button">Clear selection</button><button id="theme" type="button">Dark theme</button></div></header>
-<section class="diagram-shell" aria-label="Interactive architecture diagram"><svg class="canvas" id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 1370" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-description">
+<section class="diagram-shell" aria-label="Interactive architecture diagram"><svg class="canvas" id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 1540" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-description">
         <title id="svg-title">Cockpit DRM playback: TEE, QNX and Android</title>
         <desc id="svg-description">A proposed Widevine L1 architecture across TEE, QNX and Android. Component fill indicates source: green for native QNX/AOSP, yellow for Widevine or vendor components, gray for hardware, blue for external services, and white for an unspecified client. Select a component to highlight direct connections. Right-click or press Escape to clear. Fit shows the complete diagram; zoom and drag inspect details.</desc>
         <defs>
@@ -29,16 +32,17 @@
           <rect class="domain android-domain" x="900" y="240" width="720" height="790" rx="12"/>
           <text class="domain-title" x="922" y="276">Android</text>
           <text class="domain-sub" x="1500" y="276" text-anchor="end">AAOS guest</text>
-          <rect class="domain" x="1670" y="240" width="206" height="548" rx="12"/>
-          <text class="domain-title" x="1692" y="276">Display Output</text>
-          <text class="domain-sub" x="1692" y="301">Per-screen validation</text>
-          <text class="domain-sub" x="1692" y="324">Content policy applies</text>
+          <rect class="domain" x="24" y="1370" width="1596" height="148" rx="12"/>
+          <text class="domain-title" x="46" y="1400">Display Output</text>
+          <text class="domain-sub" x="46" y="1424">Per-screen validation</text>
+          <text class="domain-sub" x="46" y="1446">Content policy applies</text>
           <rect class="domain" x="400" y="1070" width="1220" height="48" rx="7"/>
           <text class="lane-title" x="422" y="1100">HYPERVISOR</text>
           <text class="domain-sub" x="610" y="1100">VM isolation · memory ownership · device assignment / virtualization</text>
           <rect class="domain hardware-domain" x="24" y="1146" width="1596" height="200" rx="10"/>
           <text class="lane-title" x="46" y="1173">SOC HARDWARE &amp; PROTECTED MEMORY</text>
           <text class="domain-sub" x="46" y="1320">Access-controlled DDR · opaque buffer handles</text>
+<rect class="cdm-container" x="918" y="538" width="684" height="180" rx="8"/><text class="service-title" x="1260" y="558" text-anchor="middle">Widevine HAL / CDM</text><text class="service-sub" x="1260" y="575" text-anchor="middle">libwvaidl.so · Source build · AIDL</text>
         </g>
         <g id="edges"></g>
         <g id="nodes"></g>
@@ -294,14 +298,14 @@ const modules = [
   {
     "id": "drm-plugin",
     "x": 930,
-    "y": 568,
+    "y": 592,
     "w": 270,
-    "h": 88,
+    "h": 54,
     "name": [
       "Widevine DRM Plugin"
     ],
     "sub": [
-      "CDM / DRM HAL"
+      "DRM HAL frontend"
     ],
     "kind": "vendor",
     "ev": "Source evidence"
@@ -309,14 +313,14 @@ const modules = [
   {
     "id": "crypto-plugin",
     "x": 1320,
-    "y": 568,
+    "y": 592,
     "w": 270,
-    "h": 88,
+    "h": 54,
     "name": [
       "Widevine Crypto Plugin"
     ],
     "sub": [
-      "CDM / Crypto HAL"
+      "Crypto HAL frontend"
     ],
     "kind": "vendor",
     "ev": "Source evidence"
@@ -324,7 +328,7 @@ const modules = [
   {
     "id": "oemcrypto",
     "x": 930,
-    "y": 730,
+    "y": 752,
     "w": 660,
     "h": 82,
     "name": [
@@ -428,10 +432,10 @@ const modules = [
   },
   {
     "id": "link",
-    "x": 1694,
-    "y": 430,
-    "w": 158,
-    "h": 86,
+    "x": 780,
+    "y": 1416,
+    "w": 280,
+    "h": 76,
     "name": [
       "Display Link"
     ],
@@ -443,10 +447,10 @@ const modules = [
   },
   {
     "id": "display",
-    "x": 1694,
-    "y": 650,
-    "w": 158,
-    "h": 78,
+    "x": 1220,
+    "y": 1416,
+    "w": 300,
+    "h": 76,
     "name": [
       "Cockpit Display"
     ],
@@ -455,6 +459,21 @@ const modules = [
     ],
     "kind": "hardware",
     "ev": "Product policy"
+  },
+  {
+    "id": "cdm-core",
+    "x": 1120,
+    "y": 658,
+    "w": 290,
+    "h": 50,
+    "name": [
+      "Widevine CDM Core"
+    ],
+    "sub": [
+      "Sessions · licenses · decryption"
+    ],
+    "kind": "vendor",
+    "ev": "Shared getCDM() · source build"
   }
 ];
 const links = [
@@ -524,40 +543,20 @@ const links = [
     "from": "mediadrm",
     "to": "drm-plugin",
     "type": "control",
-    "d": "M1065 502V568",
+    "d": "M1065 502V592",
     "label": "DRM HAL",
     "lx": 1065,
-    "ly": 535
+    "ly": 524
   },
   {
     "id": "codec-crypto",
     "from": "mediacodec",
     "to": "crypto-plugin",
     "type": "control",
-    "d": "M1455 502V568",
+    "d": "M1455 502V592",
     "label": "Crypto HAL · decrypt",
     "lx": 1455,
-    "ly": 535
-  },
-  {
-    "id": "drm-oemcrypto",
-    "from": "drm-plugin",
-    "to": "oemcrypto",
-    "type": "control",
-    "d": "M1065 656V730",
-    "label": "OEMCrypto API",
-    "lx": 1065,
-    "ly": 694
-  },
-  {
-    "id": "crypto-oemcrypto",
-    "from": "crypto-plugin",
-    "to": "oemcrypto",
-    "type": "control",
-    "d": "M1455 656V730",
-    "label": "OEMCrypto API",
-    "lx": 1455,
-    "ly": 694
+    "ly": 524
   },
   {
     "id": "oemcrypto-ta",
@@ -565,10 +564,10 @@ const links = [
     "to": "widevine-ta",
     "type": "pending",
     "both": true,
-    "d": "M930 771H324",
+    "d": "M930 793H376V771H324",
     "label": "Secure platform transport",
     "lx": 423,
-    "ly": 771
+    "ly": 793
   },
   {
     "id": "credentials-ta",
@@ -618,7 +617,7 @@ const links = [
     "from": "gate",
     "to": "pipeline",
     "type": "control",
-    "d": "M615 564V765Q603 771 615 777V830",
+    "d": "M615 564V787Q603 793 615 799V830",
     "label": "Allow / block source bind",
     "lx": 615,
     "ly": 605
@@ -628,20 +627,20 @@ const links = [
     "from": "screen",
     "to": "pipeline",
     "type": "control",
-    "d": "M515 722V765Q503 771 515 777V830",
+    "d": "M515 722V787Q503 793 515 799V830",
     "label": "Host surface",
     "lx": 497,
-    "ly": 806
+    "ly": 815
   },
   {
     "id": "guest-pipeline",
     "from": "guest-backend",
     "to": "pipeline",
     "type": "control",
-    "d": "M715 722V765Q703 771 715 777V830",
+    "d": "M715 722V787Q703 793 715 799V830",
     "label": "Buffer handles",
     "lx": 740,
-    "ly": 806
+    "ly": 815
   },
   {
     "id": "pipeline-driver",
@@ -675,7 +674,7 @@ const links = [
     "from": "hwc",
     "to": "guest-backend",
     "type": "pending",
-    "d": "M1425 964V1000H866V777Q854 771 866 765V686H800",
+    "d": "M1425 964V1000H866V799Q854 793 866 787V686H800",
     "label": "Guest display bridge · protected attributes to confirm",
     "lx": 1134,
     "ly": 1000
@@ -736,20 +735,44 @@ const links = [
     "from": "dpu",
     "to": "link",
     "type": "media",
-    "d": "M1490 1242H1648V473H1694",
+    "d": "M1330 1280V1360H920V1416",
     "label": "Display pixels",
-    "lx": 1546,
-    "ly": 1242
+    "lx": 1110,
+    "ly": 1360
   },
   {
     "id": "link-display",
     "from": "link",
     "to": "display",
     "type": "pending",
-    "d": "M1773 516V650",
+    "d": "M1060 1454H1220",
     "label": "HDCP, if required",
-    "lx": 1773,
-    "ly": 585
+    "lx": 1140,
+    "ly": 1454
+  },
+  {
+    "id": "drm-cdm",
+    "from": "drm-plugin",
+    "to": "cdm-core",
+    "type": "control",
+    "d": "M1065 646V683H1120"
+  },
+  {
+    "id": "crypto-cdm",
+    "from": "crypto-plugin",
+    "to": "cdm-core",
+    "type": "control",
+    "d": "M1455 646V683H1410"
+  },
+  {
+    "id": "cdm-oemcrypto",
+    "from": "cdm-core",
+    "to": "oemcrypto",
+    "type": "control",
+    "d": "M1265 708V752",
+    "label": "OEMCrypto API",
+    "lx": 1265,
+    "ly": 735
   }
 ];
 const svgNS='http://www.w3.org/2000/svg';
@@ -770,7 +793,7 @@ canvas.addEventListener('contextmenu',e=>{e.preventDefault();clearSelection();})
 document.addEventListener('keydown',e=>{if(e.key==='Escape')clearSelection();});
 document.getElementById('clear').addEventListener('click',clearSelection);
 // Zoom changes only the SVG camera. The document never grows or acquires scrollbars.
-const fullView={x:0,y:0,w:1900,h:1370};
+const fullView={x:0,y:0,w:1900,h:1540};
 let view={...fullView},zoom=1;
 function renderView(){view.x=Math.max(0,Math.min(fullView.w-view.w,view.x));view.y=Math.max(0,Math.min(fullView.h-view.h,view.y));canvas.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);canvas.classList.toggle('zoomed',zoom>1);document.getElementById('zoom-level').textContent=Math.round(zoom*100)+'%';document.getElementById('zoom-out').disabled=zoom<=1;document.getElementById('zoom-in').disabled=zoom>=4;}
 function setZoom(value,anchor){const next=Math.max(1,Math.min(4,value));const p=anchor||{x:view.x+view.w/2,y:view.y+view.h/2};const rx=(p.x-view.x)/view.w,ry=(p.y-view.y)/view.h;view.w=fullView.w/next;view.h=fullView.h/next;view.x=p.x-rx*view.w;view.y=p.y-ry*view.h;zoom=next;renderView();}
