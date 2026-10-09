@@ -101,6 +101,13 @@ function selectSoftwareModule(id) {
   $('live').textContent = `Selected software module: ${module.name}`;
 }
 
+function hasSoftwareTextSelection() {
+  const selection = document.getSelection();
+  const panel = $('software-panel');
+  return Boolean(selection && !selection.isCollapsed && selection.toString().trim() &&
+    (panel.contains(selection.anchorNode) || panel.contains(selection.focusNode)));
+}
+
 $('software-panel').addEventListener('click', event => {
   const back = event.target.closest('#sw-ota-back, #sw-diag-back, #sw-audio-back, #sw-widevine-back');
   if (back) { setSoftwareArchitectureView('high'); return; }
@@ -117,6 +124,10 @@ $('software-panel').addEventListener('click', event => {
   }
   const button = event.target.closest('[data-sw-module]');
   if (!button || !$('software-panel').contains(button)) return;
+  if (event.detail !== 0 && hasSoftwareTextSelection()) {
+    event.preventDefault();
+    return;
+  }
   if (button.dataset.detailPage) return;
   const id = button.dataset.swModule;
   if (button.classList.contains('sw-module')) {
@@ -148,7 +159,7 @@ $('software-panel').addEventListener('click', event => {
 });
 
 $('software-panel').addEventListener('contextmenu', event => {
-  if (event.target.closest('#sw-diag-readme')) return;
+  if (event.target.closest('#sw-diag-readme') || hasSoftwareTextSelection()) return;
   const view = activeSoftwareDetailView();
   const pane = $(view === 'high' ? 'sw-high-level-view' : `sw-${view}-view`);
   if (!pane.querySelector('[data-sw-module][aria-pressed="true"]')) return;
@@ -239,5 +250,10 @@ document.querySelectorAll('[data-audio-panel]').forEach(button => {
 $('audio-route-select').addEventListener('change', event => selectAudioRoute(event.target.value));
 $('sw-audio-routing').addEventListener('click', event => {
   const button = event.target.closest('[data-audio-route]');
-  if (button) selectAudioRoute(button.dataset.audioRoute);
+  if (!button) return;
+  if (event.detail !== 0 && hasSoftwareTextSelection()) {
+    event.preventDefault();
+    return;
+  }
+  selectAudioRoute(button.dataset.audioRoute);
 });

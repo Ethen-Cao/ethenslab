@@ -1,6 +1,10 @@
 .software-panel{--sw-ink:#202124;--sw-muted:#5f6368;--sw-blue:#315ee7;--sw-line:#dce3ee;--sw-surface:#f8faff;flex:1;min-height:0;overflow:auto;background:#f7f9fc;color:var(--sw-ink);font:14px/1.5 Arial,Roboto,"Microsoft YaHei",sans-serif;scroll-behavior:smooth}
 .software-panel *{box-sizing:border-box}
 .software-panel button{font-family:inherit}
+/* Text selection takes precedence over component activation. */
+.software-panel,.software-panel [data-sw-module],.software-panel [data-sw-module] *,.software-panel [data-audio-route],.software-panel [data-audio-route] *{-webkit-user-select:text;user-select:text}
+.software-panel svg text,.software-panel svg tspan{pointer-events:auto;-webkit-user-select:text;user-select:text;cursor:text}
+.software-panel [data-sw-module] span,.software-panel [data-audio-route] span{cursor:text}
 .sw-page{max-width:1860px;margin:0 auto;padding:14px 24px 48px}
 .sw-board-scroll{overflow:auto;border-radius:26px;border:1px solid #e1e7f0;background:white;box-shadow:0 10px 38px #29446b0a;scrollbar-color:#c7d3e6 transparent}
 .sw-board{min-width:1370px;display:grid;grid-template-columns:minmax(0,1fr) 110px 225px;gap:10px;align-items:stretch;padding:16px;background:linear-gradient(135deg,#fff 0%,#fff 75%,#f8faff 100%)}
@@ -176,7 +180,6 @@
 .software-panel .sw-ota-controls button:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}
 .sw-ota-scroll{background:#fff;border-radius:18px}
 .sw-ota-diagram{display:block;max-width:none;width:1850px;height:1480px;font-family:Arial,Roboto,"Microsoft YaHei",sans-serif}
-.sw-ota-diagram text{pointer-events:none}
 .sw-ota-diagram .ota-edge{transition:opacity .18s,stroke-width .18s;opacity:.78}
 .sw-ota-diagram .ota-edge.is-dim{opacity:.10}
 .sw-ota-diagram .ota-edge.is-active{opacity:1;stroke-width:3.3}

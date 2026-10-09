@@ -46,3 +46,6 @@ The Widevine DRM child view opens from **Widevine DRM** in the AAOS **Native / H
 
 
 The Widevine Display Output band compares two alternative four-component paths: SoC DP Output, Serializer, Deserializer and Display Panel. Each row groups the screen-side deserializer and panel inside a dashed Display Module boundary. The HDCP path identifies DP HDCP TX/RX and GMSL HDCP TX/RX roles and applies when required by the OTT service. Components retain selection and connected-edge highlighting; encrypted video links participate in the Media data filter. Module duties describe functions and interfaces, while project observations and pending items appear separately as status notes.
+
+
+Software diagram labels and responsibility text support native text selection and copying. Dragging across module text preserves the selection instead of activating a module or following its link. With text selected, right-click opens the browser menu; otherwise, right-click still clears the selected component. Keyboard component activation remains available.
