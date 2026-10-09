@@ -1,6 +1,6 @@
 +++
 date = '2025-08-27T11:36:11+08:00'
-lastmod = '2026-10-08'
+lastmod = '2026-10-09'
 draft = false
 title = '智能座舱 DRM 视频播放方案建议书'
 description = '基于 Android、QNX 与 TEE 的座舱 DRM 播放方案，覆盖客户端、许可证、密钥、显示保护及量产验收。'
@@ -83,11 +83,13 @@ Netflix 官方已支持部分车载系统，但支持范围因车型、年款和
 | Android | Player / Browser | 客户端选型待定 | 获取内容和授权，转发 DRM 消息；取得 sessionId 后关联 MediaCrypto 并配置 MediaCodec |
 | Android | MediaDrm | AOSP | 管理 DRM 会话，取得许可证／配置请求，将网络响应交回插件 |
 | Android | MediaCodec / MediaCrypto | AOSP | 关联 DRM 会话与解码器，提交加密 Sample 及元数据，管理解码输出 |
-| Android | Widevine HAL / CDM | Google／Widevine 代码 | 本图采用本地 AIDL 构建定义的 `libwvaidl.so`，封装 DRM Plugin、Crypto Plugin 和共享 CDM Core，对接 AOSP DRM HAL |
-| Android | Widevine DRM Plugin | Google／Widevine 代码 | 实现 DRM HAL 接口，将会话、配置及许可证操作交给 CDM Core |
+| Android | Widevine HAL / CDM | Google／Widevine 代码 | 本图采用本地 AIDL 构建定义的 `libwvaidl.so`，包含两个 Plugin、共享 CDM Core、通用加密接口及 OEMCrypto Adapter；图内箭头表示关键函数调用 |
+| Android | Widevine DRM Plugin | Google／Widevine 代码 | 实现 DRM HAL 接口；会话及许可证操作交给 CDM Core，通用加密操作交给 WVGenericCryptoInterface |
 | Android | Widevine Crypto Plugin | Google／Widevine 代码 | 实现 Crypto HAL 接口，将 Sample 解密请求及安全目标 Buffer Handle 交给 CDM Core |
 | Android | Widevine CDM Core | Google／Widevine 代码 | 处理许可证协议、会话与密钥状态、策略检查，通过动态 OEMCrypto 适配调用安全实现；以 `libcdm.a` 链接进 HAL 实现库 |
-| Android | OEMCrypto Client & Platform Libraries | 高通闭源库 | 提供普通侧安全调用入口及 TA 加载、输出保护等平台依赖；各库调用关系按交付版本核对 |
+| Android | WVGenericCryptoInterface | Google／Widevine 代码 | 处理 DRM Plugin 的通用 encrypt／decrypt／sign／verify 及 RSA 操作，调用 OEMCrypto API，绕过这些操作的 CDM Core 入口 |
+| Android | OEMCrypto API / Adapter | Google／Widevine 代码 | 封装 OEMCrypto API，按会话分派至 L1／L3 实现；本图仅展开 L1 后端 |
+| Android | L1 Platform Libraries | 高通闭源库 | 提供 liboemcrypto.so 的 L1 平台实现，以及安全应用加载和输出保护相关平台库；不表示每次解密依次调用所列全部库 |
 | Android | SurfaceFlinger | AOSP | 管理图层和受保护表面，协调合成及显示提交 |
 | Android | Hardware Composer | AOSP 接口／BSP 实现 | 识别受保护图层，配置硬件合成并向显示后端提交 Buffer 引用 |
 | Hypervisor | Hypervisor | 平台隔离层 | 管理 VM 隔离、内存归属及设备分配／虚拟化 |
@@ -104,7 +106,7 @@ TEE 是 SoC 的安全执行环境。VPU、DPU 和受保护内存属于硬件能�
 
 ### 3.2 Widevine 代码与动态库
 
-图中黄色的 Widevine HAL／CDM 是 Google/Widevine 的授权代码。当前源码的 AIDL 构建将两个 Plugin 和 CDM Core 链接为一个 `libwvaidl.so`；图内的三个子块表示逻辑职责，并非三个独立 `.so`。
+图中黄色的 Widevine HAL／CDM 是 Google/Widevine 的授权代码。当前源码的 AIDL 构建将两个 Plugin 和 CDM Core 链接为一个 `libwvaidl.so`；图内子块表示同一共享库中的逻辑职责，箭头表示关键调用关系。
 
 | 来源 | 交付／构建产物 | 说明 |
 | :--- | :--- | :--- |
@@ -117,11 +119,24 @@ TEE 是 SoC 的安全执行环境。VPU、DPU 和受保护内存属于硬件能�
 
 `libwvdrmengine` 是本地源码目录名，不能直接据此认定镜像中存在同名 `libwvdrmengine.so`。上述 AIDL 关系来自源码构建配置，量产设备实际加载的库仍需结合镜像和进程映射确认。Widevine 官方也区分设备侧授权代码与芯片方提供的 L1 OEMCrypto 库。[Widevine 代码访问说明](https://developers.google.com/widevine/access)
 
-### 3.3 当前证据与待确认边界
+### 3.3 关键调用关系
+
+本图展示会话、许可证与媒体解密主路径，并补出 DRM Plugin 的通用加密分支。它不是所有 API、错误返回及回调的完整调用图。
+
+| 操作 | 源码调用关系 |
+| :--- | :--- |
+| 会话与许可证 | DRM Plugin → 共享 WvContentDecryptionModule → CdmEngine／CdmSession → OEMCrypto API／Adapter；只有需要相应底层能力的操作继续调用 OEMCrypto |
+| 媒体 Sample 解密 | Crypto Plugin → DecryptV16 → CdmEngine → CdmSession 的密钥／策略检查 → CryptoSession → ContentKeySession → OEMCrypto_DecryptCENC |
+| 通用加密与 RSA | DRM Plugin → WVGenericCryptoInterface → OEMCrypto API／Adapter；该操作不经过上述 CDM Core 入口 |
+| 后端选择 | OEMCrypto Adapter 按会话选择 L1／L3 函数表；图中 L1 selected 连线仅表示选中 L1 后端后的调用，未展开 L3 后端 |
+
+两个 Plugin 通过 `getCDM()` 复用同一 `WvContentDecryptionModule` 入口对象，不代表共用同一个播放会话。参数、会话、密钥或策略检查失败时可以提前返回；不能把每次 API 调用都理解为进入 TEE。
+
+### 3.4 当前证据与待确认边界
 
 | 路径 | 可确认的内容 | 尚需验证 |
 | :--- | :--- | :--- |
-| CDM → OEMCrypto | 本地 CDM 动态加载 OEMCrypto，并调用内容解密、HDCP 查询接口 | 库与 TA 的版本兼容、加载及实际运行状态 |
+| CDM／通用加密接口 → OEMCrypto Adapter | 主链与通用分支均有源码调用依据，Adapter 按会话分派，L1 初始化动态加载平台 OEMCrypto | 实际会话的 L1／L3 选择、库与 TA 版本及运行状态 |
 | Crypto HAL → Secure Buffer | 本地实现接受 `NATIVE_HANDLE` 安全目标缓冲区 | 整条解密、解码、合成路径是否持续保留保护属性 |
 | Android → QNX Display Backend | QNX 显示 BE 源码包含 HAB Buffer 导入及 WFD 调用转发 | 实际 FE／BE 构建选型、端口映射和安全 Buffer 支持 |
 | TEE → QNX OPS Listener | 预编译组件注册 QSEECom listener，接收保护命令并返回处理结果 | 安全侧策略来源、可信 HDCP 状态获取和异常恢复 |
@@ -319,7 +334,10 @@ Widevine 资料访问与 L1 OEMCrypto 获取有各自要求。适用的许可、
 | 源码 | 核验内容 |
 | :--- | :--- |
 | `widevine/service.mk`、`libwvdrmengine/Android.bp`、`libwvdrmengine/cdm/Android.bp` | AIDL 服务选型、`libwvaidl.so`／`libwvhidl.so` 构建及 CDM／Plugin 静态链接关系 |
-| `libwvdrmengine/cdm/core/src/oemcrypto_adapter_dynamic.cpp` | 动态加载 OEMCrypto，初始化与回退 |
+| `libwvdrmengine/aidl_src/WVDrmFactory.cpp`、`src/WVCDMSingleton.cpp` | 两种 Plugin 共享 CDM 入口对象 |
+| `mediadrm/aidl_src/WVDrmPlugin.cpp`、`mediadrm/aidl_include/WVGenericCryptoInterface.h` | DRM 会话／许可证主链与通用加密分支 |
+| `mediacrypto/aidl_src/WVCryptoPlugin.cpp`、`cdm/core/src/content_key_session.cpp` | DecryptV16 入口与 OEMCrypto_DecryptCENC 调用 |
+| `libwvdrmengine/cdm/core/src/oemcrypto_adapter_dynamic.cpp` | 动态加载 OEMCrypto、按会话分派及 L1／L3 初始化 |
 | `libwvdrmengine/mediacrypto/src_hidl/WVCryptoPlugin.cpp` | 安全目标 Buffer Handle |
 | `libwvdrmengine/cdm/core/src/content_key_session.cpp` | `OEMCrypto_DecryptCENC` 调用 |
 | `libwvdrmengine/cdm/core/src/license.cpp`、`oemcrypto/include/OEMCryptoCENC.h` | 会话材料、派生密钥、许可证验证与内容密钥加载 |

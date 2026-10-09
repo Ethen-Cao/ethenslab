@@ -9,8 +9,8 @@
 @media(max-width:900px){body{padding:7px}h1{font-size:15px}.toolbar{gap:6px}.tools{gap:4px}button{padding:3px 7px}.legend-row{gap:5px 10px}.hint{display:none}}@media(max-width:600px){.tag{display:none}.tools{margin-left:0}.toolbar h1{width:100%}.legend{font-size:10px}.legend-row{gap:4px 8px}}@media print{body{padding:0;background:#fff}.tools,.tag,.hint{display:none}.diagram-shell{border:0}.toolbar h1{font-size:16px}}
 </style></head>
 <body><main>
-<header class="toolbar"><h1>Cockpit DRM Playback Architecture</h1><span class="tag">Widevine L1 · Proposal</span><div class="tools"><button id="fit" type="button" title="Show the complete diagram">Fit</button><button id="zoom-out" type="button" aria-label="Zoom out">−</button><span id="zoom-level">100%</span><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="clear" type="button">Clear selection</button><button id="theme" type="button">Dark theme</button></div></header>
-<section class="diagram-shell" aria-label="Interactive architecture diagram"><svg class="canvas" id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 1540" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-description">
+<header class="toolbar"><h1>Cockpit DRM Playback Architecture</h1><span class="tag">Widevine L1 · Key call paths</span><div class="tools"><button id="fit" type="button" title="Show the complete diagram">Fit</button><button id="zoom-out" type="button" aria-label="Zoom out">−</button><span id="zoom-level">100%</span><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="clear" type="button">Clear selection</button><button id="theme" type="button">Dark theme</button></div></header>
+<section class="diagram-shell" aria-label="Interactive architecture diagram"><svg class="canvas" id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 1650" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-description">
         <title id="svg-title">Cockpit DRM playback: TEE, QNX and Android</title>
         <desc id="svg-description">A proposed Widevine L1 architecture across TEE, QNX and Android. Component fill indicates source: green for native QNX/AOSP, yellow for Widevine or vendor components, gray for hardware, blue for external services, and white for an unspecified client. Select a component to highlight direct connections. Right-click or press Escape to clear. Fit shows the complete diagram; zoom and drag inspect details.</desc>
         <defs>
@@ -23,26 +23,26 @@
           <rect class="domain cloud-domain" x="900" y="22" width="976" height="174" rx="10"/>
           <text class="domain-title" x="922" y="54">Cloud Services</text>
           <text class="domain-sub" x="922" y="76">Encrypted media · license · provisioning</text>
-          <rect class="domain tee-domain" x="24" y="240" width="330" height="790" rx="12"/>
+          <rect class="domain tee-domain" x="24" y="240" width="330" height="900" rx="12"/>
           <text class="domain-title" x="46" y="276">TEE</text>
           <text class="domain-sub" x="46" y="298">TrustZone · vendor secure implementation</text>
-          <rect class="domain qnx-domain" x="400" y="240" width="430" height="790" rx="12"/>
+          <rect class="domain qnx-domain" x="400" y="240" width="430" height="900" rx="12"/>
           <text class="domain-title" x="422" y="276">QNX</text>
           <text class="domain-sub" x="422" y="298">Host display backend · candidate platform route</text>
-          <rect class="domain android-domain" x="900" y="240" width="720" height="790" rx="12"/>
+          <rect class="domain android-domain" x="900" y="240" width="720" height="900" rx="12"/>
           <text class="domain-title" x="922" y="276">Android</text>
           <text class="domain-sub" x="1500" y="276" text-anchor="end">AAOS guest</text>
-          <rect class="domain" x="24" y="1370" width="1596" height="148" rx="12"/>
-          <text class="domain-title" x="46" y="1400">Display Output</text>
-          <text class="domain-sub" x="46" y="1424">Per-screen validation</text>
-          <text class="domain-sub" x="46" y="1446">Content policy applies</text>
-          <rect class="domain" x="400" y="1070" width="1220" height="48" rx="7"/>
-          <text class="lane-title" x="422" y="1100">HYPERVISOR</text>
-          <text class="domain-sub" x="610" y="1100">VM isolation · memory ownership · device assignment / virtualization</text>
-          <rect class="domain hardware-domain" x="24" y="1146" width="1596" height="200" rx="10"/>
-          <text class="lane-title" x="46" y="1173">SOC HARDWARE &amp; PROTECTED MEMORY</text>
-          <text class="domain-sub" x="46" y="1320">Access-controlled DDR · opaque buffer handles</text>
-<rect class="cdm-container" x="918" y="538" width="684" height="180" rx="8"/><text class="service-title" x="1260" y="558" text-anchor="middle">Widevine HAL / CDM</text><text class="service-sub" x="1260" y="575" text-anchor="middle">libwvaidl.so · Source build · AIDL</text>
+          <rect class="domain" x="24" y="1480" width="1596" height="148" rx="12"/>
+          <text class="domain-title" x="46" y="1510">Display Output</text>
+          <text class="domain-sub" x="46" y="1534">Per-screen validation</text>
+          <text class="domain-sub" x="46" y="1556">Content policy applies</text>
+          <rect class="domain" x="400" y="1180" width="1220" height="48" rx="7"/>
+          <text class="lane-title" x="422" y="1210">HYPERVISOR</text>
+          <text class="domain-sub" x="610" y="1210">VM isolation · memory ownership · device assignment / virtualization</text>
+          <rect class="domain hardware-domain" x="24" y="1256" width="1596" height="200" rx="10"/>
+          <text class="lane-title" x="46" y="1283">SOC HARDWARE &amp; PROTECTED MEMORY</text>
+          <text class="domain-sub" x="46" y="1430">Access-controlled DDR · opaque buffer handles</text>
+<rect class="cdm-container" x="918" y="538" width="684" height="336" rx="8"/><text class="service-title" x="1260" y="558" text-anchor="middle">Widevine HAL / CDM</text><text class="service-sub" x="1260" y="575" text-anchor="middle">libwvaidl.so · AIDL source build · internal function calls</text>
         </g>
         <g id="edges"></g>
         <g id="nodes"></g>
@@ -328,11 +328,11 @@ const modules = [
   {
     "id": "oemcrypto",
     "x": 930,
-    "y": 752,
+    "y": 910,
     "w": 660,
-    "h": 82,
+    "h": 72,
     "name": [
-      "OEMCrypto Client & Platform Libraries"
+      "L1 Platform Libraries"
     ],
     "sub": [
       "liboemcrypto.so · libtrustedapploader.so · libops.so"
@@ -343,7 +343,7 @@ const modules = [
   {
     "id": "surfaceflinger",
     "x": 930,
-    "y": 888,
+    "y": 1036,
     "w": 290,
     "h": 76,
     "name": [
@@ -358,7 +358,7 @@ const modules = [
   {
     "id": "hwc",
     "x": 1260,
-    "y": 888,
+    "y": 1036,
     "w": 330,
     "h": 76,
     "name": [
@@ -373,7 +373,7 @@ const modules = [
   {
     "id": "compressed",
     "x": 54,
-    "y": 1204,
+    "y": 1314,
     "w": 300,
     "h": 76,
     "name": [
@@ -388,7 +388,7 @@ const modules = [
   {
     "id": "decoder",
     "x": 430,
-    "y": 1204,
+    "y": 1314,
     "w": 270,
     "h": 76,
     "name": [
@@ -403,7 +403,7 @@ const modules = [
   {
     "id": "frames",
     "x": 780,
-    "y": 1204,
+    "y": 1314,
     "w": 300,
     "h": 76,
     "name": [
@@ -418,7 +418,7 @@ const modules = [
   {
     "id": "dpu",
     "x": 1170,
-    "y": 1204,
+    "y": 1314,
     "w": 320,
     "h": 76,
     "name": [
@@ -433,7 +433,7 @@ const modules = [
   {
     "id": "link",
     "x": 780,
-    "y": 1416,
+    "y": 1526,
     "w": 280,
     "h": 76,
     "name": [
@@ -448,7 +448,7 @@ const modules = [
   {
     "id": "display",
     "x": 1220,
-    "y": 1416,
+    "y": 1526,
     "w": 300,
     "h": 76,
     "name": [
@@ -462,18 +462,48 @@ const modules = [
   },
   {
     "id": "cdm-core",
-    "x": 1120,
-    "y": 658,
-    "w": 290,
-    "h": 50,
+    "x": 1230,
+    "y": 690,
+    "w": 360,
+    "h": 58,
     "name": [
       "Widevine CDM Core"
     ],
     "sub": [
-      "Sessions · licenses · decryption"
+      "Sessions · licenses · media decryption"
     ],
     "kind": "vendor",
     "ev": "Shared getCDM() · source build"
+  },
+  {
+    "id": "generic-crypto",
+    "x": 930,
+    "y": 690,
+    "w": 240,
+    "h": 58,
+    "name": [
+      "WVGenericCryptoInterface"
+    ],
+    "sub": [
+      "Generic crypto · RSA"
+    ],
+    "kind": "vendor",
+    "ev": "Source evidence · generic crypto branch"
+  },
+  {
+    "id": "oemcrypto-adapter",
+    "x": 930,
+    "y": 786,
+    "w": 660,
+    "h": 60,
+    "name": [
+      "OEMCrypto API / Adapter"
+    ],
+    "sub": [
+      "Session-based L1 / L3 dispatch · L3 backend omitted"
+    ],
+    "kind": "vendor",
+    "ev": "Source evidence · per-session dispatch"
   }
 ];
 const links = [
@@ -564,8 +594,8 @@ const links = [
     "to": "widevine-ta",
     "type": "pending",
     "both": true,
-    "d": "M930 793H376V771H324",
-    "label": "Secure platform transport",
+    "d": "M930 946H886V793H376V771H324",
+    "label": "L1 secure platform transport",
     "lx": 423,
     "ly": 793
   },
@@ -657,122 +687,158 @@ const links = [
     "from": "mediacodec",
     "to": "surfaceflinger",
     "type": "control",
-    "d": "M1590 486H1610V864H1075V888",
+    "d": "M1590 486H1610V1012H1075V1036",
     "label": "BufferQueue / protected handles",
     "lx": 1350,
-    "ly": 864
+    "ly": 1012
   },
   {
     "id": "surface-hwc",
     "from": "surfaceflinger",
     "to": "hwc",
     "type": "control",
-    "d": "M1220 926H1260"
+    "d": "M1220 1074H1260"
   },
   {
     "id": "hwc-guest",
     "from": "hwc",
     "to": "guest-backend",
     "type": "pending",
-    "d": "M1425 964V1000H866V799Q854 793 866 787V686H800",
+    "d": "M1425 1112V1144H866V799Q854 793 866 787V686H800",
     "label": "Guest display bridge · protected attributes to confirm",
     "lx": 1134,
-    "ly": 1000
+    "ly": 1144
   },
   {
     "id": "ta-buffer",
     "from": "widevine-ta",
     "to": "compressed",
     "type": "media",
-    "d": "M189 812V1186H204V1204",
+    "d": "M189 812V1296H204V1314",
     "label": "Protected compressed video",
     "lx": 205,
-    "ly": 1050
+    "ly": 1160
   },
   {
     "id": "codec-decoder",
     "from": "mediacodec",
     "to": "decoder",
     "type": "control",
-    "d": "M1590 466H1634V1188H565V1204",
+    "d": "M1590 466H1634V1298H565V1314",
     "label": "Secure decode control",
     "lx": 1502,
-    "ly": 1188
+    "ly": 1298
   },
   {
     "id": "driver-dpu",
     "from": "display-driver",
     "to": "dpu",
     "type": "control",
-    "d": "M430 978H386V1132H1330V1182Q1342 1188 1330 1194V1204",
+    "d": "M430 978H386V1242H1330V1292Q1342 1298 1330 1304V1314",
     "label": "Display control",
     "lx": 1080,
-    "ly": 1132
+    "ly": 1242
   },
   {
     "id": "buffer-decoder",
     "from": "compressed",
     "to": "decoder",
     "type": "media",
-    "d": "M354 1242H430"
+    "d": "M354 1352H430"
   },
   {
     "id": "decoder-frames",
     "from": "decoder",
     "to": "frames",
     "type": "media",
-    "d": "M700 1242H780"
+    "d": "M700 1352H780"
   },
   {
     "id": "frames-dpu",
     "from": "frames",
     "to": "dpu",
     "type": "media",
-    "d": "M1080 1242H1170"
+    "d": "M1080 1352H1170"
   },
   {
     "id": "dpu-link",
     "from": "dpu",
     "to": "link",
     "type": "media",
-    "d": "M1330 1280V1360H920V1416",
+    "d": "M1330 1390V1470H920V1526",
     "label": "Display pixels",
     "lx": 1110,
-    "ly": 1360
+    "ly": 1470
   },
   {
     "id": "link-display",
     "from": "link",
     "to": "display",
     "type": "pending",
-    "d": "M1060 1454H1220",
+    "d": "M1060 1564H1220",
     "label": "HDCP, if required",
     "lx": 1140,
-    "ly": 1454
+    "ly": 1564
   },
   {
     "id": "drm-cdm",
     "from": "drm-plugin",
     "to": "cdm-core",
     "type": "control",
-    "d": "M1065 646V683H1120"
+    "d": "M1160 646V668H1300V690",
+    "label": "Session / License APIs",
+    "lx": 1220,
+    "ly": 668
   },
   {
     "id": "crypto-cdm",
     "from": "crypto-plugin",
     "to": "cdm-core",
     "type": "control",
-    "d": "M1455 646V683H1410"
+    "d": "M1455 646V690",
+    "label": "DecryptV16",
+    "lx": 1490,
+    "ly": 668
   },
   {
-    "id": "cdm-oemcrypto",
+    "id": "cdm-adapter",
     "from": "cdm-core",
+    "to": "oemcrypto-adapter",
+    "type": "control",
+    "d": "M1410 748V786",
+    "label": "Session / License / Decrypt APIs",
+    "lx": 1410,
+    "ly": 768
+  },
+  {
+    "id": "drm-generic",
+    "from": "drm-plugin",
+    "to": "generic-crypto",
+    "type": "control",
+    "d": "M995 646V690",
+    "label": "Generic crypto / RSA",
+    "lx": 1000,
+    "ly": 668
+  },
+  {
+    "id": "generic-adapter",
+    "from": "generic-crypto",
+    "to": "oemcrypto-adapter",
+    "type": "control",
+    "d": "M1050 748V786",
+    "label": "Generic OEMCrypto APIs",
+    "lx": 1050,
+    "ly": 768
+  },
+  {
+    "id": "adapter-l1",
+    "from": "oemcrypto-adapter",
     "to": "oemcrypto",
     "type": "control",
-    "d": "M1265 708V752",
-    "label": "OEMCrypto API",
-    "lx": 1265,
-    "ly": 735
+    "d": "M1260 846V910",
+    "label": "L1 selected · OEMCrypto calls",
+    "lx": 1260,
+    "ly": 890
   }
 ];
 const svgNS='http://www.w3.org/2000/svg';
@@ -793,7 +859,7 @@ canvas.addEventListener('contextmenu',e=>{e.preventDefault();clearSelection();})
 document.addEventListener('keydown',e=>{if(e.key==='Escape')clearSelection();});
 document.getElementById('clear').addEventListener('click',clearSelection);
 // Zoom changes only the SVG camera. The document never grows or acquires scrollbars.
-const fullView={x:0,y:0,w:1900,h:1540};
+const fullView={x:0,y:0,w:1900,h:1650};
 let view={...fullView},zoom=1;
 function renderView(){view.x=Math.max(0,Math.min(fullView.w-view.w,view.x));view.y=Math.max(0,Math.min(fullView.h-view.h,view.y));canvas.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);canvas.classList.toggle('zoomed',zoom>1);document.getElementById('zoom-level').textContent=Math.round(zoom*100)+'%';document.getElementById('zoom-out').disabled=zoom<=1;document.getElementById('zoom-in').disabled=zoom>=4;}
 function setZoom(value,anchor){const next=Math.max(1,Math.min(4,value));const p=anchor||{x:view.x+view.w/2,y:view.y+view.h/2};const rx=(p.x-view.x)/view.w,ry=(p.y-view.y)/view.h;view.w=fullView.w/next;view.h=fullView.h/next;view.x=p.x-rx*view.w;view.y=p.y-ry*view.h;zoom=next;renderView();}
