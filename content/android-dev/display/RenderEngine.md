@@ -1,641 +1,546 @@
 +++
 date = '2025-09-29T10:22:54+08:00'
+lastmod = '2026-10-09T00:00:00+08:00'
 draft = false
-title = 'Android SurfaceFlinger RenderEngine 深度详解'
+title = 'RenderEngine：SurfaceFlinger 的 GPU 合成流程'
+description = '沿一次客户端合成请求，说明 RenderEngine 的输入输出、Skia 绘制、线程与 Fence 同步，以及 GLES/Vulkan 后端。'
+ShowToc = true
 +++
 
-RenderEngine 是 SurfaceFlinger 的渲染后端核心，负责将各个图层（Layer）的内容利用 GPU 合成到一帧缓冲区中。在现代 Android 版本中，它基于 **Skia** 图形库构建，实现了高度的模块化、多后端支持（GLES/Vulkan）以及异步多线程渲染。
+RenderEngine 负责把图层内容和显示参数转换为 GPU 绘制工作，将结果写入调用方提供的目标缓冲区。理解它，需要同时跟踪两件事：像素从哪些 Buffer 读出、向哪个 Buffer 写入，以及这些读写在什么时候可以安全执行。
 
-## 1. 架构概览 (Architecture Overview)
+本文沿着一次客户端合成请求展开，先说明输入输出，再分析绘制、线程与同步，最后介绍实现分层和后端差异。
 
-RenderEngine 采用了 **分层架构** 与 **装饰器模式** 的设计。
+<!--more-->
 
-### 1.1 核心组件架构图
+> 源码基线：本文的函数名、接口和类关系核对自当前项目 QSSI 树中的 `frameworks/native`，提交为 `2e1246c43c3bb1c54ded8262cb6e7f753e435046`。这是包含厂商扩展的项目版本，不等同于某个原生 AOSP 发布标签；下文以物理显示的客户端合成为主，截图等调用场景的输出去向有所不同。
 
-```plantuml
-@startuml
-!theme cerulean
-hide empty members
-skinparam linetype ortho
-skinparam nodesep 60
-skinparam ranksep 60
+## 1. RenderEngine 在显示链路中的位置
 
-' ==========================================
-' 1. 接口与装饰器层
-' ==========================================
-package "Interface & Decorator" {
-    abstract class RenderEngine {
-        + {static} create() : unique_ptr<RenderEngine>
-        + {abstract} drawLayers()
-        + {abstract} mapExternalTextureBuffer()
-    }
+### 1.1 从应用绘制到显示合成
 
-    class RenderEngineThreaded {
-        - mRenderEngine : unique_ptr<RenderEngine>
-        - mThread : std::thread
-        - mFunctionCalls : queue<function>
-        + drawLayers() : "非阻塞提交"
-    }
-    note right of RenderEngineThreaded
-        <b>线程装饰器</b>
-        将渲染调用跨线程
-        分发到后台工作线程
-    end note
-}
+应用通常先把自己的界面绘制到 Buffer 中。SurfaceFlinger 接收到这些内容后，根据图层的可见区域、位置、透明度等信息组织显示输出。应用提交的是这一帧的 Buffer 和相关状态；生产者是否已写完像素，仍由随附的 acquire fence 确定。RenderEngine 处理这些内容及其合成参数，无须重新执行应用的 View 绘制过程。
 
-' ==========================================
-' 2. 核心逻辑层 (Skia Implementation)
-' ==========================================
-package "Core Implementation (Skia)" {
-    abstract class SkiaRenderEngine {
-        # mTextureCache : TextureCache
-        # mCaptureCache : CaptureCache
-        + drawLayers() : "通用 Skia 绘制逻辑"
-        # drawLayersInternal()
-    }
-    note right of SkiaRenderEngine
-        <b>业务逻辑核心</b>
-        负责将 LayerSettings
-        翻译为 Skia Canvas 指令
-    end note
-}
+在与 Hardware Composer（HWC）协商合成方式后，部分图层可能由显示硬件处理，另一些需要由 SurfaceFlinger 使用 GPU 合成。前者称为 DEVICE 合成，后者称为 CLIENT 合成。CLIENT 中的“客户端”指 HWC 的调用方 SurfaceFlinger。这个职责划分也见于 [AOSP 的 SurfaceFlinger 说明](https://source.android.com/docs/core/graphics/surfaceflinger-windowmanager)。
 
-' ==========================================
-' 3. 后端驱动层 (Backends)
-' ==========================================
-package "Backend Drivers" {
-    class SkiaGLRenderEngine {
-        - mEGLDisplay : EGLDisplay
-        - mEGLContext : EGLContext
-        + create()
-        --
-        (Ganesh GL Backend)
-    }
+CompositionEngine 为一次显示输出生成客户端合成请求，RenderEngine 执行请求。GPU 写出的目标缓冲区称为 ClientTarget，随后由显示输出链路交给 HWC，与 DEVICE 图层一起参与最终呈现。
 
-    class GaneshVkRenderEngine {
-        - mInstance : VkInstance
-        - mDevice : VkDevice
-        + create()
-        --
-        (Ganesh Vulkan Backend)
-    }
-
-    class GraphiteVkRenderEngine {
-        --
-        (Graphite Vulkan Backend)
-    }
-}
-
-' 关系连线
-RenderEngine <|-- RenderEngineThreaded
-RenderEngine <|-- SkiaRenderEngine
-SkiaRenderEngine <|-- SkiaGLRenderEngine
-SkiaRenderEngine <|-- GaneshVkRenderEngine
-SkiaRenderEngine <|-- GraphiteVkRenderEngine
-
-RenderEngineThreaded o-- RenderEngine : 包装实际实现 (Impl)
-
-@enduml
-
-```
-
-### 1.2 关键组件工作机制
-
-1. **`RenderEngine` (Interface)**:
-   * 定义了 SurfaceFlinger 与渲染器交互的契约。最关键的接口是 `drawLayers`（执行合成）和 `mapExternalTextureBuffer`（缓存纹理）。
-
-
-2. **`RenderEngineThreaded` (Thread Model)**:
-   * **机制**: 这是一个装饰器。它并不执行渲染，而是维护一个命令队列（Command Queue）和一个后台线程。
-   * **作用**: 解耦 SurfaceFlinger 主线程（Main Thread）与 GPU 驱动的提交操作。因为 GPU 驱动的 `flush` 或 `submit` 可能会阻塞 CPU，如果不放在独立线程，会导致掉帧。
-
-
-3. **`SkiaRenderEngine` (Core Logic)**:
-   * **机制**: 这是一个与具体 GPU API 无关的类。它接收 SurfaceFlinger 的图层数据结构 (`LayerSettings`)，将其一一翻译成 Google Skia 库的绘制指令（如 `canvas->drawImage`, `canvas->drawRRect`）。
-   * **作用**: 屏蔽了底层是 OpenGL 还是 Vulkan 的差异，统一了渲染逻辑（圆角、阴影、模糊等）。
-
-
-4. **后端实现 (`SkiaGLRenderEngine` / `VkRenderEngine`)**:
-   * **机制**: 负责初始化 EGL/Vulkan 上下文，并将原生的 GL Context 封装成 Skia 的 `GrDirectContext`。
-   * **作用**: 管理 GPU 资源生命周期和上下文切换。
-
-
-
----
-
-## 2. 核心工作原理：`drawLayers` 深度解析
-
-`drawLayers` 是合成过程的心脏。基于代码分析，其执行流程如下：
-
-
-
-### 2.1 阶段一：资源准备与上下文绑定
-
-在 `SkiaRenderEngine::drawLayers` 中：
-
-1. **目标绑定 (Bind Render Target)**:
-   * 传入的 `dstBuffer` (GraphicBuffer) 被封装为 `SkiaBackendTexture`。
-   * 通过 `SkSurface::MakeFromBackendTexture` 创建一个 **`SkSurface`**。这是 Skia 的画布，所有的绘制都会输出到这块内存中。
-   * 获取 `SkCanvas` 指针，准备开始作画。
-
-
-2. **清理画布**:
-   * 如果不需要清除内容，则跳过；否则调用 `canvas->clear()`。
-
-
-### 2.2 阶段二：图层遍历与指令翻译 (Translation)
-
-代码遍历 `std::vector<LayerSettings>` 列表，对每个图层进行处理：
-
-1. **几何变换 (Geometry)**:
-   * **矩阵变换**: 将 Layer 的 `geometry.positionTransform` (矩阵) 转换为 `SkMatrix`，应用到 Canvas 上。这处理了图层的位移、缩放和旋转。
-   * **裁剪**: 将 Layer 的裁剪区域 (`geometry.boundaries`) 应用为 `canvas->clipRect()`。如果是圆角裁剪，则使用 `canvas->clipRRect()`。
-
-
-2. **内容绘制 (Draw Content)**:
-   * **图片图层**: 如果 Layer 包含 Buffer，通过 `ExternalTexture` 获取 `SkImage`，调用 `canvas->drawImageRect()`。
-   * **纯色图层**: 如果 Layer 是 Dim Layer 或背景色，调用 `canvas->drawRect()`。
-
-
-3. **特效处理 (Effects via SkPaint)**:
-   * **透明度**: 设置 `SkPaint` 的 Alpha 值。
-   * **混合模式**: 设置 `SkBlendMode` (如 SRC_OVER, PREMULTIPLY)。
-   * **阴影**: 使用 `SkShadowUtils::DrawShadow` 绘制物理阴影。
-   * **模糊**: 创建 `SkImageRowFilter::MakeBlur`，将其设置为 Paint 的 `ImageFilter`，Skia 会自动处理高斯模糊 Shader。
-   * **色彩滤镜**: 将 `colorTransform` 矩阵转换为 `SkColorFilter`，实现夜间模式或色彩校正。
-
-
-
-### 2.3 阶段三：提交与同步 (Flush & Sync)
-
-绘制指令生成后，必须发送给 GPU：
-
-1. **Flush**: 调用 `SkSurface::flushAndSubmit()`。
-   * Skia 内部会将累积的 `drawXXX` 指令编译成 GPU 能识别的指令流（GL Draw Calls 或 Vulkan Command Buffers）。
-   * 发送给 GPU 驱动程序。
-
-
-2. **Fence 同步**:
-   * RenderEngine 创建一个原生的同步栅栏（Sync Fence，如 `EGLSyncKHR`）。
-   * 这个 Fence 被返回给 SurfaceFlinger，最终传递给 HWC。HWC 只有等这个 Fence 触发（即 GPU 画完了），才会去读取 Buffer 内容进行显示。
-
-
----
-
-## 3. 线程模型详解 (`RenderEngineThreaded`)
-
-`RenderEngineThreaded` 实现了极其重要的异步机制。
-
-### 3.1 为什么需要线程化？
-
-在 `drawLayers` 的最后一步 `flushAndSubmit` 中，CPU 需要与 GPU 驱动交互。在某些高负载场景下，驱动可能会阻塞 CPU 几毫秒甚至更久。如果这发生在 SurfaceFlinger 的主线程（Main Thread），会导致处理下一个 VSYNC 信号延迟，从而引发卡顿（Jank）。
-
-### 3.2 工作机制
-
-1. **任务封装 (Promise/Future 模式)**:
-    当 SurfaceFlinger 调用 `drawLayers` 时，`RenderEngineThreaded` **不会** 立即执行。它将所有参数（图层列表、目标 Buffer）打包成一个 `std::function` 任务。
-    ```cpp
-    // 伪代码逻辑
-    std::promise<sp<Fence>> resultPromise;
-    std::future<sp<Fence>> resultFuture = resultPromise.get_future();
-
-    // 将任务推入队列
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([=, &resultPromise]() {
-            // 在后台线程调用真正的实现
-            auto fence = mRenderEngine->drawLayers(...);
-            resultPromise.set_value(fence);
-        });
-        mCondition.notify_one();
-    }
-
-    return resultFuture; // 立即返回 Future，不阻塞
-
-    ```
-
-
-2. **后台执行**:
-内部的 `mThread` 运行一个死循环：
-   * 等待 `mCondition` 信号。
-   * 从 `mFunctionCalls` 队列取出一个任务。
-   * 执行任务（此时才真正进行 Skia 指令生成和 GPU 提交）。
-
-
-3. **结果获取**:
-SurfaceFlinger 在需要 Fence 的时候（通常是稍后阶段），调用 `future.get()` 获取结果。
-
-
-
-**RenderEngineThreaded 本身并不支持“并行多线程渲染”，它实现的是“单线程异步渲染”。**
-
-虽然它的名字叫 `Threaded`，但它并不是为了让多个线程同时去画图（Parallel Rendering），而是为了**将渲染任务从 SurfaceFlinger 的主线程剥离到一个独立的后台线程中执行**（Offloading）。
-
-以下是基于代码的详细分析：
-
-### 核心结论：1 个实例 = 1 个后台线程
-
-在 `RenderEngineThreaded.cpp` 的构造函数和成员变量定义中，我们可以清楚地看到：
-
-```cpp
-// 成员变量定义
-std::thread mThread;  // 注意：这是一个单数形式的 std::thread 对象，不是线程池
-
-// 构造函数
-RenderEngineThreaded::RenderEngineThreaded(std::unique_ptr<RenderEngine> renderEngine)
-      : mRenderEngine(std::move(renderEngine)) {
-    // 创建并启动唯一的一个后台线程
-    mThread = std::thread(&RenderEngineThreaded::threadMain, this); 
-    ...
-}
-
-```
-
-这意味着每个 `RenderEngineThreaded` 实例内部**只有一个**工作线程（Worker Thread）。无论外部有多少个线程调用它，或者有多少图层需要绘制，所有的任务最终都会被塞进同一个队列，由这唯一的线程**串行（Sequentially）** 执行。
-
-### 工作机制：生产者-消费者模型
-
-`RenderEngineThreaded` 实现了一个标准的**命令队列（Command Queue）** 模式。
-
-* **生产者 (Callers)**：通常是 SurfaceFlinger 主线程。当调用 `drawLayers` 时，它**不会**直接执行绘制代码，而是把这次调用封装成一个任务（Task/Lambda），推入队列。
-* **消费者 (Worker)**：后台线程 `mThread` 运行在一个死循环中 (`threadMain`)，不断从队列中取出任务并执行。
-
-**代码证据：**
-
-```cpp
-// RenderEngineThreaded::drawLayers
-// 这是外部调用的接口
-std::future<sp<Fence>> RenderEngineThreaded::drawLayers(...) {
-    // 1. 创建 Promise/Future 用于获取返回值
-    auto resultPromise = std::make_shared<std::promise<sp<Fence>>>();
-    std::future<sp<Fence>> resultFuture = resultPromise->get_future();
-
-    {
-        // 加锁，保护队列
-        std::lock_guard lock(mThreadMutex);
-        
-        // 2. 将真正的绘制任务封装进 lambda，推入队列
-        mFunctionCalls.push([=](renderengine::RenderEngine& instance) {
-            // 这里才在后台线程真正调用 Skia/GLES 进行绘制
-            auto fence = instance.drawLayers(display, layers, buffer, ...);
-            resultPromise->set_value(fence);
-        });
-    }
-    
-    // 3. 通知后台线程有活干了
-    mCondition.notify_one();
-    
-    // 4. 立即返回 Future，主线程不阻塞（除非后面立即调用 get()）
-    return resultFuture;
-}
-
-```
-
-```cpp
-// RenderEngineThreaded::threadMain
-// 这是后台线程的循环
-void RenderEngineThreaded::threadMain() {
-    while (mRunning) {
-        // ... 等待信号 ...
-        
-        // 取出任务
-        auto task = mFunctionCalls.front();
-        mFunctionCalls.pop();
-        
-        // 执行任务 (串行执行)
-        task(*mRenderEngine);
-    }
-}
-
-```
-
-### 为什么不支持并行多线程渲染？
-
-你可能会问，为什么不弄个线程池，让 4 个线程同时画 4 个 Layer？
-
-这是受限于底层图形 API（OpenGL ES 和 Skia）的特性：
-
-1. **上下文绑定 (Context Binding)**: OpenGL ES 的 Context 是**线程局部 (Thread-Local)** 的。一个 Context 在同一时刻只能被一个线程 `makeCurrent`。如果要在多个线程操作，需要频繁切换 Context 或创建多个共享 Context，这带来的开销（锁、驱动状态切换）往往比收益还大。
-2. **指令流顺序**: GPU 驱动通常期望接收有序的指令流。并行提交会导致驱动层需要复杂的同步机制。
-3. **Skia 的限制**: 虽然 Skia 支持多线程录制（Recording），但最终的 GPU 提交（Submit/Flush）通常需要在持有 Context 的那个线程进行。
-
-### 总结
-
-`RenderEngineThreaded` 的“Threaded”体现在：
-
-* **线程安全 (Thread-Safe)**: 它内部有 Mutex，允许多个外部线程安全地调用它（虽然任务会被排队）。
-* **异步执行 (Asynchronous)**: 它让 SurfaceFlinger 的主循环（处理 VSYNC、输入事件、事务）不会因为 GPU 驱动的耗时操作（如 `glFlush`, `vkQueueSubmit`）而被卡顿。
-
-**它不做并行计算，只做异步分流。**
-
----
-
-## 4. 渲染时序图与数据流
-
+图中绿色表示合成处理与相关组件，蓝色表示 Buffer、参数和同步对象，灰色表示执行域与外部参与者。
 
 ```plantuml
 @startuml
 !theme plain
-hide footbox
-skinparam linetype ortho
-skinparam nodesep 50
-skinparam ranksep 50
+' 视觉参考：work/architecture_diagrams/android_architecture.html
+' 绿：合成处理与相关组件；蓝：数据与同步对象；灰：执行域与外部参与者。
+skinparam backgroundColor #282A2D
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #E8EAED
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam defaultTextAlignment center
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam nodesep 35
+skinparam ranksep 35
+skinparam ArrowColor #BDC1C6
+skinparam ArrowFontColor #E8EAED
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #3C4043
+skinparam NoteBorderColor #5F6368
+skinparam NoteFontColor #E8EAED
+skinparam RectangleBackgroundColor #34A853
+skinparam RectangleBorderColor #5F6368
+skinparam RectangleFontColor #FFFFFF
+skinparam PackageBackgroundColor #202124
+skinparam PackageBorderColor #5F6368
+skinparam PackageFontColor #E8EAED
+skinparam ClassBackgroundColor #34A853
+skinparam ClassBorderColor #5F6368
+skinparam ClassFontColor #FFFFFF
+skinparam ClassAttributeFontColor #FFFFFF
+skinparam ClassStereotypeFontColor #FFFFFF
+skinparam ParticipantBackgroundColor #34A853
+skinparam ParticipantBorderColor #5F6368
+skinparam ParticipantFontColor #FFFFFF
+skinparam SequenceArrowColor #BDC1C6
+skinparam SequenceArrowFontColor #E8EAED
+skinparam SequenceLifeLineBorderColor #5F6368
+skinparam SequenceLifeLineBackgroundColor #282A2D
+skinparam SequenceGroupBackgroundColor #202124
+skinparam SequenceGroupBodyBackgroundColor #282A2D
+skinparam SequenceGroupBorderColor #5F6368
+skinparam SequenceGroupFontColor #E8EAED
+skinparam SequenceDividerBackgroundColor #3C4043
+skinparam SequenceDividerBorderColor #5F6368
+skinparam SequenceDividerFontColor #E8EAED
+top to bottom direction
 
-' ==========================================
-' 参与者定义
-' ==========================================
-box "SurfaceFlinger Thread" #f9f9f9
-    participant "Caller\n(Output)" as Caller
-end box
+rectangle "图层内容与属性\nBuffer、位置、透明度等" as Layers #4285F4
+package "SurfaceFlinger 进程" {
+    rectangle "CompositionEngine\n组织每个输出的合成请求" as CE #34A853
+    rectangle "RenderEngine\n通过 GPU 执行 CLIENT 合成" as RE #34A853
+    rectangle "ClientTarget\nGPU 合成的目标 Buffer" as Target #4285F4
+    CE --> RE : LayerSettings + 输出参数
+    RE --> Target : GPU 写入合成结果
+}
+rectangle "HWC / 显示硬件\n处理最终显示输出" as HWC #3C4043
 
-box "RenderEngine Wrapper" #e1f5fe
-    participant "RenderEngineThreaded" as Threaded
-    queue "TaskQueue\n(mFunctionCalls)" as Queue
-end box
-
-box "RenderEngine Worker Thread" #e8f5e9
-    participant "Worker\n(threadMain)" as Worker
-    participant "SkiaRenderEngine" as SkiaRE
-end box
-
-box "Skia / GPU Backend" #fff3e0
-    participant "SkSurface / SkCanvas" as Skia
-    participant "GrDirectContext" as GrContext
-end box
-
-' ==========================================
-' Phase 1: 异步任务分发
-' ==========================================
-== Phase 1: Async Submission (Main Thread) ==
-
-Caller -> Threaded: drawLayers(display, layers, buffer, ...)
-activate Threaded
-
-Threaded -> Threaded: std::make_shared<promise<Fence>>()
-note right: 创建 Promise 用于回传结果
-
-Threaded -> Queue: push(Lambda Task)
-note right
-    将 drawLayers 调用参数
-    封装为 std::function
+Layers --> CE
+CE --> HWC : DEVICE 图层及其 Buffer
+Target --> HWC : 经显示输出队列提交\nBuffer + acquire fence
+note bottom of RE
+合成策略由上游与 HWC 协商。
+此图省略队列和 Fence 回传细节。
 end note
-
-Threaded -> Threaded: mCondition.notify_one()
-
-Threaded --> Caller: std::future<Fence>
-deactivate Threaded
-note right of Caller: 主线程立即返回，不阻塞
-
-' ==========================================
-' Phase 2: 后台执行
-' ==========================================
-== Phase 2: Execution (Worker Thread) ==
-
-activate Worker
-Worker -> Queue: wait() & front()
-Queue --> Worker: Task Lambda
-
-Worker -> SkiaRE: drawLayers(..., dstBuffer, ...)
-activate SkiaRE
-
-SkiaRE -> SkiaRE: drawLayersInternal()
-
-' --- 2.1 准备渲染目标 ---
-group Setup Render Target
-    SkiaRE -> SkiaRE: getActiveContext()
-    SkiaRE -> SkiaRE: mapExternalTextureBuffer(dstBuffer)\n-> BackendTexture
-    
-    SkiaRE -> Skia: SkSurface::MakeFromBackendTexture()
-    activate Skia
-    Skia --> SkiaRE: sk_sp<SkSurface>
-    deactivate Skia
-    
-    SkiaRE -> Skia: getCanvas()
-    Skia --> SkiaRE: SkCanvas*
-end
-
-' --- 2.2 遍历图层绘制 ---
-group Draw Loop (Iterate Layers)
-    loop for each layer in layers
-        
-        SkiaRE -> Skia: canvas->save()
-        
-        ' 1. 几何变换
-        SkiaRE -> Skia: canvas->concat(layer.geometry.matrix)
-        
-        ' 2. 裁剪 (处理圆角)
-        alt hasRoundedCorners
-            SkiaRE -> Skia: canvas->clipRRect(roundedRect, true)
-        else
-            SkiaRE -> Skia: canvas->clipRect(boundaries, true)
-        end
-
-        ' 3. 阴影绘制
-        opt hasShadow
-            SkiaRE -> Skia: SkShadowUtils::DrawShadow(...)
-        end
-
-        ' 4. 内容绘制
-        alt Source is Buffer (Texture)
-            SkiaRE -> SkiaRE: source.buffer.buffer->getBuffer()
-            SkiaRE -> SkiaRE: ExternalTexture::makeImage()
-            SkiaRE -> Skia: canvas->drawImageRect(image, paint)
-        else Source is Solid Color
-            SkiaRE -> Skia: canvas->drawRect(rect, paint)
-        end
-        
-        SkiaRE -> Skia: canvas->restore()
-    end
-end
-
-' --- 2.3 提交与同步 ---
-group Flush & Submit
-    SkiaRE -> SkiaRE: flushAndSubmit(dstSurface)
-    
-    SkiaRE -> GrContext: flush(info)
-    activate GrContext
-    note right: 生成 GL/VK 指令
-    deactivate GrContext
-    
-    SkiaRE -> GrContext: submit(syncCpu=false)
-    activate GrContext
-    note right: 提交给 GPU 驱动
-    deactivate GrContext
-    
-    SkiaRE -> SkiaRE: createFence()
-    note right: 创建 EGLSync/VkFence
-    
-    SkiaRE --> Worker: sp<Fence> (DrawFence)
-end
-
-deactivate SkiaRE
-
-' --- 2.4 回传结果 ---
-Worker -> Worker: promise.set_value(DrawFence)
-deactivate Worker
-
-== Phase 3: Result Handling ==
-
-Caller -> Caller: future.get()
-note right: SF 在需要时等待 GPU 完成
-
 @enduml
-
 ```
 
-### 流程深度解析
+例如，一个应用窗口需要与半透明面板进行 GPU 合成，而视频图层可以由显示硬件处理，那么 RenderEngine 负责前一组内容，视频 Buffer 沿 DEVICE 路径交给 HWC。具体分组受层叠顺序、硬件能力和策略限制，不能任意选择若干图层合成后再拼接。
 
-该流程图将代码中的关键步骤拆解为三个部分：
+### 1.2 什么时候会发生绘制
 
-#### 1. 异步任务封装 (`RenderEngineThreaded.cpp`)
+物理显示路径的一个入口是 `compositionengine::impl::Output::composeSurfaces()`。它根据当前输出状态决定是否调用 RenderEngine：没有 CLIENT 合成时直接返回；目标 Buffer 无效时放弃本次客户端合成；若客户端合成请求缓存确认同一个目标 Buffer 中已有可复用结果，则沿用已有结果及其同步依赖。
 
-* **代码位置**: `RenderEngineThreaded::drawLayers`。
-* **核心逻辑**: 这里没有任何图形 API 调用。它仅仅使用 C++ 的 `std::promise` 和 `std::future` 机制，将参数打包（Capture）进一个 Lambda 表达式，并推入线程安全的队列 `mFunctionCalls`。
-* **目的**: 让 SurfaceFlinger 主线程在毫秒级内返回，避免被 GPU 驱动的提交过程阻塞。
+因此，显示刷新次数、`composeSurfaces()` 调用次数和 GPU 重绘次数不一定相同。RenderEngine 也服务于截图等离屏任务，此时目标 Buffer 不必成为交给物理显示 HWC 的 ClientTarget。
 
-#### 2. 渲染环境准备 (`SkiaRenderEngine.cpp`)
+## 2. 一次合成请求包含什么
 
-* **代码位置**: `SkiaRenderEngine::drawLayersInternal` 开始部分。
-* **核心逻辑**:
-* **上下文切换**: 确保当前线程绑定了正确的 EGL/Vulkan 上下文 (`getActiveContext`)。
-* **目标绑定**: `dstBuffer` 是从 `FramebufferSurface` 传来的 GraphicBuffer。RenderEngine 必须把它转换成 Skia 能识别的 `SkSurface`。这通常涉及 `eglCreateImageKHR` (GLES) 或 `vkCreateImageView` (Vulkan)。
+### 2.1 接口与参数
 
+当前基线中的接口如下，类型名保留源码写法：
 
-
-#### 3. 图层绘制循环
-
-这是最复杂的逻辑部分，SkiaRenderEngine 这里充当了“翻译官”的角色。
-
-* **几何 (Geometry)**:
-  * SF 的 `geometry.positionTransform` (矩阵) 被直接应用到 Skia Canvas 的 Matrix 上 (`canvas->concat`)。
-  * SF 的 `geometry.boundaries` (裁剪框) 被应用为 Canvas 的 Clip (`canvas->clipRect`)。
-
-
-* **特效 (Effects)**:
-  * **圆角**: 通过 `canvas->clipRRect` 实现。这比传统的 Shader 实现更通用，Skia 会自动处理抗锯齿。
-  * **阴影**: `SkShadowUtils::DrawShadow` 是 Skia 的高级特性，它会根据光源位置生成物理真实的阴影几何体。
-  * **模糊**: 代码中会检查 `backgroundBlurRadius`，如果有，会创建一个 `SkImageRowFilter::MakeBlur` 并设置给 `SkPaint`。
-
-
-* **内容 (Content)**:
-  * 如果是 Buffer 图层，`ExternalTexture` 被转换为 `SkImage`。注意，这里使用了缓存机制，不会每次都重新创建纹理。
-  * 如果是纯色图层，直接画矩形。
-
-
-#### 4. 提交与同步 (Flush & Submit)
-
-* **代码位置**: `SkiaRenderEngine.cpp` 中的 `flushAndSubmit` 函数。
-* **核心逻辑**:
-  * `GrDirectContext::flush()`: 告诉 Skia 将之前累积的 `drawXXX` 命令编译成底层的 GPU 指令（Draw Calls）。
-  * `GrDirectContext::submit()`: 将指令流真正推送到 GPU 驱动的 Command Buffer 中。
-  * **Fence**: 创建一个原生同步栅栏（Native Fence）。这个对象非常重要，它代表了 GPU 工作的结束时间点。这个 Fence 会一路返回给 SurfaceFlinger，最终传递给 HWC。
-
----
-
-## RenderEngine 后端架构：通用逻辑与 GL 实现的协同
-
-在 RenderEngine 的 Skia 架构中，设计遵循了 **“策略与机制分离”** 的原则。渲染的**业务逻辑**（如何画图层）与**底层驱动**（如何管理 GPU 上下文）被严格拆分。
-
-这种设计由两个核心类承载：`SkiaRenderEngine`（通用基类）和 `SkiaGLRenderEngine`（GLES 具体实现）。
-
-### 1. 职责划分 (Roles & Responsibilities)
-
-#### **`SkiaRenderEngine` (The Brain - 业务大脑)**
-
-这是一个与具体图形 API（GL/Vulkan）**无关** 的抽象层。它的核心职责是将 SurfaceFlinger 的合成请求翻译成 Skia 的绘图指令。
-
-* **图层翻译**: 将 `LayerSettings`（Android 定义的图层结构）转换为 `SkCanvas` 指令（`drawImage`, `drawRect` 等）。
-* **特效实现**: 利用 Skia 的能力实现圆角（RRect）、阴影（ShadowUtils）、模糊（ImageFilter）等高级特效。
-* **资源缓存**: 管理与 API 无关的资源缓存，例如 `ExternalTexture` 的生命周期管理。
-* **命令录制**: 负责 `drawLayers` 的主流程控制。
-
-#### **`SkiaGLRenderEngine` (The Driver - 环境管家)**
-
-这是针对 OpenGL ES 后端的具体实现。它的职责是维护 Skia 运行所需的 EGL 环境。
-
-* **EGL 管理**: 负责 `EGLDisplay`、`EGLContext` (主上下文与受保护上下文)、`EGLSurface` (Pbuffer) 的创建与销毁。
-* **上下文切换**: 实现 `useProtectedContext`，在“普通上下文”和“受保护上下文（DRM 内容）”之间进行物理切换 (`eglMakeCurrent`)。
-* **Skia 桥接**: 调用 `GrDirectContexts::MakeGL`，将原生的 EGL 环境封装成 Skia 可识别的 `GrDirectContext` 对象。
-
-### 2. 协同工作机制 (Collaboration Mechanism)
-
-这两个类通过 **继承** 和 **状态共享** 进行协作。`SkiaRenderEngine` 定义了算法骨架（Template Method），而 `SkiaGLRenderEngine` 填充了环境初始化的细节。
-
-#### 2.1 初始化阶段：自底向上的构建
-
-协作始于构造阶段：
-
-1. **EGL 准备**: 工厂调用 `SkiaGLRenderEngine::create`。它首先初始化 EGL 环境。
-2. **Skia 封装**: `SkiaGLRenderEngine` 调用父类的 `init()`，进而触发虚函数 `createContexts`。
-3. **注入依赖**: 在 `createContexts` 中，GL 实现创建出 `GrDirectContext`（Skia 的 GPU 上下文句柄）并赋值给父类的成员变量 `mDefaultContext` 和 `mProtectedContext`。
-> **关键点**: 从此刻起，父类 `SkiaRenderEngine` 拥有了操作 GPU 的手柄，但它并不知道这个手柄背后是 GL 还是 Vulkan。
-
-
-
-#### 2.2 渲染阶段：上下文切换与指令提交
-
-在 `drawLayers` 的执行过程中，两者配合最为紧密：
-
-```mermaid
-sequenceDiagram
-    participant SF as SurfaceFlinger
-    participant Base as SkiaRenderEngine
-    participant GL as SkiaGLRenderEngine
-    participant EGL as EGL Driver
-    participant Skia as Skia Library
-
-    SF->>Base: drawLayers(...)
-    
-    rect rgb(240, 248, 255)
-        note right of Base: 1. 检查是否需要受保护环境
-        Base->>Base: useProtectedContext(isProtected)
-        
-        note right of GL: 2. 只有子类知道如何切换 EGL
-        Base->>GL: [Virtual] useProtectedContextImpl
-        GL->>EGL: eglMakeCurrent(...)
-    end
-
-    rect rgb(255, 250, 240)
-        note right of Base: 3. 通用绘制逻辑 (Base)
-        Base->>Base: mapBuffer(target)
-        Base->>Skia: SkSurface::MakeFromBackendTexture
-        Base->>Skia: canvas->drawXXX()
-    end
-
-    rect rgb(240, 255, 240)
-        note right of Base: 4. 提交与同步
-        Base->>Skia: flushAndSubmit()
-        Base->>GL: [Virtual] createFence() 
-        note right of GL: GL 创建 EGLSyncKHR
-    end
-
+```cpp
+ftl::Future<FenceResult> drawLayers(
+        const DisplaySettings& display,
+        const std::vector<LayerSettings>& layers,
+        const std::shared_ptr<ExternalTexture>& buffer,
+        base::unique_fd&& bufferFence);
 ```
 
-**详细步骤解析：**
+这里的 `buffer` 是输出目标。输入内容则来自 `layers` 中各个图层的像素源。二者都是 Buffer，但读写方向不同。
 
-1. **上下文激活 (Context Activation)**:
-* `SkiaRenderEngine` 在绘制前检查当前图层是否包含受保护内容（Secure Content）。
-* 它调用 `useProtectedContext`。`SkiaGLRenderEngine` 重写了此逻辑，如果状态发生变化，它会调用 `eglMakeCurrent` 切换到对应的 EGL Context。这是两者协作的关键点：**父类决定“何时切”，子类决定“怎么切”**。
+| 参数或结果 | 含义 | 需要关注的内容 |
+|---|---|---|
+| `DisplaySettings` | 本次输出的整体配置 | 输出区域、逻辑裁剪、方向、输出色彩空间、亮度及颜色变换 |
+| `LayerSettings` 列表 | 按 Z 序组织的绘制请求 | 几何形状、像素源、纹理变换、透明度、色彩与效果参数 |
+| `buffer` | 本次 GPU 将写入的目标 | 由调用方提供，并通过 `ExternalTexture` 引用 |
+| `bufferFence` | 目标上一次使用的完成依赖 | 满足后才能覆盖目标内容，与本次完成 Fence 不同 |
+| `FenceResult` | 绘制请求的处理结果 | `base::expected<sp<Fence>, status_t>`，成功时给出完成 Fence，失败时给出状态码 |
 
+`LayerSettings` 是供渲染使用的数据描述，不是 SurfaceFlinger 的 `Layer` 对象。RenderEngine 无须遍历完整窗口树；上游已经将需要绘制的状态整理成请求。这个请求列表还可能包含纯色、清除或效果用途的绘制项，不能简单等同于“一项就是一个应用窗口”。
 
-2. **目标绑定 (Target Binding)**:
-* `SkiaRenderEngine` 需要将目标 GraphicBuffer 包装成 `SkSurface`。
-* 它依赖内部持有的 `GrDirectContext`（由子类在初始化时注入）来创建后端纹理对象。
+### 2.2 Buffer、纹理与 Skia 对象
 
+`GraphicBuffer` 表示图形缓冲区及其句柄、尺寸、格式和用途等信息。RenderEngine 通过 GPU 后端导入这块内存，使它能够被采样或作为渲染目标使用。
 
-3. **指令生成 (Command Generation)**:
-* 这一步完全由 `SkiaRenderEngine` 独立完成。它操作纯粹的 Skia 对象 (`SkCanvas`, `SkPaint`)，不需要子类参与。这是代码复用的核心。
+`ExternalTexture` 提供 Buffer 与 RenderEngine 之间的资源接口。其具体实现 `impl::ExternalTexture` 在构造时调用 `mapExternalTextureBuffer()`，析构时调用 `unmapExternalTextureBuffer()`，将 Buffer 的引用与后端资源生命周期关联起来。
 
+实际的 Skia 包装在后端纹理对象中完成。当前实现通过 `AutoBackendTexture::makeImage()` 为输入构造 `SkImage`，通过 `getOrCreateSurface()` 为输出取得 `SkSurface`。`SkImage` 用来描述可采样的图像，`SkSurface` 表示绘制目标，`SkCanvas` 则提供向该目标绘制的接口。
 
-4. **同步栅栏 (Fence Creation)**:
-* 绘制完成后，`SkiaRenderEngine` 需要返回一个 Fence。
-* 虽然 Skia 提供了 `finish` 机制，但在 Android 上通常需要原生的 `EGLSync` 或 `VkFence`。虽然代码主要在 Skia 内部处理，但底层的等待逻辑（`waitFence`）往往由子类根据具体 API 实现。
+```plantuml
+@startuml
+!theme plain
+' 视觉参考：work/architecture_diagrams/android_architecture.html
+' 绿：合成处理与相关组件；蓝：数据与同步对象；灰：执行域与外部参与者。
+skinparam backgroundColor #282A2D
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #E8EAED
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam defaultTextAlignment center
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam nodesep 35
+skinparam ranksep 35
+skinparam ArrowColor #BDC1C6
+skinparam ArrowFontColor #E8EAED
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #3C4043
+skinparam NoteBorderColor #5F6368
+skinparam NoteFontColor #E8EAED
+skinparam RectangleBackgroundColor #34A853
+skinparam RectangleBorderColor #5F6368
+skinparam RectangleFontColor #FFFFFF
+skinparam PackageBackgroundColor #202124
+skinparam PackageBorderColor #5F6368
+skinparam PackageFontColor #E8EAED
+skinparam ClassBackgroundColor #34A853
+skinparam ClassBorderColor #5F6368
+skinparam ClassFontColor #FFFFFF
+skinparam ClassAttributeFontColor #FFFFFF
+skinparam ClassStereotypeFontColor #FFFFFF
+skinparam ParticipantBackgroundColor #34A853
+skinparam ParticipantBorderColor #5F6368
+skinparam ParticipantFontColor #FFFFFF
+skinparam SequenceArrowColor #BDC1C6
+skinparam SequenceArrowFontColor #E8EAED
+skinparam SequenceLifeLineBorderColor #5F6368
+skinparam SequenceLifeLineBackgroundColor #282A2D
+skinparam SequenceGroupBackgroundColor #202124
+skinparam SequenceGroupBodyBackgroundColor #282A2D
+skinparam SequenceGroupBorderColor #5F6368
+skinparam SequenceGroupFontColor #E8EAED
+skinparam SequenceDividerBackgroundColor #3C4043
+skinparam SequenceDividerBorderColor #5F6368
+skinparam SequenceDividerFontColor #E8EAED
+top to bottom direction
 
+rectangle "输入 GraphicBuffer\n经 ExternalTexture 引用" as Input #4285F4
+rectangle "后端纹理 → SkImage → Shader\n导入、采样和像素处理" as Texture #34A853
+rectangle "DisplaySettings / LayerSettings\n几何、透明度、色彩、效果" as Settings #4285F4
+rectangle "SkCanvas 绘制命令\n按图层顺序记录" as Canvas #34A853
+rectangle "SkSurface\n包装目标 Buffer 的渲染表面" as Surface #4285F4
+rectangle "目标 GraphicBuffer\n经 ExternalTexture 引用" as Output #4285F4
+rectangle "完成 Fence\n描述本次 GPU 工作的完成" as Fence #4285F4
 
+Input --> Texture : 输入 Fence 约束采样时机
+Texture --> Canvas : Shader 提供像素
+Settings ..> Canvas : 配置绘制状态
+Canvas --> Surface : 记录到目标表面
+Surface --> Output : 后端提交后由 GPU 写入\n写入还受 bufferFence 约束
+Output -[hidden]right-> Fence
+Surface ..> Fence : RE 后端提交此表面\n返回同步 FD
+note bottom of Output
+图中箭头表示资源和数据关系。
+CPU 记录命令与 GPU 实际执行分开进行。
+end note
+@enduml
+```
 
-### 3. 总结：一种优雅的解耦
+普通输入 Buffer 的后端资源可以按 Buffer ID 缓存，避免重复导入。缓存是否命中还取决于映射状态和上下文，受保护内容等路径有额外限制。
 
-* **SkiaRenderEngine** 关注 **"WHAT"**：画什么（图层、圆角、阴影）。
-* **SkiaGLRenderEngine** 关注 **"WHERE"**：在哪里画（EGL 上下文、显存管理）。
+导入 Buffer 通常不需要先把整幅图像复制到 CPU 内存。但 GPU 合成本身会读取源像素并写出目标，模糊等效果还可能使用中间表面。是否存在额外复制、格式转换和临时分配，需要沿具体后端和效果路径判断。
 
-这种设计使得 Android 图形团队可以轻松地引入 `Vulkan` 支持（即 `SkiaVkRenderEngine`），只需要实现环境初始化和上下文切换，而完全复用复杂的图层合成与特效渲染逻辑。
+## 3. 从图层描述到 GPU 绘制
+
+实际绘制位于 `SkiaRenderEngine::drawLayersInternal()`。在进入它之前，工作线程会检查输入与输出的受保护属性，并按后端能力切换上下文。下面先说明输出准备，再沿每个图层的几何、效果和像素处理展开。
+
+### 3.1 准备目标表面
+
+函数先检查输出 Buffer，取得当前 GPU 上下文，然后为目标获取后端纹理。接着，`waitFence()` 处理 `bufferFence`，建立“目标上一次使用结束后才能写入”的依赖。
+
+随后，后端纹理按照输出 dataspace 创建或复用 `SkSurface`。当前实现经由捕获辅助对象取得画布；没有启用捕获时，绘制仍落到正常表面。若后面的效果需要离屏处理，还会临时使用另一个表面。
+
+在该源码基线中，开始绘制前会将活动画布清为透明黑，避免残留上一帧内容，再由 `initCanvas()` 设置显示裁剪、平移、缩放和方向。这些变换把逻辑显示坐标映射到本次输出区域。
+
+### 3.2 区分几何变换与纹理变换
+
+每个图层使用独立的 Canvas 保存与恢复范围，避免前一个图层的矩阵和裁剪影响后一个图层。这里有两组容易混淆的变换：
+
+| 变换 | 作用对象 | 解决的问题 |
+|---|---|---|
+| `geometry.positionTransform` | 图层几何 | 图层在输出中放在哪里，如何旋转、缩放 |
+| `source.buffer.textureTransform` | 输入像素的采样坐标 | 如何从 Buffer 中取到与图层几何对应的内容 |
+
+例如，移动一个窗口主要改变它的几何位置；输入 Buffer 自带旋转或裁剪关系时，还要相应处理纹理采样。只看其中一组矩阵，无法解释最终图像为何出现在某个位置、呈现某个方向。
+
+图层的 `boundaries`、圆角范围和裁剪范围共同决定可绘制形状。当前基线通过 `getBoundsAndClip()` 等辅助逻辑计算边界，再生成用于绘制和裁剪的路径。
+
+### 3.3 圆角、阴影与背景模糊
+
+圆角限制的是图层可见形状。渲染器会结合边界和圆角裁剪范围生成几何，再通过抗锯齿绘制或裁剪控制边缘覆盖。具体使用矩形、圆角矩形还是路径，取决于源码版本和形状。
+
+本项目基线已经包含平滑圆角路径和边缘描边等定制。它们影响具体绘制结果，属于项目实现；分析原生 Android 或其他分支时，需要重新核对该部分。
+
+背景模糊读取的是**已经绘制的下层合成结果**。例如，绘制一个半透明毛玻璃面板时，RenderEngine 先取得其背后的图像，生成模糊结果，再继续绘制面板自己的内容。这与直接模糊面板的输入 Buffer 是两种操作。
+
+当前实现通过 `BlurFilter::generate()` 和 `drawBlurRegion()` 处理背景模糊。滤镜算法由创建参数选择，可使用 Gaussian、Kawase 等实现；部分路径需要离屏表面或图像快照，以支持过渡混合并避免不安全的同时读写。其中 Gaussian 实现内部使用 `SkImageFilters::Blur`，Kawase 系列则采用相应的多次滤波实现。
+
+阴影会延伸到图层本体之外，因此它在最终的内容裁剪之前绘制，同时仍可能受父级裁剪约束。`drawShadow()` 将光源位置转换到适当坐标系后调用 `SkShadowUtils::DrawShadow()`。
+
+图层是否绘制内容、是否产生背景模糊、是否产生阴影，是分别判断的。`skipContentDraw` 可以跳过图层本体而保留效果；某些被不透明内容完全遮住的模糊则可以省略。
+
+### 3.4 输入像素、透明度与混合
+
+对于含 Buffer 的图层，RenderEngine 先获得输入的后端纹理，并通过 `waitFence()` 处理 `layer.source.buffer.fence`。这个 Fence 表示生产者写入该 Buffer 的完成依赖，GPU 在依赖满足之后才能正确采样。
+
+之后，后端纹理生成 `SkImage`，代码根据纹理变换和过滤选项创建 Shader。Shader 可以继续包裹色彩变换或其他运行时效果，并被设置到 `SkPaint` 上。当前项目基线的常规内容最终通过 `canvas->drawPath(boundsPath, paint)` 绘制。
+
+纯色图层没有输入纹理，由颜色 Shader 提供像素，随后同样经过几何和混合处理。这里不要求每个 Layer 都有 GraphicBuffer。
+
+默认混合采用 `SrcOver`，上层按自身透明度覆盖下层；`disableBlending` 则将混合方式改为 `Src`。`usePremultipliedAlpha` 决定输入像素是否按预乘 Alpha 解释；这是像素的表示方式，而 `SrcOver`、`Src` 决定如何与目标混合。`isOpaque` 要求忽略输入像素的 Alpha，但 `LayerSettings::alpha` 仍然参与图层整体透明度计算。
+
+### 3.5 色彩空间与亮度
+
+输入图层的 `sourceDataspace` 和输出的 `outputDataspace` 决定像素应如何解释与转换。除此之外，图层颜色矩阵、显示颜色矩阵、HDR 色调映射和亮度调节还可能需要在不同阶段执行。
+
+当前实现的 `createRuntimeEffectShader()` 参与图层级色彩及线性空间效果的组织。显示级颜色矩阵则在需要时由 `SkColorFilter` 应用；如果 `deviceHandlesColorTransform` 表明硬件负责该变换，RenderEngine 会遵守对应分工。
+
+这些处理分布在 Shader、颜色滤镜和硬件输出等环节。排查偏色或亮度问题时，应同时检查输入 dataspace、目标格式、输出 dataspace、亮度参数以及硬件承担的处理步骤。
+
+### 3.6 提交 GPU 工作并返回结果
+
+图层处理结束时，当前活动表面已经是目标表面。RenderEngine 调用后端的 `flushAndSubmit(context, dstSurface)`，将记录的绘制工作提交给 GPU，并把返回的同步 FD 包装为 `Fence`，通过 Promise 交还调用方。
+
+这里的 `flushAndSubmit()` 是 RenderEngine 的后端接口。Ganesh 与 Graphite 的记录和提交方式不同，后端负责处理这些差异。
+
+得到结果后，调用方可以继续安排显示提交。此时 GPU 可能仍在执行；后续读取目标 Buffer 的一方依靠完成 Fence 保证顺序。
+
+## 4. 线程与同步
+
+### 4.1 工作线程承担哪些工作
+
+在当前基线中，`RenderEngine::create()` 总是返回 `RenderEngineThreaded` 包装。它持有具体渲染实现、任务队列和一个工作线程。调用方提交的请求进入队列，由工作线程串行取出并执行。
+
+`drawLayers()` 通过共享持有的 Promise 保存结果通道，并将绘制参数捕获到队列任务中。这样，在调用函数返回之后，任务所需的参数和 Promise 仍有有效生命周期。
+
+这个线程执行的是 CPU 侧的资源准备、Skia 绘制组织和 GPU 提交。任务串行不意味着 GPU 内部串行处理像素，也不等于每个图层分配一个线程。接口还对调用方的并发和资源生命周期提出约束，队列锁只负责其自身的任务交接。
+
+### 4.2 Future 就绪与 GPU 完成
+
+当前 `Output::composeSurfaces()` 的调用方式是：
+
+```cpp
+auto fenceResult = renderEngine
+                           .drawLayers(clientCompositionDisplay,
+                                       clientRenderEngineLayers, tex, std::move(fd))
+                           .get();
+```
+
+**`.get()` 等待绘制请求的处理结果；返回有效 drawFence 时，其 signal 表示对应 GPU 工作完成。** 两者描述不同的完成条件。工作线程需要先处理排队请求、组织绘制并执行后端提交，调用方才能取得结果；返回时 GPU 是否已经完成，则取决于实际执行进度和后端路径。
+
+因此，线程包装提供了调度和执行位置的分离，但当前调用路径仍可能在 `.get()` 处等待。分析调用耗时时，需要把这个等待点计入。
+
+```plantuml
+@startuml
+!theme plain
+' 视觉参考：work/architecture_diagrams/android_architecture.html
+' 绿：合成处理与相关组件；蓝：数据与同步对象；灰：执行域与外部参与者。
+skinparam backgroundColor #282A2D
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #E8EAED
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam defaultTextAlignment center
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam nodesep 35
+skinparam ranksep 35
+skinparam ArrowColor #BDC1C6
+skinparam ArrowFontColor #E8EAED
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #3C4043
+skinparam NoteBorderColor #5F6368
+skinparam NoteFontColor #E8EAED
+skinparam RectangleBackgroundColor #34A853
+skinparam RectangleBorderColor #5F6368
+skinparam RectangleFontColor #FFFFFF
+skinparam PackageBackgroundColor #202124
+skinparam PackageBorderColor #5F6368
+skinparam PackageFontColor #E8EAED
+skinparam ClassBackgroundColor #34A853
+skinparam ClassBorderColor #5F6368
+skinparam ClassFontColor #FFFFFF
+skinparam ClassAttributeFontColor #FFFFFF
+skinparam ClassStereotypeFontColor #FFFFFF
+skinparam ParticipantBackgroundColor #34A853
+skinparam ParticipantBorderColor #5F6368
+skinparam ParticipantFontColor #FFFFFF
+skinparam SequenceArrowColor #BDC1C6
+skinparam SequenceArrowFontColor #E8EAED
+skinparam SequenceLifeLineBorderColor #5F6368
+skinparam SequenceLifeLineBackgroundColor #282A2D
+skinparam SequenceGroupBackgroundColor #202124
+skinparam SequenceGroupBodyBackgroundColor #282A2D
+skinparam SequenceGroupBorderColor #5F6368
+skinparam SequenceGroupFontColor #E8EAED
+skinparam SequenceDividerBackgroundColor #3C4043
+skinparam SequenceDividerBorderColor #5F6368
+skinparam SequenceDividerFontColor #E8EAED
+hide footbox
+
+participant "调用方\nOutput" as Caller #34A853
+participant "RE 工作线程" as Worker #34A853
+participant "GPU" as GPU #3C4043
+participant "HWC / 显示硬件" as HWC #3C4043
+
+Caller ->> Worker : drawLayers 经线程包装入队
+Caller -> Caller : 取得 Future\nget() 等待结果
+Worker -> Worker : 准备资源\n记录绘制命令
+Worker ->> GPU : 建立依赖并提交
+note over Worker, GPU
+GPU 执行可与 CPU 重叠。
+此图仅示意一种时序。
+end note
+Worker --> Caller : 设置 Promise\nget() 返回 FenceResult
+note over Caller, Worker
+取得 drawFence 时，
+GPU 不一定已经完成。
+end note
+Caller ->> HWC : 经显示输出链路提交\nClientTarget + drawFence
+GPU -> GPU : 完成本次读写\ndrawFence signal
+note over GPU, HWC
+读取 ClientTarget 前，
+必须满足其 acquire fence。
+end note
+HWC -> HWC : 消费 ClientTarget
+@enduml
+```
+
+### 4.3 三种依赖与后续复用
+
+一次合成至少要区分以下同步对象：
+
+| 同步对象 | 约束谁的操作 | 满足后允许什么 |
+|---|---|---|
+| 输入图层的 Fence | RenderEngine 对源 Buffer 的读取 | 开始采样生产者提交的内容 |
+| `bufferFence` | RenderEngine 对目标 Buffer 的写入 | 覆盖目标上一次使用留下的内容 |
+| 返回的 `drawFence` | 下游对本次输出的读取，以及本次源读取的完成依赖 | 在本次 GPU 工作结束后消费输出、推进相应资源释放 |
+
+`waitFence()` 通常会把依赖导入图形 API，使 GPU 按依赖执行，而不是让 CPU 每次都原地等待。具体后端有不同限制和回退路径，例如 GLES 在原生 Fence 等待不可用时可能退回 CPU 等待。Android 使用 Fence 协调异步 Buffer 访问的总体机制，见 [AOSP 同步框架说明](https://source.android.com/docs/core/graphics/sync)。
+
+物理显示的常规客户端合成路径中，`RenderSurface::queueBuffer()` 携带本次绘制完成 Fence 提交目标；`FramebufferSurface::advanceFrame()` 取得 Buffer 和 Fence，再经 `HWComposer::setClientTarget()` 传递给 HWC。该 Fence 在下游就成为读取 ClientTarget 前必须满足的 acquire fence。
+
+`drawFence` signal 只表示 RenderEngine 已结束本次 GPU 读写，**不表示显示硬件已经用完 ClientTarget**。目标 Buffer 后续的释放和再次出队，还要遵守显示侧消费完成的依赖。在该物理显示实现中，`FramebufferSurface::onFrameCommitted()` 将 HWC 返回的 present fence 用于释放前一个 ClientTarget；下次写入目标时，这段依赖会再次进入生产者侧同步流程。
+
+输入图层与输出目标也不能混为一谈：输入被 GPU 读完后，其客户端合成读取已经结束，但同一 Buffer 可能还有其他输出或消费者；输出目标则刚完成生产，接下来还要被 HWC 消费。最终能否复用，需要由各自完整的释放链路决定。
+
+## 5. 实现分层与后端
+
+### 5.1 公共接口、线程包装和 Skia 实现
+
+理解调用过程之后，可以把类关系分成三个部分：公共入口、线程调度，以及具体 GPU 实现。当前源码中的继承关系如下：
+
+```plantuml
+@startuml
+!theme plain
+' 视觉参考：work/architecture_diagrams/android_architecture.html
+' 绿：合成处理与相关组件；蓝：数据与同步对象；灰：执行域与外部参与者。
+skinparam backgroundColor #282A2D
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #E8EAED
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam defaultTextAlignment center
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam nodesep 35
+skinparam ranksep 35
+skinparam ArrowColor #BDC1C6
+skinparam ArrowFontColor #E8EAED
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #3C4043
+skinparam NoteBorderColor #5F6368
+skinparam NoteFontColor #E8EAED
+skinparam RectangleBackgroundColor #34A853
+skinparam RectangleBorderColor #5F6368
+skinparam RectangleFontColor #FFFFFF
+skinparam PackageBackgroundColor #202124
+skinparam PackageBorderColor #5F6368
+skinparam PackageFontColor #E8EAED
+skinparam ClassBackgroundColor #34A853
+skinparam ClassBorderColor #5F6368
+skinparam ClassFontColor #FFFFFF
+skinparam ClassAttributeFontColor #FFFFFF
+skinparam ClassStereotypeFontColor #FFFFFF
+skinparam ParticipantBackgroundColor #34A853
+skinparam ParticipantBorderColor #5F6368
+skinparam ParticipantFontColor #FFFFFF
+skinparam SequenceArrowColor #BDC1C6
+skinparam SequenceArrowFontColor #E8EAED
+skinparam SequenceLifeLineBorderColor #5F6368
+skinparam SequenceLifeLineBackgroundColor #282A2D
+skinparam SequenceGroupBackgroundColor #202124
+skinparam SequenceGroupBodyBackgroundColor #282A2D
+skinparam SequenceGroupBorderColor #5F6368
+skinparam SequenceGroupFontColor #E8EAED
+skinparam SequenceDividerBackgroundColor #3C4043
+skinparam SequenceDividerBorderColor #5F6368
+skinparam SequenceDividerFontColor #E8EAED
+hide empty members
+hide circle
+top to bottom direction
+
+abstract class RenderEngine #34A853 {
+    + drawLayers()
+    # drawLayersInternal()
+}
+class RenderEngineThreaded #34A853 {
+    - mThread
+    - mFunctionCalls
+}
+abstract class SkiaRenderEngine #34A853 {
+    - drawLayersInternal()
+    # waitFence()
+    # flushAndSubmit()
+}
+class SkiaGLRenderEngine #34A853
+abstract class SkiaVkRenderEngine #34A853
+class GaneshVkRenderEngine #34A853
+class GraphiteVkRenderEngine #34A853
+
+RenderEngine <|-- RenderEngineThreaded
+RenderEngine <|-- SkiaRenderEngine
+RenderEngineThreaded o--> RenderEngine : 持有具体实现
+SkiaRenderEngine <|-- SkiaGLRenderEngine
+SkiaRenderEngine <|-- SkiaVkRenderEngine
+SkiaVkRenderEngine <|-- GaneshVkRenderEngine
+SkiaVkRenderEngine <|-- GraphiteVkRenderEngine
+@enduml
+```
+
+`RenderEngine` 定义输入输出契约并提供通用入口实现。当前线程路径由 `RenderEngineThreaded::drawLayers()` 创建结果通道并入队；工作线程先调用具体实例的 `updateProtectedContext()`，再进入其 `drawLayersInternal()`。`SkiaRenderEngine` 负责目标表面、图层几何、像素采样、混合和效果等通用绘制逻辑。
+
+GLES 与 Vulkan 后端负责上下文、原生同步对象以及提交方式。这里还有一个重要区分：GLES/Vulkan 是图形 API，Ganesh/Graphite 是 Skia 的 GPU 架构。当前实现提供 Ganesh GLES、Ganesh Vulkan 和 Graphite Vulkan 三种组合。
+
+### 5.2 后端差异与同步 FD
+
+| 实现 | 上下文与绘制组织 | 输入同步 | 提交与输出同步 |
+|---|---|---|---|
+| `SkiaGLRenderEngine` | EGL/GLES 环境，Skia Ganesh 上下文 | 导入原生 Fence，使用 EGL 等待；必要时 CPU 回退 | Ganesh flush、GL 提交及原生 Fence FD 导出 |
+| `GaneshVkRenderEngine` | Vulkan 环境，Skia Ganesh 上下文 | 将同步 FD 导入 Vulkan semaphore，再交给 Skia 等待 | Ganesh flush/submit，通过可导出 semaphore 取得同步 FD |
+| `GraphiteVkRenderEngine` | Vulkan 环境，Graphite Recorder 与 Context | 暂存等待 semaphore，随 Recording 插入 | `snap()`、`insertRecording()`、`submit()`，导出完成依赖 |
+
+上层接收的是 Android 可传递的同步 FD，并将其包装成 `Fence`。Vulkan 路径通过具有 `SYNC_FD` 外部句柄能力的 semaphore 导出同步信息，而非传递 Vulkan 的 `VkFence` 对象。不同后端的失败处理也不同：例如 GLES 在无法取得有效输出 Fence 时会同步提交，两个 Vulkan 后端没有完全相同的通用回退。
+
+当前代码使用 `SkiaGpuContext`、`SkiaBackendTexture` 等兼容接口隔离 Ganesh 与 Graphite。其中 `GrDirectContext` 对应 Ganesh，Graphite 则有自己的 Context 和 Recorder。
+
+后端选择由创建参数决定。本基线的 Builder 初值为 Ganesh + GLES，并启用线程包装；SurfaceFlinger 随后根据 `debug.renderengine.backend`、Graphite/Vulkan 功能开关和 Vulkan 能力检查覆盖这些值。阅读源码时可以从 `SurfaceFlinger.cpp` 中的 `chooseRenderEngineType()` 追到 `RenderEngine::create()`，运行时再结合 dump 确认设备实际使用的组合。
+
+### 5.3 受保护内容与资源生命周期
+
+`RenderEngine::updateProtectedContext()` 检查输入与输出 Buffer 的 protected usage，并向具体实现请求切换。`SkiaRenderEngine` 管理普通与受保护两套上下文，只有后端支持受保护内容时切换才会生效。GLES 通过 `eglMakeCurrent()` 绑定对应 EGL 上下文，Vulkan 使用相应的设备、队列与 Skia 上下文。
+
+窗口的 secure 策略与 Buffer 的 protected usage 不是同一概念；前者还涉及内容是否允许出现在截图或某个输出上。判断实际执行环境时，应检查 Buffer 用途及后端能力。
+
+缓存和资源释放同样需要考虑 GPU 的异步执行。移除一个 CPU 侧引用，并不意味着 GPU 已经不再使用相应资源。当前实现通过后端纹理引用、延迟清理及 `cleanupPostRender()` 等机制管理这些关系；受保护上下文也会限制普通缓存的复用。调查内存占用时，需要区分应用 Buffer、目标 Buffer、后端导入资源、Skia 缓存和效果中间表面。
+
+## 6. 源码导航与分析方法
+
+### 6.1 按调用顺序阅读源码
+
+下表路径均相对于 `frameworks/native/`，应结合文首记录的提交阅读。函数名比固定行号更适合在后续版本中定位。
+
+| 阅读目标 | 路径 | 入口或类型 |
+|---|---|---|
+| 谁组织客户端合成 | `services/surfaceflinger/CompositionEngine/src/Output.cpp` | `composeSurfaces()`、`generateClientCompositionRequests()` |
+| 输入输出契约 | `libs/renderengine/include/renderengine/` | `RenderEngine.h`、`DisplaySettings.h`、`LayerSettings.h` |
+| 创建与公共绘制入口 | `libs/renderengine/RenderEngine.cpp` | `create()`、`drawLayers()`、`updateProtectedContext()` |
+| 工作线程与任务队列 | `libs/renderengine/threaded/RenderEngineThreaded.cpp` | `drawLayers()`、`threadMain()` |
+| 图层绘制与效果组织 | `libs/renderengine/skia/SkiaRenderEngine.cpp` | `drawLayersInternal()`、`initCanvas()`、`createRuntimeEffectShader()` |
+| Buffer 与 Skia 包装 | `libs/renderengine/ExternalTexture.cpp`、`libs/renderengine/skia/AutoBackendTexture.cpp` | 映射生命周期、`makeImage()`、`getOrCreateSurface()` |
+| 后端同步和提交 | `libs/renderengine/skia/` | `SkiaGLRenderEngine.cpp`、`SkiaVkRenderEngine.cpp`、`GaneshVkRenderEngine.cpp`、`GraphiteVkRenderEngine.cpp` |
+| Ganesh/Graphite 兼容层 | `libs/renderengine/skia/compat/` | `SkiaGpuContext`、后端纹理及各自实现 |
+| 模糊与其他 Shader | `libs/renderengine/skia/filters/` | `BlurFilter`、`GaussianBlurFilter`、Kawase 系列及 RuntimeEffect |
+| ClientTarget 提交与回收 | `services/surfaceflinger/CompositionEngine/src/RenderSurface.cpp`、`services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp` | `queueBuffer()`、`advanceFrame()`、`onFrameCommitted()` |
+
+### 6.2 先区分等待位置，再判断瓶颈
+
+分析一帧耗时时，可以沿调用方等待、RE 工作线程执行、GPU 完成、显示消费这四个位置拆分。只看到 `drawLayers` 调用时间长，无法直接判断是 GPU 算得慢。
+
+| 观察到的现象 | 优先确认的环节 |
+|---|---|
+| 调用方长时间停在 `.get()` | 任务排队、工作线程调度、CPU 绘制组织、驱动调用或同步回退 |
+| Future 已返回，drawFence 迟迟未 signal | 输入/目标 Fence 依赖、GPU 排队和实际执行时间 |
+| drawFence 已 signal，画面仍未呈现 | HWC 提交、显示调度及呈现反馈 |
+| 坐标、旋转或裁剪不正确 | 显示投影、`positionTransform`、`textureTransform` 与圆角范围 |
+| 模糊效果耗时或显存占用增加 | 背景采样范围、算法、多次处理和离屏表面 |
+| 颜色或亮度异常 | dataspace、目标格式、色调映射和软硬件颜色处理分工 |
+
+Perfetto 中可以结合该版本的 `drawLayersInternal`、`DrawLayer`、`DrawImage`、`BackgroundBlur` 等 trace 标记与 Fence 时间分析。标记是否出现取决于实际路径和采集配置；CPU trace 片段结束也不自动表示 GPU 工作结束。
+
+阅读其他 Android 分支时，可以先核对接口签名、后端选择和最终绘制调用，再沿上面的路径定位差异。
