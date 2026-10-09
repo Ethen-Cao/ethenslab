@@ -8,7 +8,7 @@ NODES = {
     'display-cluster': (350,195,270,70),
     'display-qnx-render': (350,335,270,70),
     'display-screen': (350,445,270,70),
-    'display-wfd-be': (660,445,240,80),
+    'display-wfd-be': (660,445,240,70),
     'display-wfd-client': (350,615,270,70),
     'display-wfd-server': (350,735,270,70),
     'display-wfd-core': (350,855,270,70),
@@ -18,7 +18,7 @@ NODES = {
     'display-screen-config': (65,445,240,70),
     'display-wfd-config': (65,735,240,70),
     'display-qnx-hab': (660,615,240,70),
-    'display-gsl-be': (660,735,240,80),
+    'display-gsl-be': (660,735,240,70),
     'display-qnx-gsl': (660,855,240,70),
     'display-qnx-gpu': (660,975,240,70),
     'display-apps': (1140,195,850,50),
@@ -43,7 +43,7 @@ NODES = {
     'display-sdm': (1740,1020,250,60),
     'display-drm-adapter': (1740,1105,250,60),
     'display-android-gpu': (1140,1230,250,60),
-    'display-wfd-fe': (1740,1220,250,80),
+    'display-wfd-fe': (1740,1230,250,60),
     'display-khab': (1440,1330,550,60),
     'display-vm-memory': (690,1475,450,42),
     'display-vm-notify': (1240,1475,450,42),
@@ -56,7 +56,7 @@ NODES = {
 }
 LAYERS = {
     'qnx': [(160,125,'Product Experience'), (300,250,'Platform Services'),
-            (565,735,'Device Integration & BSP')],
+            (565,850,'Device Integration & BSP')],
     'aaos': [(160,270,'Java'), (445,430,'Native'),
              (890,285,'HAL'), (1190,225,'Linux Kernel')],
 }
@@ -134,7 +134,7 @@ def make_routes():
     r.add('display-cluster','display-qnx-render',[(485,265),(485,335)],flow='control',label='Render API',at=(485,295))
     r.add('display-qnx-render','display-screen',[(485,405),(485,445)],flow='control,buffers',label='Screen surface / post',at=(485,428))
     r.add('display-screen','display-wfd-client',[(485,515),(485,615)],flow='control,buffers',label='WFD API / image handle',at=(485,540))
-    r.add('display-wfd-be','display-wfd-client',[(720,525),(720,580),(630,580),(630,650),(620,650)],flow='control,buffers',label='WFD API',at=(720,565))
+    r.add('display-wfd-be','display-wfd-client',[(720,515),(720,580),(630,580),(630,650),(620,650)],flow='control,buffers',label='WFD API',at=(720,565))
     r.add('display-wfd-client','display-wfd-server',[(485,685),(485,735)],flow='control,buffers',both=True,label='QNX read / write IPC',at=(485,714))
     r.add('display-wfd-server','display-wfd-core',[(485,805),(485,855)],flow='control,buffers',label='Wire handler dispatch',at=(485,832))
     r.add('display-wfd-core','display-mdss',[(485,925),(485,975)],flow='control,buffers',label='QDI commit',at=(485,952))
@@ -143,7 +143,7 @@ def make_routes():
     r.add('display-wfd-config','display-wfd-server',[(305,770),(350,770)],kind='storage',flow='control',note='OpenWFD Server loads qcdisplaycfg.xml for clients, devices, ports, pipelines and panel libraries')
     r.add('display-screen-config','display-screen',[(305,480),(350,480)],kind='storage',flow='control',note='QNX Screen reads graphics.conf for rendering libraries, WFD drivers, display modes and window classes')
     r.add('display-qnx-render','display-qnx-gsl',[(620,370),(650,370),(650,890),(660,890)],flow='control',label='Host GSL APIs',at=(650,710))
-    r.add('display-wfd-server','display-wfd-be',[(620,750),(635,750),(635,725),(920,725),(920,506),(900,506)],kind='status',flow='events',label='WFD events',at=(920,715))
+    r.add('display-wfd-server','display-wfd-be',[(620,750),(635,750),(635,725),(920,725),(920,506),(900,506)],kind='status',flow='events',label='WFD events',at=(860,725))
     # Java mirrors the UI traversal, recording and SurfaceView branches.
     r.add('display-apps','display-viewroot',[(1265,245),(1265,275)],flow='control')
     r.add('display-apps','display-surfaceview',[(1865,245),(1865,275)],flow='control')
@@ -160,14 +160,14 @@ def make_routes():
     r.add('display-hwui','display-api-loader',[(1265,545),(1265,595)],flow='control',label='GLES / Vulkan',at=(1265,576))
     r.add('display-native-client','display-api-loader',[(1565,545),(1565,575),(1340,575),(1340,595)],flow='control')
     r.add('display-native-client','display-surface',[(1690,515),(1740,515)],kind='storage',flow='buffers',note='The native renderer uses the target ANativeWindow')
-    r.add('display-hwui','display-surface',[(1390,520),(1410,520),(1410,560),(1800,560),(1800,545)],kind='storage',flow='buffers',label='Dequeue / queue',at=(1615,560))
+    r.add('display-hwui','display-surface',[(1390,520),(1410,520),(1410,560),(1800,560),(1800,545)],kind='storage',flow='buffers',label='Dequeue / queue',at=(1640,560))
     r.add('display-surface','display-bufferqueue',[(1865,545),(1865,595)],kind='storage',flow='buffers',label='queueBuffer',at=(1865,576))
     r.add('display-bufferqueue','display-flinger',[(1865,655),(1865,705)],kind='storage',flow='buffers',label='Transaction / fences',at=(1865,687))
     r.add('display-api-loader','display-opengl',[(1265,655),(1265,705)],flow='control',label='EGL / GLES',at=(1265,687))
     r.add('display-api-loader','display-vulkan',[(1390,625),(1565,625),(1565,705)],flow='control',label='Vulkan ICD',at=(1565,687))
     r.add('display-opengl','display-gsl-client',[(1265,765),(1265,805)],flow='control',label='gsl_*',at=(1265,793))
     r.add('display-vulkan','display-gsl-client',[(1440,735),(1405,735),(1405,835),(1390,835)],flow='control',note='Vulkan ICD links libgsl.so')
-    r.add('display-flinger','display-renderengine',[(1740,740),(1720,740),(1720,835),(1690,835)],flow='control',label='CLIENT composition',at=(1730,796))
+    r.add('display-flinger','display-renderengine',[(1740,740),(1720,740),(1720,835),(1690,835)],flow='control',label='Client composition',at=(1766,820))
     r.add('display-renderengine','display-flinger',[(1565,805),(1565,772),(1865,772),(1865,765)],kind='storage',flow='buffers',label='Client target',at=(1575,778))
     r.add('display-renderengine','display-api-loader',[(1440,835),(1420,835),(1420,645),(1390,645)],flow='control',label='EGL / GLES',at=(1420,685),note='Current RenderEngine uses GLES or SkiaGL; no Vulkan backend in this source version')
     # HAL: allocator and the vendor composer implementation have their own layer.
@@ -177,25 +177,25 @@ def make_routes():
     r.add('display-composer','display-sdm',[(1865,995),(1865,1020)],flow='control,buffers',note='Calls the vendor composition and display commit implementation')
     r.add('display-sdm','display-drm-adapter',[(1865,1080),(1865,1105)],flow='control,buffers',note='Calls the DRM adapter for display submission')
     r.add('display-drm-adapter','display-composer',[(1740,1145),(1715,1145),(1715,980),(1740,980)],kind='status',flow='events',label='Fences / VSync',at=(1715,1095))
-    r.add('display-drm-adapter','display-wfd-fe',[(1865,1165),(1865,1220)],flow='control,buffers,events',both=True,label='DRM / KMS · local fences',at=(1865,1195))
+    r.add('display-drm-adapter','display-wfd-fe',[(1865,1165),(1865,1230)],flow='control,buffers,events',both=True,label='DRM / KMS · local fences',at=(1865,1195))
     r.add('display-gralloc','display-buffers',[(1440,965),(1420,965),(1420,1320),(1155,1320),(1155,1565),(900,1565),(900,1600)],kind='storage',flow='buffers',note='Gralloc allocates or imports image storage; components exchange handles')
     # Kernel frontends share HAB but use distinct graphics and display channels.
     r.add('display-gsl-client','display-android-gpu',[(1265,865),(1265,1230)],flow='control',label='ioctl /dev/hgsl',at=(1265,1195))
     r.add('display-android-gpu','display-khab',[(1390,1260),(1550,1260),(1550,1330)],flow='control',label='habmm_* · MM_GFX',at=(1550,1310),note='GSL control RPC and memory sharing; shared command queues remain an HGSL capability')
-    r.add('display-wfd-fe','display-khab',[(1865,1300),(1865,1330)],flow='control,buffers,events',both=True,note='MM_DISP: OpenWFD requests, imported/exported buffer IDs and completion events')
+    r.add('display-wfd-fe','display-khab',[(1865,1290),(1865,1330)],flow='control,buffers,events',both=True,note='MM_DISP: OpenWFD requests, imported/exported buffer IDs and completion events')
     gfx_note='Matched GFX ports: HAB MM_GFX connects Guest KHAB with QNX UHAB/HAB for GSL control RPC and memory sharing'
     disp_note='Matched DISP ports: HAB MM_DISP carries OpenWFD requests, buffer IDs and events between the guest display frontend and QNX wfd_be'
     for target,y,name,flow,note in [('display-qnx-hab',1380,'GFX','control',gfx_note),('display-wfd-be',1350,'DISP','control,buffers,events',disp_note)]:
         r.add('display-khab',target,[(1440,y),(1406,y)],flow=flow,both=True,note=note)
         r.port('display-khab',target,1380,y,name,flow,note)
     r.port('display-khab','display-qnx-hab',780,570,'GFX','control',gfx_note)
-    r.add('display-khab','display-qnx-hab',[(780,585),(780,615)],flow='control',both=True,note=gfx_note)
+    r.add('display-khab','display-qnx-hab',[(780,582),(780,615)],flow='control',both=True,note=gfx_note)
     r.port('display-khab','display-wfd-be',985,485,'DISP','control,buffers,events',disp_note)
     r.add('display-khab','display-wfd-be',[(959,485),(900,485)],flow='control,buffers,events',both=True,note=disp_note)
-    r.add('display-wfd-be','display-buffers',[(660,485),(640,485),(640,1570),(790,1570),(790,1600)],kind='storage',flow='buffers',label='PMEM mapping',at=(640,1490))
+    r.add('display-wfd-be','display-buffers',[(860,515),(860,540),(950,540),(950,1425),(610,1425),(610,1570),(790,1570),(790,1600)],kind='storage',flow='buffers',label='PMEM mapping',at=(610,1490))
     r.add('display-vm-notify','display-vm-memory',[(1240,1496),(1140,1496)],kind='status',flow='events',note='Peer notification wakes the receiver of the HAB communication pipe')
     r.add('display-gsl-be','display-qnx-hab',[(780,735),(780,685)],flow='control',both=True,label='habmm_*',at=(780,714),note='GSL HAB Server uses libuhab.so; UHAB calls the QNX HAB resource manager')
-    r.add('display-gsl-be','display-qnx-gsl',[(780,815),(780,855)],flow='control',label='gsl_*',at=(780,840),note='The server imports GSL context, memory and command APIs from libGSLUser.so')
+    r.add('display-gsl-be','display-qnx-gsl',[(780,805),(780,855)],flow='control',label='gsl_*',at=(780,840),note='The server imports GSL context, memory and command APIs from libGSLUser.so')
     r.add('display-qnx-gsl','display-qnx-gpu',[(780,925),(780,975)],flow='control',label='GPU driver IPC',at=(780,952),note='QNX libGSLUser.so opens /dev/kgsl-3D and calls the KGSL driver through QNX IPC')
     r.add('display-qnx-gpu','display-gpu',[(660,1010),(650,1010),(650,1310),(505,1310),(505,1590),(180,1590),(180,1600)],flow='control',label='GPU HW control',at=(505,1460),note='QNX KGSL controls the GPU hardware; internal queue scheduling is not expanded')
     r.add('display-mdss','display-dpu',[(350,1010),(335,1010),(335,1540),(1265,1540),(1265,1600)],flow='control',label='Display HW programming',at=(335,1460))
@@ -234,7 +234,7 @@ def render_graph(modules):
     frame=[_rect(15,60,2010,1640,'#fbfcff','#e0e5ed',20),
            _text(34,88,'SoC Platform',17,'#202124',700),
            _text(175,88,'QNX host + Android guest',11,'#738092'),
-           _rect(30,110,900,1205,'#eaf1fe','#bfd3f8',17),
+           _rect(30,110,900,1320,'#eaf1fe','#bfd3f8',17),
            _rect(1100,110,910,1320,'#eaf6ed','#c8e5cf',17),
            _text(50,140,'QNX Cluster',19,'#1d4e9e',700),
            _text(1120,140,'AAOS IVI',19,'#176c3b',700),
@@ -264,7 +264,7 @@ def render_graph(modules):
             shape=_rect(x+8,y-8,w,h,fill,stroke,0)+_rect(x+4,y-4,w,h,fill,stroke,0)+_rect(x,y,w,h,fill,stroke,0)
         if m.get('kind')=='config':
             shape+=f'<path d="M{x+w-18},{y} V{y+18} H{x+w}" fill="none" stroke="{stroke}"/>'
-        nodes.append(f'<g class="ota-node" data-sw-module="{mid}" role="button" tabindex="0" aria-pressed="false" aria-label="{escape(m["name"],quote=True)}"><title>{escape(m["name"])}</title>'+shape+_text(x+12,y+ny,name,12.5,'#20312a',700)+_text(x+12,y+sy,short,10.2,'#596579')+'</g>')
+        nodes.append(f'<g class="ota-node" data-sw-module="{mid}" role="button" tabindex="0" aria-pressed="false" aria-label="{escape(m["name"],quote=True)}"><title>{escape(m["name"])}</title>'+shape+_text(x+12,y+ny,name,13.5,'#20312a',700)+_text(x+12,y+sy,short,11,'#596579')+'</g>')
     defs=['<defs>']
     for kind,color in PALETTE.items():
         defs.append(f'<marker id="display-arrow-{kind}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L7 4 L0 8" fill="none" stroke="{color}" stroke-width="1.3"/></marker>')
