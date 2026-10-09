@@ -59,7 +59,17 @@ Netflix 官方已支持部分车载系统，但支持范围因车型、年款和
 
 绿色表示 QNX／AOSP 平台模块，黄色表示设备侧 Widevine 组件及供应商闭源实现，灰色表示硬件与受保护内存，蓝色表示云服务。Player／Browser 的交付来源待选型，使用白色。
 
-<iframe src="../../../diagrams/cockpit-drm-playback-architecture.html" title="Cockpit DRM Playback Architecture" loading="lazy" style="display:block;width:100%;height:850px;border:1px solid #dadce0;border-radius:8px;overflow:hidden;"></iframe>
+<iframe id="cockpit-drm-architecture" src="../../../diagrams/cockpit-drm-playback-architecture.html" title="Cockpit DRM Playback Architecture" loading="lazy" style="display:block;box-sizing:border-box;width:100%;height:auto;aspect-ratio:1644/1920;border:1px solid #dadce0;border-radius:8px;overflow:hidden;"></iframe>
+<script>
+(() => {
+  const frame = document.getElementById('cockpit-drm-architecture');
+  window.addEventListener('message', event => {
+    if (event.source !== frame.contentWindow || event.data?.type !== 'cockpit-drm-architecture-height') return;
+    const height = event.data.height;
+    if (Number.isFinite(height) && height > 0) frame.style.height = `${Math.ceil(height) + 2}px`;
+  });
+})();
+</script>
 
 [独立打开系统架构图](../../../diagrams/cockpit-drm-playback-architecture.html)
 

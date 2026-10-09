@@ -11,7 +11,7 @@
 </style></head>
 <body><main>
 <header class="toolbar"><h1>Cockpit DRM Playback Architecture</h1><span class="tag">Widevine L1 · HQX call paths</span><div class="tools"><button id="fit" type="button" title="Show the complete diagram">Fit</button><button id="zoom-out" type="button" aria-label="Zoom out">−</button><span id="zoom-level">100%</span><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="clear" type="button">Clear selection</button><button id="theme" type="button">Dark theme</button></div></header>
-<section class="diagram-shell" aria-label="Interactive architecture diagram"><svg class="canvas" id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 1800" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-description">
+<section class="diagram-shell" aria-label="Interactive architecture diagram"><svg class="canvas" id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1644 1800" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-description">
         <title id="svg-title">Cockpit DRM playback: TEE, QNX and Android</title>
         <desc id="svg-description">Widevine L1 architecture across TEE, QNX and Android, based on platform documentation and source evidence. Stacked rectangles represent protected-memory buffer pools. The Display Output area compares alternative configurations without HDCP and with HDCP; these are not simultaneous output branches. Dashed Display Module boundaries group the screen-side deserializer, panel interface and display panel; they indicate physical placement. Component fill indicates source: green for native QNX/AOSP, yellow for Widevine or vendor components, gray for hardware, blue for external services, and white for an unspecified client. Click a component to highlight direct connections. Drag across text to select and copy. Right-click or press Escape to clear component highlighting; selected text retains the browser copy menu. Fit shows the complete diagram; zoom and drag the background to inspect details.</desc>
         <defs>
@@ -1058,7 +1058,7 @@ canvas.addEventListener('contextmenu',e=>{if(!hasTextSelection())e.preventDefaul
 document.addEventListener('keydown',e=>{if(e.key==='Escape')clearSelection();});
 document.getElementById('clear').addEventListener('click',clearSelection);
 // Zoom changes only the SVG camera. The document never grows or acquires scrollbars.
-const fullView={x:0,y:0,w:1900,h:1800};
+const fullView={x:0,y:0,w:1644,h:1800};
 let view={...fullView},zoom=1;
 function renderView(){view.x=Math.max(0,Math.min(fullView.w-view.w,view.x));view.y=Math.max(0,Math.min(fullView.h-view.h,view.y));canvas.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);canvas.classList.toggle('zoomed',zoom>1);document.getElementById('zoom-level').textContent=Math.round(zoom*100)+'%';document.getElementById('zoom-out').disabled=zoom<=1;document.getElementById('zoom-in').disabled=zoom>=4;}
 function setZoom(value,anchor){const next=Math.max(1,Math.min(4,value));const p=anchor||{x:view.x+view.w/2,y:view.y+view.h/2};const rx=(p.x-view.x)/view.w,ry=(p.y-view.y)/view.h;view.w=fullView.w/next;view.h=fullView.h/next;view.x=p.x-rx*view.w;view.y=p.y-ry*view.h;zoom=next;renderView();}
@@ -1075,5 +1075,18 @@ function endDrag(e){if(!drag||drag.id!==e.pointerId)return;if(drag.moved)suppres
 canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
 document.getElementById('theme').addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';document.getElementById('theme').textContent=dark?'Light theme':'Dark theme';});
 fit();
+// Embedded pages reserve enough height to fit the full diagram at article width.
+let lastEmbeddedHeight=0;
+function reportEmbeddedHeight(){
+  if(window.parent===window||!canvas.clientWidth)return;
+  const chromeHeight=window.innerHeight-canvas.clientHeight;
+  const height=Math.ceil(canvas.clientWidth*fullView.h/fullView.w+chromeHeight);
+  if(height===lastEmbeddedHeight)return;
+  lastEmbeddedHeight=height;
+  window.parent.postMessage({type:'cockpit-drm-architecture-height',height},'*');
+}
+window.addEventListener('resize',reportEmbeddedHeight);
+if(document.fonts)document.fonts.ready.then(reportEmbeddedHeight);
+reportEmbeddedHeight();
 
 </script></body></html>
