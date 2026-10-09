@@ -20,7 +20,7 @@
           <marker id="arrow-encrypted" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L7 4L1 7" fill="none" stroke="var(--muted)" stroke-width="1.7"/></marker>
         </defs>
         <g id="containers">
-          <rect class="domain cloud-domain" x="900" y="22" width="976" height="174" rx="10"/>
+          <rect class="domain cloud-domain" x="900" y="22" width="720" height="174" rx="10"/>
           <text class="domain-title" x="922" y="54">Cloud Services</text>
           <text class="domain-sub" x="922" y="76">Encrypted media · license · provisioning</text>
           <rect class="domain tee-domain" x="24" y="240" width="330" height="900" rx="12"/>
@@ -58,26 +58,28 @@ const modules = [
   {
     "id": "cdn",
     "x": 930,
-    "y": 100,
-    "w": 185,
-    "h": 66,
+    "y": 92,
+    "w": 150,
+    "h": 84,
     "name": [
       "Content CDN"
     ],
     "sub": [
-      "Manifest / encrypted samples"
+      "Manifest /",
+      "encrypted samples"
     ],
     "kind": "external",
     "ev": "Generic flow"
   },
   {
     "id": "proxy",
-    "x": 1150,
-    "y": 100,
-    "w": 205,
-    "h": 66,
+    "x": 1100,
+    "y": 92,
+    "w": 150,
+    "h": 84,
     "name": [
-      "Partner License Proxy"
+      "Partner License",
+      "Proxy"
     ],
     "sub": [
       "Entitlement / policy"
@@ -87,30 +89,34 @@ const modules = [
   },
   {
     "id": "license",
-    "x": 1390,
-    "y": 100,
-    "w": 210,
-    "h": 66,
+    "x": 1270,
+    "y": 92,
+    "w": 150,
+    "h": 84,
     "name": [
-      "Widevine License Service"
+      "Widevine License",
+      "Service"
     ],
     "sub": [
-      "Signed license response"
+      "Signed license",
+      "response"
     ],
     "kind": "external",
     "ev": "Generic flow"
   },
   {
     "id": "provision",
-    "x": 1635,
-    "y": 100,
-    "w": 211,
-    "h": 66,
+    "x": 1440,
+    "y": 92,
+    "w": 150,
+    "h": 84,
     "name": [
-      "Provisioning Service"
+      "Provisioning",
+      "Service"
     ],
     "sub": [
-      "Device credential setup"
+      "Device credential",
+      "setup"
     ],
     "kind": "external",
     "ev": "Mode to confirm"
@@ -512,7 +518,7 @@ const links = [
     "from": "cdn",
     "to": "player",
     "type": "encrypted",
-    "d": "M1022 166V292",
+    "d": "M1022 176V292",
     "label": "Encrypted media",
     "lx": 1022,
     "ly": 220
@@ -523,9 +529,9 @@ const links = [
     "to": "proxy",
     "type": "control",
     "both": true,
-    "d": "M1252 292V166",
+    "d": "M1175 292V176",
     "label": "HTTPS · opaque license",
-    "lx": 1252,
+    "lx": 1175,
     "ly": 220
   },
   {
@@ -534,7 +540,7 @@ const links = [
     "to": "license",
     "type": "control",
     "both": true,
-    "d": "M1355 133H1390"
+    "d": "M1250 134H1270"
   },
   {
     "id": "player-provision",
@@ -542,10 +548,10 @@ const links = [
     "to": "provision",
     "type": "control",
     "both": true,
-    "d": "M1545 292V216H1740V166",
+    "d": "M1515 292V176",
     "label": "Provisioning, if required",
-    "lx": 1715,
-    "ly": 216
+    "lx": 1515,
+    "ly": 220
   },
   {
     "id": "player-mediadrm",
