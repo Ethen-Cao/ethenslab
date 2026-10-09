@@ -14,7 +14,8 @@ NODES = {
     'display-wfd-core': (350,1060,270,70),
     'display-mdss': (350,1200,270,70),
     'display-interface-driver': (660,1240,240,54),
-    'display-config': (65,925,240,70),
+    'display-screen-config': (65,510,240,70),
+    'display-wfd-config': (65,925,240,70),
     'display-panel-driver': (65,1200,240,70),
     'display-qnx-gpu': (65,1060,240,70),
     'display-gsl-be': (660,1110,240,80),
@@ -60,7 +61,8 @@ DISPLAY_NAMES = {
     'display-wfd-core': ('OpenWFD Core', 'Inside server · ports / pipelines'),
     'display-mdss': ('QDI / MDP / MDSS', 'Inside server · scanout programming'),
     'display-interface-driver': ('DSI / DP Driver & HAL', 'Inside server · link / PHY control'),
-    'display-config': ('Display Configuration', 'graphics.conf · qcdisplaycfg.xml'),
+    'display-screen-config': ('Screen Configuration', 'graphics.conf'),
+    'display-wfd-config': ('OpenWFD Configuration', 'qcdisplaycfg.xml'),
     'display-panel-driver': ('Panel / Bridge Libraries', 'Loaded in OpenWFD server'),
     'display-qnx-gpu': ('QNX GPU Driver', 'kgsl · hardware access'),
     'display-gsl-be': ('GSL Guest Backend', 'gsl_hab_server · host endpoint'),
@@ -108,8 +110,8 @@ def make_routes():
     r.add('display-wfd-core','display-mdss',[(485,1130),(485,1200)],flow='control,buffers',label='QDI commit',at=(485,1168))
     r.add('display-mdss','display-panel-driver',[(350,1235),(305,1235)],flow='control',note='OEM panel and bridge library calls inside OpenWFD server')
     r.add('display-panel-driver','display-interface-driver',[(185,1270),(185,1298),(645,1298),(645,1267),(660,1267)],flow='control',note='OEM panel libraries call the selected DSI or DP host driver to configure its output interface')
-    r.add('display-config','display-wfd-server',[(305,960),(350,960)],kind='storage',flow='control',note='qcdisplaycfg.xml defines client, port, pipeline and device resources')
-    r.add('display-config','display-screen',[(305,940),(330,940),(330,545),(350,545)],kind='storage',flow='control',label='graphics.conf',at=(330,730))
+    r.add('display-wfd-config','display-wfd-server',[(305,960),(350,960)],kind='storage',flow='control',note='OpenWFD Server loads qcdisplaycfg.xml for clients, devices, ports, pipelines and panel libraries')
+    r.add('display-screen-config','display-screen',[(305,545),(350,545)],kind='storage',flow='control',note='QNX Screen reads graphics.conf for rendering libraries, WFD drivers, display modes and window classes')
     r.add('display-qnx-render','display-qnx-gpu',[(350,400),(320,400),(320,1095),(305,1095)],flow='control',label='GPU submission',at=(320,860))
     r.add('display-wfd-server','display-wfd-be',[(620,960),(920,960),(920,646),(900,646)],kind='status',flow='events',label='WFD events',at=(920,850))
     # Android window state, buffer ownership and composition are separate relations.
@@ -203,13 +205,13 @@ def render_graph(modules):
         if mid in HARDWARE: fill,stroke='#eceff1','#9aa0a6'
         elif m['domain']=='platform': fill,stroke='#f1edfb','#b8a5dc'
         elif mid in NATIVE: fill,stroke='#e6f4ea','#81b991'
-        elif mid=='display-config': fill,stroke='#fff','#a9b3bf'
+        elif m.get('kind')=='config': fill,stroke='#fff','#a9b3bf'
         else: fill,stroke='#fef7e0','#d7b353'
         ny,sy=(18,33) if h<50 else (27,49)
         shape=_rect(x,y,w,h,fill,stroke,8,1.3)
         if m.get('kind')=='memory':
             shape=_rect(x+8,y-8,w,h,fill,stroke,0)+_rect(x+4,y-4,w,h,fill,stroke,0)+_rect(x,y,w,h,fill,stroke,0)
-        if mid=='display-config':
+        if m.get('kind')=='config':
             shape+=f'<path d="M{x+w-18},{y} V{y+18} H{x+w}" fill="none" stroke="{stroke}"/>'
         nodes.append(f'<g class="ota-node" data-sw-module="{mid}" role="button" tabindex="0" aria-pressed="false" aria-label="{escape(m["name"],quote=True)}"><title>{escape(m["name"])}</title>'+shape+_text(x+12,y+ny,name,12.5,'#20312a',700)+_text(x+12,y+sy,short,10.2,'#596579')+'</g>')
     defs=['<defs>']
