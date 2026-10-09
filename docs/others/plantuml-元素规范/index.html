@@ -1,189 +1,497 @@
-<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>UML中package和component对比 | Ethen 的实验室</title><meta name=keywords content><meta name=description content='PlantUML 元素规范: 架构分层图（Layer View）与子系统设计图（Subsystem View）
-版本：v1.0
-适用范围：智能座舱系统 / Android & Linux 系统架构 / 平台级设计文档
-目标：统一 PlantUML 元素语义，避免“图看起来对，但语义不一致”的问题
-
-1. 设计原则（必须先读）
-1.1 语义优先，但允许视图驱动
-
-PlantUML 元素具备语义倾向
-不同架构视图（View）关注点不同
-同一对象在不同视图中允许使用不同图形
-
-
-  
-    👉 视图决定图形，而不是对象本身决定图形
-
-  
-
-
-1.2 一个视图只解决一个问题
-
-架构分层图：回答「系统是如何分层的」
-子系统设计图：回答「系统由哪些子系统组成」
-
-禁止在一张图中混合多种建模目标
-
-2. 架构分层图（Layered Architecture Diagram）
-2.1 定义
-架构分层图用于表达：
-
-系统的逻辑分层
-上下层依赖关系
-运行环境或部署边界
-
-不关心：
-
-具体模块实现
-子系统内部结构
-
-
-2.2 元素使用规范（强制）
-2.2.1 统一规则
-
-  
-    在架构分层图中，所有“层（Layer）”必须统一使用 rectangle 表示
-
-  
-
-无论该层内部实际是：
-
-独立子系统
-逻辑分组
-混合实现
-
-
-2.2.2 元素映射表
-
-	
-			
-					架构对象
-					图形
-					说明
-			
-	
-	
-			
-					系统整体范围
-					frame
-					可选，用于限定讨论范围
-			
-			
-					物理 SoC / MCU
-					rectangle
-					硬件或物理承载
-			
-			
-					Hypervisor
-					rectangle
-					基础运行环境
-			
-			
-					VM（PVM / GVM）
-					rectangle
-					OS 运行容器
-			
-			
-					App 层
-					rectangle
-					应用层
-			
-			
-					Framework 层
-					rectangle
-					框架层
-			
-			
-					SystemServer 层
-					rectangle
-					服务层
-			
-			
-					Native & HAL 层
-					rectangle
-					逻辑分层
-			
-			
-					Kernel 层
-					rectangle
-					内核层
-			
-	
-
-
-2.2.3 示例（Android GVM 分层图）
-@startuml
-frame "Smart Cockpit System" {
-
-    rectangle "GVM (Android OS)" {
-        rectangle "App Layer"
-        rectangle "Android Framework API"
-        rectangle "System Server"
-        rectangle "Native & HAL"
-        rectangle "Linux Kernel"
-    }
-}
-@enduml
-
-2.2.4 禁止项（架构分层图中）
-❌ 不得使用 package 表示层
-❌ 不得展开模块或类
-❌ 不得区分 HAL / Native 的内部细节'><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.4b7d7e3e0b462c209763a310362b999f7099a9571f86a6f3aebd8f6576a78faa.css integrity="sha256-S31+PgtGLCCXY6MQNiuZn3CZqVcfhqbzrr2PZXanj6o=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="UML中package和component对比"><meta property="og:description" content='PlantUML 元素规范: 架构分层图（Layer View）与子系统设计图（Subsystem View） 版本：v1.0 适用范围：智能座舱系统 / Android & Linux 系统架构 / 平台级设计文档 目标：统一 PlantUML 元素语义，避免“图看起来对，但语义不一致”的问题
-1. 设计原则（必须先读） 1.1 语义优先，但允许视图驱动 PlantUML 元素具备语义倾向 不同架构视图（View）关注点不同 同一对象在不同视图中允许使用不同图形 👉 视图决定图形，而不是对象本身决定图形
-1.2 一个视图只解决一个问题 架构分层图：回答「系统是如何分层的」 子系统设计图：回答「系统由哪些子系统组成」 禁止在一张图中混合多种建模目标
-2. 架构分层图（Layered Architecture Diagram） 2.1 定义 架构分层图用于表达：
-系统的逻辑分层 上下层依赖关系 运行环境或部署边界 不关心：
-具体模块实现 子系统内部结构 2.2 元素使用规范（强制） 2.2.1 统一规则 在架构分层图中，所有“层（Layer）”必须统一使用 rectangle 表示
-无论该层内部实际是：
-独立子系统 逻辑分组 混合实现 2.2.2 元素映射表 架构对象 图形 说明 系统整体范围 frame 可选，用于限定讨论范围 物理 SoC / MCU rectangle 硬件或物理承载 Hypervisor rectangle 基础运行环境 VM（PVM / GVM） rectangle OS 运行容器 App 层 rectangle 应用层 Framework 层 rectangle 框架层 SystemServer 层 rectangle 服务层 Native & HAL 层 rectangle 逻辑分层 Kernel 层 rectangle 内核层 2.2.3 示例（Android GVM 分层图） @startuml frame "Smart Cockpit System" { rectangle "GVM (Android OS)" { rectangle "App Layer" rectangle "Android Framework API" rectangle "System Server" rectangle "Native & HAL" rectangle "Linux Kernel" } } @enduml 2.2.4 禁止项（架构分层图中） ❌ 不得使用 package 表示层 ❌ 不得展开模块或类 ❌ 不得区分 HAL / Native 的内部细节'><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="others"><meta property="article:published_time" content="2025-12-24T17:17:50+08:00"><meta property="article:modified_time" content="2025-12-24T17:17:50+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="UML中package和component对比"><meta name=twitter:description content='PlantUML 元素规范: 架构分层图（Layer View）与子系统设计图（Subsystem View） 版本：v1.0 适用范围：智能座舱系统 / Android & Linux 系统架构 / 平台级设计文档 目标：统一 PlantUML 元素语义，避免“图看起来对，但语义不一致”的问题
-1. 设计原则（必须先读） 1.1 语义优先，但允许视图驱动 PlantUML 元素具备语义倾向 不同架构视图（View）关注点不同 同一对象在不同视图中允许使用不同图形 👉 视图决定图形，而不是对象本身决定图形
-1.2 一个视图只解决一个问题 架构分层图：回答「系统是如何分层的」 子系统设计图：回答「系统由哪些子系统组成」 禁止在一张图中混合多种建模目标
-2. 架构分层图（Layered Architecture Diagram） 2.1 定义 架构分层图用于表达：
-系统的逻辑分层 上下层依赖关系 运行环境或部署边界 不关心：
-具体模块实现 子系统内部结构 2.2 元素使用规范（强制） 2.2.1 统一规则 在架构分层图中，所有“层（Layer）”必须统一使用 rectangle 表示
-无论该层内部实际是：
-独立子系统 逻辑分组 混合实现 2.2.2 元素映射表 架构对象 图形 说明 系统整体范围 frame 可选，用于限定讨论范围 物理 SoC / MCU rectangle 硬件或物理承载 Hypervisor rectangle 基础运行环境 VM（PVM / GVM） rectangle OS 运行容器 App 层 rectangle 应用层 Framework 层 rectangle 框架层 SystemServer 层 rectangle 服务层 Native & HAL 层 rectangle 逻辑分层 Kernel 层 rectangle 内核层 2.2.3 示例（Android GVM 分层图） @startuml frame "Smart Cockpit System" { rectangle "GVM (Android OS)" { rectangle "App Layer" rectangle "Android Framework API" rectangle "System Server" rectangle "Native & HAL" rectangle "Linux Kernel" } } @enduml 2.2.4 禁止项（架构分层图中） ❌ 不得使用 package 表示层 ❌ 不得展开模块或类 ❌ 不得区分 HAL / Native 的内部细节'><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"杂记","item":"https://ethen-cao.github.io/ethenslab/others/"},{"@type":"ListItem","position":2,"name":"UML中package和component对比","item":"https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"UML中package和component对比","name":"UML中package和component对比","description":"PlantUML 元素规范: 架构分层图（Layer View）与子系统设计图（Subsystem View） 版本：v1.0 适用范围：智能座舱系统 / Android \u0026amp; Linux 系统架构 / 平台级设计文档 目标：统一 PlantUML 元素语义，避免“图看起来对，但语义不一致”的问题\n1. 设计原则（必须先读） 1.1 语义优先，但允许视图驱动 PlantUML 元素具备语义倾向 不同架构视图（View）关注点不同 同一对象在不同视图中允许使用不同图形 👉 视图决定图形，而不是对象本身决定图形\n1.2 一个视图只解决一个问题 架构分层图：回答「系统是如何分层的」 子系统设计图：回答「系统由哪些子系统组成」 禁止在一张图中混合多种建模目标\n2. 架构分层图（Layered Architecture Diagram） 2.1 定义 架构分层图用于表达：\n系统的逻辑分层 上下层依赖关系 运行环境或部署边界 不关心：\n具体模块实现 子系统内部结构 2.2 元素使用规范（强制） 2.2.1 统一规则 在架构分层图中，所有“层（Layer）”必须统一使用 rectangle 表示\n无论该层内部实际是：\n独立子系统 逻辑分组 混合实现 2.2.2 元素映射表 架构对象 图形 说明 系统整体范围 frame 可选，用于限定讨论范围 物理 SoC / MCU rectangle 硬件或物理承载 Hypervisor rectangle 基础运行环境 VM（PVM / GVM） rectangle OS 运行容器 App 层 rectangle 应用层 Framework 层 rectangle 框架层 SystemServer 层 rectangle 服务层 Native \u0026amp; HAL 层 rectangle 逻辑分层 Kernel 层 rectangle 内核层 2.2.3 示例（Android GVM 分层图） @startuml frame \u0026#34;Smart Cockpit System\u0026#34; { rectangle \u0026#34;GVM (Android OS)\u0026#34; { rectangle \u0026#34;App Layer\u0026#34; rectangle \u0026#34;Android Framework API\u0026#34; rectangle \u0026#34;System Server\u0026#34; rectangle \u0026#34;Native \u0026amp; HAL\u0026#34; rectangle \u0026#34;Linux Kernel\u0026#34; } } @enduml 2.2.4 禁止项（架构分层图中） ❌ 不得使用 package 表示层 ❌ 不得展开模块或类 ❌ 不得区分 HAL / Native 的内部细节\n","keywords":[],"articleBody":"PlantUML 元素规范: 架构分层图（Layer View）与子系统设计图（Subsystem View） 版本：v1.0 适用范围：智能座舱系统 / Android \u0026 Linux 系统架构 / 平台级设计文档 目标：统一 PlantUML 元素语义，避免“图看起来对，但语义不一致”的问题\n1. 设计原则（必须先读） 1.1 语义优先，但允许视图驱动 PlantUML 元素具备语义倾向 不同架构视图（View）关注点不同 同一对象在不同视图中允许使用不同图形 👉 视图决定图形，而不是对象本身决定图形\n1.2 一个视图只解决一个问题 架构分层图：回答「系统是如何分层的」 子系统设计图：回答「系统由哪些子系统组成」 禁止在一张图中混合多种建模目标\n2. 架构分层图（Layered Architecture Diagram） 2.1 定义 架构分层图用于表达：\n系统的逻辑分层 上下层依赖关系 运行环境或部署边界 不关心：\n具体模块实现 子系统内部结构 2.2 元素使用规范（强制） 2.2.1 统一规则 在架构分层图中，所有“层（Layer）”必须统一使用 rectangle 表示\n无论该层内部实际是：\n独立子系统 逻辑分组 混合实现 2.2.2 元素映射表 架构对象 图形 说明 系统整体范围 frame 可选，用于限定讨论范围 物理 SoC / MCU rectangle 硬件或物理承载 Hypervisor rectangle 基础运行环境 VM（PVM / GVM） rectangle OS 运行容器 App 层 rectangle 应用层 Framework 层 rectangle 框架层 SystemServer 层 rectangle 服务层 Native \u0026 HAL 层 rectangle 逻辑分层 Kernel 层 rectangle 内核层 2.2.3 示例（Android GVM 分层图） @startuml frame \"Smart Cockpit System\" { rectangle \"GVM (Android OS)\" { rectangle \"App Layer\" rectangle \"Android Framework API\" rectangle \"System Server\" rectangle \"Native \u0026 HAL\" rectangle \"Linux Kernel\" } } @enduml 2.2.4 禁止项（架构分层图中） ❌ 不得使用 package 表示层 ❌ 不得展开模块或类 ❌ 不得区分 HAL / Native 的内部细节\n2.2.5 说明性文字（推荐写法） 本图为 系统分层架构视图（Layer View）， 图中所有矩形块表示逻辑分层，不区分其内部是否为独立子系统。\n3. 子系统设计图（Subsystem Design Diagram） 3.1 定义 子系统设计图用于表达：\n系统由哪些子系统（Subsystem组成 子系统的职责边界 子系统之间的关系 不强调：\n上下层调用顺序 完整运行环境 3.2 元素使用规范（强制） 3.2.1 核心规则 **在子系统设计图中：\n子系统必须使用 package 表示** 3.2.2 元素映射表 对象类型 图形 说明 子系统 package 具备清晰职责与边界 子系统内部模块 component / node 可选 系统运行环境 rectangle 作为外层容器 3.2.3 子系统判定标准（满足其一即可） 一个对象可以被建模为 package，如果它：\n对外暴露稳定接口 可作为整体被讨论 有相对独立的生命周期或责任 3.2.4 示例（Android OS 子系统图） @startuml rectangle \"GVM (Android OS)\" { package \"App\" package \"Android Framework\" package \"System Server\" rectangle \"Native \u0026 HAL Layer\" { package \"Native Libraries\" package \"HAL\" } package \"Linux Kernel\" } @enduml 3.2.5 特别说明：Native \u0026 HAL 在 架构分层图 中： → 作为 Layer，使用 rectangle 在 子系统设计图 中： → HAL / Native Libraries 可作为 package 展开 4. 两种视图的对照总结（关键） 维度 架构分层图 子系统设计图 关注点 分层 / 依赖 职责 / 边界 主要图形 rectangle package 是否展开内部 ❌ ✅ 是否强调运行环境 ✅ 可选 典型读者 架构评审 / 管理 研发 / 设计 5. 强制约束（写进规范的“红线”） 一张图只允许一种主视图类型 架构分层图中不得混用 package 子系统设计图中不得用 rectangle 代替子系统 语义不清的情况，优先服从视图目标，而非 UML 细节 6. 一句话总结（规范版） Layer View 统一使用 rectangle，强调“层” Subsystem View 使用 package，强调“系统” 同一对象可在不同视图中使用不同图形，这是被允许且推荐的 ","wordCount":"307","inLanguage":"en","datePublished":"2025-12-24T17:17:50+08:00","dateModified":"2025-12-24T17:17:50+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=header-nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle class=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Google 风格 PlantUML 模板：架构图、流程图与时序图 | Ethen 的实验室</title><meta name=keywords content><meta name=description content="统一深色蓝绿架构图的配色、元素、连线和排版，提供可独立复制运行的架构图、流程图、时序图模板。"><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.4b7d7e3e0b462c209763a310362b999f7099a9571f86a6f3aebd8f6576a78faa.css integrity="sha256-S31+PgtGLCCXY6MQNiuZn3CZqVcfhqbzrr2PZXanj6o=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Google 风格 PlantUML 模板：架构图、流程图与时序图"><meta property="og:description" content="统一深色蓝绿架构图的配色、元素、连线和排版，提供可独立复制运行的架构图、流程图、时序图模板。"><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="others"><meta property="article:published_time" content="2025-12-24T17:17:50+08:00"><meta property="article:modified_time" content="2026-10-09T00:00:00+08:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Google 风格 PlantUML 模板：架构图、流程图与时序图"><meta name=twitter:description content="统一深色蓝绿架构图的配色、元素、连线和排版，提供可独立复制运行的架构图、流程图、时序图模板。"><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"杂记","item":"https://ethen-cao.github.io/ethenslab/others/"},{"@type":"ListItem","position":2,"name":"Google 风格 PlantUML 模板：架构图、流程图与时序图","item":"https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Google 风格 PlantUML 模板：架构图、流程图与时序图","name":"Google 风格 PlantUML 模板：架构图、流程图与时序图","description":"统一深色蓝绿架构图的配色、元素、连线和排版，提供可独立复制运行的架构图、流程图、时序图模板。","keywords":[],"articleBody":"本文规定本知识库的 PlantUML 图表样式，并提供架构图、流程图和时序图三份完整模板。默认采用深灰背景、Google 蓝绿实色块、白色文字、方角和细边框。\n视觉参考来自仓库中的 work/architecture_diagrams/android_architecture.html，与 RenderEngine 文章中的图表保持一致。这里的“Google 风格”是本知识库对该参考样式的命名；实现使用 !theme plain 加显式样式配置。\n1. 选择模板与使用方式 先确定这张图需要回答的问题，再选择模板。\n图种 主要回答的问题 适合表达 不宜承担的内容 架构图 系统由什么组成，边界在哪里？ 层次、模块、运行域、依赖和主要数据通道 每一次函数调用的先后 流程图 遇到某个条件之后，下一步做什么？ 顺序、判断、循环、成功与失败出口 多个对象之间完整的消息往返 时序图 谁在什么时候向谁发送什么？ 调用、返回、异步交接、分支与执行范围 整个系统的静态分层 每份模板都包含 @startuml、完整样式和 @enduml，可以直接保存为 UTF-8 编码的 .puml 文件。使用时保留样式区，修改标题、参与者、节点、条件和消息即可。模板不依赖额外的主题文件或远程 !include。\n文中的图片用于预览，图片下方的“展开并复制完整 PlantUML 源码”保留相同源码。网页只读时，可以从折叠区复制；直接编辑 Markdown 时，可以使用对应的 plantuml 代码块。\n2. 统一视觉规范 2.1 配色与含义 默认配色按职责区分。绿色表示本图范围内的组件或处理步骤，蓝色表示数据、队列、参数、同步对象或输出结果；灰色表示分组、条件和外部参与者。图中没有数据对象时，不必为了凑齐配色而加入蓝色模块。\n用途 颜色 使用位置 画布 #282A2D 图表整体背景 执行域或逻辑分组 #202124 进程框、子系统框、流程分区 标题区、判断、注释、外部参与者 #3C4043 次一级灰色块 处理与组件 #34A853 本图范围内的软件模块、处理步骤 数据与结果 #4285F4 Buffer、队列、请求、结果、同步对象 彩色块文字 #FFFFFF 蓝色或绿色块内部 常规文字 #E8EAED 标签、标题、说明 边框与生命线 #5F6368 模块边界、分组边界、时序生命线 关系与消息箭头 #BDC1C6 连接线、箭头、流程起止符号 参考 HTML 中还使用了“蓝色表示 OEM、绿色表示原生系统”的归属配色。需要画归属视图时，可以采用那套含义，但必须重新标注图例，并按归属重新着色。同一张图中，蓝色不能同时表示“数据”和“OEM”。\n2.2 字体、边框与布局 项目 规范 字体 Noto Sans CJK SC；渲染端需要安装该字体，或统一换成已安装的中文无衬线字体 正文与标签 默认 14；标题 18；同一组图保持一致 普通模块 方角、实色填充、细边框，不加阴影 结构层次 通过容器、留白和背景区分，通常控制在两至三层 节点文字 先写名称，再用一行说明职责；长名称使用 \\n 换行 连线 连接明确的对象，重要关系写明“调用”“读取”“写入”“依赖”等动词 图幅 先减少单图内容，再调整方向与间距；不靠缩小字体塞入全部细节 方角规则用于普通模块和容器。流程图中的判断菱形、起止圆点仍保留其形状；时序图中的生命线和激活条也保留原有含义。\n模板在 !theme plain 之后显式覆盖深色背景、字体和各类元素颜色。修改时不要在末尾追加另一个主题，否则可能覆盖前面的配置。统一样式不要求把所有对象都画成同一种形状。\n3. 元素与连线约定 3.1 架构元素 对象的图形取决于当前视图想表达什么。例如，Android Framework 可以在全系统分层图中作为一个矩形层，也可以在局部设计图中展开为包含多个组件的分组。\n元素 本规范中的用法 注意点 rectangle 中性的职责块、逻辑层或范围容器 适合分层图，也可用于简化模块视图 package 逻辑分组、子系统或带标签的边界 使用 packageStyle rectangle 保持方角；标签需要说明它是逻辑域还是实际进程 component 强调软件职责、接口或依赖的组件 可用 componentStyle rectangle 获得统一的矩形外观 node 主机、VM、设备或运行环境 仅在部署关系确实重要时使用，不代指任意软件模块 frame 一张图的讨论范围 可选；避免与多层容器重复表达同一边界 database、queue 明确的数据存储或队列 简化视图可以使用带名称的矩形，仍须说明真实用途 package 不自动意味着独立进程，component 也不自动意味着独立线程。部署和线程边界需要由标签或对应视图说明。PlantUML 支持多种分组与组件表示法，语法可参考 组件图文档 。\n3.2 按图种解释箭头 图种 记法 本文采用的含义 架构图 A --\u003e B : 写入数据 有方向的关系；具体含义由标签说明 架构图 A ..\u003e B : 依赖配置 静态依赖，不表示异步调用 流程图 活动之间的箭头 控制流程；判断分支需标明条件或“是／否” 时序图 A -\u003e B : 调用 同步调用约定 时序图 A -\u003e\u003e B : 投递任务 异步消息约定 时序图 B --\u003e A : 返回结果 返回或响应；同步与异步应结合完整交互判断 这些是本规范的建模约定。PlantUML 负责绘制箭头，不会替作者判断程序是否阻塞。尤其不能把“虚线”和“异步”当作同义词。\n4. 架构图模板 4.1 示例与可复制源码 这个示例表达任务服务的职责边界、内部组件和数据通道。实线描述主要数据传递或调用关系，虚线表示 Worker 对策略模块的依赖。它不规定某次请求的精确执行时序。\n@startuml !theme plain ' Google 架构块风格：深色底、实色模块、白字、方角。 skinparam backgroundColor #282A2D skinparam defaultFontName \"Noto Sans CJK SC\" skinparam defaultFontSize 14 skinparam defaultFontColor #E8EAED skinparam defaultTextAlignment center skinparam titleFontColor #FFFFFF skinparam titleFontSize 18 skinparam shadowing false skinparam roundcorner 0 skinparam ArrowColor #BDC1C6 skinparam ArrowFontColor #E8EAED skinparam ArrowThickness 1 skinparam note { BackgroundColor #3C4043 BorderColor #5F6368 FontColor #E8EAED } skinparam packageStyle rectangle skinparam componentStyle rectangle skinparam nodesep 30 skinparam ranksep 35 skinparam rectangle { BackgroundColor #34A853 BorderColor #5F6368 FontColor #FFFFFF } skinparam component { BackgroundColor #34A853 BorderColor #5F6368 FontColor #FFFFFF } skinparam package { BackgroundColor #202124 BorderColor #5F6368 FontColor #E8EAED } top to bottom direction title 任务服务：职责与数据通道 rectangle \"请求数据\" as Request #4285F4 package \"任务服务进程\" as Service { rectangle \"请求入口\\n校验与调度\" as API rectangle \"任务队列\" as Queue #4285F4 rectangle \"Worker\\n执行任务\" as Worker component \"策略模块\" as Policy API --\u003e Queue : 写入任务 Queue --\u003e Worker : 提供待处理任务 Worker ..\u003e Policy : 依赖处理策略 } rectangle \"结果数据\" as Result #4285F4 rectangle \"外部执行服务\" as Backend #3C4043 Request --\u003e API : 提交请求 Worker --\u003e Result : 写出结果 Worker --\u003e Backend : 调用外部能力 note bottom of Result 绿色：本图范围内的组件 蓝色：数据与队列 灰色：外部参与者与分组 end note @enduml 展开并复制完整 PlantUML 源码 @startuml !theme plain ' Google 架构块风格：深色底、实色模块、白字、方角。 skinparam backgroundColor #282A2D skinparam defaultFontName \"Noto Sans CJK SC\" skinparam defaultFontSize 14 skinparam defaultFontColor #E8EAED skinparam defaultTextAlignment center skinparam titleFontColor #FFFFFF skinparam titleFontSize 18 skinparam shadowing false skinparam roundcorner 0 skinparam ArrowColor #BDC1C6 skinparam ArrowFontColor #E8EAED skinparam ArrowThickness 1 skinparam note { BackgroundColor #3C4043 BorderColor #5F6368 FontColor #E8EAED } skinparam packageStyle rectangle skinparam componentStyle rectangle skinparam nodesep 30 skinparam ranksep 35 skinparam rectangle { BackgroundColor #34A853 BorderColor #5F6368 FontColor #FFFFFF } skinparam component { BackgroundColor #34A853 BorderColor #5F6368 FontColor #FFFFFF } skinparam package { BackgroundColor #202124 BorderColor #5F6368 FontColor #E8EAED } top to bottom direction title 任务服务：职责与数据通道 rectangle \"请求数据\" as Request #4285F4 package \"任务服务进程\" as Service { rectangle \"请求入口\\n校验与调度\" as API rectangle \"任务队列\" as Queue #4285F4 rectangle \"Worker\\n执行任务\" as Worker component \"策略模块\" as Policy API --\u003e Queue : 写入任务 Queue --\u003e Worker : 提供待处理任务 Worker ..\u003e Policy : 依赖处理策略 } rectangle \"结果数据\" as Result #4285F4 rectangle \"外部执行服务\" as Backend #3C4043 Request --\u003e API : 提交请求 Worker --\u003e Result : 写出结果 Worker --\u003e Backend : 调用外部能力 note bottom of Result 绿色：本图范围内的组件 蓝色：数据与队列 灰色：外部参与者与分组 end note @enduml 4.2 修改要点 保留稳定的英文别名，例如 API、Worker、Result，把中文显示名称写在引号中。改变显示名称时，连线可以继续引用原别名。\n分层图可以用多个命名矩形表示 App、Framework、Native/HAL、Kernel 等层，并用容器说明 GVM/PVM 等范围。只有在需要解释某一层的内部职责时才展开组件。子系统图则以职责边界为主，不需要强制每个子系统都使用 package。\n示例采用从上到下的布局。横向关系较多时可以改用 left to right direction。必要的 -[hidden]-\u003e 仅用于排版，不表示依赖；添加后应检查它是否让可见连线产生交叉。对直角连线的需求可以尝试 linetype ortho，但需重新检查标签位置，不能只以编译成功作为可读性标准。\n5. 流程图模板 5.1 示例与可复制源码 这个示例包含输入校验、参数错误出口、任务执行、有限次重试，以及成功和失败出口。maxAttempts = 3 表示总共最多执行三次，即第一次执行加上最多两次重试。\n@startuml !theme plain ' Google 架构块风格：深色底、实色模块、白字、方角。 skinparam backgroundColor #282A2D skinparam defaultFontName \"Noto Sans CJK SC\" skinparam defaultFontSize 14 skinparam defaultFontColor #E8EAED skinparam defaultTextAlignment center skinparam titleFontColor #FFFFFF skinparam titleFontSize 18 skinparam shadowing false skinparam roundcorner 0 skinparam ArrowColor #BDC1C6 skinparam ArrowFontColor #E8EAED skinparam ArrowThickness 1 skinparam note { BackgroundColor #3C4043 BorderColor #5F6368 FontColor #E8EAED } skinparam activity { BackgroundColor #34A853 BorderColor #5F6368 FontColor #FFFFFF DiamondBackgroundColor #3C4043 DiamondBorderColor #5F6368 DiamondFontColor #E8EAED StartColor #BDC1C6 EndColor #BDC1C6 } skinparam partition { BackgroundColor #202124 BorderColor #5F6368 FontColor #E8EAED } title 请求处理：校验与有限次重试 start #4285F4:接收请求; if (输入有效？) then (是) else (否) #4285F4:返回参数错误; stop endif partition \"任务处理\" { :attempt = 0\\nmaxAttempts = 3; repeat :attempt = attempt + 1; :执行任务\\n记录本次结果; repeat while (本次失败且\\nattempt \u003c maxAttempts？) is (是) not (否) } if (本次成功？) then (是) #4285F4:返回成功结果; else (否) #4285F4:返回执行失败; endif stop @enduml 展开并复制完整 PlantUML 源码 @startuml !theme plain ' Google 架构块风格：深色底、实色模块、白字、方角。 skinparam backgroundColor #282A2D skinparam defaultFontName \"Noto Sans CJK SC\" skinparam defaultFontSize 14 skinparam defaultFontColor #E8EAED skinparam defaultTextAlignment center skinparam titleFontColor #FFFFFF skinparam titleFontSize 18 skinparam shadowing false skinparam roundcorner 0 skinparam ArrowColor #BDC1C6 skinparam ArrowFontColor #E8EAED skinparam ArrowThickness 1 skinparam note { BackgroundColor #3C4043 BorderColor #5F6368 FontColor #E8EAED } skinparam activity { BackgroundColor #34A853 BorderColor #5F6368 FontColor #FFFFFF DiamondBackgroundColor #3C4043 DiamondBorderColor #5F6368 DiamondFontColor #E8EAED StartColor #BDC1C6 EndColor #BDC1C6 } skinparam partition { BackgroundColor #202124 BorderColor #5F6368 FontColor #E8EAED } title 请求处理：校验与有限次重试 start #4285F4:接收请求; if (输入有效？) then (是) else (否) #4285F4:返回参数错误; stop endif partition \"任务处理\" { :attempt = 0\\nmaxAttempts = 3; repeat :attempt = attempt + 1; :执行任务\\n记录本次结果; repeat while (本次失败且\\nattempt \u003c maxAttempts？) is (是) not (否) } if (本次成功？) then (是) #4285F4:返回成功结果; else (否) #4285F4:返回执行失败; endif stop @enduml 5.2 修改要点 每个判断写成可回答的问题，两个出口明确标注。无效输入通过 stop 结束，不能再流入任务处理分区。循环中显式递增 attempt，退出条件同时考虑成功结果和次数上限。\n替换为真实业务流程时，还要定义“失败”是否允许重试：不可重试错误应直接进入失败出口。这个模板只假设最多三次尝试都属于允许重试的同一类操作；退避等待、取消或超时可在有明确需求时增加。\n活动节点用动宾短语，例如“校验输入”“读取配置”“写入结果”；条件用判断语句，避免把大段代码放进节点。partition 表示一个处理阶段；如果需要强调不同角色之间的责任交接，可以改用泳道。分区和泳道的语法参见 活动图文档 。\n6. 时序图模板 6.1 示例与可复制源码 这个示例区分任务受理、后台执行和完成通知。API 同步返回“已受理”，Worker 随后通过异步通知提供处理结果；受理成功不表示任务已经执行成功。具体运行中，API 返回与 Worker 执行可以重叠，图中给出的是一种可能时序。\n@startuml !theme plain ' Google 架构块风格：深色底、实色模块、白字、方角。 skinparam backgroundColor #282A2D skinparam defaultFontName \"Noto Sans CJK SC\" skinparam defaultFontSize 14 skinparam defaultFontColor #E8EAED skinparam defaultTextAlignment center skinparam titleFontColor #FFFFFF skinparam titleFontSize 18 skinparam shadowing false skinparam roundcorner 0 skinparam ArrowColor #BDC1C6 skinparam ArrowFontColor #E8EAED skinparam ArrowThickness 1 skinparam note { BackgroundColor #3C4043 BorderColor #5F6368 FontColor #E8EAED } skinparam maxMessageSize 180 skinparam ParticipantPadding 18 skinparam BoxPadding 12 skinparam sequence { ParticipantBackgroundColor #34A853 ParticipantBorderColor #5F6368 ParticipantFontColor #FFFFFF LifeLineBorderColor #5F6368 LifeLineBackgroundColor #3C4043 BoxBackgroundColor #202124 BoxBorderColor #5F6368 BoxFontColor #E8EAED GroupBackgroundColor #3C4043 GroupBodyBackgroundColor #202124 GroupBorderColor #5F6368 GroupFontColor #FFFFFF GroupHeaderFontColor #FFFFFF DividerBackgroundColor #3C4043 DividerBorderColor #5F6368 DividerFontColor #E8EAED ReferenceBackgroundColor #202124 ReferenceBorderColor #5F6368 ReferenceFontColor #E8EAED ArrowColor #BDC1C6 ArrowFontColor #E8EAED } hide footbox title 异步任务：受理、执行与完成通知 participant \"调用方\" as Caller #3C4043 box \"任务服务\" #202124 participant \"API\" as API participant \"Worker\" as Worker end box participant \"外部服务\" as External #3C4043 autonumber \"[00]\" Caller -\u003e API : 提交任务 activate API API -\u003e\u003e Worker : 投递任务 activate Worker API --\u003e Caller : 已受理（taskId） deactivate API note over Caller, API 受理返回只确认任务已接收； 结果由后续完成通知提供。 end note opt 本地缓存可用 Worker -\u003e Worker : 读取辅助数据 end Worker -\u003e External : 执行请求 activate External External --\u003e Worker : 返回处理结果 deactivate External alt 执行成功 Worker -\u003e\u003e Caller : 完成通知（taskId, result） else 执行失败 Worker -\u003e\u003e Caller : 失败通知（taskId, error） end deactivate Worker @enduml 展开并复制完整 PlantUML 源码 @startuml !theme plain ' Google 架构块风格：深色底、实色模块、白字、方角。 skinparam backgroundColor #282A2D skinparam defaultFontName \"Noto Sans CJK SC\" skinparam defaultFontSize 14 skinparam defaultFontColor #E8EAED skinparam defaultTextAlignment center skinparam titleFontColor #FFFFFF skinparam titleFontSize 18 skinparam shadowing false skinparam roundcorner 0 skinparam ArrowColor #BDC1C6 skinparam ArrowFontColor #E8EAED skinparam ArrowThickness 1 skinparam note { BackgroundColor #3C4043 BorderColor #5F6368 FontColor #E8EAED } skinparam maxMessageSize 180 skinparam ParticipantPadding 18 skinparam BoxPadding 12 skinparam sequence { ParticipantBackgroundColor #34A853 ParticipantBorderColor #5F6368 ParticipantFontColor #FFFFFF LifeLineBorderColor #5F6368 LifeLineBackgroundColor #3C4043 BoxBackgroundColor #202124 BoxBorderColor #5F6368 BoxFontColor #E8EAED GroupBackgroundColor #3C4043 GroupBodyBackgroundColor #202124 GroupBorderColor #5F6368 GroupFontColor #FFFFFF GroupHeaderFontColor #FFFFFF DividerBackgroundColor #3C4043 DividerBorderColor #5F6368 DividerFontColor #E8EAED ReferenceBackgroundColor #202124 ReferenceBorderColor #5F6368 ReferenceFontColor #E8EAED ArrowColor #BDC1C6 ArrowFontColor #E8EAED } hide footbox title 异步任务：受理、执行与完成通知 participant \"调用方\" as Caller #3C4043 box \"任务服务\" #202124 participant \"API\" as API participant \"Worker\" as Worker end box participant \"外部服务\" as External #3C4043 autonumber \"[00]\" Caller -\u003e API : 提交任务 activate API API -\u003e\u003e Worker : 投递任务 activate Worker API --\u003e Caller : 已受理（taskId） deactivate API note over Caller, API 受理返回只确认任务已接收； 结果由后续完成通知提供。 end note opt 本地缓存可用 Worker -\u003e Worker : 读取辅助数据 end Worker -\u003e External : 执行请求 activate External External --\u003e Worker : 返回处理结果 deactivate External alt 执行成功 Worker -\u003e\u003e Caller : 完成通知（taskId, result） else 执行失败 Worker -\u003e\u003e Caller : 失败通知（taskId, error） end deactivate Worker @enduml 6.2 修改要点 参与者从左到右按主要交互顺序排列。一个参与者应有稳定含义，例如进程、线程或服务对象；需要跨层级表达时，在名称中明确写出层级。模板中的灰色调用方和外部服务位于“任务服务”范围之外，绿色 API 与 Worker 是该范围内的组件。\nactivate 和 deactivate 描述参与者的执行或调用范围，不表示这段时间一直占用 CPU，也不表示 GPU 等异步执行单元已经完成。普通返回画成 --\u003e，异步投递或完成通知使用 -\u003e\u003e 并写明消息用途。\nopt 表示可选步骤，alt 的成功与失败分支互斥。模板中的缓存用于读取辅助数据，因此之后仍会调用外部服务；如果缓存命中即可返回最终结果，应改成缓存命中／未命中的 alt 分支。\n自动编号帮助读者引用消息，不代表所有分支都会执行。纵向间距也不表示精确耗时；需要表达 deadline、耗时或重叠区间时，应额外标注时间。更多分支、循环和消息语法参见 时序图文档 。\n7. 亮色适配与模板维护 默认交付深色版本。如果文档需要白底打印，需要同时调整完整样式区和节点中的显式颜色。普通模块的蓝绿填充及白字保持不变，画布、容器和常规文字按下表调整。\n用途 深色 亮色 画布 #282A2D #FFFFFF 分组背景 #202124 #F1F3F4 分组标题、注释、判断 #3C4043 #E8EAED 常规文字 #E8EAED #202124 边框、生命线 #5F6368 #BDC1C6 箭头 #BDC1C6 #5F6368 切换亮色时，需要一起调整 Note、Package、Activity 的判断节点，以及 Sequence 的分组、激活条和箭头文字。节点及 box 声明中的显式背景色也要对应修改。若把外部参与者的灰色填充改浅，它们的字体也要单独改为深色；只修改 backgroundColor 会留下浅色文字和边框。本模板用 ","wordCount":"1515","inLanguage":"en","datePublished":"2025-12-24T17:17:50+08:00","dateModified":"2026-10-09T00:00:00+08:00","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/others/plantuml-%E5%85%83%E7%B4%A0%E8%A7%84%E8%8C%83/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=header-nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle class=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
 <svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
 <svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu class=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><nav class=breadcrumbs role=navigation aria-label=Breadcrumb><a href=/ethenslab/>Home</a>
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
 <a href=/ethenslab/others/>杂记</a>
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg></nav><h1 class="post-title entry-hint-parent">UML中package和component对比</h1><div class=post-meta><span title='2025-12-24 17:17:50 +0800 CST'>December 24, 2025</span>&nbsp;·&nbsp;<span>2 min</span>&nbsp;·&nbsp;<span>307 words</span></div></header><div class="post-content md-content"><h1 id=plantuml-元素规范-架构分层图layer-view与子系统设计图subsystem-view>PlantUML 元素规范: 架构分层图（Layer View）与子系统设计图（Subsystem View）<a hidden class=anchor aria-hidden=true href=#plantuml-元素规范-架构分层图layer-view与子系统设计图subsystem-view>#</a></h1><p><strong>版本</strong>：v1.0
-<strong>适用范围</strong>：智能座舱系统 / Android & Linux 系统架构 / 平台级设计文档
-<strong>目标</strong>：统一 PlantUML 元素语义，避免“图看起来对，但语义不一致”的问题</p><hr><h2 id=1-设计原则必须先读>1. 设计原则（必须先读）<a hidden class=anchor aria-hidden=true href=#1-设计原则必须先读>#</a></h2><h3 id=11-语义优先但允许视图驱动>1.1 语义优先，但允许视图驱动<a hidden class=anchor aria-hidden=true href=#11-语义优先但允许视图驱动>#</a></h3><ul><li>PlantUML 元素具备<strong>语义倾向</strong></li><li>不同架构视图（View）关注点不同</li><li><strong>同一对象在不同视图中允许使用不同图形</strong></li></ul><blockquote><p>👉 视图决定图形，而不是对象本身决定图形</p></blockquote><hr><h3 id=12-一个视图只解决一个问题>1.2 一个视图只解决一个问题<a hidden class=anchor aria-hidden=true href=#12-一个视图只解决一个问题>#</a></h3><ul><li>架构分层图：回答「系统是如何分层的」</li><li>子系统设计图：回答「系统由哪些子系统组成」</li></ul><p><strong>禁止在一张图中混合多种建模目标</strong></p><hr><h2 id=2-架构分层图layered-architecture-diagram>2. 架构分层图（Layered Architecture Diagram）<a hidden class=anchor aria-hidden=true href=#2-架构分层图layered-architecture-diagram>#</a></h2><h3 id=21-定义>2.1 定义<a hidden class=anchor aria-hidden=true href=#21-定义>#</a></h3><p>架构分层图用于表达：</p><ul><li>系统的<strong>逻辑分层</strong></li><li>上下层依赖关系</li><li>运行环境或部署边界</li></ul><p>不关心：</p><ul><li>具体模块实现</li><li>子系统内部结构</li></ul><hr><h3 id=22-元素使用规范强制>2.2 元素使用规范（强制）<a hidden class=anchor aria-hidden=true href=#22-元素使用规范强制>#</a></h3><h4 id=221-统一规则>2.2.1 统一规则<a hidden class=anchor aria-hidden=true href=#221-统一规则>#</a></h4><blockquote><p><strong>在架构分层图中，所有“层（Layer）”必须统一使用 <code>rectangle</code> 表示</strong></p></blockquote><p>无论该层内部实际是：</p><ul><li>独立子系统</li><li>逻辑分组</li><li>混合实现</li></ul><hr><h3 id=222-元素映射表>2.2.2 元素映射表<a hidden class=anchor aria-hidden=true href=#222-元素映射表>#</a></h3><table><thead><tr><th>架构对象</th><th>图形</th><th>说明</th></tr></thead><tbody><tr><td>系统整体范围</td><td><code>frame</code></td><td>可选，用于限定讨论范围</td></tr><tr><td>物理 SoC / MCU</td><td><code>rectangle</code></td><td>硬件或物理承载</td></tr><tr><td>Hypervisor</td><td><code>rectangle</code></td><td>基础运行环境</td></tr><tr><td>VM（PVM / GVM）</td><td><code>rectangle</code></td><td>OS 运行容器</td></tr><tr><td>App 层</td><td><code>rectangle</code></td><td>应用层</td></tr><tr><td>Framework 层</td><td><code>rectangle</code></td><td>框架层</td></tr><tr><td>SystemServer 层</td><td><code>rectangle</code></td><td>服务层</td></tr><tr><td>Native & HAL 层</td><td><code>rectangle</code></td><td>逻辑分层</td></tr><tr><td>Kernel 层</td><td><code>rectangle</code></td><td>内核层</td></tr></tbody></table><hr><h3 id=223-示例android-gvm-分层图>2.2.3 示例（Android GVM 分层图）<a hidden class=anchor aria-hidden=true href=#223-示例android-gvm-分层图>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
-frame &#34;Smart Cockpit System&#34; {
-
-    rectangle &#34;GVM (Android OS)&#34; {
-        rectangle &#34;App Layer&#34;
-        rectangle &#34;Android Framework API&#34;
-        rectangle &#34;System Server&#34;
-        rectangle &#34;Native &amp; HAL&#34;
-        rectangle &#34;Linux Kernel&#34;
-    }
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg></nav><h1 class="post-title entry-hint-parent">Google 风格 PlantUML 模板：架构图、流程图与时序图</h1><div class=post-description>统一深色蓝绿架构图的配色、元素、连线和排版，提供可独立复制运行的架构图、流程图、时序图模板。</div><div class=post-meta><span title='2025-12-24 17:17:50 +0800 CST'>December 24, 2025</span>&nbsp;·&nbsp;<span>8 min</span>&nbsp;·&nbsp;<span>1515 words</span></div></header><details class=toc><summary accesskey=c title="(Alt + C)"><span class=title>Table of Contents</span></summary><div class=inner><ul><li><a href=#1-%e9%80%89%e6%8b%a9%e6%a8%a1%e6%9d%bf%e4%b8%8e%e4%bd%bf%e7%94%a8%e6%96%b9%e5%bc%8f aria-label="1. 选择模板与使用方式">1. 选择模板与使用方式</a></li><li><a href=#2-%e7%bb%9f%e4%b8%80%e8%a7%86%e8%a7%89%e8%a7%84%e8%8c%83 aria-label="2. 统一视觉规范">2. 统一视觉规范</a><ul><li><a href=#21-%e9%85%8d%e8%89%b2%e4%b8%8e%e5%90%ab%e4%b9%89 aria-label="2.1 配色与含义">2.1 配色与含义</a></li><li><a href=#22-%e5%ad%97%e4%bd%93%e8%be%b9%e6%a1%86%e4%b8%8e%e5%b8%83%e5%b1%80 aria-label="2.2 字体、边框与布局">2.2 字体、边框与布局</a></li></ul></li><li><a href=#3-%e5%85%83%e7%b4%a0%e4%b8%8e%e8%bf%9e%e7%ba%bf%e7%ba%a6%e5%ae%9a aria-label="3. 元素与连线约定">3. 元素与连线约定</a><ul><li><a href=#31-%e6%9e%b6%e6%9e%84%e5%85%83%e7%b4%a0 aria-label="3.1 架构元素">3.1 架构元素</a></li><li><a href=#32-%e6%8c%89%e5%9b%be%e7%a7%8d%e8%a7%a3%e9%87%8a%e7%ae%ad%e5%a4%b4 aria-label="3.2 按图种解释箭头">3.2 按图种解释箭头</a></li></ul></li><li><a href=#4-%e6%9e%b6%e6%9e%84%e5%9b%be%e6%a8%a1%e6%9d%bf aria-label="4. 架构图模板">4. 架构图模板</a><ul><li><a href=#41-%e7%a4%ba%e4%be%8b%e4%b8%8e%e5%8f%af%e5%a4%8d%e5%88%b6%e6%ba%90%e7%a0%81 aria-label="4.1 示例与可复制源码">4.1 示例与可复制源码</a></li><li><a href=#42-%e4%bf%ae%e6%94%b9%e8%a6%81%e7%82%b9 aria-label="4.2 修改要点">4.2 修改要点</a></li></ul></li><li><a href=#5-%e6%b5%81%e7%a8%8b%e5%9b%be%e6%a8%a1%e6%9d%bf aria-label="5. 流程图模板">5. 流程图模板</a><ul><li><a href=#51-%e7%a4%ba%e4%be%8b%e4%b8%8e%e5%8f%af%e5%a4%8d%e5%88%b6%e6%ba%90%e7%a0%81 aria-label="5.1 示例与可复制源码">5.1 示例与可复制源码</a></li><li><a href=#52-%e4%bf%ae%e6%94%b9%e8%a6%81%e7%82%b9 aria-label="5.2 修改要点">5.2 修改要点</a></li></ul></li><li><a href=#6-%e6%97%b6%e5%ba%8f%e5%9b%be%e6%a8%a1%e6%9d%bf aria-label="6. 时序图模板">6. 时序图模板</a><ul><li><a href=#61-%e7%a4%ba%e4%be%8b%e4%b8%8e%e5%8f%af%e5%a4%8d%e5%88%b6%e6%ba%90%e7%a0%81 aria-label="6.1 示例与可复制源码">6.1 示例与可复制源码</a></li><li><a href=#62-%e4%bf%ae%e6%94%b9%e8%a6%81%e7%82%b9 aria-label="6.2 修改要点">6.2 修改要点</a></li></ul></li><li><a href=#7-%e4%ba%ae%e8%89%b2%e9%80%82%e9%85%8d%e4%b8%8e%e6%a8%a1%e6%9d%bf%e7%bb%b4%e6%8a%a4 aria-label="7. 亮色适配与模板维护">7. 亮色适配与模板维护</a></li><li><a href=#8-%e6%b8%b2%e6%9f%93%e4%b8%8e%e4%ba%a4%e4%bb%98%e6%a3%80%e6%9f%a5 aria-label="8. 渲染与交付检查">8. 渲染与交付检查</a></li></ul></div></details><div class="post-content md-content"><p>本文规定本知识库的 PlantUML 图表样式，并提供架构图、流程图和时序图三份完整模板。默认采用深灰背景、Google 蓝绿实色块、白色文字、方角和细边框。</p><p>视觉参考来自仓库中的 <code>work/architecture_diagrams/android_architecture.html</code>，与 RenderEngine 文章中的图表保持一致。这里的“Google 风格”是本知识库对该参考样式的命名；实现使用 <code>!theme plain</code> 加显式样式配置。</p><h2 id=1-选择模板与使用方式>1. 选择模板与使用方式<a hidden class=anchor aria-hidden=true href=#1-选择模板与使用方式>#</a></h2><p>先确定这张图需要回答的问题，再选择模板。</p><table><thead><tr><th>图种</th><th>主要回答的问题</th><th>适合表达</th><th>不宜承担的内容</th></tr></thead><tbody><tr><td>架构图</td><td>系统由什么组成，边界在哪里？</td><td>层次、模块、运行域、依赖和主要数据通道</td><td>每一次函数调用的先后</td></tr><tr><td>流程图</td><td>遇到某个条件之后，下一步做什么？</td><td>顺序、判断、循环、成功与失败出口</td><td>多个对象之间完整的消息往返</td></tr><tr><td>时序图</td><td>谁在什么时候向谁发送什么？</td><td>调用、返回、异步交接、分支与执行范围</td><td>整个系统的静态分层</td></tr></tbody></table><p>每份模板都包含 <code>@startuml</code>、完整样式和 <code>@enduml</code>，可以直接保存为 UTF-8 编码的 <code>.puml</code> 文件。使用时保留样式区，修改标题、参与者、节点、条件和消息即可。模板不依赖额外的主题文件或远程 <code>!include</code>。</p><p>文中的图片用于预览，图片下方的“展开并复制完整 PlantUML 源码”保留相同源码。网页只读时，可以从折叠区复制；直接编辑 Markdown 时，可以使用对应的 <code>plantuml</code> 代码块。</p><h2 id=2-统一视觉规范>2. 统一视觉规范<a hidden class=anchor aria-hidden=true href=#2-统一视觉规范>#</a></h2><h3 id=21-配色与含义>2.1 配色与含义<a hidden class=anchor aria-hidden=true href=#21-配色与含义>#</a></h3><p>默认配色按职责区分。绿色表示本图范围内的组件或处理步骤，蓝色表示数据、队列、参数、同步对象或输出结果；灰色表示分组、条件和外部参与者。图中没有数据对象时，不必为了凑齐配色而加入蓝色模块。</p><table><thead><tr><th>用途</th><th>颜色</th><th>使用位置</th></tr></thead><tbody><tr><td>画布</td><td><code>#282A2D</code></td><td>图表整体背景</td></tr><tr><td>执行域或逻辑分组</td><td><code>#202124</code></td><td>进程框、子系统框、流程分区</td></tr><tr><td>标题区、判断、注释、外部参与者</td><td><code>#3C4043</code></td><td>次一级灰色块</td></tr><tr><td>处理与组件</td><td><code>#34A853</code></td><td>本图范围内的软件模块、处理步骤</td></tr><tr><td>数据与结果</td><td><code>#4285F4</code></td><td>Buffer、队列、请求、结果、同步对象</td></tr><tr><td>彩色块文字</td><td><code>#FFFFFF</code></td><td>蓝色或绿色块内部</td></tr><tr><td>常规文字</td><td><code>#E8EAED</code></td><td>标签、标题、说明</td></tr><tr><td>边框与生命线</td><td><code>#5F6368</code></td><td>模块边界、分组边界、时序生命线</td></tr><tr><td>关系与消息箭头</td><td><code>#BDC1C6</code></td><td>连接线、箭头、流程起止符号</td></tr></tbody></table><p>参考 HTML 中还使用了“蓝色表示 OEM、绿色表示原生系统”的归属配色。需要画归属视图时，可以采用那套含义，但必须重新标注图例，并按归属重新着色。同一张图中，蓝色不能同时表示“数据”和“OEM”。</p><h3 id=22-字体边框与布局>2.2 字体、边框与布局<a hidden class=anchor aria-hidden=true href=#22-字体边框与布局>#</a></h3><table><thead><tr><th>项目</th><th>规范</th></tr></thead><tbody><tr><td>字体</td><td><code>Noto Sans CJK SC</code>；渲染端需要安装该字体，或统一换成已安装的中文无衬线字体</td></tr><tr><td>正文与标签</td><td>默认 14；标题 18；同一组图保持一致</td></tr><tr><td>普通模块</td><td>方角、实色填充、细边框，不加阴影</td></tr><tr><td>结构层次</td><td>通过容器、留白和背景区分，通常控制在两至三层</td></tr><tr><td>节点文字</td><td>先写名称，再用一行说明职责；长名称使用 <code>\n</code> 换行</td></tr><tr><td>连线</td><td>连接明确的对象，重要关系写明“调用”“读取”“写入”“依赖”等动词</td></tr><tr><td>图幅</td><td>先减少单图内容，再调整方向与间距；不靠缩小字体塞入全部细节</td></tr></tbody></table><p>方角规则用于普通模块和容器。流程图中的判断菱形、起止圆点仍保留其形状；时序图中的生命线和激活条也保留原有含义。</p><p>模板在 <code>!theme plain</code> 之后显式覆盖深色背景、字体和各类元素颜色。修改时不要在末尾追加另一个主题，否则可能覆盖前面的配置。统一样式不要求把所有对象都画成同一种形状。</p><h2 id=3-元素与连线约定>3. 元素与连线约定<a hidden class=anchor aria-hidden=true href=#3-元素与连线约定>#</a></h2><h3 id=31-架构元素>3.1 架构元素<a hidden class=anchor aria-hidden=true href=#31-架构元素>#</a></h3><p>对象的图形取决于当前视图想表达什么。例如，Android Framework 可以在全系统分层图中作为一个矩形层，也可以在局部设计图中展开为包含多个组件的分组。</p><table><thead><tr><th>元素</th><th>本规范中的用法</th><th>注意点</th></tr></thead><tbody><tr><td><code>rectangle</code></td><td>中性的职责块、逻辑层或范围容器</td><td>适合分层图，也可用于简化模块视图</td></tr><tr><td><code>package</code></td><td>逻辑分组、子系统或带标签的边界</td><td>使用 <code>packageStyle rectangle</code> 保持方角；标签需要说明它是逻辑域还是实际进程</td></tr><tr><td><code>component</code></td><td>强调软件职责、接口或依赖的组件</td><td>可用 <code>componentStyle rectangle</code> 获得统一的矩形外观</td></tr><tr><td><code>node</code></td><td>主机、VM、设备或运行环境</td><td>仅在部署关系确实重要时使用，不代指任意软件模块</td></tr><tr><td><code>frame</code></td><td>一张图的讨论范围</td><td>可选；避免与多层容器重复表达同一边界</td></tr><tr><td><code>database</code>、<code>queue</code></td><td>明确的数据存储或队列</td><td>简化视图可以使用带名称的矩形，仍须说明真实用途</td></tr></tbody></table><p><code>package</code> 不自动意味着独立进程，<code>component</code> 也不自动意味着独立线程。部署和线程边界需要由标签或对应视图说明。PlantUML 支持多种分组与组件表示法，语法可参考 <a href=https://plantuml.com/component-diagram>组件图文档</a>
+。</p><h3 id=32-按图种解释箭头>3.2 按图种解释箭头<a hidden class=anchor aria-hidden=true href=#32-按图种解释箭头>#</a></h3><table><thead><tr><th>图种</th><th>记法</th><th>本文采用的含义</th></tr></thead><tbody><tr><td>架构图</td><td><code>A --> B : 写入数据</code></td><td>有方向的关系；具体含义由标签说明</td></tr><tr><td>架构图</td><td><code>A ..> B : 依赖配置</code></td><td>静态依赖，不表示异步调用</td></tr><tr><td>流程图</td><td>活动之间的箭头</td><td>控制流程；判断分支需标明条件或“是／否”</td></tr><tr><td>时序图</td><td><code>A -> B : 调用</code></td><td>同步调用约定</td></tr><tr><td>时序图</td><td><code>A ->> B : 投递任务</code></td><td>异步消息约定</td></tr><tr><td>时序图</td><td><code>B --> A : 返回结果</code></td><td>返回或响应；同步与异步应结合完整交互判断</td></tr></tbody></table><p>这些是本规范的建模约定。PlantUML 负责绘制箭头，不会替作者判断程序是否阻塞。尤其不能把“虚线”和“异步”当作同义词。</p><h2 id=4-架构图模板>4. 架构图模板<a hidden class=anchor aria-hidden=true href=#4-架构图模板>#</a></h2><h3 id=41-示例与可复制源码>4.1 示例与可复制源码<a hidden class=anchor aria-hidden=true href=#41-示例与可复制源码>#</a></h3><p>这个示例表达任务服务的职责边界、内部组件和数据通道。实线描述主要数据传递或调用关系，虚线表示 Worker 对策略模块的依赖。它不规定某次请求的精确执行时序。</p><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+&#39; Google 架构块风格：深色底、实色模块、白字、方角。
+skinparam backgroundColor #282A2D
+skinparam defaultFontName &#34;Noto Sans CJK SC&#34;
+skinparam defaultFontSize 14
+skinparam defaultFontColor #E8EAED
+skinparam defaultTextAlignment center
+skinparam titleFontColor #FFFFFF
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #BDC1C6
+skinparam ArrowFontColor #E8EAED
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #3C4043
+    BorderColor #5F6368
+    FontColor #E8EAED
 }
-@enduml
-</code></pre><hr><h3 id=224-禁止项架构分层图中>2.2.4 禁止项（架构分层图中）<a hidden class=anchor aria-hidden=true href=#224-禁止项架构分层图中>#</a></h3><p>❌ 不得使用 <code>package</code> 表示层
-❌ 不得展开模块或类
-❌ 不得区分 HAL / Native 的内部细节</p><hr><h3 id=225-说明性文字推荐写法>2.2.5 说明性文字（推荐写法）<a hidden class=anchor aria-hidden=true href=#225-说明性文字推荐写法>#</a></h3><blockquote><p>本图为 <strong>系统分层架构视图（Layer View）</strong>，
-图中所有矩形块表示逻辑分层，不区分其内部是否为独立子系统。</p></blockquote><hr><h2 id=3-子系统设计图subsystem-design-diagram>3. 子系统设计图（Subsystem Design Diagram）<a hidden class=anchor aria-hidden=true href=#3-子系统设计图subsystem-design-diagram>#</a></h2><h3 id=31-定义>3.1 定义<a hidden class=anchor aria-hidden=true href=#31-定义>#</a></h3><p>子系统设计图用于表达：</p><ul><li>系统由哪些<strong>子系统（Subsystem</strong>组成</li><li>子系统的职责边界</li><li>子系统之间的关系</li></ul><p>不强调：</p><ul><li>上下层调用顺序</li><li>完整运行环境</li></ul><hr><h3 id=32-元素使用规范强制>3.2 元素使用规范（强制）<a hidden class=anchor aria-hidden=true href=#32-元素使用规范强制>#</a></h3><h4 id=321-核心规则>3.2.1 核心规则<a hidden class=anchor aria-hidden=true href=#321-核心规则>#</a></h4><blockquote><p>**在子系统设计图中：</p><ul><li>子系统必须使用 <code>package</code> 表示**</li></ul></blockquote><hr><h3 id=322-元素映射表>3.2.2 元素映射表<a hidden class=anchor aria-hidden=true href=#322-元素映射表>#</a></h3><table><thead><tr><th>对象类型</th><th>图形</th><th>说明</th></tr></thead><tbody><tr><td>子系统</td><td><code>package</code></td><td>具备清晰职责与边界</td></tr><tr><td>子系统内部模块</td><td><code>component</code> / <code>node</code></td><td>可选</td></tr><tr><td>系统运行环境</td><td><code>rectangle</code></td><td>作为外层容器</td></tr></tbody></table><hr><h3 id=323-子系统判定标准满足其一即可>3.2.3 子系统判定标准（满足其一即可）<a hidden class=anchor aria-hidden=true href=#323-子系统判定标准满足其一即可>#</a></h3><p>一个对象可以被建模为 <code>package</code>，如果它：</p><ul><li>对外暴露稳定接口</li><li>可作为整体被讨论</li><li>有相对独立的生命周期或责任</li></ul><hr><h3 id=324-示例android-os-子系统图>3.2.4 示例（Android OS 子系统图）<a hidden class=anchor aria-hidden=true href=#324-示例android-os-子系统图>#</a></h3><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
-rectangle &#34;GVM (Android OS)&#34; {
-
-    package &#34;App&#34;
-
-    package &#34;Android Framework&#34;
-
-    package &#34;System Server&#34;
-
-    rectangle &#34;Native &amp; HAL Layer&#34; {
-        package &#34;Native Libraries&#34;
-        package &#34;HAL&#34;
-    }
-
-    package &#34;Linux Kernel&#34;
+&lt;style&gt;
+root {
+    LineColor #5F6368
 }
+arrow {
+    LineColor #BDC1C6
+    FontColor #E8EAED
+    LineThickness 1
+}
+&lt;/style&gt;
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam nodesep 30
+skinparam ranksep 35
+skinparam rectangle {
+    BackgroundColor #34A853
+    BorderColor #5F6368
+    FontColor #FFFFFF
+}
+skinparam component {
+    BackgroundColor #34A853
+    BorderColor #5F6368
+    FontColor #FFFFFF
+}
+skinparam package {
+    BackgroundColor #202124
+    BorderColor #5F6368
+    FontColor #E8EAED
+}
+top to bottom direction
+
+title 任务服务：职责与数据通道
+
+rectangle &#34;请求数据&#34; as Request #4285F4
+package &#34;任务服务进程&#34; as Service {
+    rectangle &#34;请求入口\n校验与调度&#34; as API
+    rectangle &#34;任务队列&#34; as Queue #4285F4
+    rectangle &#34;Worker\n执行任务&#34; as Worker
+    component &#34;策略模块&#34; as Policy
+
+    API --&gt; Queue : 写入任务
+    Queue --&gt; Worker : 提供待处理任务
+    Worker ..&gt; Policy : 依赖处理策略
+}
+rectangle &#34;结果数据&#34; as Result #4285F4
+rectangle &#34;外部执行服务&#34; as Backend #3C4043
+
+Request --&gt; API : 提交请求
+Worker --&gt; Result : 写出结果
+Worker --&gt; Backend : 调用外部能力
+
+note bottom of Result
+绿色：本图范围内的组件
+蓝色：数据与队列
+灰色：外部参与者与分组
+end note
 @enduml
-</code></pre><hr><h3 id=325-特别说明native--hal>3.2.5 特别说明：Native & HAL<a hidden class=anchor aria-hidden=true href=#325-特别说明native--hal>#</a></h3><ul><li>在 <strong>架构分层图</strong> 中：
-→ 作为 <strong>Layer</strong>，使用 <code>rectangle</code></li><li>在 <strong>子系统设计图</strong> 中：
-→ HAL / Native Libraries 可作为 <code>package</code> 展开</li></ul><hr><h2 id=4-两种视图的对照总结关键>4. 两种视图的对照总结（关键）<a hidden class=anchor aria-hidden=true href=#4-两种视图的对照总结关键>#</a></h2><table><thead><tr><th>维度</th><th>架构分层图</th><th>子系统设计图</th></tr></thead><tbody><tr><td>关注点</td><td>分层 / 依赖</td><td>职责 / 边界</td></tr><tr><td>主要图形</td><td><code>rectangle</code></td><td><code>package</code></td></tr><tr><td>是否展开内部</td><td>❌</td><td>✅</td></tr><tr><td>是否强调运行环境</td><td>✅</td><td>可选</td></tr><tr><td>典型读者</td><td>架构评审 / 管理</td><td>研发 / 设计</td></tr></tbody></table><hr><h2 id=5-强制约束写进规范的红线>5. 强制约束（写进规范的“红线”）<a hidden class=anchor aria-hidden=true href=#5-强制约束写进规范的红线>#</a></h2><ol><li><strong>一张图只允许一种主视图类型</strong></li><li>架构分层图中不得混用 <code>package</code></li><li>子系统设计图中不得用 <code>rectangle</code> 代替子系统</li><li>语义不清的情况，优先服从视图目标，而非 UML 细节</li></ol><hr><h2 id=6-一句话总结规范版>6. 一句话总结（规范版）<a hidden class=anchor aria-hidden=true href=#6-一句话总结规范版>#</a></h2><blockquote><ul><li><strong>Layer View 统一使用 <code>rectangle</code>，强调“层”</strong></li><li><strong>Subsystem View 使用 <code>package</code>，强调“系统”</strong></li><li><strong>同一对象可在不同视图中使用不同图形，这是被允许且推荐的</strong></li></ul></blockquote><hr></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+</code></pre><details><summary>展开并复制完整 PlantUML 源码</summary><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>@startuml
+</span></span><span style=display:flex><span>!theme plain
+</span></span><span style=display:flex><span>&#39; Google 架构块风格：深色底、实色模块、白字、方角。
+</span></span><span style=display:flex><span>skinparam backgroundColor #282A2D
+</span></span><span style=display:flex><span>skinparam defaultFontName &#34;Noto Sans CJK SC&#34;
+</span></span><span style=display:flex><span>skinparam defaultFontSize 14
+</span></span><span style=display:flex><span>skinparam defaultFontColor #E8EAED
+</span></span><span style=display:flex><span>skinparam defaultTextAlignment center
+</span></span><span style=display:flex><span>skinparam titleFontColor #FFFFFF
+</span></span><span style=display:flex><span>skinparam titleFontSize 18
+</span></span><span style=display:flex><span>skinparam shadowing false
+</span></span><span style=display:flex><span>skinparam roundcorner 0
+</span></span><span style=display:flex><span>skinparam ArrowColor #BDC1C6
+</span></span><span style=display:flex><span>skinparam ArrowFontColor #E8EAED
+</span></span><span style=display:flex><span>skinparam ArrowThickness 1
+</span></span><span style=display:flex><span>skinparam note {
+</span></span><span style=display:flex><span>    BackgroundColor #3C4043
+</span></span><span style=display:flex><span>    BorderColor #5F6368
+</span></span><span style=display:flex><span>    FontColor #E8EAED
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>&lt;style&gt;
+</span></span><span style=display:flex><span>root {
+</span></span><span style=display:flex><span>    LineColor #5F6368
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>arrow {
+</span></span><span style=display:flex><span>    LineColor #BDC1C6
+</span></span><span style=display:flex><span>    FontColor #E8EAED
+</span></span><span style=display:flex><span>    LineThickness 1
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>&lt;/style&gt;
+</span></span><span style=display:flex><span>skinparam packageStyle rectangle
+</span></span><span style=display:flex><span>skinparam componentStyle rectangle
+</span></span><span style=display:flex><span>skinparam nodesep 30
+</span></span><span style=display:flex><span>skinparam ranksep 35
+</span></span><span style=display:flex><span>skinparam rectangle {
+</span></span><span style=display:flex><span>    BackgroundColor #34A853
+</span></span><span style=display:flex><span>    BorderColor #5F6368
+</span></span><span style=display:flex><span>    FontColor #FFFFFF
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>skinparam component {
+</span></span><span style=display:flex><span>    BackgroundColor #34A853
+</span></span><span style=display:flex><span>    BorderColor #5F6368
+</span></span><span style=display:flex><span>    FontColor #FFFFFF
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>skinparam package {
+</span></span><span style=display:flex><span>    BackgroundColor #202124
+</span></span><span style=display:flex><span>    BorderColor #5F6368
+</span></span><span style=display:flex><span>    FontColor #E8EAED
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>top to bottom direction
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>title 任务服务：职责与数据通道
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>rectangle &#34;请求数据&#34; as Request #4285F4
+</span></span><span style=display:flex><span>package &#34;任务服务进程&#34; as Service {
+</span></span><span style=display:flex><span>    rectangle &#34;请求入口\n校验与调度&#34; as API
+</span></span><span style=display:flex><span>    rectangle &#34;任务队列&#34; as Queue #4285F4
+</span></span><span style=display:flex><span>    rectangle &#34;Worker\n执行任务&#34; as Worker
+</span></span><span style=display:flex><span>    component &#34;策略模块&#34; as Policy
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    API --&gt; Queue : 写入任务
+</span></span><span style=display:flex><span>    Queue --&gt; Worker : 提供待处理任务
+</span></span><span style=display:flex><span>    Worker ..&gt; Policy : 依赖处理策略
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>rectangle &#34;结果数据&#34; as Result #4285F4
+</span></span><span style=display:flex><span>rectangle &#34;外部执行服务&#34; as Backend #3C4043
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>Request --&gt; API : 提交请求
+</span></span><span style=display:flex><span>Worker --&gt; Result : 写出结果
+</span></span><span style=display:flex><span>Worker --&gt; Backend : 调用外部能力
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>note bottom of Result
+</span></span><span style=display:flex><span>绿色：本图范围内的组件
+</span></span><span style=display:flex><span>蓝色：数据与队列
+</span></span><span style=display:flex><span>灰色：外部参与者与分组
+</span></span><span style=display:flex><span>end note
+</span></span><span style=display:flex><span>@enduml
+</span></span></code></pre></div></details><h3 id=42-修改要点>4.2 修改要点<a hidden class=anchor aria-hidden=true href=#42-修改要点>#</a></h3><p>保留稳定的英文别名，例如 <code>API</code>、<code>Worker</code>、<code>Result</code>，把中文显示名称写在引号中。改变显示名称时，连线可以继续引用原别名。</p><p>分层图可以用多个命名矩形表示 App、Framework、Native/HAL、Kernel 等层，并用容器说明 GVM/PVM 等范围。只有在需要解释某一层的内部职责时才展开组件。子系统图则以职责边界为主，不需要强制每个子系统都使用 <code>package</code>。</p><p>示例采用从上到下的布局。横向关系较多时可以改用 <code>left to right direction</code>。必要的 <code>-[hidden]-></code> 仅用于排版，不表示依赖；添加后应检查它是否让可见连线产生交叉。对直角连线的需求可以尝试 <code>linetype ortho</code>，但需重新检查标签位置，不能只以编译成功作为可读性标准。</p><h2 id=5-流程图模板>5. 流程图模板<a hidden class=anchor aria-hidden=true href=#5-流程图模板>#</a></h2><h3 id=51-示例与可复制源码>5.1 示例与可复制源码<a hidden class=anchor aria-hidden=true href=#51-示例与可复制源码>#</a></h3><p>这个示例包含输入校验、参数错误出口、任务执行、有限次重试，以及成功和失败出口。<code>maxAttempts = 3</code> 表示总共最多执行三次，即第一次执行加上最多两次重试。</p><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+&#39; Google 架构块风格：深色底、实色模块、白字、方角。
+skinparam backgroundColor #282A2D
+skinparam defaultFontName &#34;Noto Sans CJK SC&#34;
+skinparam defaultFontSize 14
+skinparam defaultFontColor #E8EAED
+skinparam defaultTextAlignment center
+skinparam titleFontColor #FFFFFF
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #BDC1C6
+skinparam ArrowFontColor #E8EAED
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #3C4043
+    BorderColor #5F6368
+    FontColor #E8EAED
+}
+&lt;style&gt;
+root {
+    LineColor #5F6368
+}
+arrow {
+    LineColor #BDC1C6
+    FontColor #E8EAED
+    LineThickness 1
+}
+&lt;/style&gt;
+skinparam activity {
+  BackgroundColor #34A853
+  BorderColor #5F6368
+  FontColor #FFFFFF
+  DiamondBackgroundColor #3C4043
+  DiamondBorderColor #5F6368
+  DiamondFontColor #E8EAED
+  StartColor #BDC1C6
+  EndColor #BDC1C6
+}
+skinparam partition {
+  BackgroundColor #202124
+  BorderColor #5F6368
+  FontColor #E8EAED
+}
+
+title 请求处理：校验与有限次重试
+
+start
+#4285F4:接收请求;
+if (输入有效？) then (是)
+else (否)
+  #4285F4:返回参数错误;
+  stop
+endif
+
+partition &#34;任务处理&#34; {
+  :attempt = 0\nmaxAttempts = 3;
+  repeat
+    :attempt = attempt + 1;
+    :执行任务\n记录本次结果;
+  repeat while (本次失败且\nattempt &lt; maxAttempts？) is (是) not (否)
+}
+
+if (本次成功？) then (是)
+  #4285F4:返回成功结果;
+else (否)
+  #4285F4:返回执行失败;
+endif
+stop
+@enduml
+</code></pre><details><summary>展开并复制完整 PlantUML 源码</summary><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>@startuml
+</span></span><span style=display:flex><span>!theme plain
+</span></span><span style=display:flex><span>&#39; Google 架构块风格：深色底、实色模块、白字、方角。
+</span></span><span style=display:flex><span>skinparam backgroundColor #282A2D
+</span></span><span style=display:flex><span>skinparam defaultFontName &#34;Noto Sans CJK SC&#34;
+</span></span><span style=display:flex><span>skinparam defaultFontSize 14
+</span></span><span style=display:flex><span>skinparam defaultFontColor #E8EAED
+</span></span><span style=display:flex><span>skinparam defaultTextAlignment center
+</span></span><span style=display:flex><span>skinparam titleFontColor #FFFFFF
+</span></span><span style=display:flex><span>skinparam titleFontSize 18
+</span></span><span style=display:flex><span>skinparam shadowing false
+</span></span><span style=display:flex><span>skinparam roundcorner 0
+</span></span><span style=display:flex><span>skinparam ArrowColor #BDC1C6
+</span></span><span style=display:flex><span>skinparam ArrowFontColor #E8EAED
+</span></span><span style=display:flex><span>skinparam ArrowThickness 1
+</span></span><span style=display:flex><span>skinparam note {
+</span></span><span style=display:flex><span>    BackgroundColor #3C4043
+</span></span><span style=display:flex><span>    BorderColor #5F6368
+</span></span><span style=display:flex><span>    FontColor #E8EAED
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>&lt;style&gt;
+</span></span><span style=display:flex><span>root {
+</span></span><span style=display:flex><span>    LineColor #5F6368
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>arrow {
+</span></span><span style=display:flex><span>    LineColor #BDC1C6
+</span></span><span style=display:flex><span>    FontColor #E8EAED
+</span></span><span style=display:flex><span>    LineThickness 1
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>&lt;/style&gt;
+</span></span><span style=display:flex><span>skinparam activity {
+</span></span><span style=display:flex><span>  BackgroundColor #34A853
+</span></span><span style=display:flex><span>  BorderColor #5F6368
+</span></span><span style=display:flex><span>  FontColor #FFFFFF
+</span></span><span style=display:flex><span>  DiamondBackgroundColor #3C4043
+</span></span><span style=display:flex><span>  DiamondBorderColor #5F6368
+</span></span><span style=display:flex><span>  DiamondFontColor #E8EAED
+</span></span><span style=display:flex><span>  StartColor #BDC1C6
+</span></span><span style=display:flex><span>  EndColor #BDC1C6
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>skinparam partition {
+</span></span><span style=display:flex><span>  BackgroundColor #202124
+</span></span><span style=display:flex><span>  BorderColor #5F6368
+</span></span><span style=display:flex><span>  FontColor #E8EAED
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>title 请求处理：校验与有限次重试
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>start
+</span></span><span style=display:flex><span>#4285F4:接收请求;
+</span></span><span style=display:flex><span>if (输入有效？) then (是)
+</span></span><span style=display:flex><span>else (否)
+</span></span><span style=display:flex><span>  #4285F4:返回参数错误;
+</span></span><span style=display:flex><span>  stop
+</span></span><span style=display:flex><span>endif
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>partition &#34;任务处理&#34; {
+</span></span><span style=display:flex><span>  :attempt = 0\nmaxAttempts = 3;
+</span></span><span style=display:flex><span>  repeat
+</span></span><span style=display:flex><span>    :attempt = attempt + 1;
+</span></span><span style=display:flex><span>    :执行任务\n记录本次结果;
+</span></span><span style=display:flex><span>  repeat while (本次失败且\nattempt &lt; maxAttempts？) is (是) not (否)
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>if (本次成功？) then (是)
+</span></span><span style=display:flex><span>  #4285F4:返回成功结果;
+</span></span><span style=display:flex><span>else (否)
+</span></span><span style=display:flex><span>  #4285F4:返回执行失败;
+</span></span><span style=display:flex><span>endif
+</span></span><span style=display:flex><span>stop
+</span></span><span style=display:flex><span>@enduml
+</span></span></code></pre></div></details><h3 id=52-修改要点>5.2 修改要点<a hidden class=anchor aria-hidden=true href=#52-修改要点>#</a></h3><p>每个判断写成可回答的问题，两个出口明确标注。无效输入通过 <code>stop</code> 结束，不能再流入任务处理分区。循环中显式递增 <code>attempt</code>，退出条件同时考虑成功结果和次数上限。</p><p>替换为真实业务流程时，还要定义“失败”是否允许重试：不可重试错误应直接进入失败出口。这个模板只假设最多三次尝试都属于允许重试的同一类操作；退避等待、取消或超时可在有明确需求时增加。</p><p>活动节点用动宾短语，例如“校验输入”“读取配置”“写入结果”；条件用判断语句，避免把大段代码放进节点。<code>partition</code> 表示一个处理阶段；如果需要强调不同角色之间的责任交接，可以改用泳道。分区和泳道的语法参见 <a href=https://plantuml.com/activity-diagram-beta>活动图文档</a>
+。</p><h2 id=6-时序图模板>6. 时序图模板<a hidden class=anchor aria-hidden=true href=#6-时序图模板>#</a></h2><h3 id=61-示例与可复制源码>6.1 示例与可复制源码<a hidden class=anchor aria-hidden=true href=#61-示例与可复制源码>#</a></h3><p>这个示例区分任务受理、后台执行和完成通知。API 同步返回“已受理”，Worker 随后通过异步通知提供处理结果；受理成功不表示任务已经执行成功。具体运行中，API 返回与 Worker 执行可以重叠，图中给出的是一种可能时序。</p><pre tabindex=0><code class=language-plantuml data-lang=plantuml>@startuml
+!theme plain
+&#39; Google 架构块风格：深色底、实色模块、白字、方角。
+skinparam backgroundColor #282A2D
+skinparam defaultFontName &#34;Noto Sans CJK SC&#34;
+skinparam defaultFontSize 14
+skinparam defaultFontColor #E8EAED
+skinparam defaultTextAlignment center
+skinparam titleFontColor #FFFFFF
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #BDC1C6
+skinparam ArrowFontColor #E8EAED
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #3C4043
+    BorderColor #5F6368
+    FontColor #E8EAED
+}
+&lt;style&gt;
+root {
+    LineColor #5F6368
+}
+arrow {
+    LineColor #BDC1C6
+    FontColor #E8EAED
+    LineThickness 1
+}
+&lt;/style&gt;
+skinparam maxMessageSize 180
+skinparam ParticipantPadding 18
+skinparam BoxPadding 12
+skinparam sequence {
+    ParticipantBackgroundColor #34A853
+    ParticipantBorderColor #5F6368
+    ParticipantFontColor #FFFFFF
+    LifeLineBorderColor #5F6368
+    LifeLineBackgroundColor #3C4043
+    BoxBackgroundColor #202124
+    BoxBorderColor #5F6368
+    BoxFontColor #E8EAED
+    GroupBackgroundColor #3C4043
+    GroupBodyBackgroundColor #202124
+    GroupBorderColor #5F6368
+    GroupFontColor #FFFFFF
+    GroupHeaderFontColor #FFFFFF
+    DividerBackgroundColor #3C4043
+    DividerBorderColor #5F6368
+    DividerFontColor #E8EAED
+    ReferenceBackgroundColor #202124
+    ReferenceBorderColor #5F6368
+    ReferenceFontColor #E8EAED
+    ArrowColor #BDC1C6
+    ArrowFontColor #E8EAED
+}
+
+hide footbox
+
+title 异步任务：受理、执行与完成通知
+participant &#34;&lt;color:#E8EAED&gt;调用方&lt;/color&gt;&#34; as Caller #3C4043
+box &#34;任务服务&#34; #202124
+participant &#34;API&#34; as API
+participant &#34;Worker&#34; as Worker
+end box
+participant &#34;&lt;color:#E8EAED&gt;外部服务&lt;/color&gt;&#34; as External #3C4043
+
+autonumber &#34;&lt;b&gt;[00]&#34;
+Caller -&gt; API : 提交任务
+activate API
+API -&gt;&gt; Worker : 投递任务
+activate Worker
+API --&gt; Caller : 已受理（taskId）
+deactivate API
+note over Caller, API
+  受理返回只确认任务已接收；
+  结果由后续完成通知提供。
+end note
+
+opt 本地缓存可用
+    Worker -&gt; Worker : 读取辅助数据
+end
+Worker -&gt; External : 执行请求
+activate External
+External --&gt; Worker : 返回处理结果
+deactivate External
+alt 执行成功
+    Worker -&gt;&gt; Caller : 完成通知（taskId, result）
+else 执行失败
+    Worker -&gt;&gt; Caller : 失败通知（taskId, error）
+end
+deactivate Worker
+@enduml
+</code></pre><details><summary>展开并复制完整 PlantUML 源码</summary><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-text data-lang=text><span style=display:flex><span>@startuml
+</span></span><span style=display:flex><span>!theme plain
+</span></span><span style=display:flex><span>&#39; Google 架构块风格：深色底、实色模块、白字、方角。
+</span></span><span style=display:flex><span>skinparam backgroundColor #282A2D
+</span></span><span style=display:flex><span>skinparam defaultFontName &#34;Noto Sans CJK SC&#34;
+</span></span><span style=display:flex><span>skinparam defaultFontSize 14
+</span></span><span style=display:flex><span>skinparam defaultFontColor #E8EAED
+</span></span><span style=display:flex><span>skinparam defaultTextAlignment center
+</span></span><span style=display:flex><span>skinparam titleFontColor #FFFFFF
+</span></span><span style=display:flex><span>skinparam titleFontSize 18
+</span></span><span style=display:flex><span>skinparam shadowing false
+</span></span><span style=display:flex><span>skinparam roundcorner 0
+</span></span><span style=display:flex><span>skinparam ArrowColor #BDC1C6
+</span></span><span style=display:flex><span>skinparam ArrowFontColor #E8EAED
+</span></span><span style=display:flex><span>skinparam ArrowThickness 1
+</span></span><span style=display:flex><span>skinparam note {
+</span></span><span style=display:flex><span>    BackgroundColor #3C4043
+</span></span><span style=display:flex><span>    BorderColor #5F6368
+</span></span><span style=display:flex><span>    FontColor #E8EAED
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>&lt;style&gt;
+</span></span><span style=display:flex><span>root {
+</span></span><span style=display:flex><span>    LineColor #5F6368
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>arrow {
+</span></span><span style=display:flex><span>    LineColor #BDC1C6
+</span></span><span style=display:flex><span>    FontColor #E8EAED
+</span></span><span style=display:flex><span>    LineThickness 1
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>&lt;/style&gt;
+</span></span><span style=display:flex><span>skinparam maxMessageSize 180
+</span></span><span style=display:flex><span>skinparam ParticipantPadding 18
+</span></span><span style=display:flex><span>skinparam BoxPadding 12
+</span></span><span style=display:flex><span>skinparam sequence {
+</span></span><span style=display:flex><span>    ParticipantBackgroundColor #34A853
+</span></span><span style=display:flex><span>    ParticipantBorderColor #5F6368
+</span></span><span style=display:flex><span>    ParticipantFontColor #FFFFFF
+</span></span><span style=display:flex><span>    LifeLineBorderColor #5F6368
+</span></span><span style=display:flex><span>    LifeLineBackgroundColor #3C4043
+</span></span><span style=display:flex><span>    BoxBackgroundColor #202124
+</span></span><span style=display:flex><span>    BoxBorderColor #5F6368
+</span></span><span style=display:flex><span>    BoxFontColor #E8EAED
+</span></span><span style=display:flex><span>    GroupBackgroundColor #3C4043
+</span></span><span style=display:flex><span>    GroupBodyBackgroundColor #202124
+</span></span><span style=display:flex><span>    GroupBorderColor #5F6368
+</span></span><span style=display:flex><span>    GroupFontColor #FFFFFF
+</span></span><span style=display:flex><span>    GroupHeaderFontColor #FFFFFF
+</span></span><span style=display:flex><span>    DividerBackgroundColor #3C4043
+</span></span><span style=display:flex><span>    DividerBorderColor #5F6368
+</span></span><span style=display:flex><span>    DividerFontColor #E8EAED
+</span></span><span style=display:flex><span>    ReferenceBackgroundColor #202124
+</span></span><span style=display:flex><span>    ReferenceBorderColor #5F6368
+</span></span><span style=display:flex><span>    ReferenceFontColor #E8EAED
+</span></span><span style=display:flex><span>    ArrowColor #BDC1C6
+</span></span><span style=display:flex><span>    ArrowFontColor #E8EAED
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>hide footbox
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>title 异步任务：受理、执行与完成通知
+</span></span><span style=display:flex><span>participant &#34;&lt;color:#E8EAED&gt;调用方&lt;/color&gt;&#34; as Caller #3C4043
+</span></span><span style=display:flex><span>box &#34;任务服务&#34; #202124
+</span></span><span style=display:flex><span>participant &#34;API&#34; as API
+</span></span><span style=display:flex><span>participant &#34;Worker&#34; as Worker
+</span></span><span style=display:flex><span>end box
+</span></span><span style=display:flex><span>participant &#34;&lt;color:#E8EAED&gt;外部服务&lt;/color&gt;&#34; as External #3C4043
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>autonumber &#34;&lt;b&gt;[00]&#34;
+</span></span><span style=display:flex><span>Caller -&gt; API : 提交任务
+</span></span><span style=display:flex><span>activate API
+</span></span><span style=display:flex><span>API -&gt;&gt; Worker : 投递任务
+</span></span><span style=display:flex><span>activate Worker
+</span></span><span style=display:flex><span>API --&gt; Caller : 已受理（taskId）
+</span></span><span style=display:flex><span>deactivate API
+</span></span><span style=display:flex><span>note over Caller, API
+</span></span><span style=display:flex><span>  受理返回只确认任务已接收；
+</span></span><span style=display:flex><span>  结果由后续完成通知提供。
+</span></span><span style=display:flex><span>end note
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>opt 本地缓存可用
+</span></span><span style=display:flex><span>    Worker -&gt; Worker : 读取辅助数据
+</span></span><span style=display:flex><span>end
+</span></span><span style=display:flex><span>Worker -&gt; External : 执行请求
+</span></span><span style=display:flex><span>activate External
+</span></span><span style=display:flex><span>External --&gt; Worker : 返回处理结果
+</span></span><span style=display:flex><span>deactivate External
+</span></span><span style=display:flex><span>alt 执行成功
+</span></span><span style=display:flex><span>    Worker -&gt;&gt; Caller : 完成通知（taskId, result）
+</span></span><span style=display:flex><span>else 执行失败
+</span></span><span style=display:flex><span>    Worker -&gt;&gt; Caller : 失败通知（taskId, error）
+</span></span><span style=display:flex><span>end
+</span></span><span style=display:flex><span>deactivate Worker
+</span></span><span style=display:flex><span>@enduml
+</span></span></code></pre></div></details><h3 id=62-修改要点>6.2 修改要点<a hidden class=anchor aria-hidden=true href=#62-修改要点>#</a></h3><p>参与者从左到右按主要交互顺序排列。一个参与者应有稳定含义，例如进程、线程或服务对象；需要跨层级表达时，在名称中明确写出层级。模板中的灰色调用方和外部服务位于“任务服务”范围之外，绿色 API 与 Worker 是该范围内的组件。</p><p><code>activate</code> 和 <code>deactivate</code> 描述参与者的执行或调用范围，不表示这段时间一直占用 CPU，也不表示 GPU 等异步执行单元已经完成。普通返回画成 <code>--></code>，异步投递或完成通知使用 <code>->></code> 并写明消息用途。</p><p><code>opt</code> 表示可选步骤，<code>alt</code> 的成功与失败分支互斥。模板中的缓存用于读取辅助数据，因此之后仍会调用外部服务；如果缓存命中即可返回最终结果，应改成缓存命中／未命中的 <code>alt</code> 分支。</p><p>自动编号帮助读者引用消息，不代表所有分支都会执行。纵向间距也不表示精确耗时；需要表达 deadline、耗时或重叠区间时，应额外标注时间。更多分支、循环和消息语法参见 <a href=https://plantuml.com/sequence-diagram>时序图文档</a>
+。</p><h2 id=7-亮色适配与模板维护>7. 亮色适配与模板维护<a hidden class=anchor aria-hidden=true href=#7-亮色适配与模板维护>#</a></h2><p>默认交付深色版本。如果文档需要白底打印，需要同时调整完整样式区和节点中的显式颜色。普通模块的蓝绿填充及白字保持不变，画布、容器和常规文字按下表调整。</p><table><thead><tr><th>用途</th><th>深色</th><th>亮色</th></tr></thead><tbody><tr><td>画布</td><td><code>#282A2D</code></td><td><code>#FFFFFF</code></td></tr><tr><td>分组背景</td><td><code>#202124</code></td><td><code>#F1F3F4</code></td></tr><tr><td>分组标题、注释、判断</td><td><code>#3C4043</code></td><td><code>#E8EAED</code></td></tr><tr><td>常规文字</td><td><code>#E8EAED</code></td><td><code>#202124</code></td></tr><tr><td>边框、生命线</td><td><code>#5F6368</code></td><td><code>#BDC1C6</code></td></tr><tr><td>箭头</td><td><code>#BDC1C6</code></td><td><code>#5F6368</code></td></tr></tbody></table><p>切换亮色时，需要一起调整 Note、Package、Activity 的判断节点，以及 Sequence 的分组、激活条和箭头文字。节点及 <code>box</code> 声明中的显式背景色也要对应修改。若把外部参与者的灰色填充改浅，它们的字体也要单独改为深色；只修改 <code>backgroundColor</code> 会留下浅色文字和边框。本模板用 <code>&lt;style></code> 中的 <code>root</code> 和 <code>arrow</code> 固定边框及箭头，也应同步调整其中的 <code>LineColor</code> 与 <code>FontColor</code>。亮色版本仍应完整渲染检查。</p><p>三份模板重复保留公共样式，是为了保证单独复制即可使用。批量调整配色或字体时，应同步更新三份模板及其可复制源码区。正式渲染的代码块与折叠区源码需要保持逐字一致。</p><h2 id=8-渲染与交付检查>8. 渲染与交付检查<a hidden class=anchor aria-hidden=true href=#8-渲染与交付检查>#</a></h2><p>本页三个模板已使用仓库中的 PlantUML <code>1.2025.4</code> 验证。将完整模板保存为 <code>diagram.puml</code> 后，可以在仓库根目录执行：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-bash data-lang=bash><span style=display:flex><span>java -Djava.awt.headless<span style=color:#f92672>=</span>true -Xmx256m <span style=color:#ae81ff>\
+</span></span></span><span style=display:flex><span>  -jar assets/plantuml-1.2025.4.jar <span style=color:#ae81ff>\
+</span></span></span><span style=display:flex><span>  -charset UTF-8 -failfast2 -tsvg diagram.puml
+</span></span></code></pre></div><p>SVG 适合网页缩放。需要位图预览时，将 <code>-tsvg</code> 改为 <code>-tpng</code>。中文字体是否可用取决于实际渲染端；更换机器或使用在线渲染器时，需要再次检查文字和布局。</p><p>交付前检查以下项目：</p><ul><li>图种与问题一致，标题说明范围；复杂细节已拆到合适的局部图。</li><li>颜色含义一致，边界标签清楚，外部参与者不会被误读成内部组件。</li><li>分支和循环有明确出口；同步调用、异步消息和返回没有混淆。</li><li>中文、长函数名和箭头标签没有遮挡，缩放到正文宽度后仍可阅读。</li><li>三份模板可以分别编译，预览与可复制源码完全一致。</li></ul><p>本站将 <code>plantuml</code> 围栏代码渲染成图片，因此折叠区使用 <code>text</code> 围栏保存源码。编辑本页时应保留这组“预览＋源码”的结构，无需修改站点渲染脚本。</p></div><footer class=post-footer><ul class=post-tags></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
 <span>Powered by
 <a href="https://gohugo.io/?utm_source=papermod" rel=noopener target=_blank>Hugo</a> &
 <a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top id=top-link class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey=g><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
