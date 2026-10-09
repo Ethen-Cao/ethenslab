@@ -98,14 +98,16 @@ Netflix 官方已支持部分车载系统，但支持范围因车型、年款和
 | Hardware | Secure Video Decoder | VPU | 读取受保护码流，解码并输出受保护像素帧 |
 | Hardware | Protected Video Frames | 受保护内存 | 保存解码像素，普通侧通过受限 Buffer 引用参与显示控制 |
 | Hardware | Display Processing Unit | DPU | 读取受保护帧，执行显示处理和扫描输出 |
-| Display Output | Display Link | SerDes／面板链路 | 将显示控制器的像素输出传输至物理屏幕 |
+| Display Output | SoC DP Output | SoC 显示接口 | 将 DPU 像素送至 DisplayPort；HDCP 方案中承担 DP HDCP TX 功能 |
+| Display Output | Serializer | SerDes 硬件 | 将 DP 转换为 GMSL；HDCP 方案中承担 DP HDCP RX 与 GMSL HDCP TX，处理上下游保护链路 |
+| Display Output | Deserializer | SerDes 硬件 | 接收 GMSL 并输出面板接口；HDCP 方案中承担 GMSL HDCP RX，在屏端解密 |
 | Display Output | Display Panel | 屏幕 | 显示经面板链路输入的画面 |
 
 TEE 是 SoC 的安全执行环境。VPU、DPU 和受保护内存属于硬件能力，单独放在硬件区域。
 
 两组堆叠矩形表示受保护内存中的 Buffer Pool，是本图的形状约定。它们分别保存解密后的压缩码流和解码后的像素帧，可位于受保护 DDR 中，不表示两颗独立存储器件或固定分区。
 
-架构图只保留有源码或供应商资料依据的组件与关系，部署配置及运行验证单独列于下表。图中的跨域线分别表示安全调用、显示控制及 Buffer 引用。受保护媒体数据在硬件允许的路径中流动，不能用一条普通 IPC 连线推导其安全性。
+软件主图保留有源码或供应商资料依据的组件与关系。Display Output 并列展示无 HDCP、有 HDCP 两种可选的硬件功能拓扑，不表示两条链路同时输出，也不表示当前板级已经实现 HDCP 方案；具体器件、HDCP 版本和启用状态单独核对。部署配置及运行验证列于下表。图中的跨域线分别表示安全调用、显示控制及 Buffer 引用。受保护媒体数据在硬件允许的路径中流动，不能用一条普通 IPC 连线推导其安全性。
 
 ### 3.2 Widevine 代码与动态库
 
@@ -152,7 +154,9 @@ TEE 是 SoC 的安全执行环境。VPU、DPU 和受保护内存属于硬件能�
 
 `bOEMSecure=false` 可以导致安全源被阻断，但这条日志本身不能证明 HDCP 握手失败。端口映射、状态转发和创建时序也需要核对。
 
-`Protection commands / result` 表示安全侧下发命令、QNX 返回处理结果。执行成功不等于 HDCP 认证成功；当前可见 OPS 分派未包含逐屏 HDCP 状态查询。绿色媒体线表示媒体及像素传输方向，不表示每段链路均已加密。检查到的 HBEZ 配置跳过 HDCP；插件返回值也不能直接代替器件能力结论。HAB 导入及安全源标记存在，仍不足以证明端到端内存隔离。
+有 HDCP 的方案中，DP 与 GMSL 分别建立保护链路，Serializer 承担中继功能，Deserializer 完成 GMSL HDCP 解密后输出面板接口。屏内解密后的像素连接仍需处于认可的保护边界；无 HDCP 方案能否播放目标内容，由许可证和内容方的输出要求决定。
+
+`Protection commands / result` 表示安全侧下发命令、QNX 返回处理结果。执行成功不等于 HDCP 认证成功；当前可见 OPS 分派未包含逐屏 HDCP 状态查询。绿色媒体线表示媒体及像素传输方向，灰色加密线表示 CDN 加密媒体或标注的 HDCP 传输段。检查到的 HBEZ 配置跳过 HDCP；插件返回值也不能直接代替器件能力结论。HAB 导入及安全源标记存在，仍不足以证明端到端内存隔离。
 
 ## 4. 播放与授权流程
 
