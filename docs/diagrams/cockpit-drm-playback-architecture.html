@@ -1,22 +1,21 @@
 <!doctype html>
 <html lang="en" data-theme="light">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Cockpit DRM Playback Architecture</title>
-<style>:root{color-scheme:light;--page:#f8f9fa;--panel:#fff;--ink:#202124;--muted:#5f6368;--line:#cbd1d8;--domain:#5f6368;--native-fill:#34A853;--vendor-fill:#FBBC04;--vendor-outline:#c4a04a;--hardware-fill:#9AA0A6;--external-fill:#4285F4;--client-fill:#fff;--client-stroke:#9aa0a6;--node-ink:#202124;--hardware-ink:#202124;--client-ink:#202124;--focus-ring:#202124;--blue:#356dc9;--green:#28854d;--amber:#a77408;--fade:.16}
-[data-theme="dark"]{color-scheme:dark;--page:#202124;--panel:#282a2d;--ink:#e8eaed;--muted:#afb5be;--line:#565c66;--domain:#e8eaed;--native-fill:#34A853;--vendor-fill:#FBBC04;--vendor-outline:#87763c;--hardware-fill:#5F6368;--external-fill:#4285F4;--client-fill:#303438;--client-stroke:#8c95a3;--node-ink:#202124;--hardware-ink:#FFFFFF;--client-ink:#e8eaed;--focus-ring:#FFFFFF;--blue:#8ab4f8;--green:#81c995;--amber:#fdd663;--fade:.19}
-*{box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden}body{margin:0;padding:10px 12px;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--page);color:var(--ink)}main{display:flex;flex-direction:column;gap:8px;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:0 0 auto;min-width:0}h1{margin:0;font-size:18px;line-height:1.3;letter-spacing:-.25px}.tag{font-size:11px;color:var(--muted);white-space:nowrap}.tools{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}button{border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit;font-size:11px;line-height:1.4;padding:4px 9px;cursor:pointer}button:hover{border-color:var(--blue)}button:disabled{opacity:.4;cursor:default}button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}.node:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}#zoom-level{width:38px;text-align:center;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}.diagram-shell{flex:1 1 0;min-width:0;min-height:0;display:flex;overflow:hidden;border:1px solid var(--line);border-radius:7px;background:var(--panel)}.canvas{display:block;width:100%;height:100%;overflow:hidden;background:var(--panel);touch-action:none;user-select:none}.canvas.zoomed{cursor:grab}.canvas.panning,.canvas.panning .node{cursor:grabbing}.canvas text{fill:var(--ink);font-family:inherit;-webkit-user-select:text;user-select:text;cursor:text}.canvas.panning text{-webkit-user-select:none;user-select:none;cursor:grabbing}.domain{fill:var(--domain);fill-opacity:.04;stroke:var(--line);stroke-width:1.1}.domain-title{font-size:21px;font-weight:700}.domain-sub{font-size:12px;fill:var(--muted)!important}.lane-title{font-size:12px;font-weight:700;fill:var(--muted)!important;letter-spacing:.5px}.edge{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:opacity .15s}.edge.control{stroke:var(--blue)}.edge.encrypted{stroke:var(--muted);stroke-width:2}.edge.media{stroke:var(--green);stroke-width:2.6}.edge.pending{stroke:var(--amber);stroke-dasharray:7 5}.edge-label rect{fill:var(--panel);opacity:.98}.edge-label text{font-size:12px;font-weight:500}.edge-label.control text{fill:var(--blue)}.edge-label.encrypted text{fill:var(--muted)}.edge-label.media text{fill:var(--green)}.edge-label.pending text{fill:var(--amber)}.node{cursor:pointer;transition:opacity .15s}.node rect{stroke:transparent;stroke-width:1.4}.node text{fill:var(--node-ink)}.node.hardware text{fill:var(--hardware-ink)}.node.client text{fill:var(--client-ink)}.node.native rect{fill:var(--native-fill)}.node.vendor rect{fill:var(--vendor-fill)}.node.hardware rect{fill:var(--hardware-fill)}.node.external rect{fill:var(--external-fill)}.node.client rect{fill:var(--client-fill);stroke:var(--client-stroke)}.node.pending rect{stroke:var(--node-ink);stroke-dasharray:5 4}.node.hardware.pending rect{stroke:var(--hardware-ink)}.node:hover rect{stroke:var(--focus-ring);stroke-width:2.4}.node.selected rect,.node:focus-visible rect{stroke:var(--focus-ring);stroke-width:3}.node-name{font-size:15px;font-weight:650}.node-sub{font-size:12px}.node-evidence{font-size:10px}.dim{opacity:var(--fade)}.edge.active{stroke-width:3}.legend{display:flex;flex-direction:column;gap:5px;flex:0 0 auto;font-size:11px;line-height:1.3;color:var(--muted)}.legend-row{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap}.legend-row b{font-size:10px;width:34px;flex-shrink:0;color:var(--ink);letter-spacing:.4px;text-transform:uppercase}.legend-row span{display:inline-flex;gap:6px;align-items:center;white-space:nowrap}.source-chip{display:inline-block;width:20px;height:12px;border:1px solid transparent;border-radius:2px}.source-chip.native{background:var(--native-fill)}.source-chip.vendor{background:var(--vendor-fill)}.source-chip.hardware{background:var(--hardware-fill)}.source-chip.external{background:var(--external-fill)}.source-chip.client{background:var(--client-fill);border-color:var(--client-stroke)}.line-chip{display:inline-block;width:24px;height:0;border-top:2px solid var(--blue)}.line-chip.encrypted{border-color:var(--muted)}.line-chip.media{border-color:var(--green);border-top-width:3px}.line-chip.pending{border-color:var(--amber);border-top-style:dashed}.hint{margin-left:auto;font-size:10px;color:var(--muted)}
+<style>:root{color-scheme:light;--page:#f8f9fa;--panel:#fff;--ink:#202124;--muted:#5f6368;--line:#cbd1d8;--domain:#5f6368;--native-fill:#34A853;--vendor-fill:#FBBC04;--vendor-outline:#c4a04a;--hardware-fill:#9AA0A6;--external-fill:#4285F4;--client-fill:#fff;--client-stroke:#9aa0a6;--node-ink:#202124;--hardware-ink:#202124;--client-ink:#202124;--focus-ring:#202124;--blue:#356dc9;--green:#28854d;--fade:.16}
+[data-theme="dark"]{color-scheme:dark;--page:#202124;--panel:#282a2d;--ink:#e8eaed;--muted:#afb5be;--line:#565c66;--domain:#e8eaed;--native-fill:#34A853;--vendor-fill:#FBBC04;--vendor-outline:#87763c;--hardware-fill:#5F6368;--external-fill:#4285F4;--client-fill:#303438;--client-stroke:#8c95a3;--node-ink:#202124;--hardware-ink:#FFFFFF;--client-ink:#e8eaed;--focus-ring:#FFFFFF;--blue:#8ab4f8;--green:#81c995;--fade:.19}
+*{box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden}body{margin:0;padding:10px 12px;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--page);color:var(--ink)}main{display:flex;flex-direction:column;gap:8px;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:0 0 auto;min-width:0}h1{margin:0;font-size:18px;line-height:1.3;letter-spacing:-.25px}.tag{font-size:11px;color:var(--muted);white-space:nowrap}.tools{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}button{border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit;font-size:11px;line-height:1.4;padding:4px 9px;cursor:pointer}button:hover{border-color:var(--blue)}button:disabled{opacity:.4;cursor:default}button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}.node:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}#zoom-level{width:38px;text-align:center;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}.diagram-shell{flex:1 1 0;min-width:0;min-height:0;display:flex;overflow:hidden;border:1px solid var(--line);border-radius:7px;background:var(--panel)}.canvas{display:block;width:100%;height:100%;overflow:hidden;background:var(--panel);touch-action:none;user-select:none}.canvas.zoomed{cursor:grab}.canvas.panning,.canvas.panning .node{cursor:grabbing}.canvas text{fill:var(--ink);font-family:inherit;-webkit-user-select:text;user-select:text;cursor:text}.canvas.panning text{-webkit-user-select:none;user-select:none;cursor:grabbing}.domain{fill:var(--domain);fill-opacity:.04;stroke:var(--line);stroke-width:1.1}.domain-title{font-size:21px;font-weight:700}.domain-sub{font-size:12px;fill:var(--muted)!important}.lane-title{font-size:12px;font-weight:700;fill:var(--muted)!important;letter-spacing:.5px}.edge{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:opacity .15s}.edge.control{stroke:var(--blue)}.edge.encrypted{stroke:var(--muted);stroke-width:2}.edge.media{stroke:var(--green);stroke-width:2.6}.edge-label rect{fill:var(--panel);opacity:.98}.edge-label text{font-size:12px;font-weight:500}.edge-label.control text{fill:var(--blue)}.edge-label.encrypted text{fill:var(--muted)}.edge-label.media text{fill:var(--green)}.node{cursor:pointer;transition:opacity .15s}.node rect{stroke:transparent;stroke-width:1.4}.node text{fill:var(--node-ink)}.node.hardware text{fill:var(--hardware-ink)}.node.client text{fill:var(--client-ink)}.node.native rect{fill:var(--native-fill)}.node.vendor rect{fill:var(--vendor-fill)}.node.hardware rect{fill:var(--hardware-fill)}.node.external rect{fill:var(--external-fill)}.node.client rect{fill:var(--client-fill);stroke:var(--client-stroke)}.node.memory rect{stroke:var(--panel);stroke-width:1.6}.node:hover rect{stroke:var(--focus-ring);stroke-width:2.4}.node.selected rect,.node:focus-visible rect{stroke:var(--focus-ring);stroke-width:3}.node-name{font-size:15px;font-weight:650}.node-sub{font-size:12px}.node-evidence{font-size:10px}.dim{opacity:var(--fade)}.edge.active{stroke-width:3}.legend{display:flex;flex-direction:column;gap:5px;flex:0 0 auto;font-size:11px;line-height:1.3;color:var(--muted)}.legend-row{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap}.legend-row b{font-size:10px;width:34px;flex-shrink:0;color:var(--ink);letter-spacing:.4px;text-transform:uppercase}.legend-row span{display:inline-flex;gap:6px;align-items:center;white-space:nowrap}.source-chip{display:inline-block;width:20px;height:12px;border:1px solid transparent;border-radius:2px}.source-chip.native{background:var(--native-fill)}.source-chip.vendor{background:var(--vendor-fill)}.source-chip.hardware{background:var(--hardware-fill)}.source-chip.external{background:var(--external-fill)}.source-chip.client{background:var(--client-fill);border-color:var(--client-stroke)}.line-chip{display:inline-block;width:24px;height:0;border-top:2px solid var(--blue)}.line-chip.encrypted{border-color:var(--muted)}.line-chip.media{border-color:var(--green);border-top-width:3px}.hint{margin-left:auto;font-size:10px;color:var(--muted)}
 .cdm-container{fill:var(--vendor-fill);fill-opacity:.05;stroke:var(--vendor-outline);stroke-width:1.1}.service-title{font-size:14px;font-weight:650}.service-sub{font-size:11px;fill:var(--muted)!important}
 
 @media(max-width:900px){body{padding:7px}h1{font-size:15px}.toolbar{gap:6px}.tools{gap:4px}button{padding:3px 7px}.legend-row{gap:5px 10px}.hint{display:none}}@media(max-width:600px){.tag{display:none}.tools{margin-left:0}.toolbar h1{width:100%}.legend{font-size:10px}.legend-row{gap:4px 8px}}@media print{body{padding:0;background:#fff}.tools,.tag,.hint{display:none}.diagram-shell{border:0}.toolbar h1{font-size:16px}}
 </style></head>
 <body><main>
-<header class="toolbar"><h1>Cockpit DRM Playback Architecture</h1><span class="tag">Widevine L1 · Key call paths</span><div class="tools"><button id="fit" type="button" title="Show the complete diagram">Fit</button><button id="zoom-out" type="button" aria-label="Zoom out">−</button><span id="zoom-level">100%</span><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="clear" type="button">Clear selection</button><button id="theme" type="button">Dark theme</button></div></header>
+<header class="toolbar"><h1>Cockpit DRM Playback Architecture</h1><span class="tag">Widevine L1 · HQX call paths</span><div class="tools"><button id="fit" type="button" title="Show the complete diagram">Fit</button><button id="zoom-out" type="button" aria-label="Zoom out">−</button><span id="zoom-level">100%</span><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="clear" type="button">Clear selection</button><button id="theme" type="button">Dark theme</button></div></header>
 <section class="diagram-shell" aria-label="Interactive architecture diagram"><svg class="canvas" id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 1650" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-description">
         <title id="svg-title">Cockpit DRM playback: TEE, QNX and Android</title>
-        <desc id="svg-description">A proposed Widevine L1 architecture across TEE, QNX and Android. Component fill indicates source: green for native QNX/AOSP, yellow for Widevine or vendor components, gray for hardware, blue for external services, and white for an unspecified client. Click a component to highlight direct connections. Drag across text to select and copy. Right-click or press Escape to clear component highlighting; selected text retains the browser copy menu. Fit shows the complete diagram; zoom and drag the background to inspect details.</desc>
+        <desc id="svg-description">Widevine L1 architecture across TEE, QNX and Android, based on platform documentation and source evidence. Stacked rectangles represent protected-memory buffer pools. Component fill indicates source: green for native QNX/AOSP, yellow for Widevine or vendor components, gray for hardware, blue for external services, and white for an unspecified client. Click a component to highlight direct connections. Drag across text to select and copy. Right-click or press Escape to clear component highlighting; selected text retains the browser copy menu. Fit shows the complete diagram; zoom and drag the background to inspect details.</desc>
         <defs>
           <marker id="arrow-control" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L7 4L1 7" fill="none" stroke="var(--blue)" stroke-width="1.7"/></marker>
           <marker id="arrow-media" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L8 4.5L1 8" fill="none" stroke="var(--green)" stroke-width="2"/></marker>
-          <marker id="arrow-pending" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L7 4L1 7" fill="none" stroke="var(--amber)" stroke-width="1.7"/></marker>
           <marker id="arrow-encrypted" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L7 4L1 7" fill="none" stroke="var(--muted)" stroke-width="1.7"/></marker>
         </defs>
         <g id="containers">
@@ -28,14 +27,13 @@
           <text class="domain-sub" x="46" y="298">TrustZone · vendor secure implementation</text>
           <rect class="domain qnx-domain" x="400" y="240" width="430" height="900" rx="12"/>
           <text class="domain-title" x="422" y="276">QNX</text>
-          <text class="domain-sub" x="422" y="298">Host display backend · candidate platform route</text>
+          <text class="domain-sub" x="422" y="298">Host display and secure-call backends</text>
           <rect class="domain android-domain" x="900" y="240" width="720" height="900" rx="12"/>
           <text class="domain-title" x="922" y="276">Android</text>
           <text class="domain-sub" x="1500" y="276" text-anchor="end">AAOS guest</text>
           <rect class="domain" x="24" y="1480" width="1596" height="148" rx="12"/>
           <text class="domain-title" x="46" y="1510">Display Output</text>
-          <text class="domain-sub" x="46" y="1534">Per-screen validation</text>
-          <text class="domain-sub" x="46" y="1556">Content policy applies</text>
+          <text class="domain-sub" x="46" y="1534">Physical video output</text>
           <rect class="domain" x="400" y="1180" width="1220" height="48" rx="7"/>
           <text class="lane-title" x="422" y="1210">HYPERVISOR</text>
           <text class="domain-sub" x="610" y="1210">VM isolation · memory ownership · device assignment / virtualization</text>
@@ -49,8 +47,8 @@
         <g id="edge-labels"></g>
       </svg></section>
 <footer class="legend" aria-label="Diagram legend">
-<div class="legend-row"><b>Source</b><span><i class="source-chip native"></i>QNX / AOSP native</span><span><i class="source-chip vendor"></i>Widevine / vendor</span><span><i class="source-chip hardware"></i>Hardware</span><span><i class="source-chip external"></i>External services</span><span><i class="source-chip client"></i>Client · unspecified</span></div>
-<div class="legend-row"><b>Flow</b><span><i class="line-chip control"></i>Control / license</span><span><i class="line-chip encrypted"></i>Encrypted media</span><span><i class="line-chip media"></i>Target protected media</span><span><i class="line-chip pending"></i>To confirm</span><span class="hint">Text: select + copy · Drag background: pan · Right-click / Esc: clear</span></div>
+<div class="legend-row"><b>Source</b><span><i class="source-chip native"></i>QNX / AOSP native</span><span><i class="source-chip vendor"></i>Widevine / vendor</span><span><i class="source-chip hardware"></i>Hardware / memory</span><span><i class="source-chip external"></i>External services</span><span><i class="source-chip client"></i>Client · unspecified</span></div>
+<div class="legend-row"><b>Flow</b><span><i class="line-chip control"></i>Control / license</span><span><i class="line-chip encrypted"></i>Encrypted media</span><span><i class="line-chip media"></i>Protected media / video output</span><span class="hint">Text: select + copy · Drag background: pan · Right-click / Esc: clear</span></div>
 </footer>
 </main><script>
 'use strict';
@@ -119,7 +117,7 @@ const modules = [
       "setup"
     ],
     "kind": "external",
-    "ev": "Mode to confirm"
+    "ev": "Conditional provisioning API"
   },
   {
     "id": "credentials",
@@ -137,19 +135,20 @@ const modules = [
     "ev": "Vendor design"
   },
   {
-    "id": "output-policy",
+    "id": "tz-ops",
     "x": 54,
     "y": 530,
     "w": 270,
     "h": 84,
     "name": [
-      "Output Protection Policy"
+      "Output Protection Service",
+      "(OPS / OPSSource)"
     ],
     "sub": [
-      "Protection requirements / commands"
+      "Output protection levels"
     ],
-    "kind": "vendor pending",
-    "ev": "Integration to confirm"
+    "kind": "vendor",
+    "ev": "Widevine TA privileges · OPSSource interface / linked implementation"
   },
   {
     "id": "widevine-ta",
@@ -218,13 +217,14 @@ const modules = [
     "w": 170,
     "h": 72,
     "name": [
-      "Guest Display Backend"
+      "WFD Backend",
+      "(wfd_be)"
     ],
     "sub": [
-      "Imported buffer handles"
+      "Handles · secure attributes"
     ],
-    "kind": "native pending",
-    "ev": "Partial platform evidence"
+    "kind": "native",
+    "ev": "WFD_FE / wfd_be source · secure-source attributes"
   },
   {
     "id": "pipeline",
@@ -257,6 +257,21 @@ const modules = [
     "ev": "Platform integration"
   },
   {
+    "id": "qcpe",
+    "x": 430,
+    "y": 1040,
+    "w": 370,
+    "h": 70,
+    "name": [
+      "QCPE / SCM Backend"
+    ],
+    "sub": [
+      "Guest SMC dispatch · TZ calls"
+    ],
+    "kind": "vendor",
+    "ev": "SCM/HAB source · QNX prebuilt backend"
+  },
+  {
     "id": "player",
     "x": 930,
     "y": 292,
@@ -266,10 +281,10 @@ const modules = [
       "Player / Browser"
     ],
     "sub": [
-      "Licensed client · service / market availability to confirm"
+      "Media playback / DRM session binding"
     ],
     "kind": "client",
-    "ev": "Client selection required"
+    "ev": "Client role · MediaDrm / MediaCodec integration"
   },
   {
     "id": "mediadrm",
@@ -389,7 +404,8 @@ const modules = [
       "Decrypted compressed video"
     ],
     "kind": "hardware",
-    "ev": "L1 target path"
+    "ev": "Protected compressed media buffer pool",
+    "shape": "memory"
   },
   {
     "id": "decoder",
@@ -416,10 +432,11 @@ const modules = [
       "Protected Video Frames"
     ],
     "sub": [
-      "Pixel buffers / opaque handles"
+      "Decoded pixel buffers"
     ],
     "kind": "hardware",
-    "ev": "L1 target path"
+    "ev": "Protected decoded-frame buffer pool",
+    "shape": "memory"
   },
   {
     "id": "dpu",
@@ -434,7 +451,7 @@ const modules = [
       "Protected scan-out"
     ],
     "kind": "hardware",
-    "ev": "Hardware path to verify"
+    "ev": "Display driver / protected-source path"
   },
   {
     "id": "link",
@@ -448,8 +465,8 @@ const modules = [
     "sub": [
       "SerDes / panel link"
     ],
-    "kind": "hardware pending",
-    "ev": "Per-link validation"
+    "kind": "hardware",
+    "ev": "Configured display bridge / physical video route"
   },
   {
     "id": "display",
@@ -458,13 +475,13 @@ const modules = [
     "w": 300,
     "h": 76,
     "name": [
-      "Cockpit Display"
+      "Display Panel"
     ],
     "sub": [
-      "Authorized screen"
+      "Physical display output"
     ],
     "kind": "hardware",
-    "ev": "Product policy"
+    "ev": "Display endpoint"
   },
   {
     "id": "cdm-core",
@@ -595,15 +612,28 @@ const links = [
     "ly": 524
   },
   {
-    "id": "oemcrypto-ta",
+    "id": "oemcrypto-qcpe",
     "from": "oemcrypto",
-    "to": "widevine-ta",
-    "type": "pending",
+    "to": "qcpe",
+    "type": "control",
     "both": true,
-    "d": "M930 946H886V793H376V771H324",
-    "label": "L1 secure platform transport",
-    "lx": 423,
-    "ly": 793
+    "d": "M930 946H872Q866 934 860 946H850V1075H800",
+    "label": "SCM / HAB",
+    "lx": 850,
+    "ly": 1010,
+    "rotate": -90
+  },
+  {
+    "id": "qcpe-ta",
+    "from": "qcpe",
+    "to": "widevine-ta",
+    "type": "control",
+    "both": true,
+    "d": "M430 1075H392Q386 1063 380 1075H366V771H324",
+    "label": "Secure calls / result",
+    "lx": 366,
+    "ly": 918,
+    "rotate": -90
   },
   {
     "id": "credentials-ta",
@@ -617,18 +647,19 @@ const links = [
     "rotate": -90
   },
   {
-    "id": "ta-policy",
+    "id": "ta-ops",
     "from": "widevine-ta",
-    "to": "output-policy",
-    "type": "pending",
+    "to": "tz-ops",
+    "type": "control",
     "d": "M189 730V614",
-    "label": "Output policy",
+    "label": "applyOPL / result",
     "lx": 189,
-    "ly": 670
+    "ly": 670,
+    "both": true
   },
   {
-    "id": "policy-ops",
-    "from": "output-policy",
+    "id": "ops-bridge",
+    "from": "tz-ops",
     "to": "ops",
     "type": "control",
     "d": "M324 572H376V368H430",
@@ -653,7 +684,7 @@ const links = [
     "from": "gate",
     "to": "pipeline",
     "type": "control",
-    "d": "M615 564V787Q603 793 615 799V830",
+    "d": "M615 564V830",
     "label": "Allow / block source bind",
     "lx": 615,
     "ly": 605
@@ -663,7 +694,7 @@ const links = [
     "from": "screen",
     "to": "pipeline",
     "type": "control",
-    "d": "M515 722V787Q503 793 515 799V830",
+    "d": "M515 722V830",
     "label": "Host surface",
     "lx": 497,
     "ly": 815
@@ -673,8 +704,8 @@ const links = [
     "from": "guest-backend",
     "to": "pipeline",
     "type": "control",
-    "d": "M715 722V787Q703 793 715 799V830",
-    "label": "Buffer handles",
+    "d": "M715 722V830",
+    "label": "Source handles / attributes",
     "lx": 740,
     "ly": 815
   },
@@ -709,9 +740,9 @@ const links = [
     "id": "hwc-guest",
     "from": "hwc",
     "to": "guest-backend",
-    "type": "pending",
-    "d": "M1425 1112V1144H866V799Q854 793 866 787V686H800",
-    "label": "Guest display bridge · protected attributes to confirm",
+    "type": "control",
+    "d": "M1425 1112V1144H866V686H800",
+    "label": "DRM/KMS · WFD_FE · HAB",
     "lx": 1134,
     "ly": 1144
   },
@@ -720,7 +751,7 @@ const links = [
     "from": "widevine-ta",
     "to": "compressed",
     "type": "media",
-    "d": "M189 812V1296H204V1314",
+    "d": "M189 812V1296H204V1302",
     "label": "Protected compressed video",
     "lx": 205,
     "ly": 1160
@@ -750,7 +781,7 @@ const links = [
     "from": "compressed",
     "to": "decoder",
     "type": "media",
-    "d": "M354 1352H430"
+    "d": "M366 1352H430"
   },
   {
     "id": "decoder-frames",
@@ -764,7 +795,7 @@ const links = [
     "from": "frames",
     "to": "dpu",
     "type": "media",
-    "d": "M1080 1352H1170"
+    "d": "M1092 1352H1170"
   },
   {
     "id": "dpu-link",
@@ -780,9 +811,9 @@ const links = [
     "id": "link-display",
     "from": "link",
     "to": "display",
-    "type": "pending",
+    "type": "media",
     "d": "M1060 1564H1220",
-    "label": "HDCP, if required",
+    "label": "Panel link",
     "lx": 1140,
     "ly": 1564
   },
@@ -854,10 +885,11 @@ const edgeLayer=document.getElementById('edges');
 const labelLayer=document.getElementById('edge-labels');
 const index=new Map(modules.map(m=>[m.id,m]));
 function svgEl(tag,attrs={},text){const el=document.createElementNS(svgNS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);if(text!==undefined)el.textContent=text;return el;}
+function appendNodeShape(g,m){if(m.shape==='memory'){for(const offset of [12,6])g.append(svgEl('rect',{x:m.x+offset,y:m.y-offset,width:m.w,height:m.h,rx:3,class:'memory-layer'}));}g.append(svgEl('rect',{x:m.x,y:m.y,width:m.w,height:m.h,rx:m.shape==='memory'?3:6,class:'node-face'}));}
 for(const link of links){const g=svgEl('g',{class:'edge-group','data-edge':link.id});const path=svgEl('path',{class:'edge '+link.type,d:link.d,'marker-end':'url(#arrow-'+link.type+')'});if(link.both)path.setAttribute('marker-start','url(#arrow-'+link.type+')');g.append(path);edgeLayer.append(g);if(link.label){const lg=svgEl('g',{class:'edge-label '+link.type,'data-edge':link.id});if(link.rotate)lg.setAttribute('transform','rotate('+link.rotate+' '+link.lx+' '+link.ly+')');const w=Math.max(60,link.label.length*6.1+16);lg.append(svgEl('rect',{x:link.lx-w/2,y:link.ly-10.5,width:w,height:21,rx:4}));lg.append(svgEl('text',{x:link.lx,y:link.ly+4,'text-anchor':'middle'},link.label));labelLayer.append(lg);}}
 let selectedId=null;
 let suppressClickUntil=0;
-for(const m of modules){const g=svgEl('g',{class:'node '+m.kind,'data-node':m.id,tabindex:0,role:'button','aria-label':m.name.join(' ')});g.append(svgEl('rect',{x:m.x,y:m.y,width:m.w,height:m.h,rx:6}));const lineHeight=m.name.length*18+m.sub.length*16;let ty=m.y+(m.h-lineHeight)/2+13;for(const s of m.name){g.append(svgEl('text',{x:m.x+m.w/2,y:ty,'text-anchor':'middle',class:'node-name'},s));ty+=18;}for(const s of m.sub){g.append(svgEl('text',{x:m.x+m.w/2,y:ty+1,'text-anchor':'middle',class:'node-sub'},s));ty+=16;}g.append(svgEl('title',{},m.name.join(' ')+' · '+m.ev));g.addEventListener('click',()=>{if(performance.now()>=suppressClickUntil&&!hasTextSelection())select(m.id);});g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(m.id);}});nodeLayer.append(g);}
+for(const m of modules){const g=svgEl('g',{class:'node '+m.kind+(m.shape?' '+m.shape:''),'data-node':m.id,tabindex:0,role:'button','aria-label':m.name.join(' ')});appendNodeShape(g,m);const lineHeight=m.name.length*18+m.sub.length*16;let ty=m.y+(m.h-lineHeight)/2+13;for(const s of m.name){g.append(svgEl('text',{x:m.x+m.w/2,y:ty,'text-anchor':'middle',class:'node-name'},s));ty+=18;}for(const s of m.sub){g.append(svgEl('text',{x:m.x+m.w/2,y:ty+1,'text-anchor':'middle',class:'node-sub'},s));ty+=16;}g.append(svgEl('title',{},m.name.join(' ')+' · '+m.ev));g.addEventListener('click',()=>{if(performance.now()>=suppressClickUntil&&!hasTextSelection())select(m.id);});g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(m.id);}});nodeLayer.append(g);}
 for(const el of document.querySelectorAll('.node-name')){const m=index.get(el.parentNode.dataset.node);if(el.textContent.length*7.5>m.w-22)el.setAttribute('style','font-size:13px');}
 function select(id){if(selectedId===id){clearSelection();return;}if(!index.has(id))return;selectedId=id;const near=new Set([id]),connected=new Set();for(const e of links)if(e.from===id||e.to===id){near.add(e.from);near.add(e.to);connected.add(e.id);}for(const el of nodeLayer.children){el.classList.toggle('dim',!near.has(el.dataset.node));el.classList.toggle('selected',el.dataset.node===id);el.setAttribute('aria-pressed',el.dataset.node===id?'true':'false');}for(const el of edgeLayer.children){el.classList.toggle('dim',!connected.has(el.dataset.edge));el.querySelector('path').classList.toggle('active',connected.has(el.dataset.edge));}for(const el of labelLayer.children)el.classList.toggle('dim',!connected.has(el.dataset.edge));}
 function clearSelection(){selectedId=null;for(const el of document.querySelectorAll('.dim,.selected,.active'))el.classList.remove('dim','selected','active');for(const el of nodeLayer.children)el.setAttribute('aria-pressed','false');}

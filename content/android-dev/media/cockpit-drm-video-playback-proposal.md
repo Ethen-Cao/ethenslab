@@ -57,7 +57,7 @@ Netflix 官方已支持部分车载系统，但支持范围因车型、年款和
 
 ## 3. 系统总体架构
 
-绿色表示 QNX／AOSP 平台模块，黄色表示设备侧 Widevine 组件及供应商闭源实现，灰色表示硬件，蓝色表示云服务。Player／Browser 的交付来源待选型，使用白色。
+绿色表示 QNX／AOSP 平台模块，黄色表示设备侧 Widevine 组件及供应商闭源实现，灰色表示硬件与受保护内存，蓝色表示云服务。Player／Browser 的交付来源待选型，使用白色。
 
 <iframe src="../../../diagrams/cockpit-drm-playback-architecture.html" title="Cockpit DRM Playback Architecture" loading="lazy" style="display:block;width:100%;height:850px;border:1px solid #dadce0;border-radius:8px;overflow:hidden;"></iframe>
 
@@ -72,14 +72,15 @@ Netflix 官方已支持部分车载系统，但支持范围因车型、年款和
 | Cloud | Widevine License Service | DRM 后端服务 | 生成含受保护内容密钥及播放策略的许可证响应 |
 | Cloud | Provisioning Service | 设备凭据服务 | 处理设备凭据配置请求，与播放许可证服务分开 |
 | TEE | Credential & Key Services | 供应商安全实现 | 管理设备绑定凭据和密钥材料，限制普通系统访问 |
-| TEE | Output Protection Policy | 安全侧职责抽象 | 关联许可证限制与可信输出状态，生成保护要求；具体安全侧实现待确认 |
+| TEE | Output Protection Service (OPS / OPSSource) | 高通安全组件 | Widevine TA 通过 OPSSource 提交输出保护等级；OPS 汇总内容与显示保护等级，执行输出保护 |
 | TEE | Widevine TA | Widevine／芯片方交付 | 执行密钥运算、受保护解密及安全策略 |
 | QNX | OPS Listener / Display Bridge | 高通预编译组件 | 通过 QSEECom listener 接收保护命令，执行时钟请求、最低加密等级和 OEM 安全端口配置，返回处理结果 |
 | QNX | OpenWFD OEM Secure Gate | QNX 平台扩展 | 接受 OEM secure 配置，在安全源绑定时检查端口属性并阻断不满足条件的绑定 |
 | QNX | QNX Screen | QNX 平台 | 管理本地窗口和图形表面，向显示后端提供 Host 显示源 |
-| QNX | Guest Display Backend | QNX／BSP 源码 | 接收 Android 显示请求和 Buffer 引用；核验导入后的 protected 属性 |
+| QNX | WFD Backend (wfd_be) | QNX／BSP 源码 | 接收 WFD_FE 请求、Buffer 引用及 `WFD_SOURCE_TRANSLATION_SECURED` 源属性；HAB Buffer 导入与安全源属性分别传递 |
 | QNX | OpenWFD Source / Pipeline | QNX 显示平台 | 关联显示源、Pipeline 与 Port，配置允许输出的显示源 |
 | QNX | Display Driver | BSP 源码 | 配置显示控制器、扫描输出和相关显示资源 |
+| QNX | QCPE / SCM Backend | 高通预编译组件 | 接收 Guest 经 SCM／HAB 转发的安全调用，衔接 TZ 请求与响应 |
 | Android | Player / Browser | 客户端选型待定 | 获取内容和授权，转发 DRM 消息；取得 sessionId 后关联 MediaCrypto 并配置 MediaCodec |
 | Android | MediaDrm | AOSP | 管理 DRM 会话，取得许可证／配置请求，将网络响应交回插件 |
 | Android | MediaCodec / MediaCrypto | AOSP | 关联 DRM 会话与解码器，提交加密 Sample 及元数据，管理解码输出 |
@@ -91,18 +92,20 @@ Netflix 官方已支持部分车载系统，但支持范围因车型、年款和
 | Android | OEMCrypto API / Adapter | Google／Widevine 代码 | 封装 OEMCrypto API，按会话分派至 L1／L3 实现；本图仅展开 L1 后端 |
 | Android | L1 Platform Libraries | 高通闭源库 | 提供 liboemcrypto.so 的 L1 平台实现，以及安全应用加载和输出保护相关平台库；不表示每次解密依次调用所列全部库 |
 | Android | SurfaceFlinger | AOSP | 管理图层和受保护表面，协调合成及显示提交 |
-| Android | Hardware Composer | AOSP 接口／BSP 实现 | 识别受保护图层，配置硬件合成并向显示后端提交 Buffer 引用 |
+| Android | Hardware Composer | AOSP 接口／BSP 实现 | 识别安全 Buffer，经 DRM/KMS 和 WFD_FE 传递显示请求及安全源属性，由 QNX wfd_be 对接 OpenWFD |
 | Hypervisor | Hypervisor | 平台隔离层 | 管理 VM 隔离、内存归属及设备分配／虚拟化 |
 | Hardware | Protected Compressed Buffers | 受保护内存 | 保存解密后的压缩视频，限制普通系统读取 |
 | Hardware | Secure Video Decoder | VPU | 读取受保护码流，解码并输出受保护像素帧 |
 | Hardware | Protected Video Frames | 受保护内存 | 保存解码像素，普通侧通过受限 Buffer 引用参与显示控制 |
 | Hardware | Display Processing Unit | DPU | 读取受保护帧，执行显示处理和扫描输出 |
-| Display Output | Display Link | SerDes／面板链路 | 传输显示像素；逐段确认保护能力、启用状态和终止位置 |
-| Display Output | Cockpit Display | 屏幕 | 显示获准输出的画面，按产品规则限制屏幕、车辆状态和并发 |
+| Display Output | Display Link | SerDes／面板链路 | 将显示控制器的像素输出传输至物理屏幕 |
+| Display Output | Display Panel | 屏幕 | 显示经面板链路输入的画面 |
 
 TEE 是 SoC 的安全执行环境。VPU、DPU 和受保护内存属于硬件能力，单独放在硬件区域。
 
-图中的跨域线分别表示安全调用、显示控制及 Buffer 引用。受保护媒体数据在硬件允许的路径中流动，不能用一条普通 IPC 连线推导其安全性。
+两组堆叠矩形表示受保护内存中的 Buffer Pool，是本图的形状约定。它们分别保存解密后的压缩码流和解码后的像素帧，可位于受保护 DDR 中，不表示两颗独立存储器件或固定分区。
+
+架构图只保留有源码或供应商资料依据的组件与关系，部署配置及运行验证单独列于下表。图中的跨域线分别表示安全调用、显示控制及 Buffer 引用。受保护媒体数据在硬件允许的路径中流动，不能用一条普通 IPC 连线推导其安全性。
 
 ### 3.2 Widevine 代码与动态库
 
@@ -132,20 +135,24 @@ TEE 是 SoC 的安全执行环境。VPU、DPU 和受保护内存属于硬件能�
 
 两个 Plugin 通过 `getCDM()` 复用同一 `WvContentDecryptionModule` 入口对象，不代表共用同一个播放会话。参数、会话、密钥或策略检查失败时可以提前返回；不能把每次 API 调用都理解为进入 TEE。
 
-### 3.4 当前证据与待确认边界
+### 3.4 已确认关系与部署验证
 
 | 路径 | 可确认的内容 | 尚需验证 |
 | :--- | :--- | :--- |
 | CDM／通用加密接口 → OEMCrypto Adapter | 主链与通用分支均有源码调用依据，Adapter 按会话分派，L1 初始化动态加载平台 OEMCrypto | 实际会话的 L1／L3 选择、库与 TA 版本及运行状态 |
 | Crypto HAL → Secure Buffer | 本地实现接受 `NATIVE_HANDLE` 安全目标缓冲区 | 整条解密、解码、合成路径是否持续保留保护属性 |
-| Android → QNX Display Backend | QNX 显示 BE 源码包含 HAB Buffer 导入及 WFD 调用转发 | 实际 FE／BE 构建选型、端口映射和安全 Buffer 支持 |
-| TEE → QNX OPS Listener | 预编译组件注册 QSEECom listener，接收保护命令并返回处理结果 | 安全侧策略来源、可信 HDCP 状态获取和异常恢复 |
+| Android SCM → QNX QCPE → TZ | SCM 源码通过 HAB 的 `MM_QCPE_VM1` 转发 SMC 并接收结果；`autogvm.config` 启用 `CONFIG_QCOM_SCM_HAB=y`，QNX 后端有预编译组件依据 | 实际镜像配置、OEMCrypto 运行路径及库／TA 配套版本 |
+| Widevine TA → OPS／OPSSource | TA 构建声明 OPS／OPSSource 权限，所链接实现使用 `applyOPL` 提交输出保护等级 | 当前安全固件的策略输入、端口映射与运行状态 |
+| HWC → WFD_FE → QNX wfd_be | HWC 安全 Buffer 标记进入 DRM/KMS；WFD_FE 将 `SDE_DRM_FB_SEC` 转换为 `WFD_SOURCE_TRANSLATION_SECURED` 并传至 QNX | 目标镜像选型、端口映射及受保护播放运行结果 |
+| QNX Buffer 导入与安全源属性 | HAB Buffer 导入与安全源属性分别传递，后端使用安全源属性配置 OpenWFD | 内存归属、CPU／DMA 访问限制及整条路径的实际隔离 |
+| TEE → QNX OPS Listener | 预编译组件注册 QSEECom listener，接收保护命令并返回处理结果 | 可信 HDCP 状态获取、更新时序和异常恢复 |
 | QNX OPS Listener → OpenWFD | 源码允许 OPS 更新 `WFD_DEVICE_OEM_SECURE` 及 `WFD_DEVICE_HDCP_MIN_ENC_LEVEL` | 逐屏配置、更新时序和实际保护效果 |
 | OpenWFD Secure Source Gate | `wfdBindSourceToPipeline()` 检查安全源和端口安全属性 | 每块目标屏幕的实际运行结果 |
+| HBEZ HDCP 配置与桥接插件 | `qcdisplaycfg_HBEZ.xml` 的三个相关 DP 配置均为 `bSkipHDCP=1`；MAX96855 插件报告不支持 HDCP，DS90UB983 插件报告支持，但该配置跳过 HDCP | 当前设备加载的配置、逐屏认证状态及内容策略 |
 
 `bOEMSecure=false` 可以导致安全源被阻断，但这条日志本身不能证明 HDCP 握手失败。端口映射、状态转发和创建时序也需要核对。
 
-`Protection commands / result` 表示安全侧下发命令、QNX 返回处理结果。执行成功不等于 HDCP 认证成功；当前可见 OPS 分派未包含逐屏 HDCP 状态查询。绿色媒体线表示目标受保护数据路径，物理显示链路是否加密仍需逐段验证。
+`Protection commands / result` 表示安全侧下发命令、QNX 返回处理结果。执行成功不等于 HDCP 认证成功；当前可见 OPS 分派未包含逐屏 HDCP 状态查询。绿色媒体线表示媒体及像素传输方向，不表示每段链路均已加密。检查到的 HBEZ 配置跳过 HDCP；插件返回值也不能直接代替器件能力结论。HAB 导入及安全源标记存在，仍不足以证明端到端内存隔离。
 
 ## 4. 播放与授权流程
 
@@ -271,7 +278,7 @@ Widevine 资料访问与 L1 OEMCrypto 获取有各自要求。适用的许可、
 
 三个动态库是平台依赖，不能仅凭清单认定其调用顺序。也不能直接把旧版资料中的 Android Q／R 与 TZ 分支对应关系用于新版本。文件权限、SELinux、签名和加载策略按集成规范配置。
 
-显示集成重点核验安全 Buffer 属性、跨域导入、输出端口映射、OPS 状态更新和保护不足时的阻断。HAB 显示通路在本地源码中可见，不代表 OEMCrypto 到 TA 也使用 HAB。
+显示集成重点核验安全 Buffer 属性、跨域导入、输出端口映射、OPS 状态更新和保护不足时的阻断。本地源码分别确认了 SCM 的 HAB 安全调用传输，以及 WFD_FE／wfd_be 的 HAB 显示通路，两者承担不同职责。实际镜像选型、OEMCrypto 的运行调用及端到端内存隔离仍需运行验证。
 
 ### 8.2 量产与维护
 
@@ -344,6 +351,11 @@ Widevine 资料访问与 L1 OEMCrypto 获取有各自要求。适用的许可、
 | `hardware/qcom/display/sdm/libs/hwc2/hwc_display.cpp` | protected／secure Buffer 识别 |
 | `openwfd/src/device.c`、`wfd_clientmgr.c`、`pipeline.c` | OPS 属性更新、安全端口状态与 Source 绑定检查 |
 | `QSEEComAPI.h`、`qseecom_daemon` 预编译组件 | Listener 接口、OPS 命令分派及处理结果返回 |
-| `wfd_be_qnx/src/host_hab_utils.c`、`wire_host.c` | HAB Buffer 导入和 WFD 请求转发 |
+| `wfd_be_qnx/src/host_hab_utils.c`、`wire_host.c` | HAB Buffer 导入、安全源属性与 WFD 请求转发 |
+| `qcom_scm_hab.c`、`qcom_scm-smc.c`、`vendor/autogvm.config` | SMC 经 HAB／QCPE 转发的实现与 Guest 构建配置 |
+| `libtzbsplib-qvmhost.so.1`、`qcpe_service-qvmhost-lemans` | QNX SCM／QCPE 后端的预编译组件与符号依据 |
+| `widevine_oemcrypto/build/SConscript`、`IOPSSource.idl`、`drm_lib.lib` | TA 权限、`applyOPL` 接口及链接实现的 OPS 调用 |
+| `hwc_layers.cpp`、`hw_device_drm.cpp`、`wfd_kms.c` | 安全 Buffer 标记至 WFD 安全源属性的传递 |
+| `qcdisplaycfg_HBEZ.xml`、`DP0_COMMON_QC.c`、桥接插件 | HDCP 跳过配置、初始化条件与插件能力报告 |
 
 源码路径表示本次参考的平台快照。量产结论需要绑定实际构建版本、目标硬件和运行结果。
