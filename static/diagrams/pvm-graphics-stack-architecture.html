@@ -60,17 +60,14 @@
     .process-title { font-size: 19px; font-weight: 680; }
     .process-sub { font-size: 12px; fill: var(--muted); }
     .section-label { font-size: 13px; font-weight: 650; fill: var(--muted); letter-spacing: .6px; }
-    .android-band { fill: var(--process); fill-opacity: .75; }
-    .android-band.alternate { fill: var(--muted); fill-opacity: .055; }
-    .android-rule { fill: none; stroke: var(--line); stroke-width: 1.2; }
-    .android-layer { font-size: 16px; font-weight: 700; fill: var(--muted); }
-    .ownership { fill: none; stroke: var(--muted); stroke-width: 1.5; }
-    .ownership-header { fill: var(--line); fill-opacity: .5; }
-    .ownership-title { font-size: 14px; font-weight: 650; }
+    .layer-panel { fill: var(--process); stroke: var(--line); stroke-width: 1.5; }
+    .layer-heading-rule { fill: none; stroke: var(--line); stroke-width: 1; }
+    .layer-heading { font-size: 21px; font-weight: 720; }
     .annotation { font-size: 14px; fill: var(--muted); }
     .annotation-title { font-size: 18px; font-weight: 650; }
     .edge { fill: none; stroke-linecap: round; stroke-linejoin: round; }
     .edge.control { stroke: var(--blue); stroke-width: 2.1; }
+    .edge.notification { stroke-dasharray: 3 5; }
     .edge.pixel { stroke: var(--green); stroke-width: 3.3; }
     .edge.config { stroke: var(--muted); stroke-width: 1.8; stroke-dasharray: 6 5; }
     .edge-halo { fill: none; stroke: var(--panel); stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
@@ -104,21 +101,22 @@
     .legend b { color: var(--ink); font-weight: 600; }
     .chip { display: inline-block; width: 17px; height: 11px; border-radius: 2px; }
     .chip.oem { background: var(--oem); }.chip.native { background: var(--native); }.chip.vendor { background: var(--vendor); }.chip.hardware { background: var(--hardware); }
-    .line { width: 23px; border-top: 2px solid var(--blue); }.line.pixel { border-color: var(--green); border-top-width: 3px; }.line.config { border-color: var(--muted); border-top-style: dashed; }
+    .line { width: 23px; border-top: 2px solid var(--blue); }.line.pixel { border-color: var(--green); border-top-width: 3px; }.line.config { border-color: var(--muted); border-top-style: dashed; }.line.notify { border-top-style: dotted; }
     .sources { font-size: 10px; color: var(--muted); margin-top: 3px; } .sources a { color: var(--blue); }
     .detail { padding: 7px 11px; border-left: 3px solid var(--blue); border-radius: 0 5px 5px 0; background: var(--panel); min-height: 58px; max-height: 112px; overflow: auto; font-size: 12px; }
+    .detail[hidden] { display: none; }
     .detail strong { font-size: 13px; margin-right: 9px; }
     #detail-body { color: var(--muted); }
     @media (max-width: 900px) { body { padding: 7px; } h1 { font-size: 16px; } .subtitle, .hint { display: none; } .tools { gap: 3px; } button { padding: 3px 7px; } }
     @media (max-width: 540px) { header { gap: 6px; } .tools { margin-left: 0; width: 100%; } .legend { gap: 3px 10px; font-size: 10px; } .filters { gap: 4px; } .detail { max-height: 100px; font-size: 11px; } }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-    @media print { html, body { height: auto; overflow: visible; background: #fff; } main { display: block; } .tools, .filters, .detail { display: none; } .diagram-shell { height: auto; border: 0; } svg { height: auto; aspect-ratio: 2400 / 1540; } .legend { margin-top: 8px; } }
+    @media print { html, body { height: auto; overflow: visible; background: #fff; } main { display: block; } .tools, .filters, .detail { display: none; } .diagram-shell { height: auto; border: 0; } svg { height: auto; aspect-ratio: 2240 / 1540; } .legend { margin-top: 8px; } }
   </style>
 </head>
 <body>
 <main>
   <header>
-    <div><h1>SA8797 · PVM 图形栈架构</h1><span class="subtitle">软件分层 / Android 渲染与显示 / 跨 VM 控制 · PVM 基线 2026-07-29</span></div>
+    <div><h1>SA8797 · PVM 图形栈架构</h1><span class="subtitle">PVM · Android Guest · Gunyah</span></div>
     <div class="tools">
       <button id="fit" type="button">适应画布</button><button id="android-focus" type="button">放大 Android</button>
       <button id="zoom-out" type="button" aria-label="缩小">−</button><span id="zoom-level" aria-live="polite">100%</span><button id="zoom-in" type="button" aria-label="放大">+</button>
@@ -136,14 +134,15 @@
     <span class="hint">点击节点查看直连关系 · 拖动空白平移 · 文字可选中复制 · Esc 清除</span>
   </nav>
   <section class="diagram-shell" aria-label="可缩放架构图">
-    <svg id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1540" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-desc">
+    <svg id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2240 1540" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-desc">
       <title id="svg-title">PVM 图形栈的软件分层、运行边界与依赖关系</title>
-      <desc id="svg-desc">纵向为应用、图形框架、API与平台客户端、用户态驱动服务、内核、硬件；横向区分 PVM 与 Android Guest。Android 展开 View/RenderNode/HWUI、Surface/BLAST、SurfaceFlinger/HWC，以及 Adreno UMD/libgsl/HGSL。GPU控制经HAB到PVM RGS，DBCQ命令快路径到GMU；显示经HAB到2D Backend与OpenWFD。蓝线是控制，绿线是像素，交叉处弧线表示不相连。</desc>
+      <desc id="svg-desc">横向区分 PVM 与 Android Guest。Android 自上而下分为 Java、Native、HAL、Linux kernel 四层。HGSL 通过 HAB/VirtIO 向 PVM HAB vhost 后端发送控制与注册请求；DBCQ 就绪后，HGSL 写入共享命令队列，另以 doorbell 通知 GMU firmware 消费命令。SurfaceFlinger 经 HWC、DRM 显示前端和 HAB 到达 PVM 显示后端。绿色为像素流，蓝色点线为 doorbell 通知，跨线弧表示交叉但不连接。</desc>
       <defs>
         <marker id="arrow-control" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L8 5 L1 9" fill="none" stroke="var(--blue)" stroke-width="2"/></marker>
         <marker id="arrow-pixel" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L9 5.5 L1 10" fill="none" stroke="var(--green)" stroke-width="2.5"/></marker>
         <marker id="arrow-config" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L8 5 L1 9" fill="none" stroke="var(--muted)" stroke-width="1.8"/></marker>
       </defs>
+      <g id="diagram-content" transform="translate(-160 0)">
       <g id="containers">
         <!-- Horizontal bands = software abstraction; vertical domains = VM ownership. -->
         <rect class="domain" x="180" y="20" width="1020" height="1188" rx="10"/>
@@ -155,14 +154,6 @@
         <path class="layer-rule" d="M180 82 H1200 M180 192 H1200 M180 590 H1200 M180 850 H1200"/>
         <rect class="layer-band" x="180" y="202" width="1020" height="380"/>
         <rect class="layer-band" x="180" y="864" width="1020" height="120"/>
-        <text class="layer-number" x="24" y="116">01</text><text class="layer-name" x="24" y="142">应用层</text><text class="layer-sub" x="24" y="164">内容生产者</text>
-        <text class="layer-number" x="24" y="324">02</text><text class="layer-name" x="24" y="352">图形框架</text><text class="layer-name" x="24" y="378">与帧管理</text><text class="layer-sub" x="24" y="405">场景 / 渲染 / 合成</text>
-        <text class="layer-number" x="24" y="658">03</text><text class="layer-name" x="24" y="686">客户端适配</text><text class="layer-sub" x="24" y="712">API / UMD / HAL</text>
-        <text class="layer-number" x="24" y="908">04</text><text class="layer-name" x="24" y="936">驱动服务</text><text class="layer-sub" x="24" y="963">用户态 · 显示与 GPU</text>
-        <text class="layer-number" x="24" y="1080">05</text><text class="layer-name" x="24" y="1108">内核接口</text><text class="layer-sub" x="24" y="1134">设备前端 / HAB / 资源</text>
-        <text class="layer-name" x="24" y="1240">虚拟化底座</text>
-        <text class="layer-number" x="24" y="1304">06</text><text class="layer-name" x="24" y="1332">图形硬件</text><text class="layer-sub" x="24" y="1358">GPU / DPU / 物理输出</text>
-        <text class="layer-name" x="24" y="1458">缓冲区</text><text class="layer-sub" x="24" y="1483">独立的数据平面</text>
         <rect class="process" x="196" y="212" width="512" height="630" rx="7"/>
         <path class="process-divider" d="M196 590 H708"/>
         <text class="process-title" x="214" y="236">Weston 13.0.1</text>
@@ -173,28 +164,26 @@
         <text class="process-sub" x="748" y="270">display-be · PVM 用户态</text>
         <text class="process-sub" x="748" y="290">VirtIO GPU 2D → OpenWFD</text>
         <text class="process-sub" x="1056" y="628">VMM 配置桥</text>
-        <!-- Android: explicit layer bands and process ownership, aligned vertical dependencies. -->
-        <rect class="android-band" x="1232" y="210" width="1136" height="216"/>
-        <rect class="android-band alternate" x="1232" y="438" width="1136" height="180"/>
-        <rect class="android-band" x="1232" y="632" width="1136" height="134"/>
-        <rect class="android-band alternate" x="1232" y="790" width="1136" height="194"/>
-        <path class="android-rule" d="M1232 82 H2368 M1232 198 H2368 M1232 426 H2368 M1232 618 H2368 M1232 774 H2368 M1232 984 H2368"/>
-        <text class="android-layer" x="1248" y="158">应用</text>
-        <text class="android-layer" x="1248" y="273">Java</text><text class="android-layer" x="1248" y="295">Framework</text>
-        <text class="android-layer" x="1248" y="485">Native</text><text class="android-layer" x="1248" y="507">Rendering</text>
-        <text class="android-layer" x="1248" y="698">Native</text><text class="android-layer" x="1248" y="720">Graphics</text>
-        <text class="android-layer" x="1248" y="855">HAL</text><text class="android-layer" x="1248" y="877">驱动库</text>
-        <text class="android-layer" x="1248" y="1069">Linux</text><text class="android-layer" x="1248" y="1091">Kernel</text>
-        <rect class="ownership" x="1378" y="96" width="972" height="518" rx="6"/>
-        <rect class="ownership-header" x="1378" y="96" width="972" height="32" rx="6"/>
-        <text class="ownership-title" x="1390" y="118">应用进程</text>
-        <path class="process-divider" d="M1378 426 H2350"/>
-        <rect class="ownership" x="2038" y="634" width="312" height="126" rx="6"/>
-        <rect class="ownership-header" x="2038" y="634" width="312" height="30" rx="6"/>
-        <text class="ownership-title" x="2050" y="654">SurfaceFlinger 进程</text>
-        <text class="section-label" x="1390" y="803">GPU 用户态驱动</text>
-        <text class="section-label" x="1720" y="813">Buffer 分配</text>
-        <text class="section-label" x="2050" y="813">Display HAL</text>
+        <g class="android-layer" data-layer="Java">
+          <rect class="layer-panel" x="1238" y="94" width="1124" height="314" rx="6"/>
+          <path class="layer-heading-rule" d="M1238 126 H2362"/>
+          <text class="layer-heading" x="1254" y="117">Java</text>
+        </g>
+        <g class="android-layer" data-layer="Native">
+          <rect class="layer-panel" x="1238" y="424" width="1124" height="426" rx="6"/>
+          <path class="layer-heading-rule" d="M1238 456 H2362"/>
+          <text class="layer-heading" x="1254" y="447">Native</text>
+        </g>
+        <g class="android-layer" data-layer="HAL">
+          <rect class="layer-panel" x="1238" y="872" width="1124" height="116" rx="6"/>
+          <path class="layer-heading-rule" d="M1238 904 H2362"/>
+          <text class="layer-heading" x="1254" y="895">HAL</text>
+        </g>
+        <g class="android-layer" data-layer="Linux kernel">
+          <rect class="layer-panel" x="1238" y="1008" width="1124" height="200" rx="6"/>
+          <path class="layer-heading-rule" d="M1238 1040 H2362"/>
+          <text class="layer-heading" x="1254" y="1031">Linux kernel</text>
+        </g>
         <path class="mode-boundary" d="M180 1000 H2380"/>
         <text class="mode-label" x="182" y="993">USER SPACE</text><text class="mode-label" x="182" y="1021">KERNEL SPACE</text>
         <rect class="foundation" x="180" y="1224" width="2200" height="24" rx="5"/>
@@ -203,21 +192,22 @@
         <path class="layer-rule" d="M196 1422 H1760"/>
       </g>
       <g id="edges"></g><g id="bridge-overlays" pointer-events="none"></g><g id="nodes"></g><g id="edge-labels"></g>
+      </g>
     </svg>
   </section>
   <footer>
     <div class="legend" aria-label="图例">
       <span><b>组件来源</b></span><span><i class="chip oem"></i>OEM 应用</span><span><i class="chip native"></i>通用 / 开源</span><span><i class="chip vendor"></i>Qualcomm / 平台实现</span><span><i class="chip hardware"></i>硬件 / buffer</span>
-      <span><b>连线</b></span><span><i class="line"></i>调用 / 提交依赖</span><span><i class="line pixel"></i>像素读写 / 取图</span><span><i class="line config"></i>配置 / 分配依赖（非逐帧）</span><span>弧形跨线 = 交叉但不连接</span>
+      <span><b>连线</b></span><span><i class="line"></i>调用 / 提交依赖</span><span><i class="line notify"></i>doorbell 通知</span><span><i class="line pixel"></i>像素读写 / 取图</span><span><i class="line config"></i>配置 / 分配依赖（非逐帧）</span><span>弧形跨线 = 交叉但不连接</span>
     </div>
-    <div class="sources">依据：<a href="https://source.android.com/docs/core/graphics/architecture" target="_blank" rel="noopener">AOSP Graphics</a> · <a href="https://source.android.com/docs/core/graphics/hwc" target="_blank" rel="noopener">HWC</a> · 平台源码：kgsl-rgs-architecture.md / display-virtio-hab-datapath.md · Android 部分结合 AOSP 与源码分析</div>
+    <div class="sources">依据：<a href="https://source.android.com/docs/core/graphics/architecture" target="_blank" rel="noopener">AOSP Graphics</a> · <a href="https://source.android.com/docs/core/graphics/hwc" target="_blank" rel="noopener">HWC</a> · 平台源码分析：kgsl-rgs-architecture.md / display-virtio-hab-datapath.md</div>
   </footer>
   <aside class="detail" aria-live="polite" aria-atomic="true"><strong id="detail-title">组件详情</strong><span id="detail-body">选择组件查看职责和接口。</span></aside>
 </main>
 <script>
 'use strict';
 // Layout coordinates describe the architecture; no external libraries or network requests.
-const WIDTH = 2400, HEIGHT = 1540;
+const WIDTH = 2240, HEIGHT = 1540;
 const nodes = [
   {
     "id": "apps",
@@ -508,7 +498,7 @@ const nodes = [
     "kind": "vendor",
     "name": [
       "Host HAB",
-      "vhost 后端"
+      "VirtIO BE"
     ],
     "sub": [
       "msm_hab.ko",
@@ -516,29 +506,30 @@ const nodes = [
       "/dev/vhost-disp",
       "/dev/vhost-ogles"
     ],
-    "detail": "PVM 内核 HAB vhost transport，承载 Guest 显示与 GPU 控制两类独立逻辑通道。显示消息通过 /dev/hab / libuhab.so 到 display-be；MM_GFX 控制消息到 gsl_hab_server。图中合并内核 transport，不表示 disp 与 ogles 共用同一业务队列。"
+    "detail": "PVM 内核 hab_vhost.c 是 HAB/VirtIO 的传输后端：/dev/vhost-ogles 对应 MM_GFX（device 94），/dev/vhost-disp 对应显示通道（device 93）。它消费 virtqueue 中的 HAB 消息，再分发到 GPU RPC 服务 gsl_hab_server / RGS 或显示服务 display-be。vhost-user-qti 配置 vring、内存表和 kick/call；DBCQ 命令快路径不经过该 VirtIO 后端。"
   },
   {
     "id": "guestapps",
-    "x": 1390,
-    "y": 138,
-    "w": 950,
-    "h": 48,
+    "x": 1254,
+    "y": 144,
+    "w": 1084,
+    "h": 50,
     "kind": "oem",
     "name": [
-      "Android 应用"
+      "Android UI 应用"
     ],
     "sub": [
-      "View UI · SurfaceView · Native / 3D"
+      "View · Canvas · SurfaceView"
     ],
-    "detail": "应用通过 View 系统绘制 UI；应用窗口的渲染和 SurfaceFlinger 的显示合成是不同阶段，也可使用不同 GPU context。"
+    "detail": "应用通过 View 系统构建界面，由 RenderThread/HWUI 执行绘制。",
+    "layer": "Java"
   },
   {
     "id": "engine",
-    "x": 1720,
-    "y": 470,
-    "w": 270,
-    "h": 64,
+    "x": 1630,
+    "y": 480,
+    "w": 310,
+    "h": 54,
     "kind": "oem",
     "name": [
       "Native / 3D Engine"
@@ -546,14 +537,15 @@ const nodes = [
     "sub": [
       "GLES 或 Vulkan"
     ],
-    "detail": "游戏/3D 引擎可直接使用 GLES/Vulkan 产生窗口内容，并向 Surface/ANativeWindow queue buffer。SurfaceView 提供独立 surface，不是另一套硬件 GPU。"
+    "detail": "游戏/3D 引擎可直接使用 GLES/Vulkan 产生窗口内容，并向 Surface/ANativeWindow queue buffer。SurfaceView 提供独立 surface，不是另一套硬件 GPU。",
+    "layer": "Native"
   },
   {
     "id": "surfaceview",
-    "x": 2050,
-    "y": 250,
-    "w": 290,
-    "h": 58,
+    "x": 1998,
+    "y": 230,
+    "w": 340,
+    "h": 54,
     "kind": "native",
     "name": [
       "SurfaceView"
@@ -561,14 +553,15 @@ const nodes = [
     "sub": [
       "独立 Surface"
     ],
-    "detail": "SurfaceView 的 surface 可由原生引擎等独立生产者使用，其层和事务最终由 SurfaceFlinger 管理。此处展示常见窗口生产路径，不声称所有视频/相机生产者都必须经过 GPU。"
+    "detail": "SurfaceView 的 surface 可由原生引擎等独立生产者使用，其层和事务最终由 SurfaceFlinger 管理。此处展示常见窗口生产路径，不声称所有视频/相机生产者都必须经过 GPU。",
+    "layer": "Java"
   },
   {
     "id": "viewroot",
-    "x": 1390,
-    "y": 250,
-    "w": 290,
-    "h": 58,
+    "x": 1254,
+    "y": 230,
+    "w": 316,
+    "h": 54,
     "kind": "native",
     "name": [
       "ViewRootImpl / ViewTree"
@@ -576,29 +569,31 @@ const nodes = [
     "sub": [
       "performTraversals · UI thread"
     ],
-    "detail": "ViewRootImpl 驱动 View 遍历与绘制，并协调 ThreadedRenderer、窗口 surface 和 BLAST 相关对象的建立与更新。"
+    "detail": "ViewRootImpl 驱动 View 遍历与绘制，并协调 ThreadedRenderer、窗口 surface 和 BLAST 相关对象的建立与更新。",
+    "layer": "Java"
   },
   {
     "id": "record",
-    "x": 1390,
-    "y": 340,
-    "w": 290,
-    "h": 64,
+    "x": 1254,
+    "y": 318,
+    "w": 316,
+    "h": 58,
     "kind": "native",
     "name": [
       "RecordingCanvas / RenderNode"
     ],
     "sub": [
-      "记录 DisplayList · 数据同步"
+      "Java API · DisplayList"
     ],
-    "detail": "View 的绘制操作记录为 RenderNode/DisplayList，并同步至 RenderThread/HWUI 执行。"
+    "detail": "View 的绘制操作记录为 RenderNode/DisplayList，并同步至 RenderThread/HWUI 执行。",
+    "layer": "Java"
   },
   {
     "id": "threaded",
-    "x": 1720,
-    "y": 250,
-    "w": 270,
-    "h": 58,
+    "x": 1630,
+    "y": 230,
+    "w": 310,
+    "h": 54,
     "kind": "native",
     "name": [
       "ThreadedRenderer"
@@ -606,14 +601,15 @@ const nodes = [
     "sub": [
       "syncAndDrawFrame"
     ],
-    "detail": "Java ThreadedRenderer 与 Native RenderThread 同步帧，安排 HWUI 绘制；它不是另一个独立的 compositor。"
+    "detail": "Java ThreadedRenderer 与 Native RenderThread 同步帧，安排 HWUI 绘制；它不是另一个独立的 compositor。",
+    "layer": "Java"
   },
   {
     "id": "hwui",
-    "x": 1390,
-    "y": 470,
-    "w": 290,
-    "h": 64,
+    "x": 1254,
+    "y": 480,
+    "w": 316,
+    "h": 54,
     "kind": "native",
     "name": [
       "RenderThread / HWUI"
@@ -621,14 +617,15 @@ const nodes = [
     "sub": [
       "libhwui · Skia GPU backend"
     ],
-    "detail": "RenderThread/HWUI 同步并处理 RenderNode 数据，通过 Skia 的 GLES 或 Vulkan 后端渲染。Skia/HWUI 通过 Surface/ANativeWindow 获取生产目标，随后提交带 fence 的 buffer。"
+    "detail": "RenderThread/HWUI 同步并处理 RenderNode 数据，通过 Skia 的 GLES 或 Vulkan 后端渲染。Skia/HWUI 通过 Surface/ANativeWindow 获取生产目标，随后提交带 fence 的 buffer。",
+    "layer": "Native"
   },
   {
     "id": "surface",
-    "x": 2050,
-    "y": 458,
-    "w": 290,
-    "h": 52,
+    "x": 1998,
+    "y": 480,
+    "w": 340,
+    "h": 54,
     "kind": "native",
     "name": [
       "Surface / ANativeWindow"
@@ -636,14 +633,15 @@ const nodes = [
     "sub": [
       "dequeue / queueBuffer"
     ],
-    "detail": "Surface/ANativeWindow 是 buffer producer 接口，围绕 dequeue/queue 管理可写缓冲区。GLES 常见入口为 eglSwapBuffers，Vulkan 走 WSI/present；不应把 Vulkan 画成经 EGL 调用。"
+    "detail": "Surface/ANativeWindow 是 buffer producer 接口，围绕 dequeue/queue 管理可写缓冲区。GLES 常见入口为 eglSwapBuffers，Vulkan 走 WSI/present；不应把 Vulkan 画成经 EGL 调用。",
+    "layer": "Native"
   },
   {
     "id": "blast",
-    "x": 2050,
-    "y": 554,
-    "w": 290,
-    "h": 52,
+    "x": 1998,
+    "y": 598,
+    "w": 340,
+    "h": 58,
     "kind": "native",
     "name": [
       "BLASTBufferQueue"
@@ -651,14 +649,15 @@ const nodes = [
     "sub": [
       "各 surface 独立队列"
     ],
-    "detail": "此处汇总展示主窗口与 SurfaceView 的路径；各 surface 有独立的生产端与队列，并非共享一个 BufferQueue。BLAST 的 Java 对象包装 Native 实现，不是 Java/native 串联的两套队列。BLAST 获取生产者提交的 buffer，经 SurfaceControl Transaction 向 SurfaceFlinger 传递 buffer handle、fence 和图层状态，而非把完整像素序列化为 Binder 消息。"
+    "detail": "此处汇总展示主窗口与 SurfaceView 的路径；各 surface 有独立的生产端与队列，并非共享一个 BufferQueue。BLAST 的 Java 对象包装 Native 实现，不是 Java/native 串联的两套队列。BLAST 获取生产者提交的 buffer，经 SurfaceControl Transaction 向 SurfaceFlinger 传递 buffer handle、fence 和图层状态，而非把完整像素序列化为 Binder 消息。",
+    "layer": "Native"
   },
   {
     "id": "sf",
-    "x": 2050,
-    "y": 674,
-    "w": 290,
-    "h": 72,
+    "x": 1998,
+    "y": 744,
+    "w": 340,
+    "h": 78,
     "kind": "native",
     "name": [
       "SurfaceFlinger"
@@ -667,13 +666,14 @@ const nodes = [
       "Layer / fence · RenderEngine",
       "CLIENT / DEVICE composition"
     ],
-    "detail": "SurfaceFlinger 获取 buffer 和图层状态，与 HWC validate/present 协作。CLIENT 图层由 RenderEngine 走自身的 GLES/Vulkan context 合成 client target；DEVICE 图层交给 HWC 处理，不要求所有图层先经 GPU 合成。"
+    "detail": "SurfaceFlinger 获取 buffer 和图层状态，与 HWC validate/present 协作。CLIENT 图层由 RenderEngine 走自身的 GLES/Vulkan context 合成 client target；DEVICE 图层交给 HWC 处理，不要求所有图层先经 GPU 合成。",
+    "layer": "Native"
   },
   {
     "id": "gles",
-    "x": 1390,
-    "y": 674,
-    "w": 290,
+    "x": 1254,
+    "y": 600,
+    "w": 316,
     "h": 72,
     "kind": "native",
     "name": [
@@ -683,14 +683,15 @@ const nodes = [
       "libEGL + libGLESv2（GLES）",
       "libvulkan + WSI（Vulkan）"
     ],
-    "detail": "两条并列 API 路径：EGL 管理 GLES context/window surface，libGLESv2 分派 GL 调用；Vulkan 由 libvulkan 系统 loader 装载 vendor driver 并走 WSI/present，不依赖 libEGL。"
+    "detail": "两条并列 API 路径：EGL 管理 GLES context/window surface，libGLESv2 分派 GL 调用；Vulkan 由 libvulkan 系统 loader 装载 vendor driver 并走 WSI/present，不依赖 libEGL。",
+    "layer": "Native"
   },
   {
     "id": "umd",
-    "x": 1390,
-    "y": 814,
-    "w": 290,
-    "h": 60,
+    "x": 1254,
+    "y": 702,
+    "w": 316,
+    "h": 58,
     "kind": "vendor",
     "name": [
       "Adreno UMD"
@@ -698,14 +699,15 @@ const nodes = [
     "sub": [
       "libGLESv2_adreno / vulkan.adreno"
     ],
-    "detail": "厂商用户态驱动编译和构造 GPU 命令，与 Guest libgsl 配合分配资源和提交工作。命令/IB 不是显示像素，渲染完成后的 buffer 才进入显示提交链。"
+    "detail": "厂商用户态驱动编译和构造 GPU 命令，与 Guest libgsl 配合分配资源和提交工作。命令/IB 不是显示像素，渲染完成后的 buffer 才进入显示提交链。",
+    "layer": "Native"
   },
   {
     "id": "libgsl",
-    "x": 1390,
-    "y": 904,
-    "w": 290,
-    "h": 64,
+    "x": 1254,
+    "y": 788,
+    "w": 316,
+    "h": 52,
     "kind": "vendor",
     "name": [
       "Guest libgsl"
@@ -713,14 +715,15 @@ const nodes = [
     "sub": [
       "资源 / context / command submit"
     ],
-    "detail": "Guest GPU 用户态服务库，经 /dev/hgsl 与 qcom_hgsl 协作。控制请求和 DBCQ 快路径提交的职责不同；并非把每个 GLES API 原封不动跨 VM 远程调用。"
+    "detail": "Guest GPU 用户态服务库，经 /dev/hgsl 与 qcom_hgsl 协作。控制请求和 DBCQ 快路径提交的职责不同；并非把每个 GLES API 原封不动跨 VM 远程调用。",
+    "layer": "Native"
   },
   {
     "id": "hwc",
-    "x": 2050,
-    "y": 824,
-    "w": 290,
-    "h": 64,
+    "x": 1998,
+    "y": 908,
+    "w": 340,
+    "h": 62,
     "kind": "vendor",
     "name": [
       "HWC / Vendor Composer"
@@ -728,14 +731,15 @@ const nodes = [
     "sub": [
       "validate / present"
     ],
-    "detail": "HWC 在用户态，通过 DRM/KMS display frontend 提交设备层与 client-target buffer。DEVICE 不代表所有层必定直接 scanout；最终可用能力受平台实现和资源配置约束。"
+    "detail": "HWC 在用户态，通过 DRM/KMS display frontend 提交设备层与 client-target buffer。DEVICE 不代表所有层必定直接 scanout；最终可用能力受平台实现和资源配置约束。",
+    "layer": "HAL"
   },
   {
     "id": "gralloc",
-    "x": 1720,
-    "y": 824,
-    "w": 270,
-    "h": 64,
+    "x": 1630,
+    "y": 908,
+    "w": 310,
+    "h": 62,
     "kind": "vendor",
     "name": [
       "Gralloc / Allocator"
@@ -743,14 +747,15 @@ const nodes = [
     "sub": [
       "handle · usage / format / stride"
     ],
-    "detail": "供 Surface/BufferQueue 等使用的图形 buffer 分配接口。分配、GPU 渲染、队列同步、显示提交是不同职责；handle/fence/metadata 不等于复制图像像素。"
+    "detail": "供 Surface/BufferQueue 等使用的图形 buffer 分配接口。分配、GPU 渲染、队列同步、显示提交是不同职责；handle/fence/metadata 不等于复制图像像素。",
+    "layer": "HAL"
   },
   {
     "id": "hgsl",
-    "x": 1390,
-    "y": 1040,
-    "w": 290,
-    "h": 72,
+    "x": 1254,
+    "y": 1056,
+    "w": 316,
+    "h": 64,
     "kind": "vendor",
     "name": [
       "/dev/hgsl · qcom_hgsl"
@@ -758,14 +763,32 @@ const nodes = [
     "sub": [
       "Guest GPU 内核前端"
     ],
-    "detail": "Guest HGSL 内核前端：hgsl_hyp 通过 HAB 处理资源/context 等控制 RPC；context 建立后，可将 ISSUE_CMD（含 IB GPU 地址/大小、context、timestamp）写入 DBCQ 并通知 GMU。DBCQ 是命令队列，不是帧 buffer 队列。"
+    "detail": "Guest HGSL 内核前端：context、内存和 DBCQ 注册经 hgsl_hyp → HAB/VirtIO → PVM RGS。DBCQ 就绪后，dbcq_send_msg() 将 HFI ISSUE_CMD 写入已映射队列，执行内存屏障、更新 writeIdx，再单独触发 GMUGOS/TCSR/local GMU doorbell；提交快路径不经过 VirtIO virtqueue。",
+    "layer": "Linux kernel"
+  },
+  {
+    "id": "dbcq",
+    "x": 1254,
+    "y": 1148,
+    "w": 240,
+    "h": 52,
+    "kind": "hardware",
+    "memory": true,
+    "name": [
+      "DBCQ · 共享命令队列"
+    ],
+    "sub": [
+      "HFI ISSUE_CMD · per-context"
+    ],
+    "detail": "HGSL 映射的 per-context 共享命令队列。建立时由 hgsl_hyp_context_register_dbcq() 通过 HAB 导出 dma-buf 并发送注册 RPC；建立后，HGSL 直接写 queue_body、更新 writeIdx，GMU firmware 消费 HFI 命令。命令包含 context、timestamp 和 IB 地址/长度。DBCQ 不是 VirtIO virtqueue；doorbell 由 HGSL 另行触发。",
+    "layer": "Linux kernel"
   },
   {
     "id": "gdisp",
-    "x": 2050,
-    "y": 1040,
-    "w": 290,
-    "h": 72,
+    "x": 1998,
+    "y": 1056,
+    "w": 340,
+    "h": 64,
     "kind": "vendor",
     "name": [
       "DRM/KMS display frontend"
@@ -773,22 +796,24 @@ const nodes = [
     "sub": [
       "virtio-gpu.o · disp"
     ],
-    "detail": "当前平台关联源码中的 Guest DRM 显示前端目标名为 virtio-gpu.o，通过 HAB 传递 VirtIO GPU 2D 显示命令与资源元数据。并不表示它也是 Guest 3D 渲染驱动；3D 渲染走 HGSL。"
+    "detail": "当前平台关联源码中的 Guest DRM 显示前端目标名为 virtio-gpu.o，通过 HAB 传递 VirtIO GPU 2D 显示命令与资源元数据。并不表示它也是 Guest 3D 渲染驱动；3D 渲染走 HGSL。",
+    "layer": "Linux kernel"
   },
   {
     "id": "ghab",
-    "x": 1700,
-    "y": 1140,
-    "w": 640,
-    "h": 60,
+    "x": 1630,
+    "y": 1148,
+    "w": 708,
+    "h": 52,
     "kind": "vendor",
     "name": [
       "Guest HAB / virtio-HAB"
     ],
     "sub": [
-      "msm_hab.ko · hab_virtio ｜ disp 显示通道 / MM_GFX 控制通道"
+      "hab_virtio · disp / ID 93 ｜ MM_GFX / ID 94"
     ],
-    "detail": "HAB 经 VirtIO 队列跨 VM 传递显示消息和 GPU 控制 RPC。GPU hgsl_hyp 控制通道与 DBCQ fast path 分离；doorbell 是通知，不是图像数据。"
+    "detail": "HAB 经 VirtIO 队列跨 VM 传递显示消息和 GPU 控制 RPC。GPU hgsl_hyp 控制通道与 DBCQ fast path 分离；doorbell 是通知，不是图像数据。",
+    "layer": "Linux kernel"
   },
   {
     "id": "gpu",
@@ -813,12 +838,12 @@ const nodes = [
     "h": 84,
     "kind": "hardware",
     "name": [
-      "GMU / HFI"
+      "GMU firmware"
     ],
     "sub": [
       "DBCQ 消费 / context 调度"
     ],
-    "detail": "Guest 建立 context 后，通过 DBCQ 写入 HFI ISSUE_CMD，发布索引并触发 doorbell。GMU 接收提交并调度 context，CP/SQE 读取 IB。这里画的是命令快路径，不是 buffer 跨 VM 拷贝路径。"
+    "detail": "GMU firmware 接收 HGSL 的 doorbell 通知，消费 DBCQ 中的 HFI ISSUE_CMD 并调度 context，随后由 CP/SQE 读取、解析 IB。HFI 是主机与固件之间的消息接口；GMU 是 DBCQ 消费者，不是 VirtIO 后端。"
   },
   {
     "id": "dpu0",
@@ -1225,7 +1250,7 @@ const edges = [
       "guest",
       "gl"
     ],
-    "d": "M1535 186 V250"
+    "d": "M1412 194 V230"
   },
   {
     "id": "viewrecord",
@@ -1236,7 +1261,7 @@ const edges = [
       "guest",
       "gl"
     ],
-    "d": "M1535 308 V340"
+    "d": "M1412 284 V318"
   },
   {
     "id": "createrenderer",
@@ -1246,7 +1271,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1680 279 H1720"
+    "d": "M1570 257 H1630"
   },
   {
     "id": "syncframe",
@@ -1256,10 +1281,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1855 308 V432 H1608 V470",
-    "label": "sync frame",
-    "lx": 1760,
-    "ly": 423
+    "d": "M1785 284 V462 H1490 V480"
   },
   {
     "id": "displaylist",
@@ -1269,7 +1291,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1535 404 V470"
+    "d": "M1412 376 V480"
   },
   {
     "id": "createsurface",
@@ -1280,7 +1302,7 @@ const edges = [
       "gl",
       "guest"
     ],
-    "d": "M2195 186 V250"
+    "d": "M2168 194 V230"
   },
   {
     "id": "surfacehandle",
@@ -1291,7 +1313,7 @@ const edges = [
       "gl",
       "guest"
     ],
-    "d": "M2195 308 V458"
+    "d": "M2168 284 V480"
   },
   {
     "id": "queuesurface",
@@ -1302,10 +1324,10 @@ const edges = [
       "gl",
       "guest"
     ],
-    "d": "M1660 534 V544 H2032 V484 H2050",
+    "d": "M1518 534 V552 H1978 V507 H1998",
     "label": "dequeue / queue",
-    "lx": 1815,
-    "ly": 570
+    "lx": 1855,
+    "ly": 578
   },
   {
     "id": "queueblast",
@@ -1315,10 +1337,10 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M2195 510 V554",
+    "d": "M2168 534 V598",
     "label": "queueBuffer",
-    "lx": 2240,
-    "ly": 539
+    "lx": 2220,
+    "ly": 578
   },
   {
     "id": "transaction",
@@ -1328,10 +1350,10 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M2195 606 V674",
+    "d": "M2168 656 V744",
     "label": "Transaction",
-    "lx": 2250,
-    "ly": 628
+    "lx": 2220,
+    "ly": 708
   },
   {
     "id": "hwuiapi",
@@ -1341,7 +1363,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1535 534 V674"
+    "d": "M1412 534 V600"
   },
   {
     "id": "engineapi",
@@ -1351,10 +1373,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1855 534 V624 H1630 V674",
-    "label": "GLES / Vulkan",
-    "lx": 1842,
-    "ly": 616
+    "d": "M1785 534 V578 H1506 V600"
   },
   {
     "id": "sfclient",
@@ -1365,10 +1384,10 @@ const edges = [
       "gl",
       "guest"
     ],
-    "d": "M2050 710 H1680",
+    "d": "M1998 783 H1602 V636 H1570",
     "label": "RenderEngine · CLIENT",
-    "lx": 1864,
-    "ly": 698
+    "lx": 1785,
+    "ly": 774
   },
   {
     "id": "sfhwc",
@@ -1378,7 +1397,7 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M2195 746 V824"
+    "d": "M2168 822 V908"
   },
   {
     "id": "apiumd",
@@ -1388,7 +1407,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1535 746 V814"
+    "d": "M1412 672 V702"
   },
   {
     "id": "umdlibgsl",
@@ -1398,7 +1417,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1535 874 V904"
+    "d": "M1412 760 V788"
   },
   {
     "id": "libgslhgsl",
@@ -1408,10 +1427,10 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1535 968 V1040",
+    "d": "M1412 840 V1056",
     "label": "ioctl",
-    "lx": 1570,
-    "ly": 1019
+    "lx": 1450,
+    "ly": 1018
   },
   {
     "id": "hwcdrm",
@@ -1421,10 +1440,10 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M2195 888 V1040",
+    "d": "M2168 970 V1056",
     "label": "DRM/KMS",
-    "lx": 2233,
-    "ly": 1019
+    "lx": 2230,
+    "ly": 1018
   },
   {
     "id": "allocate",
@@ -1432,10 +1451,7 @@ const edges = [
     "to": "gralloc",
     "type": "config",
     "routes": [],
-    "d": "M2340 484 H2362 V792 H1855 V824",
-    "label": "allocate / import",
-    "lx": 2215,
-    "ly": 785
+    "d": "M2338 507 H2360 V860 H1785 V908"
   },
   {
     "id": "hgslhab",
@@ -1445,10 +1461,10 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1640 1112 V1170 H1700",
-    "label": "control RPC",
-    "lx": 1595,
-    "ly": 1156
+    "d": "M1524 1120 V1174 H1630",
+    "label": "hgsl_hyp",
+    "lx": 1540,
+    "ly": 1159
   },
   {
     "id": "drmhab",
@@ -1458,7 +1474,7 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M2195 1112 V1140"
+    "d": "M2168 1120 V1148"
   },
   {
     "id": "crossvm",
@@ -1469,23 +1485,41 @@ const edges = [
       "guest",
       "gl"
     ],
-    "d": "M1700 1190 H1184",
-    "label": "VirtIO / HAB",
-    "lx": 1400,
-    "ly": 1215
+    "d": "M1630 1190 H1598 V1216 H1204 V1190 H1184"
   },
   {
-    "id": "dbcq",
+    "id": "dbcqwrite",
     "from": "hgsl",
+    "to": "dbcq",
+    "type": "control",
+    "routes": [
+      "gl"
+    ],
+    "d": "M1374 1120 V1148"
+  },
+  {
+    "id": "dbcqconsume",
+    "from": "dbcq",
     "to": "gmu",
     "type": "control",
     "routes": [
       "gl"
     ],
-    "d": "M1535 1112 V1270 H656 V1288",
-    "label": "DBCQ / doorbell",
-    "lx": 1095,
-    "ly": 1267
+    "d": "M1374 1200 V1270 H640 V1288"
+  },
+  {
+    "id": "doorbell",
+    "from": "hgsl",
+    "to": "gmu",
+    "type": "control",
+    "notification": true,
+    "routes": [
+      "gl"
+    ],
+    "d": "M1254 1090 H1224 V1258 H704 V1288",
+    "label": "doorbell",
+    "lx": 1235,
+    "ly": 1136
   },
   {
     "id": "gmuib",
@@ -1617,10 +1651,10 @@ const edges = [
     "to": "surface",
     "type": "control",
     "routes": [
-      "guest",
-      "gl"
+      "gl",
+      "guest"
     ],
-    "d": "M1990 496 H2020 V484 H2050"
+    "d": "M1940 507 H1998"
   }
 ];
 
@@ -1782,7 +1816,7 @@ edges.forEach(edge => {
   if (!nodeById.has(edge.from) || !nodeById.has(edge.to)) throw new Error(`Unknown edge endpoint: ${edge.id}`);
   const group = element('g', {class:'edge-group', 'data-edge':edge.id}, document.getElementById('edges'));
   element('path', {d:edge.d, class:'edge-halo'}, group);
-  element('path', {d:edge.d, class:`edge ${edge.type}`, 'marker-end':`url(#arrow-${edge.type})`}, group);
+  element('path', {d:edge.d, class:`edge ${edge.type}${edge.notification ? ' notification' : ''}`, 'marker-end':`url(#arrow-${edge.type})`}, group);
   edgeElements.set(edge.id, group);
   if (edge.label) {
     const label = element('g', {class:`edge-label ${edge.type}`, 'pointer-events':'none'}, document.getElementById('edge-labels'));
@@ -1792,7 +1826,7 @@ edges.forEach(edge => {
   }
 });
 nodes.forEach(node => {
-  const group = element('g', {class:`node ${node.kind}${node.memory ? ' memory' : ''}${node.configured ? ' configured' : ''}`, tabindex:0, role:'button', 'aria-label':`${node.name.join('，')}。点击查看详情与直连关系`, 'aria-pressed':'false', 'data-node':node.id}, document.getElementById('nodes'));
+  const group = element('g', {class:`node ${node.kind}${node.memory ? ' memory' : ''}${node.configured ? ' configured' : ''}`, tabindex:0, role:'button', 'aria-label':`${node.name.join('，')}。点击查看详情与直连关系`, 'aria-pressed':'false', 'data-node':node.id, ...(node.layer ? {'data-layer':node.layer} : {})}, document.getElementById('nodes'));
   element('title', {}, group, node.detail);
   if (node.memory) {
     element('rect', {x:node.x+8,y:node.y-8,width:node.w-8,height:node.h,rx:6}, group);
@@ -1821,11 +1855,11 @@ const defaultTitle = document.getElementById('detail-title').textContent;
 const defaultBody = document.getElementById('detail-body').textContent;
 const descriptions = {
   layers:[defaultTitle,defaultBody],
-  all:['软件与数据流','蓝色：接口调用与提交。绿色：GPU 读写、DPU 取图及物理输出。灰色虚线：配置与分配依赖。'],
+  all:['软件与数据流','蓝色：调用与提交；绿色：像素读写和扫描输出；灰色虚线：配置和分配依赖。'],
   pvm:['PVM 提交','Wayland → Weston / SDM → DRM-FE → OpenWFD client → 两个 Server。Prepare 分配 GPU 或 overlay；两种 buffer 输入都经 Commit 提交绑定关系。'],
   guest:['Guest 显示提交','Surface / BLAST → SurfaceFlinger → HWC → DRM/KMS 前端 → HAB → PVM 2D Backend → OpenWFD。CLIENT 走 RenderEngine，DEVICE 使用硬件合成路径；qcrosvm / vhost-user-qti 是配置桥，不是逐帧处理节点。'],
   pixel:['像素流','PVM 源 buffer：GPU 读入并写出 target，或作为 overlay 输入；Guest 帧：经平台共享/导入后供 DPU 取图。绿色连线不是复制次数、物理总线或全链零拷贝承诺。绿色展开 Guest GPU 写入 layer/client-target buffers 的关系；buffer handle 与 fence 走控制通道。'],
-  gl:['Guest GPU','HWUI/Skia 或原生引擎 → GLES/Vulkan → Adreno UMD → libgsl → HGSL。资源/控制 RPC 经 HAB 到 PVM 用户态 RGS；context 就绪后，DBCQ 的 ISSUE_CMD + doorbell 可直达 GMU。命令不是像素，也不经过 2D Backend。']
+  gl:['Guest GPU','HGSL 控制 / 注册 / 回退 RPC → HAB/VirtIO（ID 94）→ PVM hab_vhost（/dev/vhost-ogles）→ RGS。DBCQ 就绪后：HGSL 写共享命令队列，另行触发 doorbell，由 GMU firmware 消费命令并调度 context。']
 };
 function hasSelection() { return Boolean(window.getSelection()?.toString()); }
 function updateHighlight() {
@@ -1853,13 +1887,14 @@ function updateHighlight() {
     const bridge = element('g',{class:group.getAttribute('class'),'data-bridge':edge.id},overlay);
     arcs.forEach(d => {
       element('path',{d,class:'edge-halo'},bridge);
-      element('path',{d,class:`edge ${edge.type}`},bridge);
+      element('path',{d,class:`edge ${edge.type}${edge.notification ? ' notification' : ''}`},bridge);
     });
   });
   const detail = selection ? [nodeById.get(selection).name.join(' · '),nodeById.get(selection).detail] : descriptions[filter];
   document.getElementById('detail-title').textContent = detail[0];
   document.getElementById('detail-body').textContent = detail[1];
   document.querySelectorAll('[data-filter]').forEach(button => button.setAttribute('aria-pressed',String(button.dataset.filter === filter)));
+  document.querySelector('.detail').hidden = !selection && (filter === 'layers' || filter === 'all');
   reportHeight();
 }
 function selectNode(id) { selection = selection === id ? null : id; updateHighlight(); }
@@ -1893,7 +1928,7 @@ function diagramPoint(event) {
 }
 document.getElementById('fit').addEventListener('click',() => {zoom=1;camera.x=0;camera.y=0;paintCamera();});
 document.getElementById('android-focus').addEventListener('click',() => {
-  zoom = 1.95; camera.x = 1180; camera.y = 72; paintCamera();
+  zoom = 1.9; camera.x = 1020; camera.y = 72; paintCamera();
 });
 document.getElementById('zoom-in').addEventListener('click',() => zoomTo(zoom*1.3));
 document.getElementById('zoom-out').addEventListener('click',() => zoomTo(zoom/1.3));
