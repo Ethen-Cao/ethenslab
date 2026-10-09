@@ -32,6 +32,7 @@ function cn(n) {
   return definition(n)?.cn || (n.name.startsWith('VIU_') ? '区域控制单元（全称待核对）' : n.name.startsWith('To ') ? '跨区域网络引用端口' : '所附缩写表未列出对应释义');
 }
 function defaultStatus() {
+  if (activeTab === 'software' && !$('sw-display-view')?.hidden) return 'Display 软件架构';
   if (activeTab === 'software' && !$('sw-widevine-view')?.hidden) return 'Widevine DRM 软件架构';
   if (activeTab === 'software' && !$('sw-audio-view')?.hidden) return 'Audio 软件架构';
   if (activeTab === 'software' && !$('sw-diag-view')?.hidden) return '诊断软件架构';
@@ -206,15 +207,16 @@ function showTab(tab, {syncUrl = true} = {}) {
   const isAudioView = tab === 'software' && !$('sw-audio-view')?.hidden;
   const isDiagView = tab === 'software' && !$('sw-diag-view')?.hidden;
   const isWidevineView = tab === 'software' && !$('sw-widevine-view')?.hidden;
+  const isDisplayView = tab === 'software' && !$('sw-display-view')?.hidden;
   if (syncUrl) {
     const url = new URL(window.location.href);
     url.searchParams.set('tab', tab);
-    const view = isWidevineView ? 'widevine' : isAudioView ? 'audio' : isOtaView ? 'ota' : isDiagView ? 'diag' : null;
+    const view = isDisplayView ? 'display' : isWidevineView ? 'widevine' : isAudioView ? 'audio' : isOtaView ? 'ota' : isDiagView ? 'diag' : null;
     if (view) url.searchParams.set('view', view);
     else url.searchParams.delete('view');
     window.history.replaceState(null, '', url);
   }
-  $('page-subtitle').textContent = isWidevineView ? 'Widevine DRM 软件架构' : isAudioView ? 'Audio 软件架构' : isOtaView ? 'OTA 软件架构' : isDiagView ? '诊断软件架构' : tabSubtitles[tab];
+  $('page-subtitle').textContent = isDisplayView ? 'Display 软件架构' : isWidevineView ? 'Widevine DRM 软件架构' : isAudioView ? 'Audio 软件架构' : isOtaView ? 'OTA 软件架构' : isDiagView ? '诊断软件架构' : tabSubtitles[tab];
   document.title = tabTitle;
   for (const name of tabNames) {
     $(name + '-panel').hidden = name !== tab;
@@ -229,9 +231,9 @@ function showTab(tab, {syncUrl = true} = {}) {
   $('search-results').hidden = true;
   $('search').value = queries[tab];
   $('search').placeholder = tab === 'b-system' ? '搜索系统模块，如 MCU、Display、USB' : tab === 'hardware' ? '搜索芯片或接口，如 8295、USB、MCU' : tab === 'diagram' ? '搜索模块或中文名称，如 VIU、座椅' : '搜索缩写、英文或中文名称';
-  $('counts').textContent = isWidevineView ? `${DATA.software.widevine.modules.length} 个 Widevine DRM 模块 · ${DATA.software.widevine.flows.length} 条数据流` : isAudioView ? `${DATA.software.audio.modules.length} 个 Audio 模块 · ${DATA.software.audio.flows.length} 条数据流` : isDiagView ? `${DATA.software.diagnostics.modules.length} 个诊断模块 · ${DATA.software.diagnostics.flows.length} 条数据流` : isOtaView ? `${DATA.software.ota.modules.length} 个 OTA 模块 · ${DATA.software.ota.flows.length} 条数据流` : tab === 'software' ? `${DATA.software.modules.length} 个逻辑模块 · ${DATA.software.flows.length} 类链路` : tab === 'b-system' ? `${DATA.bSystem.nodes.length} 个可查看元素` : tab === 'hardware' ? `${DATA.hardware.nodes.length} 个模块 / 连接器` : `${DATA.nodes.length} 个节点 · ${DATA.glossary.length} 项缩写`;
+  $('counts').textContent = isDisplayView ? `${DATA.software.display.modules.length} 个 Display 模块 · ${DATA.software.display.flows.length} 类接口` : isWidevineView ? `${DATA.software.widevine.modules.length} 个 Widevine DRM 模块 · ${DATA.software.widevine.flows.length} 条数据流` : isAudioView ? `${DATA.software.audio.modules.length} 个 Audio 模块 · ${DATA.software.audio.flows.length} 条数据流` : isDiagView ? `${DATA.software.diagnostics.modules.length} 个诊断模块 · ${DATA.software.diagnostics.flows.length} 条数据流` : isOtaView ? `${DATA.software.ota.modules.length} 个 OTA 模块 · ${DATA.software.ota.flows.length} 条数据流` : tab === 'software' ? `${DATA.software.modules.length} 个逻辑模块 · ${DATA.software.flows.length} 类链路` : tab === 'b-system' ? `${DATA.bSystem.nodes.length} 个可查看元素` : tab === 'hardware' ? `${DATA.hardware.nodes.length} 个模块 / 连接器` : `${DATA.nodes.length} 个节点 · ${DATA.glossary.length} 项缩写`;
   $('selection-status').textContent = defaultStatus();
-  $('footnote').textContent = isWidevineView ? 'Widevine 架构依据高通集成文档与播放日志；HDCP 实际版本、认证及加密状态仍需单独核实。' : isAudioView ? 'Audio 模块依据设计文档与项目源码；棕色虚线表示仅文档确认的接口。' : isDiagView ? 'QNX 和 Android 诊断组件依据镜像与源码；MCU 内部链路依据参考图。' : isOtaView ? 'Android/QNX 模块已按源码核对；MCU 内部模块依据参考架构，待固件源码验证。' : tab === 'software' ? 'QNX 模块基于镜像与预置服务；AAOS/MCU 映射待项目镜像核对。' : tab === 'b-system' ? '依据所附原图重绘；项目代号与 SoC 端口信号已省略。' : tab === 'hardware' ? '图中芯片型号、接口与参数按所附硬件图纸标注。' : '细小总线编号、部分批注及未列出的缩写待原始设计文件核对。';
+  $('footnote').textContent = isDisplayView ? '依据 HQX QNX 与 Android 显示源码；屏幕路由由部署配置决定。' : isWidevineView ? 'Widevine 架构依据高通集成文档与播放日志；HDCP 实际版本、认证及加密状态仍需单独核实。' : isAudioView ? 'Audio 模块依据设计文档与项目源码；棕色虚线表示仅文档确认的接口。' : isDiagView ? 'QNX 和 Android 诊断组件依据镜像与源码；MCU 内部链路依据参考图。' : isOtaView ? 'Android/QNX 模块已按源码核对；MCU 内部模块依据参考架构，待固件源码验证。' : tab === 'software' ? 'QNX 模块基于镜像与预置服务；AAOS/MCU 映射待项目镜像核对。' : tab === 'b-system' ? '依据所附原图重绘；项目代号与 SoC 端口信号已省略。' : tab === 'hardware' ? '图中芯片型号、接口与参数按所附硬件图纸标注。' : '细小总线编号、部分批注及未列出的缩写待原始设计文件核对。';
   if (graph) {
     const s = scenes[tab];
     requestAnimationFrame(() => { if (!s.initialized || s.fitted) fit(s); else apply(s); });
