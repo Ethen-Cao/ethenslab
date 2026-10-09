@@ -13,6 +13,7 @@ NODES = {
     'display-wfd-server': (350,925,270,70),
     'display-wfd-core': (350,1060,270,70),
     'display-mdss': (350,1200,270,70),
+    'display-interface-driver': (660,1240,240,54),
     'display-config': (65,925,240,70),
     'display-panel-driver': (65,1200,240,70),
     'display-qnx-gpu': (65,1060,240,70),
@@ -57,7 +58,8 @@ DISPLAY_NAMES = {
     'display-wfd-client': ('WFD Client', 'libopenwfd_qnx.so'),
     'display-wfd-server': ('OpenWFD Server', 'QNX resource-manager endpoint'),
     'display-wfd-core': ('OpenWFD Core', 'Inside server · ports / pipelines'),
-    'display-mdss': ('QDI / MDSS / HAL', 'Inside server · HW programming'),
+    'display-mdss': ('QDI / MDP / MDSS', 'Inside server · scanout programming'),
+    'display-interface-driver': ('DSI / DP Driver & HAL', 'Inside server · link / PHY control'),
     'display-config': ('Display Configuration', 'graphics.conf · qcdisplaycfg.xml'),
     'display-panel-driver': ('Panel / Bridge Libraries', 'Loaded in OpenWFD server'),
     'display-qnx-gpu': ('QNX GPU Driver', 'kgsl · hardware access'),
@@ -79,7 +81,7 @@ DISPLAY_NAMES = {
     'display-gpu': ('GPU', 'Rendering / client composition'),
     'display-buffers': ('Shared Frame Buffers', 'Mapped image storage'),
     'display-dpu': ('Display Processing Unit', 'Fetch · mix · scale · scanout'),
-    'display-output': ('SoC Display Outputs', 'Configured DSI / DP interfaces'),
+    'display-output': ('DSI / DP Controller & PHY', 'Hardware · pixel link transmission'),
     'display-link': ('Panel / Bridge Link', 'Board-configured physical link'),
     'display-panel': ('Display Panels', 'Cluster · IVI · configured displays'),
 }
@@ -105,6 +107,7 @@ def make_routes():
     r.add('display-wfd-server','display-wfd-core',[(485,995),(485,1060)],flow='control,buffers',label='Wire handler dispatch',at=(485,1030))
     r.add('display-wfd-core','display-mdss',[(485,1130),(485,1200)],flow='control,buffers',label='QDI commit',at=(485,1168))
     r.add('display-mdss','display-panel-driver',[(350,1235),(305,1235)],flow='control',note='OEM panel and bridge library calls inside OpenWFD server')
+    r.add('display-panel-driver','display-interface-driver',[(185,1270),(185,1298),(645,1298),(645,1267),(660,1267)],flow='control',note='OEM panel libraries call the selected DSI or DP host driver to configure its output interface')
     r.add('display-config','display-wfd-server',[(305,960),(350,960)],kind='storage',flow='control',note='qcdisplaycfg.xml defines client, port, pipeline and device resources')
     r.add('display-config','display-screen',[(305,940),(330,940),(330,545),(350,545)],kind='storage',flow='control',label='graphics.conf',at=(330,730))
     r.add('display-qnx-render','display-qnx-gpu',[(350,400),(320,400),(320,1095),(305,1095)],flow='control',label='GPU submission',at=(320,860))
@@ -144,6 +147,7 @@ def make_routes():
     r.add('display-gsl-be','display-qnx-gpu',[(660,1150),(650,1150),(650,1050),(185,1050),(185,1060)],flow='control',label='Host GPU API',at=(410,1050))
     r.add('display-qnx-gpu','display-gpu',[(65,1095),(50,1095),(50,1470),(180,1470),(180,1480)],flow='control',note='QNX KGSL programs the GPU hardware')
     r.add('display-mdss','display-dpu',[(485,1270),(485,1420),(1265,1420),(1265,1480)],flow='control',label='Display HW programming',at=(485,1340))
+    r.add('display-interface-driver','display-output',[(900,1267),(925,1267),(925,1318),(1795,1318),(1795,1480)],flow='control',label='Link / PHY configuration',at=(1560,1318),note='DSI / DP drivers configure the output controller, link timing, PHY and clocks through HAL')
     # The physical pixel path is confined to the shared hardware/output region.
     r.add('display-gpu','display-buffers',[(290,1515),(640,1515)],kind='install',flow='pixels',label='Rendered pixels',at=(460,1515))
     r.add('display-buffers','display-dpu',[(940,1515),(1140,1515)],kind='install',flow='pixels',label='Memory fetch',at=(1040,1515))
