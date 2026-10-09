@@ -19,180 +19,27 @@ PVM 上存在两条相互独立的显示提交路径：
 
 两条路径最终由 `openwfd_server -i 0/1` 按静态配置的 Port、Pipeline 和 z-order 汇合。OpenWFD Server 直接持有 KIUMD、VFIO 与 SCMI MDSS 设备，是 PVM 中面向 DPU 硬件的服务端。
 
-<svg class="pvm-graphics-architecture" width="1200" height="950" viewBox="0 0 1200 950" role="img" aria-labelledby="pga-title pga-desc" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto">
-  <title id="pga-title">SA8797 PVM 图形栈架构</title>
-  <desc id="pga-desc">PVM Wayland 客户端经 Weston、SDM、DRM-FE 和 OpenWFD 提交；LA-GVM 经 VirtIOGPU2DBackendService 和 OpenWFD 提交；OpenWFD Server 通过 KIUMD、VFIO 和 SCMI MDSS 驱动两个 DPU 实例。</desc>
-  <defs>
-    <marker id="pga-arrow-blue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-      <path d="M0,0 L8,4 L0,8 Z" fill="#0284c7"/>
-    </marker>
-    <marker id="pga-arrow-purple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-      <path d="M0,0 L8,4 L0,8 Z" fill="#9333ea"/>
-    </marker>
-    <marker id="pga-arrow-teal" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-      <path d="M0,0 L8,4 L0,8 Z" fill="#0f766e"/>
-    </marker>
-    <marker id="pga-arrow-amber" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-      <path d="M0,0 L8,4 L0,8 Z" fill="#b45309"/>
-    </marker>
-    <style>
-      .pvm-graphics-architecture text {
-        fill: #0f172a;
-        font-family: Inter, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
-      }
-      .pvm-graphics-architecture .group-title { font-size: 15px; font-weight: 700; }
-      .pvm-graphics-architecture .box-title { font-size: 12px; font-weight: 700; }
-      .pvm-graphics-architecture .detail { font-size: 10.5px; }
-      .pvm-graphics-architecture .small { font-size: 9.5px; fill: #334155; }
-      .pvm-graphics-architecture .pvm-group { fill: #e0f2fe; stroke: #0284c7; }
-      .pvm-graphics-architecture .pvm-box { fill: #f0f9ff; stroke: #38bdf8; }
-      .pvm-graphics-architecture .gvm-group { fill: #f3e8ff; stroke: #9333ea; }
-      .pvm-graphics-architecture .gvm-box { fill: #faf5ff; stroke: #c084fc; }
-      .pvm-graphics-architecture .client-group { fill: #ccfbf1; stroke: #0f766e; }
-      .pvm-graphics-architecture .client-box { fill: #f0fdfa; stroke: #2dd4bf; }
-      .pvm-graphics-architecture .wfd-group { fill: #fef3c7; stroke: #b45309; }
-      .pvm-graphics-architecture .wfd-box { fill: #fffbeb; stroke: #f59e0b; }
-      .pvm-graphics-architecture .hw-group { fill: #e2e8f0; stroke: #475569; }
-      .pvm-graphics-architecture .hw-box { fill: #f8fafc; stroke: #64748b; }
-      .pvm-graphics-architecture .output-group { fill: #dcfce7; stroke: #15803d; }
-      .pvm-graphics-architecture .output-box { fill: #f0fdf4; stroke: #22c55e; }
-      .pvm-graphics-architecture .configured-box { fill: #f8fafc; stroke: #64748b; stroke-dasharray: 5 4; }
-      .pvm-graphics-architecture rect { stroke-width: 1.5; }
-      .pvm-graphics-architecture .arrow-blue { stroke: #0284c7; marker-end: url(#pga-arrow-blue); }
-      .pvm-graphics-architecture .arrow-purple { stroke: #9333ea; marker-end: url(#pga-arrow-purple); }
-      .pvm-graphics-architecture .arrow-teal { stroke: #0f766e; marker-end: url(#pga-arrow-teal); }
-      .pvm-graphics-architecture .arrow-amber { stroke: #b45309; marker-end: url(#pga-arrow-amber); }
-      .pvm-graphics-architecture .flow { fill: none; stroke-width: 2; }
-      .pvm-graphics-architecture .dashed { stroke-dasharray: 6 4; }
-    </style>
-  </defs>
+<iframe id="pvm-graphics-architecture" src="../../diagrams/pvm-graphics-stack-architecture.html" title="SA8797 PVM 图形栈：软件分层、依赖关系与数据流" loading="lazy" style="display:block;box-sizing:border-box;width:100%;height:900px;min-height:560px;border:1px solid #dadce0;border-radius:8px;overflow:hidden;"></iframe>
+<script>
+(() => {
+  const frame = document.getElementById('pvm-graphics-architecture');
+  if (!frame) return;
+  const frameOrigin = new URL(frame.src, document.baseURI).origin;
+  window.addEventListener('message', event => {
+    if (event.source !== frame.contentWindow || event.origin !== frameOrigin || event.data?.type !== 'pvm-graphics-architecture-height') return;
+    const height = event.data.height;
+    if (Number.isFinite(height) && height > 0) {
+      frame.style.height = Math.max(560, Math.min(2400, Math.ceil(height) + 2)) + 'px';
+    }
+  });
+})();
+</script>
 
-  <!-- Layer 1: producers -->
-  <rect class="pvm-group" x="20" y="20" width="730" height="105" rx="10"/>
-  <text class="group-title" x="42" y="47">① PVM 原生内容源（VM 1）</text>
-  <rect class="pvm-box" x="42" y="62" width="300" height="43" rx="6"/>
-  <text class="box-title" x="192" y="80" text-anchor="middle">Wayland clients</text>
-  <text class="small" x="192" y="96" text-anchor="middle">运行态示例：TuanjieHmi、animmgr</text>
-  <rect class="pvm-box" x="366" y="62" width="360" height="43" rx="6"/>
-  <text class="box-title" x="546" y="80" text-anchor="middle">wl_surface / dma-buf</text>
-  <text class="small" x="546" y="96" text-anchor="middle">/run/user/0/wayland-0</text>
+[独立打开架构图](../../diagrams/pvm-graphics-stack-architecture.html)
 
-  <rect class="gvm-group" x="770" y="20" width="410" height="105" rx="10"/>
-  <text class="group-title" x="792" y="47">① LA-GVM 内容源（VM 2）</text>
-  <rect class="gvm-box" x="792" y="62" width="366" height="43" rx="6"/>
-  <text class="box-title" x="975" y="80" text-anchor="middle">Android apps → SurfaceFlinger / HWC</text>
-  <text class="small" x="975" y="96" text-anchor="middle">显示提交与 GL 渲染使用不同 VirtIO 通道</text>
+主图自上而下按应用、图形框架与帧管理、客户端适配、用户态显示服务、内核接口和硬件分层；横向区分 PVM 与 LA-GVM。Weston 和 Guest 显示后端是并列进程，各自内嵌 OpenWFD 客户端库，依赖下方两个 OpenWFD Server；Server 再通过内核接口访问 DPU。粗横线区分用户态与内核态，缓冲区集中在下方独立的数据区。
 
-  <!-- Layer 2: compositor and guest transport -->
-  <rect class="pvm-group" x="20" y="155" width="730" height="180" rx="10"/>
-  <text class="group-title" x="42" y="182">② Weston 13.0.1（root，pvm.slice）</text>
-  <rect class="pvm-box" x="42" y="198" width="205" height="54" rx="6"/>
-  <text class="box-title" x="144.5" y="219" text-anchor="middle">ivi-shell.so</text>
-  <text class="small" x="144.5" y="237" text-anchor="middle">ivi-controller.so</text>
-  <rect class="pvm-box" x="264" y="198" width="205" height="54" rx="6"/>
-  <text class="box-title" x="366.5" y="219" text-anchor="middle">gl-renderer.so</text>
-  <text class="small" x="366.5" y="237" text-anchor="middle">EGL 1.5 / GLES 3.2</text>
-  <rect class="pvm-box" x="486" y="198" width="240" height="54" rx="6"/>
-  <text class="box-title" x="606" y="219" text-anchor="middle">drm-backend.so</text>
-  <text class="small" x="606" y="237" text-anchor="middle">sdm-service.so</text>
-  <rect class="pvm-box" x="42" y="270" width="684" height="45" rx="6"/>
-  <text class="box-title" x="384" y="289" text-anchor="middle">paint-node list → SDM LayerStack → Prepare / Commit</text>
-  <text class="small" x="384" y="305" text-anchor="middle">每个 Weston view 选择 SDM_COMPOSITION_GPU 或硬件 overlay</text>
-
-  <rect class="gvm-group" x="770" y="155" width="410" height="180" rx="10"/>
-  <text class="group-title" x="792" y="182">② Guest 显示传输与后端</text>
-  <rect class="gvm-box" x="792" y="198" width="366" height="48" rx="6"/>
-  <text class="box-title" x="975" y="217" text-anchor="middle">disp：device 93 / label 0x3C / 10 queues</text>
-  <text class="small" x="975" y="234" text-anchor="middle">qcrosvm ↔ vhost-user-qti ↔ /dev/vhost-disp ↔ HAB</text>
-  <rect class="gvm-box" x="792" y="258" width="366" height="43" rx="6"/>
-  <text class="box-title" x="975" y="276" text-anchor="middle">VirtIOGPU2DBackendService</text>
-  <text class="small" x="975" y="292" text-anchor="middle">display 用户，gvm.slice，OpenWFD Client 0x7815</text>
-  <rect class="gvm-box" x="792" y="309" width="366" height="18" rx="5" stroke-dasharray="5 4"/>
-  <text class="small" x="975" y="322" text-anchor="middle">ogles：device 94 / 2 queues → 独立 KGSL / Adreno 虚拟化路径</text>
-
-  <!-- Layer 3: OpenWFD client side -->
-  <rect class="client-group" x="20" y="365" width="730" height="108" rx="10"/>
-  <text class="group-title" x="42" y="391">③ Weston 的 OpenWFD 客户端路径</text>
-  <rect class="client-box" x="42" y="407" width="194" height="44" rx="6"/>
-  <text class="box-title" x="139" y="425" text-anchor="middle">libsdmcore / libsdmdal</text>
-  <text class="small" x="139" y="441" text-anchor="middle">composition strategy</text>
-  <rect class="client-box" x="267" y="407" width="194" height="44" rx="6"/>
-  <text class="box-title" x="364" y="425" text-anchor="middle">patched libdrm</text>
-  <text class="small" x="364" y="441" text-anchor="middle">DRM-FE dispatch</text>
-  <rect class="client-box" x="492" y="407" width="234" height="44" rx="6"/>
-  <text class="box-title" x="609" y="425" text-anchor="middle">lib_drm_fe.so</text>
-  <text class="small" x="609" y="441" text-anchor="middle">libopenwfd.so / libwire_user.so</text>
-
-  <rect class="client-group" x="770" y="365" width="410" height="108" rx="10"/>
-  <text class="group-title" x="792" y="391">③ LA-GVM 的 OpenWFD 客户端路径</text>
-  <rect class="client-box" x="792" y="407" width="366" height="44" rx="6"/>
-  <text class="box-title" x="975" y="425" text-anchor="middle">VirtIOGPU2DBackendService</text>
-  <text class="small" x="975" y="441" text-anchor="middle">libopenwfd.so / libwire_user.so</text>
-
-  <!-- Layer 4: OpenWFD service -->
-  <rect class="wfd-group" x="20" y="505" width="1160" height="175" rx="10"/>
-  <text class="group-title" x="42" y="532">④ OpenWFD 服务层（display 用户）</text>
-  <rect class="wfd-box" x="410" y="542" width="380" height="34" rx="6"/>
-  <text class="box-title" x="600" y="557" text-anchor="middle">LRMC client transport</text>
-  <text class="small" x="600" y="570" text-anchor="middle">mqueue 名称用于 server readiness</text>
-
-  <rect class="wfd-box" x="42" y="593" width="538" height="67" rx="6"/>
-  <text class="box-title" x="311" y="611" text-anchor="middle">openwfd_server -i 0 → DPU 0</text>
-  <text class="small" x="311" y="628" text-anchor="middle">LA-GVM：DMA2 z0、VIG2 z1　|　SCREEN：DMA0 z4、VIG0 z5</text>
-  <text class="small" x="311" y="645" text-anchor="middle">TELLTALE：VIG3 z10（均映射到 QDI display 3）</text>
-
-  <rect class="wfd-box" x="620" y="593" width="538" height="67" rx="6"/>
-  <text class="box-title" x="889" y="611" text-anchor="middle">openwfd_server -i 1 → DPU 1</text>
-  <text class="small" x="889" y="628" text-anchor="middle">display 8：LA-GVM DMA3 z0　|　SCREEN DMA1 z4</text>
-  <text class="small" x="889" y="645" text-anchor="middle">display 9：LA-GVM DMA4 z0（仅静态配置中分配）</text>
-
-  <!-- Layer 5: hardware access -->
-  <rect class="hw-group" x="20" y="710" width="1160" height="92" rx="10"/>
-  <text class="group-title" x="42" y="736">⑤ 用户态驱动与内核资源边界</text>
-  <rect class="hw-box" x="42" y="750" width="538" height="35" rx="6"/>
-  <text class="box-title" x="311" y="766" text-anchor="middle">/dev/kiumd · /dev/vfio/* · /dev/scmi_mdss0 → DPU 0</text>
-  <text class="small" x="311" y="779" text-anchor="middle">openwfd_server -i 0 持有；无 /dev/dri/card* 路径</text>
-  <rect class="hw-box" x="620" y="750" width="538" height="35" rx="6"/>
-  <text class="box-title" x="889" y="766" text-anchor="middle">/dev/kiumd · /dev/vfio/* · /dev/scmi_mdss1 → DPU 1</text>
-  <text class="small" x="889" y="779" text-anchor="middle">openwfd_server -i 1 持有；无 /dev/dri/card* 路径</text>
-
-  <!-- Layer 6: outputs -->
-  <rect class="output-group" x="20" y="832" width="1160" height="98" rx="10"/>
-  <text class="group-title" x="42" y="857">⑥ 显示输出</text>
-  <rect class="output-box" x="42" y="870" width="500" height="43" rx="6"/>
-  <text class="box-title" x="292" y="887" text-anchor="middle">DPU 0 / display 3 → DP0S078FF1</text>
-  <text class="small" x="292" y="903" text-anchor="middle">6400×1800 @ 60 Hz · MAX96855A · DSC 3:1</text>
-  <rect class="output-box" x="566" y="870" width="358" height="43" rx="6"/>
-  <text class="box-title" x="745" y="887" text-anchor="middle">DPU 1 / display 8 → DP3S078FF2</text>
-  <text class="small" x="745" y="903" text-anchor="middle">1920×480 @ 60 Hz · DS90UB983</text>
-  <rect class="configured-box" x="948" y="870" width="210" height="43" rx="6"/>
-  <text class="box-title" x="1053" y="887" text-anchor="middle">DPU 1 / display 9</text>
-  <text class="small" x="1053" y="903" text-anchor="middle">1280×640 @ 60 Hz · 未见 Weston head</text>
-
-  <!-- Data-flow arrows -->
-  <path class="flow arrow-blue" d="M342 83 H366"/>
-  <path class="flow arrow-blue" d="M546 105 V155"/>
-  <path class="flow arrow-blue" d="M384 335 V365"/>
-  <path class="flow arrow-teal" d="M236 429 H267"/>
-  <path class="flow arrow-teal" d="M461 429 H492"/>
-  <path class="flow arrow-teal" d="M609 451 V487 H540 V542"/>
-
-  <path class="flow arrow-purple" d="M975 105 V198"/>
-  <path class="flow arrow-purple" d="M975 246 V258"/>
-  <path class="flow arrow-purple" d="M975 301 V365"/>
-  <path class="flow arrow-purple dashed" d="M1132 105 H1170 V318 H1158"/>
-  <path class="flow arrow-teal" d="M975 451 V487 H660 V542"/>
-
-  <path class="flow arrow-amber" d="M500 576 V593"/>
-  <path class="flow arrow-amber" d="M700 576 V593"/>
-  <path class="flow arrow-amber" d="M311 660 V710"/>
-  <path class="flow arrow-amber" d="M889 660 V710"/>
-  <path class="flow arrow-amber" d="M311 802 V832"/>
-  <path class="flow arrow-amber" d="M889 802 V818 H745 V832"/>
-  <path class="flow arrow-amber dashed" d="M889 802 V818 H1053 V832"/>
-</svg>
-
-图中蓝色路径属于 PVM/Weston，紫色路径属于 LA-GVM，绿色路径为 OpenWFD 客户端适配层，橙色路径为 OpenWFD 到 DPU 的提交路径。虚线表示独立通路或仅由静态配置确认、未由 Weston 运行态枚举的输出。
+色块表示组件来源：蓝色为 OEM 应用，绿色为通用／开源组件，黄色为平台实现，灰色为硬件与内存。默认“软件分层”视图突出蓝色调用／提交依赖；选择“叠加数据流”或“像素流”查看 GPU 读写与 DPU 取图，灰色虚线仅表示静态配置。LA-GVM 显示路径绕过 Weston。独立图支持缩放、平移、主题切换和节点关系高亮。
 
 ### 1.1 分层职责
 
