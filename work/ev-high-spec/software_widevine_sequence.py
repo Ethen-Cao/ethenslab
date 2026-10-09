@@ -27,7 +27,7 @@ def msg(n, source, target, label, kind='control', reply=False, ref=False, note='
 PHASES = [
     dict(
         key='a', title='A · 会话与许可证',
-        subtitle='App 使用 MediaDrm；Web 由 JS + Chrome 适配。下图展开底层 API，不表示网页直接调用 MediaDrm。',
+        subtitle='App 通过 MediaDrm 管理 DRM 会话，网页通过 EME 和 Chrome 调用对应的 Android 接口。',
         actors=[
             ('p', 'App / Chrome bridge', 'app'),
             ('d', 'MediaDrm /\nDrmHalAidl', 'app'),
@@ -36,8 +36,8 @@ PHASES = [
         ],
         before=[('Web 入口', [
             'requestMediaKeySystemAccess → createMediaKeys；setMediaKeys 绑定 video，createSession 创建 JS 会话。',
-            'generateRequest 初始化内容会话，并在浏览器内部触发 openSession / getKeyRequest；setMediaKeys 与 createSession 不是统一强制总序。',
-            '这里是 Android Chrome 内容会话的典型内部映射，EME 规范不规定 openSession 的底层时点。',
+            'generateRequest 提交 initData，Chrome 在内部创建 DRM 会话并生成许可证请求。',
+            'setMediaKeys 绑定媒体元素，createSession 创建网页会话。底层调用时点由浏览器实现决定。',
             'initData 可来自 encrypted 事件或清单 / 容器；CENC 通常使用 PSSH。',
         ])],
         groups=[],
@@ -45,7 +45,7 @@ PHASES = [
             msg(1,'p','d','openSession()\nWeb: generateRequest 内部触发'),
             msg(2,'d','w','AIDL openSession\n创建原生 DRM 会话'),
             msg(3,'w','w','ref 图 B\n必要的 L1 安全调用',ref=True),
-            msg(4,'w','d','返回 session ID\n不返回内容密钥',reply=True),
+            msg(4,'w','d','返回 session ID\n关联 DRM 会话',reply=True),
             msg(5,'d','p','原生会话标识\nWeb 由浏览器关联',reply=True),
             msg(6,'p','d','getKeyRequest(sessionId, initData, …)\n同次 generateRequest 的后续步骤'),
             msg(7,'d','w','AIDL getKeyRequest\n生成 DRM 消息'),
@@ -57,18 +57,18 @@ PHASES = [
             msg(13,'d','w','AIDL provideKeyResponse\n交回 Widevine'),
             msg(14,'w','w','ref 图 B\n必要的密钥加载安全操作',ref=True),
             msg(15,'w','d','许可证加载操作结果\nstreaming: 无 keySetId',reply=True),
-            msg(16,'d','p','调用完成；状态另行通知\n明文密钥不返回',reply=True),
+            msg(16,'d','p','许可证响应处理完成\n密钥状态异步通知',reply=True),
         ],
         after=[('opt · 仅在需要时进行 Provisioning', [
             'NotProvisioned / 需要配置 → getProvisionRequest → App / 浏览器访问 Provisioning Server → provideProvisionResponse → 重试原操作。',
-            'Provisioning Server 与许可证端点是不同职责。服务证书和许可证消息可多轮交换；update 成功不等于 keys usable。',
-            'MediaDrm keys-change / EME keystatuseschange 是独立事件；所需密钥 usable 后才可解密。',
+            'Provisioning Server 提供设备配置服务。服务证书与许可证消息可分多轮交换，内容密钥状态通过事件通知。',
+            'MediaDrm keys-change / EME keystatuseschange 通知密钥状态。所需密钥进入 usable 状态后可执行解密。',
         ])],
-        caption='许可证端点表示站点代理与许可证服务的逻辑合并，不假设 Prime 客户端直接连接 Google 许可证云。生命线是职责分组，不等同进程。',
+        caption='许可证端点包括站点代理及许可证后端。图中按职责组织参与者，Prime Video 的服务端部署待确认。',
     ),
     dict(
         key='b', title='B · 可复用的安全调用子过程',
-        subtitle='本图展开 A / C 的 ref 调用，可被多次调用；连续编号用于定位，不是一次日志的全局时间顺序。',
+        subtitle='展开会话、密钥加载和安全解密中复用的 TEE 调用过程。编号用于定位接口步骤。',
         actors=[
             ('o','liboemcrypto.so\n普通侧调用入口','app'),
             ('b','QSEECom / Mink\n库 + guest driver','app'),
@@ -78,7 +78,7 @@ PHASES = [
             ('t','Widevine TA','tee'),
         ],
         before=[('调用边界', [
-            'QSEECom / Mink 列合并显示对应库与 guest driver，跨普通用户态到 Android 内核；这两条分支不是串联的两个驱动。',
+            'QSEECom 与 TA Loader/Mink 是两种调用分支，各自经对应 guest 驱动进入 SCM。',
         ])],
         groups=[dict(start=17,end=20,title='alt · QSEECom（源码默认）',split=19,
                      split_title='else · TA Loader / Mink（可用路径）')],
@@ -90,20 +90,20 @@ PHASES = [
             msg(21,'s','q','HAB · MM_QCPE_VM1\n安全调用消息'),
             msg(22,'q','e','qcpe_send_smc\n安全监控调用'),
             msg(23,'e','t','分派可信应用操作\n会话 / 密钥 / crypto 策略'),
-            msg(24,'t','e','结果 / 状态\n明文密钥不回普通世界',reply=True),
+            msg(24,'t','e','返回操作结果\n及状态信息',reply=True),
             msg(25,'e','q','SMC 返回',reply=True),
             msg(26,'q','s','HAB 回复',reply=True),
             msg(27,'s','b','驱动调用返回',reply=True),
             msg(28,'b','o','OEMCrypto 操作结果',reply=True),
         ],
         after=[('源码选择与运行观察', [
-            '源码默认 WIDEVINE_USES_SMCINVOKE=false；库内也提供 Mink 路径。日志尚未逐跳绑定实际分支与库版本。',
+            '源码默认 WIDEVINE_USES_SMCINVOKE=false，预编译库同时提供 Mink 分支。状态：实际运行分支及库版本待确认。',
         ])],
-        caption='HAB 传递安全调用参数和结果。QNX qcpe_service 之后仍经过安全监控入口进入 TEE；不把 QNX host 画成可信世界。',
+        caption='HAB 传递安全调用参数和结果。QNX qcpe_service 执行安全监控调用，TEE 入口分派可信服务操作。',
     ),
     dict(
         key='c', title='C · 安全解密与视频解码',
-        subtitle='输入密文、受保护压缩码流、解码像素是不同对象；普通侧传引用，硬件与安全实现访问受保护内容。',
+        subtitle='加密样本经安全解密形成受保护压缩码流，再由 VPU 解码为受保护像素。',
         actors=[
             ('p','App / Chrome\nmedia pipeline','app'),
             ('m','MediaCodec /\nCCodecBufferChannel','app'),
@@ -114,8 +114,8 @@ PHASES = [
             ('b','受保护缓冲 /\nVPU','hardware'),
         ],
         before=[('会话绑定与就绪条件', [
-            'MediaCrypto(uuid, sessionId) / setMediaDrmSession 关联 DRM 会话，不接收整段视频；codec 配置可提前或与许可证准备重叠。',
-            '所需内容密钥可用时才能成功解密。图中分组生命线不表示同一进程；OEMCrypto 本身仍是普通侧调用入口。',
+            'MediaCrypto(uuid, sessionId) / setMediaDrmSession 关联 DRM 会话。Codec 配置与许可证准备可交叠执行。',
+            '所需内容密钥可用后执行安全解密，OEMCrypto 提供普通侧调用接口。参与者按职责分组。',
         ])],
         groups=[],
         messages=[
@@ -124,25 +124,25 @@ PHASES = [
             msg(31,'m','c','decrypt(source,\nNATIVE_HANDLE target)\n密文源与安全目标分开'),
             msg(32,'c','o','请求安全解密\n必要调用 ref 图 B'),
             msg(33,'o','b','安全实现写入目标\n输出受保护的压缩码流','data',
-                note='The secure implementation in this grouped path performs the decrypt operation; this does not depict the HLOS liboemcrypto library reading plaintext keys or CPU-copying decrypted content'),
-            msg(34,'o','c','安全操作结果\n不回传明文内容',reply=True),
+                note='The secure implementation decrypts encrypted samples into the protected compressed-video buffer.'),
+            msg(34,'o','c','返回解密结果\n及状态信息',reply=True),
             msg(35,'c','m','decrypt 返回写入字节数\n保留受保护 block 引用',reply=True),
             msg(36,'m','v','queueInputBufferInternal\nC2 work / block handle','buffer'),
-            msg(37,'v','h','video_fe_ioctl\nHAB · MM_VID\n命令 + buffer export ID','buffer',note='Video FE sends control commands and exported buffer references; HAB does not copy protected pixel payloads'),
+            msg(37,'v','h','video_fe_ioctl\nHAB · MM_VID\n命令 + buffer export ID','buffer',note='Video FE sends control commands and exported buffer IDs over HAB.'),
             msg(38,'h','b','VIDC 安全 SMMU 映射\nCP_B_VIDEO /\nCP_P_VIDEO'),
             msg(39,'b','b','VPU 读受保护压缩码流\n写入受保护解码像素','data'),
             msg(40,'h','v','解码完成\nbuffer 引用','buffer',reply=True),
             msg(41,'v','m','输出 graphic block\n与完成状态','buffer',reply=True),
         ],
         after=[('硬件与缓冲语义', [
-            'CP_B_VIDEO / CP_P_VIDEO 是 SMMU context，不是 heap 名。第 33 步由可信解密路径中的安全实现完成，具体 crypto IP 尚未确认。',
-            'Codec2 / Video FE 分组包含 libqcodec2_v4l2codec、libhyp_video_intercept / FE；最后一列是硬件与内存对象，不是软件服务。',
+            'CP_B_VIDEO / CP_P_VIDEO 分别提供压缩码流和像素的 SMMU 安全访问上下文。状态：具体解密硬件 IP 待确认。',
+            'Codec2 / Video FE 包含 libqcodec2_v4l2codec 和 libhyp_video_intercept / FE。安全实现写入受保护缓冲，VPU 完成解码。',
         ])],
-        caption='第 36–41 步传递 C2 block、导出 ID、graphic block 与完成状态。解密后仍是压缩视频；只有 VPU 解码后才得到像素。',
+        caption='第 36–41 步依次传递 C2 block、buffer export ID、输出 graphic block 和解码完成状态。',
     ),
     dict(
         key='d', title='D · 显示提交与并行输出保护',
-        subtitle='显示提交与 OPS 策略协同可以并行。许可证不要求 HDCP 时，不应假设每次播放或每帧都执行 HDCP 握手。',
+        subtitle='显示提交与 OPS 输出保护协同可并行执行。HDCP 按内容保护要求及链路状态启用。',
         actors=[
             ('m','MediaCodec /\nSurface','app'),
             ('s','SurfaceFlinger /\nHWC','app'),
@@ -178,10 +178,10 @@ PHASES = [
             msg(57,'h','d','停止不满足要求的受保护输出','output'),
         ],
         after=[('实际显示路径', [
-            'SurfaceFlinger 可执行受保护 GPU 合成并产生中间帧，不强制纯 overlay。HAB 传引用，不复制明文像素。',
-            'driver 提交和 secure 标志不等于 HDCP 已认证。上述编号用于教学展开，状态反馈的具体时序与调用组合取决于实现。',
+            'SurfaceFlinger/HWC 按需要采用硬件图层或受保护 GPU 合成。HAB 传递显示缓冲引用，QNX 配置扫描输出。',
+            '输出保护根据端口能力、认证及加密状态判断。状态：本次播放的实际 HDCP 状态待验证。',
         ])],
-        caption='42–46 与 47–53 为并行职责，54 必须满足保护条件；55–57 表示状态变化后保护不足时的限制逻辑，不是每帧固定流程。',
+        caption='42–46 为显示提交，47–53 为输出保护协同。满足保护要求后输出画面，状态变化导致保护不足时限制输出。',
     ),
 ]
 
@@ -301,7 +301,7 @@ def render_phase(phase):
          f'viewBox="0 0 {WIDTH} {height:g}" width="{WIDTH}" height="{height:g}" '
          f'font-family="Noto Sans CJK SC, Arial, sans-serif" role="img" aria-label="{escape(phase["title"],quote=True)}">',
          '<title>'+escape(phase['title'])+'</title>',
-         '<desc>按消息编号展开的逻辑时序。参与者为职责分组，条件分支和复用子过程均显式标示，编号不是一次日志的全局时间顺序。</desc>',
+         '<desc>Widevine 播放逻辑时序，包含会话、许可证、安全解密、视频解码及输出保护。参与者按职责分组，编号用于定位步骤。</desc>',
          '<defs>']
     for kind,color in COLORS.items():
         out.append(f'<marker id="{prefix}-{kind}-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">'

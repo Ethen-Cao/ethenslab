@@ -84,10 +84,16 @@ function selectSoftwareModule(id) {
     duty.lang = 'zh-CN';
     duty.textContent = module.duty;
     inspector.append(name, duty);
+    if (view === 'widevine' && module.status) {
+      const status = document.createElement('span');
+      status.className = 'wv-source wv-status';
+      status.textContent = '状态：' + module.status;
+      inspector.append(status);
+    }
     if (view === 'widevine' && module.source) {
       const source = document.createElement('span');
       source.className = 'wv-source';
-      source.textContent = '证据：' + module.source;
+      source.textContent = '来源：' + module.source;
       inspector.append(source);
     }
     refreshInteractionGraph(view);

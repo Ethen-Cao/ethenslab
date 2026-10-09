@@ -7,7 +7,7 @@ from html import escape
 import unicodedata
 from software_ota_graph import _rect, _text
 
-WIDTH, HEIGHT = 1600, 2020
+WIDTH, HEIGHT = 1600, 2220
 NODES = {
     'wv-cdn': (760,128,330,66), 'wv-license': (1210,128,330,66),
     'wv-ta': (58,430,240,84), 'wv-ops': (58,680,240,70),
@@ -32,9 +32,17 @@ NODES = {
     'wv-encrypted': (55,1680,175,104), 'wv-crypto-hw': (275,1680,175,104),
     'wv-bitstream': (495,1680,230,104), 'wv-video': (770,1680,170,104),
     'wv-pixels': (985,1680,235,104), 'wv-dpu': (1270,1680,250,104),
-    'wv-output': (1190,1920,330,66),
+    'wv-plain-dp': (280,1960,210,84),
+    'wv-plain-serializer': (620,1960,230,84),
+    'wv-plain-deserializer': (1000,1960,230,84),
+    'wv-plain-panel': (1380,1960,180,84),
+    'wv-hdcp-dp': (280,2090,210,84),
+    'wv-hdcp-serializer': (620,2090,230,84),
+    'wv-hdcp-deserializer': (1000,2090,230,84),
+    'wv-hdcp-panel': (1380,2090,180,84),
 }
 BUFFER_IDS = {'wv-encrypted', 'wv-bitstream', 'wv-pixels'}
+DISPLAY_IDS = {mid for mid in NODES if mid.startswith(('wv-plain-', 'wv-hdcp-'))}
 # Short on-canvas captions; source names and duties remain in each inspector.
 DISPLAY = {
     'wv-license': ('License Proxy / Service', 'site endpoint / license policy'),
@@ -77,7 +85,14 @@ DISPLAY = {
     'wv-video': ('Video HW / VPU', 'secure decoding'),
     'wv-pixels': ('Secure frame buffers', 'decode output / scanout'),
     'wv-dpu': ('Display HW / MDSS', 'Display SMMU / scanout'),
-    'wv-output': ('HDCP / Display', 'protected link → SerDes / panel'),
+    'wv-plain-dp': ('SoC DP Output', 'DisplayPort output'),
+    'wv-plain-serializer': ('Serializer', 'DP RX · GMSL TX'),
+    'wv-plain-deserializer': ('Deserializer', 'GMSL RX · panel output'),
+    'wv-plain-panel': ('Display Panel', 'Physical display output'),
+    'wv-hdcp-dp': ('SoC DP Output', 'HDCP TX'),
+    'wv-hdcp-serializer': ('Serializer', ['DP HDCP RX', 'GMSL HDCP TX']),
+    'wv-hdcp-deserializer': ('Deserializer', 'GMSL HDCP RX'),
+    'wv-hdcp-panel': ('Display Panel', 'Physical display output'),
 }
 
 EDGE_STYLES = {
@@ -85,6 +100,7 @@ EDGE_STYLES = {
     'data': ('#23845b', 3.8, ''),
     'buffer': ('#8364b7', 2.1, '8 5'),
     'output': ('#d98324', 2.2, ''),
+    'encrypted': ('#5f6368', 2.6, ''),
 }
 
 
@@ -193,7 +209,7 @@ def make_routes(view='architecture'):
           label='CENC samples',at=(905,450))
     r.add('wv-eme','wv-mediacodec',[(1100,459),(1020,459),(1020,530),(965,530),(965,555)],kind='data')
     r.add('wv-mediadrm','wv-mediacrypto',[(1300,588),(1260,588)],kind='buffer',
-          note='session ID / crypto object association, not plaintext content keys')
+          note='Associate the DRM session ID with the codec crypto context')
     r.add('wv-mediacrypto','wv-mediacodec',[(1040,588),(1000,588)],kind='buffer')
     r.add('wv-mediacodec','wv-bufferchannel',[(890,619),(890,685)],label='queue input',at=(890,654))
     r.add('wv-mediacrypto','wv-cryptohal',[(1150,619),(1150,685)])
@@ -205,7 +221,7 @@ def make_routes(view='architecture'):
     r.add('wv-cryptoplugin','wv-oemcrypto',[(1150,898),(1150,940)])
     r.add('wv-plugin','wv-oemcrypto',[(1415,898),(1415,940)])
     r.add('wv-oemcrypto','wv-cpion',[(1450,1002),(1450,1021)],kind='buffer',
-          note='Available protected-memory helper dependency; active mapping backend is not established')
+          note='Protected-memory helper interfaces. Runtime mapping backend: pending confirmation.')
     # Native vendor libraries and corresponding guest-kernel drivers are parallel branches.
     r.add('wv-oemcrypto','wv-qseeapi',[(1100,1002),(1100,1090)])
     r.add('wv-oemcrypto','wv-loader',[(1530,970),(1550,970),(1550,1075),(1415,1075),(1415,1090)])
@@ -224,7 +240,7 @@ def make_routes(view='architecture'):
     r.add('wv-videofe','wv-videobe',[(780,950),(655,950)],
           label='MM_VID',at=(716,929),note='HAB commands: video_fe_open / ioctl → hyp_video_be')
     r.add('wv-videofe','wv-videobe',[(780,980),(655,980)],kind='buffer',
-          note='HAB carries exported buffer identities, not protected pixel payloads')
+          note='HAB transfers exported buffer identities to the QNX video backend')
     r.add('wv-videobe','wv-vidc',[(525,998),(525,1040)])
     r.add('wv-bufferchannel','wv-composer',[(780,717),(744,717),(744,1072),(780,1072)],kind='buffer',
           note='queueToOutputSurface passes a graphic block and fence to SurfaceFlinger / HWC')
@@ -244,14 +260,14 @@ def make_routes(view='architecture'):
           note='OPS listener exchanges minimum protection requirements and actual output state with OpenWFD / MDSS')
     # Device programming is separate from DDR payloads and buffer references.
     r.add('wv-ta','wv-crypto-hw',[(58,472),(32,472),(32,1640),(362,1640),(362,1680)],
-          label='secure decrypt',at=(188,1640),note='Logical trusted hardware-control path; the concrete crypto IP is not established')
+          label='secure decrypt',at=(188,1640),note='Trusted decryption control. Crypto IP: pending confirmation.')
     r.add('wv-vidc','wv-video',[(395,1073),(370,1073),(370,1607),(855,1607),(855,1680)],
           label='decode / SMMU',at=(760,1607))
     r.add('wv-mdss','wv-dpu',[(655,1320),(668,1320),(668,1634),(1395,1634),(1395,1680)],
           label='scanout / SMMU',at=(1230,1634))
     r.add('wv-bufferchannel','wv-bitstream',[(1000,738),(1010,738),(1010,1580),(610,1580),(610,1680)],kind='buffer',
           label='native_handle · secure target',at=(800,1580),
-          note='CCodecBufferChannel supplies the protected linear-block destination to decrypt; the line is a memory reference, not video bytes')
+          note='CCodecBufferChannel supplies a native_handle for the protected decryption destination')
     r.add('wv-gralloc','wv-pixels',[(1000,1150),(1025,1150),(1025,1560),(1100,1560),(1100,1680)],kind='buffer',
           note='Protected gralloc pixel buffers / native handles; device mappings use secure contexts')
     # Hardware accesses the encrypted/secure memory stages below. No CPU pixel IPC is implied.
@@ -261,9 +277,21 @@ def make_routes(view='architecture'):
                       ('wv-video','wv-pixels',940,985),
                       ('wv-pixels','wv-dpu',1220,1270)]:
         r.add(a,b,[(sx,1732),(tx,1732)],kind='data',
-              note='Protected media payload; CP_B_VIDEO / CP_P_VIDEO are SMMU contexts, not heap names')
-    r.add('wv-dpu','wv-output',[(1395,1784),(1395,1920)],kind='data',
-          label='video output',at=(1395,1896))
+              note='Media data read and written by the secure decrypt, video and display engines')
+    # Alternative output topologies share the same display-engine source.
+    r.add('wv-dpu','wv-plain-dp',[(1395,1784),(1395,1880),(250,1880),(250,2002),(280,2002)],kind='data',
+          label='Display pixels',at=(810,1880))
+    r.add('wv-dpu','wv-hdcp-dp',[(1395,1784),(1395,1880),(250,1880),(250,2132),(280,2132)],kind='data',
+          note='Use the HDCP output configuration when required by the OTT service')
+    for mode, cy in [('plain',2002),('hdcp',2132)]:
+        prefix='wv-'+mode+'-'
+        kind='encrypted' if mode=='hdcp' else 'data'
+        r.add(prefix+'dp',prefix+'serializer',[(490,cy),(620,cy)],kind=kind,flow='data',
+              label='DP + HDCP' if mode=='hdcp' else 'DP',at=(555,cy))
+        r.add(prefix+'serializer',prefix+'deserializer',[(850,cy),(1000,cy)],kind=kind,flow='data',
+              label='GMSL + HDCP' if mode=='hdcp' else 'GMSL',at=(925,cy))
+        r.add(prefix+'deserializer',prefix+'panel',[(1230,cy),(1380,cy)],kind='data',
+              label='Panel interface',at=(1305,cy))
     return r
 
 
@@ -276,6 +304,7 @@ def _node(module, box):
              'buffer':('#e9f6ee','#77ae8b')}
     fill,stroke=palette.get(module['domain'],palette['hardware'])
     if mid=='wv-encrypted':fill,stroke='#f5f7fa','#b1bdcc'
+    if mid in DISPLAY_IDS:fill,stroke='#9aa0a6','none'
     if buffer:
         shape=(f'<path d="M{x+15},{y} H{x+w} L{x+w-15},{y+h} H{x} Z" fill="{fill}" stroke="{stroke}" stroke-width="1.5"/>'
                f'<path d="M{x+3},{y+h+6} H{x+w-12}" fill="none" stroke="{stroke}"/>')
@@ -284,7 +313,8 @@ def _node(module, box):
         shape=_rect(x,y,w,h,fill,stroke,10,1.3);inset=12
     title,sub=DISPLAY[mid]
     names=_wrap(title,w-inset-10,17,limit=2)
-    captions=_wrap(sub,w-inset-10,13,limit=2)
+    captions=[line for part in (sub if isinstance(sub,list) else [sub])
+              for line in _wrap(part,w-inset-10,13,limit=2)]
     if h<=50:
         # The helper library stays a subordinate row in the OEMCrypto card.
         content=_text(x+12,y+20,title,16,'#253242',700)+_text(x+12,y+38,sub,12,'#637286')
@@ -292,7 +322,7 @@ def _node(module, box):
         first=y+25
         content=''.join(_text(x+inset,first+i*21,line,17,'#253242',700) for i,line in enumerate(names))
         sy=first+(len(names)-1)*21+22
-        content+=''.join(_text(x+inset,sy+i*17,line,13,'#637286') for i,line in enumerate(captions))
+        content+=''.join(_text(x+inset,sy+i*17,line,13,'#253242' if mid in DISPLAY_IDS else '#637286') for i,line in enumerate(captions))
         if sy+(len(captions)-1)*17>y+h-5:raise ValueError(f'Text overflow: {mid}')
     return (f'<g class="ota-node" data-sw-module="{mid}" data-node-kind="{"buffer" if buffer else "component"}" '
             f'role="button" tabindex="0" aria-label="{escape(module["name"],quote=True)}" aria-pressed="false">'
@@ -313,9 +343,9 @@ def _band(x,y,w,h,title,fill='#ffffffa6'):
 def _frame():
     out=[
         _text(24,38,'Widevine DRM',27,'#243348',700),
-        _text(24,66,'执行域 · 软件分层 · 受保护媒体数据流',16,'#637286'),
+        _text(24,66,'Execution domains · software layers · protected media',16,'#637286'),
         _text(24,144,'CONTENT SERVICES',14,'#637286',700),
-        _text(24,174,'许可证控制与加密媒体下载独立进行',15,'#637286'),
+        _text(24,174,'License exchange / encrypted media delivery',15,'#637286'),
         _panel(20,235,310,1293,'TEE','Trusted software / secure world','#fffaf0','#e5d5ac'),
         _panel(350,235,350,1223,'QNX','Host services / resource owners','#eef4fc','#c0d0e6'),
         _rect(730,235,850,1223,'#eef7f0','#bed7c5',22,1.5),
@@ -327,22 +357,22 @@ def _frame():
         _band(746,1200,818,248,'Linux kernel'),
         _rect(45,336,265,958,'#ffffff88','#eadfc3',12),
         _text(60,365,'Trusted applications / services',15,'#8d742d',700),
-        _text(60,827,'密钥管理与安全解密',17,'#8d742d',700),
-        _text(60,858,'TA / OPS 是可信软件',14,'#8d742d'),
-        _text(60,883,'硬件与受保护内存位于下层',14,'#8d742d'),
+        _text(60,827,'Key management /',17,'#8d742d',700),
+        _text(60,858,'secure decryption',17,'#8d742d',700),
+        _text(60,883,'Trusted services in TEE',14,'#8d742d'),
         _rect(45,1315,265,194,'#ffffff88','#eadfc3',12),
         _text(60,1344,'Secure platform',15,'#8d742d',700),
         _rect(375,570,300,215,'#ffffff99','#d2deed',12),
         _text(390,598,'Output protection service',15,'#526f96',700),
-        _text(390,623,'保护要求 ↔ 显示拓扑 / 状态',13,'#637286'),
+        _text(390,623,'Protection requirements / output state',13,'#637286'),
         _rect(375,803,300,544,'#ffffff99','#d2deed',12),
         _text(390,833,'Video / display services',15,'#526f96',700),
-        _text(390,858,'用户态后端与硬件驱动',13,'#637286'),
-        _text(390,884,'控制设备 · 映射受保护 buffer',13,'#637286'),
+        _text(390,858,'Host backends and device drivers',13,'#637286'),
+        _text(390,884,'Device control / protected buffers',13,'#637286'),
         _text(395,1365,'Secure-call transport',14,'#526f96',700),
         _text(375,335,'QNX Neutrino RTOS',17,'#526f96',700),
-        _text(375,367,'视频、显示与安全调用由',14,'#637286'),
-        _text(375,391,'各自的 host 服务承接。',14,'#637286'),
+        _text(375,367,'Video, display and secure calls',14,'#637286'),
+        _text(375,391,'are handled by host services.',14,'#637286'),
         # Grouped framework families and vendor DRM library card.
         _rect(768,538,244,224,'#f5faf6','#d0dfd4',10),
         _rect(1028,538,244,224,'#f5faf6','#d0dfd4',10),
@@ -358,9 +388,16 @@ def _frame():
         _text(985,1667,'Protected memory',13,'#23845b',700),
         _text(495,1818,'CP_B_VIDEO · VPU bitstream',14,'#54705e',700),
         _text(985,1818,'CP_P_VIDEO · VPU pixels',14,'#54705e',700),
-        _text(55,1846,'帧引用经 GraphicBuffer / fence 返回 Surface / HWC；CP_B_VIDEO、CP_P_VIDEO 是视频 SMMU context；受保护合成可产生额外扫描缓冲。',14,'#637286'),
-        _panel(20,1890,1560,114,'Display','输出链路按许可证要求应用 HDCP 保护；串解器与屏幕属于显示链路。','#fff','#c7d0dc'),
+        _text(55,1846,'GraphicBuffer / fence links decoded frames to Surface / HWC. CP_B_VIDEO and CP_P_VIDEO select video SMMU contexts.',14,'#637286'),
+        _panel(20,1890,1560,310,'Display Output','Alternative configurations','#fff','#c7d0dc'),
+        _text(45,2006,'Without HDCP',15,'#253242',700),
+        _text(45,2136,'With HDCP',15,'#253242',700),
+        _text(45,2190,'Use HDCP when required by the OTT service.',13,'#637286'),
+        '<circle cx="250" cy="2002" r="3" fill="#23845b"/>',
     ]
+    for top in [1938,2068]:
+        out.append(f'<rect class="wv-display-module" x="978" y="{top}" width="594" height="118" rx="7" fill="#9aa0a6" fill-opacity=".04" stroke="#5f6368" stroke-width="1.2" stroke-dasharray="6 5"/>')
+        out.append(_text(994,top+15,'Display Module',12,'#5f6368',600))
     return ''.join(out)
 
 
@@ -373,13 +410,14 @@ def render_graph(modules):
                     f'<path d="M0 0 L7 4 L0 8" fill="none" stroke="{color}" stroke-width="1.3"/></marker>')
     defs.append('</defs>')
     legend=[]
-    for x,kind,label in [(24,'control','Control / IPC'),(260,'data','Video data'),(475,'buffer','Buffer / handle'),(740,'output','Protection policy')]:
+    for x,kind,label in [(24,'control','Control / IPC'),(260,'data','Video data'),(475,'buffer','Buffer / handle'),(740,'output','Protection policy'),(1045,'encrypted','Encrypted link / HDCP')]:
         color,width,dash=EDGE_STYLES[kind];dashed=f' stroke-dasharray="{dash}"' if dash else ''
         legend.append(f'<path d="M{x},96 h34" stroke="{color}" stroke-width="{width}"{dashed}/>'+_text(x+43,101,label,15,color,600))
     svg=(f'<svg xmlns="http://www.w3.org/2000/svg" class="sw-ota-diagram sw-widevine-diagram" '
          f'id="sw-widevine-architecture-diagram" viewBox="0 0 {WIDTH} {HEIGHT}" width="{WIDTH}" height="{HEIGHT}" '
          f'font-family="Noto Sans CJK SC, Arial, sans-serif" role="group" aria-label="Widevine: TEE, QNX and Android software layers above Hypervisor, Hardware and Display">'
-         '<title>Widevine DRM — execution domains and software layers</title>'+''.join(defs)
+         '<title>Widevine DRM: execution domains and software layers</title>'
+         '<desc>Display Output compares alternative configurations without HDCP and with HDCP. Dashed Display Module boundaries group the screen-side deserializer, panel interface and display panel.</desc>'+''.join(defs)
          +f'<rect width="{WIDTH}" height="{HEIGHT}" fill="#fff"/>'+_frame()+''.join(legend)
          +make_routes().render()+'<g class="ota-nodes">'
          +''.join(_node(by_id[mid],box) for mid,box in NODES.items())+'</g></svg>')
