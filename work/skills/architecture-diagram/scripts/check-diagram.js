@@ -4,8 +4,8 @@
  *               const report = await page.evaluate(() => checkDiagram());
  *   也可粘贴到浏览器控制台执行。errors 必须为空；warnings 逐条确认。
  * DOM 约定（与 assets/base-template.html 一致）：
- *   节点 [data-node]，外框 rect.face，可选 data-parent；容器 g[data-container]，可选 data-parent；
- *   连线 g[data-edge]，data-from / data-to / data-route（缺省时读页面全局 edges 数组）；
+ *   节点 [data-node]，外框 rect.face，可选 data-parent；容器 g[data-container]（首个 rect 为边框，text/path 为标题与分隔线），可选 data-parent；
+ *   连线 g[data-edge]，data-from / data-to / data-route / data-keep-anchor（缺省时读页面全局 edges 数组）；
  *   标签 .edge-label（可选 data-label-for）；跨线弧 [data-bridge]；分支点 .flow-junction。
  */
 (() => {
@@ -99,9 +99,17 @@
     idCounts.forEach((count, id) => { if (count > 1) error('duplicate-id', `重复 id：${id}（${count} 次）`); });
 
     const containerMap = new Map();
+    const containerMarks = [];
     svg.querySelectorAll('g[data-container]').forEach(g => {
       const rect = g.querySelector('rect');
-      if (rect && rendered(g)) containerMap.set(g.dataset.container, {box: boxOf(rect), parent: g.dataset.parent});
+      if (!rect || !rendered(g)) return;
+      containerMap.set(g.dataset.container, {box: boxOf(rect), parent: g.dataset.parent});
+      g.querySelectorAll('text, path').forEach(el => {
+        const b = boxOf(el);
+        // Rules are zero-height lines; give them thickness so overlaps register.
+        const box = el.tagName === 'path' ? {x1: b.x1 - 1, y1: b.y1 - 1, x2: b.x2 + 1, y2: b.y2 + 1} : b;
+        containerMarks.push({container: g.dataset.container, text: el.tagName === 'text', label: el.textContent || '分隔线', box});
+      });
     });
     containerMap.forEach((c, id) => {
       if (!c.parent) return;
@@ -121,6 +129,10 @@
       if (!face) return;
       const box = boxOf(face);
       nodeMap.set(id, {id, box, parent: g.dataset.parent});
+      const outline = boxOf(g);
+      for (const mark of containerMarks) {
+        if (overlapArea(outline, mark.box) > 0) error('title-overlap', `节点 ${id} 压住容器 ${mark.container} 的${mark.text ? '标题：' + mark.label : '分隔线'}`);
+      }
       if (g.dataset.parent) {
         const parent = containerMap.get(g.dataset.parent);
         if (!parent) error('unknown-parent', `节点 ${id} 的容器不存在：${g.dataset.parent}`);
@@ -157,14 +169,28 @@
       const m = toRoot(path);
       const points = raw.map(p => mapPoint(m, p.x, p.y));
       const type = data.type ?? ['control', 'data', 'pixel', 'encrypted', 'config'].find(t => path.classList.contains(t));
-      edgeList.push({id, from, to, type, points, segments: segmentsOf(points)});
+      const keep = g.dataset.keepAnchor !== undefined || Boolean(data.keepAnchor);
+      edgeList.push({id, from, to, type, keep, points, segments: segmentsOf(points)});
     });
+
+    // Distinct attachment points per node side; a side holding a single point must use its center.
+    const anchors = new Map();
+    const addAnchor = (nodeId, side, p, edge) => {
+      const key = `${nodeId}\u0000${side}`;
+      const list = anchors.get(key) ?? [];
+      const same = list.find(a => Math.hypot(a.p.x - p.x, a.p.y - p.y) < 1);
+      if (same) { same.ids.push(edge.id); same.keep = same.keep || edge.keep; }
+      else list.push({nodeId, side, p, ids: [edge.id], keep: edge.keep});
+      anchors.set(key, list);
+    };
 
     for (const edge of edgeList) {
       const fromNode = nodeMap.get(edge.from), toNode = nodeMap.get(edge.to);
       if (!fromNode || !toNode) continue;
       const start = edge.points[0], end = edge.points[edge.points.length - 1];
       const startSide = sideOf(start, fromNode.box), endSide = sideOf(end, toNode.box);
+      if (startSide) addAnchor(edge.from, startSide, start, edge);
+      if (endSide) addAnchor(edge.to, endSide, end, edge);
       if (!startSide) error('start-off-boundary', `连线 ${edge.id} 起点不在 ${edge.from} 边框上`);
       else if (unit(start, edge.points[1]).join() !== OUTWARD[startSide].join()) error('start-direction', `连线 ${edge.id} 起始段未垂直离开 ${edge.from} 的 ${startSide} 边`);
       if (!endSide) error('end-off-boundary', `连线 ${edge.id} 箭头未贴 ${edge.to} 边框`);
@@ -177,7 +203,27 @@
       for (const node of nodeList) {
         if (edge.segments.some(s => segmentHitsBox(s, node.box, 2))) error('through-node', `连线 ${edge.id} 穿过节点 ${node.id}`);
       }
+      for (const mark of containerMarks) {
+        if (mark.text && edge.segments.some(s => segmentHitsBox(s, mark.box, -1))) error('edge-title', `连线 ${edge.id} 穿过容器 ${mark.container} 的标题：${mark.label}`);
+      }
+      containerMap.forEach((c, cid) => {
+        const b = c.box;
+        const hugs = edge.segments.some(s => {
+          const sides = s.horizontal ? [b.y1, b.y2] : [b.x1, b.x2];
+          const [lo, hi] = s.horizontal ? [b.x1, b.x2] : [b.y1, b.y2];
+          return sides.some(side => Math.abs(s.c - side) < 6) && Math.min(s.hi, hi) - Math.max(s.lo, lo) > 16;
+        });
+        if (hugs) warn('edge-on-border', `连线 ${edge.id} 贴着容器 ${cid} 的边框走`);
+      });
     }
+
+    anchors.forEach(list => {
+      if (list.length !== 1 || list[0].keep) return;
+      const {nodeId, side, p, ids} = list[0];
+      const b = nodeMap.get(nodeId).box;
+      const offset = side === 'top' || side === 'bottom' ? p.x - (b.x1 + b.x2) / 2 : p.y - (b.y1 + b.y2) / 2;
+      if (Math.abs(offset) > TOL) error('off-center', `${nodeId} 的 ${side} 边只接了 ${ids.join(' / ')}，应接在中心（当前偏移 ${Math.round(offset)}）`);
+    });
 
     const ends = new Map();
     for (const edge of edgeList) {
@@ -195,6 +241,8 @@
       return {x1: Math.min(a.x, b.x), x2: Math.max(a.x, b.x), y: a.y};
     });
     const inside = (v, lo, hi) => v > lo + .5 && v < hi - .5;
+    const pairCrossings = new Map();
+    const sharedNodeCrossings = new Map();
     for (const a of edgeList) {
       for (const b of edgeList) {
         if (a === b) continue;
@@ -203,6 +251,10 @@
             const x = v.c, y = h.c;
             if (!inside(x, h.lo, h.hi) || !inside(y, v.lo, v.hi)) continue;
             if (dots.some(d => Math.hypot(d.x - x, d.y - y) < 2)) continue;
+            const pair = [a.id, b.id].sort().join(' × ');
+            pairCrossings.set(pair, (pairCrossings.get(pair) ?? 0) + 1);
+            const common = [a.from, a.to].find(n => n === b.from || n === b.to);
+            if (common) sharedNodeCrossings.set(pair, common);
             if (!arcs.some(arc => Math.abs(arc.y - y) < .5 && arc.x1 < x && x < arc.x2)) {
               warn('crossing-no-bridge', `交叉无跨线弧：${a.id} × ${b.id} @ (${Math.round(x)}, ${Math.round(y)})，可能离拐点/端点过近或线路过密`);
             }
@@ -217,6 +269,28 @@
             }
           }
         }
+      }
+    }
+    pairCrossings.forEach((count, pair) => {
+      if (count > 1) warn('repeat-crossing', `连线 ${pair} 交叉 ${count} 次，调换入口或走线即可消除`);
+    });
+    sharedNodeCrossings.forEach((node, pair) => {
+      warn('shared-node-crossing', `连线 ${pair} 都连接 ${node} 却互相交叉，按来向调整 ${node} 上的入口顺序`);
+    });
+    for (const edge of edgeList) {
+      const bends = edge.segments.filter((s, i) => i > 0 && s.horizontal !== edge.segments[i - 1].horizontal).length;
+      if (bends >= 5) warn('complex-route', `连线 ${edge.id} 拐 ${bends} 次，先调整布局再走线`);
+      const fromNode = nodeMap.get(edge.from), toNode = nodeMap.get(edge.to);
+      if (!fromNode || !toNode) continue;
+      // Smallest container holding both endpoints; the route should not leave it.
+      let home = null;
+      containerMap.forEach((c, cid) => {
+        if (!contains(c.box, fromNode.box) || !contains(c.box, toNode.box)) return;
+        const area = (c.box.x2 - c.box.x1) * (c.box.y2 - c.box.y1);
+        if (!home || area < home.area) home = {cid, box: c.box, area};
+      });
+      if (home && edge.points.some(p => p.x < home.box.x1 - TOL || p.x > home.box.x2 + TOL || p.y < home.box.y1 - TOL || p.y > home.box.y2 + TOL)) {
+        warn('leaves-container', `连线 ${edge.id} 两端都在 ${home.cid} 内，路径却绕到容器外`);
       }
     }
 

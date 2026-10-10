@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>示例软件架构图</title>
+<title>Camera 虚拟化架构</title>
 <style>
   :root {
     color-scheme: light;
@@ -163,67 +163,1364 @@ window.addEventListener('error', event => {
 'use strict';
 /* ==================== 图数据：新图只修改本段 ==================== */
 // 嵌入文章时，高度消息类型为 `${DIAGRAM_ID}-height`。
-const DIAGRAM_ID = 'example-architecture';
+const DIAGRAM_ID = "camera-virtualization-architecture";
 const META = {
-  title: '示例软件架构图',
-  subtitle: '示例 OS · SoC Hardware',
-  description: '示例 OS 内两个用户态进程分别经内核接口访问硬件；共享内存向 GPU 与 DPU 扇出，内核驱动通过 doorbell 通知固件。',
-  sources: [{text: 'AOSP Graphics', href: 'https://source.android.com/docs/core/graphics/architecture'}]
+  "title": "Camera 虚拟化架构",
+  "subtitle": "PVM · Android GVM · Gunyah",
+  "description": "四路物理 Camera 经 ISP/IFE DMA 写入 QCarCam 输入池；PVM OneFrame 读取并聚合到 GVM 导出的 UYVY 共享池。HAB 91/92/93 传递控制、帧索引与归还；GVM Proxy 经 AIS V4L2 通知 EVS HAL，HAL 将共享 UYVY 转换为独立客户端 Buffer。CarService 经专用 evsmanagerd_v4q 访问 hw/0 HAL。内存位于软件与物理采集链之间。",
+  "sources": [
+    {
+      "text": "Camera 架构文档 · 正式部署配置 · ELF 符号/依赖 · QCX / HAB / AIS / Car EVS 源码"
+    }
+  ]
 };
-const WIDTH = 1200, HEIGHT = 760;
-// 图例文字可按本图改写；图例只显示实际用到的类别。
+const WIDTH = 2560, HEIGHT = 1840;
 const KIND_LABELS = {oem: 'OEM 自研', native: '系统原生', vendor: 'Vendor / Tier1', hardware: '硬件 / 内存', neutral: '来源未确定', configured: '仅配置'};
 const EDGE_LABELS = {control: '调用 / 控制', notification: '通知 / doorbell', data: '数据 / 像素', encrypted: '密文数据', config: '配置 / 分配（非逐次）'};
 
-// kind: domain | process | layer；父容器写在子容器之前。
-// 子容器和节点须在父容器标题带之下：domain 顶部 50、process 40、layer 48；memory 节点另留 8。越界会报错。
+
 const containers = [
-  {id: 'os', kind: 'domain', x: 20, y: 20, w: 1160, h: 470, title: '示例 OS', sub: 'VM 1'},
-  {id: 'example-service', kind: 'process', parent: 'os', x: 40, y: 76, w: 520, h: 254, title: 'example_service'},
-  {id: 'vendor-daemon', kind: 'process', parent: 'os', x: 620, y: 76, w: 540, h: 254, title: 'vendor_daemon'},
-  {id: 'kernel', kind: 'layer', parent: 'os', x: 40, y: 350, w: 1120, h: 124, title: 'Linux kernel'},
-  {id: 'soc', kind: 'domain', x: 20, y: 520, w: 1160, h: 220, title: 'SoC Hardware'}
+  {
+    "id": "pvm",
+    "kind": "domain",
+    "x": 20,
+    "y": 20,
+    "w": 1080,
+    "h": 1280,
+    "title": "PVM · Linux",
+    "sub": "物理 Camera 所有者"
+  },
+  {
+    "id": "be-process",
+    "kind": "process",
+    "x": 80,
+    "y": 100,
+    "w": 970,
+    "h": 660,
+    "title": "v4q_be_server",
+    "parent": "pvm"
+  },
+  {
+    "id": "platform",
+    "kind": "layer",
+    "x": 80,
+    "y": 810,
+    "w": 970,
+    "h": 270,
+    "title": "Native · 平台服务",
+    "parent": "pvm"
+  },
+  {
+    "id": "p-kernel",
+    "kind": "layer",
+    "x": 80,
+    "y": 1120,
+    "w": 970,
+    "h": 160,
+    "title": "Linux kernel",
+    "parent": "pvm"
+  },
+  {
+    "id": "gvm",
+    "kind": "domain",
+    "x": 1280,
+    "y": 20,
+    "w": 1260,
+    "h": 1280,
+    "title": "GVM · Android",
+    "sub": "EVS 消费侧"
+  },
+  {
+    "id": "java",
+    "kind": "layer",
+    "x": 1300,
+    "y": 90,
+    "w": 1220,
+    "h": 270,
+    "title": "Java",
+    "parent": "gvm"
+  },
+  {
+    "id": "native",
+    "kind": "layer",
+    "x": 1300,
+    "y": 410,
+    "w": 1220,
+    "h": 350,
+    "title": "Native",
+    "parent": "gvm"
+  },
+  {
+    "id": "proxy-process",
+    "kind": "process",
+    "x": 1320,
+    "y": 465,
+    "w": 380,
+    "h": 275,
+    "title": "ais_v4l2_proxy_qcc6",
+    "parent": "native"
+  },
+  {
+    "id": "hal",
+    "kind": "layer",
+    "x": 1300,
+    "y": 800,
+    "w": 1220,
+    "h": 280,
+    "title": "HAL",
+    "parent": "gvm"
+  },
+  {
+    "id": "evs-process",
+    "kind": "process",
+    "x": 1320,
+    "y": 850,
+    "w": 1180,
+    "h": 210,
+    "title": "android.hardware.automotive.evs-v4q",
+    "parent": "hal"
+  },
+  {
+    "id": "g-kernel",
+    "kind": "layer",
+    "x": 1300,
+    "y": 1120,
+    "w": 1220,
+    "h": 160,
+    "title": "Linux kernel",
+    "parent": "gvm"
+  },
+  {
+    "id": "hypervisor",
+    "kind": "domain",
+    "x": 20,
+    "y": 1320,
+    "w": 2520,
+    "h": 76,
+    "title": "Gunyah Hypervisor"
+  },
+  {
+    "id": "memory",
+    "kind": "domain",
+    "x": 20,
+    "y": 1420,
+    "w": 2520,
+    "h": 200,
+    "title": "DDR · 图像 Buffer"
+  },
+  {
+    "id": "hardware",
+    "kind": "domain",
+    "x": 20,
+    "y": 1640,
+    "w": 2520,
+    "h": 170,
+    "title": "Camera 物理采集链",
+    "sub": "四路输入 · PVM 管理"
+  }
 ];
-
-// kind: oem | native | vendor | hardware | neutral；可选 memory（堆叠）、zone（硬件面板）、configured（仅配置）。
 const nodes = [
-  {id: 'app', kind: 'oem', parent: 'example-service', x: 130, y: 124, w: 200, h: 56, name: ['libexample.so'], sub: ['策略与调度'], detail: '示例 OEM 自研库，调用系统原生库。'},
-  {id: 'core', kind: 'native', parent: 'example-service', x: 130, y: 236, w: 200, h: 56, name: ['libnative.so'], sub: ['系统原生实现'], detail: '示例系统原生库，经设备文件访问内核驱动。'},
-  {id: 'client', kind: 'neutral', parent: 'example-service', x: 360, y: 124, w: 180, h: 56, name: ['libclient.so'], sub: ['来源待确认'], detail: '来源未确认的组件使用中性色。'},
-  {id: 'vendor', kind: 'vendor', parent: 'vendor-daemon', x: 660, y: 124, w: 220, h: 56, name: ['libvendor.so'], sub: ['平台服务'], detail: '示例 Vendor 实现。'},
-  {id: 'reserved', kind: 'neutral', configured: true, parent: 'vendor-daemon', x: 900, y: 124, w: 180, h: 56, name: ['预留客户端'], sub: ['仅配置'], detail: '仅存在静态配置，不表示活动进程。'},
-  {id: 'drv', kind: 'native', parent: 'kernel', x: 110, y: 404, w: 240, h: 56, name: ['/dev/demo · demo_drv'], sub: [], detail: '内核对外接口写“文件路径 · 模块名”。'},
-  {id: 'vdrv', kind: 'vendor', parent: 'kernel', x: 650, y: 404, w: 240, h: 56, name: ['/dev/vdemo · vdemo'], sub: [], detail: 'Vendor 内核驱动。'},
-  {id: 'buf', kind: 'hardware', memory: true, parent: 'soc', x: 80, y: 616, w: 200, h: 60, name: ['Shared Buffer'], sub: ['共享图像内存'], detail: '内存使用堆叠矩形。'},
-  {id: 'gpu', kind: 'hardware', zone: true, parent: 'soc', x: 480, y: 576, w: 220, h: 50, name: ['GPU'], sub: [], detail: '硬件区域面板变体。'},
-  {id: 'dpu', kind: 'hardware', zone: true, parent: 'soc', x: 480, y: 676, w: 220, h: 50, name: ['DPU'], sub: [], detail: '硬件区域面板变体。'},
-  {id: 'fw', kind: 'vendor', parent: 'soc', x: 930, y: 616, w: 220, h: 60, name: ['demo firmware'], sub: ['firmware'], detail: '固件按来源着色并标明 firmware。'}
+  {
+    "id": "be",
+    "kind": "vendor",
+    "parent": "be-process",
+    "x": 650,
+    "y": 220,
+    "w": 360,
+    "h": 84,
+    "name": [
+      "hyp_camera::cV4qCamera"
+    ],
+    "sub": [
+      "Camera 实例 · OPEN / START / ALLOCBUFS"
+    ],
+    "detail": "正式 v4q_be_server ELF 定义该类。initV4qDevice 创建 v4q_QcarcamOneframe；processCmdAllocBufs 经 cHabConnect::habImport 与 mmap 建立输出池，再调用 SetOutputBuffers。DWARF：cV4qCamera.cpp:796、566。"
+  },
+  {
+    "id": "oneframe",
+    "kind": "vendor",
+    "parent": "be-process",
+    "x": 180,
+    "y": 220,
+    "w": 400,
+    "h": 84,
+    "name": [
+      "v4q::v4q_QcarcamOneframe"
+    ],
+    "sub": [
+      "StitchingThread · 四路 2×2 聚合"
+    ],
+    "detail": "正式 ELF 定义该类。StitchingThread 逐行 memcpy：Front|Left / Right|Rear，每路1920×1536 UYVY，输出3840×3072。qcarcam_wrap_* 编入当前程序，不另画虚构的 Wrapper 库；普通 v4q_Qcarcam 类不插入本4AVM主链。"
+  },
+  {
+    "id": "p-connect",
+    "kind": "vendor",
+    "parent": "be-process",
+    "x": 650,
+    "y": 600,
+    "w": 360,
+    "h": 118,
+    "name": [
+      "hyp_camera::cHabConnect"
+    ],
+    "sub": [
+      "Command 91 · Work 92 / 93",
+      "HAB RPC · import / map"
+    ],
+    "detail": "正式 ELF 定义 connectChn、habImport、sendEvent、HabRecvThread 等方法。用户态通过 libuhab.so 使用 /dev/hab；不是直接操作 /dev/vhost-cam。"
+  },
+  {
+    "id": "qcx-client",
+    "kind": "vendor",
+    "parent": "be-process",
+    "x": 180,
+    "y": 550,
+    "w": 400,
+    "h": 76,
+    "name": [
+      "libqcxclient.so"
+    ],
+    "sub": [
+      "QCarCam API · stream / frame callback"
+    ],
+    "detail": "v4q_be_server DT_NEEDED 明确依赖 libqcxclient.so；qcxclient CMake 构建 qcxqcarcam.cpp。Oneframe::startSingleCamera → qcarcam_wrap_start → QCarCamStart，Wrapper 为当前可执行文件内自由函数，不另设实体。"
+  },
+  {
+    "id": "qcx-server",
+    "kind": "vendor",
+    "parent": "platform",
+    "x": 180,
+    "y": 915,
+    "w": 400,
+    "h": 76,
+    "name": [
+      "qcxserver"
+    ],
+    "sub": [
+      "独立进程 · Camera request / ISP 配置"
+    ],
+    "detail": "qcx_server.service 启动 /usr/bin/qcxserver。通过 libqcxplatform.so 的 LRH 平台实现使用 kiumd、VFIO 与 /dev/scmi_camera；并非传统 /dev/media* → cam 内核驱动链。未展开 QCX 内部传感器与请求管理类。"
+  },
+  {
+    "id": "vhost-user",
+    "kind": "vendor",
+    "parent": "platform",
+    "x": 650,
+    "y": 915,
+    "w": 360,
+    "h": 76,
+    "name": [
+      "vhost-user-qti"
+    ],
+    "sub": [
+      "Camera VirtIO BE · vring 配置"
+    ],
+    "detail": "vhost-user-cam.service 启动 vhost-user-qti -d /dev/vhost-cam -q 4；配置虚拟队列与共享内存。它不作为逐帧像素处理节点，也不是 cHabConnect 的 RPC 用户接口。"
+  },
+  {
+    "id": "p-camera",
+    "kind": "vendor",
+    "parent": "p-kernel",
+    "x": 140,
+    "y": 1174,
+    "w": 430,
+    "h": 94,
+    "name": [
+      "/dev/kiumd · kiumd",
+      "/dev/vfio/* · vfio",
+      "/dev/scmi_camera · qcom_uscmi"
+    ],
+    "sub": [],
+    "detail": "QCX platformscmi.cpp 明确打开 /dev/scmi_camera；platformsmmu.cpp 使用 libkiumd；platformvfio.cpp 映射 Camera 寄存器。设备树以 vfio-platform 绑定 Camera 设备；Kbuild/镜像清单确认 kiumd.ko 与 qcom_uscmi.ko。"
+  },
+  {
+    "id": "p-hab",
+    "kind": "vendor",
+    "parent": "p-kernel",
+    "x": 650,
+    "y": 1174,
+    "w": 360,
+    "h": 94,
+    "name": [
+      "/dev/hab · msm_hab",
+      "/dev/vhost-cam · msm_hab"
+    ],
+    "sub": [
+      "RPC 用户接口 / VirtIO BE 管理接口"
+    ],
+    "detail": "PVM hab_linux.c 仅创建 hab 节点；hab_vhost.c 以 Camera 域名 cam 为 VM2 建立 vhost-cam。hab_vhost 是 msm_hab 模块内实现，不是独立模块。上方两路分别是 libuhab RPC 与 vhost-user 配置。"
+  },
+  {
+    "id": "manager",
+    "kind": "native",
+    "parent": "java",
+    "x": 1380,
+    "y": 190,
+    "w": 300,
+    "h": 70,
+    "name": [
+      "CarEvsManager"
+    ],
+    "sub": [
+      "应用 API · 帧句柄 / Buffer 归还"
+    ],
+    "detail": "应用侧 Car API 类，接收 CarEvsBufferDescriptor / HardwareBuffer 句柄并调用 returnFrameBuffer。图不展开未确认的量产应用包名与渲染实现；客户端像素位于独立 EVS 输出池。"
+  },
+  {
+    "id": "carservice",
+    "kind": "native",
+    "parent": "java",
+    "x": 2050,
+    "y": 190,
+    "w": 380,
+    "h": 70,
+    "name": [
+      "CarEvsService"
+    ],
+    "sub": [
+      "CarService · StateMachine / JNI"
+    ],
+    "detail": "CarService 内的类。JNI EvsServiceContext 对 /dev/video* 选择 IEvsEnumerator/v4q；此实例由 evsmanagerd_v4q 提供，不是 HAL hw/0。帧句柄由 JNI/StateMachine 转交 CarEvsManager，不通过 Binder 搬运整帧像素。"
+  },
+  {
+    "id": "fe",
+    "kind": "vendor",
+    "parent": "proxy-process",
+    "x": 1360,
+    "y": 510,
+    "w": 300,
+    "h": 66,
+    "name": [
+      "cFeCamera"
+    ],
+    "sub": [
+      "共享池分配 · V4L2 queue / 回收"
+    ],
+    "detail": "部署程序 ais_v4l2_proxy_qcc6 的核心 Camera 前端。正式 ELF 诊断字符串包含 initV4l2Device、V4L2EventPollThread、processOpenEvent；分配/导出 GraphicBuffer，将帧 index 交给 AIS V4L2，并在回收后发 WORK_RELEASE_FRAME。"
+  },
+  {
+    "id": "g-connect",
+    "kind": "vendor",
+    "parent": "proxy-process",
+    "x": 1360,
+    "y": 600,
+    "w": 300,
+    "h": 118,
+    "name": [
+      "cHabConnect"
+    ],
+    "sub": [
+      "HAB 91 / 92 / 93",
+      "libuhab.so · export / RPC"
+    ],
+    "detail": "Proxy ELF 诊断字符串确认 cHabConnect 方法。Camera MMID 对应 /dev/hab-cam，libuhab 在 EACCES/ENOENT 时可回退 /dev/hab。主图以协议封装类承载跨 VM 控制与通知。"
+  },
+  {
+    "id": "evs-manager",
+    "kind": "native",
+    "parent": "native",
+    "x": 2050,
+    "y": 510,
+    "w": 380,
+    "h": 80,
+    "name": [
+      "evsmanagerd_v4q"
+    ],
+    "sub": [
+      "IEvsEnumerator/v4q → hw/0"
+    ],
+    "detail": "产品 device_qssi.mk 包含 evsmanagerd_v4q，专用 rc 启动同名进程。aidl_v4q/include/ServiceNames.h 分别定义管理实例 v4q 与硬件实例 hw/0；CarService 请求经此服务转发至厂商 EVS HAL。"
+  },
+  {
+    "id": "enumerator",
+    "kind": "vendor",
+    "parent": "evs-process",
+    "x": 2050,
+    "y": 906,
+    "w": 380,
+    "h": 56,
+    "name": [
+      "EvsEnumerator"
+    ],
+    "sub": [
+      "枚举 / 打开 /dev/video61"
+    ],
+    "detail": "android.hardware.automotive.evs-v4q 注册 IEvsEnumerator/hw/0；创建 EvsV4lCamera。源文档原先省略的专用 EVS Manager 已在主图补齐。"
+  },
+  {
+    "id": "evscamera",
+    "kind": "vendor",
+    "parent": "evs-process",
+    "x": 2050,
+    "y": 980,
+    "w": 380,
+    "h": 64,
+    "name": [
+      "EvsV4lCamera"
+    ],
+    "sub": [
+      "UYVY → NV21 · 客户端 Buffer 管理"
+    ],
+    "detail": "使用 VideoCapture 取共享帧；执行 fillNV21FromUYVY 或 C2D 转换路径，写入独立客户端 GraphicBuffer。函数名是实现细节，不另画成组件。deliverFrame 交付描述符；doneWithFrame 归还客户端池，与底层 UYVY 归还独立。"
+  },
+  {
+    "id": "capture",
+    "kind": "vendor",
+    "parent": "evs-process",
+    "x": 1470,
+    "y": 980,
+    "w": 340,
+    "h": 64,
+    "name": [
+      "VideoCapture"
+    ],
+    "sub": [
+      "STREAMON · DQBUF / QBUF"
+    ],
+    "detail": "打开 /dev/video61，通过 MMAP/DMA-BUF 获得输入映射和帧索引，将帧地址交给 EvsV4lCamera 消费。共享 UYVY 的像素读取连接实际转换组件，不把只传索引的 Proxy 或 V4L2 队列画成像素搬运器。"
+  },
+  {
+    "id": "g-hab",
+    "kind": "vendor",
+    "parent": "g-kernel",
+    "x": 1360,
+    "y": 1184,
+    "w": 320,
+    "h": 84,
+    "name": [
+      "/dev/hab-cam · msm_hab"
+    ],
+    "sub": [
+      "Camera MMID · hab_virtio"
+    ],
+    "detail": "GVM hab_ioctl.h 将 Camera MMID 映射到 hab-cam，uhab.c 打开分组节点并支持 /dev/hab 回退。vendor_boot.modules.load 确认 msm_hab.ko；共享页授权由 Gunyah 提供。"
+  },
+  {
+    "id": "loopback",
+    "kind": "vendor",
+    "parent": "g-kernel",
+    "x": 1810,
+    "y": 1184,
+    "w": 480,
+    "h": 84,
+    "name": [
+      "/dev/video61 · ais-v4l2loopback"
+    ],
+    "sub": [
+      "AIS 虚拟 Camera · queue / dequeue"
+    ],
+    "detail": "Makefile 构建 ais-v4l2loopback.ko；源码注册 video51–66，当前4AVM配置使用video61。system_dlkm.modules.load 确认该模块，不以泛称 V4L2 Loopback 代替模块实体。"
+  },
+  {
+    "id": "input-pool",
+    "kind": "hardware",
+    "parent": "memory",
+    "x": 200,
+    "y": 1490,
+    "w": 400,
+    "h": 88,
+    "name": [
+      "QCarCam 输入 Buffer 池"
+    ],
+    "sub": [
+      "四路 1920 × 1536 · UYVY",
+      "PVM 注册 · Camera DMA 写入"
+    ],
+    "detail": "QCarCam Wrapper 为四路各注册一组输入 Buffer；OneFrame 按 frame callback 的 index/timestamp 读取。是采集硬件的输出，也是软件聚合的输入。",
+    "memory": true,
+    "zone": true
+  },
+  {
+    "id": "shared-pool",
+    "kind": "hardware",
+    "parent": "memory",
+    "x": 1120,
+    "y": 1490,
+    "w": 380,
+    "h": 88,
+    "name": [
+      "跨 VM UYVY 共享 Buffer 池"
+    ],
+    "sub": [
+      "3840 × 3072 · 默认 5 个",
+      "GVM 分配 / export · PVM import / 写入"
+    ],
+    "detail": "同一组物理页只画一次。PVM Free→Writing→WORK_GET_FRAME→GVM In-flight→WORK_RELEASE_FRAME→Free。300ms watchdog 仅为异常恢复，非正常归还。每帧有效载荷22.5MiB，不含对齐。 Gunyah 提供共享页授权与 Stage-2 映射。",
+    "memory": true,
+    "zone": true
+  },
+  {
+    "id": "client-pool",
+    "kind": "hardware",
+    "parent": "memory",
+    "x": 2050,
+    "y": 1490,
+    "w": 380,
+    "h": 88,
+    "name": [
+      "EVS 客户端 GraphicBuffer"
+    ],
+    "sub": [
+      "3840 × 3072 · YCRCB_420_SP",
+      "EVS HAL 写入 · 应用持有 / 归还"
+    ],
+    "detail": "独立于跨 VM UYVY 池；NV21兼容布局。应用通过 CarEvsManager / CarService / EVS Manager 调用 doneWithFrame 归还该池，底层 UYVY 可在转换完成后先归还。",
+    "memory": true,
+    "zone": true
+  },
+  {
+    "id": "sensor",
+    "kind": "hardware",
+    "parent": "hardware",
+    "x": 70,
+    "y": 1710,
+    "w": 260,
+    "h": 72,
+    "name": [
+      "Camera Sensors"
+    ],
+    "sub": [
+      "Front · Rear · Left · Right"
+    ],
+    "detail": "四路物理 Camera；原文没有给具体传感器型号和线缆上的格式，图只展开稳定采集链。",
+    "zone": true
+  },
+  {
+    "id": "serdes",
+    "kind": "hardware",
+    "parent": "hardware",
+    "x": 420,
+    "y": 1710,
+    "w": 280,
+    "h": 72,
+    "name": [
+      "SerDes · MIPI CSI-2"
+    ],
+    "sub": [
+      "串行视频链路 · CSI 接收"
+    ],
+    "detail": "Sensor 经 Serializer/Deserializer 与 CSI 到 ISP/IFE；不把它们连成直接访问图像 DDR 的 DMA 主设备。",
+    "zone": true
+  },
+  {
+    "id": "isp",
+    "kind": "hardware",
+    "parent": "hardware",
+    "x": 790,
+    "y": 1710,
+    "w": 330,
+    "h": 72,
+    "name": [
+      "ISP / IFE · Camera DMA"
+    ],
+    "sub": [
+      "采集 / 格式化 · DMA 写入"
+    ],
+    "detail": "Camera DMA 将 ISP 输出的 UYVY 写入已注册输入 Buffer。之后由 PVM OneFrame 读取并 memcpy 到另一套共享输出池。",
+    "zone": true
+  }
 ];
-
-// type: control | data | encrypted | config；notification: true 为通知/doorbell（仅用于 control）。
-// 端点由 fromSide/toSide（top|bottom|left|right，默认 bottom → top）加 fromOffset/toOffset 计算。
-// 节点某条边只接一条线时必须居中；用户指定的偏移锚点设 keepAnchor: true。
-// via 依次给出折点，每项只写 x 或 y；末段自动补成垂直于 toSide 的折线。也可直接写绝对坐标 d（仅 M/H/V/L）。
-// 标签默认放在最长段旁，可用 lx/ly/labelAnchor 覆盖。
 const edges = [
-  {id: 'app-core', from: 'app', to: 'core', type: 'control', label: '调用'},
-  {id: 'core-drv', from: 'core', to: 'drv', type: 'control', label: 'ioctl', lx: 240, ly: 318, labelAnchor: 'start'},
-  {id: 'client-vendor', from: 'client', to: 'vendor', type: 'control', fromSide: 'right', toSide: 'left', label: 'IPC'},
-  {id: 'vendor-vdrv', from: 'vendor', to: 'vdrv', type: 'control', label: 'ioctl'},
-  {id: 'vdrv-fw', from: 'vdrv', to: 'fw', type: 'control', notification: true, via: [{y: 500}], label: 'doorbell', lx: 1050, ly: 572, labelAnchor: 'start'},
-  {id: 'reserved-dpu', from: 'reserved', to: 'dpu', type: 'config', toSide: 'right', via: [{y: 560}, {x: 760}], label: '预留'},
-  {id: 'buf-gpu', from: 'buf', to: 'gpu', type: 'data', fromSide: 'right', toSide: 'left', via: [{x: 400}], label: '读取', lx: 440, ly: 591},
-  {id: 'buf-dpu', from: 'buf', to: 'dpu', type: 'data', fromSide: 'right', toSide: 'left', via: [{x: 400}], label: '取图', lx: 440, ly: 723}
+  {
+    "id": "be-oneframe",
+    "from": "be",
+    "to": "oneframe",
+    "type": "control",
+    "fromSide": "left",
+    "toSide": "right"
+  },
+  {
+    "id": "output-ready",
+    "from": "oneframe",
+    "to": "be",
+    "type": "control",
+    "notification": true,
+    "fromSide": "right",
+    "fromOffset": 20,
+    "toSide": "left",
+    "toOffset": 20,
+    "label": "index",
+    "lx": 615,
+    "ly": 307
+  },
+  {
+    "id": "oneframe-qcx",
+    "from": "oneframe",
+    "to": "qcx-client",
+    "type": "control",
+    "label": "qcarcam_wrap_* → QCarCam API",
+    "lx": 395,
+    "ly": 443,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "input-ready",
+    "from": "qcx-client",
+    "to": "oneframe",
+    "type": "control",
+    "notification": true,
+    "fromSide": "left",
+    "toSide": "left",
+    "via": [
+      {
+        "x": 120
+      },
+      {
+        "y": 282
+      }
+    ],
+    "label": "frame callback",
+    "lx": 134,
+    "ly": 470,
+    "labelAnchor": "start",
+    "toOffset": 20
+  },
+  {
+    "id": "be-connect",
+    "from": "be",
+    "to": "p-connect",
+    "type": "control",
+    "fromOffset": 90,
+    "toOffset": 90,
+    "label": "HAB 调用",
+    "lx": 934,
+    "ly": 459,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "connect-callback",
+    "from": "p-connect",
+    "to": "be",
+    "type": "control",
+    "notification": true,
+    "fromSide": "top",
+    "fromOffset": -70,
+    "toSide": "bottom",
+    "toOffset": -70,
+    "label": "请求 / 归还回调",
+    "lx": 746,
+    "ly": 502,
+    "labelAnchor": "end"
+  },
+  {
+    "id": "qcx-ipc",
+    "from": "qcx-client",
+    "to": "qcx-server",
+    "type": "control",
+    "label": "QCX client IPC",
+    "lx": 394,
+    "ly": 794,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "qcx-kernel",
+    "from": "qcx-server",
+    "to": "p-camera",
+    "type": "control",
+    "via": [
+      {
+        "y": 1096
+      },
+      {
+        "x": 355
+      }
+    ],
+    "label": "libqcxplatform.so",
+    "lx": 394,
+    "ly": 1058,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "vhost-config",
+    "from": "vhost-user",
+    "to": "p-hab",
+    "type": "config",
+    "toOffset": 100,
+    "via": [
+      {
+        "y": 1096
+      },
+      {
+        "x": 930
+      }
+    ],
+    "label": "vring / kick / call",
+    "lx": 944,
+    "ly": 1113,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "p-hab-call",
+    "from": "p-connect",
+    "to": "p-hab",
+    "type": "control",
+    "fromOffset": 40,
+    "toOffset": -30,
+    "via": [
+      {
+        "y": 788
+      },
+      {
+        "x": 620
+      },
+      {
+        "y": 1150
+      },
+      {
+        "x": 800
+      }
+    ],
+    "label": "libuhab.so",
+    "lx": 606,
+    "ly": 863,
+    "labelAnchor": "end"
+  },
+  {
+    "id": "car-control",
+    "from": "manager",
+    "to": "carservice",
+    "type": "control",
+    "fromSide": "right",
+    "toSide": "left",
+    "label": "Binder · 请求 / 归还",
+    "lx": 1860,
+    "ly": 211
+  },
+  {
+    "id": "car-callback",
+    "from": "carservice",
+    "to": "manager",
+    "type": "control",
+    "notification": true,
+    "fromSide": "left",
+    "fromOffset": 20,
+    "toSide": "right",
+    "toOffset": 20,
+    "label": "帧回调 / 句柄",
+    "lx": 1860,
+    "ly": 274
+  },
+  {
+    "id": "service-manager",
+    "from": "carservice",
+    "to": "evs-manager",
+    "type": "control",
+    "label": "IEvsEnumerator/v4q",
+    "lx": 2254,
+    "ly": 394,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "manager-service-frame",
+    "from": "evs-manager",
+    "to": "carservice",
+    "type": "control",
+    "notification": true,
+    "fromSide": "top",
+    "fromOffset": -110,
+    "toSide": "bottom",
+    "toOffset": -110,
+    "label": "帧描述符",
+    "lx": 2116,
+    "ly": 439,
+    "labelAnchor": "end"
+  },
+  {
+    "id": "manager-hal",
+    "from": "evs-manager",
+    "to": "enumerator",
+    "type": "control",
+    "label": "IEvsEnumerator/hw/0",
+    "lx": 2254,
+    "ly": 744,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "enumerate",
+    "from": "enumerator",
+    "to": "evscamera",
+    "type": "control"
+  },
+  {
+    "id": "camera-capture",
+    "from": "evscamera",
+    "to": "capture",
+    "type": "control",
+    "fromSide": "left",
+    "toSide": "right",
+    "label": "采集循环",
+    "lx": 1930,
+    "ly": 999
+  },
+  {
+    "id": "capture-frame",
+    "from": "capture",
+    "to": "evscamera",
+    "type": "control",
+    "notification": true,
+    "fromSide": "right",
+    "fromOffset": 20,
+    "toSide": "left",
+    "toOffset": 20,
+    "label": "帧 index / 地址",
+    "lx": 1930,
+    "ly": 1055
+  },
+  {
+    "id": "capture-ioctl",
+    "from": "capture",
+    "to": "loopback",
+    "type": "control",
+    "via": [
+      {
+        "y": 1100
+      },
+      {
+        "x": 2050
+      }
+    ],
+    "label": "DQBUF / QBUF",
+    "lx": 2064,
+    "ly": 1151,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "fe-queue",
+    "from": "fe",
+    "to": "loopback",
+    "type": "control",
+    "fromSide": "right",
+    "toOffset": -120,
+    "via": [
+      {
+        "x": 1830
+      },
+      {
+        "y": 1155
+      },
+      {
+        "x": 1930
+      }
+    ],
+    "label": "VIDIOC_QBUF",
+    "lx": 1816,
+    "ly": 720,
+    "labelAnchor": "end"
+  },
+  {
+    "id": "recycle-event",
+    "from": "loopback",
+    "to": "fe",
+    "type": "control",
+    "notification": true,
+    "fromSide": "right",
+    "toSide": "right",
+    "toOffset": 16,
+    "via": [
+      {
+        "x": 2492
+      },
+      {
+        "y": 778
+      },
+      {
+        "x": 1720
+      },
+      {
+        "y": 559
+      }
+    ],
+    "label": "V4L2 回收事件",
+    "lx": 1734,
+    "ly": 748,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "fe-connect",
+    "from": "fe",
+    "to": "g-connect",
+    "type": "control"
+  },
+  {
+    "id": "fe-callback",
+    "from": "g-connect",
+    "to": "fe",
+    "type": "control",
+    "notification": true,
+    "fromSide": "left",
+    "toSide": "left",
+    "via": [
+      {
+        "x": 1330
+      },
+      {
+        "y": 543
+      }
+    ]
+  },
+  {
+    "id": "command",
+    "from": "g-connect",
+    "to": "p-connect",
+    "type": "control",
+    "notification": false,
+    "fromSide": "left",
+    "toSide": "right",
+    "fromOffset": -45,
+    "toOffset": -45,
+    "label": "91 · 控制请求",
+    "lx": 1180,
+    "ly": 604
+  },
+  {
+    "id": "response",
+    "from": "p-connect",
+    "to": "g-connect",
+    "type": "control",
+    "notification": false,
+    "fromSide": "right",
+    "toSide": "left",
+    "fromOffset": -15,
+    "toOffset": -15,
+    "label": "91 · 应答",
+    "lx": 1180,
+    "ly": 634
+  },
+  {
+    "id": "get-frame",
+    "from": "p-connect",
+    "to": "g-connect",
+    "type": "control",
+    "notification": true,
+    "fromSide": "right",
+    "toSide": "left",
+    "fromOffset": 15,
+    "toOffset": 15,
+    "label": "92 · GET_FRAME",
+    "lx": 1180,
+    "ly": 664
+  },
+  {
+    "id": "release",
+    "from": "g-connect",
+    "to": "p-connect",
+    "type": "control",
+    "notification": true,
+    "fromSide": "left",
+    "toSide": "right",
+    "fromOffset": 45,
+    "toOffset": 45,
+    "label": "93 · RELEASE_FRAME",
+    "lx": 1180,
+    "ly": 694
+  },
+  {
+    "id": "g-hab-call",
+    "from": "g-connect",
+    "to": "g-hab",
+    "type": "control",
+    "via": [
+      {
+        "y": 782
+      },
+      {
+        "x": 1290
+      },
+      {
+        "y": 1168
+      },
+      {
+        "x": 1520
+      }
+    ],
+    "label": "libuhab.so",
+    "lx": 1306,
+    "ly": 1093,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "hal-frame",
+    "from": "evscamera",
+    "to": "evs-manager",
+    "type": "control",
+    "notification": true,
+    "fromSide": "right",
+    "fromOffset": 0,
+    "toSide": "right",
+    "toOffset": 0,
+    "via": [
+      {
+        "x": 2470
+      },
+      {
+        "y": 550
+      }
+    ],
+    "label": "deliverFrame",
+    "lx": 2455,
+    "ly": 835,
+    "labelAnchor": "end"
+  },
+  {
+    "id": "export",
+    "from": "g-connect",
+    "to": "shared-pool",
+    "type": "config",
+    "fromOffset": 65,
+    "toOffset": 90,
+    "via": [
+      {
+        "y": 752
+      },
+      {
+        "x": 1250
+      },
+      {
+        "y": 1436
+      },
+      {
+        "x": 1400
+      }
+    ],
+    "label": "HAB export",
+    "lx": 1236,
+    "ly": 1409,
+    "labelAnchor": "end"
+  },
+  {
+    "id": "import",
+    "from": "p-connect",
+    "to": "shared-pool",
+    "type": "config",
+    "fromOffset": -35,
+    "toOffset": 50,
+    "via": [
+      {
+        "y": 802
+      },
+      {
+        "x": 1110
+      },
+      {
+        "y": 1452
+      },
+      {
+        "x": 1360
+      }
+    ],
+    "label": "import / map",
+    "lx": 1124,
+    "ly": 1310,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "sensor-serdes",
+    "from": "sensor",
+    "to": "serdes",
+    "type": "data",
+    "fromSide": "right",
+    "toSide": "left"
+  },
+  {
+    "id": "serdes-isp",
+    "from": "serdes",
+    "to": "isp",
+    "type": "data",
+    "fromSide": "right",
+    "toSide": "left"
+  },
+  {
+    "id": "dma-write",
+    "from": "isp",
+    "to": "input-pool",
+    "type": "data",
+    "fromSide": "top",
+    "toSide": "bottom",
+    "via": [
+      {
+        "y": 1628
+      },
+      {
+        "x": 400
+      }
+    ],
+    "label": "DMA 写入",
+    "lx": 530,
+    "ly": 1614
+  },
+  {
+    "id": "read-input",
+    "from": "input-pool",
+    "to": "oneframe",
+    "type": "data",
+    "fromSide": "top",
+    "toSide": "left",
+    "toOffset": 0,
+    "via": [
+      {
+        "y": 1408
+      },
+      {
+        "x": 8
+      },
+      {
+        "y": 262
+      }
+    ],
+    "label": "读取四路 UYVY",
+    "lx": 54,
+    "ly": 1310,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "pack-output",
+    "from": "oneframe",
+    "to": "shared-pool",
+    "type": "data",
+    "fromOffset": 100,
+    "toOffset": 0,
+    "via": [
+      {
+        "y": 344
+      },
+      {
+        "x": 1080
+      },
+      {
+        "y": 1468
+      },
+      {
+        "x": 1310
+      }
+    ],
+    "label": "2×2 · memcpy 写入",
+    "lx": 1064,
+    "ly": 1024,
+    "labelAnchor": "end"
+  },
+  {
+    "id": "read-shared",
+    "from": "shared-pool",
+    "to": "evscamera",
+    "type": "data",
+    "fromSide": "top",
+    "fromOffset": 155,
+    "toSide": "top",
+    "toOffset": 120,
+    "via": [
+      {
+        "y": 1408
+      },
+      {
+        "x": 2446
+      },
+      {
+        "y": 967
+      },
+      {
+        "x": 2360
+      }
+    ],
+    "label": "读取共享 UYVY",
+    "lx": 2432,
+    "ly": 1310,
+    "labelAnchor": "end"
+  },
+  {
+    "id": "write-client",
+    "from": "evscamera",
+    "to": "client-pool",
+    "type": "data",
+    "label": "转换 / 写入 NV21",
+    "lx": 2321,
+    "ly": 1430,
+    "labelAnchor": "end",
+    "via": [
+      {
+        "y": 1096
+      },
+      {
+        "x": 2335
+      },
+      {
+        "y": 1470
+      },
+      {
+        "x": 2240
+      }
+    ]
+  },
+  {
+    "id": "camera-mmio",
+    "from": "p-camera",
+    "to": "isp",
+    "type": "control",
+    "fromOffset": 0,
+    "toOffset": -100,
+    "via": [
+      {
+        "y": 1294
+      },
+      {
+        "x": 690
+      },
+      {
+        "y": 1660
+      },
+      {
+        "x": 855
+      }
+    ],
+    "label": "寄存器 / DMA 配置",
+    "lx": 704,
+    "ly": 1542,
+    "labelAnchor": "start"
+  },
+  {
+    "id": "client-return",
+    "from": "evs-manager",
+    "to": "evscamera",
+    "type": "control",
+    "fromSide": "left",
+    "fromOffset": 0,
+    "toSide": "top",
+    "toOffset": -120,
+    "via": [
+      {
+        "x": 1985
+      },
+      {
+        "y": 966
+      },
+      {
+        "x": 2120
+      }
+    ],
+    "label": "doneWithFrame",
+    "lx": 1971,
+    "ly": 831,
+    "labelAnchor": "end"
+  }
 ];
-
-// 分支实心点：列出共享前缀的扇出连线，点位自动计算。
-const junctions = [{edges: ['buf-gpu', 'buf-dpu']}];
-// 局部放大按钮（区域坐标）。
-const views = [{label: '放大硬件', x: 20, y: 520, w: 740, h: 230}];
-// 路径聚焦按钮。
+const junctions = [];
+const views = [
+  {
+    "label": "PVM",
+    "x": 20,
+    "y": 20,
+    "w": 1100,
+    "h": 1280
+  },
+  {
+    "label": "Android",
+    "x": 1280,
+    "y": 20,
+    "w": 1260,
+    "h": 1280
+  },
+  {
+    "label": "HAB 通道",
+    "x": 590,
+    "y": 440,
+    "w": 1120,
+    "h": 880
+  },
+  {
+    "label": "硬件与内存",
+    "x": 20,
+    "y": 1320,
+    "w": 1520,
+    "h": 490
+  }
+];
 const flows = [
-  {id: 'control', label: '控制路径', edges: ['app-core', 'core-drv', 'client-vendor', 'vendor-vdrv'], detail: '用户态库经 IPC 与 ioctl 到达内核驱动。'},
-  {id: 'data', label: '数据路径', edges: ['buf-gpu', 'buf-dpu'], detail: '共享内存同时被 GPU 读取和 DPU 取图。'}
+  {
+    "id": "control",
+    "label": "开流控制",
+    "edges": [
+      "car-control",
+      "service-manager",
+      "manager-hal",
+      "enumerate",
+      "camera-capture",
+      "capture-ioctl",
+      "recycle-event",
+      "fe-connect",
+      "command",
+      "response",
+      "connect-callback",
+      "be-oneframe",
+      "oneframe-qcx",
+      "qcx-ipc",
+      "qcx-kernel",
+      "camera-mmio"
+    ],
+    "detail": "CarService 经专用 evsmanagerd_v4q 访问 hw/0 HAL；V4L2 事件经 Proxy 与 HAB Command 91 到 PVM，最终由 qcxserver 配置硬件。应用/EVS 归还客户端 Buffer 也沿这条上层控制链，不直接释放 PVM 输入池。"
+  },
+  {
+    "id": "pixels",
+    "label": "像素路径",
+    "edges": [
+      "sensor-serdes",
+      "serdes-isp",
+      "dma-write",
+      "read-input",
+      "pack-output",
+      "read-shared",
+      "write-client"
+    ],
+    "detail": "物理采集 → QCarCam 输入池 → PVM OneFrame CPU 聚合 → 跨 VM UYVY 池 → EvsV4lCamera 转换 → EVS 客户端池。HAB 和 V4L2 queue 传递控制/索引，不在绿色路径中搬运像素。"
+  },
+  {
+    "id": "sharing",
+    "label": "共享池建立",
+    "edges": [
+      "fe-connect",
+      "export",
+      "import",
+      "command",
+      "response",
+      "p-hab-call",
+      "g-hab-call",
+      "vhost-config"
+    ],
+    "detail": "GVM 分配并导出，PVM 导入同一组物理页。Hypervisor 授权是配置关系；/dev/hab 与 /dev/vhost-cam 分别用于 RPC 和 VirtIO BE 管理，不相互串接。"
+  },
+  {
+    "id": "release",
+    "label": "跨 VM 帧归还",
+    "edges": [
+      "input-ready",
+      "output-ready",
+      "be-connect",
+      "get-frame",
+      "fe-callback",
+      "fe-queue",
+      "capture-ioctl",
+      "capture-frame",
+      "recycle-event",
+      "fe-connect",
+      "release",
+      "connect-callback"
+    ],
+    "detail": "PVM 写完发 WORK_GET_FRAME。GVM 使用帧完成转换后经 V4L2 回收事件发送 WORK_RELEASE_FRAME，恢复 PVM 输出池 index。300ms watchdog 为异常路径，本图不作为正常回收主链。"
+  },
+  {
+    "id": "client",
+    "label": "EVS 帧交付",
+    "edges": [
+      "read-shared",
+      "write-client",
+      "hal-frame",
+      "manager-service-frame",
+      "car-callback",
+      "car-control",
+      "service-manager",
+      "manager-hal",
+      "client-return"
+    ],
+    "detail": "像素留在 EVS 客户端 GraphicBuffer；deliverFrame 交付句柄，经 evsmanagerd_v4q、CarService JNI/StateMachine 到 CarEvsManager。应用通过 returnFrameBuffer / doneWithFrame 归还此池，独立于共享 UYVY 的回收。"
+  }
 ];
 
 /* ==================== 通用实现：一般无需修改 ==================== */

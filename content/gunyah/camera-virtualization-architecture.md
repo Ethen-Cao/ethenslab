@@ -38,700 +38,23 @@ tags = ['Camera', 'PVM', 'GVM', 'Gunyah', 'HAB', 'QCarCam', 'EVS', 'V4L2', 'DMA-
 
 ## 2. Camera 总体架构
 
-<div class="camera-arch-scroll">
-<style>
-.camera-arch-scroll {
-max-width: 100%;
-margin: 1.4rem 0 1.8rem;
-overflow-x: auto;
-padding: 0.25rem 0 0.75rem;
-}
-.camera-arch-template {
---cat-ink: #172033;
---cat-muted: #5d6879;
---cat-line: #d7dee8;
---cat-surface: #ffffff;
---cat-canvas: #f6f8fb;
---cat-pvm: #087f75;
---cat-pvm-soft: #e8f7f4;
---cat-gvm: #2563b8;
---cat-gvm-soft: #edf4ff;
---cat-hv: #7551b7;
---cat-hv-soft: #f3effb;
---cat-hw: #b56816;
---cat-hw-soft: #fff5e7;
---cat-data: #0d9488;
---cat-control: #64748b;
-box-sizing: border-box;
-min-width: 980px;
-padding: 22px;
-color: var(--cat-ink);
-border: 1px solid var(--cat-line);
-border-radius: 16px;
-background:
-linear-gradient(180deg, rgba(255,255,255,0.92), rgba(246,248,251,0.96)),
-repeating-linear-gradient(0deg, transparent 0, transparent 31px, rgba(148,163,184,0.08) 32px);
-box-shadow: 0 14px 36px rgba(23, 32, 51, 0.08);
-font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-}
-.camera-arch-template *,
-.camera-arch-template *::before,
-.camera-arch-template *::after {
-box-sizing: border-box;
-}
-.cat-titlebar {
-display: flex;
-align-items: flex-end;
-justify-content: space-between;
-gap: 24px;
-margin-bottom: 18px;
-padding: 0 4px;
-}
-.cat-titlebar h3 {
-margin: 0;
-color: var(--cat-ink);
-font-size: 22px;
-line-height: 1.25;
-}
-.cat-titlebar p {
-margin: 5px 0 0;
-color: var(--cat-muted);
-font-size: 12px;
-}
-.cat-legend {
-display: flex;
-flex-wrap: wrap;
-justify-content: flex-end;
-gap: 12px;
-color: var(--cat-muted);
-font-size: 11px;
-white-space: nowrap;
-}
-.cat-legend-item {
-display: inline-flex;
-align-items: center;
-gap: 6px;
-}
-.cat-legend-line {
-display: inline-block;
-width: 26px;
-border-top: 3px solid var(--cat-data);
-}
-.cat-legend-line.control {
-border-top: 2px dashed var(--cat-control);
-}
-.cat-layer {
-position: relative;
-padding: 18px;
-border: 2px solid var(--cat-line);
-border-radius: 13px;
-background: var(--cat-surface);
-}
-.cat-layer.vm {
-border-color: #aab7c8;
-}
-.cat-layer.hypervisor {
-border-color: var(--cat-hv);
-background: var(--cat-hv-soft);
-}
-.cat-layer.hardware {
-border-color: var(--cat-hw);
-background: var(--cat-hw-soft);
-}
-.cat-layer-heading {
-display: flex;
-align-items: center;
-gap: 11px;
-margin-bottom: 14px;
-}
-.cat-layer-heading strong {
-display: block;
-font-size: 16px;
-line-height: 1.2;
-}
-.cat-layer-heading small {
-display: block;
-margin-top: 3px;
-color: var(--cat-muted);
-font-size: 11px;
-font-weight: 500;
-}
-.cat-vm-grid {
-display: grid;
-grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-gap: 18px;
-}
-.cat-vm {
-overflow: hidden;
-border: 2px solid;
-border-radius: 12px;
-background: var(--cat-surface);
-}
-.cat-vm.pvm {
-border-color: var(--cat-pvm);
-}
-.cat-vm.gvm {
-border-color: var(--cat-gvm);
-}
-.cat-vm-header {
-display: flex;
-align-items: center;
-justify-content: space-between;
-gap: 12px;
-min-height: 58px;
-padding: 12px 15px;
-}
-.cat-vm.pvm .cat-vm-header {
-color: #075f58;
-background: var(--cat-pvm-soft);
-}
-.cat-vm.gvm .cat-vm-header {
-color: #174a8b;
-background: var(--cat-gvm-soft);
-}
-.cat-vm-name {
-font-size: 18px;
-font-weight: 800;
-}
-.cat-vm-subtitle {
-display: block;
-margin-top: 2px;
-font-size: 10px;
-font-weight: 600;
-opacity: 0.78;
-}
-.cat-vm-role {
-padding: 4px 8px;
-border: 1px solid currentColor;
-border-radius: 999px;
-font-size: 10px;
-font-weight: 700;
-}
-.cat-stack {
-padding: 13px;
-}
-.cat-tier {
-display: grid;
-grid-template-columns: 118px minmax(0, 1fr);
-min-height: 68px;
-overflow: hidden;
-border: 1px solid var(--cat-line);
-border-radius: 9px;
-background: #ffffff;
-}
-.cat-tier-label {
-display: flex;
-flex-direction: column;
-justify-content: center;
-padding: 10px 11px;
-color: var(--cat-ink);
-border-right: 1px solid var(--cat-line);
-background: #f3f6f9;
-font-size: 11px;
-font-weight: 800;
-line-height: 1.3;
-}
-.cat-tier-label small {
-margin-top: 3px;
-color: var(--cat-muted);
-font-size: 9px;
-font-weight: 600;
-}
-.cat-tier-nodes {
-display: flex;
-flex-wrap: wrap;
-align-content: center;
-align-items: center;
-gap: 7px;
-padding: 9px;
-}
-.cat-node {
-min-width: 116px;
-flex: 1 1 116px;
-padding: 7px 8px;
-color: var(--cat-ink);
-border: 1px solid var(--cat-line);
-border-radius: 7px;
-background: #ffffff;
-font-size: 10px;
-font-weight: 700;
-line-height: 1.28;
-text-align: center;
-}
-.cat-node small {
-display: block;
-margin-top: 3px;
-color: var(--cat-muted);
-font-size: 8.7px;
-font-weight: 500;
-}
-.cat-vm.pvm .cat-node.emphasis {
-color: #075f58;
-border-color: #8bcfc7;
-background: var(--cat-pvm-soft);
-}
-.cat-vm.gvm .cat-node.emphasis {
-color: #174a8b;
-border-color: #9bbce6;
-background: var(--cat-gvm-soft);
-}
-.cat-flow-down {
-position: relative;
-height: 20px;
-color: var(--cat-control);
-font-size: 9px;
-line-height: 20px;
-text-align: center;
-}
-.cat-flow-down::before {
-content: "";
-position: absolute;
-top: 0;
-bottom: 4px;
-left: 50%;
-border-left: 2px solid #9aa7b8;
-}
-.cat-flow-down::after {
-content: "";
-position: absolute;
-bottom: 1px;
-left: calc(50% - 4px);
-width: 8px;
-height: 8px;
-border-right: 2px solid #9aa7b8;
-border-bottom: 2px solid #9aa7b8;
-transform: rotate(45deg);
-}
-.cat-boundary {
-margin-top: 16px;
-padding: 12px;
-border: 1px dashed #8b9aab;
-border-radius: 10px;
-background: #f8fafc;
-}
-.cat-boundary-title {
-margin-bottom: 9px;
-color: var(--cat-muted);
-font-size: 10px;
-font-weight: 800;
-letter-spacing: 0.08em;
-text-align: center;
-text-transform: uppercase;
-}
-.cat-boundary-grid {
-display: grid;
-grid-template-columns: 1fr 1.25fr 1fr;
-align-items: stretch;
-gap: 10px;
-}
-.cat-boundary-end,
-.cat-boundary-contract {
-display: flex;
-min-height: 58px;
-flex-direction: column;
-align-items: center;
-justify-content: center;
-padding: 9px;
-border-radius: 8px;
-font-size: 10px;
-font-weight: 800;
-line-height: 1.35;
-text-align: center;
-}
-.cat-boundary-end.pvm {
-color: #075f58;
-border: 1px solid #8bcfc7;
-background: var(--cat-pvm-soft);
-}
-.cat-boundary-end.gvm {
-color: #174a8b;
-border: 1px solid #9bbce6;
-background: var(--cat-gvm-soft);
-}
-.cat-boundary-contract {
-position: relative;
-color: #4b3a72;
-border: 1px solid #b9a6dd;
-background: var(--cat-hv-soft);
-}
-.cat-boundary-contract::before,
-.cat-boundary-contract::after {
-content: "↔";
-position: absolute;
-top: 50%;
-color: var(--cat-hv);
-font-size: 17px;
-transform: translateY(-50%);
-}
-.cat-boundary-contract::before {
-left: -16px;
-}
-.cat-boundary-contract::after {
-right: -16px;
-}
-.cat-boundary-end small,
-.cat-boundary-contract small {
-display: block;
-margin-top: 3px;
-color: var(--cat-muted);
-font-size: 8.8px;
-font-weight: 500;
-}
-.cat-layer-connector {
-position: relative;
-display: grid;
-height: 54px;
-place-items: center;
-}
-.cat-layer-connector::before {
-content: "";
-position: absolute;
-top: 0;
-bottom: 9px;
-left: 50%;
-border-left: 3px solid #8795a7;
-}
-.cat-layer-connector::after {
-content: "";
-position: absolute;
-bottom: 6px;
-left: calc(50% - 6px);
-width: 12px;
-height: 12px;
-border-right: 3px solid #8795a7;
-border-bottom: 3px solid #8795a7;
-transform: rotate(45deg);
-}
-.cat-layer-connector span {
-z-index: 1;
-padding: 3px 9px;
-color: var(--cat-muted);
-border: 1px solid var(--cat-line);
-border-radius: 999px;
-background: var(--cat-canvas);
-font-size: 9px;
-font-weight: 700;
-}
-.cat-hv-grid {
-display: grid;
-grid-template-columns: repeat(3, minmax(0, 1fr));
-gap: 12px;
-}
-.cat-hv-box {
-min-height: 105px;
-padding: 13px;
-border: 1px solid #b9a6dd;
-border-radius: 9px;
-background: rgba(255,255,255,0.82);
-}
-.cat-hv-box strong {
-display: block;
-margin-bottom: 7px;
-color: #55398a;
-font-size: 12px;
-}
-.cat-hv-box ul {
-margin: 0;
-padding-left: 17px;
-color: var(--cat-muted);
-font-size: 9.5px;
-line-height: 1.55;
-}
-.cat-hw-flow {
-display: grid;
-grid-template-columns: 1fr 34px 1fr 34px 1fr 34px 1fr;
-align-items: center;
-gap: 4px;
-}
-.cat-hw-box {
-display: flex;
-min-height: 92px;
-flex-direction: column;
-align-items: center;
-justify-content: center;
-padding: 12px;
-border: 1px solid #e0b06d;
-border-radius: 9px;
-background: rgba(255,255,255,0.88);
-text-align: center;
-}
-.cat-hw-box strong {
-color: #8d4d0d;
-font-size: 12px;
-}
-.cat-hw-box small {
-margin-top: 5px;
-color: var(--cat-muted);
-font-size: 9px;
-line-height: 1.35;
-}
-.cat-hw-arrow {
-color: var(--cat-hw);
-font-size: 22px;
-font-weight: 800;
-text-align: center;
-}
-.cat-footnote {
-margin: 14px 3px 0;
-color: var(--cat-muted);
-font-size: 9px;
-line-height: 1.45;
-}
-.dark .camera-arch-template {
---cat-ink: #e6edf7;
---cat-muted: #aeb9c9;
---cat-line: #445064;
---cat-surface: #1a2230;
---cat-canvas: #141b27;
---cat-pvm-soft: #123b39;
---cat-gvm-soft: #172f52;
---cat-hv-soft: #2d2444;
---cat-hw-soft: #3b2a18;
-background: #111827;
-box-shadow: none;
-}
-.dark .camera-arch-template .cat-tier,
-.dark .camera-arch-template .cat-node,
-.dark .camera-arch-template .cat-hv-box,
-.dark .camera-arch-template .cat-hw-box {
-background: #1d2735;
-}
-.dark .camera-arch-template .cat-tier-label,
-.dark .camera-arch-template .cat-boundary {
-background: #222d3d;
-}
-.dark .camera-arch-template .cat-vm.pvm .cat-vm-header,
-.dark .camera-arch-template .cat-vm.pvm .cat-node.emphasis,
-.dark .camera-arch-template .cat-boundary-end.pvm {
-color: #9be4dc;
-}
-.dark .camera-arch-template .cat-vm.gvm .cat-vm-header,
-.dark .camera-arch-template .cat-vm.gvm .cat-node.emphasis,
-.dark .camera-arch-template .cat-boundary-end.gvm {
-color: #a9cbf5;
-}
-</style>
+<iframe id="camera-virtualization-architecture" src="../../diagrams/camera-virtualization-architecture.html" title="Camera 虚拟化架构" loading="lazy" style="display:block;box-sizing:border-box;width:100%;height:900px;border:1px solid #dadce0;border-radius:8px;overflow:hidden;"></iframe>
 
-<div class="camera-arch-template" role="img" aria-label="虚拟化 Camera 三层架构图：VM 层包含左侧 PVM 和右侧 Android GVM，中间是 Hypervisor 层，底部是 Camera Hardware 层。">
-<div class="cat-titlebar">
-<div>
-<h3>Virtualized Camera Architecture</h3>
-<p>Application → Framework / Service → Virtualization → Hypervisor → Hardware</p>
-</div>
-<div class="cat-legend" aria-label="连线图例">
-<span class="cat-legend-item"><i class="cat-legend-line"></i>图像数据 / Buffer</span>
-<span class="cat-legend-item"><i class="cat-legend-line control"></i>控制 / 事件 / 所有权</span>
-</div>
-</div>
+<script>
+(() => {
+  const frame = document.getElementById('camera-virtualization-architecture');
+  window.addEventListener('message', (event) => {
+    if (event.source !== frame.contentWindow ||
+        event.origin !== new URL(frame.src, document.baseURI).origin ||
+        event.data?.type !== 'camera-virtualization-architecture-height') return;
+    const height = event.data.height;
+    if (!Number.isFinite(height) || height <= 0) return;
+    frame.style.height = Math.min(2400, Math.ceil(height) + 2) + 'px';
+  });
+})();
+</script>
 
-<section class="cat-layer vm">
-<div class="cat-layer-heading">
-<div>
-<strong>VM Layer</strong>
-<small>PVM 位于左侧，GVM 位于右侧；两个 VM 内部均按应用到内核的顺序排列</small>
-</div>
-</div>
-
-<div class="cat-vm-grid">
-<article class="cat-vm pvm">
-<header class="cat-vm-header">
-<div>
-<span class="cat-vm-name">PVM</span>
-<span class="cat-vm-subtitle">Linux Primary Virtual Machine</span>
-</div>
-<span class="cat-vm-role">设备与 Camera 数据生产侧</span>
-</header>
-
-<div class="cat-stack">
-<div class="cat-tier">
-<div class="cat-tier-label">应用 / 服务层<small>Applications & Services</small></div>
-<div class="cat-tier-nodes">
-<div class="cat-node emphasis">v4q_be_server<small>OPEN / ALLOC / START / STOP</small></div>
-<div class="cat-node">Camera Diagnostics<small>链路、帧率与健康监控</small></div>
-</div>
-</div>
-<div class="cat-flow-down" aria-hidden="true"></div>
-
-<div class="cat-tier">
-<div class="cat-tier-label">Camera Framework<small>Middleware</small></div>
-<div class="cat-tier-nodes">
-<div class="cat-node">V4Q Device Model<small>节点、状态与生命周期</small></div>
-<div class="cat-node emphasis">QCarCam OneFrame<small>四路收帧与 2×2 组合</small></div>
-<div class="cat-node">Output Buffer Pool<small>index 与所有权管理</small></div>
-</div>
-</div>
-<div class="cat-flow-down" aria-hidden="true"></div>
-
-<div class="cat-tier">
-<div class="cat-tier-label">平台中间件<small>Platform Camera</small></div>
-<div class="cat-tier-nodes">
-<div class="cat-node emphasis">QCarCam Wrapper / API<small>四路 stream 与 frame callback</small></div>
-<div class="cat-node">QCX Camera Service<small>ISP use case、request 与恢复</small></div>
-</div>
-</div>
-<div class="cat-flow-down" aria-hidden="true"></div>
-
-<div class="cat-tier">
-<div class="cat-tier-label">虚拟化后端<small>Back-end Service</small></div>
-<div class="cat-tier-nodes">
-<div class="cat-node emphasis">Camera HAB Back-end<small>command / frame / release channel</small></div>
-<div class="cat-node">Imported Shared Buffers<small>写入 GVM 导出的 GraphicBuffer</small></div>
-</div>
-</div>
-<div class="cat-flow-down" aria-hidden="true"></div>
-
-<div class="cat-tier">
-<div class="cat-tier-label">Linux 内核<small>Kernel & Drivers</small></div>
-<div class="cat-tier-nodes">
-<div class="cat-node">Sensor / CSI / IFE Driver</div>
-<div class="cat-node">HABMM / DMA-BUF / IOMMU</div>
-</div>
-</div>
-</div>
-</article>
-
-<article class="cat-vm gvm">
-<header class="cat-vm-header">
-<div>
-<span class="cat-vm-name">GVM</span>
-<span class="cat-vm-subtitle">Android Guest Virtual Machine</span>
-</div>
-<span class="cat-vm-role">Android Camera 数据消费侧</span>
-</header>
-
-<div class="cat-stack">
-<div class="cat-tier">
-<div class="cat-tier-label">应用层<small>Applications</small></div>
-<div class="cat-tier-nodes">
-<div class="cat-node emphasis">AVM / EVS Client<small>预览、交互与显示</small></div>
-<div class="cat-node">CarEvsGLSurfaceView<small>Buffer 消费与归还示例</small></div>
-</div>
-</div>
-<div class="cat-flow-down" aria-hidden="true"></div>
-
-<div class="cat-tier">
-<div class="cat-tier-label">应用框架层<small>Application Framework</small></div>
-<div class="cat-tier-nodes">
-<div class="cat-node emphasis">CarEvsManager / CarEvsService<small>Surround-view 类型与访问仲裁</small></div>
-<div class="cat-node">Binder / AIDL Contract<small>配置、stream 与 buffer callback</small></div>
-</div>
-</div>
-<div class="cat-flow-down" aria-hidden="true"></div>
-
-<div class="cat-tier">
-<div class="cat-tier-label">Native / HAL<small>System Services</small></div>
-<div class="cat-tier-nodes">
-<div class="cat-node">EvsEnumerator</div>
-<div class="cat-node emphasis">EvsV4lCamera<small>V4L2 capture 与 UYVY 转换</small></div>
-<div class="cat-node">VideoCapture / Gralloc</div>
-</div>
-</div>
-<div class="cat-flow-down" aria-hidden="true"></div>
-
-<div class="cat-tier">
-<div class="cat-tier-label">Vendor Service<small>Virtual Camera Proxy</small></div>
-<div class="cat-tier-nodes">
-<div class="cat-node emphasis">v4q_v4l2_proxy<small>HAB event ↔ VIDIOC_QBUF/DQBUF</small></div>
-<div class="cat-node">cFeCamera / HAB Front-end<small>export buffer / receive frame</small></div>
-</div>
-</div>
-<div class="cat-flow-down" aria-hidden="true"></div>
-
-<div class="cat-tier">
-<div class="cat-tier-label">Android 内核<small>Linux Kernel</small></div>
-<div class="cat-tier-nodes">
-<div class="cat-node">/dev/videoX · V4L2 Loopback</div>
-<div class="cat-node">HAB Front-end · DMA-BUF / IOMMU</div>
-</div>
-</div>
-</div>
-</article>
-</div>
-
-<div class="cat-boundary">
-<div class="cat-boundary-title">Cross-VM Camera Contract</div>
-<div class="cat-boundary-grid">
-<div class="cat-boundary-end pvm">PVM Producer<small>写共享 Buffer，发送 frame-ready index</small></div>
-<div class="cat-boundary-contract">HAB + Shared DMA-BUF<small>消息传元数据；共享内存承载图像；显式归还所有权</small></div>
-<div class="cat-boundary-end gvm">GVM Consumer<small>V4L2 入队、EVS 消费，再发送 release index</small></div>
-</div>
-</div>
-</section>
-
-<div class="cat-layer-connector"><span>虚拟通道 · 共享内存 · 中断注入</span></div>
-
-<section class="cat-layer hypervisor">
-<div class="cat-layer-heading">
-<div>
-<strong>Hypervisor Layer</strong>
-<small>Gunyah 提供 VM 隔离、内存映射与虚拟设备基础；HAB 承载 Camera 跨 VM 协议</small>
-</div>
-</div>
-
-<div class="cat-hv-grid">
-<div class="cat-hv-box">
-<strong>控制面与帧通知</strong>
-<ul>
-<li>OPEN / CLOSE / START / STOP / ALLOC</li>
-<li>GET_FRAME(index, timestamp)</li>
-<li>RELEASE_FRAME(index)</li>
-</ul>
-</div>
-<div class="cat-hv-box">
-<strong>共享内存数据面</strong>
-<ul>
-<li>GVM 导出 GraphicBuffer / DMA-BUF</li>
-<li>PVM 导入并映射同一组物理页</li>
-<li>像素不放入逐帧 HAB 消息</li>
-</ul>
-</div>
-<div class="cat-hv-box">
-<strong>隔离与资源管理</strong>
-<ul>
-<li>Stage-2 地址空间与 IOMMU 映射</li>
-<li>VM 中断、Doorbell 与共享页权限</li>
-<li>Camera 设备、内存和带宽资源分区</li>
-</ul>
-</div>
-</div>
-</section>
-
-<div class="cat-layer-connector"><span>设备访问 · DMA · IRQ · IOMMU</span></div>
-
-<section class="cat-layer hardware">
-<div class="cat-layer-heading">
-<div>
-<strong>Hardware Layer</strong>
-<small>图像从 Sensor 经串行链路、CSI 与 ISP 进入系统内存，再由 PVM Camera 栈接管</small>
-</div>
-</div>
-
-<div class="cat-hw-flow">
-<div class="cat-hw-box">
-<strong>Camera Sensors</strong>
-<small>Front · Rear · Left · Right<br>RAW / YUV source</small>
-</div>
-<div class="cat-hw-arrow">→</div>
-<div class="cat-hw-box">
-<strong>SerDes + MIPI CSI-2</strong>
-<small>远距离视频链路<br>同步、聚合与传输</small>
-</div>
-<div class="cat-hw-arrow">→</div>
-<div class="cat-hw-box">
-<strong>ISP / IFE + Camera DMA</strong>
-<small>采集、格式化、时间戳<br>写入 Camera Buffer</small>
-</div>
-<div class="cat-hw-arrow">→</div>
-<div class="cat-hw-box">
-<strong>DDR / IOMMU / IRQ</strong>
-<small>共享物理页、地址转换<br>与完成中断</small>
-</div>
-</div>
-</section>
-
-<p class="cat-footnote">主图只展示稳定边界和职责；部署相关的通道号、设备节点、Buffer 数量、格式和性能阈值在正文中说明。</p>
-</div>
-</div>
+[独立打开架构图](../../diagrams/camera-virtualization-architecture.html)
 
 ## 3. 分层组件设计
 
@@ -740,14 +63,16 @@ color: #a9cbf5;
 | 层级 | 组件 | 架构职责 |
 | --- | --- | --- |
 | 应用/服务 | `v4q_be_server` | 接收 GVM 的 Camera 生命周期请求，创建 HAB 通道并管理跨 VM Camera 实例 |
-| Framework/Middleware | V4Q Device Model | 抽象 Camera 节点、设备状态、输入输出 Buffer 与事件回调 |
-| Framework/Middleware | QCarCam OneFrame | 管理前、后、左、右四路输入，选择有效帧并生成四合一输出 |
-| Platform Camera | QCarCam Wrapper | 配置 QCarCam input、注册 Buffer、启动 stream 并取得 frame index/timestamp |
-| Platform Camera | QCX Camera Service | 管理 ISP use case、Camera request、硬件错误与恢复事件 |
-| 虚拟化后端 | Camera HAB Back-end | 导入 GVM Buffer，发送帧通知并接收 Buffer 归还事件 |
-| Linux Kernel | HABMM、DMA-BUF、IOMMU、Camera Driver | 提供共享内存映射、地址转换、Camera DMA 与设备访问 |
+| Framework/Middleware | `hyp_camera::cV4qCamera` | 管理 Camera 实例、设备状态、输入输出 Buffer 与事件回调 |
+| Framework/Middleware | `v4q::v4q_QcarcamOneframe` | 管理前、后、左、右四路输入，选择有效帧并生成四合一输出 |
+| Platform Camera API | `libqcxclient.so` | 提供 QCarCam API，由后端内的 `qcarcam_wrap_*` 函数调用，完成 input 配置、Buffer 注册、stream 控制和帧回调 |
+| Platform Camera Service | `qcxserver` | 独立进程，管理 ISP use case、Camera request、硬件错误与恢复事件 |
+| 虚拟化后端 | `hyp_camera::cHabConnect` | 通过 `libuhab.so` 导入 GVM Buffer、发送帧通知并接收 Buffer 归还事件 |
+| 虚拟化后端管理 | `vhost-user-qti` | 由 `vhost-user-cam.service` 启动，通过 `/dev/vhost-cam` 配置 Camera VirtIO 后端队列 |
+| Linux Kernel / Camera | `/dev/kiumd` · `kiumd.ko`；`/dev/vfio/*` · VFIO；`/dev/scmi_camera` · `qcom_uscmi.ko` | 支撑 QCX 的 SMMU 映射、Camera 寄存器访问与资源控制；Camera 平台设备由 `vfio-platform` 绑定 |
+| Linux Kernel / HAB | `/dev/hab`、`/dev/vhost-cam` · `msm_hab.ko` | 分别提供 HAB 用户接口和 Camera VirtIO 后端管理接口，支撑共享页与消息通道 |
 
-PVM 是 Camera 数据生产侧，也是物理 Camera 的唯一所有者。四路输入和跨 VM 输出均由 PVM Camera 子系统统一调度。
+PVM 是 Camera 数据生产侧，也是物理 Camera 的唯一所有者。`cV4qCamera`、`v4q_QcarcamOneframe` 和 `cHabConnect` 位于 `v4q_be_server` 内；`qcarcam_wrap_*` 是该程序内的接口封装函数。`cHabConnect` 经 `libuhab.so` 使用 `/dev/hab`，而 `/dev/vhost-cam` 由 `vhost-user-qti` 配置。四路输入和跨 VM 输出均由 PVM Camera 子系统统一调度。
 
 ### 3.2 GVM Camera 子系统
 
@@ -755,10 +80,12 @@ PVM 是 Camera 数据生产侧，也是物理 Camera 的唯一所有者。四路
 | --- | --- | --- |
 | Applications | AVM/EVS Client | 请求 surround-view stream、消费并归还 EVS Buffer |
 | Application Framework | `CarEvsManager`、`CarEvsService` | 提供应用 API、访问仲裁和 Camera service 状态机 |
-| Native/HAL | `EvsEnumerator`、`EvsV4lCamera` | 枚举虚拟 Camera，管理 EVS stream 和客户端 GraphicBuffer |
-| Native/HAL | `VideoCapture`、C2D/Buffer Copy | 从 V4L2 取帧并完成 UYVY 到客户端格式的转换 |
-| Vendor Service | V4L2 Proxy、`cFeCamera` | 分配并导出共享 Buffer，把 HAB 帧事件转换为 V4L2 queue 操作 |
-| Android Kernel | V4L2 Loopback、HAB Front-end | 向 EVS HAL 暴露 `/dev/videoX`，连接跨 VM 共享 Buffer 数据面 |
+| Native Service | `evsmanagerd_v4q` | 向 CarService 提供 `IEvsEnumerator/v4q`，连接下层 `IEvsEnumerator/hw/0` 并转发 stream 与 Buffer 交付/归还 |
+| Native/HAL | `android.hardware.automotive.evs-v4q`：`EvsEnumerator`、`EvsV4lCamera` | 枚举虚拟 Camera，管理 EVS stream 和客户端 GraphicBuffer；在 `EvsV4lCamera` 中完成格式转换/复制 |
+| Native/HAL | `VideoCapture` | 从 V4L2 取得帧 index 和映射地址，消费后重新入队 |
+| Vendor Service | `ais_v4l2_proxy_qcc6`：`cFeCamera`、`cHabConnect` | 分配并导出共享 Buffer，把 HAB 帧事件转换为 V4L2 queue 操作 |
+| Android Kernel / V4L2 | `/dev/video61` · `ais-v4l2loopback.ko` | 当前 4AVM 的虚拟 Camera 节点，接收 Proxy 提交并向 EVS HAL 提供帧 |
+| Android Kernel / HAB | `/dev/hab-cam` · `msm_hab.ko` | Camera HAB 用户接口；`libuhab.so` 在节点不存在或访问被拒绝时可回退到 `/dev/hab` |
 
 GVM 是 Camera 数据消费侧。物理 Camera 的差异被收敛在 V4L2 Proxy 以下，上层保持 Android Automotive EVS 的标准接口模型。
 
@@ -768,26 +95,26 @@ Hypervisor 层提供 VM 隔离、共享页映射、doorbell/虚拟中断以及 H
 
 ### 3.4 Hardware Layer
 
-Hardware 层由 Camera Sensor、Serializer/Deserializer、MIPI CSI-2、ISP/IFE、Camera DMA 和 DDR 组成。图像由 Camera DMA 写入 PVM 可访问的输入 Buffer，随后进入 PVM Camera 软件栈。
+Hardware 层由 Camera Sensor、Serializer/Deserializer、MIPI CSI-2、ISP/IFE、Camera DMA 和 DDR 组成。图像由 Camera DMA 写入 PVM 可访问的输入 Buffer，随后进入 PVM Camera 软件栈。DDR 中的 QCarCam 输入池、跨 VM UYVY 输出池和 EVS 客户端输出池分别由采集、聚合和转换阶段写入。
 
 ## 4. Camera 生命周期与时序设计
 
 ### 4.1 启动与 Buffer 建立
 
-1. GVM 应用通过 EVS 请求 Camera stream。
+1. GVM 应用经 `CarEvsManager`、`CarEvsService` 和 `evsmanagerd_v4q` 请求 EVS Camera stream。
 2. GVM Camera HAL 打开 V4L2 节点并申请 capture Buffer。
 3. GVM Camera Proxy 分配 GraphicBuffer，并通过 HAB 导出共享内存句柄和 `exportId`。
-4. PVM Camera 后端导入并映射这些 Buffer，把它们登记为跨 VM 输出池；4 路 QCarCam 输入也使用共享分配的输入池。
+4. PVM `cV4qCamera` 通过 `cHabConnect` 导入并映射这些 Buffer，把它们登记为跨 VM 输出池；四路 QCarCam 各自注册独立的采集输入池。
 5. PVM Camera 后端创建帧通知通道和归还通道，再启动四路物理 Camera stream。
 
 ### 4.2 稳态帧传输
 
 1. Camera Hardware 经 ISP/IFE 和 DMA 产生多路图像。
-2. PVM Camera Framework 获取各路输入；多 Camera 场景可先完成同步、布局或合成。
-3. PVM 将结果写入 GVM 导出的共享 Buffer，然后发送 `GET_FRAME(index, timestamp)`。
+2. PVM `v4q_QcarcamOneframe` 获取各路输入，按 ready bitmap 和最近有效帧执行 2×2 聚合。
+3. PVM 将结果写入 GVM 导出的共享 Buffer，然后发送 `WORK_GET_FRAME(index, frameId, timestamp)`。
 4. GVM Camera Proxy 根据 index 向 V4L2 loopback capture 路径执行 `QBUF`，EVS HAL 再通过 `DQBUF` 取帧。
 5. EVS HAL 将图像转换或复制到应用 Buffer，并把底层 V4L2 Buffer 重新入队。
-6. GVM Camera Proxy收到 Buffer 可回收事件后发送 `RELEASE_FRAME(index)`。
+6. GVM Camera Proxy 收到 Buffer 可回收事件后发送 `WORK_RELEASE_FRAME(index)`。
 7. PVM 将对应 index 放回输出空闲队列。
 
 ### 4.3 停止与释放
@@ -804,7 +131,7 @@ PVM Camera 输入契约从 ISP 输出开始，格式定义为 UYVY。Sensor 在�
 
 ### 5.2 PVM 采集
 
-`QCarCam OneFrame` 打开四个 input，每路配置为最终输出宽、高的一半，即 `1920×1536`。`QCarCam Wrapper` 为每一路建立一组输入 Buffer，向 QCarCam 注册后启动 stream；frame callback 通过返回的 Buffer index 和 timestamp 标记对应方向的新帧已经到达。
+`v4q::v4q_QcarcamOneframe` 打开四个 input，每路配置为最终输出宽、高的一半，即 `1920×1536`。它通过 `qcarcam_wrap_*` 调用 `libqcxclient.so` 的 QCarCam API，为每一路注册一组输入 Buffer 后启动 stream；frame callback 通过返回的 Buffer index 和 timestamp 标记对应方向的新帧已经到达。
 
 四路输入共用一个合成线程。该线程不要求所有方向在同一个回调中同时到达，而是维护四方向的 ready bitmap 和最近一次有效 Buffer index，再决定是否生成下一帧四合一载荷。
 
@@ -824,7 +151,7 @@ UYVY 每两个像素按 `U0 Y0 V0 Y1` 排列，stride 为 `width × 2`。PVM 四
 
 ### 7.1 四合一载荷布局
 
-PVM `StitchingThread` 将四路矩形图像组织为 2×2 载荷。每个象限通过逐行 `memcpy` 写入目标 UYVY Buffer，布局固定如下：
+PVM `v4q_QcarcamOneframe::StitchingThread` 将四路矩形图像组织为 2×2 载荷。每个象限通过逐行 `memcpy` 写入目标 UYVY Buffer，布局固定如下：
 
 <div class="camera-pack-layout" role="img" aria-label="四路 Camera 的二乘二 UYVY 载荷布局，上方从左到右是前视和左视，下方从左到右是右视和后视。">
 <style>
@@ -888,7 +215,7 @@ Camera 前后端通过 HAB 建立控制通道。协议命令包括 `OPEN`、`CLO
 
 1. GVM 的 `cFeCamera` 分配 GraphicBuffer，取得 DMA-BUF fd。
 2. GVM 调用 HAB export，得到每个 Buffer 的 `exportId`，通过 `ALLOCBUFS` 发给 PVM。
-3. PVM 调用 HAB import，将同一组物理页映射进 PVM 地址空间，并把这些地址注册为 V4Q 输出 Buffer。
+3. PVM `cV4qCamera` 调用 `cHabConnect::habImport` 并映射同一组物理页，再通过 `SetOutputBuffers` 登记输出 Buffer。
 4. PVM 把四合一 UYVY 像素直接写入目标共享 Buffer。
 5. PVM 发送 `WORK_GET_FRAME`，消息只包含 `idx`、`frameId` 和 `timestamp`。
 6. GVM 用同一个 `idx` 向 V4L2 capture 队列提交 Buffer。
@@ -904,11 +231,13 @@ Gunyah 和 HAB 负责 VM 隔离、共享页映射、doorbell/虚拟中断和消�
 GVM 的消费链路遵循 Android Automotive EVS 分层：
 
 1. AVM 或 EVS 客户端通过 `CarEvsManager` 请求 `SERVICE_TYPE_SURROUNDVIEW`。
-2. `CarEvsService` 负责访问仲裁、状态机以及 EVS service 的 Binder/AIDL 连接。
-3. `EvsEnumerator` 根据配置枚举虚拟 V4L2 Camera，并创建 `EvsV4lCamera`。
-4. `VideoCapture` 打开 V4L2 节点，使用 MMAP/DMA-BUF 和 `VIDIOC_STREAMON`、`DQBUF`、`QBUF` 驱动采集循环。
-5. `EvsV4lCamera` 把 UYVY 共享帧转换或复制到 EVS 客户端 GraphicBuffer；目标为 `YCRCB_420_SP` 时选择 UYVY 到 NV21 的转换函数，也可以走 C2D 加速路径。
-6. EVS 通过 AIDL `deliverFrame` 把 BufferDescriptor 交给客户端；客户端显示完成后调用 `returnFrameBuffer`/`doneWithFrame` 归还 EVS 输出 Buffer。
+2. `CarEvsService` 负责访问仲裁和状态机；其 JNI `EvsServiceContext` 对 `/dev/video*` 请求选择 `IEvsEnumerator/v4q`。
+3. `evsmanagerd_v4q` 提供该管理实例，并连接 `android.hardware.automotive.evs-v4q` 提供的 `IEvsEnumerator/hw/0`。
+4. HAL 内的 `EvsEnumerator` 根据配置枚举虚拟 V4L2 Camera，并创建 `EvsV4lCamera`。
+5. `VideoCapture` 打开 `/dev/video61`，使用 MMAP/DMA-BUF 和 `VIDIOC_STREAMON`、`DQBUF`、`QBUF` 驱动采集循环。
+6. `EvsV4lCamera` 把 UYVY 共享帧转换或复制到 EVS 客户端 GraphicBuffer；目标为 `YCRCB_420_SP` 时选择 UYVY 到 NV21 的转换函数，也可以走 C2D 加速路径。
+7. HAL 通过 AIDL `deliverFrame` 交付 `BufferDesc`，经 `evsmanagerd_v4q` 到 CarService；JNI 从 native handle 构建 `HardwareBuffer`，Java 状态机再将 `CarEvsBufferDescriptor` 回调给应用。该过程传递句柄和元数据，不通过 Binder 复制完整像素。
+8. 应用显示完成后调用 `CarEvsManager.returnFrameBuffer`，归还经 CarService 和 `evsmanagerd_v4q` 向下传递，最终由 HAL 的 `doneWithFrame` 回收 EVS 输出 Buffer。
 
 这里有两套不同的 Buffer 生命周期：底层跨 VM UYVY Buffer 在 EVS 完成转换后即可归还 PVM；上层 EVS 输出 GraphicBuffer 由应用持有，直到应用显式归还。不能把两者的 index 或所有权混为一谈。
 
@@ -920,7 +249,7 @@ GVM 的消费链路遵循 Android Automotive EVS 分层：
 | PVM Free | PVM | 可选择为下一帧目标 | 合成线程 dequeue 后进入 PVM Writing |
 | PVM Writing | PVM | 仅 PVM 写 UYVY 像素 | 写完并发送 `WORK_GET_FRAME` 后进入 GVM In-flight |
 | GVM In-flight | GVM | V4L2/EVS 只读和转换；PVM 不应覆盖 | GVM 发送 `WORK_RELEASE_FRAME` 后回到 PVM Free |
-| EVS Client In-flight | Android 应用 | 显示或处理 EVS 输出 Buffer | 应用 `doneWithFrame` 后回到 EVS HAL 空闲池 |
+| EVS Client In-flight | Android 应用 | 显示或处理 EVS 输出 Buffer | 应用 `returnFrameBuffer` 经 EVS 管理链触发 HAL `doneWithFrame`，回到 EVS HAL 空闲池 |
 
 实现定义了默认 300 ms 的输出 Buffer watchdog。当 GVM 超时未归还时，watchdog 可以把对应 index 重新放回 PVM 输出队列；迟到的归还事件按 stale event 处理。该状态迁移属于异常恢复覆盖，不改变正常路径必须由 `WORK_RELEASE_FRAME` 归还所有权的接口契约。
 
@@ -930,9 +259,12 @@ GVM 的消费链路遵循 Android Automotive EVS 分层：
 
 | VM | 运行组件 | 配置/设备入口 | 架构角色 |
 | --- | --- | --- | --- |
-| PVM | `v4q_be_server` | `/dev/v4q/hyp_camera/4avm` | Camera 后端、四路聚合、HAB producer |
+| PVM | `v4q_be_server` | 逻辑设备 `/dev/v4q/hyp_camera/4avm` | Camera 后端、四路聚合、HAB producer |
+| PVM | `qcxserver` | `qcx_server.service` | 物理 Camera request、ISP 配置与采集管理 |
+| PVM | `vhost-user-qti` | `/dev/vhost-cam` | Camera VirtIO 后端队列配置 |
 | GVM | `ais_v4l2_proxy_qcc6` | `/dev/video61` | HAB consumer、V4L2 虚拟 Camera Proxy |
-| GVM | `android.hardware.automotive.evs-v4q` | EVS AIDL service | V4L2 capture、格式转换、EVS Buffer 管理 |
+| GVM | `android.hardware.automotive.evs-v4q` | `IEvsEnumerator/hw/0` | V4L2 capture、格式转换、EVS Buffer 管理 |
+| GVM | `evsmanagerd_v4q` | `IEvsEnumerator/v4q` | 连接 CarService 与硬件 HAL，转发 stream 和 Buffer 生命周期 |
 | GVM | `CarEvsService` | Car Service Binder API | Camera service 仲裁与应用接口 |
 
 ### 11.2 HAB 通道映射
@@ -993,19 +325,27 @@ GVM 的消费链路遵循 Android Automotive EVS 分层：
 
 ## 13. 源码实现映射
 
-为避免记录本机绝对路径，以下使用 `PVM Tree`、`GVM Tree`、`PVM Camera Source` 和 `GVM Camera Source` 作为目录别名。
+为避免记录本机绝对路径，以下使用 `PVM Tree`、`GVM Tree`、`GVM Kernel Source`、`PVM Camera Source` 和 `GVM Camera Source` 作为目录别名。
 
 | 架构组件 | 实现位置 |
 | --- | --- |
 | PVM 部署配置与后端程序 | `PVM Tree/<camera-recipe>/files/` |
 | 四路 Camera 配置 | `PVM Tree/<camera-recipe>/files/configfile/v4q/avm4OneFrame.xml` |
 | PVM HAB 通道配置 | `PVM Tree/<camera-recipe>/files/configfile/v4q_be_server.xml` |
-| QCarCam OneFrame | `PVM Camera Source/v4q/v4q_Components/v4q_QcarcamOneframe/` |
-| PVM Camera HAB Back-end | `PVM Camera Source/camera_fe/hyp_camera/v4q_be_server/` |
+| `v4q::v4q_QcarcamOneframe` | `PVM Camera Source/v4q/v4q_Components/v4q_QcarcamOneframe/` |
+| `hyp_camera::cV4qCamera` | `PVM Camera Source/camera_fe/hyp_camera/v4q_be_server/src/cV4qCamera.cpp` |
+| `hyp_camera::cHabConnect` | `PVM Camera Source/camera_fe/hyp_common/hab_connect/cHabConnect.cpp` |
+| `qcarcam_wrap_*` | `PVM Camera Source/qcarcamwrap/src/qcarcam_wrap.cpp` |
+| `libqcxclient.so`、`qcxserver` | `PVM Tree/vendor/qcom/proprietary/qcx/build/lrh/qcx/`、`PVM Tree/vendor/qcom/proprietary/qcx/servicefiles/qcx_server.service` |
+| PVM Camera 硬件访问 | `PVM Tree/vendor/qcom/proprietary/qcx/platformmanager/linux_lrh/src/`、`PVM Tree/vendor/qcom/opensource/safelinux-cfg-modules/safelinux-modules/Kbuild` |
+| PVM `msm_hab.ko`、`vhost-user-qti` | `PVM Tree/vendor/qcom/opensource/mmhab-drv/`、`PVM Tree/vendor/qcom/opensource/vhost-user/vhost-user-cam.service` |
 | HAB 公共协议 | `PVM Camera Source/camera_fe/hyp_common/`、`GVM Camera Source/camcorder_fe/hyp_common/` |
 | GVM V4L2 Proxy 配置与程序 | `GVM Tree/<camera-vendor>/v4qhal/` |
 | GVM Camera HAB Front-end | `GVM Camera Source/camcorder_fe/hyp_camera/v4q_v4l2_proxy/` |
 | GVM EVS V4L2 HAL | `GVM Camera Source/camcorder_fe/v4qhal/` |
+| `evsmanagerd_v4q` | `GVM Tree/packages/services/Car/cpp/evs/manager/aidl_v4q/` |
+| GVM `ais-v4l2loopback.ko` | `GVM Kernel Source/common/drivers/ais-v4l2loopback/` |
+| GVM `msm_hab.ko` | `GVM Kernel Source/soc-repo/drivers/soc/qcom/hab/` |
 | Android Car EVS Framework | `GVM Tree/packages/services/Car/car-lib/`、`GVM Tree/packages/services/Car/service/` |
 
 正式树中的部署配置和运行二进制定义实际部署边界；配套 Camera 源码用于展开组件内部控制流。本文的架构边界、接口和数据格式均以正式部署配置为准。
