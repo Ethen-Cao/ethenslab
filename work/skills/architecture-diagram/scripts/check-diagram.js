@@ -69,6 +69,10 @@
   }
   const OUTWARD = {top: [0, -1], bottom: [0, 1], left: [-1, 0], right: [1, 0]};
   const unit = (a, b) => [Math.sign(b.x - a.x), Math.sign(b.y - a.y)];
+  // True when the side's outward normal points away from a node lying strictly on the opposite side.
+  const facesAway = (side, own, other) =>
+    (side === 'top' && other.y1 >= own.y2) || (side === 'bottom' && other.y2 <= own.y1) ||
+    (side === 'left' && other.x1 >= own.x2) || (side === 'right' && other.x2 <= own.x1);
 
   function checkDiagram(options = {}) {
     const svg = options.svg ?? document.querySelector('svg#architecture') ?? document.querySelector('svg');
@@ -191,6 +195,10 @@
       const startSide = sideOf(start, fromNode.box), endSide = sideOf(end, toNode.box);
       if (startSide) addAnchor(edge.from, startSide, start, edge);
       if (endSide) addAnchor(edge.to, endSide, end, edge);
+      if (edge.from !== edge.to) {
+        if (startSide && facesAway(startSide, fromNode.box, toNode.box)) warn('away-side', `连线 ${edge.id} 从 ${edge.from} 的 ${startSide} 边离开，但 ${edge.to} 在相反方向；改接朝向对方的边`);
+        if (endSide && facesAway(endSide, toNode.box, fromNode.box)) warn('away-side', `连线 ${edge.id} 从 ${edge.to} 的 ${endSide} 边进入，但 ${edge.from} 在相反方向；改接朝向对方的边`);
+      }
       if (!startSide) error('start-off-boundary', `连线 ${edge.id} 起点不在 ${edge.from} 边框上`);
       else if (unit(start, edge.points[1]).join() !== OUTWARD[startSide].join()) error('start-direction', `连线 ${edge.id} 起始段未垂直离开 ${edge.from} 的 ${startSide} 边`);
       if (!endSide) error('end-off-boundary', `连线 ${edge.id} 箭头未贴 ${edge.to} 边框`);
@@ -275,7 +283,7 @@
       if (count > 1) warn('repeat-crossing', `连线 ${pair} 交叉 ${count} 次，调换入口或走线即可消除`);
     });
     sharedNodeCrossings.forEach((node, pair) => {
-      warn('shared-node-crossing', `连线 ${pair} 都连接 ${node} 却互相交叉，按来向调整 ${node} 上的入口顺序`);
+      warn('shared-node-crossing', `连线 ${pair} 都连接 ${node} 却互相交叉，按来向调整 ${node} 上的入口顺序或所在边`);
     });
     for (const edge of edgeList) {
       const bends = edge.segments.filter((s, i) => i > 0 && s.horizontal !== edge.segments[i - 1].horizontal).length;
