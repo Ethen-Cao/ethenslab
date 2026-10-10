@@ -49,7 +49,8 @@ NODES = {
     'display-buffers': (640,1600,300,70),
     'display-dpu': (1140,1600,250,70),
     'display-output': (1650,1600,290,70),
-    'display-link': (1140,1760,250,64),
+    'display-serializer': (640,1760,300,64),
+    'display-deserializer': (1140,1760,250,64),
     'display-panel': (1650,1760,290,64),
 }
 LAYERS = {
@@ -64,7 +65,7 @@ NATIVE = {'display-screen','display-apps','display-wms','display-dms',
           'display-viewroot','display-threaded-renderer','display-surfaceview',
           'display-recording','display-surface','display-api-loader'}
 HARDWARE = {'display-gpu','display-buffers','display-dpu','display-output',
-            'display-link','display-panel'}
+            'display-serializer','display-deserializer','display-panel'}
 DISPLAY_NAMES = {
     'display-cluster': ('ClusterApp', 'Kanzi HMI'),
     'display-qnx-render': ('libESXEGL_Adreno.so\nlibESXGLESv2_Adreno.so', 'EGL / GLES rendering'),
@@ -110,8 +111,9 @@ DISPLAY_NAMES = {
     'display-buffers': ('Shared Frame Buffers', 'Mapped image storage'),
     'display-dpu': ('Display Processing Unit', 'Fetch · mix · scale · scanout'),
     'display-output': ('DSI / DP Controller & PHY', 'Hardware · pixel link transmission'),
-    'display-link': ('Panel / Bridge Link', 'Board-configured physical link'),
-    'display-panel': ('Display Panels', 'Cluster · IVI · configured displays'),
+    'display-serializer': ('Serializer', 'DSI / DP input · serial link TX'),
+    'display-deserializer': ('Deserializer', 'Serial link RX · panel output'),
+    'display-panel': ('Display Panel', 'Physical pixel display'),
 }
 
 
@@ -137,7 +139,7 @@ def make_routes():
     r.add('display-wfd-core','display-mdss',[(245,925),(245,975)],flow='control,buffers',label='QDI commit',at=(245,952))
     r.add('display-mdss','display-panel-driver',[(245,1045),(245,1095)],flow='control',label='Panel callbacks',at=(245,1072),note='OEM panel and bridge library calls inside OpenWFD server')
     r.add('display-panel-driver','display-interface-driver',[(245,1183),(245,1235)],flow='control',label='DSI / DP host APIs',at=(245,1210),note='OEM panel libraries call the selected DSI or DP host driver to configure its output interface')
-    r.add('display-wfd-config','display-wfd-server',[(620,685),(620,720),(375,720),(375,735)],kind='storage',flow='control',note='OpenWFD Server loads qcdisplaycfg.xml for clients, devices, ports, pipelines and panel libraries')
+    r.add('display-wfd-config','display-wfd-server',[(620,685),(620,695),(375,695),(375,735)],kind='storage',flow='control',note='OpenWFD Server loads qcdisplaycfg.xml for clients, devices, ports, pipelines and panel libraries')
     r.add('display-screen-config','display-screen',[(550,370),(520,370),(520,420),(375,420),(375,445)],kind='storage',flow='control',note='QNX Screen reads graphics.conf for rendering libraries, WFD drivers, display modes and window classes')
     r.add('display-qnx-render','display-qnx-gsl',[(420,370),(465,370),(465,1010),(550,1010)],flow='control',label='gsl_*',at=(465,910))
     r.add('display-wfd-server','display-wfd-be',[(420,770),(490,770),(490,705),(865,705),(865,685)],kind='status',flow='events',label='WFD events',at=(800,705))
@@ -198,8 +200,9 @@ def make_routes():
     r.add('display-gpu','display-buffers',[(290,1635),(640,1635)],kind='install',flow='pixels',label='Rendered pixels',at=(460,1635))
     r.add('display-buffers','display-dpu',[(940,1635),(1140,1635)],kind='install',flow='pixels',label='Memory fetch',at=(1040,1635))
     r.add('display-dpu','display-output',[(1390,1635),(1650,1635)],kind='install',flow='pixels',label='Scanout pixels',at=(1515,1635))
-    r.add('display-output','display-link',[(1795,1670),(1795,1725),(1265,1725),(1265,1760)],kind='install',flow='pixels',label='DSI / DP',at=(1460,1725))
-    r.add('display-link','display-panel',[(1390,1792),(1650,1792)],kind='install',flow='pixels',label='Panel interface',at=(1520,1792))
+    r.add('display-output','display-serializer',[(1795,1670),(1795,1725),(790,1725),(790,1760)],kind='install',flow='pixels',label='DSI / DP',at=(1460,1725))
+    r.add('display-serializer','display-deserializer',[(940,1792),(1140,1792)],kind='install',flow='pixels',label='Serial video link',at=(1040,1792))
+    r.add('display-deserializer','display-panel',[(1390,1792),(1650,1792)],kind='install',flow='pixels',label='Panel interface',at=(1520,1792))
     return r
 
 
