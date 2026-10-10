@@ -6,7 +6,7 @@ description: 创建或修改独立 HTML 软件架构图（框图、block diagram
 # 软件架构图
 
 输出可独立打开的 HTML，使用 HTML/CSS/SVG 绘制。用户明确要求优先于本规范；参考图只提供布局，不是其他平台的技术事实。
-需要分域分层、交互聚焦或精细排版时才用本 skill；文章内的简单流程、时序、类图直接用 mermaid / PlantUML 代码块（ethenslab 的 PlantUML 样式见 `content/others/PlantUML 元素规范.md`）。
+需要分域分层、交互聚焦或精细排版时才用本 skill；文章内的简单流程、时序、类图直接用 mermaid / PlantUML 代码块（PlantUML 按 plantuml skill 的样式和模板）。
 
 ## 起点与参考
 

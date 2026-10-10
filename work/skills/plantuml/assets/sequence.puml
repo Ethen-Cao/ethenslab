@@ -1,0 +1,93 @@
+@startuml
+!theme plain
+' Google 架构块风格：深色底、实色模块、白字、方角。
+skinparam backgroundColor #282A2D
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #E8EAED
+skinparam defaultTextAlignment center
+skinparam titleFontColor #FFFFFF
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #BDC1C6
+skinparam ArrowFontColor #E8EAED
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #3C4043
+    BorderColor #5F6368
+    FontColor #E8EAED
+}
+<style>
+root {
+    LineColor #5F6368
+}
+arrow {
+    LineColor #BDC1C6
+    FontColor #E8EAED
+    LineThickness 1
+}
+</style>
+skinparam maxMessageSize 180
+skinparam ParticipantPadding 18
+skinparam BoxPadding 12
+skinparam sequence {
+    ParticipantBackgroundColor #34A853
+    ParticipantBorderColor #5F6368
+    ParticipantFontColor #FFFFFF
+    LifeLineBorderColor #5F6368
+    LifeLineBackgroundColor #3C4043
+    BoxBackgroundColor #202124
+    BoxBorderColor #5F6368
+    BoxFontColor #E8EAED
+    GroupBackgroundColor #3C4043
+    GroupBodyBackgroundColor #202124
+    GroupBorderColor #5F6368
+    GroupFontColor #FFFFFF
+    GroupHeaderFontColor #FFFFFF
+    DividerBackgroundColor #3C4043
+    DividerBorderColor #5F6368
+    DividerFontColor #E8EAED
+    ReferenceBackgroundColor #202124
+    ReferenceBorderColor #5F6368
+    ReferenceFontColor #E8EAED
+    ArrowColor #BDC1C6
+    ArrowFontColor #E8EAED
+}
+
+hide footbox
+
+title 异步任务：受理、执行与完成通知
+participant "<color:#E8EAED>调用方</color>" as Caller #3C4043
+box "任务服务" #202124
+participant "API" as API
+participant "Worker" as Worker
+end box
+participant "<color:#E8EAED>外部服务</color>" as External #3C4043
+
+autonumber "<b>[00]"
+Caller -> API : 提交任务
+activate API
+API ->> Worker : 投递任务
+activate Worker
+API --> Caller : 已受理（taskId）
+deactivate API
+note over Caller, API
+  受理返回只确认任务已接收；
+  结果由后续完成通知提供。
+end note
+
+opt 本地缓存可用
+    Worker -> Worker : 读取辅助数据
+end
+Worker -> External : 执行请求
+activate External
+External --> Worker : 返回处理结果
+deactivate External
+alt 执行成功
+    Worker ->> Caller : 完成通知（taskId, result）
+else 执行失败
+    Worker ->> Caller : 失败通知（taskId, error）
+end
+deactivate Worker
+@enduml

@@ -1,0 +1,77 @@
+@startuml
+!theme plain
+' Google 架构块风格：深色底、实色模块、白字、方角。
+skinparam backgroundColor #282A2D
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #E8EAED
+skinparam defaultTextAlignment center
+skinparam titleFontColor #FFFFFF
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #BDC1C6
+skinparam ArrowFontColor #E8EAED
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #3C4043
+    BorderColor #5F6368
+    FontColor #E8EAED
+}
+<style>
+root {
+    LineColor #5F6368
+}
+arrow {
+    LineColor #BDC1C6
+    FontColor #E8EAED
+    LineThickness 1
+}
+</style>
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam nodesep 30
+skinparam ranksep 35
+skinparam rectangle {
+    BackgroundColor #34A853
+    BorderColor #5F6368
+    FontColor #FFFFFF
+}
+skinparam component {
+    BackgroundColor #34A853
+    BorderColor #5F6368
+    FontColor #FFFFFF
+}
+skinparam package {
+    BackgroundColor #202124
+    BorderColor #5F6368
+    FontColor #E8EAED
+}
+top to bottom direction
+
+title 任务服务：职责与数据通道
+
+rectangle "请求数据" as Request #4285F4
+package "任务服务进程" as Service {
+    rectangle "请求入口\n校验与调度" as API
+    rectangle "任务队列" as Queue #4285F4
+    rectangle "Worker\n执行任务" as Worker
+    component "策略模块" as Policy
+
+    API --> Queue : 写入任务
+    Queue --> Worker : 提供待处理任务
+    Worker ..> Policy : 依赖处理策略
+}
+rectangle "结果数据" as Result #4285F4
+rectangle "外部执行服务" as Backend #3C4043
+
+Request --> API : 提交请求
+Worker --> Result : 写出结果
+Worker --> Backend : 调用外部能力
+
+note bottom of Result
+绿色：本图范围内的组件
+蓝色：数据与队列
+灰色：外部参与者与分组
+end note
+@enduml

@@ -1,0 +1,71 @@
+@startuml
+!theme plain
+' Google 架构块风格：深色底、实色模块、白字、方角。
+skinparam backgroundColor #282A2D
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #E8EAED
+skinparam defaultTextAlignment center
+skinparam titleFontColor #FFFFFF
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #BDC1C6
+skinparam ArrowFontColor #E8EAED
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #3C4043
+    BorderColor #5F6368
+    FontColor #E8EAED
+}
+<style>
+root {
+    LineColor #5F6368
+}
+arrow {
+    LineColor #BDC1C6
+    FontColor #E8EAED
+    LineThickness 1
+}
+</style>
+skinparam activity {
+  BackgroundColor #34A853
+  BorderColor #5F6368
+  FontColor #FFFFFF
+  DiamondBackgroundColor #3C4043
+  DiamondBorderColor #5F6368
+  DiamondFontColor #E8EAED
+  StartColor #BDC1C6
+  EndColor #BDC1C6
+}
+skinparam partition {
+  BackgroundColor #202124
+  BorderColor #5F6368
+  FontColor #E8EAED
+}
+
+title 请求处理：校验与有限次重试
+
+start
+#4285F4:接收请求;
+if (输入有效？) then (是)
+else (否)
+  #4285F4:返回参数错误;
+  stop
+endif
+
+partition "任务处理" {
+  :attempt = 0\nmaxAttempts = 3;
+  repeat
+    :attempt = attempt + 1;
+    :执行任务\n记录本次结果;
+  repeat while (本次失败且\nattempt < maxAttempts？) is (是) not (否)
+}
+
+if (本次成功？) then (是)
+  #4285F4:返回成功结果;
+else (否)
+  #4285F4:返回执行失败;
+endif
+stop
+@enduml
