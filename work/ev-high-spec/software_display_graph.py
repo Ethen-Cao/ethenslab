@@ -8,7 +8,7 @@ NODES = {
     'display-cluster': (70, 195, 830, 70),
     'display-qnx-render': (70, 335, 350, 70),
     'display-screen': (70, 445, 350, 70),
-    'display-wfd-be': (550, 445, 350, 70),
+    'display-wfd-be': (730, 615, 170, 70),
     'display-wfd-client': (70, 615, 350, 70),
     'display-wfd-server': (70, 735, 350, 70),
     'display-wfd-core': (70, 855, 350, 70),
@@ -16,7 +16,7 @@ NODES = {
     'display-panel-driver': (70, 1095, 350, 88),
     'display-interface-driver': (70, 1235, 350, 70),
     'display-screen-config': (550, 335, 350, 70),
-    'display-wfd-config': (550, 615, 350, 70),
+    'display-wfd-config': (550, 615, 150, 70),
     'display-qnx-hab': (550, 735, 350, 70),
     'display-gsl-be': (550, 855, 350, 70),
     'display-qnx-gsl': (550, 975, 350, 70),
@@ -131,16 +131,16 @@ def make_routes():
     r.add('display-cluster','display-qnx-render',[(245,265),(245,335)],flow='control',label='EGL / GLES',at=(245,295))
     r.add('display-qnx-render','display-screen',[(245,405),(245,445)],flow='control,buffers',label='Screen surface / post',at=(245,428))
     r.add('display-screen','display-wfd-client',[(245,515),(245,615)],flow='control,buffers',label='WFD API / image handle',at=(245,540))
-    r.add('display-wfd-be','display-wfd-client',[(670,515),(670,590),(375,590),(375,615)],flow='control,buffers',label='WFD API',at=(590,590))
+    r.add('display-wfd-be','display-wfd-client',[(815,615),(815,590),(375,590),(375,615)],flow='control,buffers',label='WFD API',at=(630,590))
     r.add('display-wfd-client','display-wfd-server',[(245,685),(245,735)],flow='control,buffers',both=True,label='QNX read / write IPC',at=(245,714))
     r.add('display-wfd-server','display-wfd-core',[(245,805),(245,855)],flow='control,buffers',label='Wire handler dispatch',at=(245,832))
     r.add('display-wfd-core','display-mdss',[(245,925),(245,975)],flow='control,buffers',label='QDI commit',at=(245,952))
     r.add('display-mdss','display-panel-driver',[(245,1045),(245,1095)],flow='control',label='Panel callbacks',at=(245,1072),note='OEM panel and bridge library calls inside OpenWFD server')
     r.add('display-panel-driver','display-interface-driver',[(245,1183),(245,1235)],flow='control',label='DSI / DP host APIs',at=(245,1210),note='OEM panel libraries call the selected DSI or DP host driver to configure its output interface')
-    r.add('display-wfd-config','display-wfd-server',[(620,685),(620,710),(375,710),(375,735)],kind='storage',flow='control',note='OpenWFD Server loads qcdisplaycfg.xml for clients, devices, ports, pipelines and panel libraries')
+    r.add('display-wfd-config','display-wfd-server',[(620,685),(620,720),(375,720),(375,735)],kind='storage',flow='control',note='OpenWFD Server loads qcdisplaycfg.xml for clients, devices, ports, pipelines and panel libraries')
     r.add('display-screen-config','display-screen',[(550,370),(520,370),(520,420),(375,420),(375,445)],kind='storage',flow='control',note='QNX Screen reads graphics.conf for rendering libraries, WFD drivers, display modes and window classes')
     r.add('display-qnx-render','display-qnx-gsl',[(420,370),(465,370),(465,1010),(550,1010)],flow='control',label='gsl_*',at=(465,910))
-    r.add('display-wfd-server','display-wfd-be',[(420,770),(490,770),(490,530),(760,530),(760,515)],kind='status',flow='events',label='WFD events',at=(585,530))
+    r.add('display-wfd-server','display-wfd-be',[(420,770),(490,770),(490,705),(865,705),(865,685)],kind='status',flow='events',label='WFD events',at=(800,705))
     # Java mirrors the UI traversal, recording and SurfaceView branches.
     r.add('display-apps','display-viewroot',[(1265,245),(1265,275)],flow='control')
     r.add('display-apps','display-surfaceview',[(1865,245),(1865,275)],flow='control')
@@ -181,13 +181,13 @@ def make_routes():
     r.add('display-android-gpu','display-khab',[(1390,1260),(1565,1260),(1565,1330)],flow='control',label='habmm_* · MM_GFX',at=(1565,1310),note='GSL control RPC and memory sharing; shared command queues remain an HGSL capability')
     r.add('display-wfd-fe','display-khab',[(1865,1290),(1865,1360),(1690,1360)],flow='control,buffers,events',both=True,note='MM_DISP: OpenWFD requests, imported/exported buffer IDs and completion events')
     # Separate HAB lanes connect the component boundaries through the domain gutter.
-    r.add('display-khab','display-wfd-be',[(1440,1350),(1060,1350),(1060,485),(900,485)],
-          flow='control,buffers,events',both=True,label='HAB · DISP',at=(1060,600),
+    r.add('display-khab','display-wfd-be',[(1440,1350),(1060,1350),(1060,650),(900,650)],
+          flow='control,buffers,events',both=True,label='HAB · DISP',at=(1060,850),
           note='HAB MM_DISP: OpenWFD requests, buffer IDs and completion events between Guest KHAB and QNX wfd_be')
     r.add('display-khab','display-qnx-hab',[(1440,1380),(995,1380),(995,770),(900,770)],
           flow='control',both=True,label='HAB · GFX',at=(995,930),
           note='HAB MM_GFX: GSL control RPC and memory sharing between Guest KHAB and QNX UHAB/HAB')
-    r.add('display-wfd-be','display-buffers',[(860,515),(860,540),(950,540),(950,1425),(610,1425),(610,1570),(790,1570),(790,1600)],kind='storage',flow='buffers',label='PMEM mapping',at=(610,1490))
+    r.add('display-wfd-be','display-buffers',[(885,685),(885,720),(950,720),(950,1425),(610,1425),(610,1570),(790,1570),(790,1600)],kind='storage',flow='buffers',label='PMEM mapping',at=(610,1490))
     r.add('display-gsl-be','display-qnx-hab',[(725,855),(725,805)],flow='control',both=True,label='habmm_*',at=(725,832),note='GSL HAB Server uses libuhab.so; UHAB calls the QNX HAB resource manager')
     r.add('display-gsl-be','display-qnx-gsl',[(725,925),(725,975)],flow='control',label='gsl_*',at=(725,952),note='The server imports GSL context, memory and command APIs from libGSLUser.so')
     r.add('display-qnx-gsl','display-qnx-gpu',[(725,1045),(725,1095)],flow='control',label='GPU driver IPC',at=(725,1072),note='QNX libGSLUser.so opens /dev/kgsl-3D and calls the KGSL driver through QNX IPC')
