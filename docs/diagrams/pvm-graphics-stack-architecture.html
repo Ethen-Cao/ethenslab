@@ -173,11 +173,11 @@
         </g>
         <g class="pvm-service" data-process="openwfd-1">
           <rect class="process" x="756" y="928" width="400" height="102" rx="7"/>
-          <text class="process-title" x="772" y="950">openwfd_server -i 1</text>
+          <text class="process-title" x="762" y="950">openwfd_server -i 1</text>
         </g>
         <g class="pvm-service" data-process="kgsl">
           <rect class="process" x="1204" y="928" width="448" height="102" rx="7"/>
-          <text class="process-title" x="1220" y="950">kgsl 进程 · /usr/bin/kgsl -p N</text>
+          <text class="process-title" x="1220" y="950">kgsl 进程</text>
         </g>
         <g class="pvm-kernel">
           <rect class="layer-panel" x="196" y="1072" width="1468" height="200" rx="6"/>
@@ -514,53 +514,54 @@ const nodes = [
     "sub": [
       "context / memory / GMU / 故障恢复"
     ],
-    "detail": "kgsl 用户态进程加载 libGSLKernel.so，库内实现 RGS，负责 GPU context、内存映射、GMU/HFI、hang 检测和故障恢复。gsl_hab_server 是独立进程，通过本机 libgsl 客户端与 IPC 请求 RGS；Weston 等 PVM 本机图形客户端也可调用 RGS。",
+    "detail": "/usr/bin/kgsl -p N 启动 kgsl 用户态进程并加载 libGSLKernel.so，库内实现 RGS，负责 GPU context、内存映射、GMU/HFI、hang 检测和故障恢复。gsl_hab_server 是独立进程，通过本机 libgsl 客户端与 IPC 请求 RGS；Weston 等 PVM 本机图形客户端也可调用 RGS。",
     "process": "kgsl"
   },
   {
     "id": "kernel0",
     "x": 212,
-    "y": 1124,
+    "y": 1116,
     "w": 480,
-    "h": 64,
+    "h": 80,
     "kind": "vendor",
     "name": [
-      "KIUMD / VFIO / SCMI"
+      "/dev/kiumd · kiumd",
+      "/dev/vfio/* · vfio",
+      "/dev/scmi_mdss0 · qcom_uscmi"
     ],
-    "sub": [
-      "DPU 0 · scmi_mdss0"
-    ],
-    "detail": "PVM 内核硬件访问接口，提供 MMIO、中断、IOMMU/VFIO、显示电源等能力，由 OpenWFD Server 持有。蓝线是控制依赖，不是像素搬运。"
+    "sub": [],
+    "detail": "openwfd_server -i 0 持有 DPU 0 的内核接口：/dev/kiumd 由 kiumd 模块提供；/dev/vfio/vfio 与 /dev/vfio/<group> 由 VFIO 核心提供，平台设备绑定 vfio-platform；/dev/scmi_mdss0 由 qcom_uscmi 模块提供。libkiumd.so 是用户态库，与内核 kiumd 模块分层。"
   },
   {
     "id": "kernel1",
     "x": 772,
-    "y": 1124,
+    "y": 1116,
     "w": 368,
-    "h": 64,
+    "h": 80,
     "kind": "vendor",
     "name": [
-      "KIUMD / VFIO / SCMI"
+      "/dev/kiumd · kiumd",
+      "/dev/vfio/* · vfio",
+      "/dev/scmi_mdss1 · qcom_uscmi"
     ],
-    "sub": [
-      "DPU 1 · /dev/scmi_mdss1"
-    ],
-    "detail": "实例 1 对应的内核硬件访问接口。Weston 没有持有 DPU VFIO 或 /dev/dri/card*；实际硬件资源访问在 Server 这一侧。"
+    "sub": [],
+    "detail": "openwfd_server -i 1 持有 DPU 1 的内核接口：/dev/kiumd 对应 kiumd；VFIO container/group 设备对应 vfio 核心，平台设备绑定 vfio-platform；/dev/scmi_mdss1 对应 qcom_uscmi。Weston 不持有 DPU VFIO 或 /dev/dri/card*，显示硬件资源由 OpenWFD Server 访问。"
   },
   {
     "id": "gpuaccess",
     "x": 1220,
-    "y": 1124,
+    "y": 1116,
     "w": 230,
-    "h": 64,
+    "h": 80,
     "kind": "vendor",
     "name": [
-      "VFIO / SMMU / IRQ"
+      "/dev/kiumd · kiumd",
+      "/dev/vfio/* · vfio"
     ],
     "sub": [
       "GPU 资源 / 地址空间 / 中断"
     ],
-    "detail": "RGS 通过 GPU 相关内核资源接口管理 MMIO、SMMU 地址空间和中断。该节点不套用显示侧 SCMI MDSS 接口，也不把 libkiumd 当作已经证明的 RGS→GPU 必经内核层。"
+    "detail": "libGSLKernel.so 链接 libkiumd.so，并调用 plat_vfio_* 等资源接口；后者使用 /dev/kiumd 与 /dev/vfio/vfio、/dev/vfio/<group>。设备文件分别由 kiumd 与 vfio 核心提供，GPU / GMU 平台设备绑定 vfio-platform，用于寄存器映射、地址空间与中断管理。"
   },
   {
     "id": "hosthab",
@@ -570,16 +571,15 @@ const nodes = [
     "h": 144,
     "kind": "vendor",
     "name": [
-      "Host HAB",
-      "VirtIO BE"
+      "/dev/hab*",
+      "/dev/vhost-disp",
+      "/dev/vhost-ogles",
+      "· msm_hab"
     ],
     "sub": [
-      "msm_hab.ko",
-      "hab_vhost",
-      "/dev/vhost-disp",
-      "/dev/vhost-ogles"
+      "hab_vhost · VirtIO BE"
     ],
-    "detail": "PVM 内核 hab_vhost.c 是 HAB/VirtIO 的传输后端：/dev/vhost-ogles 对应 MM_GFX（device 94），/dev/vhost-disp 对应显示通道（device 93）。它消费 virtqueue 中的 HAB 消息，分发到 gsl_hab_server 或显示服务 display-be；GPU 请求再由 gsl_hab_server 经 libgsl 与本机 IPC 调用独立 kgsl 进程中的 RGS。vhost-user-qti 配置 vring、内存表和 kick/call；DBCQ 命令快路径不经过该 VirtIO 后端。"
+    "detail": "PVM 的 msm_hab 模块同时提供 HAB 字符设备和 hab_vhost 传输后端。libuhab.so 通过 /dev/hab 或通道专用 /dev/hab-* 收发 RPC；vhost-user-qti 通过 /dev/vhost-disp（device 93）和 /dev/vhost-ogles（device 94）配置 vring、内存表及 kick/call。hab_vhost 消费 virtqueue 中的 HAB 消息并交给 HAB 通道；DBCQ 命令快路径不经过该 VirtIO 后端。"
   },
   {
     "id": "displayhab",
@@ -928,12 +928,12 @@ const nodes = [
     "h": 64,
     "kind": "vendor",
     "name": [
-      "DRM/KMS display frontend"
+      "/dev/dri/card* · msm_drm"
     ],
     "sub": [
-      "virtio-gpu.o · disp"
+      "DRM/KMS · virtio_kms / virtgpu_vq"
     ],
-    "detail": "当前平台关联源码中的 Guest DRM 显示前端目标名为 virtio-gpu.o，通过 HAB 传递 VirtIO GPU 2D 显示命令与资源元数据。并不表示它也是 Guest 3D 渲染驱动；3D 渲染走 HGSL。",
+    "detail": "Guest Composer 通过 /dev/dri/card* 访问 msm_drm 模块。当前 display-drivers 的 Kbuild 将 hyp/virtio/virtio_kms.o 与 virtgpu_vq.o 链入 msm_drm；该显示前端通过内核 habmm_socket_* 接口传递 VirtIO GPU 2D 显示命令与资源元数据。Guest 3D 渲染走独立的 qcom_hgsl。",
     "layer": "Linux kernel"
   },
   {
@@ -944,12 +944,12 @@ const nodes = [
     "h": 52,
     "kind": "vendor",
     "name": [
-      "Guest HAB / virtio-HAB"
+      "/dev/hab* · msm_hab"
     ],
     "sub": [
-      "hab_virtio · disp / ID 93 ｜ MM_GFX / ID 94"
+      "habmm_* · hab_virtio · disp / ID 93 ｜ MM_GFX / ID 94"
     ],
-    "detail": "HAB 经 VirtIO 队列跨 VM 传递显示消息和 GPU 控制 RPC。GPU hgsl_hyp 控制通道与 DBCQ fast path 分离；doorbell 是通知，不是图像数据。",
+    "detail": "msm_hab 对用户态提供 /dev/hab 及 /dev/hab-disp、/dev/hab-ogles 等通道设备；HGSL 和 DRM 是内核调用方，通过 habmm_socket_* 调用 HAB，不经过这些字符设备。hab_virtio 使用 VirtIO 队列跨 VM 传递显示消息和 GPU 控制 RPC，与 DBCQ 提交快路径分离。",
     "layer": "Linux kernel"
   },
   {
@@ -1217,7 +1217,7 @@ const edges = [
     "routes": [
       "pvm"
     ],
-    "d": "M575 716 V920 H1612 V966",
+    "d": "M575 716 V920 H1428 V966",
     "label": "本机 IPC",
     "lx": 1420,
     "ly": 900
@@ -1240,7 +1240,7 @@ const edges = [
     "routes": [
       "pvm"
     ],
-    "d": "M326 804 V832 H608 V966"
+    "d": "M326 804 V896 H452 V966"
   },
   {
     "id": "weston1",
@@ -1250,7 +1250,7 @@ const edges = [
     "routes": [
       "pvm"
     ],
-    "d": "M400 804 V896 H1076 V966"
+    "d": "M400 804 V832 H956 V966"
   },
   {
     "id": "guest0",
@@ -1305,7 +1305,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M452 1020 V1124"
+    "d": "M452 1020 V1116"
   },
   {
     "id": "resource1",
@@ -1316,7 +1316,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M956 1020 V1124"
+    "d": "M956 1020 V1116"
   },
   {
     "id": "gpuresource",
@@ -1327,7 +1327,7 @@ const edges = [
       "gl",
       "pvm"
     ],
-    "d": "M1428 1020 V1092 H1335 V1124"
+    "d": "M1428 1020 V1092 H1335 V1116"
   },
   {
     "id": "program0",
@@ -1338,7 +1338,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M452 1188 V1326 H958 V1352"
+    "d": "M452 1196 V1326 H958 V1352"
   },
   {
     "id": "program1",
@@ -1349,7 +1349,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M956 1188 V1314 H1336 V1352"
+    "d": "M956 1196 V1314 H1336 V1352"
   },
   {
     "id": "gpuctrl",
@@ -1360,7 +1360,7 @@ const edges = [
       "pvm",
       "gl"
     ],
-    "d": "M1335 1188 V1302 H360 V1352"
+    "d": "M1335 1196 V1302 H360 V1352"
   },
   {
     "id": "setup",
