@@ -128,6 +128,7 @@ description: 按 ethenslab 统一样式编写 PlantUML 图：架构 / 组件图�
 ### 时序图
 
 - 参与者按主要交互顺序从左到右排列，每个参与者含义稳定（进程、线程或服务对象）。本图范围内的参与者用绿色，并用 `box` 圈出范围；范围外的调用方和外部服务用灰色。
+- 为外部参与者（灰色节点）统一使用 `<<ext>>` 版型，并在样式区添加 `hide stereotype`，名称使用 `参与者\n(角色)` 两行对齐格式。
 - `activate` / `deactivate` 表示执行或调用范围，不表示一直占用 CPU，也不表示 GPU 等异步单元已经完成。
 - `opt` 表示可选步骤，`alt` 的分支互斥；缓存命中即可返回时，用“命中／未命中”的 `alt`。
 - 自动编号便于引用，不代表所有分支都会执行；纵向间距不表示耗时，需要时显式标注时间。
@@ -145,7 +146,7 @@ description: 按 ethenslab 统一样式编写 PlantUML 图：架构 / 组件图�
 | 边框、生命线 | `#5F6368` | `#BDC1C6` |
 | 箭头 | `#BDC1C6` | `#5F6368` |
 
-同时修改节点和 `box` 上的显式颜色、外部参与者的文字颜色，以及 `<style>` 中 `root`、`arrow` 的 `LineColor` 与 `FontColor`。只改 `backgroundColor` 会留下浅色文字和边框。
+同时修改节点和 `box` 上的显式颜色、外部参与者的文字颜色、`packageFontColor`，以及 `<style>` 中 `root`、`arrow` 的 `LineColor` 与 `FontColor`。只改 `backgroundColor` 会留下浅色文字和边框。
 
 ## 渲染与验收
 

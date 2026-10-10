@@ -67,27 +67,87 @@ QNX Screen 是客户端/服务端图形框架。应用通过 `libscreen` 创建�
 
 ### 2.2 对象关系
 
-```mermaid
-flowchart TB
-    Context["Context<br/>连接与权限边界"]
-    Display["Display<br/>显示目标"]
-    Window["Window<br/>可显示的渲染目标"]
-    Stream["Stream<br/>生产者/消费者通道"]
-    Pixmap["Pixmap<br/>离屏渲染目标"]
-    WB["Window Buffers<br/>一个或多个"]
-    SB["Stream Buffers<br/>一个或多个"]
-    PB["Pixmap Buffer<br/>一个"]
-    Event["Event<br/>输入与状态通知"]
+```plantuml
+@startuml
+!theme plain
+' Google 架构块风格：亮色底（透明适配博客）、实色模块、深色字、方角。
+skinparam backgroundColor transparent
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #202124
+skinparam defaultTextAlignment center
+skinparam titleFontColor #202124
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #5F6368
+skinparam ArrowFontColor #202124
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #E8EAED
+    BorderColor #BDC1C6
+    FontColor #202124
+}
+<style>
+root {
+    LineColor #BDC1C6
+}
+arrow {
+    LineColor #5F6368
+    FontColor #202124
+    LineThickness 1
+}
+</style>
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam nodesep 30
+skinparam ranksep 35
+skinparam rectangle {
+    BackgroundColor #34A853
+    BorderColor #BDC1C6
+    FontColor #FFFFFF
+}
+skinparam component {
+    BackgroundColor #34A853
+    BorderColor #BDC1C6
+    FontColor #FFFFFF
+}
+skinparam packageBackgroundColor #F1F3F4
+skinparam packageBorderColor #BDC1C6
+skinparam packageFontColor #202124
+skinparam package {
+    BackgroundColor #F1F3F4
+    BorderColor #BDC1C6
+    FontColor #202124
+}
+skinparam rectangle<<ext>> {
+    BackgroundColor #E8EAED
+    FontColor #202124
+}
+hide stereotype
+top to bottom direction
 
-    Context --> Display
-    Context --> Window
-    Context --> Stream
-    Context --> Pixmap
-    Context --> Event
-    Window --> WB
-    Window --> Display
-    Stream --> SB
-    Pixmap --> PB
+title Screen 对象：作用域与关联
+rectangle "Context\n连接与对象作用域" as Context
+rectangle "Window\n可显示的渲染目标" as Window
+rectangle "Stream\n生产者 / 消费者通道" as Stream
+rectangle "Pixmap\n离屏渲染目标" as Pixmap
+rectangle "Display\n物理或虚拟显示目标" as Display
+rectangle "Event\n输入与状态通知" as Event #4285F4
+rectangle "Window Buffers\n一个或多个" as WindowBuffers #4285F4
+rectangle "Stream Buffers\n一个或多个" as StreamBuffers #4285F4
+rectangle "Pixmap Buffer\n一个" as PixmapBuffer #4285F4
+
+Context --> Window : 创建 / 关联
+Context --> Stream : 创建 / 关联
+Context --> Pixmap : 创建 / 关联
+Context --> Display : 枚举
+Context --> Event : 获取事件
+Window --> WindowBuffers : 关联
+Window --> Display : 选择显示目标
+Stream --> StreamBuffers : 关联
+Pixmap --> PixmapBuffer : 关联
+@enduml
 ```
 
 Window 和 Stream 通常可以关联多个 buffer，以支持多缓冲；Pixmap 只关联一个 buffer。一个 buffer 是否能被 CPU 访问、GPU 渲染、用作视频输入或进入显示管线，取决于创建前设置的 `SCREEN_PROPERTY_USAGE` 以及平台能力。
@@ -111,18 +171,86 @@ Window 和 Stream 通常可以关联多个 buffer，以支持多缓冲；Pixmap 
 - **EGL** 管理渲染上下文、EGLSurface，以及渲染 API 与本地窗口系统之间的连接。
 - **QNX Screen** 提供本地窗口、buffer、显示目标和呈现服务。
 
-```mermaid
-flowchart LR
-    App["Application"]
-    GLES["OpenGL ES<br/>生成图形内容"]
-    EGL["EGL<br/>Context / Surface / 同步"]
-    Window["Screen Window<br/>本地渲染目标"]
-    Screen["QNX Screen<br/>窗口与呈现"]
+```plantuml
+@startuml
+!theme plain
+' Google 架构块风格：亮色底（透明适配博客）、实色模块、深色字、方角。
+skinparam backgroundColor transparent
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #202124
+skinparam defaultTextAlignment center
+skinparam titleFontColor #202124
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #5F6368
+skinparam ArrowFontColor #202124
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #E8EAED
+    BorderColor #BDC1C6
+    FontColor #202124
+}
+<style>
+root {
+    LineColor #BDC1C6
+}
+arrow {
+    LineColor #5F6368
+    FontColor #202124
+    LineThickness 1
+}
+</style>
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam nodesep 30
+skinparam ranksep 35
+skinparam rectangle {
+    BackgroundColor #34A853
+    BorderColor #BDC1C6
+    FontColor #FFFFFF
+}
+skinparam component {
+    BackgroundColor #34A853
+    BorderColor #BDC1C6
+    FontColor #FFFFFF
+}
+skinparam packageBackgroundColor #F1F3F4
+skinparam packageBorderColor #BDC1C6
+skinparam packageFontColor #202124
+skinparam package {
+    BackgroundColor #F1F3F4
+    BorderColor #BDC1C6
+    FontColor #202124
+}
+skinparam rectangle<<ext>> {
+    BackgroundColor #E8EAED
+    FontColor #202124
+}
+hide stereotype
+top to bottom direction
 
-    App --> GLES
-    App --> EGL
-    GLES --> EGL
-    EGL --> Window --> Screen
+title OpenGL ES、EGL 与 Screen：接口与对象关系
+rectangle "Application\n(App)" as App <<ext>>
+package "应用进程内的接口库" as Client {
+    component "libGLESv2.so\nOpenGL ES 绘制接口" as GLES
+    component "libEGL.so\nContext / Surface 管理" as EGL
+    component "libscreen.so\nScreen 对象管理" as LibScreen
+}
+rectangle "EGLSurface\n当前窗口绘制表面" as Surface
+rectangle "Screen Window\n本地窗口对象" as Window
+rectangle "Window Buffers\n窗口像素存储" as Buffers #4285F4
+
+App --> GLES : 调用 glDraw*
+App --> EGL : 创建 Context / Surface\n调用 eglSwapBuffers
+App --> LibScreen : 创建窗口 / Buffers\n配置属性
+GLES ..> Surface : 使用当前绘制表面
+EGL --> Surface : 创建 / 管理
+LibScreen --> Window : 创建 / 配置
+Surface ..> Window : 绑定本地窗口
+Window --> Buffers : 关联
+@enduml
 ```
 
 可以将三者概括为：OpenGL ES 决定“画什么、怎样画”，EGL 决定“在哪个上下文和表面上画”，Screen 决定“窗口内容如何进入系统显示场景”。
@@ -133,20 +261,108 @@ flowchart LR
 
 ### 4.1 初始化顺序
 
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant Lib as libscreen
-    participant Screen as Screen Server
+```plantuml
+@startuml
+!theme plain
+' Google 架构块风格：亮色底（透明适配博客）、实色模块、深色字、方角。
+skinparam backgroundColor transparent
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #202124
+skinparam defaultTextAlignment center
+skinparam titleFontColor #202124
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #5F6368
+skinparam ArrowFontColor #202124
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #E8EAED
+    BorderColor #BDC1C6
+    FontColor #202124
+}
+<style>
+root {
+    LineColor #BDC1C6
+}
+arrow {
+    LineColor #5F6368
+    FontColor #202124
+    LineThickness 1
+}
+</style>
+skinparam maxMessageSize 180
+<style>
+participant {
+    Padding 18
+}
+</style>
+skinparam BoxPadding 12
+skinparam sequence {
+    ParticipantBackgroundColor #34A853
+    ParticipantBorderColor #BDC1C6
+    ParticipantFontColor #FFFFFF
+    LifeLineBorderColor #BDC1C6
+    LifeLineBackgroundColor #E8EAED
+    BoxBackgroundColor #F1F3F4
+    BoxBorderColor #BDC1C6
+    BoxFontColor #202124
+    GroupBackgroundColor #E8EAED
+    GroupBodyBackgroundColor #F1F3F4
+    GroupBorderColor #BDC1C6
+    GroupFontColor #202124
+    GroupHeaderFontColor #202124
+    DividerBackgroundColor #E8EAED
+    DividerBorderColor #BDC1C6
+    DividerFontColor #202124
+    ReferenceBackgroundColor #F1F3F4
+    ReferenceBorderColor #BDC1C6
+    ReferenceFontColor #202124
+    ArrowColor #5F6368
+    ArrowFontColor #202124
+}
+skinparam participant<<ext>> {
+    BackgroundColor #E8EAED
+    FontColor #202124
+}
+hide stereotype
 
-    App->>Lib: screen_create_context()
-    Lib->>Screen: 建立 Screen 客户端连接
-    App->>Lib: screen_create_window()
-    App->>Lib: 设置 usage / format / size 等属性
-    App->>Lib: screen_create_window_buffers(count)
-    Lib->>Screen: 创建内部 buffers
-    Screen-->>Lib: 返回窗口与 buffer handles
-    Lib-->>App: 初始化完成
+hide footbox
+
+title Screen Window：初始化成功路径
+participant "Application\n(App)" as App <<ext>>
+box "Screen 客户端 / 服务端"
+participant "libscreen.so\n(Client)" as LibScreen
+participant "screen\n(Server)" as Screen
+end box
+
+autonumber "<b>[00]"
+group 创建 Context 与 Window
+    App -> LibScreen : screen_create_context()
+    activate LibScreen
+    LibScreen -> Screen : 建立客户端连接
+    Screen --> LibScreen : 连接就绪
+    LibScreen --> App : 返回 0；写出 Context handle
+    deactivate LibScreen
+    App -> LibScreen : screen_create_window()
+    LibScreen --> App : 返回 0；写出 Window handle
+end
+group 配置窗口
+    App -> LibScreen : screen_set_window_property_*()\n设置 usage / format / size
+    LibScreen --> App : 返回 0
+end
+group 分配并查询 Buffers
+    App -> LibScreen : screen_create_window_buffers()
+    activate LibScreen
+    LibScreen -> Screen : 请求创建窗口 Buffers
+    Screen --> LibScreen : 创建完成
+    LibScreen --> App : 返回 0
+    deactivate LibScreen
+    App -> LibScreen : screen_get_window_property_pv()\nSCREEN_PROPERTY_RENDER_BUFFERS
+    LibScreen --> App : 返回 0；填充 Buffer handles
+end
+@enduml
 ```
 
 典型步骤如下：
@@ -187,64 +403,288 @@ sequenceDiagram
 4. 调用 `screen_post_window()` 提交完整 buffer 或 dirty rectangles。
 5. 重新获取下一块可用 render buffer。
 
-```mermaid
-sequenceDiagram
-    participant App as Application / CPU
-    participant Buffer as Window Buffer
-    participant Screen as QNX Screen
-    participant Display as Display Pipeline
+```plantuml
+@startuml
+!theme plain
+' Google 架构块风格：亮色底（透明适配博客）、实色模块、深色字、方角。
+skinparam backgroundColor transparent
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #202124
+skinparam defaultTextAlignment center
+skinparam titleFontColor #202124
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #5F6368
+skinparam ArrowFontColor #202124
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #E8EAED
+    BorderColor #BDC1C6
+    FontColor #202124
+}
+<style>
+root {
+    LineColor #BDC1C6
+}
+arrow {
+    LineColor #5F6368
+    FontColor #202124
+    LineThickness 1
+}
+</style>
+skinparam maxMessageSize 180
+<style>
+participant {
+    Padding 18
+}
+</style>
+skinparam BoxPadding 12
+skinparam sequence {
+    ParticipantBackgroundColor #34A853
+    ParticipantBorderColor #BDC1C6
+    ParticipantFontColor #FFFFFF
+    LifeLineBorderColor #BDC1C6
+    LifeLineBackgroundColor #E8EAED
+    BoxBackgroundColor #F1F3F4
+    BoxBorderColor #BDC1C6
+    BoxFontColor #202124
+    GroupBackgroundColor #E8EAED
+    GroupBodyBackgroundColor #F1F3F4
+    GroupBorderColor #BDC1C6
+    GroupFontColor #202124
+    GroupHeaderFontColor #202124
+    DividerBackgroundColor #E8EAED
+    DividerBorderColor #BDC1C6
+    DividerFontColor #202124
+    ReferenceBackgroundColor #F1F3F4
+    ReferenceBorderColor #BDC1C6
+    ReferenceFontColor #202124
+    ArrowColor #5F6368
+    ArrowFontColor #202124
+}
+skinparam participant<<ext>> {
+    BackgroundColor #E8EAED
+    FontColor #202124
+}
+hide stereotype
 
-    App->>Screen: 获取 SCREEN_PROPERTY_RENDER_BUFFERS
-    Screen-->>App: 返回可写 buffer
-    App->>Buffer: 写入像素
-    App->>Screen: screen_post_window(buffer, dirty_rects, flags)
-    Screen->>Screen: 更新窗口内容与场景状态
-    Screen->>Display: 合成、复制或直接显示
-    Display-->>Screen: buffer 不再被消费
-    Screen-->>App: buffer 重新可用于渲染
+hide footbox
+
+title 软件渲染：写入、提交与复用
+participant "Application\n(CPU)" as App <<ext>>
+box "Screen 渲染接口与资源"
+participant "libscreen.so\n(Client)" as LibScreen
+participant "Window Buffer\n(Memory)" as Buffer #4285F4
+end box
+participant "Screen Present\n(Display)" as Presentation <<ext>>
+
+autonumber "<b>[00]"
+App -> LibScreen : 查询 RENDER_BUFFERS
+LibScreen --> App : 可渲染 Buffer handles
+App -> LibScreen : 查询 POINTER / STRIDE
+LibScreen --> App : CPU 地址 / 行跨度
+App -> Buffer : 写入本帧像素
+App -> LibScreen : screen_post_window()\nflags = 0
+activate LibScreen
+LibScreen ->> Presentation : 提交窗口内容更新
+par 应用侧推进
+    LibScreen -> LibScreen : 等待满足返回条件\n可用 Buffer / swap interval
+    LibScreen --> App : 返回 0
+    deactivate LibScreen
+    App -> LibScreen : 重新查询 RENDER_BUFFERS
+    LibScreen --> App : 当前可渲染 Buffer handles
+else 消费已提交帧
+    Presentation -> Buffer : 读取像素用于合成 / 显示
+    Presentation -> Presentation : 不再使用时\n释放持有
+end
+@enduml
 ```
 
 ### 5.2 EGL/OpenGL ES 路径
 
 OpenGL ES 路径由 EGLSurface 包装 Screen Window。应用调用 GL API 产生绘制工作，并使用 `eglSwapBuffers()` 提交新帧。
 
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant GL as OpenGL ES / GPU Driver
-    participant GPU as GPU
-    participant EGL as EGL
-    participant Screen as QNX Screen
-    participant Display as Display Pipeline
+```plantuml
+@startuml
+!theme plain
+' Google 架构块风格：亮色底（透明适配博客）、实色模块、深色字、方角。
+skinparam backgroundColor transparent
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #202124
+skinparam defaultTextAlignment center
+skinparam titleFontColor #202124
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #5F6368
+skinparam ArrowFontColor #202124
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #E8EAED
+    BorderColor #BDC1C6
+    FontColor #202124
+}
+<style>
+root {
+    LineColor #BDC1C6
+}
+arrow {
+    LineColor #5F6368
+    FontColor #202124
+    LineThickness 1
+}
+</style>
+skinparam maxMessageSize 180
+<style>
+participant {
+    Padding 18
+}
+</style>
+skinparam BoxPadding 12
+skinparam sequence {
+    ParticipantBackgroundColor #34A853
+    ParticipantBorderColor #BDC1C6
+    ParticipantFontColor #FFFFFF
+    LifeLineBorderColor #BDC1C6
+    LifeLineBackgroundColor #E8EAED
+    BoxBackgroundColor #F1F3F4
+    BoxBorderColor #BDC1C6
+    BoxFontColor #202124
+    GroupBackgroundColor #E8EAED
+    GroupBodyBackgroundColor #F1F3F4
+    GroupBorderColor #BDC1C6
+    GroupFontColor #202124
+    GroupHeaderFontColor #202124
+    DividerBackgroundColor #E8EAED
+    DividerBorderColor #BDC1C6
+    DividerFontColor #202124
+    ReferenceBackgroundColor #F1F3F4
+    ReferenceBorderColor #BDC1C6
+    ReferenceFontColor #202124
+    ArrowColor #5F6368
+    ArrowFontColor #202124
+}
+skinparam participant<<ext>> {
+    BackgroundColor #E8EAED
+    FontColor #202124
+}
+hide stereotype
 
-    App->>GL: glClear / glDraw* / texture updates
-    GL->>GPU: 按驱动策略排队或提交命令
-    App->>EGL: eglSwapBuffers(display, surface)
-    EGL->>GL: 完成当前帧所需的 flush / 同步
-    EGL->>Screen: 将新帧提交给窗口系统
-    GPU-->>Screen: 渲染结果满足消费条件
-    Screen->>Display: 合成或分配硬件显示资源
-    Display-->>Screen: 释放已显示或不再使用的 buffer
-    Screen-->>EGL: 后续 swap 可获得可用 back buffer
+hide footbox
+
+title EGL / OpenGL ES：绘制与窗口提交
+participant "Application\n(App)" as App <<ext>>
+box "应用进程内的图形接口"
+participant "libGLESv2\n(GL API)" as GLES
+participant "libEGL.so\n(Context)" as EGL
+end box
+participant "GPU HW\n(Render)" as GPU <<ext>>
+box "窗口与呈现服务"
+participant "screen\n(Server)" as Screen
+end box
+
+autonumber "<b>[00]"
+App -> GLES : glClear() / glDraw*()
+GLES -> GLES : 记录 / 排队绘制工作
+GLES --> App : GL API 返回
+par GPU 命令执行
+    GLES ->> GPU : 按驱动策略提交绘制命令
+    GPU -> GPU : 执行绘制\n写入 Window Buffer
+else 窗口帧提交
+    App -> EGL : eglSwapBuffers()
+    EGL -> GLES : 发起本帧所需的 flush
+    GLES --> EGL : 完成命令提交准备
+    EGL -> Screen : 提交窗口新帧
+end
+note over GPU, Screen
+    消费像素前须满足渲染同步；
+    具体等待方与同步机制由平台实现。
+end note
+Screen -> Screen : 合成 / 复制\n或配置直显
+Screen -> Screen : 消费完成后\n释放 Buffer 持有
+@enduml
 ```
 
 `eglSwapBuffers()` 不是“把整批 GL 命令第一次发送给 GPU”的同义词。GL 命令何时开始执行、swap 何时返回以及 post 何时实际发生，取决于 GPU 架构、EGL 驱动和 Screen 实现。
 
 如果应用需要提交局部更新，基础 `eglSwapBuffers()` 没有 dirty rectangle 参数；可在目标实现支持时使用 `EGL_EXT_swap_buffers_with_damage` 或等效扩展。
 
-### 5.3 Buffer 状态机
+### 5.3 Buffer 生命周期
 
-从生产者视角，可以将 buffer 生命周期抽象为以下状态：
+从生产者视角，buffer 在 Available、Rendering、Posted 和 Consuming 状态之间流转；下图展开提交、取消和消费者释放的分支：
 
-```mermaid
-stateDiagram-v2
-    [*] --> Available
-    Available --> Rendering: 生产者取得 buffer
-    Rendering --> Posted: screen_post_window / eglSwapBuffers
-    Posted --> Consuming: Screen 选中该帧用于合成或显示
-    Posted --> Available: 新帧被丢弃或无需继续持有
-    Consuming --> Available: 所有消费者释放 buffer
-    Rendering --> Available: 放弃渲染并归还
+```plantuml
+@startuml
+!theme plain
+' Google 架构块风格：亮色底（透明适配博客）、实色模块、深色字、方角。
+skinparam backgroundColor transparent
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 14
+skinparam defaultFontColor #202124
+skinparam defaultTextAlignment center
+skinparam titleFontColor #202124
+skinparam titleFontSize 18
+skinparam shadowing false
+skinparam roundcorner 0
+skinparam ArrowColor #5F6368
+skinparam ArrowFontColor #202124
+skinparam ArrowThickness 1
+skinparam note {
+    BackgroundColor #E8EAED
+    BorderColor #BDC1C6
+    FontColor #202124
+}
+<style>
+root {
+    LineColor #BDC1C6
+}
+arrow {
+    LineColor #5F6368
+    FontColor #202124
+    LineThickness 1
+}
+</style>
+skinparam activity {
+  BackgroundColor #34A853
+  BorderColor #BDC1C6
+  FontColor #FFFFFF
+  DiamondBackgroundColor #E8EAED
+  DiamondBorderColor #BDC1C6
+  DiamondFontColor #202124
+  StartColor #5F6368
+  EndColor #5F6368
+}
+skinparam partition {
+  BackgroundColor #F1F3F4
+  BorderColor #BDC1C6
+  FontColor #202124
+}
+
+title Window Buffer：生产与消费循环
+start
+:进入可渲染集合\nAvailable;
+repeat
+    :取得 Buffer 并写入像素\nRendering;
+    if (提交本帧？) then (是)
+        :提交窗口内容\nscreen_post_window / eglSwapBuffers;
+        :进入待消费状态\nPosted;
+        if (选中用于呈现？) then (是)
+            :合成 / 复制 / 直接显示\nConsuming;
+            :结束消费并释放持有;
+        else (否)
+            :跳过本帧并释放持有;
+        endif
+    else (否)
+        :放弃本帧并结束写入;
+    endif
+    :完成必要的归还\n等待所有占用解除;
+    :重新进入可渲染集合\nAvailable;
+repeat while (继续渲染？) is (是) not (否)
+stop
+@enduml
 ```
 
 关键约束是：调用 post 后，生产者不得继续写入已经交给消费者的 buffer。只有当该 buffer 再次进入可渲染集合后，生产者才能覆盖其内容。

@@ -146,11 +146,19 @@ skinparam component {
     BorderColor #5F6368
     FontColor #FFFFFF
 }
+skinparam packageBackgroundColor #202124
+skinparam packageBorderColor #5F6368
+skinparam packageFontColor #E8EAED
 skinparam package {
     BackgroundColor #202124
     BorderColor #5F6368
     FontColor #E8EAED
 }
+skinparam rectangle<<ext>> {
+    BackgroundColor #3C4043
+    FontColor #E8EAED
+}
+hide stereotype
 top to bottom direction
 
 title 任务服务：职责与数据通道
@@ -167,7 +175,7 @@ package "任务服务进程" as Service {
     Worker ..> Policy : 依赖处理策略
 }
 rectangle "结果数据" as Result #4285F4
-rectangle "外部执行服务" as Backend #3C4043
+rectangle "外部执行服务\n(Backend)" as Backend <<ext>>
 
 Request --> API : 提交请求
 Worker --> Result : 写出结果
@@ -229,11 +237,19 @@ skinparam component {
     BorderColor #5F6368
     FontColor #FFFFFF
 }
+skinparam packageBackgroundColor #202124
+skinparam packageBorderColor #5F6368
+skinparam packageFontColor #E8EAED
 skinparam package {
     BackgroundColor #202124
     BorderColor #5F6368
     FontColor #E8EAED
 }
+skinparam rectangle<<ext>> {
+    BackgroundColor #3C4043
+    FontColor #E8EAED
+}
+hide stereotype
 top to bottom direction
 
 title 任务服务：职责与数据通道
@@ -250,7 +266,7 @@ package "任务服务进程" as Service {
     Worker ..> Policy : 依赖处理策略
 }
 rectangle "结果数据" as Result #4285F4
-rectangle "外部执行服务" as Backend #3C4043
+rectangle "外部执行服务\n(Backend)" as Backend <<ext>>
 
 Request --> API : 提交请求
 Worker --> Result : 写出结果
@@ -504,16 +520,21 @@ skinparam sequence {
     ArrowColor #BDC1C6
     ArrowFontColor #E8EAED
 }
+skinparam participant<<ext>> {
+    BackgroundColor #3C4043
+    FontColor #E8EAED
+}
+hide stereotype
 
 hide footbox
 
 title 异步任务：受理、执行与完成通知
-participant "<color:#E8EAED>调用方</color>" as Caller #3C4043
-box "任务服务" #202124
+participant "调用方\n(Caller)" as Caller <<ext>>
+box "任务服务"
 participant "API" as API
 participant "Worker" as Worker
 end box
-participant "<color:#E8EAED>外部服务</color>" as External #3C4043
+participant "外部服务\n(External)" as External <<ext>>
 
 autonumber "<b>[00]"
 Caller -> API : 提交任务
@@ -603,16 +624,21 @@ skinparam sequence {
     ArrowColor #BDC1C6
     ArrowFontColor #E8EAED
 }
+skinparam participant<<ext>> {
+    BackgroundColor #3C4043
+    FontColor #E8EAED
+}
+hide stereotype
 
 hide footbox
 
 title 异步任务：受理、执行与完成通知
-participant "<color:#E8EAED>调用方</color>" as Caller #3C4043
-box "任务服务" #202124
+participant "调用方\n(Caller)" as Caller <<ext>>
+box "任务服务"
 participant "API" as API
 participant "Worker" as Worker
 end box
-participant "<color:#E8EAED>外部服务</color>" as External #3C4043
+participant "外部服务\n(External)" as External <<ext>>
 
 autonumber "<b>[00]"
 Caller -> API : 提交任务
