@@ -21,229 +21,28 @@ QNX Screen 是客户端/服务端图形框架。应用通过 `libscreen` 创建�
 4. **扫描输出（scanout）**：显示控制器按时序读取最终图像并发送到物理面板。
 
 <figure id="qnx-screen-frame-architecture" style="margin:1.5rem 0">
-<div style="overflow-x:auto">
-<svg class="qnx-screen-overview" width="1180" height="940" viewBox="0 0 1180 940" role="img" aria-labelledby="qso-title qso-desc" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans CJK SC,Microsoft YaHei,sans-serif" fill="#0f172a" style="display:block;min-width:900px;max-width:100%;height:auto;margin:0 auto;background:#ffffff;border:1px solid #cbd5e1;border-radius:12px">
-  <title id="qso-title">QNX Screen 单帧渲染与显示架构</title>
-  <desc id="qso-desc">图中区分控制流、像素数据流、同步信号和缓冲区释放路径，展示应用、EGL、QNX Screen、GPU 驱动、OpenWFD、显示驱动、共享缓冲区、GPU、显示控制器和物理屏之间的一帧完整交互。</desc>
-  <defs>
-    <marker id="qso-arrow-control" viewBox="0 0 10 10" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#2563eb"/>
-    </marker>
-    <marker id="qso-arrow-data" viewBox="0 0 10 10" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#ea580c"/>
-    </marker>
-    <marker id="qso-arrow-sync" viewBox="0 0 10 10" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#7c3aed"/>
-    </marker>
-    <marker id="qso-arrow-release" viewBox="0 0 10 10" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#059669"/>
-    </marker>
-    <style>
-      .qnx-screen-overview text { fill:#0f172a; font-family:Inter,"Noto Sans CJK SC","Microsoft YaHei",sans-serif; }
-      .qnx-screen-overview .title { font-size:24px; font-weight:700; }
-      .qnx-screen-overview .lane-title { font-size:16px; font-weight:700; }
-      .qnx-screen-overview .node { fill:#ffffff; stroke:#475569; stroke-width:1.5; }
-      .qnx-screen-overview .node-title { font-size:16px; font-weight:700; }
-      .qnx-screen-overview .node-detail { font-size:13px; fill:#475569; }
-      .qnx-screen-overview .edge-label { font-size:12.5px; font-weight:600; }
-      .qnx-screen-overview .small { font-size:11.5px; fill:#64748b; }
-      .qnx-screen-overview .control { fill:none; stroke:#2563eb; stroke-width:2.4; marker-end:url(#qso-arrow-control); }
-      .qnx-screen-overview .data { fill:none; stroke:#ea580c; stroke-width:3.2; marker-end:url(#qso-arrow-data); }
-      .qnx-screen-overview .sync { fill:none; stroke:#7c3aed; stroke-width:2.2; stroke-dasharray:7 5; marker-end:url(#qso-arrow-sync); }
-      .qnx-screen-overview .release { fill:none; stroke:#059669; stroke-width:2.2; stroke-dasharray:4 5; marker-end:url(#qso-arrow-release); }
-      .qnx-screen-overview .association { fill:none; stroke:#64748b; stroke-width:1.6; stroke-dasharray:3 4; }
-      .qnx-screen-overview .badge { fill:#0f172a; }
-      .qnx-screen-overview .badge-text { fill:#ffffff; font-size:11px; font-weight:700; text-anchor:middle; dominant-baseline:middle; }
-    </style>
-  </defs>
-
-  <rect x="0" y="0" width="1180" height="940" rx="12" fill="#ffffff"/>
-  <text class="title" x="590" y="34" text-anchor="middle">QNX Screen：一帧图像的控制流、数据流与同步关系</text>
-
-  <!-- Legend -->
-  <line x1="250" y1="59" x2="300" y2="59" class="control" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <text class="small" x="310" y="63">控制流 / API 调用</text>
-  <line x1="445" y1="59" x2="495" y2="59" class="data" stroke="#ea580c" stroke-width="3.2" marker-end="url(#qso-arrow-data)"/>
-  <text class="small" x="505" y="63">像素数据流</text>
-  <line x1="625" y1="59" x2="675" y2="59" class="sync" stroke="#7c3aed" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#qso-arrow-sync)"/>
-  <text class="small" x="685" y="63">同步 / 完成信号</text>
-  <line x1="825" y1="59" x2="875" y2="59" class="release" stroke="#059669" stroke-width="2.2" stroke-dasharray="4 5" marker-end="url(#qso-arrow-release)"/>
-  <text class="small" x="885" y="63">Buffer 释放 / 复用</text>
-
-  <!-- Layer backgrounds -->
-  <rect x="20" y="82" width="1140" height="172" rx="10" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.5"/>
-  <text class="lane-title" x="38" y="107" fill="#1d4ed8">① 应用与图形 API（User Space）</text>
-
-  <rect x="20" y="270" width="1140" height="174" rx="10" fill="#f0fdf4" stroke="#4ade80" stroke-width="1.5"/>
-  <text class="lane-title" x="38" y="295" fill="#15803d">② QNX Screen 窗口系统</text>
-
-  <rect x="20" y="460" width="1140" height="188" rx="10" fill="#fff7ed" stroke="#fb923c" stroke-width="1.5"/>
-  <text class="lane-title" x="38" y="485" fill="#c2410c">③ 图形与显示服务（平台实现层）</text>
-  <rect x="374" y="493" width="756" height="132" rx="8" fill="none" stroke="#f97316" stroke-width="1.3" stroke-dasharray="7 5"/>
-  <text class="small" x="1120" y="511" text-anchor="end">OpenWFD / IPC / 进程边界由 BSP 决定</text>
-
-  <rect x="20" y="664" width="1140" height="202" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
-  <text class="lane-title" x="38" y="689">④ Hardware 与共享图形内存</text>
-
-  <!-- Nodes: application layer -->
-  <rect class="node" x="70" y="132" width="280" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="210" y="160" text-anchor="middle">QNX Application</text>
-  <text class="node-detail" x="210" y="183" text-anchor="middle">HMI / Qt / Native Screen Client</text>
-  <text class="node-detail" x="210" y="201" text-anchor="middle">窗口配置、业务逻辑、帧生产</text>
-
-  <rect class="node" x="465" y="132" width="300" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="615" y="160" text-anchor="middle">Graphics API</text>
-  <text class="node-detail" x="615" y="183" text-anchor="middle">OpenGL ES + EGL</text>
-  <text class="node-detail" x="615" y="201" text-anchor="middle">GL 命令、Context、EGLSurface、Swap</text>
-
-  <rect class="node" x="880" y="132" width="220" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="990" y="160" text-anchor="middle">Software / Blit</text>
-  <text class="node-detail" x="990" y="183" text-anchor="middle">CPU 写像素或 Screen blit</text>
-  <text class="node-detail" x="990" y="201" text-anchor="middle">与 EGL 路径二选一或混合</text>
-
-  <!-- Nodes: Screen layer -->
-  <rect class="node" x="390" y="316" width="400" height="94" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="590" y="345" text-anchor="middle">QNX Screen（libscreen + Screen Server）</text>
-  <text class="node-detail" x="590" y="369" text-anchor="middle">Window / Buffer Queue / Scene State</text>
-  <text class="node-detail" x="590" y="390" text-anchor="middle">可见性、z-order、合成或硬件直显决策</text>
-
-  <rect class="node" x="865" y="316" width="245" height="94" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="987" y="345" text-anchor="middle">Present Scheduler</text>
-  <text class="node-detail" x="987" y="369" text-anchor="middle">Swap Interval / VSYNC</text>
-  <text class="node-detail" x="987" y="390" text-anchor="middle">选择待显示帧与提交时机</text>
-
-  <!-- Nodes: implementation layer -->
-  <rect class="node" x="75" y="522" width="245" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="197" y="550" text-anchor="middle">GPU Driver</text>
-  <text class="node-detail" x="197" y="573" text-anchor="middle">命令队列、内存映射、同步</text>
-  <text class="node-detail" x="197" y="591" text-anchor="middle">厂商 EGL / GLES 实现</text>
-
-  <rect class="node" x="405" y="522" width="250" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="530" y="550" text-anchor="middle">OpenWFD Client</text>
-  <text class="node-detail" x="530" y="573" text-anchor="middle">Device / Port / Pipeline API</text>
-  <text class="node-detail" x="530" y="591" text-anchor="middle">平台存在时的显示适配层</text>
-
-  <rect class="node" x="755" y="522" width="335" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="922" y="550" text-anchor="middle">OpenWFD Server / Display Driver</text>
-  <text class="node-detail" x="922" y="573" text-anchor="middle">绑定 Source 与 Pipeline，提交图层状态</text>
-  <text class="node-detail" x="922" y="591" text-anchor="middle">硬件资源分配、格式/缩放/混合配置</text>
-
-  <!-- Nodes: hardware/data layer -->
-  <rect class="node" x="80" y="724" width="210" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="185" y="754" text-anchor="middle">GPU</text>
-  <text class="node-detail" x="185" y="778" text-anchor="middle">执行 shader 与光栅化</text>
-  <text class="node-detail" x="185" y="796" text-anchor="middle">异步生成像素</text>
-
-  <rect class="node" x="370" y="714" width="285" height="102" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="512" y="744" text-anchor="middle">Shared Graphics Buffers</text>
-  <text class="node-detail" x="512" y="768" text-anchor="middle">screen_buffer_t / EGL Back Buffer</text>
-  <text class="node-detail" x="512" y="789" text-anchor="middle">双缓冲或三缓冲；保存最终像素</text>
-  <text class="small" x="512" y="806" text-anchor="middle">分配器、连续性与 DMA 映射由平台决定</text>
-
-  <rect class="node" x="755" y="724" width="255" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="882" y="754" text-anchor="middle">Display Controller / DPU</text>
-  <text class="node-detail" x="882" y="778" text-anchor="middle">Layer Mixer / Overlay / Scanout</text>
-  <text class="node-detail" x="882" y="796" text-anchor="middle">按显示时序读取像素</text>
-
-  <rect class="node" x="1050" y="724" width="90" height="82" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.5"/>
-  <text class="node-title" x="1095" y="754" text-anchor="middle">Panel</text>
-  <text class="node-detail" x="1095" y="779" text-anchor="middle">DSI / DP</text>
-  <text class="node-detail" x="1095" y="797" text-anchor="middle">HDMI</text>
-
-  <!-- 1: create window and buffers -->
-  <path class="control" d="M210 214 C210 270 390 269 445 316" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <circle class="badge" cx="243" cy="250" r="11"/><text class="badge-text" x="243" y="250">1</text>
-  <text class="edge-label" x="260" y="246" fill="#2563eb">创建 Window、设置属性</text>
-  <text class="small" x="260" y="264">screen_create_window_buffers(n)</text>
-
-  <!-- 2: return handles -->
-  <path class="control" d="M390 345 C320 326 283 272 273 214" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <circle class="badge" cx="322" cy="306" r="11"/><text class="badge-text" x="322" y="306">2</text>
-  <text class="edge-label" x="108" y="304" fill="#2563eb">返回 Window / Buffer Handle</text>
-
-  <!-- Buffer ownership association -->
-  <path class="association" d="M590 410 L590 675 Q590 695 570 714" fill="none" stroke="#64748b" stroke-width="1.6" stroke-dasharray="3 4"/>
-  <text class="small" x="600" y="649">Screen 管理 Window 与 Buffer 的关联</text>
-
-  <!-- 3: application issues GL calls -->
-  <path class="control" d="M350 173 L465 173" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <circle class="badge" cx="385" cy="153" r="11"/><text class="badge-text" x="385" y="153">3</text>
-  <text class="edge-label" x="375" y="196" fill="#2563eb">glDraw* / eglSwapBuffers()</text>
-
-  <!-- 4: GL/EGL to GPU driver -->
-  <path class="control" d="M535 214 C505 385 265 385 218 522" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <circle class="badge" cx="410" cy="358" r="11"/><text class="badge-text" x="410" y="358">4</text>
-  <text class="edge-label" x="210" y="438" fill="#2563eb">提交/刷新 GPU 命令</text>
-
-  <!-- 5: driver programs GPU -->
-  <path class="control" d="M185 604 L185 724" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <circle class="badge" cx="202" cy="648" r="11"/><text class="badge-text" x="202" y="648">5</text>
-  <text class="edge-label" x="213" y="683" fill="#2563eb">执行命令</text>
-
-  <!-- 6: GPU writes pixels -->
-  <path class="data" d="M290 765 L370 765" fill="none" stroke="#ea580c" stroke-width="3.2" marker-end="url(#qso-arrow-data)"/>
-  <circle class="badge" cx="330" cy="743" r="11"/><text class="badge-text" x="330" y="743">6</text>
-  <text class="edge-label" x="303" y="794" fill="#ea580c">写入像素</text>
-
-  <!-- 7A: EGL path posts frame -->
-  <path class="control" d="M615 214 L615 316" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <circle class="badge" cx="632" cy="260" r="11"/><text class="badge-text" x="632" y="260">7</text>
-  <text class="edge-label" x="648" y="252" fill="#2563eb">EGL 窗口表面提交</text>
-  <text class="small" x="648" y="270">eglSwapBuffers()</text>
-
-  <!-- 7B: software path posts frame -->
-  <path class="control" d="M930 214 C915 268 790 278 742 316" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <circle class="badge" cx="849" cy="270" r="11"/><text class="badge-text" x="849" y="270">7</text>
-  <text class="edge-label" x="875" y="291" fill="#2563eb">screen_post_window()</text>
-
-  <!-- Screen to scheduler -->
-  <path class="control" d="M790 363 L865 363" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <text class="small" x="802" y="350">场景更新 / present 请求</text>
-
-  <!-- 8: Screen to OpenWFD -->
-  <path class="control" d="M530 410 L530 522" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <circle class="badge" cx="547" cy="458" r="11"/><text class="badge-text" x="547" y="458">8</text>
-  <text class="edge-label" x="560" y="472" fill="#2563eb">显示提交</text>
-
-  <!-- 9: OpenWFD client to server -->
-  <path class="control" d="M655 563 L755 563" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <circle class="badge" cx="705" cy="542" r="11"/><text class="badge-text" x="705" y="542">9</text>
-  <text class="edge-label" x="675" y="590" fill="#2563eb">绑定 Source / Pipeline</text>
-
-  <!-- 10: display service to controller -->
-  <path class="control" d="M882 604 L882 724" fill="none" stroke="#2563eb" stroke-width="2.4" marker-end="url(#qso-arrow-control)"/>
-  <circle class="badge" cx="899" cy="650" r="11"/><text class="badge-text" x="899" y="650">10</text>
-  <text class="edge-label" x="912" y="683" fill="#2563eb">提交硬件状态</text>
-
-  <!-- 11: buffer scanout data -->
-  <path class="data" d="M655 765 L755 765" fill="none" stroke="#ea580c" stroke-width="3.2" marker-end="url(#qso-arrow-data)"/>
-  <circle class="badge" cx="705" cy="743" r="11"/><text class="badge-text" x="705" y="743">11</text>
-  <text class="edge-label" x="674" y="794" fill="#ea580c">读取图层像素</text>
-
-  <!-- 12: pixel stream to panel -->
-  <path class="data" d="M1010 765 L1050 765" fill="none" stroke="#ea580c" stroke-width="3.2" marker-end="url(#qso-arrow-data)"/>
-  <circle class="badge" cx="1030" cy="743" r="11"/><text class="badge-text" x="1030" y="743">12</text>
-  <text class="edge-label" x="1005" y="827" fill="#ea580c">扫描输出到物理屏</text>
-
-  <!-- Synchronization: render complete before consumption -->
-  <path class="sync" d="M272 724 C315 655 420 642 486 604" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#qso-arrow-sync)"/>
-  <text class="edge-label" x="300" y="640" fill="#7c3aed">渲染完成 / Acquire Fence</text>
-  <text class="small" x="333" y="657">具体同步对象由平台决定</text>
-
-  <!-- Present/release and buffer reuse -->
-  <path class="release" d="M1008 724 C1142 687 1138 390 1110 364" fill="none" stroke="#059669" stroke-width="2.2" stroke-dasharray="4 5" marker-end="url(#qso-arrow-release)"/>
-  <text class="edge-label" x="1000" y="654" fill="#059669">Present / Release</text>
-  <path class="release" d="M865 390 C824 432 785 433 742 410" fill="none" stroke="#059669" stroke-width="2.2" stroke-dasharray="4 5" marker-end="url(#qso-arrow-release)"/>
-  <path class="release" d="M420 410 C342 435 205 342 197 214" fill="none" stroke="#059669" stroke-width="2.2" stroke-dasharray="4 5" marker-end="url(#qso-arrow-release)"/>
-  <text class="edge-label" x="87" y="420" fill="#059669">Buffer 释放后重新进入可渲染集合</text>
-
-  <!-- Footer -->
-  <rect x="38" y="884" width="1104" height="36" rx="6" fill="#f1f5f9"/>
-  <text x="590" y="907" text-anchor="middle" class="node-detail">步骤 1–2 为初始化；步骤 3–12 为每帧循环。OpenWFD、IPC、Fence 与硬件 Pipeline 均需以目标 BSP 为准。</text>
-</svg>
+<div id="qnx-screen-slide-viewport" style="position:relative;box-sizing:border-box;width:100%;aspect-ratio:16/9;overflow:hidden;border:1px solid #dadce0;border-radius:8px;background:#fff;">
+<iframe id="qnx-screen-graphics-subsystem-slide" src="../../diagrams/qnx-screen-graphics-subsystem-slide.html" title="QNX Screen 图形架构：QNX 8.0 OpenWFD Server 路径" loading="lazy" style="display:block;position:absolute;top:0;left:0;width:1280px;height:720px;max-width:none;max-height:none;border:0;transform-origin:0 0;"></iframe>
 </div>
-<figcaption style="margin-top:.65rem;text-align:center;color:#64748b;font-size:.9rem">图 1　QNX Screen 单帧总览：蓝色表示 API/控制流，橙色表示真实像素数据流，紫色虚线表示渲染同步，绿色虚线表示显示完成后的 Buffer 释放与复用。</figcaption>
+<script>
+(() => {
+  const viewport = document.getElementById('qnx-screen-slide-viewport');
+  const frame = document.getElementById('qnx-screen-graphics-subsystem-slide');
+  // 固定幻灯片在文章栏内等比缩放，iframe 内仍使用 1280×720 视口。
+  const fitSlide = () => {
+    const scale = viewport.clientWidth / 1280;
+    if (scale <= 0) return;
+    frame.style.transform = `scale(${scale})`;
+    viewport.style.height = `${Math.ceil(720 * scale) + 2}px`;
+  };
+  new ResizeObserver(fitSlide).observe(viewport);
+  fitSlide();
+})();
+</script>
+<figcaption style="margin-top:.65rem;text-align:center;color:var(--secondary);font-size:.9rem;">图 1　QNX Screen 图形架构（16:9）：上方按应用、screen 和 wfd-server 进程分列，下方为内核、硬件与图像内存；蓝色实线表示调用与返回，蓝色点线表示中断与完成，绿色实线表示像素数据，灰色虚线表示配置。</figcaption>
 </figure>
+
+[独立打开架构图（1280×720）](../../diagrams/qnx-screen-graphics-subsystem-slide.html)
 
 需要特别注意：
 
@@ -530,9 +329,13 @@ Dirty rectangle 是优化提示，而不是“Screen 只会读取这些像素”
 
 VSYNC 表示显示刷新时序事件；swap interval 表示应用希望帧交换与刷新间隔之间的关系。二者会影响帧 pacing 和接口等待时间，但不能保证每次 swap 都对应一帧实际显示。生产速度高于消费速度时，系统可能让生产者等待、排队或丢弃中间帧，具体策略由实现决定。
 
-## 8. Qualcomm/OpenWFD 平台实现边界
+## 8. OpenWFD 显示路径与平台实现边界
 
-部分 Qualcomm 座舱 BSP 使用 OpenWF Display/OpenWFD 风格的 Device、Port 和 Pipeline 对象，将多个显示客户端的 buffer 提交给 DPU。[图 1](#qnx-screen-frame-architecture) 中的步骤 8～10 表示这条平台控制流：Screen 发起显示提交，OpenWFD Client 绑定 Source 与 Pipeline，OpenWFD Server 或 Display Driver 再将图层状态提交给 DPU。步骤 11～12 表示独立于控制命令的像素数据流：DPU 从共享图形 buffer 读取像素并扫描输出到面板。
+[图 1](#qnx-screen-frame-architecture) 采用 QNX 8.0 的 OpenWF Display Server 路径：`screen` 通过 `libWFDclient.so` 与 `wfd-server` 通信，后者加载平台显示驱动 `libWFD<platform>.so`，将 Source、Port 和 Pipeline 状态提交给显示控制器。`libwfdcfg-<platform>.so` 提供平台显示配置。这里的 `<platform>` 表示 BSP 名称占位符，不是目标设备上的字面文件名。
+
+图中的绿色像素路径独立于显示提交命令：CPU 或 GPU 写入图像 buffer，显示控制器读取图层并扫描输出到面板。“图像 Buffer”表示窗口 buffer 与可能使用的合成目标这一资源集合，不表示它们是同一块物理内存。GPU 厂商库、具体内核设备接口、合成内部路径和 Fence 协议未在这张总览图中展开。
+
+部分 Qualcomm 座舱 BSP 同样使用 OpenWF Display/OpenWFD 风格的 Device、Port 和 Pipeline 对象，将多个显示客户端的 buffer 提交给 DPU，但不能据此假定其库名、IPC 和服务进程与图中的 QNX 8.0 Server 路径相同。
 
 OpenWFD、IPC、buffer allocator 和硬件 Pipeline 位于平台实现层，不是 QNX Screen 公共 API 的固定组成。不同项目可能使用不同的进程模型、IPC、DPU 抽象或硬件所有权设计。
 
@@ -734,5 +537,7 @@ screenshot
 - [QNX 8.0 API：screen_post_window()](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.screen/topic/screen_post_window.html)
 - [QNX 7.1 Screen：OpenGL ES rendering APIs](https://www.qnx.com/developers/docs/7.1/com.qnx.doc.screen/topic/manual/cscreen_rendering-hardware-opengles.html)
 - [QNX 8.0 Screen：Debugging](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.screen/topic/manual/cscreen_screen-debugging.html)
+- [QNX 8.0：Introduction to the OpenWF Display Server](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.screen.wfd-server/topic/manual/cwfd-server_intro.html)
+- [QNX BSP 8.0：Getting Started with BSP Screen](https://www.qnx.com/developers/docs/BSP8.0/com.qnx.doc.bsp.referencenotes/topic/bsp_graphics.html)
 - [Khronos EGL Registry](https://registry.khronos.org/EGL/)
 - [Khronos OpenWF Display Registry](https://registry.khronos.org/openwfd/)
