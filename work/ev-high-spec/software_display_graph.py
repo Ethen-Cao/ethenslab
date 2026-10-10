@@ -34,10 +34,10 @@ NODES = {
     'display-api-loader': (1140,595,250,60),
     'display-bufferqueue': (1740,595,250,60),
     'display-opengl': (1140,705,250,60),
-    'display-vulkan': (1440,705,250,60),
+    'display-vulkan': (1440,805,250,60),
     'display-flinger': (1740,705,250,60),
     'display-gsl-client': (1140,805,250,60),
-    'display-renderengine': (1440,805,250,60),
+    'display-renderengine': (1440,705,250,60),
     'display-gralloc': (1440,935,250,60),
     'display-composer': (1740,935,250,60),
     'display-sdm': (1740,1020,250,60),
@@ -163,15 +163,15 @@ def make_routes():
     r.add('display-surface','display-bufferqueue',[(1865,545),(1865,595)],kind='storage',flow='buffers',label='queueBuffer',at=(1865,576))
     r.add('display-bufferqueue','display-flinger',[(1865,655),(1865,705)],kind='storage',flow='buffers',label='Transaction / fences',at=(1865,687))
     r.add('display-api-loader','display-opengl',[(1265,655),(1265,705)],flow='control',label='EGL / GLES',at=(1265,687))
-    r.add('display-api-loader','display-vulkan',[(1390,625),(1565,625),(1565,705)],flow='control',label='Vulkan ICD',at=(1565,687))
+    r.add('display-api-loader','display-vulkan',[(1340,655),(1340,675),(1410,675),(1410,780),(1565,780),(1565,805)],flow='control',label='Vulkan ICD',at=(1565,793))
     r.add('display-opengl','display-gsl-client',[(1265,765),(1265,805)],flow='control',label='gsl_*',at=(1265,793))
-    r.add('display-vulkan','display-gsl-client',[(1440,735),(1405,735),(1405,835),(1390,835)],flow='control',note='Vulkan ICD links libgsl.so')
-    r.add('display-flinger','display-renderengine',[(1740,740),(1720,740),(1720,835),(1690,835)],flow='control',label='Client composition',at=(1766,820))
-    r.add('display-renderengine','display-flinger',[(1565,805),(1565,772),(1865,772),(1865,765)],kind='storage',flow='buffers',label='Client target',at=(1575,778))
-    r.add('display-renderengine','display-api-loader',[(1440,835),(1420,835),(1420,645),(1390,645)],flow='control',label='EGL / GLES',at=(1420,685),note='Current RenderEngine uses GLES or SkiaGL; no Vulkan backend in this source version')
+    r.add('display-vulkan','display-gsl-client',[(1440,835),(1390,835)],flow='control',note='Vulkan ICD links libgsl.so')
+    r.add('display-flinger','display-renderengine',[(1740,735),(1690,735)],flow='control',note='Client composition request')
+    r.add('display-renderengine','display-flinger',[(1690,750),(1740,750)],kind='storage',flow='buffers',note='Client target buffer and fence')
+    r.add('display-renderengine','display-api-loader',[(1440,735),(1430,735),(1430,625),(1390,625)],flow='control',label='EGL / GLES',at=(1430,665),note='Current RenderEngine uses GLES or SkiaGL; no Vulkan backend in this source version')
     # HAL: allocator and the vendor composer implementation have their own layer.
     r.add('display-bufferqueue','display-gralloc',[(1990,625),(2030,625),(2030,905),(1565,905),(1565,935)],kind='storage',flow='buffers',both=True,label='Allocate / import',at=(1565,920))
-    r.add('display-gralloc','display-flinger',[(1690,965),(1700,965),(1700,755),(1740,755)],kind='storage',flow='buffers',note='Mapper imports GraphicBuffer handles for composition')
+    r.add('display-gralloc','display-flinger',[(1690,965),(1700,965),(1700,790),(1800,790),(1800,765)],kind='storage',flow='buffers',note='Mapper imports GraphicBuffer handles for composition')
     r.add('display-flinger','display-composer',[(1910,765),(1910,935)],flow='control,buffers,events',both=True,label='Validate / present · fences',at=(1900,885))
     r.add('display-composer','display-sdm',[(1865,995),(1865,1020)],flow='control,buffers',note='Composer HAL dispatches through HWCSession to the SDM implementation')
     r.add('display-sdm','display-drm-adapter',[(1865,1080),(1865,1105)],flow='control,buffers',note='Calls the DRM adapter for display submission')
