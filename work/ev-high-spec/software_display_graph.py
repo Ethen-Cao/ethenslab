@@ -15,7 +15,7 @@ NODES = {
     'display-mdss': (70, 975, 350, 70),
     'display-panel-driver': (70, 1095, 350, 88),
     'display-interface-driver': (70, 1235, 350, 70),
-    'display-screen-config': (550, 335, 350, 70),
+    'display-screen-config': (550, 445, 350, 70),
     'display-wfd-config': (550, 615, 150, 70),
     'display-qnx-hab': (550, 735, 350, 70),
     'display-gsl-be': (550, 855, 350, 70),
@@ -140,7 +140,7 @@ def make_routes():
     r.add('display-mdss','display-panel-driver',[(245,1045),(245,1095)],flow='control',label='Panel callbacks',at=(245,1072),note='OEM panel and bridge library calls inside OpenWFD server')
     r.add('display-panel-driver','display-interface-driver',[(245,1183),(245,1235)],flow='control',label='DSI / DP host APIs',at=(245,1210),note='OEM panel libraries call the selected DSI or DP host driver to configure its output interface')
     r.add('display-wfd-config','display-wfd-server',[(620,685),(620,695),(375,695),(375,735)],kind='storage',flow='control',note='OpenWFD Server loads qcdisplaycfg.xml for clients, devices, ports, pipelines and panel libraries')
-    r.add('display-screen-config','display-screen',[(550,370),(520,370),(520,420),(375,420),(375,445)],kind='storage',flow='control',note='QNX Screen reads graphics.conf for rendering libraries, WFD drivers, display modes and window classes')
+    r.add('display-screen-config','display-screen',[(550,480),(420,480)],kind='storage',flow='control',note='QNX Screen reads graphics.conf for rendering libraries, WFD drivers, display modes and window classes')
     r.add('display-qnx-render','display-qnx-gsl',[(420,370),(465,370),(465,1010),(550,1010)],flow='control',label='gsl_*',at=(465,910))
     r.add('display-wfd-server','display-wfd-be',[(420,770),(490,770),(490,705),(865,705),(865,685)],kind='status',flow='events',label='WFD events',at=(800,705))
     # Java mirrors the UI traversal, recording and SurfaceView branches.
