@@ -193,7 +193,7 @@ def make_routes():
     r.add('display-qnx-gsl','display-qnx-gpu',[(725,1045),(725,1095)],flow='control',label='GPU driver IPC',at=(725,1072),note='QNX libGSLUser.so opens /dev/kgsl-3D and calls the KGSL driver through QNX IPC')
     r.add('display-qnx-gpu','display-gpu',[(725,1165),(725,1340),(505,1340),(505,1590),(180,1590),(180,1600)],flow='control',label='GPU HW control',at=(505,1460),note='QNX KGSL controls the GPU hardware; internal queue scheduling is not expanded')
     r.add('display-mdss','display-dpu',[(70,1010),(55,1010),(55,1540),(1265,1540),(1265,1600)],flow='control',label='Display HW programming',at=(235,1540))
-    r.add('display-interface-driver','display-output',[(420,1270),(925,1270),(925,1438),(1795,1438),(1795,1600)],flow='control',label='Link / PHY configuration',at=(1795,1538),note='DSI / DP drivers configure the output controller, link timing, PHY and clocks through HAL')
+    r.add('display-interface-driver','display-output',[(245,1305),(245,1438),(1795,1438),(1795,1600)],flow='control',label='Link / PHY configuration',at=(1795,1538),note='DSI / DP drivers configure the output controller, link timing, PHY and clocks through HAL')
     # The physical pixel path is confined to the shared hardware/output region.
     r.add('display-gpu','display-buffers',[(290,1635),(640,1635)],kind='install',flow='pixels',label='Rendered pixels',at=(460,1635))
     r.add('display-buffers','display-dpu',[(940,1635),(1140,1635)],kind='install',flow='pixels',label='Memory fetch',at=(1040,1635))
