@@ -110,7 +110,7 @@
     @media (max-width: 900px) { body { padding: 7px; } h1 { font-size: 16px; } .subtitle, .hint { display: none; } .tools { gap: 3px; } button { padding: 3px 7px; } }
     @media (max-width: 540px) { header { gap: 6px; } .tools { margin-left: 0; width: 100%; } .legend { gap: 3px 10px; font-size: 10px; } .filters { gap: 4px; } .detail { max-height: 100px; font-size: 11px; } }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-    @media print { html, body { height: auto; overflow: visible; background: #fff; } main { display: block; } .tools, .filters, .detail { display: none; } .diagram-shell { height: auto; border: 0; } svg { height: auto; aspect-ratio: 2240 / 1540; } .legend { margin-top: 8px; } }
+    @media print { html, body { height: auto; overflow: visible; background: #fff; } main { display: block; } .tools, .filters, .detail { display: none; } .diagram-shell { height: auto; border: 0; } svg { height: auto; aspect-ratio: 2720 / 1604; } .legend { margin-top: 8px; } }
   </style>
 </head>
 <body>
@@ -118,7 +118,7 @@
   <header>
     <div><h1>SA8797 · PVM 图形栈架构</h1><span class="subtitle">PVM · Android Guest · Gunyah</span></div>
     <div class="tools">
-      <button id="fit" type="button">适应画布</button><button id="android-focus" type="button">放大 Android</button>
+      <button id="fit" type="button">适应画布</button><button id="pvm-focus" type="button">放大 PVM</button><button id="android-focus" type="button">放大 Android</button>
       <button id="zoom-out" type="button" aria-label="缩小">−</button><span id="zoom-level" aria-live="polite">100%</span><button id="zoom-in" type="button" aria-label="放大">+</button>
       <button id="clear" type="button">清除选择</button><button id="theme" type="button">深色</button>
     </div>
@@ -134,9 +134,9 @@
     <span class="hint">点击节点查看直连关系 · 拖动空白平移 · 文字可选中复制 · Esc 清除</span>
   </nav>
   <section class="diagram-shell" aria-label="可缩放架构图">
-    <svg id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2240 1540" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-desc">
+    <svg id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2720 1604" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-desc">
       <title id="svg-title">PVM 图形栈的软件分层、运行边界与依赖关系</title>
-      <desc id="svg-desc">横向区分 PVM 与 Android Guest。Android 自上而下分为 Java、Native、HAL、Linux kernel 四层。HGSL 通过 HAB/VirtIO 向 PVM HAB vhost 后端发送控制与注册请求；DBCQ 就绪后，HGSL 写入共享命令队列，另以 doorbell 通知 GMU firmware 消费命令。SurfaceFlinger 经 HWC、DRM 显示前端和 HAB 到达 PVM 显示后端。绿色为像素流，蓝色点线为 doorbell 通知，跨线弧表示交叉但不连接。</desc>
+      <desc id="svg-desc">PVM 用户态按 Weston、VirtIOGPU2DBackendService、gsl_hab_server 三列划分独立进程。Weston 内 drm-backend.so 调用 sdm-service.so 适配模块与 libsdmcore.so 合成策略核心，并调度 GL Renderer。gsl_hab_server 下方并列排列 libuhab.so 与 libgsl.so：前者收发 HAB RPC，后者经本机 IPC 调用独立 kgsl 进程中的 RGS。下方为 Linux kernel 接口。Android 自上而下分为 Java、Native、HAL、Linux kernel 四层。HGSL 通过 HAB/VirtIO 向 PVM HAB vhost 后端发送控制与注册请求；DBCQ 就绪后，HGSL 写入共享命令队列，另以 doorbell 通知 GMU firmware 消费命令。SurfaceFlinger 经 HWC、DRM 显示前端和 HAB 到达 PVM 显示后端。绿色为像素流，蓝色点线为 doorbell 通知，跨线弧表示交叉但不连接。</desc>
       <defs>
         <marker id="arrow-control" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L8 5 L1 9" fill="none" stroke="var(--blue)" stroke-width="2"/></marker>
         <marker id="arrow-pixel" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L9 5.5 L1 10" fill="none" stroke="var(--green)" stroke-width="2.5"/></marker>
@@ -144,26 +144,50 @@
       </defs>
       <g id="diagram-content" transform="translate(-160 0)">
       <g id="containers">
-        <!-- Horizontal bands = software abstraction; vertical domains = VM ownership. -->
-        <rect class="domain" x="180" y="20" width="1020" height="1188" rx="10"/>
-        <rect class="domain" x="1220" y="20" width="1160" height="1188" rx="10"/>
+        <!-- Three user-space process columns; independent service and kernel tiers. -->
+        <rect class="domain" x="180" y="20" width="1500" height="1252" rx="10"/>
         <text class="domain-title" x="204" y="58">PVM · Linux</text>
-        <text class="domain-sub" x="1176" y="57" text-anchor="end">VM 1 · Primary VM</text>
-        <text class="domain-title" x="1244" y="58">LA-GVM · Android</text>
-        <text class="domain-sub" x="2356" y="57" text-anchor="end">VM 2</text>
-        <path class="layer-rule" d="M180 82 H1200 M180 192 H1200 M180 590 H1200 M180 850 H1200"/>
-        <rect class="layer-band" x="180" y="202" width="1020" height="380"/>
-        <rect class="layer-band" x="180" y="864" width="1020" height="120"/>
-        <rect class="process" x="196" y="212" width="512" height="630" rx="7"/>
-        <path class="process-divider" d="M196 590 H708"/>
-        <text class="process-title" x="214" y="236">Weston 13.0.1</text>
-        <text class="process-sub" x="690" y="236" text-anchor="end">进程内组件</text>
-        <rect class="process" x="730" y="212" width="308" height="630" rx="7"/>
-        <path class="process-divider" d="M730 590 H1038"/>
-        <text class="process-title" x="748" y="236" style="font-size:16px">VirtIOGPU2DBackendService</text>
-        <text class="process-sub" x="748" y="270">display-be · PVM 用户态</text>
-        <text class="process-sub" x="748" y="290">VirtIO GPU 2D → OpenWFD</text>
-        <text class="process-sub" x="1056" y="628">VMM 配置桥</text>
+        <text class="domain-sub" x="1656" y="57" text-anchor="end">VM 1 · Primary VM</text>
+        <path class="layer-rule" d="M180 82 H1680 M180 192 H1680"/>
+        <g class="pvm-process" data-process="weston">
+          <rect class="process" x="196" y="212" width="512" height="604" rx="7"/>
+          <text class="process-title" x="212" y="240">Weston 13.0.1</text>
+          <path class="process-divider" d="M196 590 H708"/>
+          <text class="process-sub" x="212" y="620">客户端库</text>
+        </g>
+        <g class="pvm-process" data-process="display-be">
+          <rect class="process" x="756" y="212" width="400" height="604" rx="7"/>
+          <text class="process-title" x="772" y="240">VirtIOGPU2DBackendService</text>
+          <path class="process-divider" d="M756 590 H1156"/>
+          <text class="process-sub" x="772" y="620">客户端库</text>
+        </g>
+        <g class="pvm-process" data-process="gsl-hab-server">
+          <rect class="process" x="1204" y="212" width="448" height="604" rx="7"/>
+          <text class="process-title" x="1220" y="240">gsl_hab_server</text>
+          <path class="process-divider" d="M1204 590 H1652"/>
+          <text class="process-sub" x="1220" y="620">依赖库</text>
+        </g>
+        <g class="pvm-service" data-process="openwfd-0">
+          <rect class="process" x="196" y="928" width="512" height="102" rx="7"/>
+          <text class="process-title" x="212" y="950">openwfd_server -i 0</text>
+        </g>
+        <g class="pvm-service" data-process="openwfd-1">
+          <rect class="process" x="756" y="928" width="400" height="102" rx="7"/>
+          <text class="process-title" x="772" y="950">openwfd_server -i 1</text>
+        </g>
+        <g class="pvm-service" data-process="kgsl">
+          <rect class="process" x="1204" y="928" width="448" height="102" rx="7"/>
+          <text class="process-title" x="1220" y="950">kgsl 进程 · /usr/bin/kgsl -p N</text>
+        </g>
+        <g class="pvm-kernel">
+          <rect class="layer-panel" x="196" y="1072" width="1468" height="200" rx="6"/>
+          <path class="layer-heading-rule" d="M196 1104 H1664"/>
+          <text class="layer-heading" x="212" y="1095">Linux kernel</text>
+        </g>
+        <g id="android-domain" transform="translate(480 0)">
+          <rect class="domain" x="1220" y="20" width="1160" height="1252" rx="10"/>
+          <text class="domain-title" x="1244" y="58">LA-GVM · Android</text>
+          <text class="domain-sub" x="2356" y="57" text-anchor="end">VM 2</text>
         <g class="android-layer" data-layer="Java">
           <rect class="layer-panel" x="1238" y="94" width="1124" height="314" rx="6"/>
           <path class="layer-heading-rule" d="M1238 126 H2362"/>
@@ -175,21 +199,21 @@
           <text class="layer-heading" x="1254" y="447">Native</text>
         </g>
         <g class="android-layer" data-layer="HAL">
-          <rect class="layer-panel" x="1238" y="872" width="1124" height="116" rx="6"/>
-          <path class="layer-heading-rule" d="M1238 904 H2362"/>
-          <text class="layer-heading" x="1254" y="895">HAL</text>
+          <rect class="layer-panel" x="1238" y="920" width="1124" height="116" rx="6"/>
+          <path class="layer-heading-rule" d="M1238 952 H2362"/>
+          <text class="layer-heading" x="1254" y="943">HAL</text>
         </g>
         <g class="android-layer" data-layer="Linux kernel">
-          <rect class="layer-panel" x="1238" y="1008" width="1124" height="200" rx="6"/>
-          <path class="layer-heading-rule" d="M1238 1040 H2362"/>
-          <text class="layer-heading" x="1254" y="1031">Linux kernel</text>
+          <rect class="layer-panel" x="1238" y="1072" width="1124" height="200" rx="6"/>
+          <path class="layer-heading-rule" d="M1238 1104 H2362"/>
+          <text class="layer-heading" x="1254" y="1095">Linux kernel</text>
         </g>
-        <path class="mode-boundary" d="M180 1000 H2380"/>
-        <text class="mode-label" x="182" y="993">USER SPACE</text><text class="mode-label" x="182" y="1021">KERNEL SPACE</text>
-        <rect class="foundation" x="180" y="1224" width="2200" height="24" rx="5"/>
-        <text class="process-title" x="1940" y="1242" text-anchor="middle" style="font-size:15px">Gunyah · VM 隔离 / 资源授权 / 虚拟化底座</text>
-        <rect class="domain" x="180" y="1278" width="2200" height="244" rx="8"/>
-        <path class="layer-rule" d="M196 1422 H1760"/>
+        </g>
+        <path class="mode-boundary" d="M180 1064 H2860"/>
+        <rect class="foundation" x="180" y="1288" width="2680" height="24" rx="5"/>
+        <text class="process-title" x="2420" y="1306" text-anchor="middle" style="font-size:15px">Gunyah · VM 隔离 / 资源授权 / 虚拟化底座</text>
+        <rect class="domain" x="180" y="1342" width="2680" height="244" rx="8"/>
+        <path class="layer-rule" d="M196 1486 H2240"/>
       </g>
       <g id="edges"></g><g id="bridge-overlays" pointer-events="none"></g><g id="nodes"></g><g id="edge-labels"></g>
       </g>
@@ -207,7 +231,7 @@
 <script>
 'use strict';
 // Layout coordinates describe the architecture; no external libraries or network requests.
-const WIDTH = 2240, HEIGHT = 1540;
+const WIDTH = 2720, HEIGHT = 1604;
 const nodes = [
   {
     "id": "apps",
@@ -217,19 +241,19 @@ const nodes = [
     "h": 54,
     "kind": "oem",
     "name": [
-      "PVM Wayland clients"
+      "TuanjieHmi · animmgr"
     ],
     "sub": [
-      "TuanjieHmi · animmgr"
+      "PVM Wayland clients"
     ],
     "detail": "应用层生成内容，通过 Wayland 把 surface、buffer 引用和状态提交给 Weston。应用依赖 compositor，不直接依赖 OpenWFD Server 或 DPU 设备接口。"
   },
   {
     "id": "telltale",
-    "x": 748,
-    "y": 112,
-    "w": 284,
-    "h": 54,
+    "x": 772,
+    "y": 104,
+    "w": 224,
+    "h": 64,
     "kind": "neutral",
     "name": [
       "TELLTALE · 预留客户端"
@@ -247,12 +271,29 @@ const nodes = [
     "h": 52,
     "kind": "native",
     "name": [
-      "IVI Shell / Weston scene graph"
-    ],
-    "sub": [
       "ivi-shell.so · ivi-controller.so"
     ],
-    "detail": "Weston 图形框架层管理 PVM surface、view、layer 和 output。其抓帧边界是 Weston scene graph，不包含 Guest 和独立 TELLTALE 客户端。"
+    "sub": [
+      "Weston scene graph · surface / layer"
+    ],
+    "detail": "Weston 图形框架层管理 PVM surface、view、layer 和 output。其抓帧边界是 Weston scene graph，不包含 Guest 和独立 TELLTALE 客户端。",
+    "process": "weston"
+  },
+  {
+    "id": "drmbackend",
+    "x": 212,
+    "y": 340,
+    "w": 480,
+    "h": 56,
+    "kind": "vendor",
+    "name": [
+      "drm-backend.so"
+    ],
+    "sub": [
+      "Weston output / repaint 调度"
+    ],
+    "detail": "本平台的 Weston DRM backend：管理 output 与 repaint，从 paint-node 列表收集图层；动态加载 sdm-service.so，调用 Prepare 获取 GPU / overlay 分配结果，随后调度 gl-renderer.so 绘制 GPU 图层，再经 SDM 执行 Commit。",
+    "process": "weston"
   },
   {
     "id": "sdm",
@@ -262,13 +303,30 @@ const nodes = [
     "h": 64,
     "kind": "vendor",
     "name": [
-      "SDM 合成策略"
+      "sdm-service.so"
     ],
     "sub": [
-      "Prepare / Commit",
-      "GPU target + overlay 绑定"
+      "Weston / SDM 适配",
+      "LayerStack · Prepare / Commit"
     ],
-    "detail": "Weston 内的 drm-backend.so / sdm-service.so 由 paint-node 列表构造 SDM LayerStack；Prepare 分配 GPU / overlay；GPU target 与 overlay 源 buffer 都经 Commit 进入 DRM-FE / OpenWFD。"
+    "detail": "由 drm-backend.so 动态加载的 Weston 进程内适配模块。构建 SDM LayerStack，创建 SDM Core / Display 接口，并把 Prepare、Commit、Flush 等操作交给 libsdmcore.so；将合成类型与 fence 等结果回传 Weston backend。",
+    "process": "weston"
+  },
+  {
+    "id": "sdmcore",
+    "x": 212,
+    "y": 528,
+    "w": 226,
+    "h": 54,
+    "kind": "vendor",
+    "name": [
+      "libsdmcore.so"
+    ],
+    "sub": [
+      "合成策略 / 资源分配"
+    ],
+    "detail": "sdm-service.so 链接的 SDM 核心库，同样运行在 Weston 进程内。包含 CompManager / Strategy，Prepare 选择 GPU 或显示硬件合成并分配资源；Commit 经 libsdmdal.so / libsdedrm.so 与 patched libdrm 进入 DRM-FE / OpenWFD。",
+    "process": "weston"
   },
   {
     "id": "renderer",
@@ -278,28 +336,41 @@ const nodes = [
     "h": 64,
     "kind": "native",
     "name": [
-      "GL Renderer"
+      "gl-renderer.so"
     ],
     "sub": [
-      "gl-renderer.so",
-      "执行 GPU 合成"
+      "GPU 图层合成"
     ],
-    "detail": "SDM 选为 GPU composition 的 view 由 Weston GL Renderer 合成；依赖 EGL / GLES 渲染接口。它与 SDM 同属 Weston，不是 OpenWFD Server 的下层模块。"
+    "detail": "drm-backend.so 根据 SDM Prepare 返回的合成类型，调用 gl-renderer.so 绘制 GPU composition 图层；Renderer 依赖 EGL / GLES 与 Adreno UMD，生成供后续 SDM Commit 提交的 GPU target。",
+    "process": "weston"
+  },
+  {
+    "id": "libdrm",
+    "x": 212,
+    "y": 628,
+    "w": 226,
+    "h": 40,
+    "kind": "vendor",
+    "name": [
+      "libdrm.so"
+    ],
+    "sub": [],
+    "detail": "本平台启用 DRM_FE 补丁的 libdrm.so。通过 dlopen 加载 lib_drm_fe.so，取得 drm_interface_fe，将 drmOpen / drmIoctl / drmClose 分派到 drmopen_fe / drmioctl_fe / drmclose_fe。",
+    "process": "weston"
   },
   {
     "id": "drmfe",
     "x": 212,
-    "y": 640,
+    "y": 696,
     "w": 226,
-    "h": 58,
+    "h": 40,
     "kind": "vendor",
     "name": [
-      "DRM 兼容前端"
+      "lib_drm_fe.so"
     ],
-    "sub": [
-      "patched libdrm → DRM-FE"
-    ],
-    "detail": "patched libdrm.so 将 drmOpen / drmIoctl / drmClose 分派到 lib_drm_fe.so。它是 Weston 进程内的用户态适配库，不是内核 DRM/KMS 驱动。"
+    "sub": [],
+    "detail": "DRM-FE 的实际实现库，位于 Weston 进程内。导出 drm_interface_fe，承接 patched libdrm 转发的 DRM 操作，并调用 wfdCreateDevice / wfdCreatePipeline / wfdDeviceCommit 等 OpenWFD 接口；通过 libopenwfd.so 进入显示服务。",
+    "process": "weston"
   },
   {
     "id": "egl",
@@ -309,118 +380,120 @@ const nodes = [
     "h": 76,
     "kind": "vendor",
     "name": [
-      "EGL / GLES · Adreno UMD"
+      "libEGL.so / libGLESv2.so"
     ],
     "sub": [
-      "PVM libgsl / libkiumd"
+      "libGLESv2_adreno.so",
+      "libgsl.so / libkiumd.so"
     ],
-    "detail": "Weston GL Renderer 经 EGL/GLES、Adreno UMD 与 PVM libgsl/libkiumd 访问本机 RGS。这里折叠客户端内部实现；GPU 渲染与 WFD 显示提交是并行职责。"
+    "detail": "Weston gl-renderer.so 使用 libEGL.so / libGLESv2.so；Adreno 实现在 libEGL_adreno.so / libGLESv2_adreno.so，经 PVM libgsl.so / libkiumd.so 访问本机 RGS。此节点汇总进程内 GPU 客户端库。",
+    "process": "weston"
   },
   {
     "id": "wclient",
     "x": 212,
-    "y": 784,
+    "y": 756,
     "w": 226,
     "h": 48,
     "kind": "vendor",
     "name": [
-      "OpenWFD client 库"
+      "libopenwfd.so"
     ],
     "sub": [
-      "SCREEN · 0x78FF"
+      "SCREEN · 0x78FF · LRMC"
     ],
-    "detail": "Weston 内嵌 libopenwfd.so / libwire_user.so，经 LRMC 连接两个 OpenWFD Server。SCREEN 是 WFD 保留 Client 名称，不是 QNX Screen。"
+    "detail": "Weston 进程内的 OpenWFD 客户端库，依赖 libwire_user.so / liblrmc.so，经 LRMC 连接两个 openwfd_server。客户端名 SCREEN，ID 0x78FF。",
+    "process": "weston"
   },
   {
     "id": "backend",
-    "x": 748,
-    "y": 340,
-    "w": 272,
-    "h": 76,
+    "x": 772,
+    "y": 440,
+    "w": 368,
+    "h": 64,
     "kind": "vendor",
     "name": [
-      "Guest 帧管理"
+      "VirtIOGPU2DCommandProcessor"
     ],
     "sub": [
-      "导入 buffer / 属性 / 同步",
+      "Guest 显示命令 / buffer / 同步",
       "LA_GVM · 0x7815"
     ],
-    "detail": "VirtIOGPU2DBackendService 是 PVM 的 display 用户、gvm.slice 下的独立进程。接收 HAB 显示请求，管理 Guest buffer 引用与提交；gvm.slice 不表示进程运行在 Guest。"
+    "detail": "VirtIOGPU2DBackendService 进程内的命令处理类；类型名可由本平台二进制 RTTI 核实。处理 Guest 的 VirtIO GPU 2D 显示请求，管理 buffer 引用与提交，后续通过 OpenWFD 客户端路径送往显示服务。",
+    "process": "display-be"
   },
   {
     "id": "bclient",
-    "x": 748,
-    "y": 784,
-    "w": 272,
-    "h": 48,
+    "x": 772,
+    "y": 748,
+    "w": 368,
+    "h": 56,
     "kind": "vendor",
     "name": [
-      "OpenWFD client 库"
+      "libopenwfd.so"
     ],
     "sub": [
-      "LA_GVM · 0x7815"
+      "LA_GVM · 0x7815 · LRMC"
     ],
-    "detail": "Guest Backend 内嵌自己的 libopenwfd.so / libwire_user.so，与 Weston 的客户端库并列，分别经 LRMC 连接两个 Server。Backend 不把帧交给 Weston。"
+    "detail": "Guest Backend 内嵌自己的 libopenwfd.so / libwire_user.so，与 Weston 的客户端库并列，分别经 LRMC 连接两个 Server。Backend 不把帧交给 Weston。",
+    "process": "display-be"
   },
   {
     "id": "transport",
-    "x": 1056,
-    "y": 640,
-    "w": 128,
-    "h": 166,
+    "x": 1220,
+    "y": 104,
+    "w": 416,
+    "h": 64,
     "kind": "vendor",
     "name": [
-      "qcrosvm",
-      "vhost-user-qti"
+      "qcrosvm · vhost-user-qti"
     ],
     "sub": [
-      "设备配置 / 生命周期",
-      "vring / memory",
-      "kick / call eventfd"
+      "设备 / vring / memory · kick / call eventfd"
     ],
     "detail": "PVM VMM 与 vhost-user 配置桥，负责设备创建、共享内存/vring 和 kick/call eventfd 配置。disp：device 93、label 0x3C、10 queues；ogles：device 94、label 0x39、2 queues。稳态消息由内核 virtio-HAB/vhost-HAB 承载，不是每帧都进入这两个用户进程。"
   },
   {
     "id": "server0",
     "x": 212,
-    "y": 890,
-    "w": 226,
-    "h": 80,
+    "y": 966,
+    "w": 480,
+    "h": 54,
     "kind": "vendor",
     "name": [
-      "openwfd_server -i 0"
+      "WFD_ClientMgr / WFD_CommitMgr"
     ],
     "sub": [
-      "Port / Pipeline / 提交与事件",
-      "DPU 0 用户态驱动服务"
+      "WFD_PortMgr · DPU 0"
     ],
-    "detail": "PVM 用户态显示服务，接收 Weston 与 Guest Backend 的 LRMC 提交，使用 KIUMD、VFIO 与 /dev/scmi_mdss0 驱动 DPU 0。mqueue 名称仅用于 readiness，不是像素 IPC。"
+    "detail": "openwfd_server 内的 C 模块，以 WFD_ClientMgr / WFD_PortMgr / WFD_CommitMgr 函数族为入口，负责客户端、Port 与显示提交。实例 0 接收 Weston 和 Guest Backend 的 LRMC 请求，通过 KIUMD、VFIO 与 /dev/scmi_mdss0 管理 DPU 0。",
+    "process": "openwfd-0"
   },
   {
     "id": "server1",
-    "x": 696,
-    "y": 890,
-    "w": 340,
-    "h": 80,
+    "x": 772,
+    "y": 966,
+    "w": 368,
+    "h": 54,
     "kind": "vendor",
     "name": [
-      "openwfd_server -i 1"
+      "WFD_ClientMgr / WFD_CommitMgr"
     ],
     "sub": [
-      "Port / Pipeline / 提交与事件",
-      "DPU 1 用户态驱动服务"
+      "WFD_PortMgr · DPU 1"
     ],
-    "detail": "与实例 0 并列，接收两个 WFD 客户端，持有对应 DPU 1 的 KIUMD / VFIO / SCMI 资源。Server 是用户态驱动服务，不能与下方内核接口合成同一个模块。"
+    "detail": "与实例 0 相同的 openwfd_server C 模块，包含 WFD_ClientMgr / WFD_PortMgr / WFD_CommitMgr 函数族；实例 1 接收两个 WFD 客户端提交，持有 DPU 1 对应的 KIUMD / VFIO / SCMI 资源。",
+    "process": "openwfd-1"
   },
   {
     "id": "config",
-    "x": 1056,
-    "y": 890,
+    "x": 1012,
+    "y": 104,
     "w": 128,
-    "h": 80,
+    "h": 64,
     "kind": "neutral",
     "name": [
-      "资源配置"
+      "display_cfg.ini"
     ],
     "sub": [
       "Client / Port",
@@ -430,26 +503,26 @@ const nodes = [
   },
   {
     "id": "rgs",
-    "x": 458,
-    "y": 890,
-    "w": 222,
-    "h": 80,
+    "x": 1220,
+    "y": 966,
+    "w": 416,
+    "h": 54,
     "kind": "vendor",
     "name": [
-      "kgsl / RGS"
+      "libGSLKernel.so · RGS"
     ],
     "sub": [
-      "gsl_hab_server → 本机客户端",
-      "libGSLKernel.so · 用户态"
+      "context / memory / GMU / 故障恢复"
     ],
-    "detail": "PVM 的 /usr/bin/kgsl -p N 加载 libGSLKernel.so，提供用户态 GPU 资源管理服务 RGS；不是 Linux msm_kgsl 内核驱动。Guest 控制/资源请求由 gsl_hab_server 接收，经本机 libgsl/libkiumd 到 RGS。初始化、资源映射、context、恢复与 fallback 依赖这条链；DBCQ 快路径不必每帧往返该服务。"
+    "detail": "kgsl 用户态进程加载 libGSLKernel.so，库内实现 RGS，负责 GPU context、内存映射、GMU/HFI、hang 检测和故障恢复。gsl_hab_server 是独立进程，通过本机 libgsl 客户端与 IPC 请求 RGS；Weston 等 PVM 本机图形客户端也可调用 RGS。",
+    "process": "kgsl"
   },
   {
     "id": "kernel0",
     "x": 212,
-    "y": 1040,
-    "w": 226,
-    "h": 72,
+    "y": 1124,
+    "w": 480,
+    "h": 64,
     "kind": "vendor",
     "name": [
       "KIUMD / VFIO / SCMI"
@@ -461,10 +534,10 @@ const nodes = [
   },
   {
     "id": "kernel1",
-    "x": 696,
-    "y": 1040,
-    "w": 340,
-    "h": 72,
+    "x": 772,
+    "y": 1124,
+    "w": 368,
+    "h": 64,
     "kind": "vendor",
     "name": [
       "KIUMD / VFIO / SCMI"
@@ -476,10 +549,10 @@ const nodes = [
   },
   {
     "id": "gpuaccess",
-    "x": 458,
-    "y": 1040,
-    "w": 222,
-    "h": 72,
+    "x": 1220,
+    "y": 1124,
+    "w": 230,
+    "h": 64,
     "kind": "vendor",
     "name": [
       "VFIO / SMMU / IRQ"
@@ -491,10 +564,10 @@ const nodes = [
   },
   {
     "id": "hosthab",
-    "x": 1056,
-    "y": 1040,
-    "w": 128,
-    "h": 160,
+    "x": 1490,
+    "y": 1120,
+    "w": 162,
+    "h": 144,
     "kind": "vendor",
     "name": [
       "Host HAB",
@@ -506,11 +579,76 @@ const nodes = [
       "/dev/vhost-disp",
       "/dev/vhost-ogles"
     ],
-    "detail": "PVM 内核 hab_vhost.c 是 HAB/VirtIO 的传输后端：/dev/vhost-ogles 对应 MM_GFX（device 94），/dev/vhost-disp 对应显示通道（device 93）。它消费 virtqueue 中的 HAB 消息，再分发到 GPU RPC 服务 gsl_hab_server / RGS 或显示服务 display-be。vhost-user-qti 配置 vring、内存表和 kick/call；DBCQ 命令快路径不经过该 VirtIO 后端。"
+    "detail": "PVM 内核 hab_vhost.c 是 HAB/VirtIO 的传输后端：/dev/vhost-ogles 对应 MM_GFX（device 94），/dev/vhost-disp 对应显示通道（device 93）。它消费 virtqueue 中的 HAB 消息，分发到 gsl_hab_server 或显示服务 display-be；GPU 请求再由 gsl_hab_server 经 libgsl 与本机 IPC 调用独立 kgsl 进程中的 RGS。vhost-user-qti 配置 vring、内存表和 kick/call；DBCQ 命令快路径不经过该 VirtIO 后端。"
+  },
+  {
+    "id": "displayhab",
+    "x": 772,
+    "y": 270,
+    "w": 368,
+    "h": 60,
+    "kind": "vendor",
+    "name": [
+      "libuhab.so"
+    ],
+    "sub": [
+      "接收显示命令 / 共享 buffer"
+    ],
+    "process": "display-be",
+    "detail": "VirtIOGPU2DBackendService 进程内的 HAB 用户态接口，经 /dev/hab 接收显示通道消息、导入 Guest 共享 buffer，交给帧管理与 OpenWFD 客户端。"
+  },
+  {
+    "id": "gslhab",
+    "x": 1220,
+    "y": 640,
+    "w": 196,
+    "h": 76,
+    "kind": "vendor",
+    "name": [
+      "libuhab.so"
+    ],
+    "sub": [
+      "接收 Guest GPU RPC"
+    ],
+    "process": "gsl-hab-server",
+    "detail": "gsl_hab_server 的 HAB 用户态依赖库，与 libgsl.so 并列。服务调用 libuhab.so 收发 MM_GFX 通道上的 Guest GPU RPC；底层 HAB/VirtIO 消息由 PVM 内核 hab_vhost 传输。"
+  },
+  {
+    "id": "gslrpc",
+    "x": 1220,
+    "y": 270,
+    "w": 416,
+    "h": 64,
+    "kind": "vendor",
+    "name": [
+      "gsl_hab_server"
+    ],
+    "sub": [
+      "Guest RPC 分发",
+      "context / memory / DBCQ 注册"
+    ],
+    "process": "gsl-hab-server",
+    "detail": "gsl_hab_server 分别调用 libuhab.so 和 libgsl.so：通过前者收发 Guest HGSL RPC，将请求解包、分发为后者提供的 PVM 本机 GSL API 调用，包括 context、内存、DBCQ query/register 以及回退提交。"
+  },
+  {
+    "id": "gsllocal",
+    "x": 1440,
+    "y": 640,
+    "w": 196,
+    "h": 76,
+    "kind": "vendor",
+    "name": [
+      "libgsl.so"
+    ],
+    "sub": [
+      "PVM 本机 GSL 客户端"
+    ],
+    "process": "gsl-hab-server",
+    "detail": "gsl_hab_server 链接的 PVM 本机 GSL 客户端库，经本机 IPC 请求独立 kgsl 进程中的 RGS。gsl_hab_server 与 kgsl 不共享同一个进程边界。"
   },
   {
     "id": "guestapps",
-    "x": 1254,
+    "x": 1734,
     "y": 144,
     "w": 1084,
     "h": 50,
@@ -526,7 +664,7 @@ const nodes = [
   },
   {
     "id": "engine",
-    "x": 1630,
+    "x": 2110,
     "y": 480,
     "w": 310,
     "h": 54,
@@ -542,7 +680,7 @@ const nodes = [
   },
   {
     "id": "surfaceview",
-    "x": 1998,
+    "x": 2478,
     "y": 230,
     "w": 340,
     "h": 54,
@@ -558,23 +696,23 @@ const nodes = [
   },
   {
     "id": "viewroot",
-    "x": 1254,
+    "x": 1734,
     "y": 230,
     "w": 316,
     "h": 54,
     "kind": "native",
     "name": [
-      "ViewRootImpl / ViewTree"
+      "ViewRootImpl"
     ],
     "sub": [
-      "performTraversals · UI thread"
+      "ViewTree · performTraversals"
     ],
     "detail": "ViewRootImpl 驱动 View 遍历与绘制，并协调 ThreadedRenderer、窗口 surface 和 BLAST 相关对象的建立与更新。",
     "layer": "Java"
   },
   {
     "id": "record",
-    "x": 1254,
+    "x": 1734,
     "y": 318,
     "w": 316,
     "h": 58,
@@ -590,7 +728,7 @@ const nodes = [
   },
   {
     "id": "threaded",
-    "x": 1630,
+    "x": 2110,
     "y": 230,
     "w": 310,
     "h": 54,
@@ -606,23 +744,23 @@ const nodes = [
   },
   {
     "id": "hwui",
-    "x": 1254,
+    "x": 1734,
     "y": 480,
     "w": 316,
     "h": 54,
     "kind": "native",
     "name": [
-      "RenderThread / HWUI"
+      "libhwui.so"
     ],
     "sub": [
-      "libhwui · Skia GPU backend"
+      "RenderThread · Skia GPU backend"
     ],
     "detail": "RenderThread/HWUI 同步并处理 RenderNode 数据，通过 Skia 的 GLES 或 Vulkan 后端渲染。Skia/HWUI 通过 Surface/ANativeWindow 获取生产目标，随后提交带 fence 的 buffer。",
     "layer": "Native"
   },
   {
     "id": "surface",
-    "x": 1998,
+    "x": 2478,
     "y": 480,
     "w": 340,
     "h": 54,
@@ -638,7 +776,7 @@ const nodes = [
   },
   {
     "id": "blast",
-    "x": 1998,
+    "x": 2478,
     "y": 598,
     "w": 340,
     "h": 58,
@@ -654,7 +792,7 @@ const nodes = [
   },
   {
     "id": "sf",
-    "x": 1998,
+    "x": 2478,
     "y": 744,
     "w": 340,
     "h": 78,
@@ -671,46 +809,45 @@ const nodes = [
   },
   {
     "id": "gles",
-    "x": 1254,
+    "x": 1734,
     "y": 600,
     "w": 316,
     "h": 72,
     "kind": "native",
     "name": [
-      "GLES / Vulkan API 与 loader"
+      "libEGL.so · libGLESv2.so",
+      "libvulkan.so"
     ],
     "sub": [
-      "libEGL + libGLESv2（GLES）",
-      "libvulkan + WSI（Vulkan）"
+      "GLES / Vulkan 并列入口 · driver loader"
     ],
     "detail": "两条并列 API 路径：EGL 管理 GLES context/window surface，libGLESv2 分派 GL 调用；Vulkan 由 libvulkan 系统 loader 装载 vendor driver 并走 WSI/present，不依赖 libEGL。",
     "layer": "Native"
   },
   {
     "id": "umd",
-    "x": 1254,
+    "x": 1734,
     "y": 702,
     "w": 316,
     "h": 58,
     "kind": "vendor",
     "name": [
-      "Adreno UMD"
+      "libGLESv2_adreno.so",
+      "vulkan.adreno.so"
     ],
-    "sub": [
-      "libGLESv2_adreno / vulkan.adreno"
-    ],
+    "sub": [],
     "detail": "厂商用户态驱动编译和构造 GPU 命令，与 Guest libgsl 配合分配资源和提交工作。命令/IB 不是显示像素，渲染完成后的 buffer 才进入显示提交链。",
     "layer": "Native"
   },
   {
     "id": "libgsl",
-    "x": 1254,
+    "x": 1734,
     "y": 788,
     "w": 316,
     "h": 52,
     "kind": "vendor",
     "name": [
-      "Guest libgsl"
+      "libgsl.so"
     ],
     "sub": [
       "资源 / context / command submit"
@@ -720,40 +857,40 @@ const nodes = [
   },
   {
     "id": "hwc",
-    "x": 1998,
-    "y": 908,
+    "x": 2478,
+    "y": 956,
     "w": 340,
     "h": 62,
     "kind": "vendor",
     "name": [
-      "HWC / Vendor Composer"
+      "AidlComposer / AidlComposerClient"
     ],
     "sub": [
-      "validate / present"
+      "Composer HAL · validate / present"
     ],
-    "detail": "HWC 在用户态，通过 DRM/KMS display frontend 提交设备层与 client-target buffer。DEVICE 不代表所有层必定直接 scanout；最终可用能力受平台实现和资源配置约束。",
+    "detail": "himalayas 产品选择 vendor.qti.hardware.display.composer-service，其入口创建 AidlComposer，AidlComposerClient 处理 validate / present 请求。Composer 经显示栈与 Guest DRM/KMS 前端提交设备层和 client-target buffer。",
     "layer": "HAL"
   },
   {
     "id": "gralloc",
-    "x": 1630,
-    "y": 908,
+    "x": 2110,
+    "y": 956,
     "w": 310,
     "h": 62,
     "kind": "vendor",
     "name": [
-      "Gralloc / Allocator"
+      "QtiAllocatorAIDL"
     ],
     "sub": [
-      "handle · usage / format / stride"
+      "libgralloccore.so · SnapAlloc"
     ],
-    "detail": "供 Surface/BufferQueue 等使用的图形 buffer 分配接口。分配、GPU 渲染、队列同步、显示提交是不同职责；handle/fence/metadata 不等于复制图像像素。",
+    "detail": "vendor.qti.hardware.display.allocator-service 创建的分配器实现类，为 Surface / BufferQueue 提供图形 buffer。关联 libgralloccore.so，并根据 SnapAllocEnabled 选择 SnapAlloc 或 BufferManager 分配路径，返回 handle、usage、format 和 stride 等信息。",
     "layer": "HAL"
   },
   {
     "id": "hgsl",
-    "x": 1254,
-    "y": 1056,
+    "x": 1734,
+    "y": 1120,
     "w": 316,
     "h": 64,
     "kind": "vendor",
@@ -768,8 +905,8 @@ const nodes = [
   },
   {
     "id": "dbcq",
-    "x": 1254,
-    "y": 1148,
+    "x": 1734,
+    "y": 1212,
     "w": 240,
     "h": 52,
     "kind": "hardware",
@@ -785,8 +922,8 @@ const nodes = [
   },
   {
     "id": "gdisp",
-    "x": 1998,
-    "y": 1056,
+    "x": 2478,
+    "y": 1120,
     "w": 340,
     "h": 64,
     "kind": "vendor",
@@ -801,8 +938,8 @@ const nodes = [
   },
   {
     "id": "ghab",
-    "x": 1630,
-    "y": 1148,
+    "x": 2110,
+    "y": 1212,
     "w": 708,
     "h": 52,
     "kind": "vendor",
@@ -818,7 +955,7 @@ const nodes = [
   {
     "id": "gpu",
     "x": 212,
-    "y": 1288,
+    "y": 1352,
     "w": 300,
     "h": 84,
     "kind": "hardware",
@@ -833,7 +970,7 @@ const nodes = [
   {
     "id": "gmu",
     "x": 544,
-    "y": 1288,
+    "y": 1352,
     "w": 224,
     "h": 84,
     "kind": "hardware",
@@ -848,7 +985,7 @@ const nodes = [
   {
     "id": "dpu0",
     "x": 792,
-    "y": 1288,
+    "y": 1352,
     "w": 332,
     "h": 84,
     "kind": "hardware",
@@ -864,7 +1001,7 @@ const nodes = [
   {
     "id": "dpu1",
     "x": 1170,
-    "y": 1288,
+    "y": 1352,
     "w": 332,
     "h": 84,
     "kind": "hardware",
@@ -880,7 +1017,7 @@ const nodes = [
   {
     "id": "source",
     "x": 212,
-    "y": 1432,
+    "y": 1496,
     "w": 240,
     "h": 64,
     "kind": "hardware",
@@ -896,7 +1033,7 @@ const nodes = [
   {
     "id": "target",
     "x": 484,
-    "y": 1432,
+    "y": 1496,
     "w": 240,
     "h": 64,
     "kind": "hardware",
@@ -912,7 +1049,7 @@ const nodes = [
   {
     "id": "gframe",
     "x": 752,
-    "y": 1432,
+    "y": 1496,
     "w": 430,
     "h": 64,
     "kind": "hardware",
@@ -927,8 +1064,8 @@ const nodes = [
   },
   {
     "id": "out3",
-    "x": 1820,
-    "y": 1288,
+    "x": 2300,
+    "y": 1352,
     "w": 498,
     "h": 52,
     "kind": "hardware",
@@ -942,8 +1079,8 @@ const nodes = [
   },
   {
     "id": "out8",
-    "x": 1820,
-    "y": 1360,
+    "x": 2300,
+    "y": 1424,
     "w": 498,
     "h": 52,
     "kind": "hardware",
@@ -957,8 +1094,8 @@ const nodes = [
   },
   {
     "id": "out9",
-    "x": 1820,
-    "y": 1432,
+    "x": 2300,
+    "y": 1496,
     "w": 498,
     "h": 48,
     "kind": "neutral",
@@ -989,38 +1126,68 @@ const edges = [
   {
     "id": "layers",
     "from": "scene",
+    "to": "drmbackend",
+    "type": "control",
+    "routes": [
+      "pvm"
+    ],
+    "d": "M452 306 V340"
+  },
+  {
+    "id": "sdmadapter",
+    "from": "drmbackend",
     "to": "sdm",
     "type": "control",
     "routes": [
       "pvm"
     ],
-    "d": "M326 306 V440",
-    "label": "Prepare / 分配",
-    "lx": 378,
-    "ly": 392
+    "d": "M326 396 V440"
   },
   {
-    "id": "choosegpu",
+    "id": "sdmcoreapi",
     "from": "sdm",
+    "to": "sdmcore",
+    "type": "control",
+    "routes": [
+      "pvm"
+    ],
+    "d": "M326 504 V528"
+  },
+  {
+    "id": "renderdispatch",
+    "from": "drmbackend",
     "to": "renderer",
     "type": "control",
     "routes": [
       "pvm"
     ],
-    "d": "M438 472 H458"
+    "d": "M575 396 V440",
+    "label": "GPU 合成",
+    "lx": 625,
+    "ly": 424
   },
   {
     "id": "commit",
-    "from": "sdm",
+    "from": "sdmcore",
+    "to": "libdrm",
+    "type": "control",
+    "routes": [
+      "pvm"
+    ],
+    "d": "M326 582 V628",
+    "label": "Commit",
+    "lx": 361,
+    "ly": 618
+  },
+  {
+    "id": "drmfeapi",
+    "from": "libdrm",
     "to": "drmfe",
     "type": "control",
     "routes": [
       "pvm"
     ],
-    "d": "M326 504 V640",
-    "label": "Commit",
-    "lx": 361,
-    "ly": 600
+    "d": "M326 668 V696"
   },
   {
     "id": "wfdapi",
@@ -1030,7 +1197,7 @@ const edges = [
     "routes": [
       "pvm"
     ],
-    "d": "M326 698 V784"
+    "d": "M326 736 V756"
   },
   {
     "id": "renderapi",
@@ -1050,10 +1217,10 @@ const edges = [
     "routes": [
       "pvm"
     ],
-    "d": "M575 716 V890",
-    "label": "本机 GPU 提交",
-    "lx": 626,
-    "ly": 864
+    "d": "M575 716 V920 H1612 V966",
+    "label": "本机 IPC",
+    "lx": 1420,
+    "ly": 900
   },
   {
     "id": "backendapi",
@@ -1063,7 +1230,7 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M884 416 V784"
+    "d": "M956 504 V748"
   },
   {
     "id": "weston0",
@@ -1073,10 +1240,7 @@ const edges = [
     "routes": [
       "pvm"
     ],
-    "d": "M270 832 V890",
-    "label": "LRMC",
-    "lx": 300,
-    "ly": 864
+    "d": "M326 804 V832 H608 V966"
   },
   {
     "id": "weston1",
@@ -1086,7 +1250,7 @@ const edges = [
     "routes": [
       "pvm"
     ],
-    "d": "M400 832 V856 H760 V890"
+    "d": "M400 804 V896 H1076 V966"
   },
   {
     "id": "guest0",
@@ -1096,7 +1260,7 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M800 832 V876 H410 V890"
+    "d": "M840 804 V864 H648 V966"
   },
   {
     "id": "guest1",
@@ -1106,10 +1270,7 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M960 832 V890",
-    "label": "LRMC",
-    "lx": 989,
-    "ly": 864
+    "d": "M1108 804 V966"
   },
   {
     "id": "reserved",
@@ -1117,7 +1278,7 @@ const edges = [
     "to": "config",
     "type": "config",
     "routes": [],
-    "d": "M1032 139 H1194 V874 H1120 V890"
+    "d": "M996 136 H1012"
   },
   {
     "id": "cfg0",
@@ -1125,7 +1286,7 @@ const edges = [
     "to": "server0",
     "type": "config",
     "routes": [],
-    "d": "M1120 970 V986 H410 V970"
+    "d": "M1140 136 H1168 V1048 H720 V992 H692"
   },
   {
     "id": "cfg1",
@@ -1133,7 +1294,7 @@ const edges = [
     "to": "server1",
     "type": "config",
     "routes": [],
-    "d": "M1056 930 H1036"
+    "d": "M1140 136 H1168 V992 H1140"
   },
   {
     "id": "resource0",
@@ -1144,7 +1305,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M325 970 V1040"
+    "d": "M452 1020 V1124"
   },
   {
     "id": "resource1",
@@ -1155,7 +1316,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M866 970 V1040"
+    "d": "M956 1020 V1124"
   },
   {
     "id": "gpuresource",
@@ -1166,7 +1327,7 @@ const edges = [
       "gl",
       "pvm"
     ],
-    "d": "M569 970 V1040"
+    "d": "M1428 1020 V1092 H1335 V1124"
   },
   {
     "id": "program0",
@@ -1177,7 +1338,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M325 1112 V1262 H958 V1288"
+    "d": "M452 1188 V1326 H958 V1352"
   },
   {
     "id": "program1",
@@ -1188,7 +1349,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M866 1112 V1250 H1336 V1288"
+    "d": "M956 1188 V1314 H1336 V1352"
   },
   {
     "id": "gpuctrl",
@@ -1199,10 +1360,7 @@ const edges = [
       "pvm",
       "gl"
     ],
-    "d": "M569 1112 V1238 H360 V1288",
-    "label": "资源 / 地址空间 / 恢复",
-    "lx": 453,
-    "ly": 1180
+    "d": "M1335 1188 V1302 H360 V1352"
   },
   {
     "id": "setup",
@@ -1210,36 +1368,36 @@ const edges = [
     "to": "hosthab",
     "type": "config",
     "routes": [],
-    "d": "M1120 806 V860 H1208 V1120 H1184",
+    "d": "M1636 136 H1670 V1184 H1652",
     "label": "设备配置",
-    "lx": 1170,
-    "ly": 847
+    "lx": 1628,
+    "ly": 848
   },
   {
     "id": "habdisplay",
     "from": "hosthab",
-    "to": "backend",
+    "to": "displayhab",
     "type": "control",
     "routes": [
       "guest"
     ],
-    "d": "M1056 1080 H1048 V378 H1020",
-    "label": "libuhab / display-be",
-    "lx": 1130,
-    "ly": 606
+    "d": "M1490 1204 H736 V300 H772",
+    "label": "disp",
+    "lx": 890,
+    "ly": 1222
   },
   {
     "id": "habgpu",
     "from": "hosthab",
-    "to": "rgs",
+    "to": "gslhab",
     "type": "control",
     "routes": [
       "gl"
     ],
-    "d": "M1056 1166 H684 V930 H680",
-    "label": "MM_GFX / 控制与 fallback",
-    "lx": 841,
-    "ly": 1154
+    "d": "M1490 1238 H1192 V678 H1220",
+    "label": "MM_GFX · 控制 / 注册 / 回退",
+    "lx": 1352,
+    "ly": 1228
   },
   {
     "id": "appview",
@@ -1250,7 +1408,7 @@ const edges = [
       "guest",
       "gl"
     ],
-    "d": "M1412 194 V230"
+    "d": "M1892 194 V230"
   },
   {
     "id": "viewrecord",
@@ -1261,7 +1419,7 @@ const edges = [
       "guest",
       "gl"
     ],
-    "d": "M1412 284 V318"
+    "d": "M1892 284 V318"
   },
   {
     "id": "createrenderer",
@@ -1271,7 +1429,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1570 257 H1630"
+    "d": "M2050 257 H2110"
   },
   {
     "id": "syncframe",
@@ -1281,7 +1439,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1785 284 V462 H1490 V480"
+    "d": "M2265 284 V462 H1970 V480"
   },
   {
     "id": "displaylist",
@@ -1291,7 +1449,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1412 376 V480"
+    "d": "M1892 376 V480"
   },
   {
     "id": "createsurface",
@@ -1302,7 +1460,7 @@ const edges = [
       "gl",
       "guest"
     ],
-    "d": "M2168 194 V230"
+    "d": "M2648 194 V230"
   },
   {
     "id": "surfacehandle",
@@ -1313,7 +1471,7 @@ const edges = [
       "gl",
       "guest"
     ],
-    "d": "M2168 284 V480"
+    "d": "M2648 284 V480"
   },
   {
     "id": "queuesurface",
@@ -1324,9 +1482,9 @@ const edges = [
       "gl",
       "guest"
     ],
-    "d": "M1518 534 V552 H1978 V507 H1998",
+    "d": "M1998 534 V552 H2458 V507 H2478",
     "label": "dequeue / queue",
-    "lx": 1855,
+    "lx": 2335,
     "ly": 578
   },
   {
@@ -1337,9 +1495,9 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M2168 534 V598",
+    "d": "M2648 534 V598",
     "label": "queueBuffer",
-    "lx": 2220,
+    "lx": 2700,
     "ly": 578
   },
   {
@@ -1350,9 +1508,9 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M2168 656 V744",
+    "d": "M2648 656 V744",
     "label": "Transaction",
-    "lx": 2220,
+    "lx": 2700,
     "ly": 708
   },
   {
@@ -1363,7 +1521,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1412 534 V600"
+    "d": "M1892 534 V600"
   },
   {
     "id": "engineapi",
@@ -1373,7 +1531,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1785 534 V578 H1506 V600"
+    "d": "M2265 534 V578 H1986 V600"
   },
   {
     "id": "sfclient",
@@ -1384,9 +1542,9 @@ const edges = [
       "gl",
       "guest"
     ],
-    "d": "M1998 783 H1602 V636 H1570",
+    "d": "M2478 783 H2082 V636 H2050",
     "label": "RenderEngine · CLIENT",
-    "lx": 1785,
+    "lx": 2265,
     "ly": 774
   },
   {
@@ -1397,7 +1555,7 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M2168 822 V908"
+    "d": "M2648 822 V956"
   },
   {
     "id": "apiumd",
@@ -1407,7 +1565,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1412 672 V702"
+    "d": "M1892 672 V702"
   },
   {
     "id": "umdlibgsl",
@@ -1417,7 +1575,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1412 760 V788"
+    "d": "M1892 760 V788"
   },
   {
     "id": "libgslhgsl",
@@ -1427,10 +1585,10 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1412 840 V1056",
+    "d": "M1892 840 V1120",
     "label": "ioctl",
-    "lx": 1450,
-    "ly": 1018
+    "lx": 1930,
+    "ly": 1082
   },
   {
     "id": "hwcdrm",
@@ -1440,10 +1598,10 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M2168 970 V1056",
+    "d": "M2648 1018 V1120",
     "label": "DRM/KMS",
-    "lx": 2230,
-    "ly": 1018
+    "lx": 2710,
+    "ly": 1082
   },
   {
     "id": "allocate",
@@ -1451,7 +1609,7 @@ const edges = [
     "to": "gralloc",
     "type": "config",
     "routes": [],
-    "d": "M2338 507 H2360 V860 H1785 V908"
+    "d": "M2818 507 H2840 V860 H2265 V956"
   },
   {
     "id": "hgslhab",
@@ -1461,10 +1619,10 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1524 1120 V1174 H1630",
+    "d": "M2004 1184 V1238 H2110",
     "label": "hgsl_hyp",
-    "lx": 1540,
-    "ly": 1159
+    "lx": 2020,
+    "ly": 1223
   },
   {
     "id": "drmhab",
@@ -1474,7 +1632,7 @@ const edges = [
     "routes": [
       "guest"
     ],
-    "d": "M2168 1120 V1148"
+    "d": "M2648 1184 V1212"
   },
   {
     "id": "crossvm",
@@ -1485,7 +1643,7 @@ const edges = [
       "guest",
       "gl"
     ],
-    "d": "M1630 1190 H1598 V1216 H1204 V1190 H1184"
+    "d": "M2110 1254 H2078 V1280 H1676 V1254 H1652"
   },
   {
     "id": "dbcqwrite",
@@ -1495,7 +1653,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1374 1120 V1148"
+    "d": "M1854 1184 V1212"
   },
   {
     "id": "dbcqconsume",
@@ -1505,7 +1663,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1374 1200 V1270 H640 V1288"
+    "d": "M1854 1264 V1334 H640 V1352"
   },
   {
     "id": "doorbell",
@@ -1516,10 +1674,10 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1254 1090 H1224 V1258 H704 V1288",
+    "d": "M1734 1154 H1704 V1322 H704 V1352",
     "label": "doorbell",
-    "lx": 1235,
-    "ly": 1136
+    "lx": 1698,
+    "ly": 1200
   },
   {
     "id": "gmuib",
@@ -1529,7 +1687,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M544 1330 H512"
+    "d": "M544 1394 H512"
   },
   {
     "id": "gpusource",
@@ -1537,10 +1695,10 @@ const edges = [
     "to": "gpu",
     "type": "pixel",
     "routes": [],
-    "d": "M330 1432 V1372",
+    "d": "M330 1496 V1436",
     "label": "读入",
     "lx": 298,
-    "ly": 1401
+    "ly": 1465
   },
   {
     "id": "gpuwrite",
@@ -1548,10 +1706,10 @@ const edges = [
     "to": "target",
     "type": "pixel",
     "routes": [],
-    "d": "M460 1372 V1388 H610 V1432",
+    "d": "M460 1436 V1452 H610 V1496",
     "label": "PVM 写出",
     "lx": 590,
-    "ly": 1420
+    "ly": 1484
   },
   {
     "id": "guestgpuwrite",
@@ -1559,10 +1717,10 @@ const edges = [
     "to": "gframe",
     "type": "pixel",
     "routes": [],
-    "d": "M512 1310 H526 V1412 H800 V1432",
+    "d": "M512 1374 H526 V1476 H800 V1496",
     "label": "Guest 渲染写出",
     "lx": 707,
-    "ly": 1401
+    "ly": 1465
   },
   {
     "id": "overlay0",
@@ -1570,7 +1728,7 @@ const edges = [
     "to": "dpu0",
     "type": "pixel",
     "routes": [],
-    "d": "M430 1432 V1400 H834 V1372"
+    "d": "M430 1496 V1464 H834 V1436"
   },
   {
     "id": "overlay1",
@@ -1578,7 +1736,7 @@ const edges = [
     "to": "dpu1",
     "type": "pixel",
     "routes": [],
-    "d": "M430 1432 V1400 H1214 V1372"
+    "d": "M430 1496 V1464 H1214 V1436"
   },
   {
     "id": "target0",
@@ -1586,7 +1744,7 @@ const edges = [
     "to": "dpu0",
     "type": "pixel",
     "routes": [],
-    "d": "M670 1432 V1390 H924 V1372"
+    "d": "M670 1496 V1454 H924 V1436"
   },
   {
     "id": "target1",
@@ -1594,10 +1752,10 @@ const edges = [
     "to": "dpu1",
     "type": "pixel",
     "routes": [],
-    "d": "M670 1432 V1390 H1304 V1372",
+    "d": "M670 1496 V1454 H1304 V1436",
     "label": "SCREEN → 仅 d8",
     "lx": 1310,
-    "ly": 1442
+    "ly": 1506
   },
   {
     "id": "guestread0",
@@ -1605,7 +1763,7 @@ const edges = [
     "to": "dpu0",
     "type": "pixel",
     "routes": [],
-    "d": "M1110 1432 V1382 H1078 V1372"
+    "d": "M1110 1496 V1446 H1078 V1436"
   },
   {
     "id": "guestread1",
@@ -1613,7 +1771,7 @@ const edges = [
     "to": "dpu1",
     "type": "pixel",
     "routes": [],
-    "d": "M1110 1432 V1382 H1448 V1372"
+    "d": "M1110 1496 V1446 H1448 V1436"
   },
   {
     "id": "display3",
@@ -1624,7 +1782,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M1088 1288 V1280 H1750 V1314 H1820"
+    "d": "M1088 1352 V1344 H2230 V1378 H2300"
   },
   {
     "id": "display8",
@@ -1635,7 +1793,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M1502 1330 H1770 V1386 H1820"
+    "d": "M1502 1394 H2250 V1450 H2300"
   },
   {
     "id": "display9",
@@ -1643,7 +1801,7 @@ const edges = [
     "to": "out9",
     "type": "config",
     "routes": [],
-    "d": "M1502 1354 H1758 V1456 H1820"
+    "d": "M1502 1418 H2238 V1520 H2300"
   },
   {
     "id": "enginewindow",
@@ -1654,7 +1812,50 @@ const edges = [
       "gl",
       "guest"
     ],
-    "d": "M1940 507 H1998"
+    "d": "M2420 507 H2478"
+  },
+  {
+    "id": "displaydispatch",
+    "from": "displayhab",
+    "to": "backend",
+    "type": "control",
+    "routes": [
+      "guest"
+    ],
+    "d": "M956 330 V440"
+  },
+  {
+    "id": "gsllocalcall",
+    "from": "gslrpc",
+    "to": "gsllocal",
+    "type": "control",
+    "routes": [
+      "gl"
+    ],
+    "d": "M1538 334 V640"
+  },
+  {
+    "id": "gslipc",
+    "from": "gsllocal",
+    "to": "rgs",
+    "type": "control",
+    "routes": [
+      "gl"
+    ],
+    "d": "M1538 716 V966",
+    "label": "本机 IPC",
+    "lx": 1490,
+    "ly": 858
+  },
+  {
+    "id": "gslhabcall",
+    "from": "gslrpc",
+    "to": "gslhab",
+    "type": "control",
+    "routes": [
+      "gl"
+    ],
+    "d": "M1318 334 V640"
   }
 ];
 
@@ -1826,7 +2027,7 @@ edges.forEach(edge => {
   }
 });
 nodes.forEach(node => {
-  const group = element('g', {class:`node ${node.kind}${node.memory ? ' memory' : ''}${node.configured ? ' configured' : ''}`, tabindex:0, role:'button', 'aria-label':`${node.name.join('，')}。点击查看详情与直连关系`, 'aria-pressed':'false', 'data-node':node.id, ...(node.layer ? {'data-layer':node.layer} : {})}, document.getElementById('nodes'));
+  const group = element('g', {class:`node ${node.kind}${node.memory ? ' memory' : ''}${node.configured ? ' configured' : ''}`, tabindex:0, role:'button', 'aria-label':`${node.name.join('，')}。点击查看详情与直连关系`, 'aria-pressed':'false', 'data-node':node.id, ...(node.layer ? {'data-layer':node.layer} : {}), ...(node.process ? {'data-process':node.process} : {})}, document.getElementById('nodes'));
   element('title', {}, group, node.detail);
   if (node.memory) {
     element('rect', {x:node.x+8,y:node.y-8,width:node.w-8,height:node.h,rx:6}, group);
@@ -1856,10 +2057,10 @@ const defaultBody = document.getElementById('detail-body').textContent;
 const descriptions = {
   layers:[defaultTitle,defaultBody],
   all:['软件与数据流','蓝色：调用与提交；绿色：像素读写和扫描输出；灰色虚线：配置和分配依赖。'],
-  pvm:['PVM 提交','Wayland → Weston / SDM → DRM-FE → OpenWFD client → 两个 Server。Prepare 分配 GPU 或 overlay；两种 buffer 输入都经 Commit 提交绑定关系。'],
+  pvm:['PVM 提交','Wayland → drm-backend.so → sdm-service.so → libsdmcore.so → libdrm.so → lib_drm_fe.so → libopenwfd.so → openwfd_server。drm-backend 根据 Prepare 结果调度 gl-renderer.so，再经 SDM Commit 提交。'],
   guest:['Guest 显示提交','Surface / BLAST → SurfaceFlinger → HWC → DRM/KMS 前端 → HAB → PVM 2D Backend → OpenWFD。CLIENT 走 RenderEngine，DEVICE 使用硬件合成路径；qcrosvm / vhost-user-qti 是配置桥，不是逐帧处理节点。'],
   pixel:['像素流','PVM 源 buffer：GPU 读入并写出 target，或作为 overlay 输入；Guest 帧：经平台共享/导入后供 DPU 取图。绿色连线不是复制次数、物理总线或全链零拷贝承诺。绿色展开 Guest GPU 写入 layer/client-target buffers 的关系；buffer handle 与 fence 走控制通道。'],
-  gl:['Guest GPU','HGSL 控制 / 注册 / 回退 RPC → HAB/VirtIO（ID 94）→ PVM hab_vhost（/dev/vhost-ogles）→ RGS。DBCQ 就绪后：HGSL 写共享命令队列，另行触发 doorbell，由 GMU firmware 消费命令并调度 context。']
+  gl:['Guest GPU','HGSL 控制 / 注册 / 回退 RPC → HAB/VirtIO（ID 94）→ PVM hab_vhost（/dev/vhost-ogles）→ gsl_hab_server（libuhab / libgsl）→ 本机 IPC → kgsl / RGS。DBCQ 就绪后：HGSL 写共享命令队列，另行触发 doorbell，由 GMU firmware 消费命令并调度 context。']
 };
 function hasSelection() { return Boolean(window.getSelection()?.toString()); }
 function updateHighlight() {
@@ -1927,8 +2128,11 @@ function diagramPoint(event) {
   return transform ? new DOMPoint(event.clientX,event.clientY).matrixTransform(transform.inverse()) : {x:camera.x,y:camera.y};
 }
 document.getElementById('fit').addEventListener('click',() => {zoom=1;camera.x=0;camera.y=0;paintCamera();});
+document.getElementById('pvm-focus').addEventListener('click',() => {
+  zoom = 1.5; camera.x = 0; camera.y = 180; paintCamera();
+});
 document.getElementById('android-focus').addEventListener('click',() => {
-  zoom = 1.9; camera.x = 1020; camera.y = 72; paintCamera();
+  zoom = 1.9; camera.x = 1500; camera.y = 72; paintCamera();
 });
 document.getElementById('zoom-in').addEventListener('click',() => zoomTo(zoom*1.3));
 document.getElementById('zoom-out').addEventListener('click',() => zoomTo(zoom/1.3));
