@@ -6,7 +6,6 @@ from software_display_graph import render_graph
 
 QNX_DISPLAY = 'QNX/HQX-4-5-5-0_HLOS_DEV_QNX/apps/qnx_ap/AMSS/multimedia/display/Hoya/'
 ANDROID = 'android/android/'
-QNX_HAB = 'QNX/HQX-4-5-5-0_HLOS_DEV_QNX/apps/qnx_ap/AMSS/multimedia/hab/driver/hypervisor/qvm/qnx/'
 GRAPHICS_CONFIG = 'bsp/apps/qnx_ap/boards/display/adp_star_sda8295/config/graphics_HBEZ.conf'
 ANDROID_GPU = ANDROID+'vendor/qcom/proprietary/prebuilt_HY11/target/product/msmnile_gvmq/'
 QNX_GPU = 'bsp/apps/qnx_ap/prebuilt/aarch64le/'
@@ -157,13 +156,6 @@ MODULES = [
            '通过 UHAB/HAB 接收 Guest 图形请求，调用主机 GSL 接口管理图形设备、上下文和内存。',
            'bsp/apps/qnx_ap/target/filesets/qc.gfx.be.build:4；launcher_scripts/vgfx.c:8–24；'+QNX_GPU+'usr/bin/gsl_hab_server-qvmhost 的 ELF 依赖含 libuhab.so、libGSLUser.so，并导入 habmm_*、gsl_* API。',
            '服务与 GSL 库为预编译组件；内部队列调度未展开。'),
-    module('display-vm-memory', 'QVM Shared Communication Pipes', 'platform', 'HAB transport · shared regions',
-           '建立 QVM 共享通信管道，供 HAB 消息收发使用；图像内存由缓冲导入与映射接口管理。',
-           QNX_HAB+'hab_qvm_qnx.c:140–175；qvm_comm_qnx.c:21、60。'),
-    module('display-vm-notify', 'VM Event Notification', 'platform', 'QVM shared-memory notifications',
-           '通过 QVM 共享内存通知接口唤醒对端处理 HAB 数据。',
-           QNX_HAB+'hab_qvm_qnx.c:140–175；qvm_comm_qnx.c:21、60。',
-           'hyp_shm_* / hyp_shm_poke 为源码接口；具体 VM 配置另行定义。'),
     module('display-gpu', 'GPU', 'hardware', 'Render · compose · write frames',
            '执行图形绘制与 GPU 合成，将结果写入图像缓冲。',
            'bsp/apps/qnx_ap/target/filesets/qc.gfx.build、qc.gfx.umd.build；'+QNX_GPU+'usr/lib/graphics/qc/GSLKernel.so；'+ANDROID+'kernel_platform/msm-kernel/drivers/soc/qcom/hgsl/hgsl.c；hardware/qcom/display/gralloc/gr_buf_mgr.cpp。',
@@ -245,13 +237,13 @@ FLOWS = [
      '接口驱动通过 HAL 配置控制器、PHY、时钟与链路；该配置路径独立于硬件像素传输路径。'),
     ('18 · openwfd_server → wfd_be → msm-hyp / wfd_kms → HWC / SurfaceFlinger',
      'Events / feedback', 'COMMIT_COMPLETE · VSYNC · HPD · local guest fences',
-     '完成与显示事件经 HAB 返回，来宾处理事件并更新本域同步状态。QVM 的 hyp_shm_* / hyp_shm_poke 支撑 HAB 共享内存通知。'),
+     '完成与显示事件经 HAB 返回，来宾处理事件并更新本域同步状态。'),
 ]
 
 
 def render_display():
     groups = [('QNX Cluster', 'qnx'), ('AAOS IVI', 'aaos'),
-              ('Virtualization', 'platform'), ('SoC Hardware / Memory', 'hardware'),
+              ('SoC Hardware / Memory', 'hardware'),
               ('Display Output', 'output')]
     index = ''.join(
         '<section class="sw-index-group"><h4>'+title+'</h4><ul class="sw-index-list">'

@@ -45,8 +45,6 @@ NODES = {
     'display-android-gpu': (1140,1230,250,60),
     'display-wfd-fe': (1740,1230,250,60),
     'display-khab': (1440,1330,550,60),
-    'display-vm-memory': (690,1475,450,42),
-    'display-vm-notify': (1240,1475,450,42),
     'display-gpu': (70,1600,220,70),
     'display-buffers': (640,1600,300,70),
     'display-dpu': (1140,1600,250,70),
@@ -108,8 +106,6 @@ DISPLAY_NAMES = {
     'display-wfd-fe': ('msm_drm_hyp / wfd_kms', 'WFD sources · commit · HAB export'),
     'display-android-gpu': ('HGSL', 'RPC · shared command queues'),
     'display-khab': ('Guest HAB / KHAB', 'msm_hab · MM_GFX / MM_DISP · QVM transport'),
-    'display-vm-memory': ('QVM Shared Communication Pipes', 'HAB transport · shared regions'),
-    'display-vm-notify': ('Inter-VM Notifications', 'hyp_shm_poke · pulse handling'),
     'display-gpu': ('GPU', 'Rendering / client composition'),
     'display-buffers': ('Shared Frame Buffers', 'Mapped image storage'),
     'display-dpu': ('Display Processing Unit', 'Fetch · mix · scale · scanout'),
@@ -192,7 +188,6 @@ def make_routes():
           flow='control',both=True,label='HAB · GFX',at=(995,930),
           note='HAB MM_GFX: GSL control RPC and memory sharing between Guest KHAB and QNX UHAB/HAB')
     r.add('display-wfd-be','display-buffers',[(860,515),(860,540),(950,540),(950,1425),(610,1425),(610,1570),(790,1570),(790,1600)],kind='storage',flow='buffers',label='PMEM mapping',at=(610,1490))
-    r.add('display-vm-notify','display-vm-memory',[(1240,1496),(1140,1496)],kind='status',flow='events',note='Peer notification wakes the receiver of the HAB communication pipe')
     r.add('display-gsl-be','display-qnx-hab',[(725,855),(725,805)],flow='control',both=True,label='habmm_*',at=(725,832),note='GSL HAB Server uses libuhab.so; UHAB calls the QNX HAB resource manager')
     r.add('display-gsl-be','display-qnx-gsl',[(725,925),(725,975)],flow='control',label='gsl_*',at=(725,952),note='The server imports GSL context, memory and command APIs from libGSLUser.so')
     r.add('display-qnx-gsl','display-qnx-gpu',[(725,1045),(725,1095)],flow='control',label='GPU driver IPC',at=(725,1072),note='QNX libGSLUser.so opens /dev/kgsl-3D and calls the KGSL driver through QNX IPC')
