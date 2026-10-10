@@ -184,15 +184,13 @@ def make_routes():
     r.add('display-gsl-client','display-android-gpu',[(1265,865),(1265,1230)],flow='control',label='ioctl /dev/hgsl',at=(1265,1195))
     r.add('display-android-gpu','display-khab',[(1390,1260),(1550,1260),(1550,1330)],flow='control',label='habmm_* · MM_GFX',at=(1550,1310),note='GSL control RPC and memory sharing; shared command queues remain an HGSL capability')
     r.add('display-wfd-fe','display-khab',[(1865,1290),(1865,1330)],flow='control,buffers,events',both=True,note='MM_DISP: OpenWFD requests, imported/exported buffer IDs and completion events')
-    gfx_note='Matched GFX ports: HAB MM_GFX connects Guest KHAB with QNX UHAB/HAB for GSL control RPC and memory sharing'
-    disp_note='Matched DISP ports: HAB MM_DISP carries OpenWFD requests, buffer IDs and events between the guest display frontend and QNX wfd_be'
-    for target,y,name,flow,note in [('display-qnx-hab',1380,'GFX','control',gfx_note),('display-wfd-be',1350,'DISP','control,buffers,events',disp_note)]:
-        r.add('display-khab',target,[(1440,y),(1406,y)],flow=flow,both=True,note=note)
-        r.port('display-khab',target,1380,y,name,flow,note)
-    r.port('display-khab','display-qnx-hab',985,770,'GFX','control',gfx_note)
-    r.add('display-khab','display-qnx-hab',[(959,770),(900,770)],flow='control',both=True,note=gfx_note)
-    r.port('display-khab','display-wfd-be',985,485,'DISP','control,buffers,events',disp_note)
-    r.add('display-khab','display-wfd-be',[(959,485),(900,485)],flow='control,buffers,events',both=True,note=disp_note)
+    # Separate HAB lanes connect the component boundaries through the domain gutter.
+    r.add('display-khab','display-wfd-be',[(1440,1350),(1060,1350),(1060,485),(900,485)],
+          flow='control,buffers,events',both=True,label='HAB · DISP',at=(1060,600),
+          note='HAB MM_DISP: OpenWFD requests, buffer IDs and completion events between Guest KHAB and QNX wfd_be')
+    r.add('display-khab','display-qnx-hab',[(1440,1380),(995,1380),(995,770),(900,770)],
+          flow='control',both=True,label='HAB · GFX',at=(995,930),
+          note='HAB MM_GFX: GSL control RPC and memory sharing between Guest KHAB and QNX UHAB/HAB')
     r.add('display-wfd-be','display-buffers',[(860,515),(860,540),(950,540),(950,1425),(610,1425),(610,1570),(790,1570),(790,1600)],kind='storage',flow='buffers',label='PMEM mapping',at=(610,1490))
     r.add('display-vm-notify','display-vm-memory',[(1240,1496),(1140,1496)],kind='status',flow='events',note='Peer notification wakes the receiver of the HAB communication pipe')
     r.add('display-gsl-be','display-qnx-hab',[(725,855),(725,805)],flow='control',both=True,label='habmm_*',at=(725,832),note='GSL HAB Server uses libuhab.so; UHAB calls the QNX HAB resource manager')
@@ -240,7 +238,7 @@ def render_graph(modules):
            _text(50,140,'QNX Cluster',19,'#1d4e9e',700),
            _text(1120,140,'AAOS IVI',19,'#176c3b',700),
            _text(1015,160,'CROSS-DOMAIN',10,'#526179',700,'middle'),
-           _text(1015,180,'DISPLAY',10,'#526179',700,'middle')]
+           _text(1015,180,'HAB CHANNELS',10,'#526179',700,'middle')]
     for domain,layers in LAYERS.items():
         x,w,palette={'qnx':(42,876,('#ffffffd9','#d6e1f0')),'aaos':(1112,886,('#ffffffd9','#d6e8d9'))}[domain]
         for y,h,title in layers: frame.append(_layer(x,y,w,h,title,palette))
@@ -281,7 +279,7 @@ def render_graph(modules):
         dash=' stroke-dasharray="5 4"' if kind in ('storage','status') else ''
         legend.append(f'<path d="M{x},31 h22" stroke="{PALETTE[kind]}" stroke-width="2"{dash}/>'+_text(x+30,35,title,11,PALETTE[kind],600))
     return (f'<svg xmlns="http://www.w3.org/2000/svg" class="sw-ota-diagram sw-display-diagram" id="sw-display-diagram" viewBox="0 0 {WIDTH} {HEIGHT}" width="{WIDTH}" height="{HEIGHT}" font-family="Arial, sans-serif" role="group" aria-label="Display software component interactions">'
-            '<title>Display software component interactions</title><desc>QNX native display clients and Android WFD frontend meet at OpenWFD. Guest rendering uses GSL Client, HGSL and KHAB; matched GFX and DISP ports identify separate HAB channels to the QNX host. Android follows Java, Native, HAL and Linux Kernel layers. Shared command queues are an HGSL capability. Separate routes show control, shared buffer references, physical pixels and completion events.</desc>'
+            '<title>Display software component interactions</title><desc>QNX native display clients and Android WFD frontend meet at OpenWFD. Guest rendering uses GSL Client, HGSL and KHAB; direct GFX and DISP connections show separate HAB channels to the QNX host. Android follows Java, Native, HAL and Linux Kernel layers. Shared command queues are an HGSL capability. Separate routes show control, shared buffer references, physical pixels and completion events.</desc>'
             +''.join(defs)+f'<rect width="{WIDTH}" height="{HEIGHT}" fill="#fff"/>'
             +_text(30,36,'DISPLAY SOFTWARE COMPONENT INTERACTIONS',18,'#202124',700)
             +''.join(legend)+''.join(frame)+routes.render()+'<g class="ota-nodes">'+''.join(nodes)+'</g></svg>')
