@@ -23,11 +23,11 @@ NODES = {
     'display-qnx-gpu': (550, 1095, 350, 70),
     'display-apps': (1140,195,850,50),
     'display-viewroot': (1140,275,250,50),
-    'display-threaded-renderer': (1440,275,250,50),
-    'display-surfaceview': (1740,275,250,50),
+    'display-threaded-renderer': (1440,350,250,50),
+    'display-surfaceview': (1740,350,250,50),
     'display-recording': (1140,350,250,50),
-    'display-wms': (1440,350,250,50),
-    'display-dms': (1740,350,250,50),
+    'display-wms': (1440,275,250,50),
+    'display-dms': (1740,275,250,50),
     'display-hwui': (1140,485,250,60),
     'display-native-client': (1440,485,250,60),
     'display-surface': (1740,485,250,60),
@@ -145,21 +145,21 @@ def make_routes():
     r.add('display-wfd-server','display-wfd-be',[(420,770),(490,770),(490,705),(865,705),(865,685)],kind='status',flow='events',label='WFD events',at=(800,705))
     # Java mirrors the UI traversal, recording and SurfaceView branches.
     r.add('display-apps','display-viewroot',[(1265,245),(1265,275)],flow='control')
-    r.add('display-apps','display-surfaceview',[(1865,245),(1865,275)],flow='control')
-    r.add('display-viewroot','display-threaded-renderer',[(1390,300),(1440,300)],flow='control')
+    r.add('display-apps','display-surfaceview',[(1725,245),(1725,338),(1865,338),(1865,350)],flow='control')
+    r.add('display-viewroot','display-threaded-renderer',[(1390,314),(1415,314),(1415,375),(1440,375)],flow='control')
     r.add('display-viewroot','display-recording',[(1265,325),(1265,350)],flow='control')
-    r.add('display-viewroot','display-wms',[(1390,314),(1415,314),(1415,375),(1440,375)],flow='control',note='Window session and layout requests')
-    r.add('display-wms','display-dms',[(1690,375),(1740,375)],flow='control',note='Window and logical display coordination')
+    r.add('display-viewroot','display-wms',[(1390,300),(1440,300)],flow='control',note='Window session and layout requests')
+    r.add('display-wms','display-dms',[(1690,300),(1740,300)],flow='control',note='Window and logical display coordination')
     r.add('display-recording','display-hwui',[(1265,400),(1265,485)],flow='control',label='Display list',at=(1265,457))
-    r.add('display-threaded-renderer','display-hwui',[(1565,325),(1565,338),(1428,338),(1428,465),(1350,465),(1350,485)],flow='control',label='JNI · syncAndDrawFrame',at=(1475,452))
-    r.add('display-surfaceview','display-surface',[(1990,300),(2000,300),(2000,515),(1990,515)],flow='control',note='SurfaceView owns a separate Surface and BLAST queue')
-    r.add('display-wms','display-flinger',[(1565,400),(1565,430),(1710,430),(1710,720),(1740,720)],flow='control',label='SurfaceControl',at=(1640,430))
-    r.add('display-dms','display-flinger',[(1865,400),(1865,420),(2020,420),(2020,740),(1990,740)],flow='control',label='Display policy',at=(1940,420))
+    r.add('display-threaded-renderer','display-hwui',[(1565,400),(1565,435),(1350,435),(1350,485)],flow='control',label='JNI · syncAndDrawFrame',at=(1475,435))
+    r.add('display-surfaceview','display-surface',[(1865,400),(1865,485)],flow='control',note='SurfaceView owns a separate Surface and BLAST queue')
+    r.add('display-wms','display-flinger',[(1690,314),(1705,314),(1705,720),(1740,720)],flow='control',label='SurfaceControl',at=(1705,435))
+    r.add('display-dms','display-flinger',[(1965,325),(1965,338),(2020,338),(2020,740),(1990,740)],flow='control',label='Display policy',at=(1940,338))
     # Native: left rendering stack, right Surface/BLAST/composition stack.
     r.add('display-hwui','display-api-loader',[(1265,545),(1265,595)],flow='control',label='GLES / Vulkan',at=(1265,576))
     r.add('display-native-client','display-api-loader',[(1565,545),(1565,575),(1340,575),(1340,595)],flow='control')
     r.add('display-native-client','display-surface',[(1690,515),(1740,515)],kind='storage',flow='buffers',note='The native renderer uses the target ANativeWindow')
-    r.add('display-hwui','display-surface',[(1390,520),(1410,520),(1410,560),(1800,560),(1800,545)],kind='storage',flow='buffers',label='Dequeue / queue',at=(1640,560))
+    r.add('display-hwui','display-surface',[(1390,500),(1410,500),(1410,465),(1800,465),(1800,485)],kind='storage',flow='buffers',label='Dequeue / queue',at=(1540,465))
     r.add('display-surface','display-bufferqueue',[(1865,545),(1865,595)],kind='storage',flow='buffers',label='queueBuffer',at=(1865,576))
     r.add('display-bufferqueue','display-flinger',[(1865,655),(1865,705)],kind='storage',flow='buffers',label='Transaction / fences',at=(1865,687))
     r.add('display-api-loader','display-opengl',[(1265,655),(1265,705)],flow='control',label='EGL / GLES',at=(1265,687))
