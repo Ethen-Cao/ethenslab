@@ -314,6 +314,24 @@
       }
     });
 
+    if (document.documentElement.classList.contains('slide')) {
+      const rootStyle = getComputedStyle(document.documentElement);
+      const want = {w: parseFloat(rootStyle.getPropertyValue('--slide-w')), h: parseFloat(rootStyle.getPropertyValue('--slide-h'))};
+      const main = document.querySelector('main');
+      const frame = main.getBoundingClientRect();
+      if (Math.abs(frame.width - want.w) > 1 || Math.abs(frame.height - want.h) > 1) {
+        error('slide-size', `幻灯片应为 ${want.w}×${want.h}，实际 ${Math.round(frame.width)}×${Math.round(frame.height)}`);
+      }
+      if (main.scrollHeight > main.clientHeight + 1 || main.scrollWidth > main.clientWidth + 1) error('slide-overflow', '内容超出幻灯片');
+      const px = svg.getScreenCTM().a;
+      const titles = [...svg.querySelectorAll('.node-name')].filter(rendered);
+      const smallest = Math.min(...titles.map(t => parseFloat(getComputedStyle(t).fontSize) * px));
+      if (smallest < 13.3) error('slide-font', `节点主标题缩放后 ${smallest.toFixed(1)}px，低于 10pt（13.3px）`);
+      const area = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+      const fill = Math.min(vb.width * px / area.width, vb.height * px / area.height);
+      if (fill < 0.85) warn('slide-letterbox', `画布 ${vb.width}×${vb.height} 与图区 ${Math.round(area.width)}×${Math.round(area.height)} 比例不一致，留白较多`);
+    }
+
     const report = {ok: errors.length === 0, errors, warnings, counts: {nodes: nodeMap.size, edges: edgeList.length, labels: labels.length}};
     if (!options.quiet) {
       console.log(`checkDiagram: ${errors.length} errors, ${warnings.length} warnings`, report.counts);

@@ -115,10 +115,19 @@
   .detail[hidden] { display: none; }
   .detail strong { font-size: 13px; margin-right: 9px; }
   #detail-body { color: var(--muted); }
-  @media (max-width: 900px) { body { padding: 7px; } h1 { font-size: 16px; } .subtitle, .hint { display: none; } .tools { gap: 3px; } button { padding: 3px 7px; } }
-  @media (max-width: 540px) { header { gap: 6px; } .tools { margin-left: 0; width: 100%; } .legend { gap: 3px 10px; font-size: 10px; } .filters { gap: 4px; } .detail { max-height: 100px; font-size: 11px; } }
+  @media (max-width: 900px) { html:not(.slide) body { padding: 7px; } html:not(.slide) h1 { font-size: 16px; } html:not(.slide) .subtitle, html:not(.slide) .hint { display: none; } .tools { gap: 3px; } button { padding: 3px 7px; } }
+  @media (max-width: 540px) { html:not(.slide) header { gap: 6px; } .tools { margin-left: 0; width: 100%; } html:not(.slide) .legend { gap: 3px 10px; font-size: 10px; } .filters { gap: 4px; } .detail { max-height: 100px; font-size: 11px; } }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-  @media print { html, body { height: auto; overflow: visible; background: #fff; } main { display: block; } .tools, .filters, .detail { display: none; } .diagram-shell { height: auto; border: 0; } svg { height: auto; } .legend { margin-top: 8px; } }
+  @media print { html:not(.slide), html:not(.slide) body { height: auto; overflow: visible; background: #fff; } html:not(.slide) main { display: block; } .tools, .filters, .detail { display: none; } html:not(.slide) .diagram-shell { height: auto; border: 0; } html:not(.slide) svg { height: auto; } html:not(.slide) .legend { margin-top: 8px; } html.slide body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+  html.slide, html.slide body { width: var(--slide-w); height: var(--slide-h); overflow: hidden; }
+  html.slide body { padding: 0; }
+  html.slide main { width: var(--slide-w); height: var(--slide-h); padding: 24px 32px 16px; gap: 10px; background: var(--panel); }
+  html.slide h1 { font-size: 24px; }
+  html.slide .subtitle { font-size: 13px; }
+  html.slide .legend { font-size: 12px; }
+  html.slide .diagram-shell { border: 0; border-radius: 0; }
+  html.slide .tools, html.slide .filters, html.slide .hint, html.slide .sources, html.slide .detail { display: none !important; }
+  html.slide.has-error .detail { display: block !important; }
 </style>
 </head>
 <body>
@@ -154,6 +163,7 @@
 <script>
 // Separate script so data errors, including syntax errors below, still show up in screenshots.
 window.addEventListener('error', event => {
+  document.documentElement.classList.add('has-error');
   document.querySelector('.detail').hidden = false;
   document.getElementById('detail-title').textContent = '图数据错误';
   document.getElementById('detail-body').textContent = event.message;
@@ -171,6 +181,8 @@ const META = {
   sources: [{text: 'AOSP Graphics', href: 'https://source.android.com/docs/core/graphics/architecture'}]
 };
 const WIDTH = 1200, HEIGHT = 760;
+// PPT 版式：null 为交互网页；'16:9'（13.333×7.5 in → 1280×720）、'4:3'（10×7.5 in → 960×720）或 {width, height}（CSS px，按 96 dpi 换算）。
+const SLIDE = null;
 // 图例文字可按本图改写；图例只显示实际用到的类别。
 const KIND_LABELS = {oem: 'OEM 自研', native: '系统原生', vendor: 'Vendor / Tier1', hardware: '硬件 / 内存', neutral: '来源未确定', configured: '仅配置'};
 const EDGE_LABELS = {control: '调用 / 控制', notification: '通知 / doorbell', data: '数据 / 像素', encrypted: '密文数据', config: '配置 / 分配（非逐次）'};
@@ -231,6 +243,11 @@ const NS = 'http://www.w3.org/2000/svg';
 const NODE_KINDS = ['oem', 'native', 'vendor', 'hardware', 'neutral'];
 const EDGE_TYPES = ['control', 'data', 'encrypted', 'config'];
 const CONTAINER_TITLES = {domain: ['domain-title', 36, 50], process: ['process-title', 28, 40], layer: ['layer-title', 28, 48]};
+const SLIDE_PRESETS = {'16:9': {width: 1280, height: 720}, '4:3': {width: 960, height: 720}};
+// Slides cannot zoom, so the fitted scale fixes printed text size: 16-unit titles stay ≥ 13.3px (10pt).
+const MIN_SLIDE_SCALE = 0.83;
+const slide = typeof SLIDE === 'string' ? SLIDE_PRESETS[SLIDE] : SLIDE;
+if (SLIDE && !(slide?.width > 0 && slide?.height > 0)) throw new Error(`Unknown SLIDE: ${JSON.stringify(SLIDE)}`);
 const MAX_ZOOM = 5;
 const svg = document.getElementById('architecture');
 const viewport = document.getElementById('viewport');
@@ -539,6 +556,15 @@ function routeCrossingBridges(edges, visibleIds, options = {}) {
 }
 
 /* ---------- 绘制 ---------- */
+if (slide) {
+  const root = document.documentElement;
+  root.classList.add('slide');
+  root.style.setProperty('--slide-w', `${slide.width}px`);
+  root.style.setProperty('--slide-h', `${slide.height}px`);
+  const pageStyle = document.createElement('style');
+  pageStyle.textContent = `@page { size: ${slide.width}px ${slide.height}px; margin: 0; }`;
+  document.head.append(pageStyle);
+}
 document.title = META.title;
 document.getElementById('diagram-title').textContent = META.title;
 document.getElementById('diagram-subtitle').textContent = META.subtitle ?? '';
@@ -766,7 +792,7 @@ document.getElementById('zoom-in').addEventListener('click', () => zoomTo(zoom *
 document.getElementById('zoom-out').addEventListener('click', () => zoomTo(zoom / 1.3));
 svg.addEventListener('wheel', event => {
   // Embedded in an article: plain wheel scrolls the page; Ctrl/⌘ + wheel zooms.
-  if (window.parent !== window && !event.ctrlKey && !event.metaKey) return;
+  if (slide || (window.parent !== window && !event.ctrlKey && !event.metaKey)) return;
   event.preventDefault();
   zoomTo(zoom * Math.exp(-event.deltaY * .0015), diagramPoint(event) ?? undefined);
 }, {passive: false});
@@ -802,11 +828,11 @@ function setTheme(theme) {
   themeButton.setAttribute('aria-label', `切换到${theme === 'dark' ? '浅色' : '深色'}主题`);
 }
 const requestedTheme = new URLSearchParams(location.search).get('theme');
-setTheme(['light', 'dark'].includes(requestedTheme) ? requestedTheme : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+setTheme(['light', 'dark'].includes(requestedTheme) ? requestedTheme : slide ? 'light' : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 themeButton.addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
 
 function reportHeight() {
-  if (window.parent === window) return;
+  if (slide || window.parent === window) return;
   const shell = document.querySelector('.diagram-shell');
   const chrome = document.querySelector('main').getBoundingClientRect().height - shell.getBoundingClientRect().height + 24;
   const height = Math.min(2400, Math.max(480, Math.ceil(shell.clientWidth * HEIGHT / WIDTH + chrome)));
@@ -817,6 +843,19 @@ function reportHeight() {
 new ResizeObserver(reportHeight).observe(document.querySelector('main'));
 paintCamera();
 updateHighlight();
+if (slide) {
+  const main = document.querySelector('main');
+  const frame = main.getBoundingClientRect();
+  const shell = document.querySelector('.diagram-shell');
+  const scale = Math.min(shell.clientWidth / WIDTH, shell.clientHeight / HEIGHT);
+  if (Math.abs(frame.width - slide.width) > 1 || Math.abs(frame.height - slide.height) > 1) {
+    throw new Error(`幻灯片应为 ${slide.width}×${slide.height}，实际 ${Math.round(frame.width)}×${Math.round(frame.height)}`);
+  }
+  if (main.scrollHeight > main.clientHeight + 1 || main.scrollWidth > main.clientWidth + 1) throw new Error('标题、图和图例超出幻灯片，精简图例或标题');
+  if (scale < MIN_SLIDE_SCALE) {
+    throw new Error(`图区 ${shell.clientWidth}×${shell.clientHeight}，画布 ${WIDTH}×${HEIGHT} 需缩放到 ${scale.toFixed(2)}，文字会小于 10pt；把画布控制在 ${Math.floor(shell.clientWidth / MIN_SLIDE_SCALE)}×${Math.floor(shell.clientHeight / MIN_SLIDE_SCALE)} 以内，或精简内容`);
+  }
+}
 </script>
 </body>
 </html>

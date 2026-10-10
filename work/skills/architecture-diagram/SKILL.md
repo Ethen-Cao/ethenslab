@@ -10,7 +10,7 @@ description: 创建或修改独立 HTML 软件架构图（框图、block diagram
 
 ## 起点与参考
 
-新图复制 [base-template.html](assets/base-template.html)，只改顶部数据段：`META`、`containers`、`nodes`、`edges`、`junctions`、`views`、`flows`。主题、节点、连线、跨线弧、分支点、缩放、聚焦、图例和嵌入高度已实现；数据错误会在控制台抛出。
+新图复制 [base-template.html](assets/base-template.html)，只改顶部数据段：`META`、`SLIDE`、`containers`、`nodes`、`edges`、`junctions`、`views`、`flows`。主题、节点、连线、跨线弧、分支点、缩放、聚焦、图例和嵌入高度已实现；数据错误会在控制台抛出。
 
 以下参考只看布局，路径相对于本 skill；不要每次读取全部 HTML。
 
@@ -93,7 +93,7 @@ description: 创建或修改独立 HTML 软件架构图（框图、block diagram
 - Hypervisor 共同承载多个并列 VM 时，画成它们下方的独立横向层带：左边界对齐最左 VM，右边界对齐最右 VM 的外边界，覆盖 VM 之间的间隔；不缩成某个 VM 下方的小组件，也不延伸到不受其承载的域。
   - 用中性容器表示层带，标题使用实际名称，如 `Gunyah Hypervisor`；需要展开的实现组件放在层带内部，按来源着色，不重复绘制同一 Hypervisor。
   - 层带表示共同承载，不是所有数据必经的处理节点。像素/数据线仍连接实际读写组件与内存，可经过层带空白区域但不得穿过标题或内部组件；不因穿越层带而添加箭头或连接点。Hypervisor 的实际调用与配置关系另行明确表达。
-- 系统级 Android 可用 Applications → Framework/Runtime → Native/HAL → Kernel；Android 子模块按 Java → Native → HAL → Linux kernel 分层。其他 OS 按实际架构划分。
+- Android 可用 Applications → Framework/Runtime → Native/HAL → Kernel或者 Java → Native → HAL → Linux kernel 分层。其他 OS 按实际架构划分。
 - 子模块的进程用独立容器，库/类放在所属进程内；同级依赖并列，不因布局方便伪造成串行调用。
 - 同层对齐、统一间距，跨列/跨层路径预留走线通道；不同 OS 无需强凑同名层。
 - 按数据交接关系布局硬件与内存：物理 I/O 链按真实连接顺序排列；Buffer／共享内存作为独立资源，优先布置在实际读写它的硬件单元与软件组件之间。通过位置和箭头明确谁写入、谁读取，使主数据流连续、少折返，不把内存当作物理链路中的串行处理节点。软件在上、物理接口在下时，内存通常位于两者之间；不强制内存固定在硬件上方。
@@ -102,6 +102,25 @@ description: 创建或修改独立 HTML 软件架构图（框图、block diagram
 - 涉及显示硬件时，将处理单元、共享图像内存和显示接口组织在硬件区域，物理输出链放在下一行；内存用堆叠矩形。
 - 容器标题占顶部：domain 50、process 40、layer 48（含分隔线），子容器和节点放在其下，memory 节点另留 8；越界时模板直接报错。连线不穿过容器标题，也不贴着容器边框走（间距至少 6）。
 - 内容过多时扩大画布（`WIDTH`/`HEIGHT`）、加局部放大（`views`）或路径聚焦（`flows`），或拆图；不缩小字体塞进固定宽高比。
+
+## PPT 版式
+
+用户要求 PPT / 幻灯片版式时，设置模板的 `SLIDE`，页面即为一张固定尺寸的幻灯片：
+
+- 尺寸：未指定比例时用 `'16:9'`（PowerPoint 默认 13.333 × 7.5 in → 1280 × 720）；4:3 用 `'4:3'`（10 × 7.5 in → 960 × 720）；用户给出具体尺寸时按 96 dpi 换算为 `{width, height}`（1 in = 96 px，1 cm ≈ 37.8 px），宽高比与给定尺寸一致。
+- 幻灯片内只保留标题、图和图例；工具栏、聚焦按钮、详情和依据自动隐藏，默认浅色主题，打印页面尺寸自动设为幻灯片尺寸。
+- 画布 `WIDTH`/`HEIGHT` 按图区（幻灯片去掉标题和图例后的区域）的比例设计。缩放后节点主标题不得低于 10pt（缩放比例 ≥ 0.83），模板和检查脚本对此报错并给出画布上限；放不下就精简，不缩小字号。比例不一致导致大面积留白时按 `slide-letterbox` 提示调整。
+- 导出图片或 PDF 时，视口等于幻灯片尺寸：
+
+  ```js
+  const context = await browser.newContext({viewport: {width: 1280, height: 720}, deviceScaleFactor: 2});
+  const page = await context.newPage();
+  await page.goto('file:///<path>/diagram.html');
+  await page.screenshot({path: 'slide.png'});  // 2560×1440，插入 PPT 时铺满整页
+  await page.pdf({path: 'slide.pdf', width: '1280px', height: '720px', printBackground: true});
+  ```
+
+- 交付说明写明版式、像素尺寸和导出文件。
 
 ## 命名与文字
 
@@ -136,7 +155,7 @@ description: 创建或修改独立 HTML 软件架构图（框图、block diagram
 ## 修改与验收
 
 - 修改现有图时保留已确认的命名、层次和锚点，只调整相关节点与路径，避免无关重排。
-- 用 [check-diagram.js](scripts/check-diagram.js) 做几何检查：`errors` 必须为空，`warnings` 逐条修正或确认合理。它检查重复 ID、未知端点、节点/容器归属、节点压住容器标题、连线穿过标题或节点、贴边框走线、箭头贴边与方向、单线锚点居中、背向对方连接、绕出容器、重复交叉、同节点连线互相交叉、走线过繁、节点重叠、文字溢出、主标题缩字、箭头堆叠、交叉缺弧、连线重合和标签遮挡：
+- 用 [check-diagram.js](scripts/check-diagram.js) 做几何检查：`errors` 必须为空，`warnings` 逐条修正或确认合理。它检查重复 ID、未知端点、节点/容器归属、节点压住容器标题、连线穿过标题或节点、贴边框走线、箭头贴边与方向、单线锚点居中、背向对方连接、绕出容器、重复交叉、同节点连线互相交叉、走线过繁、节点重叠、文字溢出、主标题缩字、箭头堆叠、交叉缺弧、连线重合和标签遮挡，以及 PPT 版式的尺寸、溢出、最小字号和留白：
 
   ```js
   await page.goto('file:///<path>/diagram.html?theme=dark');
