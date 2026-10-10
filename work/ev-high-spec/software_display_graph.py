@@ -96,7 +96,7 @@ DISPLAY_NAMES = {
     'display-bufferqueue': ('BLASTBufferQueue', 'Buffer transactions'),
     'display-flinger': ('SurfaceFlinger', 'Compose / present layers'),
     'display-gralloc': ('libgralloccore.so / QtiMapper', 'Allocate / import buffers'),
-    'display-composer': ('HWCSession', 'Validate / present layers'),
+    'display-composer': ('IComposer / IComposerClient', 'HIDL 2.4 · Composer HAL'),
     'display-sdm': ('libsdmcore.so', 'Display composition plan'),
     'display-drm-adapter': ('libsdedrm.so / libdrmutils.so\nlibdrm.so', 'DRM objects / atomic commit'),
     'display-renderengine': ('RenderEngine', 'GPU composition'),
@@ -173,7 +173,7 @@ def make_routes():
     r.add('display-bufferqueue','display-gralloc',[(1990,625),(2030,625),(2030,905),(1565,905),(1565,935)],kind='storage',flow='buffers',both=True,label='Allocate / import',at=(1565,920))
     r.add('display-gralloc','display-flinger',[(1690,965),(1700,965),(1700,755),(1740,755)],kind='storage',flow='buffers',note='Mapper imports GraphicBuffer handles for composition')
     r.add('display-flinger','display-composer',[(1910,765),(1910,935)],flow='control,buffers,events',both=True,label='Validate / present · fences',at=(1900,885))
-    r.add('display-composer','display-sdm',[(1865,995),(1865,1020)],flow='control,buffers',note='Calls the vendor composition and display commit implementation')
+    r.add('display-composer','display-sdm',[(1865,995),(1865,1020)],flow='control,buffers',note='Composer HAL dispatches through HWCSession to the SDM implementation')
     r.add('display-sdm','display-drm-adapter',[(1865,1080),(1865,1105)],flow='control,buffers',note='Calls the DRM adapter for display submission')
     r.add('display-drm-adapter','display-composer',[(1740,1145),(1715,1145),(1715,980),(1740,980)],kind='status',flow='events',label='Fences / VSync',at=(1715,1095))
     r.add('display-drm-adapter','display-wfd-fe',[(1865,1165),(1865,1230)],flow='control,buffers,events',both=True,label='DRM / KMS · local fences',at=(1865,1195))

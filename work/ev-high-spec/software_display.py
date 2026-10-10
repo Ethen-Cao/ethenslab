@@ -113,10 +113,10 @@ MODULES = [
     module('display-gralloc', 'libgralloccore.so / QtiMapper', 'aaos', 'Allocate / import buffers',
            'libgralloccore.so 提供缓冲分配和管理，QtiMapper 负责句柄导入及映射接口，供 GPU 和显示路径使用。',
            'android/android/hardware/qcom/display/gralloc/Android.bp:42–43、87–94、173–217；QtiMapper4.h:79；gr_buf_mgr.cpp:1011；gr_dma_mgr.cpp。'),
-    module('display-composer', 'HWCSession', 'aaos', 'Validate / present layers',
-           'HWCSession 接收图层与 client target，执行 validate/present，并调用 SDM 完成显示提交。',
-           'android/android/hardware/qcom/display/sdm/libs/hwc2/hwc_session.h:89；hwc_session.cpp；Android.mk:7、51、71。composer-aidl/Android.bp:95–96、108–123 将 HWCSession 编入 composer-service；config/display-product.mk:40–56 选择接口。',
-           '核心类在 HWC2 与 AIDL 两条实现分支中均存在；具体服务与库名以产品构建配置为准。'),
+    module('display-composer', 'IComposer / IComposerClient', 'aaos', 'HIDL 2.4 · Composer HAL',
+           'IComposer 创建合成客户端；IComposerClient 接收图层与显示命令，返回合成结果、fence 和显示事件。服务内部经 HWC2 适配调用 HWCSession，再由 SDM 完成显示提交。',
+           ANDROID+'out/soong/soong.variables:5–6、209–210（Android 13，target_hidl）；hardware/qcom/display/config/display-product.mk:40–56；hardware/qcom/display/sdm/libs/hwc2/android.hardware.graphics.composer-qti-display.xml:30–37；hardware/interfaces/graphics/composer/2.4/IComposer.hal:22、30；IComposerClient.hal:29；default/service.cpp:42–46；utils/hal/include/composer-hal/2.4/Composer.h:38、48–73；hardware/qcom/display/sdm/libs/hwc2/hwc_session.h:89。',
+           '当前产品构建选择 HIDL 2.4。AidlComposer / AidlComposerClient 是另一条 AIDL 实现分支，HWCSession 是服务内部的实现类。'),
     module('display-sdm', 'libsdmcore.so', 'aaos', 'Display composition plan',
            '规划图层与硬件资源，组织显示提交，并经 DRM 适配层访问来宾显示驱动。',
            'android/android/hardware/qcom/display/sdm/libs/core/Android.bp:1–2、21–26、29–50；display_base.cpp；drm/hw_device_drm.cpp。'),
@@ -200,8 +200,8 @@ FLOWS = [
     ('4 · ViewRootImpl / ThreadedRenderer / RenderNode → libhwui.so / RenderThread; Surface / ANativeWindow → BLASTBufferQueue → SurfaceFlinger',
      'Buffer references / synchronization', 'GraphicBuffer handles · local fences',
      'Java 视图经 HWUI 绘制；SurfaceView 和原生客户端使用各自的 Surface。完成的帧通过 BLAST 事务交给 SurfaceFlinger。'),
-    ('5 · SurfaceFlinger → HWCSession → libsdmcore.so → libsdedrm.so / libdrmutils.so / libdrm.so',
-     'Control / buffer references', 'Validate · present · DRM atomic API',
+    ('5 · SurfaceFlinger → IComposer / IComposerClient → HWCSession → libsdmcore.so → libsdedrm.so / libdrmutils.so / libdrm.so',
+     'Control / buffer references', 'HIDL 2.4 · validate / present · DRM atomic API',
      '选择硬件图层或 client composition，提交图层配置与所选扫描缓冲引用。'),
     ('6 · RenderThread / ANativeActivity / RenderEngine → libEGL.so / libvulkan.so → Adreno drivers → libgsl.so → qcom_hgsl.ko',
      'Rendering / driver calls', 'AOSP EGL/GLES or Vulkan loader · libgsl · ioctl',
@@ -239,7 +239,7 @@ FLOWS = [
     ('17 · qdidsihost / qdidphost → DSI / DP Controller & PHY',
      'Hardware configuration', 'Driver calls · HAL register access',
      '接口驱动通过 HAL 配置控制器、PHY、时钟与链路；该配置路径独立于硬件像素传输路径。'),
-    ('18 · openwfd_server → wfd_be → msm_hyp.ko → HWCSession / SurfaceFlinger',
+    ('18 · openwfd_server → wfd_be → msm_hyp.ko → HWCSession → Composer callbacks → SurfaceFlinger',
      'Events / feedback', 'COMMIT_COMPLETE · VSYNC · HPD · local guest fences',
      '完成与显示事件经 HAB 返回，来宾处理事件并更新本域同步状态。'),
 ]
@@ -275,5 +275,5 @@ def render_display():
   <div class="sw-ota-inspector" id="sw-display-inspector" role="status" aria-live="polite">Select a component to highlight its connections. Right-click to clear selection.</div>
   <section class="sw-index" aria-labelledby="sw-display-index-title"><div class="sw-section-heading"><h3 id="sw-display-index-title">Module responsibilities</h3><p lang="zh-CN">职责和源码来源列于下方；点击模块可查看源码来源；屏幕映射按产品配置核对。</p></div>{index}</section>
   <section class="sw-interfaces" aria-labelledby="sw-display-flows-title"><div class="sw-section-heading"><h3 id="sw-display-flows-title">Interfaces &amp; data flow</h3></div><div class="sw-flow-table-wrap"><table class="sw-flow-table"><thead><tr><th>Components</th><th>Flow type</th><th>API / transport</th><th>Behavior</th></tr></thead><tbody>{rows}</tbody></table></div></section>
-  <div class="sw-provenance" lang="zh-CN">依据当前 QNX Hoya、Android 13 图形源码、HBEZ 图形配置与镜像清单整理，参考 GSL Host/Guest 交互图和 graphics.md 的通用渲染分层。Android 按 Java、Native、HAL、Linux Kernel 展开；块名采用已核实的动态库、核心类或驱动名。左列为渲染驱动，右列为缓冲提交与显示合成。ANativeActivity 为原生应用入口示例。QNX 左列为显示提交链，右列为配置与 Guest / GPU 接入组件。块名采用进程、库或构建组件名；openwfd_core、QDI 和 DSI/DP host 以静态版本链接进服务。面板块列代表库，具体选用清单见模块来源。跨域传递 OpenWFD 请求、缓冲 ID 与事件，像素保存在帧缓冲中。GSL 对应 libGSLUser.so，KGSL 对应 kgsl / GSLKernel.so。共享命令队列列为 HGSL 能力；控制 RPC 经 HAB。当前跨 VM 路径使用 QVM/HAB。屏幕端口、分辨率及物理链路以板级配置为准。</div>
+  <div class="sw-provenance" lang="zh-CN">依据当前 QNX Hoya、Android 13 图形源码、HBEZ 图形配置与镜像清单整理，参考 GSL Host/Guest 交互图和 graphics.md 的通用渲染分层。Android 按 Java、Native、HAL、Linux Kernel 展开；块名采用已核实的动态库、核心类或驱动名；Composer HAL 优先标出 IComposer / IComposerClient 接口，当前产品构建选择 HIDL 2.4。左列为渲染驱动，右列为缓冲提交与显示合成。ANativeActivity 为原生应用入口示例。QNX 左列为显示提交链，右列为配置与 Guest / GPU 接入组件。块名采用进程、库或构建组件名；openwfd_core、QDI 和 DSI/DP host 以静态版本链接进服务。面板块列代表库，具体选用清单见模块来源。跨域传递 OpenWFD 请求、缓冲 ID 与事件，像素保存在帧缓冲中。GSL 对应 libGSLUser.so，KGSL 对应 kgsl / GSLKernel.so。共享命令队列列为 HGSL 能力；控制 RPC 经 HAB。当前跨 VM 路径使用 QVM/HAB。屏幕端口、分辨率及物理链路以板级配置为准。</div>
 </div>''', {'modules': MODULES, 'flows': FLOWS}
