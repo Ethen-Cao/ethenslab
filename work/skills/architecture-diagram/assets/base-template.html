@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>示例软件架构图</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f8f9fa; --panel: #fff; --ink: #202124; --muted: #5f6368;
+    --line: #cbd1d8; --domain: #f5f6f7; --process: #fff;
+    --oem: #4285F4; --native: #34A853; --vendor: #FBBC04; --hardware: #9AA0A6;
+    --node-ink: #102116; --hardware-ink: #202124; --hardware-surface: #edf0f2;
+    --blue: #356dc9; --green: #237a44; --focus: #202124; --fade: .12;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --page: #202124; --panel: #282a2d; --ink: #e8eaed; --muted: #afb5be;
+    --line: #565c66; --domain: #242629; --process: #303337;
+    --hardware: #5F6368; --hardware-ink: #fff; --hardware-surface: #3c4043;
+    --blue: #8ab4f8; --green: #81c995; --focus: #fff; --fade: .14;
+  }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body { margin: 0; padding: 12px; background: var(--page); color: var(--ink); font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
+  main { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  h1 { display: inline; margin: 0; font-size: 19px; line-height: 1.3; letter-spacing: -.4px; }
+  .subtitle { margin-left: 10px; color: var(--muted); font-size: 11px; }
+  .tools, .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+  .tools { margin-left: auto; }
+  .filters[hidden] { display: none; }
+  button { padding: 4px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+  button:hover { border-color: var(--blue); }
+  button[aria-pressed="true"] { background: var(--blue); color: var(--panel); border-color: var(--blue); }
+  button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  button:disabled { opacity: .35; cursor: default; }
+  #zoom-level { width: 42px; font-size: 11px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+  .filter-label { color: var(--muted); margin-right: 5px; font-size: 11px; }
+  .hint { color: var(--muted); margin-left: auto; font-size: 11px; }
+  .diagram-shell { flex: 1 1 0; min-height: 160px; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  svg { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; }
+  svg text { font-family: inherit; fill: var(--ink); user-select: text; cursor: text; }
+  svg.zoomed { cursor: grab; }
+  svg.panning, svg.panning * { cursor: grabbing; user-select: none; }
+  .domain { fill: var(--domain); stroke: var(--line); stroke-width: 1.4; }
+  .process { fill: var(--process); stroke: var(--muted); stroke-width: 1.3; }
+  .layer { fill: var(--process); stroke: var(--line); stroke-width: 1.5; }
+  .layer-rule { fill: none; stroke: var(--line); stroke-width: 1; }
+  .domain-title { font-size: 25px; font-weight: 720; }
+  .process-title { font-size: 19px; font-weight: 680; }
+  .layer-title { font-size: 21px; font-weight: 720; }
+  .container-sub { font-size: 13px; fill: var(--muted); }
+  .edge { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .edge.control { stroke: var(--blue); stroke-width: 2.1; }
+  .edge.notification { stroke-dasharray: 3 5; }
+  .edge.data { stroke: var(--green); stroke-width: 3.3; }
+  .edge.encrypted { stroke: var(--muted); stroke-width: 2; }
+  .edge.config { stroke: var(--muted); stroke-width: 1.8; stroke-dasharray: 6 5; }
+  .edge-halo { fill: none; stroke: var(--panel); stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+  .marker { fill: none; }
+  .marker.control { stroke: var(--blue); }
+  .marker.data { stroke: var(--green); }
+  .marker.encrypted, .marker.config { stroke: var(--muted); }
+  .flow-junction.control { fill: var(--blue); }
+  .flow-junction.data { fill: var(--green); }
+  .flow-junction.encrypted, .flow-junction.config { fill: var(--muted); }
+  .edge-label rect { fill: var(--panel); opacity: .97; }
+  .edge-label text { font-size: 13px; font-weight: 550; }
+  .edge-label.control text { fill: var(--blue); }
+  .edge-label.data text { fill: var(--green); }
+  .edge-label.encrypted text, .edge-label.config text { fill: var(--muted); }
+  .node { cursor: pointer; }
+  .node rect { stroke: transparent; stroke-width: 1.5; }
+  .node.oem rect { fill: var(--oem); }
+  .node.native rect { fill: var(--native); }
+  .node.vendor rect { fill: var(--vendor); }
+  .node.hardware rect { fill: var(--hardware); }
+  .node.neutral rect { fill: var(--process); stroke: var(--muted); }
+  .node text { fill: var(--node-ink); }
+  .node.hardware text { fill: var(--hardware-ink); }
+  .node.neutral text { fill: var(--ink); }
+  .node.memory rect { stroke: var(--panel); stroke-width: 2; }
+  .node.zone rect { fill: var(--hardware-surface); stroke: var(--hardware); stroke-width: 1.5; }
+  .node.zone .node-sub { fill: var(--muted); }
+  .node.configured rect { fill: var(--process); stroke: var(--muted); stroke-dasharray: 5 4; }
+  .node.configured text { fill: var(--muted); }
+  .node:hover .face, .node:focus-visible .face { stroke: var(--focus); stroke-width: 2.8; }
+  .node.selected .face { stroke: var(--focus); stroke-width: 4; }
+  .node:focus { outline: none; }
+  .node-name { font-size: 16px; font-weight: 680; }
+  .node-sub { font-size: 12px; }
+  .dim { opacity: var(--fade); }
+  .node, .edge-group, .edge-label, .bridge, .flow-junction { transition: opacity .12s; }
+  footer { display: flex; flex-direction: column; gap: 3px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 11px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .legend b { color: var(--ink); font-weight: 600; }
+  .chip { display: inline-block; width: 17px; height: 11px; border: 1px solid transparent; border-radius: 2px; }
+  .chip.oem { background: var(--oem); }
+  .chip.native { background: var(--native); }
+  .chip.vendor { background: var(--vendor); }
+  .chip.hardware { background: var(--hardware); }
+  .chip.neutral { background: var(--process); border-color: var(--muted); }
+  .chip.configured { background: var(--process); border: 1px dashed var(--muted); }
+  .line { display: inline-block; width: 23px; border-top: 2px solid var(--blue); }
+  .line.notification { border-top-style: dotted; }
+  .line.data { border-color: var(--green); border-top-width: 3px; }
+  .line.encrypted { border-color: var(--muted); }
+  .line.config { border-color: var(--muted); border-top-style: dashed; }
+  .sources { font-size: 10px; color: var(--muted); }
+  .sources:empty { display: none; }
+  .sources a { color: var(--blue); }
+  .detail { padding: 7px 11px; border-left: 3px solid var(--blue); border-radius: 0 5px 5px 0; background: var(--panel); min-height: 58px; max-height: 112px; overflow: auto; font-size: 12px; }
+  .detail[hidden] { display: none; }
+  .detail strong { font-size: 13px; margin-right: 9px; }
+  #detail-body { color: var(--muted); }
+  @media (max-width: 900px) { body { padding: 7px; } h1 { font-size: 16px; } .subtitle, .hint { display: none; } .tools { gap: 3px; } button { padding: 3px 7px; } }
+  @media (max-width: 540px) { header { gap: 6px; } .tools { margin-left: 0; width: 100%; } .legend { gap: 3px 10px; font-size: 10px; } .filters { gap: 4px; } .detail { max-height: 100px; font-size: 11px; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media print { html, body { height: auto; overflow: visible; background: #fff; } main { display: block; } .tools, .filters, .detail { display: none; } .diagram-shell { height: auto; border: 0; } svg { height: auto; } .legend { margin-top: 8px; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1 id="diagram-title"></h1><span class="subtitle" id="diagram-subtitle"></span></div>
+    <div class="tools">
+      <button id="fit" type="button">适应画布</button>
+      <button id="zoom-out" type="button" aria-label="缩小">−</button><span id="zoom-level" aria-live="polite">100%</span><button id="zoom-in" type="button" aria-label="放大">+</button>
+      <button id="clear" type="button">清除选择</button><button id="theme" type="button">深色</button>
+    </div>
+  </header>
+  <nav class="filters" id="filters" aria-label="路径聚焦" hidden></nav>
+  <section class="diagram-shell" aria-label="可缩放架构图">
+    <svg id="architecture" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-desc">
+      <title id="svg-title"></title>
+      <desc id="svg-desc"></desc>
+      <defs>
+        <clipPath id="frame-clip"><rect id="frame-rect" x="0" y="0"/></clipPath>
+        <marker id="arrow-control" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path class="marker control" d="M1 1 L8 5 L1 9" stroke-width="2"/></marker>
+        <marker id="arrow-data" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto" markerUnits="userSpaceOnUse"><path class="marker data" d="M1 1 L9 5.5 L1 10" stroke-width="2.5"/></marker>
+        <marker id="arrow-encrypted" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path class="marker encrypted" d="M1 1 L8 5 L1 9" stroke-width="2"/></marker>
+        <marker id="arrow-config" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path class="marker config" d="M1 1 L8 5 L1 9" stroke-width="1.8"/></marker>
+      </defs>
+      <g clip-path="url(#frame-clip)"><g id="viewport">
+        <g id="containers"></g><g id="edges"></g><g id="bridge-overlays" pointer-events="none"></g><g id="nodes"></g><g id="edge-labels" pointer-events="none"></g>
+      </g></g>
+    </svg>
+  </section>
+  <footer><div class="legend" id="legend" aria-label="图例"></div><div class="sources" id="sources"></div></footer>
+  <aside class="detail" aria-live="polite" aria-atomic="true" hidden><strong id="detail-title"></strong><span id="detail-body"></span></aside>
+</main>
+<script>
+'use strict';
+/* ==================== 图数据：新图只修改本段 ==================== */
+// 嵌入文章时，高度消息类型为 `${DIAGRAM_ID}-height`。
+const DIAGRAM_ID = 'example-architecture';
+const META = {
+  title: '示例软件架构图',
+  subtitle: '示例 OS · SoC Hardware',
+  description: '示例 OS 内两个用户态进程分别经内核接口访问硬件；共享内存向 GPU 与 DPU 扇出，内核驱动通过 doorbell 通知固件。',
+  sources: [{text: 'AOSP Graphics', href: 'https://source.android.com/docs/core/graphics/architecture'}]
+};
+const WIDTH = 1200, HEIGHT = 760;
+// 图例文字可按本图改写；图例只显示实际用到的类别。
+const KIND_LABELS = {oem: 'OEM 自研', native: '系统原生', vendor: 'Vendor / Tier1', hardware: '硬件 / 内存', neutral: '来源未确定', configured: '仅配置'};
+const EDGE_LABELS = {control: '调用 / 控制', notification: '通知 / doorbell', data: '数据 / 像素', encrypted: '密文数据', config: '配置 / 分配（非逐次）'};
+
+// kind: domain | process | layer；父容器写在子容器之前。
+const containers = [
+  {id: 'os', kind: 'domain', x: 20, y: 20, w: 1160, h: 470, title: '示例 OS', sub: 'VM 1'},
+  {id: 'example-service', kind: 'process', parent: 'os', x: 40, y: 76, w: 520, h: 254, title: 'example_service'},
+  {id: 'vendor-daemon', kind: 'process', parent: 'os', x: 620, y: 76, w: 540, h: 254, title: 'vendor_daemon'},
+  {id: 'kernel', kind: 'layer', parent: 'os', x: 40, y: 350, w: 1120, h: 124, title: 'Linux kernel'},
+  {id: 'soc', kind: 'domain', x: 20, y: 520, w: 1160, h: 220, title: 'SoC Hardware'}
+];
+
+// kind: oem | native | vendor | hardware | neutral；可选 memory（堆叠）、zone（硬件面板）、configured（仅配置）。
+const nodes = [
+  {id: 'app', kind: 'oem', parent: 'example-service', x: 130, y: 124, w: 200, h: 56, name: ['libexample.so'], sub: ['策略与调度'], detail: '示例 OEM 自研库，调用系统原生库。'},
+  {id: 'core', kind: 'native', parent: 'example-service', x: 130, y: 236, w: 200, h: 56, name: ['libnative.so'], sub: ['系统原生实现'], detail: '示例系统原生库，经设备文件访问内核驱动。'},
+  {id: 'client', kind: 'neutral', parent: 'example-service', x: 360, y: 124, w: 180, h: 56, name: ['libclient.so'], sub: ['来源待确认'], detail: '来源未确认的组件使用中性色。'},
+  {id: 'vendor', kind: 'vendor', parent: 'vendor-daemon', x: 660, y: 124, w: 220, h: 56, name: ['libvendor.so'], sub: ['平台服务'], detail: '示例 Vendor 实现。'},
+  {id: 'reserved', kind: 'neutral', configured: true, parent: 'vendor-daemon', x: 920, y: 124, w: 200, h: 56, name: ['预留客户端'], sub: ['仅配置'], detail: '仅存在静态配置，不表示活动进程。'},
+  {id: 'drv', kind: 'native', parent: 'kernel', x: 110, y: 404, w: 240, h: 56, name: ['/dev/demo · demo_drv'], sub: [], detail: '内核对外接口写“文件路径 · 模块名”。'},
+  {id: 'vdrv', kind: 'vendor', parent: 'kernel', x: 650, y: 404, w: 240, h: 56, name: ['/dev/vdemo · vdemo'], sub: [], detail: 'Vendor 内核驱动。'},
+  {id: 'buf', kind: 'hardware', memory: true, parent: 'soc', x: 80, y: 616, w: 200, h: 60, name: ['Shared Buffer'], sub: ['共享图像内存'], detail: '内存使用堆叠矩形。'},
+  {id: 'gpu', kind: 'hardware', zone: true, parent: 'soc', x: 480, y: 576, w: 220, h: 50, name: ['GPU'], sub: [], detail: '硬件区域面板变体。'},
+  {id: 'dpu', kind: 'hardware', zone: true, parent: 'soc', x: 480, y: 676, w: 220, h: 50, name: ['DPU'], sub: [], detail: '硬件区域面板变体。'},
+  {id: 'fw', kind: 'vendor', parent: 'soc', x: 930, y: 616, w: 220, h: 60, name: ['demo firmware'], sub: ['firmware'], detail: '固件按来源着色并标明 firmware。'}
+];
+
+// type: control | data | encrypted | config；notification: true 为通知/doorbell（仅用于 control）。
+// 端点由 fromSide/toSide（top|bottom|left|right，默认 bottom → top）加 fromOffset/toOffset 计算。
+// via 依次给出折点，每项只写 x 或 y；末段自动补成垂直于 toSide 的折线。也可直接写绝对坐标 d（仅 M/H/V/L）。
+// 标签默认放在最长段旁，可用 lx/ly/labelAnchor 覆盖。
+const edges = [
+  {id: 'app-core', from: 'app', to: 'core', type: 'control', label: '调用'},
+  {id: 'core-drv', from: 'core', to: 'drv', type: 'control', label: 'ioctl', lx: 240, ly: 318, labelAnchor: 'start'},
+  {id: 'client-vendor', from: 'client', to: 'vendor', type: 'control', fromSide: 'right', toSide: 'left', label: 'IPC'},
+  {id: 'vendor-vdrv', from: 'vendor', to: 'vdrv', type: 'control', label: 'ioctl'},
+  {id: 'vdrv-fw', from: 'vdrv', to: 'fw', type: 'control', notification: true, via: [{y: 500}], label: 'doorbell', lx: 1050, ly: 572, labelAnchor: 'start'},
+  {id: 'reserved-fw', from: 'reserved', to: 'fw', type: 'config', fromOffset: -30, toOffset: -50, label: '预留'},
+  {id: 'buf-gpu', from: 'buf', to: 'gpu', type: 'data', fromSide: 'right', toSide: 'left', via: [{x: 400}], label: '读取', lx: 440, ly: 591},
+  {id: 'buf-dpu', from: 'buf', to: 'dpu', type: 'data', fromSide: 'right', toSide: 'left', via: [{x: 400}], label: '取图', lx: 440, ly: 723}
+];
+
+// 分支实心点：列出共享前缀的扇出连线，点位自动计算。
+const junctions = [{edges: ['buf-gpu', 'buf-dpu']}];
+// 局部放大按钮（区域坐标）。
+const views = [{label: '放大硬件', x: 20, y: 520, w: 740, h: 230}];
+// 路径聚焦按钮。
+const flows = [
+  {id: 'control', label: '控制路径', edges: ['app-core', 'core-drv', 'client-vendor', 'vendor-vdrv'], detail: '用户态库经 IPC 与 ioctl 到达内核驱动。'},
+  {id: 'data', label: '数据路径', edges: ['buf-gpu', 'buf-dpu'], detail: '共享内存同时被 GPU 读取和 DPU 取图。'}
+];
+
+/* ==================== 通用实现：一般无需修改 ==================== */
+const NS = 'http://www.w3.org/2000/svg';
+const NODE_KINDS = ['oem', 'native', 'vendor', 'hardware', 'neutral'];
+const EDGE_TYPES = ['control', 'data', 'encrypted', 'config'];
+const CONTAINER_TITLES = {domain: ['domain-title', 36], process: ['process-title', 28], layer: ['layer-title', 28]};
+const MAX_ZOOM = 5;
+const svg = document.getElementById('architecture');
+const viewport = document.getElementById('viewport');
+const filterNav = document.getElementById('filters');
+const nodeElements = new Map(), edgeElements = new Map();
+let selection = null, activeFlow = null, zoom = 1, camera = {x: 0, y: 0}, drag = null, suppressClick = false, lastHeight = 0;
+
+function element(tag, attrs, parent, text) {
+  const item = document.createElementNS(NS, tag);
+  for (const [key, value] of Object.entries(attrs || {})) if (value !== undefined) item.setAttribute(key, value);
+  if (text !== undefined) item.textContent = text;
+  if (parent) parent.appendChild(item);
+  return item;
+}
+function indexById(list, label) {
+  const map = new Map();
+  for (const item of list) {
+    if (map.has(item.id)) throw new Error(`Duplicate ${label} id: ${item.id}`);
+    map.set(item.id, item);
+  }
+  return map;
+}
+const containerById = indexById(containers, 'container');
+const nodeById = indexById(nodes, 'node');
+const edgeById = indexById(edges, 'edge');
+const flowById = indexById(flows, 'flow');
+for (const c of containers) {
+  if (!CONTAINER_TITLES[c.kind]) throw new Error(`Unknown container kind: ${c.id}`);
+  if (c.parent && !containerById.has(c.parent)) throw new Error(`Unknown parent container: ${c.id}`);
+}
+for (const n of nodes) {
+  if (!NODE_KINDS.includes(n.kind)) throw new Error(`Unknown node kind: ${n.id}`);
+  if (n.parent && !containerById.has(n.parent)) throw new Error(`Unknown parent container: ${n.id}`);
+}
+for (const e of edges) {
+  if (!nodeById.has(e.from) || !nodeById.has(e.to)) throw new Error(`Unknown edge endpoint: ${e.id}`);
+  if (!EDGE_TYPES.includes(e.type)) throw new Error(`Unknown edge type: ${e.id}`);
+  if (e.notification && e.type !== 'control') throw new Error(`Notification must be a control edge: ${e.id}`);
+}
+for (const group of [...flows, ...junctions]) {
+  for (const id of group.edges) if (!edgeById.has(id)) throw new Error(`Unknown edge in flow/junction: ${id}`);
+}
+
+const fmt = value => String(Math.round(value * 100) / 100);
+function anchor(node, side, offset = 0) {
+  if (side === 'top') return {x: node.x + node.w / 2 + offset, y: node.y};
+  if (side === 'bottom') return {x: node.x + node.w / 2 + offset, y: node.y + node.h};
+  if (side === 'left') return {x: node.x, y: node.y + node.h / 2 + offset};
+  if (side === 'right') return {x: node.x + node.w, y: node.y + node.h / 2 + offset};
+  throw new Error(`Unknown side: ${side}`);
+}
+function buildRoute(edge) {
+  const toSide = edge.toSide ?? 'top';
+  const start = anchor(nodeById.get(edge.from), edge.fromSide ?? 'bottom', edge.fromOffset);
+  const end = anchor(nodeById.get(edge.to), toSide, edge.toOffset);
+  const points = [start];
+  let point = start;
+  for (const step of edge.via ?? []) {
+    if (('x' in step) === ('y' in step)) throw new Error(`Each via step sets exactly one of x/y: ${edge.id}`);
+    point = {x: step.x ?? point.x, y: step.y ?? point.y};
+    points.push(point);
+  }
+  if (point.x !== end.x && point.y !== end.y) {
+    points.push(toSide === 'top' || toSide === 'bottom' ? {x: end.x, y: point.y} : {x: point.x, y: end.y});
+  }
+  points.push(end);
+  let d = `M${fmt(start.x)} ${fmt(start.y)}`;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    if (a.x === b.x && a.y === b.y) continue;
+    d += a.y === b.y ? ` H${fmt(b.x)}` : ` V${fmt(b.y)}`;
+  }
+  return d;
+}
+// routeCrossingBridges() only understands absolute orthogonal M/H/V/L; fail loudly instead of skipping bridges.
+function routePoints(edge) {
+  if (/[^\d\s.,+\-eEMHVL]/.test(edge.d)) throw new Error(`Route must use absolute M/H/V/L only: ${edge.id}`);
+  const tokens = edge.d.match(/[MHVL]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g) || [];
+  const points = [];
+  let command = null, index = 0;
+  const read = () => {
+    const value = Number(tokens[index++]);
+    if (!Number.isFinite(value)) throw new Error(`Bad route coordinate: ${edge.id}`);
+    return value;
+  };
+  while (index < tokens.length) {
+    if (/^[MHVL]$/.test(tokens[index])) command = tokens[index++];
+    const last = points[points.length - 1];
+    let next;
+    if (command === 'M') {
+      if (last) throw new Error(`Route must be a single subpath: ${edge.id}`);
+      next = {x: read(), y: read()};
+      command = 'L';
+    } else if (!last) throw new Error(`Route must start with M: ${edge.id}`);
+    else if (command === 'L') next = {x: read(), y: read()};
+    else if (command === 'H') next = {x: read(), y: last.y};
+    else next = {x: last.x, y: read()};
+    if (last && last.x !== next.x && last.y !== next.y) throw new Error(`Route must be orthogonal: ${edge.id}`);
+    if (!last || last.x !== next.x || last.y !== next.y) points.push(next);
+  }
+  if (points.length < 2) throw new Error(`Route too short: ${edge.id}`);
+  return points;
+}
+for (const edge of edges) {
+  edge.d = edge.d ?? buildRoute(edge);
+  edge.points = routePoints(edge);
+}
+
+function labelPosition(edge) {
+  if (edge.lx !== undefined && edge.ly !== undefined) return {x: edge.lx, y: edge.ly, anchor: edge.labelAnchor ?? 'middle'};
+  let best = null;
+  for (let i = 1; i < edge.points.length; i++) {
+    const a = edge.points[i - 1], b = edge.points[i];
+    const length = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+    if (!best || length > best.length) best = {a, b, length};
+  }
+  const x = (best.a.x + best.b.x) / 2, y = (best.a.y + best.b.y) / 2;
+  return best.a.y === best.b.y ? {x, y: y - 12, anchor: 'middle'} : {x: x + 10, y: y + 4, anchor: 'start'};
+}
+
+// Fan-out routes share a prefix from the same start point; the dot sits where they part.
+function branchPoint(a, b) {
+  if (a[0].x !== b[0].x || a[0].y !== b[0].y) return null;
+  const direction = (from, to) => ({x: Math.sign(to.x - from.x), y: Math.sign(to.y - from.y)});
+  let i = 1, j = 1, point = a[0];
+  while (i < a.length && j < b.length) {
+    const da = direction(point, a[i]), db = direction(point, b[j]);
+    if (da.x !== db.x || da.y !== db.y) break;
+    const ra = Math.abs(a[i].x - point.x) + Math.abs(a[i].y - point.y);
+    const rb = Math.abs(b[j].x - point.x) + Math.abs(b[j].y - point.y);
+    const step = Math.min(ra, rb);
+    point = {x: point.x + da.x * step, y: point.y + da.y * step};
+    if (step === ra) i++;
+    if (step === rb) j++;
+  }
+  return point === a[0] ? null : point;
+}
+const junctionPoints = [];
+for (const junction of junctions) {
+  const ids = junction.edges;
+  for (let p = 0; p < ids.length; p++) {
+    for (let q = p + 1; q < ids.length; q++) {
+      const point = branchPoint(edgeById.get(ids[p]).points, edgeById.get(ids[q]).points);
+      if (!point) throw new Error(`Junction edges do not share a trunk: ${ids[p]}, ${ids[q]}`);
+      const found = junctionPoints.find(item => item.x === point.x && item.y === point.y);
+      if (found) { found.edges.add(ids[p]); found.edges.add(ids[q]); }
+      else junctionPoints.push({...point, edges: new Set([ids[p], ids[q]]), type: edgeById.get(ids[p]).type});
+    }
+  }
+}
+
+/**
+ * Add jump-over semicircles to true interior crossings of orthogonal SVG routes.
+ *
+ * edges: [{ id, d, ... }], where d uses absolute M/H/V/L commands.
+ * visibleIds: Set of actually rendered edge IDs; omit to use every edge.
+ * Returns a Map containing a path for EVERY edge, including unchanged/hidden ones.
+ * Apply the returned d to both the edge path and its background-colored halo.
+ * result.bridgeArcs is a Map of edge ID -> array of standalone arc-only paths.
+ * Draw these arcs again in a dedicated layer ABOVE every base edge and BELOW
+ * nodes: halo first, then foreground, without arrow markers. This guarantees
+ * the jump owns the crossing gap, regardless of base-edge drawing order.
+ * The input objects and original route strings remain untouched.
+ *
+ * Horizontal routes jump upward. Shared endpoints, elbows, collinear sections,
+ * unsupported curved routes and crowded/obstructed crossings are left unchanged.
+ * SVG markers remain on the original path endpoints.
+ */
+function routeCrossingBridges(edges, visibleIds, options = {}) {
+  const radius = options.radius ?? 6;
+  const clearance = options.clearance ?? 3;
+  const separation = options.separation ?? 4;
+  if (![radius, clearance, separation].every(Number.isFinite) || radius <= 0 || clearance < 0 || separation < 0) {
+    throw new RangeError('Invalid crossing-bridge geometry');
+  }
+  const epsilon = 1e-6;
+  const near = (a, b) => Math.abs(a - b) < epsilon;
+  const number = value => String(Math.round(value * 1000) / 1000);
+  const output = new Map(edges.map(edge => [edge.id, edge.d]));
+  output.bridgeArcs = new Map(edges.map(edge => [edge.id, []]));
+  const segments = [];
+  const routes = [];
+
+  function parse(edge) {
+    if (/[^\d\s.,+\-eEMHVL]/.test(edge.d)) return null;
+    const tokens = edge.d.match(/[MHVL]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g) || [];
+    let index = 0, command = null, point = null;
+    const parts = [];
+    const read = () => {
+      if (index >= tokens.length || /^[MHVL]$/.test(tokens[index])) throw new Error('Missing coordinate');
+      const value = Number(tokens[index++]);
+      if (!Number.isFinite(value)) throw new Error('Non-finite coordinate');
+      return value;
+    };
+    try {
+      while (index < tokens.length) {
+        if (/^[MHVL]$/.test(tokens[index])) command = tokens[index++];
+        if (!command || (command !== 'M' && !point)) return null;
+        let next;
+        if (command === 'M' || command === 'L') next = {x:read(), y:read()};
+        else if (command === 'H') next = {x:read(), y:point.y};
+        else if (command === 'V') next = {x:point.x, y:read()};
+        if (command === 'M') {
+          parts.push({move:next});
+          command = 'L';
+        } else {
+          const horizontal = near(point.y, next.y);
+          const vertical = near(point.x, next.x);
+          if (!horizontal && !vertical) return null;
+          // Retain zero-length portions but never treat them as crossings.
+          const segment = {edgeId:edge.id, source:edge.from, type:edge.type, a:point, b:next, horizontal,
+            length:Math.abs(next.x - point.x) + Math.abs(next.y - point.y), crossings:[]};
+          parts.push(segment);
+        }
+        point = next;
+      }
+      if (!parts.length || /^[MHVL]$/.test(tokens[tokens.length - 1])) return null;
+      return parts;
+    } catch (_) { return null; }
+  }
+
+  for (const edge of edges) {
+    if (visibleIds && !visibleIds.has(edge.id)) continue;
+    const parts = parse(edge);
+    if (!parts) continue;
+    routes.push({edge, parts});
+    segments.push(...parts.filter(part => !part.move && part.length > epsilon));
+  }
+
+  const interior = (value, a, b, margin = 0) => value > Math.min(a, b) + margin + epsilon && value < Math.max(a, b) - margin - epsilon;
+  const horizontals = segments.filter(segment => segment.horizontal);
+  const verticals = segments.filter(segment => !segment.horizontal);
+  for (const horizontal of horizontals) {
+    for (const vertical of verticals) {
+      if (horizontal.edgeId === vertical.edgeId) continue;
+      const x = vertical.a.x, y = horizontal.a.y;
+      // Strict interior tests exclude both shared endpoints and all elbows.
+      if (!interior(x, horizontal.a.x, horizontal.b.x, radius + clearance) ||
+          !interior(y, vertical.a.y, vertical.b.y, radius + clearance)) continue;
+      let crossing = horizontal.crossings.find(item => near(item.x, x));
+      if (!crossing) {
+        crossing = {x, y, under:new Set()};
+        horizontal.crossings.push(crossing);
+      }
+      crossing.under.add(vertical);
+    }
+  }
+
+  function obstructed(horizontal, crossing) {
+    // Check a slightly padded upper half-circle envelope. A nearby parallel
+    // route must not be hit by the new arc, even though the base lines did not cross.
+    const left = crossing.x - radius - clearance;
+    const right = crossing.x + radius + clearance;
+    const top = crossing.y - radius - clearance;
+    const bottom = crossing.y + clearance;
+    return segments.some(segment => {
+      if (segment === horizontal || crossing.under.has(segment)) return false;
+      // Fan-out routes may share an identical prefix. Both copies must jump
+      // over another buffer's trunk; the coincident copy is not an obstacle.
+      if (segment.horizontal && horizontal.source && segment.source === horizontal.source && segment.type === horizontal.type &&
+          near(segment.a.x,horizontal.a.x) && near(segment.b.x,horizontal.b.x) && near(segment.a.y,horizontal.a.y)) return false;
+      if (segment.horizontal) return interior(segment.a.y, top, bottom) &&
+        Math.max(segment.a.x, segment.b.x) > left + epsilon && Math.min(segment.a.x, segment.b.x) < right - epsilon;
+      return interior(segment.a.x, left, right) &&
+        Math.max(segment.a.y, segment.b.y) > top + epsilon && Math.min(segment.a.y, segment.b.y) < bottom - epsilon;
+    });
+  }
+
+  for (const {edge, parts} of routes) {
+    let bridged = false;
+    const commands = [];
+    for (const part of parts) {
+      if (part.move) {
+        commands.push(`M${number(part.move.x)} ${number(part.move.y)}`);
+        continue;
+      }
+      const candidates = part.crossings;
+      const safe = candidates.filter(crossing =>
+        !candidates.some(other => other !== crossing && Math.abs(other.x - crossing.x) < 2 * radius + separation) &&
+        !obstructed(part, crossing));
+      const direction = Math.sign(part.b.x - part.a.x) || 1;
+      safe.sort((a, b) => direction * (a.x - b.x));
+      for (const crossing of safe) {
+        bridged = true;
+        const start = crossing.x - direction * radius;
+        const end = crossing.x + direction * radius;
+        const arc = `A${number(radius)} ${number(radius)} 0 0 ${direction > 0 ? 1 : 0} ${number(end)} ${number(crossing.y)}`;
+        commands.push(`H${number(start)} ${arc}`);
+        output.bridgeArcs.get(edge.id).push(`M${number(start)} ${number(crossing.y)} ${arc}`);
+      }
+      commands.push(part.horizontal ? `H${number(part.b.x)}` : `V${number(part.b.y)}`);
+    }
+    // Keep exact author route strings unless at least one jump was introduced.
+    if (bridged) output.set(edge.id, commands.join(' '));
+  }
+  return output;
+}
+
+/* ---------- 绘制 ---------- */
+document.title = META.title;
+document.getElementById('diagram-title').textContent = META.title;
+document.getElementById('diagram-subtitle').textContent = META.subtitle ?? '';
+document.getElementById('svg-title').textContent = META.title;
+document.getElementById('svg-desc').textContent = META.description ?? '';
+svg.setAttribute('viewBox', `0 0 ${WIDTH} ${HEIGHT}`);
+svg.style.aspectRatio = `${WIDTH} / ${HEIGHT}`;
+document.getElementById('frame-rect').setAttribute('width', WIDTH);
+document.getElementById('frame-rect').setAttribute('height', HEIGHT);
+
+const containerLayer = document.getElementById('containers');
+for (const c of containers) {
+  const [titleClass, offset] = CONTAINER_TITLES[c.kind];
+  const group = element('g', {class: 'container', 'data-container': c.id, 'data-parent': c.parent}, containerLayer);
+  element('rect', {class: c.kind, x: c.x, y: c.y, width: c.w, height: c.h, rx: c.kind === 'domain' ? 10 : 7}, group);
+  element('text', {class: titleClass, x: c.x + 16, y: c.y + offset}, group, c.title);
+  if (c.sub) element('text', {class: 'container-sub', x: c.x + c.w - 16, y: c.y + offset, 'text-anchor': 'end'}, group, c.sub);
+  if (c.kind === 'layer') element('path', {class: 'layer-rule', d: `M${c.x} ${c.y + 40} H${c.x + c.w}`}, group);
+}
+
+const routed = routeCrossingBridges(edges);
+const edgeLayer = document.getElementById('edges');
+const overlay = document.getElementById('bridge-overlays');
+const labelLayer = document.getElementById('edge-labels');
+for (const edge of edges) {
+  const d = routed.get(edge.id);
+  const edgeClass = `edge ${edge.type}${edge.notification ? ' notification' : ''}`;
+  const group = element('g', {class: 'edge-group', 'data-edge': edge.id, 'data-from': edge.from, 'data-to': edge.to, 'data-route': edge.d}, edgeLayer);
+  element('path', {class: 'edge-halo', d}, group);
+  element('path', {class: edgeClass, d, 'marker-end': `url(#arrow-${edge.type})`}, group);
+  const parts = [group];
+  const arcs = routed.bridgeArcs.get(edge.id);
+  if (arcs.length) {
+    const bridge = element('g', {class: 'bridge', 'data-bridge': edge.id}, overlay);
+    for (const arc of arcs) {
+      element('path', {class: 'edge-halo', d: arc}, bridge);
+      element('path', {class: edgeClass, d: arc}, bridge);
+    }
+    parts.push(bridge);
+  }
+  if (edge.label) {
+    const position = labelPosition(edge);
+    const label = element('g', {class: `edge-label ${edge.type}`, 'data-label-for': edge.id}, labelLayer);
+    element('rect', {rx: 3}, label);
+    element('text', {x: position.x, y: position.y, 'text-anchor': position.anchor}, label, edge.label);
+    parts.push(label);
+  }
+  edgeElements.set(edge.id, parts);
+}
+const junctionElements = junctionPoints.map(point => ({
+  point, element: element('circle', {class: `flow-junction ${point.type}`, cx: point.x, cy: point.y, r: 4}, overlay)
+}));
+
+const nodeLayer = document.getElementById('nodes');
+for (const node of nodes) {
+  const classes = ['node', node.kind, node.memory && 'memory', node.zone && 'zone', node.configured && 'configured'].filter(Boolean).join(' ');
+  const group = element('g', {class: classes, tabindex: 0, role: 'button', 'aria-pressed': 'false', 'aria-label': `${node.name.join(' ')}。点击查看详情与直连关系`, 'data-node': node.id, 'data-parent': node.parent}, nodeLayer);
+  if (node.detail) element('title', {}, group, node.detail);
+  if (node.memory) {
+    element('rect', {x: node.x + 8, y: node.y - 8, width: node.w - 8, height: node.h, rx: 6}, group);
+    element('rect', {x: node.x + 4, y: node.y - 4, width: node.w - 4, height: node.h, rx: 6}, group);
+  }
+  element('rect', {class: 'face', x: node.x, y: node.y, width: node.w, height: node.h, rx: 6}, group);
+  const lines = [...node.name.map(text => ({text, kind: 'node-name', height: 20})), ...(node.sub ?? []).map(text => ({text, kind: 'node-sub', height: 17}))];
+  let cursor = node.y + (node.h - lines.reduce((sum, line) => sum + line.height, 0)) / 2 + 15;
+  for (const line of lines) {
+    element('text', {class: line.kind, x: node.x + node.w / 2, y: cursor, 'text-anchor': 'middle'}, group, line.text);
+    cursor += line.height;
+  }
+  group.addEventListener('click', () => { if (!suppressClick) selectNode(node.id); });
+  group.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectNode(node.id); }
+  });
+  nodeElements.set(node.id, group);
+}
+
+function sizeLabels() {
+  for (const label of labelLayer.children) {
+    const box = label.querySelector('text').getBBox();
+    const rect = label.querySelector('rect');
+    for (const [key, value] of Object.entries({x: box.x - 5, y: box.y - 2, width: box.width + 10, height: box.height + 4})) rect.setAttribute(key, value);
+  }
+}
+sizeLabels();
+if (document.fonts) document.fonts.ready.then(sizeLabels);
+
+/* ---------- 图例与依据 ---------- */
+function legendItem(chipClass, text) {
+  const span = document.createElement('span');
+  const chip = document.createElement('i');
+  chip.className = chipClass;
+  span.append(chip, text);
+  return span;
+}
+function legendHeading(text) {
+  const span = document.createElement('span');
+  const bold = document.createElement('b');
+  bold.textContent = text;
+  span.append(bold);
+  return span;
+}
+const legend = document.getElementById('legend');
+const usedKinds = NODE_KINDS.filter(kind => nodes.some(n => n.kind === kind && !n.configured));
+if (nodes.some(n => n.configured)) usedKinds.push('configured');
+legend.append(legendHeading('组件来源'), ...usedKinds.map(kind => legendItem(`chip ${kind}`, KIND_LABELS[kind])));
+const usedLines = [];
+if (edges.some(e => e.type === 'control' && !e.notification)) usedLines.push('control');
+if (edges.some(e => e.notification)) usedLines.push('notification');
+for (const type of ['data', 'encrypted', 'config']) if (edges.some(e => e.type === type)) usedLines.push(type);
+legend.append(legendHeading('连线'), ...usedLines.map(kind => legendItem(`line ${kind}`, EDGE_LABELS[kind])));
+const notes = [];
+if (edges.some(e => routed.bridgeArcs.get(e.id).length)) notes.push('跨线弧表示交叉不连接');
+if (junctionPoints.length) notes.push('实心点为分支');
+if (notes.length) {
+  const span = document.createElement('span');
+  span.textContent = notes.join(' · ');
+  legend.append(span);
+}
+const hint = document.createElement('span');
+hint.className = 'hint';
+hint.textContent = '点击组件查看直连关系 · 拖动空白平移 · Esc 清除';
+legend.append(hint);
+
+const sources = document.getElementById('sources');
+(META.sources ?? []).forEach((source, index) => {
+  sources.append(index ? ' · ' : '依据：');
+  if (source.href && /^https?:\/\//i.test(source.href)) {
+    const link = document.createElement('a');
+    link.href = source.href;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = source.text;
+    sources.append(link);
+  } else {
+    sources.append(source.text);
+  }
+});
+
+/* ---------- 交互：选择、聚焦、缩放、主题、嵌入高度 ---------- */
+if (flows.length) {
+  filterNav.hidden = false;
+  const label = document.createElement('span');
+  label.className = 'filter-label';
+  label.textContent = '聚焦';
+  filterNav.append(label);
+  for (const flow of [{id: '', label: '全部'}, ...flows]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.flow = flow.id;
+    button.textContent = flow.label;
+    button.addEventListener('click', () => { activeFlow = flow.id || null; selection = null; updateHighlight(); });
+    filterNav.append(button);
+  }
+}
+
+function visibleEdgeIds() {
+  if (selection) return new Set(edges.filter(e => e.from === selection || e.to === selection).map(e => e.id));
+  if (activeFlow) return new Set(flowById.get(activeFlow).edges);
+  return null;
+}
+function updateHighlight() {
+  const visible = visibleEdgeIds();
+  const shown = id => !visible || visible.has(id);
+  const activeNodes = new Set(selection ? [selection] : []);
+  for (const e of edges) if (shown(e.id)) { activeNodes.add(e.from); activeNodes.add(e.to); }
+  nodeElements.forEach((group, id) => {
+    group.classList.toggle('dim', Boolean(visible) && !activeNodes.has(id));
+    group.classList.toggle('selected', id === selection);
+    group.setAttribute('aria-pressed', String(id === selection));
+  });
+  edgeElements.forEach((parts, id) => parts.forEach(part => part.classList.toggle('dim', !shown(id))));
+  junctionElements.forEach(({point, element: dot}) => dot.classList.toggle('dim', [...point.edges].filter(shown).length < 2));
+  filterNav.querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String((button.dataset.flow || null) === activeFlow)));
+  const source = selection ? nodeById.get(selection) : activeFlow ? flowById.get(activeFlow) : null;
+  document.querySelector('.detail').hidden = !source;
+  if (source) {
+    document.getElementById('detail-title').textContent = selection ? source.name.join(' · ') : source.label;
+    document.getElementById('detail-body').textContent = source.detail ?? '';
+  }
+  reportHeight();
+}
+function selectNode(id) { selection = selection === id ? null : id; updateHighlight(); }
+function clearSelection() { selection = null; activeFlow = null; updateHighlight(); }
+document.getElementById('clear').addEventListener('click', clearSelection);
+document.addEventListener('keydown', event => { if (event.key === 'Escape') clearSelection(); });
+
+function paintCamera() {
+  const w = WIDTH / zoom, h = HEIGHT / zoom;
+  camera.x = Math.max(0, Math.min(WIDTH - w, camera.x));
+  camera.y = Math.max(0, Math.min(HEIGHT - h, camera.y));
+  viewport.setAttribute('transform', `scale(${zoom}) translate(${-camera.x} ${-camera.y})`);
+  svg.classList.toggle('zoomed', zoom > 1);
+  document.getElementById('zoom-level').textContent = `${Math.round(zoom * 100)}%`;
+  document.getElementById('zoom-out').disabled = zoom <= 1;
+  document.getElementById('zoom-in').disabled = zoom >= MAX_ZOOM;
+}
+function zoomTo(next, point) {
+  const target = Math.max(1, Math.min(MAX_ZOOM, next));
+  const center = point ?? {x: camera.x + WIDTH / zoom / 2, y: camera.y + HEIGHT / zoom / 2};
+  camera.x = center.x - (center.x - camera.x) * zoom / target;
+  camera.y = center.y - (center.y - camera.y) * zoom / target;
+  zoom = target;
+  paintCamera();
+}
+function focusArea(area) {
+  zoom = Math.max(1, Math.min(MAX_ZOOM, WIDTH / area.w, HEIGHT / area.h));
+  camera.x = area.x + area.w / 2 - WIDTH / zoom / 2;
+  camera.y = area.y + area.h / 2 - HEIGHT / zoom / 2;
+  paintCamera();
+}
+function diagramPoint(event) {
+  const matrix = viewport.getScreenCTM();
+  return matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()) : null;
+}
+const fitButton = document.getElementById('fit');
+for (const area of views) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = area.label;
+  button.addEventListener('click', () => focusArea(area));
+  fitButton.before(button);
+}
+fitButton.addEventListener('click', () => focusArea({x: 0, y: 0, w: WIDTH, h: HEIGHT}));
+document.getElementById('zoom-in').addEventListener('click', () => zoomTo(zoom * 1.3));
+document.getElementById('zoom-out').addEventListener('click', () => zoomTo(zoom / 1.3));
+svg.addEventListener('wheel', event => {
+  // Embedded in an article: plain wheel scrolls the page; Ctrl/⌘ + wheel zooms.
+  if (window.parent !== window && !event.ctrlKey && !event.metaKey) return;
+  event.preventDefault();
+  zoomTo(zoom * Math.exp(-event.deltaY * .0015), diagramPoint(event) ?? undefined);
+}, {passive: false});
+svg.addEventListener('pointerdown', event => {
+  if (event.button !== 0 || zoom <= 1 || event.target.closest('text')) return;
+  const matrix = svg.getScreenCTM();
+  if (matrix) drag = {id: event.pointerId, x: event.clientX, y: event.clientY, cx: camera.x, cy: camera.y, scale: matrix.a * zoom, moved: false};
+});
+svg.addEventListener('pointermove', event => {
+  if (!drag || drag.id !== event.pointerId) return;
+  const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; svg.setPointerCapture(event.pointerId); svg.classList.add('panning'); }
+  if (drag.moved) { camera.x = drag.cx - dx / drag.scale; camera.y = drag.cy - dy / drag.scale; paintCamera(); }
+});
+function stopDrag(event) {
+  if (!drag || drag.id !== event.pointerId) return;
+  suppressClick = drag.moved;
+  drag = null;
+  svg.classList.remove('panning');
+  if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+  setTimeout(() => { suppressClick = false; }, 0);
+}
+svg.addEventListener('pointerup', stopDrag);
+svg.addEventListener('pointercancel', stopDrag);
+svg.addEventListener('click', event => {
+  if (!suppressClick && !event.target.closest('.node') && selection) { selection = null; updateHighlight(); }
+});
+
+const themeButton = document.getElementById('theme');
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  themeButton.textContent = theme === 'dark' ? '浅色' : '深色';
+  themeButton.setAttribute('aria-label', `切换到${theme === 'dark' ? '浅色' : '深色'}主题`);
+}
+const requestedTheme = new URLSearchParams(location.search).get('theme');
+setTheme(['light', 'dark'].includes(requestedTheme) ? requestedTheme : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+themeButton.addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+
+function reportHeight() {
+  if (window.parent === window) return;
+  const shell = document.querySelector('.diagram-shell');
+  const chrome = document.querySelector('main').getBoundingClientRect().height - shell.getBoundingClientRect().height + 24;
+  const height = Math.min(2400, Math.max(480, Math.ceil(shell.clientWidth * HEIGHT / WIDTH + chrome)));
+  if (height === lastHeight) return;
+  lastHeight = height;
+  window.parent.postMessage({type: `${DIAGRAM_ID}-height`, height}, location.origin === 'null' ? '*' : location.origin);
+}
+new ResizeObserver(reportHeight).observe(document.querySelector('main'));
+paintCamera();
+updateHighlight();
+</script>
+</body>
+</html>
