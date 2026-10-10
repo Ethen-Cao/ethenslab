@@ -30,7 +30,7 @@ CompositionEngine 为一次显示输出生成客户端合成请求，RenderEngin
 ```plantuml
 @startuml
 !theme plain
-' 视觉参考：work/architecture_diagrams/android_architecture.html
+' 视觉参考：work/skills/architecture-diagram/assets/architecture_diagrams/android_architecture.html
 ' 绿：合成处理与相关组件；蓝：数据与同步对象；灰：执行域与外部参与者。
 skinparam backgroundColor #282A2D
 skinparam defaultFontName "Noto Sans CJK SC"
@@ -141,7 +141,7 @@ ftl::Future<FenceResult> drawLayers(
 ```plantuml
 @startuml
 !theme plain
-' 视觉参考：work/architecture_diagrams/android_architecture.html
+' 视觉参考：work/skills/architecture-diagram/assets/architecture_diagrams/android_architecture.html
 ' 绿：合成处理与相关组件；蓝：数据与同步对象；灰：执行域与外部参与者。
 skinparam backgroundColor #282A2D
 skinparam defaultFontName "Noto Sans CJK SC"
@@ -306,7 +306,7 @@ auto fenceResult = renderEngine
 ```plantuml
 @startuml
 !theme plain
-' 视觉参考：work/architecture_diagrams/android_architecture.html
+' 视觉参考：work/skills/architecture-diagram/assets/architecture_diagrams/android_architecture.html
 ' 绿：合成处理与相关组件；蓝：数据与同步对象；灰：执行域与外部参与者。
 skinparam backgroundColor #282A2D
 skinparam defaultFontName "Noto Sans CJK SC"
@@ -407,7 +407,7 @@ HWC -> HWC : 消费 ClientTarget
 ```plantuml
 @startuml
 !theme plain
-' 视觉参考：work/architecture_diagrams/android_architecture.html
+' 视觉参考：work/skills/architecture-diagram/assets/architecture_diagrams/android_architecture.html
 ' 绿：合成处理与相关组件；蓝：数据与同步对象；灰：执行域与外部参与者。
 skinparam backgroundColor #282A2D
 skinparam defaultFontName "Noto Sans CJK SC"

@@ -149,6 +149,14 @@ Pipeline 是对已分配 QDI layer 的 OpenWFD 抽象，不等同于任意一个
 
 ## 3. OpenWFD 资源分配
 
+`/usr/bin/display_cfg.ini` 通过 `qcdisplaycfgName` 选择显示配置集：
+
+```ini
+qcdisplaycfgName = qcdisplaycfg_project_a_296
+```
+
+对应的 `qcdisplaycfg_project_a_296.xml` 定义 Client 身份、Port 与 DPU/display 的映射、Pipeline 与 QDI layer 的绑定及 z-order 分配。INI 负责选择配置集，XML 描述具体资源约束。
+
 运行中的 `/usr/bin/display_parse --wfd` 与源码配置 `qcdisplaycfg_project_a_296.xml` 一致。
 
 ### 3.1 Client、Port 与 Pipeline
@@ -165,6 +173,8 @@ Pipeline 是对已分配 QDI layer 的 OpenWFD 抽象，不等同于任意一个
 `0x7815` 启用 MultiRect。DPU 0/display 3 的两个物理 Pipeline 因此预留四个 z-order 位置；DPU 1/display 8 和 display 9 各为单 Pipeline 预留两个位置。
 
 在 display 3 上，LA-GVM 位于 `z0/z1`，Weston/SCREEN 位于 `z4/z5`，TELLTALE 位于 `z10`。该静态分配决定跨客户端的最终叠放顺序，并保证各客户端不能占用未授权的 QDI layer。
+
+架构图中 TELLTALE 的虚线边框表示 Client `0x7812` 的静态资源预留，与 SCREEN Client `0x78FF` 分开分配资源；不表示已确认存在同名进程、共享库或活动画面。
 
 ### 3.2 显示拓扑
 

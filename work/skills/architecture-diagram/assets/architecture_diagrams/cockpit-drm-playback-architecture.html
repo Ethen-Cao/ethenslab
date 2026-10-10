@@ -1,0 +1,1092 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Cockpit DRM Playback Architecture</title>
+<style>:root{color-scheme:light;--page:#f8f9fa;--panel:#fff;--ink:#202124;--muted:#5f6368;--line:#cbd1d8;--domain:#5f6368;--native-fill:#34A853;--vendor-fill:#FBBC04;--vendor-outline:#c4a04a;--hardware-fill:#9AA0A6;--external-fill:#4285F4;--client-fill:#fff;--client-stroke:#9aa0a6;--node-ink:#202124;--hardware-ink:#202124;--client-ink:#202124;--focus-ring:#202124;--blue:#356dc9;--green:#28854d;--fade:.16}
+[data-theme="dark"]{color-scheme:dark;--page:#202124;--panel:#282a2d;--ink:#e8eaed;--muted:#afb5be;--line:#565c66;--domain:#e8eaed;--native-fill:#34A853;--vendor-fill:#FBBC04;--vendor-outline:#87763c;--hardware-fill:#5F6368;--external-fill:#4285F4;--client-fill:#303438;--client-stroke:#8c95a3;--node-ink:#202124;--hardware-ink:#FFFFFF;--client-ink:#e8eaed;--focus-ring:#FFFFFF;--blue:#8ab4f8;--green:#81c995;--fade:.19}
+*{box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden}body{margin:0;padding:10px 12px;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--page);color:var(--ink)}main{display:flex;flex-direction:column;gap:8px;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:0 0 auto;min-width:0}h1{margin:0;font-size:18px;line-height:1.3;letter-spacing:-.25px}.tag{font-size:11px;color:var(--muted);white-space:nowrap}.tools{display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap}button{border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit;font-size:11px;line-height:1.4;padding:4px 9px;cursor:pointer}button:hover{border-color:var(--blue)}button:disabled{opacity:.4;cursor:default}button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}.node:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}#zoom-level{width:38px;text-align:center;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}.diagram-shell{flex:1 1 0;min-width:0;min-height:0;display:flex;overflow:hidden;border:1px solid var(--line);border-radius:7px;background:var(--panel)}.canvas{display:block;width:100%;height:100%;overflow:hidden;background:var(--panel);touch-action:none;user-select:none}.canvas.zoomed{cursor:grab}.canvas.panning,.canvas.panning .node{cursor:grabbing}.canvas text{fill:var(--ink);font-family:inherit;-webkit-user-select:text;user-select:text;cursor:text}.canvas.panning text{-webkit-user-select:none;user-select:none;cursor:grabbing}.domain{fill:var(--domain);fill-opacity:.04;stroke:var(--line);stroke-width:1.1}.domain-title{font-size:21px;font-weight:700}.domain-sub{font-size:12px;fill:var(--muted)!important}.lane-title{font-size:12px;font-weight:700;fill:var(--muted)!important;letter-spacing:.5px}.edge{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:opacity .15s}.edge.control{stroke:var(--blue)}.edge.encrypted{stroke:var(--muted);stroke-width:2}.edge.media{stroke:var(--green);stroke-width:2.6}.edge-label rect{fill:var(--panel);opacity:.98}.edge-label text{font-size:12px;font-weight:500}.edge-label.control text{fill:var(--blue)}.edge-label.encrypted text{fill:var(--muted)}.edge-label.media text{fill:var(--green)}.node{cursor:pointer;transition:opacity .15s}.node rect{stroke:transparent;stroke-width:1.4}.node text{fill:var(--node-ink)}.node.hardware text{fill:var(--hardware-ink)}.node.client text{fill:var(--client-ink)}.node.native rect{fill:var(--native-fill)}.node.vendor rect{fill:var(--vendor-fill)}.node.hardware rect{fill:var(--hardware-fill)}.node.external rect{fill:var(--external-fill)}.node.client rect{fill:var(--client-fill);stroke:var(--client-stroke)}.node.memory rect{stroke:var(--panel);stroke-width:1.6}.node:hover rect{stroke:var(--focus-ring);stroke-width:2.4}.node.selected rect,.node:focus-visible rect{stroke:var(--focus-ring);stroke-width:3}.node-name{font-size:15px;font-weight:650}.node-sub{font-size:12px}.node-evidence{font-size:10px}.dim{opacity:var(--fade)}.edge.active{stroke-width:3}.legend{display:flex;flex-direction:column;gap:5px;flex:0 0 auto;font-size:11px;line-height:1.3;color:var(--muted)}.legend-row{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap}.legend-row b{font-size:10px;width:34px;flex-shrink:0;color:var(--ink);letter-spacing:.4px;text-transform:uppercase}.legend-row span{display:inline-flex;gap:6px;align-items:center;white-space:nowrap}.source-chip{display:inline-block;width:20px;height:12px;border:1px solid transparent;border-radius:2px}.source-chip.native{background:var(--native-fill)}.source-chip.vendor{background:var(--vendor-fill)}.source-chip.hardware{background:var(--hardware-fill)}.source-chip.external{background:var(--external-fill)}.source-chip.client{background:var(--client-fill);border-color:var(--client-stroke)}.line-chip{display:inline-block;width:24px;height:0;border-top:2px solid var(--blue)}.line-chip.encrypted{border-color:var(--muted)}.line-chip.media{border-color:var(--green);border-top-width:3px}.hint{margin-left:auto;font-size:10px;color:var(--muted)}
+.screen-boundary{fill:var(--hardware-fill);fill-opacity:.04;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:6 5}.screen-boundary-title{font-size:12px;font-weight:600;fill:var(--muted)!important}
+.cdm-container{fill:var(--vendor-fill);fill-opacity:.05;stroke:var(--vendor-outline);stroke-width:1.1}.service-title{font-size:14px;font-weight:650}.service-sub{font-size:11px;fill:var(--muted)!important}
+
+@media(max-width:900px){body{padding:7px}h1{font-size:15px}.toolbar{gap:6px}.tools{gap:4px}button{padding:3px 7px}.legend-row{gap:5px 10px}.hint{display:none}}@media(max-width:600px){.tag{display:none}.tools{margin-left:0}.toolbar h1{width:100%}.legend{font-size:10px}.legend-row{gap:4px 8px}}@media print{body{padding:0;background:#fff}.tools,.tag,.hint{display:none}.diagram-shell{border:0}.toolbar h1{font-size:16px}}
+</style></head>
+<body><main>
+<header class="toolbar"><h1>Cockpit DRM Playback Architecture</h1><span class="tag">Widevine L1 · HQX call paths</span><div class="tools"><button id="fit" type="button" title="Show the complete diagram">Fit</button><button id="zoom-out" type="button" aria-label="Zoom out">−</button><span id="zoom-level">100%</span><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="clear" type="button">Clear selection</button><button id="theme" type="button">Dark theme</button></div></header>
+<section class="diagram-shell" aria-label="Interactive architecture diagram"><svg class="canvas" id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1644 1800" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-description">
+        <title id="svg-title">Cockpit DRM playback: TEE, QNX and Android</title>
+        <desc id="svg-description">Widevine L1 architecture across TEE, QNX and Android, based on platform documentation and source evidence. Stacked rectangles represent protected-memory buffer pools. The Display Output area compares alternative configurations without HDCP and with HDCP; these are not simultaneous output branches. Dashed Display Module boundaries group the screen-side deserializer, panel interface and display panel; they indicate physical placement. Component fill indicates source: green for native QNX/AOSP, yellow for Widevine or vendor components, gray for hardware, blue for external services, and white for an unspecified client. Click a component to highlight direct connections. Drag across text to select and copy. Right-click or press Escape to clear component highlighting; selected text retains the browser copy menu. Fit shows the complete diagram; zoom and drag the background to inspect details.</desc>
+        <defs>
+          <marker id="arrow-control" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L7 4L1 7" fill="none" stroke="var(--blue)" stroke-width="1.7"/></marker>
+          <marker id="arrow-media" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L8 4.5L1 8" fill="none" stroke="var(--green)" stroke-width="2"/></marker>
+          <marker id="arrow-encrypted" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L7 4L1 7" fill="none" stroke="var(--muted)" stroke-width="1.7"/></marker>
+        </defs>
+        <g id="containers">
+          <rect class="domain cloud-domain" x="900" y="22" width="720" height="174" rx="10"/>
+          <text class="domain-title" x="922" y="54">Cloud Services</text>
+          <text class="domain-sub" x="922" y="76">Encrypted media · license · provisioning</text>
+          <rect class="domain tee-domain" x="24" y="240" width="330" height="900" rx="12"/>
+          <text class="domain-title" x="46" y="276">TEE</text>
+          <text class="domain-sub" x="46" y="298">TrustZone · vendor secure implementation</text>
+          <rect class="domain qnx-domain" x="400" y="240" width="430" height="900" rx="12"/>
+          <text class="domain-title" x="422" y="276">QNX</text>
+          <text class="domain-sub" x="422" y="298">Host display and secure-call backends</text>
+          <rect class="domain android-domain" x="900" y="240" width="720" height="900" rx="12"/>
+          <text class="domain-title" x="922" y="276">Android</text>
+          <text class="domain-sub" x="1500" y="276" text-anchor="end">AAOS guest</text>
+          <rect class="domain display-output-domain" x="24" y="1480" width="1596" height="300" rx="12"/>
+          <text class="domain-title" x="46" y="1510">Display Output</text>
+          <text class="domain-sub" x="46" y="1534">Alternative output configurations</text>
+          <text class="service-title" x="46" y="1594">Without HDCP</text>
+          <text class="service-title" x="46" y="1724">With HDCP</text>
+          <circle cx="270" cy="1590" r="3" fill="var(--green)"/>
+          <g id="plain-display-module" aria-label="Screen-side display module without HDCP">
+            <rect class="screen-boundary" x="1018" y="1526" width="590" height="118" rx="7"/>
+            <text class="screen-boundary-title" x="1034" y="1541">Display Module</text>
+          </g>
+          <g id="hdcp-display-module" aria-label="Screen-side display module with HDCP">
+            <rect class="screen-boundary" x="1018" y="1656" width="590" height="118" rx="7"/>
+            <text class="screen-boundary-title" x="1034" y="1671">Display Module</text>
+          </g>
+          <rect class="domain" x="400" y="1180" width="1220" height="48" rx="7"/>
+          <text class="lane-title" x="422" y="1210">HYPERVISOR</text>
+          <text class="domain-sub" x="610" y="1210">VM isolation · memory ownership · device assignment / virtualization</text>
+          <rect class="domain hardware-domain" x="24" y="1256" width="1596" height="200" rx="10"/>
+          <text class="lane-title" x="46" y="1283">SOC HARDWARE &amp; PROTECTED MEMORY</text>
+          <text class="domain-sub" x="46" y="1430">Access-controlled DDR · opaque buffer handles</text>
+<rect class="cdm-container" x="918" y="538" width="684" height="336" rx="8"/><text class="service-title" x="1260" y="558" text-anchor="middle">Widevine HAL / CDM</text><text class="service-sub" x="1260" y="575" text-anchor="middle">libwvaidl.so · AIDL source build · internal function calls</text>
+        </g>
+        <g id="edges"></g>
+        <g id="nodes"></g>
+        <g id="edge-labels"></g>
+      </svg></section>
+<footer class="legend" aria-label="Diagram legend">
+<div class="legend-row"><b>Source</b><span><i class="source-chip native"></i>QNX / AOSP native</span><span><i class="source-chip vendor"></i>Widevine / vendor</span><span><i class="source-chip hardware"></i>Hardware / memory</span><span><i class="source-chip external"></i>External services</span><span><i class="source-chip client"></i>Client · unspecified</span></div>
+<div class="legend-row"><b>Flow</b><span><i class="line-chip control"></i>Control / license</span><span><i class="line-chip encrypted"></i>Encrypted media / HDCP</span><span><i class="line-chip media"></i>Protected media / video output</span><span class="hint">Text: select + copy · Drag background: pan · Right-click / Esc: clear</span></div>
+</footer>
+</main><script>
+'use strict';
+const modules = [
+  {
+    "id": "cdn",
+    "x": 930,
+    "y": 92,
+    "w": 150,
+    "h": 84,
+    "name": [
+      "Content CDN"
+    ],
+    "sub": [
+      "Manifest /",
+      "encrypted samples"
+    ],
+    "kind": "external",
+    "ev": "Generic flow"
+  },
+  {
+    "id": "proxy",
+    "x": 1100,
+    "y": 92,
+    "w": 150,
+    "h": 84,
+    "name": [
+      "Partner License",
+      "Proxy"
+    ],
+    "sub": [
+      "Entitlement / policy"
+    ],
+    "kind": "external",
+    "ev": "Partner deployment"
+  },
+  {
+    "id": "license",
+    "x": 1270,
+    "y": 92,
+    "w": 150,
+    "h": 84,
+    "name": [
+      "Widevine License",
+      "Service"
+    ],
+    "sub": [
+      "Signed license",
+      "response"
+    ],
+    "kind": "external",
+    "ev": "Generic flow"
+  },
+  {
+    "id": "provision",
+    "x": 1440,
+    "y": 92,
+    "w": 150,
+    "h": 84,
+    "name": [
+      "Provisioning",
+      "Service"
+    ],
+    "sub": [
+      "Device credential",
+      "setup"
+    ],
+    "kind": "external",
+    "ev": "Conditional provisioning API"
+  },
+  {
+    "id": "credentials",
+    "x": 54,
+    "y": 348,
+    "w": 270,
+    "h": 84,
+    "name": [
+      "Credential & Key Services"
+    ],
+    "sub": [
+      "Device-bound protected material"
+    ],
+    "kind": "vendor",
+    "ev": "Vendor design"
+  },
+  {
+    "id": "tz-ops",
+    "x": 54,
+    "y": 530,
+    "w": 270,
+    "h": 84,
+    "name": [
+      "Output Protection Service",
+      "(OPS / OPSSource)"
+    ],
+    "sub": [
+      "Output protection levels"
+    ],
+    "kind": "vendor",
+    "ev": "Widevine TA privileges · OPSSource interface / linked implementation"
+  },
+  {
+    "id": "widevine-ta",
+    "x": 54,
+    "y": 730,
+    "w": 270,
+    "h": 82,
+    "name": [
+      "Widevine TA"
+    ],
+    "sub": [
+      "Key use / protected decryption"
+    ],
+    "kind": "vendor",
+    "ev": "Vendor secure component"
+  },
+  {
+    "id": "ops",
+    "x": 430,
+    "y": 330,
+    "w": 370,
+    "h": 76,
+    "name": [
+      "OPS Listener / Display Bridge"
+    ],
+    "sub": [
+      "Clock vote · min encryption · secure mask"
+    ],
+    "kind": "vendor",
+    "ev": "QSEECom listener · binary evidence"
+  },
+  {
+    "id": "gate",
+    "x": 430,
+    "y": 474,
+    "w": 370,
+    "h": 90,
+    "name": [
+      "OpenWFD OEM Secure Gate"
+    ],
+    "sub": [
+      "WFD_DEVICE_OEM_SECURE → bOEMSecure"
+    ],
+    "kind": "native",
+    "ev": "Source evidence"
+  },
+  {
+    "id": "screen",
+    "x": 430,
+    "y": 650,
+    "w": 170,
+    "h": 72,
+    "name": [
+      "QNX Screen"
+    ],
+    "sub": [
+      "Host surfaces"
+    ],
+    "kind": "native",
+    "ev": "Display reference"
+  },
+  {
+    "id": "guest-backend",
+    "x": 630,
+    "y": 650,
+    "w": 170,
+    "h": 72,
+    "name": [
+      "WFD Backend",
+      "(wfd_be)"
+    ],
+    "sub": [
+      "Handles · secure attributes"
+    ],
+    "kind": "native",
+    "ev": "WFD_FE / wfd_be source · secure-source attributes"
+  },
+  {
+    "id": "pipeline",
+    "x": 430,
+    "y": 830,
+    "w": 370,
+    "h": 70,
+    "name": [
+      "OpenWFD Source / Pipeline"
+    ],
+    "sub": [
+      "Source admission / display configuration"
+    ],
+    "kind": "native",
+    "ev": "Source evidence"
+  },
+  {
+    "id": "display-driver",
+    "x": 430,
+    "y": 940,
+    "w": 370,
+    "h": 76,
+    "name": [
+      "Display Driver"
+    ],
+    "sub": [
+      "Scan-out programming"
+    ],
+    "kind": "native",
+    "ev": "Platform integration"
+  },
+  {
+    "id": "qcpe",
+    "x": 430,
+    "y": 1040,
+    "w": 370,
+    "h": 70,
+    "name": [
+      "QCPE / SCM Backend"
+    ],
+    "sub": [
+      "Guest SMC dispatch · TZ calls"
+    ],
+    "kind": "vendor",
+    "ev": "SCM/HAB source · QNX prebuilt backend"
+  },
+  {
+    "id": "player",
+    "x": 930,
+    "y": 292,
+    "w": 660,
+    "h": 72,
+    "name": [
+      "Player / Browser"
+    ],
+    "sub": [
+      "Media playback / DRM session binding"
+    ],
+    "kind": "client",
+    "ev": "Client role · MediaDrm / MediaCodec integration"
+  },
+  {
+    "id": "mediadrm",
+    "x": 930,
+    "y": 430,
+    "w": 270,
+    "h": 72,
+    "name": [
+      "MediaDrm"
+    ],
+    "sub": [
+      "Session / key request / response"
+    ],
+    "kind": "native",
+    "ev": "Android public API"
+  },
+  {
+    "id": "mediacodec",
+    "x": 1320,
+    "y": 430,
+    "w": 270,
+    "h": 72,
+    "name": [
+      "MediaCodec / MediaCrypto"
+    ],
+    "sub": [
+      "Secure input / session association"
+    ],
+    "kind": "native",
+    "ev": "Android public API"
+  },
+  {
+    "id": "drm-plugin",
+    "x": 930,
+    "y": 592,
+    "w": 270,
+    "h": 54,
+    "name": [
+      "Widevine DRM Plugin"
+    ],
+    "sub": [
+      "DRM HAL frontend"
+    ],
+    "kind": "vendor",
+    "ev": "Source evidence"
+  },
+  {
+    "id": "crypto-plugin",
+    "x": 1320,
+    "y": 592,
+    "w": 270,
+    "h": 54,
+    "name": [
+      "Widevine Crypto Plugin"
+    ],
+    "sub": [
+      "Crypto HAL frontend"
+    ],
+    "kind": "vendor",
+    "ev": "Source evidence"
+  },
+  {
+    "id": "oemcrypto",
+    "x": 930,
+    "y": 910,
+    "w": 660,
+    "h": 72,
+    "name": [
+      "L1 Platform Libraries"
+    ],
+    "sub": [
+      "liboemcrypto.so · libtrustedapploader.so · libops.so"
+    ],
+    "kind": "vendor",
+    "ev": "Client / prebuilt component evidence"
+  },
+  {
+    "id": "surfaceflinger",
+    "x": 930,
+    "y": 1036,
+    "w": 290,
+    "h": 76,
+    "name": [
+      "SurfaceFlinger"
+    ],
+    "sub": [
+      "Protected surfaces / composition"
+    ],
+    "kind": "native",
+    "ev": "Android graphics architecture"
+  },
+  {
+    "id": "hwc",
+    "x": 1260,
+    "y": 1036,
+    "w": 330,
+    "h": 76,
+    "name": [
+      "Hardware Composer"
+    ],
+    "sub": [
+      "Protected layer / buffer handles"
+    ],
+    "kind": "native",
+    "ev": "Source evidence"
+  },
+  {
+    "id": "compressed",
+    "x": 54,
+    "y": 1314,
+    "w": 300,
+    "h": 76,
+    "name": [
+      "Protected Compressed Buffers"
+    ],
+    "sub": [
+      "Decrypted compressed video"
+    ],
+    "kind": "hardware",
+    "ev": "Protected compressed media buffer pool",
+    "shape": "memory"
+  },
+  {
+    "id": "decoder",
+    "x": 430,
+    "y": 1314,
+    "w": 270,
+    "h": 76,
+    "name": [
+      "Secure Video Decoder"
+    ],
+    "sub": [
+      "VPU / hardware decode"
+    ],
+    "kind": "hardware",
+    "ev": "L1 target path"
+  },
+  {
+    "id": "frames",
+    "x": 780,
+    "y": 1314,
+    "w": 300,
+    "h": 76,
+    "name": [
+      "Protected Video Frames"
+    ],
+    "sub": [
+      "Decoded pixel buffers"
+    ],
+    "kind": "hardware",
+    "ev": "Protected decoded-frame buffer pool",
+    "shape": "memory"
+  },
+  {
+    "id": "dpu",
+    "x": 1170,
+    "y": 1314,
+    "w": 320,
+    "h": 76,
+    "name": [
+      "Display Processing Unit"
+    ],
+    "sub": [
+      "Protected scan-out"
+    ],
+    "kind": "hardware",
+    "ev": "Display driver / protected-source path"
+  },
+  {
+    "id": "plain-dp",
+    "x": 300,
+    "y": 1548,
+    "w": 220,
+    "h": 84,
+    "name": [
+      "SoC DP Output"
+    ],
+    "sub": [
+      "DisplayPort output"
+    ],
+    "kind": "hardware",
+    "ev": "Output configuration without HDCP"
+  },
+  {
+    "id": "plain-serializer",
+    "x": 660,
+    "y": 1548,
+    "w": 230,
+    "h": 84,
+    "name": [
+      "Serializer"
+    ],
+    "sub": [
+      "DP RX · GMSL TX"
+    ],
+    "kind": "hardware",
+    "ev": "Output configuration without HDCP"
+  },
+  {
+    "id": "plain-deserializer",
+    "x": 1040,
+    "y": 1548,
+    "w": 230,
+    "h": 84,
+    "name": [
+      "Deserializer"
+    ],
+    "sub": [
+      "GMSL RX · panel output"
+    ],
+    "kind": "hardware",
+    "ev": "Output configuration without HDCP"
+  },
+  {
+    "id": "plain-panel",
+    "x": 1420,
+    "y": 1548,
+    "w": 170,
+    "h": 84,
+    "name": [
+      "Display Panel"
+    ],
+    "sub": [
+      "Physical display output"
+    ],
+    "kind": "hardware",
+    "ev": "Output configuration without HDCP"
+  },
+  {
+    "id": "hdcp-dp",
+    "x": 300,
+    "y": 1678,
+    "w": 220,
+    "h": 84,
+    "name": [
+      "SoC DP Output"
+    ],
+    "sub": [
+      "HDCP TX"
+    ],
+    "kind": "hardware",
+    "ev": "HDCP output configuration · functional topology"
+  },
+  {
+    "id": "hdcp-serializer",
+    "x": 660,
+    "y": 1678,
+    "w": 230,
+    "h": 84,
+    "name": [
+      "Serializer"
+    ],
+    "sub": [
+      "DP HDCP RX",
+      "GMSL HDCP TX"
+    ],
+    "kind": "hardware",
+    "ev": "HDCP output configuration · functional topology"
+  },
+  {
+    "id": "hdcp-deserializer",
+    "x": 1040,
+    "y": 1678,
+    "w": 230,
+    "h": 84,
+    "name": [
+      "Deserializer"
+    ],
+    "sub": [
+      "GMSL HDCP RX"
+    ],
+    "kind": "hardware",
+    "ev": "HDCP output configuration · functional topology"
+  },
+  {
+    "id": "hdcp-panel",
+    "x": 1420,
+    "y": 1678,
+    "w": 170,
+    "h": 84,
+    "name": [
+      "Display Panel"
+    ],
+    "sub": [
+      "Physical display output"
+    ],
+    "kind": "hardware",
+    "ev": "HDCP output configuration · functional topology"
+  },
+  {
+    "id": "cdm-core",
+    "x": 1230,
+    "y": 690,
+    "w": 360,
+    "h": 58,
+    "name": [
+      "Widevine CDM Core"
+    ],
+    "sub": [
+      "Sessions · licenses · media decryption"
+    ],
+    "kind": "vendor",
+    "ev": "Shared getCDM() · source build"
+  },
+  {
+    "id": "generic-crypto",
+    "x": 930,
+    "y": 690,
+    "w": 240,
+    "h": 58,
+    "name": [
+      "WVGenericCryptoInterface"
+    ],
+    "sub": [
+      "Generic crypto · RSA"
+    ],
+    "kind": "vendor",
+    "ev": "Source evidence · generic crypto branch"
+  },
+  {
+    "id": "oemcrypto-adapter",
+    "x": 930,
+    "y": 786,
+    "w": 660,
+    "h": 60,
+    "name": [
+      "OEMCrypto API / Adapter"
+    ],
+    "sub": [
+      "Session-based L1 / L3 dispatch · L3 backend omitted"
+    ],
+    "kind": "vendor",
+    "ev": "Source evidence · per-session dispatch"
+  }
+];
+const links = [
+  {
+    "id": "cdn-player",
+    "from": "cdn",
+    "to": "player",
+    "type": "encrypted",
+    "d": "M1022 176V292",
+    "label": "Encrypted media",
+    "lx": 1022,
+    "ly": 220
+  },
+  {
+    "id": "player-proxy",
+    "from": "player",
+    "to": "proxy",
+    "type": "control",
+    "both": true,
+    "d": "M1175 292V176",
+    "label": "HTTPS · opaque license",
+    "lx": 1175,
+    "ly": 220
+  },
+  {
+    "id": "proxy-license",
+    "from": "proxy",
+    "to": "license",
+    "type": "control",
+    "both": true,
+    "d": "M1250 134H1270"
+  },
+  {
+    "id": "player-provision",
+    "from": "player",
+    "to": "provision",
+    "type": "control",
+    "both": true,
+    "d": "M1515 292V176",
+    "label": "Provisioning, if required",
+    "lx": 1515,
+    "ly": 220
+  },
+  {
+    "id": "player-mediadrm",
+    "from": "player",
+    "to": "mediadrm",
+    "type": "control",
+    "both": true,
+    "d": "M1065 364V430",
+    "label": "Session / license messages",
+    "lx": 1065,
+    "ly": 397
+  },
+  {
+    "id": "player-codec",
+    "from": "player",
+    "to": "mediacodec",
+    "type": "control",
+    "d": "M1455 364V430",
+    "label": "Crypto session / samples",
+    "lx": 1455,
+    "ly": 397
+  },
+  {
+    "id": "mediadrm-plugin",
+    "from": "mediadrm",
+    "to": "drm-plugin",
+    "type": "control",
+    "d": "M1065 502V592",
+    "label": "DRM HAL",
+    "lx": 1065,
+    "ly": 524
+  },
+  {
+    "id": "codec-crypto",
+    "from": "mediacodec",
+    "to": "crypto-plugin",
+    "type": "control",
+    "d": "M1455 502V592",
+    "label": "Crypto HAL · decrypt",
+    "lx": 1455,
+    "ly": 524
+  },
+  {
+    "id": "oemcrypto-qcpe",
+    "from": "oemcrypto",
+    "to": "qcpe",
+    "type": "control",
+    "both": true,
+    "d": "M930 946H872Q866 934 860 946H850V1075H800",
+    "label": "SCM / HAB",
+    "lx": 850,
+    "ly": 1010,
+    "rotate": -90
+  },
+  {
+    "id": "qcpe-ta",
+    "from": "qcpe",
+    "to": "widevine-ta",
+    "type": "control",
+    "both": true,
+    "d": "M430 1075H392Q386 1063 380 1075H366V771H324",
+    "label": "Secure calls / result",
+    "lx": 366,
+    "ly": 918,
+    "rotate": -90
+  },
+  {
+    "id": "credentials-ta",
+    "from": "credentials",
+    "to": "widevine-ta",
+    "type": "control",
+    "d": "M54 390H42V771H54",
+    "label": "Protected key use",
+    "lx": 42,
+    "ly": 575,
+    "rotate": -90
+  },
+  {
+    "id": "ta-ops",
+    "from": "widevine-ta",
+    "to": "tz-ops",
+    "type": "control",
+    "d": "M189 730V614",
+    "label": "applyOPL / result",
+    "lx": 189,
+    "ly": 670,
+    "both": true
+  },
+  {
+    "id": "ops-bridge",
+    "from": "tz-ops",
+    "to": "ops",
+    "type": "control",
+    "d": "M324 572H376V368H430",
+    "label": "Protection commands / result",
+    "lx": 376,
+    "ly": 470,
+    "rotate": -90,
+    "both": true
+  },
+  {
+    "id": "ops-gate",
+    "from": "ops",
+    "to": "gate",
+    "type": "control",
+    "d": "M615 406V474",
+    "label": "OEM secure mask",
+    "lx": 615,
+    "ly": 440
+  },
+  {
+    "id": "gate-pipeline",
+    "from": "gate",
+    "to": "pipeline",
+    "type": "control",
+    "d": "M615 564V830",
+    "label": "Allow / block source bind",
+    "lx": 615,
+    "ly": 605
+  },
+  {
+    "id": "screen-pipeline",
+    "from": "screen",
+    "to": "pipeline",
+    "type": "control",
+    "d": "M515 722V830",
+    "label": "Host surface",
+    "lx": 497,
+    "ly": 815
+  },
+  {
+    "id": "guest-pipeline",
+    "from": "guest-backend",
+    "to": "pipeline",
+    "type": "control",
+    "d": "M715 722V830",
+    "label": "Source handles / attributes",
+    "lx": 740,
+    "ly": 815
+  },
+  {
+    "id": "pipeline-driver",
+    "from": "pipeline",
+    "to": "display-driver",
+    "type": "control",
+    "d": "M615 900V940",
+    "label": "Scan-out configuration",
+    "lx": 615,
+    "ly": 920
+  },
+  {
+    "id": "codec-surface",
+    "from": "mediacodec",
+    "to": "surfaceflinger",
+    "type": "control",
+    "d": "M1590 486H1610V1012H1075V1036",
+    "label": "BufferQueue / protected handles",
+    "lx": 1350,
+    "ly": 1012
+  },
+  {
+    "id": "surface-hwc",
+    "from": "surfaceflinger",
+    "to": "hwc",
+    "type": "control",
+    "d": "M1220 1074H1260"
+  },
+  {
+    "id": "hwc-guest",
+    "from": "hwc",
+    "to": "guest-backend",
+    "type": "control",
+    "d": "M1425 1112V1144H866V686H800",
+    "label": "DRM/KMS · WFD_FE · HAB",
+    "lx": 1134,
+    "ly": 1144
+  },
+  {
+    "id": "ta-buffer",
+    "from": "widevine-ta",
+    "to": "compressed",
+    "type": "media",
+    "d": "M189 812V1296H204V1302",
+    "label": "Protected compressed video",
+    "lx": 205,
+    "ly": 1160
+  },
+  {
+    "id": "codec-decoder",
+    "from": "mediacodec",
+    "to": "decoder",
+    "type": "control",
+    "d": "M1590 466H1634V1298H565V1314",
+    "label": "Secure decode control",
+    "lx": 1502,
+    "ly": 1298
+  },
+  {
+    "id": "driver-dpu",
+    "from": "display-driver",
+    "to": "dpu",
+    "type": "control",
+    "d": "M430 978H386V1242H1330V1292Q1342 1298 1330 1304V1314",
+    "label": "Display control",
+    "lx": 1080,
+    "ly": 1242
+  },
+  {
+    "id": "buffer-decoder",
+    "from": "compressed",
+    "to": "decoder",
+    "type": "media",
+    "d": "M366 1352H430"
+  },
+  {
+    "id": "decoder-frames",
+    "from": "decoder",
+    "to": "frames",
+    "type": "media",
+    "d": "M700 1352H780"
+  },
+  {
+    "id": "frames-dpu",
+    "from": "frames",
+    "to": "dpu",
+    "type": "media",
+    "d": "M1092 1352H1170"
+  },
+  {
+    "id": "drm-cdm",
+    "from": "drm-plugin",
+    "to": "cdm-core",
+    "type": "control",
+    "d": "M1160 646V668H1300V690",
+    "label": "Session / License APIs",
+    "lx": 1220,
+    "ly": 668
+  },
+  {
+    "id": "crypto-cdm",
+    "from": "crypto-plugin",
+    "to": "cdm-core",
+    "type": "control",
+    "d": "M1455 646V690",
+    "label": "DecryptV16",
+    "lx": 1490,
+    "ly": 668
+  },
+  {
+    "id": "cdm-adapter",
+    "from": "cdm-core",
+    "to": "oemcrypto-adapter",
+    "type": "control",
+    "d": "M1410 748V786",
+    "label": "Session / License / Decrypt APIs",
+    "lx": 1410,
+    "ly": 768
+  },
+  {
+    "id": "drm-generic",
+    "from": "drm-plugin",
+    "to": "generic-crypto",
+    "type": "control",
+    "d": "M995 646V690",
+    "label": "Generic crypto / RSA",
+    "lx": 1000,
+    "ly": 668
+  },
+  {
+    "id": "generic-adapter",
+    "from": "generic-crypto",
+    "to": "oemcrypto-adapter",
+    "type": "control",
+    "d": "M1050 748V786",
+    "label": "Generic OEMCrypto APIs",
+    "lx": 1050,
+    "ly": 768
+  },
+  {
+    "id": "adapter-l1",
+    "from": "oemcrypto-adapter",
+    "to": "oemcrypto",
+    "type": "control",
+    "d": "M1260 846V910",
+    "label": "L1 selected · OEMCrypto calls",
+    "lx": 1260,
+    "ly": 890
+  },
+  {
+    "id": "dpu-plain",
+    "from": "dpu",
+    "to": "plain-dp",
+    "type": "media",
+    "d": "M1330 1390V1470H270V1590H300",
+    "label": "Display pixels",
+    "lx": 1110,
+    "ly": 1470
+  },
+  {
+    "id": "plain-dp-serializer",
+    "from": "plain-dp",
+    "to": "plain-serializer",
+    "type": "media",
+    "d": "M520 1590H660",
+    "label": "DP",
+    "lx": 590,
+    "ly": 1590
+  },
+  {
+    "id": "plain-serializer-deserializer",
+    "from": "plain-serializer",
+    "to": "plain-deserializer",
+    "type": "media",
+    "d": "M890 1590H1040",
+    "label": "GMSL",
+    "lx": 965,
+    "ly": 1590
+  },
+  {
+    "id": "plain-deserializer-panel",
+    "from": "plain-deserializer",
+    "to": "plain-panel",
+    "type": "media",
+    "d": "M1270 1590H1420",
+    "label": "Panel interface",
+    "lx": 1345,
+    "ly": 1590
+  },
+  {
+    "id": "dpu-hdcp",
+    "from": "dpu",
+    "to": "hdcp-dp",
+    "type": "media",
+    "d": "M1330 1390V1470H270V1720H300"
+  },
+  {
+    "id": "hdcp-dp-serializer",
+    "from": "hdcp-dp",
+    "to": "hdcp-serializer",
+    "type": "encrypted",
+    "d": "M520 1720H660",
+    "label": "DP + HDCP",
+    "lx": 590,
+    "ly": 1720
+  },
+  {
+    "id": "hdcp-serializer-deserializer",
+    "from": "hdcp-serializer",
+    "to": "hdcp-deserializer",
+    "type": "encrypted",
+    "d": "M890 1720H1040",
+    "label": "GMSL + HDCP",
+    "lx": 965,
+    "ly": 1720
+  },
+  {
+    "id": "hdcp-deserializer-panel",
+    "from": "hdcp-deserializer",
+    "to": "hdcp-panel",
+    "type": "media",
+    "d": "M1270 1720H1420",
+    "label": "Panel interface",
+    "lx": 1345,
+    "ly": 1720
+  }
+];
+const svgNS='http://www.w3.org/2000/svg';
+const canvas=document.getElementById('architecture');
+const nodeLayer=document.getElementById('nodes');
+const edgeLayer=document.getElementById('edges');
+const labelLayer=document.getElementById('edge-labels');
+const index=new Map(modules.map(m=>[m.id,m]));
+function svgEl(tag,attrs={},text){const el=document.createElementNS(svgNS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);if(text!==undefined)el.textContent=text;return el;}
+function appendNodeShape(g,m){if(m.shape==='memory'){for(const offset of [12,6])g.append(svgEl('rect',{x:m.x+offset,y:m.y-offset,width:m.w,height:m.h,rx:3,class:'memory-layer'}));}g.append(svgEl('rect',{x:m.x,y:m.y,width:m.w,height:m.h,rx:m.shape==='memory'?3:6,class:'node-face'}));}
+for(const link of links){const g=svgEl('g',{class:'edge-group','data-edge':link.id});const path=svgEl('path',{class:'edge '+link.type,d:link.d,'marker-end':'url(#arrow-'+link.type+')'});if(link.both)path.setAttribute('marker-start','url(#arrow-'+link.type+')');g.append(path);edgeLayer.append(g);if(link.label){const lg=svgEl('g',{class:'edge-label '+link.type,'data-edge':link.id});if(link.rotate)lg.setAttribute('transform','rotate('+link.rotate+' '+link.lx+' '+link.ly+')');const w=Math.max(60,link.label.length*6.1+16);lg.append(svgEl('rect',{x:link.lx-w/2,y:link.ly-10.5,width:w,height:21,rx:4}));lg.append(svgEl('text',{x:link.lx,y:link.ly+4,'text-anchor':'middle'},link.label));labelLayer.append(lg);}}
+let selectedId=null;
+let suppressClickUntil=0;
+for(const m of modules){const g=svgEl('g',{class:'node '+m.kind+(m.shape?' '+m.shape:''),'data-node':m.id,tabindex:0,role:'button','aria-label':m.name.join(' ')});appendNodeShape(g,m);const lineHeight=m.name.length*18+m.sub.length*16;let ty=m.y+(m.h-lineHeight)/2+13;for(const s of m.name){g.append(svgEl('text',{x:m.x+m.w/2,y:ty,'text-anchor':'middle',class:'node-name'},s));ty+=18;}for(const s of m.sub){g.append(svgEl('text',{x:m.x+m.w/2,y:ty+1,'text-anchor':'middle',class:'node-sub'},s));ty+=16;}g.append(svgEl('title',{},m.name.join(' ')+' · '+m.ev));g.addEventListener('click',()=>{if(performance.now()>=suppressClickUntil&&!hasTextSelection())select(m.id);});g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(m.id);}});nodeLayer.append(g);}
+for(const el of document.querySelectorAll('.node-name')){const m=index.get(el.parentNode.dataset.node);if(el.textContent.length*7.5>m.w-22)el.setAttribute('style','font-size:13px');}
+function select(id){if(selectedId===id){clearSelection();return;}if(!index.has(id))return;selectedId=id;const near=new Set([id]),connected=new Set();for(const e of links)if(e.from===id||e.to===id){near.add(e.from);near.add(e.to);connected.add(e.id);}for(const el of nodeLayer.children){el.classList.toggle('dim',!near.has(el.dataset.node));el.classList.toggle('selected',el.dataset.node===id);el.setAttribute('aria-pressed',el.dataset.node===id?'true':'false');}for(const el of edgeLayer.children){el.classList.toggle('dim',!connected.has(el.dataset.edge));el.querySelector('path').classList.toggle('active',connected.has(el.dataset.edge));}for(const el of labelLayer.children)el.classList.toggle('dim',!connected.has(el.dataset.edge));}
+function clearSelection(){selectedId=null;for(const el of document.querySelectorAll('.dim,.selected,.active'))el.classList.remove('dim','selected','active');for(const el of nodeLayer.children)el.setAttribute('aria-pressed','false');}
+function hasTextSelection(){const selection=document.getSelection();return Boolean(selection&&!selection.isCollapsed&&selection.toString().trim()&&(canvas.contains(selection.anchorNode)||canvas.contains(selection.focusNode)));}
+canvas.addEventListener('contextmenu',e=>{if(!hasTextSelection())e.preventDefault();clearSelection();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')clearSelection();});
+document.getElementById('clear').addEventListener('click',clearSelection);
+// Zoom changes only the SVG camera. The document never grows or acquires scrollbars.
+const fullView={x:0,y:0,w:1644,h:1800};
+let view={...fullView},zoom=1;
+function renderView(){view.x=Math.max(0,Math.min(fullView.w-view.w,view.x));view.y=Math.max(0,Math.min(fullView.h-view.h,view.y));canvas.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);canvas.classList.toggle('zoomed',zoom>1);document.getElementById('zoom-level').textContent=Math.round(zoom*100)+'%';document.getElementById('zoom-out').disabled=zoom<=1;document.getElementById('zoom-in').disabled=zoom>=4;}
+function setZoom(value,anchor){const next=Math.max(1,Math.min(4,value));const p=anchor||{x:view.x+view.w/2,y:view.y+view.h/2};const rx=(p.x-view.x)/view.w,ry=(p.y-view.y)/view.h;view.w=fullView.w/next;view.h=fullView.h/next;view.x=p.x-rx*view.w;view.y=p.y-ry*view.h;zoom=next;renderView();}
+function fit(){view={...fullView};zoom=1;renderView();}
+function svgPoint(e){const p=canvas.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(canvas.getScreenCTM().inverse());}
+document.getElementById('fit').addEventListener('click',fit);
+document.getElementById('zoom-in').addEventListener('click',()=>setZoom(zoom*1.25));
+document.getElementById('zoom-out').addEventListener('click',()=>setZoom(zoom/1.25));
+canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.15:1/1.15),svgPoint(e));},{passive:false});
+let drag=null;
+canvas.addEventListener('pointerdown',e=>{if(e.button!==0||e.target?.closest?.('text'))return;if(hasTextSelection())document.getSelection().removeAllRanges();if(zoom<=1)return;drag={id:e.pointerId,sx:e.clientX,sy:e.clientY,x:view.x,y:view.y,unit:1/Math.abs(canvas.getScreenCTM().a),moved:false};});
+canvas.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.sx,dy=e.clientY-drag.sy;if(Math.abs(dx)+Math.abs(dy)>3)drag.moved=true;if(drag.moved){if(!canvas.hasPointerCapture(e.pointerId))canvas.setPointerCapture(e.pointerId);view.x=drag.x-dx*drag.unit;view.y=drag.y-dy*drag.unit;canvas.classList.add('panning');renderView();}});
+function endDrag(e){if(!drag||drag.id!==e.pointerId)return;if(drag.moved)suppressClickUntil=performance.now()+120;drag=null;canvas.classList.remove('panning');if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);}
+canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
+document.getElementById('theme').addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';document.getElementById('theme').textContent=dark?'Light theme':'Dark theme';});
+fit();
+// Embedded pages reserve enough height to fit the full diagram at article width.
+let lastEmbeddedHeight=0;
+function reportEmbeddedHeight(){
+  if(window.parent===window||!canvas.clientWidth)return;
+  const chromeHeight=window.innerHeight-canvas.clientHeight;
+  const height=Math.ceil(canvas.clientWidth*fullView.h/fullView.w+chromeHeight);
+  if(height===lastEmbeddedHeight)return;
+  lastEmbeddedHeight=height;
+  window.parent.postMessage({type:'cockpit-drm-architecture-height',height},'*');
+}
+window.addEventListener('resize',reportEmbeddedHeight);
+if(document.fonts)document.fonts.ready.then(reportEmbeddedHeight);
+reportEmbeddedHeight();
+
+</script></body></html>

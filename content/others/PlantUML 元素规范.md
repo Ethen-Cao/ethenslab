@@ -9,7 +9,7 @@ ShowToc = true
 
 本文规定本知识库的 PlantUML 图表样式，并提供架构图、流程图和时序图三份完整模板。默认采用深灰背景、Google 蓝绿实色块、白色文字、方角和细边框。
 
-视觉参考来自仓库中的 `work/architecture_diagrams/android_architecture.html`，与 RenderEngine 文章中的图表保持一致。这里的“Google 风格”是本知识库对该参考样式的命名；实现使用 `!theme plain` 加显式样式配置。
+视觉参考来自仓库中的 `work/skills/architecture-diagram/assets/architecture_diagrams/android_architecture.html`，与 RenderEngine 文章中的图表保持一致。这里的“Google 风格”是本知识库对该参考样式的命名；实现使用 `!theme plain` 加显式样式配置。
 
 <!--more-->
 

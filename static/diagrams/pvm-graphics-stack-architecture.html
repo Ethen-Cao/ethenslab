@@ -12,14 +12,14 @@
       --line: #cbd1d8; --domain: #f5f6f7; --process: #fff;
       --oem: #4285F4; --native: #34A853; --vendor: #FBBC04; --hardware: #9AA0A6;
       --node-ink: #102116; --hardware-ink: #202124; --blue: #356dc9; --green: #237a44;
-      --focus: #202124; --fade: .12;
+      --focus: #202124; --fade: .12; --hardware-surface: #edf0f2;
     }
     [data-theme="dark"] {
       color-scheme: dark;
       --page: #202124; --panel: #282a2d; --ink: #e8eaed; --muted: #afb5be;
       --line: #565c66; --domain: #242629; --process: #303337;
       --hardware: #5F6368; --hardware-ink: #fff; --blue: #8ab4f8; --green: #81c995;
-      --focus: #fff; --fade: .14;
+      --focus: #fff; --fade: .14; --hardware-surface: #3c4043;
     }
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -89,6 +89,10 @@
     .node.memory rect { stroke: var(--panel); stroke-width: 2; }
     .node.configured rect { fill: var(--process); stroke: var(--muted); stroke-dasharray: 5 4; }
     .node.configured text { fill: var(--muted); }
+    .node[data-zone] rect { fill: var(--hardware-surface); stroke: var(--hardware); stroke-width: 1.5; }
+    .node[data-zone] .node-sub { fill: var(--muted); }
+    .node[data-zone].configured rect { fill: var(--process); stroke: var(--muted); }
+    .flow-junction { fill: var(--green); }
     .node:hover .face, .node:focus-visible .face { stroke: var(--focus); stroke-width: 2.8; }
     .node.selected .face { stroke: var(--focus); stroke-width: 4; }
     .node:focus { outline: none; }
@@ -110,7 +114,7 @@
     @media (max-width: 900px) { body { padding: 7px; } h1 { font-size: 16px; } .subtitle, .hint { display: none; } .tools { gap: 3px; } button { padding: 3px 7px; } }
     @media (max-width: 540px) { header { gap: 6px; } .tools { margin-left: 0; width: 100%; } .legend { gap: 3px 10px; font-size: 10px; } .filters { gap: 4px; } .detail { max-height: 100px; font-size: 11px; } }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-    @media print { html, body { height: auto; overflow: visible; background: #fff; } main { display: block; } .tools, .filters, .detail { display: none; } .diagram-shell { height: auto; border: 0; } svg { height: auto; aspect-ratio: 2720 / 1604; } .legend { margin-top: 8px; } }
+    @media print { html, body { height: auto; overflow: visible; background: #fff; } main { display: block; } .tools, .filters, .detail { display: none; } .diagram-shell { height: auto; border: 0; } svg { height: auto; aspect-ratio: 2720 / 2256; } .legend { margin-top: 8px; } }
   </style>
 </head>
 <body>
@@ -118,7 +122,7 @@
   <header>
     <div><h1>SA8797 · PVM 图形栈架构</h1><span class="subtitle">PVM · Android Guest · Gunyah</span></div>
     <div class="tools">
-      <button id="fit" type="button">适应画布</button><button id="pvm-focus" type="button">放大 PVM</button><button id="android-focus" type="button">放大 Android</button>
+      <button id="fit" type="button">适应画布</button><button id="pvm-focus" type="button">放大 PVM</button><button id="android-focus" type="button">放大 Android</button><button id="hardware-focus" type="button">放大硬件</button>
       <button id="zoom-out" type="button" aria-label="缩小">−</button><span id="zoom-level" aria-live="polite">100%</span><button id="zoom-in" type="button" aria-label="放大">+</button>
       <button id="clear" type="button">清除选择</button><button id="theme" type="button">深色</button>
     </div>
@@ -134,15 +138,16 @@
     <span class="hint">点击节点查看直连关系 · 拖动空白平移 · 文字可选中复制 · Esc 清除</span>
   </nav>
   <section class="diagram-shell" aria-label="可缩放架构图">
-    <svg id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2720 1604" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-desc">
+    <svg id="architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2720 2256" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="svg-title svg-desc">
       <title id="svg-title">PVM 图形栈的软件分层、运行边界与依赖关系</title>
-      <desc id="svg-desc">PVM 用户态按 Weston、VirtIOGPU2DBackendService、gsl_hab_server 三列划分独立进程。Weston 内 drm-backend.so 调用 sdm-service.so 适配模块与 libsdmcore.so 合成策略核心，并调度 GL Renderer。gsl_hab_server 下方并列排列 libuhab.so 与 libgsl.so：前者收发 HAB RPC，后者经本机 IPC 调用独立 kgsl 进程中的 RGS。下方为 Linux kernel 接口。Android 自上而下分为 Java、Native、HAL、Linux kernel 四层。HGSL 通过 HAB/VirtIO 向 PVM HAB vhost 后端发送控制与注册请求；DBCQ 就绪后，HGSL 写入共享命令队列，另以 doorbell 通知 GMU firmware 消费命令。SurfaceFlinger 经 HWC、DRM 显示前端和 HAB 到达 PVM 显示后端。绿色为像素流，蓝色点线为 doorbell 通知，跨线弧表示交叉但不连接。</desc>
+      <desc id="svg-desc">PVM 用户态按 Weston、VirtIOGPU2DBackendService、gsl_hab_server 三列划分独立进程。Weston 内 drm-backend.so 调用 sdm-service.so 适配模块与 libsdmcore.so 合成策略核心，并调度 GL Renderer。gsl_hab_server 下方并列排列 libuhab.so 与 libgsl.so：前者收发 HAB RPC，后者经本机 IPC 调用独立 kgsl 进程中的 RGS。下方为 Linux kernel 接口。Android 自上而下分为 Java、Native、HAL、Linux kernel 四层。HGSL 通过 HAB/VirtIO 向 PVM HAB vhost 后端发送控制与注册请求；DBCQ 就绪后，HGSL 写入共享命令队列，再经 MMIO 写入 GVM 获授权直通的 GMUGOS IPC 寄存器，通过硬件 doorbell 通知 GMU firmware 消费命令。SurfaceFlinger 经 HWC、DRM 显示前端和 HAB 到达 PVM 显示后端。绿色为像素流，蓝色点线为 doorbell 通知，跨线弧表示交叉但不连接。</desc>
       <defs>
+        <clipPath id="camera-clip"><rect id="camera-frame" x="0" y="0" width="2720" height="2256"/></clipPath>
         <marker id="arrow-control" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L8 5 L1 9" fill="none" stroke="var(--blue)" stroke-width="2"/></marker>
         <marker id="arrow-pixel" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L9 5.5 L1 10" fill="none" stroke="var(--green)" stroke-width="2.5"/></marker>
         <marker id="arrow-config" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1 L8 5 L1 9" fill="none" stroke="var(--muted)" stroke-width="1.8"/></marker>
       </defs>
-      <g id="diagram-content" transform="translate(-160 0)">
+      <g clip-path="url(#camera-clip)"><g id="diagram-content" transform="translate(-160 0)">
       <g id="containers">
         <!-- Three user-space process columns; independent service and kernel tiers. -->
         <rect class="domain" x="180" y="20" width="1500" height="1252" rx="10"/>
@@ -212,17 +217,28 @@
         <path class="mode-boundary" d="M180 1064 H2860"/>
         <rect class="foundation" x="180" y="1288" width="2680" height="24" rx="5"/>
         <text class="process-title" x="2420" y="1306" text-anchor="middle" style="font-size:15px">Gunyah · VM 隔离 / 资源授权 / 虚拟化底座</text>
-        <rect class="domain" x="180" y="1342" width="2680" height="244" rx="8"/>
-        <path class="layer-rule" d="M196 1486 H2240"/>
+        <g data-zone="soc">
+          <rect class="domain" x="180" y="1448" width="2680" height="452" rx="8"/>
+          <text class="process-title" x="250" y="1480">SoC Hardware</text>
+          <text class="section-label" x="1050" y="1480" text-anchor="middle">Shared Frame Buffers</text>
+          <text class="section-label" x="1800" y="1480" text-anchor="middle">Display Processing Unit</text>
+          <text class="section-label" x="2555" y="1480" text-anchor="middle">Display Interface</text>
+        </g>
+        <g data-zone="output">
+          <rect class="layer-panel" x="180" y="1968" width="2680" height="268" rx="8"/>
+          <text class="process-title" x="250" y="2000">Display Output</text>
+          <text class="section-label" x="650" y="2060" text-anchor="end">display 3 · DP0</text>
+          <text class="section-label" x="650" y="2188" text-anchor="end">display 8 · DP3 / MST1</text>
+        </g>
       </g>
       <g id="edges"></g><g id="bridge-overlays" pointer-events="none"></g><g id="nodes"></g><g id="edge-labels"></g>
-      </g>
+      </g></g>
     </svg>
   </section>
   <footer>
     <div class="legend" aria-label="图例">
       <span><b>组件来源</b></span><span><i class="chip oem"></i>OEM 应用</span><span><i class="chip native"></i>通用 / 开源</span><span><i class="chip vendor"></i>Qualcomm / 平台实现</span><span><i class="chip hardware"></i>硬件 / buffer</span>
-      <span><b>连线</b></span><span><i class="line"></i>调用 / 提交依赖</span><span><i class="line notify"></i>doorbell 通知</span><span><i class="line pixel"></i>像素读写 / 取图</span><span><i class="line config"></i>配置 / 分配依赖（非逐帧）</span><span>弧形跨线 = 交叉但不连接</span>
+      <span><b>连线</b></span><span><i class="line"></i>调用 / 提交依赖</span><span><i class="line notify"></i>doorbell 通知</span><span><i class="line pixel"></i>像素读写 / 取图</span><span><i class="line config"></i>配置 / 分配依赖（非逐帧）</span><span>跨线弧不连接 · 实心点为 buffer 分支</span>
     </div>
     <div class="sources">依据：<a href="https://source.android.com/docs/core/graphics/architecture" target="_blank" rel="noopener">AOSP Graphics</a> · <a href="https://source.android.com/docs/core/graphics/hwc" target="_blank" rel="noopener">HWC</a> · 平台源码分析：kgsl-rgs-architecture.md / display-virtio-hab-datapath.md</div>
   </footer>
@@ -231,7 +247,7 @@
 <script>
 'use strict';
 // Layout coordinates describe the architecture; no external libraries or network requests.
-const WIDTH = 2720, HEIGHT = 1604;
+const WIDTH = 2720, HEIGHT = 2256;
 const nodes = [
   {
     "id": "apps",
@@ -255,13 +271,14 @@ const nodes = [
     "w": 224,
     "h": 64,
     "kind": "neutral",
+    "configured": true,
     "name": [
-      "TELLTALE · 预留客户端"
+      "TELLTALE"
     ],
     "sub": [
-      "独立于 Weston · 0x7812"
+      "预留 WFD Client · 0x7812"
     ],
-    "detail": "静态配置为独立 TELLTALE 客户端预留 DPU 0 / display 3 的 VIG3、z10。虚线仅表示预留关系，不表示已确认的活动进程或帧。"
+    "detail": "为 WFD Client 0x7812 预留 DPU 0 / display 3 的 VIG3、z10，与 SCREEN Client 0x78FF 分开分配资源。虚线边框表示静态预留，不表示已确认的活动进程或帧。"
   },
   {
     "id": "scene",
@@ -484,22 +501,6 @@ const nodes = [
     ],
     "detail": "与实例 0 相同的 openwfd_server C 模块，包含 WFD_ClientMgr / WFD_PortMgr / WFD_CommitMgr 函数族；实例 1 接收两个 WFD 客户端提交，持有 DPU 1 对应的 KIUMD / VFIO / SCMI 资源。",
     "process": "openwfd-1"
-  },
-  {
-    "id": "config",
-    "x": 1012,
-    "y": 104,
-    "w": 128,
-    "h": 64,
-    "kind": "neutral",
-    "name": [
-      "display_cfg.ini"
-    ],
-    "sub": [
-      "Client / Port",
-      "Pipeline / z-order"
-    ],
-    "detail": "display_cfg.ini 选择 qcdisplaycfg_project_a_296。静态划分 Client、Port、Pipeline 与 z-order；Pipeline 不与每个 wl_surface 一一对应。"
   },
   {
     "id": "rgs",
@@ -900,7 +901,7 @@ const nodes = [
     "sub": [
       "Guest GPU 内核前端"
     ],
-    "detail": "Guest HGSL 内核前端：context、内存和 DBCQ 注册经 hgsl_hyp → HAB/VirtIO → PVM RGS。DBCQ 就绪后，dbcq_send_msg() 将 HFI ISSUE_CMD 写入已映射队列，执行内存屏障、更新 writeIdx，再单独触发 GMUGOS/TCSR/local GMU doorbell；提交快路径不经过 VirtIO virtqueue。",
+    "detail": "Guest HGSL 内核前端：context、内存和 DBCQ 注册经 hgsl_hyp → HAB/VirtIO → PVM RGS。DBCQ 就绪后，dbcq_send_msg() 写入 HFI ISSUE_CMD，执行 dma_wmb()、更新 writeIdx，再执行 wmb()。本平台通过 hgsl_gmugos_irq_trigger() 对 GVM 获授权的 GMUGOS SET 寄存器进行 MMIO 写入，触发 doorbell；该通知快路径不经过 VirtIO virtqueue。hgsl_gmugos.c 编入 qcom_hgsl 模块。",
     "layer": "Linux kernel"
   },
   {
@@ -917,7 +918,7 @@ const nodes = [
     "sub": [
       "HFI ISSUE_CMD · per-context"
     ],
-    "detail": "HGSL 映射的 per-context 共享命令队列。建立时由 hgsl_hyp_context_register_dbcq() 通过 HAB 导出 dma-buf 并发送注册 RPC；建立后，HGSL 直接写 queue_body、更新 writeIdx，GMU firmware 消费 HFI 命令。命令包含 context、timestamp 和 IB 地址/长度。DBCQ 不是 VirtIO virtqueue；doorbell 由 HGSL 另行触发。",
+    "detail": "HGSL 映射的 per-context 共享命令队列。建立时由 hgsl_hyp_context_register_dbcq() 通过 HAB 导出 dma-buf 并发送注册 RPC；建立后，HGSL 直接写 queue_body、更新 writeIdx，GMU firmware 消费 HFI 命令。命令包含 context、timestamp 和 IB 地址/长度。DBCQ 承载命令，GMUGOS MMIO doorbell 独立承载通知。",
     "layer": "Linux kernel"
   },
   {
@@ -954,10 +955,10 @@ const nodes = [
   },
   {
     "id": "gpu",
-    "x": 212,
-    "y": 1352,
-    "w": 300,
-    "h": 84,
+    "x": 250,
+    "y": 1740,
+    "w": 350,
+    "h": 96,
     "kind": "hardware",
     "name": [
       "Adreno 753 · GPU"
@@ -965,14 +966,31 @@ const nodes = [
     "sub": [
       "CP/SQE 取 IB · 执行渲染"
     ],
-    "detail": "GPU 命令处理器 CP/SQE 读取并解析 IB，由 GPU 执行单元访问图像资源和执行渲染。GMU 负责调度/context 控制，不是执行全部绘制指令的单元。GPU 与 DPU 职责分开。"
+    "detail": "GPU 命令处理器 CP/SQE 读取并解析 IB，由 GPU 执行单元访问图像资源和执行渲染。GMU 负责调度/context 控制，不是执行全部绘制指令的单元。GPU 与 DPU 职责分开。",
+    "zone": "soc"
+  },
+  {
+    "id": "gmugos",
+    "x": 250,
+    "y": 1508,
+    "w": 350,
+    "h": 76,
+    "kind": "hardware",
+    "name": [
+      "GMUGOS IPC 寄存器"
+    ],
+    "sub": [
+      "MMIO doorbell · GVM 直通窗口"
+    ],
+    "detail": "本平台 Guest 可访问的 GMU IPC / doorbell 硬件接口。HGSL 通过 syscon/regmap 写 SET（0x00）的 BIT(irq_bit_idx) 发通知；STATUS / CLR / MASK 位于 0x04 / 0x08 / 0x0C。板级 VM iomemory-ranges 将 0x03D40000 与 0x09840000 各 4 KiB 的 GMU 页配置为直通，Guest 设备树各使用前 0x10 字节。通知参数 db_signal、irq_bit_idx 来自 PVM 的 DBCQ 查询 RPC；命令内容在独立的共享 DBCQ 中。",
+    "zone": "soc"
   },
   {
     "id": "gmu",
-    "x": 544,
-    "y": 1352,
-    "w": 224,
-    "h": 84,
+    "x": 250,
+    "y": 1624,
+    "w": 350,
+    "h": 76,
     "kind": "hardware",
     "name": [
       "GMU firmware"
@@ -980,14 +998,15 @@ const nodes = [
     "sub": [
       "DBCQ 消费 / context 调度"
     ],
-    "detail": "GMU firmware 接收 HGSL 的 doorbell 通知，消费 DBCQ 中的 HFI ISSUE_CMD 并调度 context，随后由 CP/SQE 读取、解析 IB。HFI 是主机与固件之间的消息接口；GMU 是 DBCQ 消费者，不是 VirtIO 后端。"
+    "detail": "GMU firmware 响应 GMUGOS 硬件 doorbell 通知，消费独立共享 DBCQ 中的 HFI ISSUE_CMD 并调度 context，随后由 CP/SQE 读取、解析 IB。HGSL 发起的是 GMUGOS MMIO 寄存器写入，而非调用固件函数。HFI 是主机与固件之间的消息接口。",
+    "zone": "soc"
   },
   {
     "id": "dpu0",
-    "x": 792,
-    "y": 1352,
-    "w": 332,
-    "h": 84,
+    "x": 1620,
+    "y": 1508,
+    "w": 360,
+    "h": 96,
     "kind": "hardware",
     "name": [
       "DPU 0 · display 3"
@@ -996,14 +1015,15 @@ const nodes = [
       "z10 TELLTALE · z4/5 SCREEN",
       "z0/1 LA_GVM"
     ],
-    "detail": "LA_GVM：DMA2 z0 / VIG2 z1；SCREEN：DMA0 z4 / VIG0 z5；TELLTALE 预留 VIG3 z10。DPU 按 Pipeline 绑定取图、混合并输出。"
+    "detail": "LA_GVM：DMA2 z0 / VIG2 z1；SCREEN：DMA0 z4 / VIG0 z5；TELLTALE 预留 VIG3 z10。DPU 按 Pipeline 绑定取图、混合并输出。",
+    "zone": "soc"
   },
   {
     "id": "dpu1",
-    "x": 1170,
-    "y": 1352,
-    "w": 332,
-    "h": 84,
+    "x": 1620,
+    "y": 1708,
+    "w": 360,
+    "h": 96,
     "kind": "hardware",
     "name": [
       "DPU 1 · display 8 / 9"
@@ -1012,13 +1032,14 @@ const nodes = [
       "d8：LA z0 / SCREEN z4",
       "d9：LA z0（仅配置）"
     ],
-    "detail": "display 8：LA_GVM DMA3 z0、SCREEN DMA1 z4。display 9：LA_GVM DMA4 z0，仅确认静态分配。PVM 的 SCREEN 输入只用于 d8。"
+    "detail": "display 8：LA_GVM DMA3 z0、SCREEN DMA1 z4。display 9：LA_GVM DMA4 z0，仅确认静态分配。PVM 的 SCREEN 输入只用于 d8。",
+    "zone": "soc"
   },
   {
     "id": "source",
-    "x": 212,
-    "y": 1496,
-    "w": 240,
+    "x": 850,
+    "y": 1508,
+    "w": 400,
     "h": 64,
     "kind": "hardware",
     "memory": true,
@@ -1028,13 +1049,14 @@ const nodes = [
     "sub": [
       "GPU 输入 / overlay"
     ],
-    "detail": "PVM 应用源图像的逻辑存储。GPU composition 读取它，overlay 则由 DPU 直接取图；overlay 仍需软件栈的 OpenWFD 绑定提交。"
+    "detail": "PVM 应用源图像的逻辑存储。GPU composition 读取它，overlay 则由 DPU 直接取图；overlay 仍需软件栈的 OpenWFD 绑定提交。",
+    "zone": "soc"
   },
   {
     "id": "target",
-    "x": 484,
-    "y": 1496,
-    "w": 240,
+    "x": 850,
+    "y": 1624,
+    "w": 400,
     "h": 64,
     "kind": "hardware",
     "memory": true,
@@ -1044,13 +1066,14 @@ const nodes = [
     "sub": [
       "GPU 合成结果"
     ],
-    "detail": "GPU 合成选定 view 后产生的 target。它与 overlay 源 buffer 的绑定均由 SDM Commit、DRM-FE 和 WFD client 提交。"
+    "detail": "GPU 合成选定 view 后产生的 target。它与 overlay 源 buffer 的绑定均由 SDM Commit、DRM-FE 和 WFD client 提交。",
+    "zone": "soc"
   },
   {
     "id": "gframe",
-    "x": 752,
-    "y": 1496,
-    "w": 430,
+    "x": 850,
+    "y": 1740,
+    "w": 400,
     "h": 64,
     "kind": "hardware",
     "memory": true,
@@ -1058,55 +1081,157 @@ const nodes = [
       "Guest layer / client-target buffers"
     ],
     "sub": [
-      "Gralloc 分配 · GPU/其他生产者写入 · fence 同步"
+      "Gralloc · GPU / 其他生产者 · fence 同步"
     ],
-    "detail": "应用生产的 layer buffers，以及 CLIENT 合成得到的 client target，经平台共享/导入后用于 DPU 取图。不同 buffer 可能来自 GPU、视频解码器等；图中绿色箭头仅展开 GPU 生产路径，不保证全链零拷贝。"
+    "detail": "应用生产的 layer buffers，以及 CLIENT 合成得到的 client target，经平台共享/导入后用于 DPU 取图。不同 buffer 可能来自 GPU、视频解码器等；图中绿色箭头仅展开 GPU 生产路径，不保证全链零拷贝。",
+    "zone": "soc"
   },
   {
     "id": "out3",
-    "x": 2300,
-    "y": 1352,
-    "w": 498,
-    "h": 52,
+    "x": 2340,
+    "y": 2012,
+    "w": 430,
+    "h": 84,
     "kind": "hardware",
     "name": [
-      "DP0S078FF1 · display 3"
+      "中控屏 · display 3"
     ],
     "sub": [
+      "DP0S078FF1",
       "6400 × 1800 @ 60 · DSC 3:1"
     ],
-    "detail": "基线已枚举的 DPU 0 输出；MAX96855A，6400×1800@60，DSC 3:1。它包含 DPU 的跨客户端最终混合，而非 Weston 单独的抓帧结果。"
+    "detail": "基线已枚举的 DPU 0 输出；MAX96855A，6400×1800@60，DSC 3:1。它包含 DPU 的跨客户端最终混合，而非 Weston 单独的抓帧结果。",
+    "zone": "output"
   },
   {
     "id": "out8",
-    "x": 2300,
-    "y": 1424,
-    "w": 498,
-    "h": 52,
+    "x": 2340,
+    "y": 2140,
+    "w": 430,
+    "h": 84,
     "kind": "hardware",
     "name": [
-      "DP3S078FF2 · display 8"
+      "仪表屏 · display 8"
     ],
     "sub": [
-      "1920 × 480 @ 60 · DS90UB983"
+      "DP3S078FF2",
+      "1920 × 480 @ 60"
     ],
-    "detail": "基线已枚举的 DPU 1 / display 8 输出。"
+    "detail": "DPU 1 / DP3 MST1 经 DS90UB983 与屏端解串器输出至仪表屏。基线 Weston 枚举 DP3S078FF2；图中不指定未核实的解串器或 Panel 型号。",
+    "zone": "output"
   },
   {
     "id": "out9",
-    "x": 2300,
-    "y": 1496,
-    "w": 498,
-    "h": 48,
+    "x": 2340,
+    "y": 1832,
+    "w": 430,
+    "h": 52,
     "kind": "neutral",
     "configured": true,
     "name": [
-      "display 9 · 仅配置"
+      "display 9 · MST2（仅配置）"
     ],
     "sub": [
-      "1280 × 640 @ 60 · active 未确认"
+      "1280 × 640 @ 60 · LA_GVM"
     ],
-    "detail": "静态配置存在 LA_GVM 的 display 9 资源，基线未见 Weston head；不宣称已亮屏或物理链路 active。"
+    "detail": "静态配置为 DP3_COMMON_MST2_OEM，Bridge 字段为 NATIVE；这不证明存在独立直连面板。LA_GVM 获得 display 9 资源，但本次 Weston 基线未枚举对应 head，物理链路 active 未确认。",
+    "zone": "soc"
+  },
+  {
+    "id": "dp0",
+    "x": 2340,
+    "y": 1508,
+    "w": 430,
+    "h": 96,
+    "kind": "hardware",
+    "zone": "soc",
+    "name": [
+      "DP0 Controller / PHY"
+    ],
+    "sub": [
+      "display 3 · DP 输出"
+    ],
+    "detail": "DPU 0 的 display 3 经 DP0 输出到 MAX96855A_SST_CENTRAL_296 串行器。面板配置 DP0_COMMON_MST1_OEM。DP 控制器/PHY 与下游车载串行链路为不同硬件环节。"
+  },
+  {
+    "id": "dp3",
+    "x": 2340,
+    "y": 1708,
+    "w": 430,
+    "h": 96,
+    "kind": "hardware",
+    "zone": "soc",
+    "name": [
+      "DP3 Controller / PHY"
+    ],
+    "sub": [
+      "MST1：display 8 · MST2：display 9"
+    ],
+    "detail": "DP3 的 MST1 配置为 display 8，Bridge 为 DS90UB983_MST_CLUS888_HUD47；MST2 配置为 display 9，仅确认静态分配。两条逻辑输出的物理活动状态不能等同。"
+  },
+  {
+    "id": "ser3",
+    "x": 850,
+    "y": 2012,
+    "w": 400,
+    "h": 84,
+    "kind": "hardware",
+    "zone": "output",
+    "name": [
+      "MAX96855A · Serializer"
+    ],
+    "sub": [
+      "DP 输入 · 串行链路 TX"
+    ],
+    "detail": "配置 Bridge：MAX96855A_SST_CENTRAL_296。驱动包含远端解串器配置，并定义、读取 MAX96862 视频状态寄存器。"
+  },
+  {
+    "id": "des3",
+    "x": 1620,
+    "y": 2012,
+    "w": 360,
+    "h": 84,
+    "kind": "hardware",
+    "zone": "output",
+    "name": [
+      "屏端 Deserializer"
+    ],
+    "sub": [
+      "串行链路 RX · Panel 输出"
+    ],
+    "detail": "中控链路的屏端解串器。MAX96855A_SST_CENTRAL_296 驱动包含远端配置和 MAX96862 视频状态读取；主图保留硬件角色名称。"
+  },
+  {
+    "id": "ser8",
+    "x": 850,
+    "y": 2140,
+    "w": 400,
+    "h": 84,
+    "kind": "hardware",
+    "zone": "output",
+    "name": [
+      "DS90UB983 · Serializer"
+    ],
+    "sub": [
+      "DP / MST 输入 · FPD-Link TX"
+    ],
+    "detail": "配置 Bridge：DS90UB983_MST_CLUS888_HUD47。驱动配置两个 DP virtual sink，并使用 FPD-Link IV / III 混合端口模式；主图不将全部下游链路统一标为 FPD-Link IV。"
+  },
+  {
+    "id": "des8",
+    "x": 1620,
+    "y": 2140,
+    "w": 360,
+    "h": 84,
+    "kind": "hardware",
+    "zone": "output",
+    "name": [
+      "屏端 Deserializer"
+    ],
+    "sub": [
+      "FPD-Link RX · Panel 输出"
+    ],
+    "detail": "DS90UB983 仪表显示链路的屏端解串角色。现有证据没有明确其型号，图中不猜测 DS90UB984、DS90UB988 或具体 Panel 型号。"
   }
 ];
 const edges = [
@@ -1273,30 +1398,6 @@ const edges = [
     "d": "M1108 804 V966"
   },
   {
-    "id": "reserved",
-    "from": "telltale",
-    "to": "config",
-    "type": "config",
-    "routes": [],
-    "d": "M996 136 H1012"
-  },
-  {
-    "id": "cfg0",
-    "from": "config",
-    "to": "server0",
-    "type": "config",
-    "routes": [],
-    "d": "M1140 136 H1168 V1048 H720 V992 H692"
-  },
-  {
-    "id": "cfg1",
-    "from": "config",
-    "to": "server1",
-    "type": "config",
-    "routes": [],
-    "d": "M1140 136 H1168 V992 H1140"
-  },
-  {
     "id": "resource0",
     "from": "server0",
     "to": "kernel0",
@@ -1338,7 +1439,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M452 1196 V1326 H958 V1352"
+    "d": "M452 1196 V1352 H1952 V1492 H1800 V1508"
   },
   {
     "id": "program1",
@@ -1349,7 +1450,7 @@ const edges = [
       "pvm",
       "guest"
     ],
-    "d": "M956 1196 V1314 H1336 V1352"
+    "d": "M956 1196 V1376 H2080 V1664 H1800 V1708"
   },
   {
     "id": "gpuctrl",
@@ -1360,7 +1461,7 @@ const edges = [
       "pvm",
       "gl"
     ],
-    "d": "M1335 1196 V1302 H360 V1352"
+    "d": "M1335 1196 V1328 H228 V1788 H250"
   },
   {
     "id": "setup",
@@ -1663,21 +1764,34 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M1854 1264 V1334 H640 V1352"
+    "d": "M1854 1264 V1400 H620 V1596 H425 V1624"
   },
   {
     "id": "doorbell",
     "from": "hgsl",
+    "to": "gmugos",
+    "type": "control",
+    "routes": [
+      "gl"
+    ],
+    "d": "M1734 1154 H1704 V1424 H425 V1508",
+    "label": "MMIO 写",
+    "lx": 1698,
+    "ly": 1200
+  },
+  {
+    "id": "gmugosnotify",
+    "from": "gmugos",
     "to": "gmu",
     "type": "control",
     "notification": true,
     "routes": [
       "gl"
     ],
-    "d": "M1734 1154 H1704 V1322 H704 V1352",
+    "d": "M350 1584 V1624",
     "label": "doorbell",
-    "lx": 1698,
-    "ly": 1200
+    "lx": 300,
+    "ly": 1614
   },
   {
     "id": "gmuib",
@@ -1687,7 +1801,7 @@ const edges = [
     "routes": [
       "gl"
     ],
-    "d": "M544 1394 H512"
+    "d": "M425 1700 V1740"
   },
   {
     "id": "gpusource",
@@ -1695,10 +1809,11 @@ const edges = [
     "to": "gpu",
     "type": "pixel",
     "routes": [],
-    "d": "M330 1496 V1436",
-    "label": "读入",
-    "lx": 298,
-    "ly": 1465
+    "d": "M850 1540 H696 V1764 H600",
+    "label": "GPU 读入",
+    "lx": 770,
+    "ly": 1528,
+    "hardware": true
   },
   {
     "id": "gpuwrite",
@@ -1706,10 +1821,11 @@ const edges = [
     "to": "target",
     "type": "pixel",
     "routes": [],
-    "d": "M460 1436 V1452 H610 V1496",
-    "label": "PVM 写出",
-    "lx": 590,
-    "ly": 1484
+    "d": "M600 1788 H740 V1656 H850",
+    "label": "渲染写出",
+    "lx": 790,
+    "ly": 1644,
+    "hardware": true
   },
   {
     "id": "guestgpuwrite",
@@ -1717,10 +1833,11 @@ const edges = [
     "to": "gframe",
     "type": "pixel",
     "routes": [],
-    "d": "M512 1374 H526 V1476 H800 V1496",
-    "label": "Guest 渲染写出",
-    "lx": 707,
-    "ly": 1465
+    "d": "M600 1812 H780 V1772 H850",
+    "label": "Guest 渲染",
+    "lx": 680,
+    "ly": 1800,
+    "hardware": true
   },
   {
     "id": "overlay0",
@@ -1728,7 +1845,11 @@ const edges = [
     "to": "dpu0",
     "type": "pixel",
     "routes": [],
-    "d": "M430 1496 V1464 H834 V1436"
+    "d": "M1250 1540 H1360 V1528 H1620",
+    "label": "Overlay",
+    "lx": 1305,
+    "ly": 1528,
+    "hardware": true
   },
   {
     "id": "overlay1",
@@ -1736,7 +1857,8 @@ const edges = [
     "to": "dpu1",
     "type": "pixel",
     "routes": [],
-    "d": "M430 1496 V1464 H1214 V1436"
+    "d": "M1250 1540 H1360 V1728 H1620",
+    "hardware": true
   },
   {
     "id": "target0",
@@ -1744,7 +1866,8 @@ const edges = [
     "to": "dpu0",
     "type": "pixel",
     "routes": [],
-    "d": "M670 1496 V1454 H924 V1436"
+    "d": "M1250 1656 H1432 V1556 H1620",
+    "hardware": true
   },
   {
     "id": "target1",
@@ -1752,10 +1875,8 @@ const edges = [
     "to": "dpu1",
     "type": "pixel",
     "routes": [],
-    "d": "M670 1496 V1454 H1304 V1436",
-    "label": "SCREEN → 仅 d8",
-    "lx": 1310,
-    "ly": 1506
+    "d": "M1250 1656 H1432 V1756 H1620",
+    "hardware": true
   },
   {
     "id": "guestread0",
@@ -1763,7 +1884,8 @@ const edges = [
     "to": "dpu0",
     "type": "pixel",
     "routes": [],
-    "d": "M1110 1496 V1446 H1078 V1436"
+    "d": "M1250 1772 H1504 V1584 H1620",
+    "hardware": true
   },
   {
     "id": "guestread1",
@@ -1771,37 +1893,46 @@ const edges = [
     "to": "dpu1",
     "type": "pixel",
     "routes": [],
-    "d": "M1110 1496 V1446 H1448 V1436"
+    "d": "M1250 1772 H1504 V1784 H1620",
+    "hardware": true
   },
   {
     "id": "display3",
     "from": "dpu0",
-    "to": "out3",
+    "to": "dp0",
     "type": "pixel",
     "routes": [
       "pvm",
       "guest"
     ],
-    "d": "M1088 1352 V1344 H2230 V1378 H2300"
+    "d": "M1980 1556 H2340",
+    "label": "Scanout pixels",
+    "lx": 2210,
+    "ly": 1544,
+    "hardware": true
   },
   {
     "id": "display8",
     "from": "dpu1",
-    "to": "out8",
+    "to": "dp3",
     "type": "pixel",
     "routes": [
       "pvm",
       "guest"
     ],
-    "d": "M1502 1394 H2250 V1450 H2300"
+    "d": "M1980 1756 H2340",
+    "label": "Scanout pixels",
+    "lx": 2210,
+    "ly": 1744,
+    "hardware": true
   },
   {
     "id": "display9",
-    "from": "dpu1",
+    "from": "dp3",
     "to": "out9",
     "type": "config",
     "routes": [],
-    "d": "M1502 1418 H2238 V1520 H2300"
+    "d": "M2555 1804 V1832"
   },
   {
     "id": "enginewindow",
@@ -1856,6 +1987,96 @@ const edges = [
       "gl"
     ],
     "d": "M1318 334 V640"
+  },
+  {
+    "id": "dp0link",
+    "from": "dp0",
+    "to": "ser3",
+    "type": "pixel",
+    "routes": [
+      "pvm",
+      "guest"
+    ],
+    "d": "M2770 1556 H2828 V1944 H1050 V2012",
+    "label": "DP0",
+    "lx": 1370,
+    "ly": 1932,
+    "hardware": true
+  },
+  {
+    "id": "dp3link",
+    "from": "dp3",
+    "to": "ser8",
+    "type": "pixel",
+    "routes": [
+      "pvm",
+      "guest"
+    ],
+    "d": "M2770 1756 H2800 V1916 H788 V2182 H850",
+    "label": "DP3 / MST1",
+    "lx": 1370,
+    "ly": 1904,
+    "hardware": true
+  },
+  {
+    "id": "serial3",
+    "from": "ser3",
+    "to": "des3",
+    "type": "pixel",
+    "routes": [
+      "pvm",
+      "guest"
+    ],
+    "d": "M1250 2054 H1620",
+    "label": "Serial video link",
+    "lx": 1435,
+    "ly": 2042,
+    "hardware": true
+  },
+  {
+    "id": "serial8",
+    "from": "ser8",
+    "to": "des8",
+    "type": "pixel",
+    "routes": [
+      "pvm",
+      "guest"
+    ],
+    "d": "M1250 2182 H1620",
+    "label": "FPD-Link",
+    "lx": 1435,
+    "ly": 2170,
+    "hardware": true
+  },
+  {
+    "id": "panel3",
+    "from": "des3",
+    "to": "out3",
+    "type": "pixel",
+    "routes": [
+      "pvm",
+      "guest"
+    ],
+    "d": "M1980 2054 H2340",
+    "label": "Panel interface",
+    "lx": 2160,
+    "ly": 2042,
+    "hardware": true
+  },
+  {
+    "id": "panel8",
+    "from": "des8",
+    "to": "out8",
+    "type": "pixel",
+    "routes": [
+      "pvm",
+      "guest"
+    ],
+    "d": "M1980 2182 H2340",
+    "label": "Panel interface",
+    "lx": 2160,
+    "ly": 2170,
+    "hardware": true
   }
 ];
 
@@ -1918,7 +2139,7 @@ function routeCrossingBridges(edges, visibleIds, options = {}) {
           const vertical = near(point.x, next.x);
           if (!horizontal && !vertical) return null;
           // Retain zero-length portions but never treat them as crossings.
-          const segment = {edgeId:edge.id, a:point, b:next, horizontal,
+          const segment = {edgeId:edge.id, source:edge.from, type:edge.type, a:point, b:next, horizontal,
             length:Math.abs(next.x - point.x) + Math.abs(next.y - point.y), crossings:[]};
           parts.push(segment);
         }
@@ -1965,6 +2186,10 @@ function routeCrossingBridges(edges, visibleIds, options = {}) {
     const bottom = crossing.y + clearance;
     return segments.some(segment => {
       if (segment === horizontal || crossing.under.has(segment)) return false;
+      // Fan-out routes may share an identical prefix. Both copies must jump
+      // over another buffer's trunk; the coincident copy is not an obstacle.
+      if (segment.horizontal && horizontal.source && segment.source === horizontal.source && segment.type === horizontal.type &&
+          near(segment.a.x,horizontal.a.x) && near(segment.b.x,horizontal.b.x) && near(segment.a.y,horizontal.a.y)) return false;
       if (segment.horizontal) return interior(segment.a.y, top, bottom) &&
         Math.max(segment.a.x, segment.b.x) > left + epsilon && Math.min(segment.a.x, segment.b.x) < right - epsilon;
       return interior(segment.a.x, left, right) &&
@@ -2027,7 +2252,7 @@ edges.forEach(edge => {
   }
 });
 nodes.forEach(node => {
-  const group = element('g', {class:`node ${node.kind}${node.memory ? ' memory' : ''}${node.configured ? ' configured' : ''}`, tabindex:0, role:'button', 'aria-label':`${node.name.join('，')}。点击查看详情与直连关系`, 'aria-pressed':'false', 'data-node':node.id, ...(node.layer ? {'data-layer':node.layer} : {}), ...(node.process ? {'data-process':node.process} : {})}, document.getElementById('nodes'));
+  const group = element('g', {class:`node ${node.kind}${node.memory ? ' memory' : ''}${node.configured ? ' configured' : ''}`, tabindex:0, role:'button', 'aria-label':`${node.name.join('，')}。点击查看详情与直连关系`, 'aria-pressed':'false', 'data-node':node.id, ...(node.layer ? {'data-layer':node.layer} : {}), ...(node.process ? {'data-process':node.process} : {}), ...(node.zone ? {'data-zone':node.zone} : {})}, document.getElementById('nodes'));
   element('title', {}, group, node.detail);
   if (node.memory) {
     element('rect', {x:node.x+8,y:node.y-8,width:node.w-8,height:node.h,rx:6}, group);
@@ -2060,11 +2285,11 @@ const descriptions = {
   pvm:['PVM 提交','Wayland → drm-backend.so → sdm-service.so → libsdmcore.so → libdrm.so → lib_drm_fe.so → libopenwfd.so → openwfd_server。drm-backend 根据 Prepare 结果调度 gl-renderer.so，再经 SDM Commit 提交。'],
   guest:['Guest 显示提交','Surface / BLAST → SurfaceFlinger → HWC → DRM/KMS 前端 → HAB → PVM 2D Backend → OpenWFD。CLIENT 走 RenderEngine，DEVICE 使用硬件合成路径；qcrosvm / vhost-user-qti 是配置桥，不是逐帧处理节点。'],
   pixel:['像素流','PVM 源 buffer：GPU 读入并写出 target，或作为 overlay 输入；Guest 帧：经平台共享/导入后供 DPU 取图。绿色连线不是复制次数、物理总线或全链零拷贝承诺。绿色展开 Guest GPU 写入 layer/client-target buffers 的关系；buffer handle 与 fence 走控制通道。'],
-  gl:['Guest GPU','HGSL 控制 / 注册 / 回退 RPC → HAB/VirtIO（ID 94）→ PVM hab_vhost（/dev/vhost-ogles）→ gsl_hab_server（libuhab / libgsl）→ 本机 IPC → kgsl / RGS。DBCQ 就绪后：HGSL 写共享命令队列，另行触发 doorbell，由 GMU firmware 消费命令并调度 context。']
+  gl:['Guest GPU','HGSL 控制 / 注册 / 回退 RPC → HAB/VirtIO（ID 94）→ PVM hab_vhost（/dev/vhost-ogles）→ gsl_hab_server（libuhab / libgsl）→ 本机 IPC → kgsl / RGS。DBCQ 就绪后：HGSL 写共享命令队列，再经 MMIO 写 GMUGOS IPC 寄存器；硬件 doorbell 通知 GMU firmware 消费命令并调度 context。']
 };
 function hasSelection() { return Boolean(window.getSelection()?.toString()); }
 function updateHighlight() {
-  const visibleEdges = new Set(edges.filter(edge => selection ? edge.from === selection || edge.to === selection : filter === 'all' || (filter === 'layers' ? edge.type !== 'pixel' || edge.routes?.length : filter === 'pixel' ? edge.type === 'pixel' : edge.routes?.includes(filter))).map(edge => edge.id));
+  const visibleEdges = new Set(edges.filter(edge => selection ? edge.from === selection || edge.to === selection : filter === 'all' || (filter === 'layers' ? edge.type !== 'pixel' || edge.routes?.length || edge.hardware : filter === 'pixel' ? edge.type === 'pixel' : edge.routes?.includes(filter))).map(edge => edge.id));
   const visibleNodes = new Set(selection ? [selection] : []);
   edges.forEach(edge => { if (visibleEdges.has(edge.id)) {visibleNodes.add(edge.from); visibleNodes.add(edge.to);} });
   const full = !selection && (filter === 'all' || filter === 'layers');
@@ -2091,6 +2316,16 @@ function updateHighlight() {
       element('path',{d,class:`edge ${edge.type}${edge.notification ? ' notification' : ''}`},bridge);
     });
   });
+  // A dot denotes a shared-buffer fan-out; all other line crossings use bridges.
+  [
+    {x:1360,y:1540,edges:['overlay0','overlay1']},
+    {x:1432,y:1656,edges:['target0','target1']},
+    {x:1504,y:1772,edges:['guestread0','guestread1']}
+  ].forEach(junction => {
+    if (junction.edges.every(id => visibleEdges.has(id))) {
+      element('circle',{cx:junction.x,cy:junction.y,r:4,class:'flow-junction'},overlay);
+    }
+  });
   const detail = selection ? [nodeById.get(selection).name.join(' · '),nodeById.get(selection).detail] : descriptions[filter];
   document.getElementById('detail-title').textContent = detail[0];
   document.getElementById('detail-body').textContent = detail[1];
@@ -2104,13 +2339,15 @@ document.getElementById('clear').addEventListener('click',clearSelection);
 document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click',() => {filter = button.dataset.filter; selection = null; updateHighlight();}));
 document.addEventListener('keydown',event => {if (event.key === 'Escape') clearSelection();});
 
-let zoom = 1, camera = {x:0,y:0,w:WIDTH,h:HEIGHT}, drag = null, suppressClick = false;
+let zoom = 1, frameHeight = HEIGHT, camera = {x:0,y:0,w:WIDTH,h:HEIGHT}, drag = null, suppressClick = false;
 function paintCamera() {
-  camera.w = WIDTH / zoom; camera.h = HEIGHT / zoom;
+  camera.w = WIDTH / zoom; camera.h = frameHeight / zoom;
   camera.x = Math.max(0,Math.min(WIDTH-camera.w,camera.x));
   camera.y = Math.max(0,Math.min(HEIGHT-camera.h,camera.y));
   svg.setAttribute('viewBox',`${camera.x} ${camera.y} ${camera.w} ${camera.h}`);
-  svg.classList.toggle('zoomed',zoom>1);
+  const frame = document.getElementById('camera-frame');
+  for (const [key,value] of Object.entries({x:camera.x,y:camera.y,width:camera.w,height:camera.h})) frame.setAttribute(key,value);
+  svg.classList.toggle('zoomed',zoom>1 || camera.h<HEIGHT);
   document.getElementById('zoom-level').textContent = `${Math.round(zoom*100)}%`;
   document.getElementById('zoom-out').disabled = zoom <= 1;
   document.getElementById('zoom-in').disabled = zoom >= 5;
@@ -2120,19 +2357,22 @@ function zoomTo(next, point) {
   const anchor = point || {x:camera.x+camera.w/2,y:camera.y+camera.h/2};
   const fx = (anchor.x-camera.x)/oldWidth, fy = (anchor.y-camera.y)/oldHeight;
   zoom = Math.max(1,Math.min(5,next));
-  camera.x = anchor.x-fx*WIDTH/zoom; camera.y = anchor.y-fy*HEIGHT/zoom;
+  camera.x = anchor.x-fx*WIDTH/zoom; camera.y = anchor.y-fy*frameHeight/zoom;
   paintCamera();
 }
 function diagramPoint(event) {
   const transform = svg.getScreenCTM();
   return transform ? new DOMPoint(event.clientX,event.clientY).matrixTransform(transform.inverse()) : {x:camera.x,y:camera.y};
 }
-document.getElementById('fit').addEventListener('click',() => {zoom=1;camera.x=0;camera.y=0;paintCamera();});
+document.getElementById('fit').addEventListener('click',() => {zoom=1;frameHeight=HEIGHT;camera.x=0;camera.y=0;paintCamera();});
 document.getElementById('pvm-focus').addEventListener('click',() => {
-  zoom = 1.5; camera.x = 0; camera.y = 180; paintCamera();
+  frameHeight = 1604; zoom = 1.5; camera.x = 0; camera.y = 180; paintCamera();
 });
 document.getElementById('android-focus').addEventListener('click',() => {
-  zoom = 1.9; camera.x = 1500; camera.y = 72; paintCamera();
+  frameHeight = 1604; zoom = 1.9; camera.x = 1500; camera.y = 72; paintCamera();
+});
+document.getElementById('hardware-focus').addEventListener('click',() => {
+  frameHeight = 816; zoom = 1; camera.x = 0; camera.y = 1440; paintCamera();
 });
 document.getElementById('zoom-in').addEventListener('click',() => zoomTo(zoom*1.3));
 document.getElementById('zoom-out').addEventListener('click',() => zoomTo(zoom/1.3));
@@ -2142,7 +2382,7 @@ svg.addEventListener('wheel',event => {
   event.preventDefault(); zoomTo(zoom*Math.exp(-event.deltaY*.0015),diagramPoint(event));
 },{passive:false});
 svg.addEventListener('pointerdown',event => {
-  if (event.button !== 0 || zoom <= 1 || event.target.closest('text') || hasSelection()) return;
+  if (event.button !== 0 || (zoom <= 1 && camera.h >= HEIGHT) || event.target.closest('text') || hasSelection()) return;
   const matrix = svg.getScreenCTM();
   if (!matrix) return;
   drag = {id:event.pointerId,x:event.clientX,y:event.clientY,cx:camera.x,cy:camera.y,scale:matrix.a,moved:false};

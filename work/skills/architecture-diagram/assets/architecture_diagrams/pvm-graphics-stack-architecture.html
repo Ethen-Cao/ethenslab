@@ -271,14 +271,13 @@ const nodes = [
     "w": 224,
     "h": 64,
     "kind": "neutral",
-    "configured": true,
     "name": [
-      "TELLTALE"
+      "TELLTALE · 预留客户端"
     ],
     "sub": [
-      "预留 WFD Client · 0x7812"
+      "独立于 Weston · 0x7812"
     ],
-    "detail": "为 WFD Client 0x7812 预留 DPU 0 / display 3 的 VIG3、z10，与 SCREEN Client 0x78FF 分开分配资源。虚线边框表示静态预留，不表示已确认的活动进程或帧。"
+    "detail": "静态配置为独立 TELLTALE 客户端预留 DPU 0 / display 3 的 VIG3、z10。虚线仅表示预留关系，不表示已确认的活动进程或帧。"
   },
   {
     "id": "scene",
@@ -501,6 +500,22 @@ const nodes = [
     ],
     "detail": "与实例 0 相同的 openwfd_server C 模块，包含 WFD_ClientMgr / WFD_PortMgr / WFD_CommitMgr 函数族；实例 1 接收两个 WFD 客户端提交，持有 DPU 1 对应的 KIUMD / VFIO / SCMI 资源。",
     "process": "openwfd-1"
+  },
+  {
+    "id": "config",
+    "x": 1012,
+    "y": 104,
+    "w": 128,
+    "h": 64,
+    "kind": "neutral",
+    "name": [
+      "display_cfg.ini"
+    ],
+    "sub": [
+      "Client / Port",
+      "Pipeline / z-order"
+    ],
+    "detail": "display_cfg.ini 选择 qcdisplaycfg_project_a_296。静态划分 Client、Port、Pipeline 与 z-order；Pipeline 不与每个 wl_surface 一一对应。"
   },
   {
     "id": "rgs",
@@ -1396,6 +1411,30 @@ const edges = [
       "guest"
     ],
     "d": "M1108 804 V966"
+  },
+  {
+    "id": "reserved",
+    "from": "telltale",
+    "to": "config",
+    "type": "config",
+    "routes": [],
+    "d": "M996 136 H1012"
+  },
+  {
+    "id": "cfg0",
+    "from": "config",
+    "to": "server0",
+    "type": "config",
+    "routes": [],
+    "d": "M1140 136 H1168 V1048 H720 V992 H692"
+  },
+  {
+    "id": "cfg1",
+    "from": "config",
+    "to": "server1",
+    "type": "config",
+    "routes": [],
+    "d": "M1140 136 H1168 V992 H1140"
   },
   {
     "id": "resource0",
