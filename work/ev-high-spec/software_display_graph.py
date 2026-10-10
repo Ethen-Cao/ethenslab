@@ -44,7 +44,7 @@ NODES = {
     'display-drm-adapter': (1740,1105,250,60),
     'display-android-gpu': (1140,1230,250,60),
     'display-wfd-fe': (1740,1230,250,60),
-    'display-khab': (1440,1330,550,60),
+    'display-khab': (1440,1330,250,60),
     'display-gpu': (70,1600,220,70),
     'display-buffers': (640,1600,300,70),
     'display-dpu': (1140,1600,250,70),
@@ -105,7 +105,7 @@ DISPLAY_NAMES = {
     'display-gsl-client': ('GSL Client', 'libgsl.so · /dev/hgsl'),
     'display-wfd-fe': ('msm_drm_hyp / wfd_kms', 'WFD sources · commit · HAB export'),
     'display-android-gpu': ('HGSL', 'RPC · shared command queues'),
-    'display-khab': ('Guest HAB / KHAB', 'msm_hab · MM_GFX / MM_DISP · QVM transport'),
+    'display-khab': ('Guest HAB / KHAB', 'msm_hab · MM_GFX / MM_DISP'),
     'display-gpu': ('GPU', 'Rendering / client composition'),
     'display-buffers': ('Shared Frame Buffers', 'Mapped image storage'),
     'display-dpu': ('Display Processing Unit', 'Fetch · mix · scale · scanout'),
@@ -178,8 +178,8 @@ def make_routes():
     r.add('display-gralloc','display-buffers',[(1440,965),(1420,965),(1420,1320),(1155,1320),(1155,1565),(900,1565),(900,1600)],kind='storage',flow='buffers',note='Gralloc allocates or imports image storage; components exchange handles')
     # Kernel frontends share HAB but use distinct graphics and display channels.
     r.add('display-gsl-client','display-android-gpu',[(1265,865),(1265,1230)],flow='control',label='ioctl /dev/hgsl',at=(1265,1195))
-    r.add('display-android-gpu','display-khab',[(1390,1260),(1550,1260),(1550,1330)],flow='control',label='habmm_* · MM_GFX',at=(1550,1310),note='GSL control RPC and memory sharing; shared command queues remain an HGSL capability')
-    r.add('display-wfd-fe','display-khab',[(1865,1290),(1865,1330)],flow='control,buffers,events',both=True,note='MM_DISP: OpenWFD requests, imported/exported buffer IDs and completion events')
+    r.add('display-android-gpu','display-khab',[(1390,1260),(1565,1260),(1565,1330)],flow='control',label='habmm_* · MM_GFX',at=(1565,1310),note='GSL control RPC and memory sharing; shared command queues remain an HGSL capability')
+    r.add('display-wfd-fe','display-khab',[(1865,1290),(1865,1360),(1690,1360)],flow='control,buffers,events',both=True,note='MM_DISP: OpenWFD requests, imported/exported buffer IDs and completion events')
     # Separate HAB lanes connect the component boundaries through the domain gutter.
     r.add('display-khab','display-wfd-be',[(1440,1350),(1060,1350),(1060,485),(900,485)],
           flow='control,buffers,events',both=True,label='HAB · DISP',at=(1060,600),
