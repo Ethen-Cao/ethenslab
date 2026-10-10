@@ -83,30 +83,30 @@ DISPLAY_NAMES = {
     'display-gsl-be': ('gsl_hab_server', 'Guest graphics backend'),
     'display-qnx-gsl': ('libGSLUser.so', 'Host GPU APIs'),
     'display-qnx-hab': ('libuhab.so / hab', 'HAB host endpoint'),
-    'display-apps': ('Android UI Applications', 'View · Canvas · SurfaceView'),
-    'display-viewroot': ('ViewRootImpl / ViewTree', 'UI thread · traversal · draw'),
-    'display-threaded-renderer': ('ThreadedRenderer', 'syncAndDrawFrame'),
+    'display-apps': ('Activity / View', 'Application UI'),
+    'display-viewroot': ('ViewRootImpl', 'Traversal / layout / draw'),
+    'display-threaded-renderer': ('ThreadedRenderer', 'Sync rendering'),
     'display-surfaceview': ('SurfaceView', 'Independent Surface'),
-    'display-recording': ('RecordingCanvas / RenderNode', 'Java API · display list'),
-    'display-native-client': ('Native / 3D Engine', 'GLES or Vulkan · Surface client'),
-    'display-surface': ('Surface / ANativeWindow', 'Dequeue · queueBuffer'),
-    'display-api-loader': ('GLES / Vulkan APIs & Loaders', 'libEGL · libGLESv2 · libvulkan'),
-    'display-wms': ('WindowManagerService', 'Layout · visibility · surfaces'),
-    'display-dms': ('DisplayManagerService', 'LocalDisplayAdapter · modes / power'),
-    'display-bufferqueue': ('BLASTBufferQueue', 'Per-Surface queue · buffers / fences'),
-    'display-flinger': ('SurfaceFlinger', 'Layer state · composition'),
-    'display-gralloc': ('Gralloc / Mapper', 'Buffer allocation · native handles'),
-    'display-composer': ('Composer HAL / HWCSession', 'Validate · present · fences'),
-    'display-sdm': ('SDM / libsdmcore', 'Hardware composition plan'),
-    'display-drm-adapter': ('DRM Adapter / libdrm', 'GEM / FB IDs · atomic properties'),
-    'display-renderengine': ('RenderEngine', 'GLES / SkiaGL client composition'),
-    'display-hwui': ('RenderThread / HWUI', 'libhwui · Skia GPU backend'),
-    'display-opengl': ('OpenGL / EGL Subdriver', 'Adreno EGL / GLES implementation'),
-    'display-vulkan': ('Vulkan Driver', 'vulkan.adreno.so · Vulkan ICD'),
-    'display-gsl-client': ('GSL Client', 'libgsl.so · /dev/hgsl'),
-    'display-wfd-fe': ('msm_drm_hyp / wfd_kms', 'WFD sources · commit · HAB export'),
-    'display-android-gpu': ('HGSL', 'RPC · shared command queues'),
-    'display-khab': ('Guest HAB / KHAB', 'msm_hab · MM_GFX / MM_DISP'),
+    'display-recording': ('RecordingCanvas / RenderNode', 'Record display lists'),
+    'display-native-client': ('ANativeActivity', 'Native entry · example'),
+    'display-surface': ('Surface / ANativeWindow', 'Dequeue / queue buffers'),
+    'display-api-loader': ('libEGL.so / libGLESv2.so\nlibvulkan.so', 'Graphics APIs / driver loading'),
+    'display-wms': ('WindowManagerService', 'Window / layer state'),
+    'display-dms': ('DisplayManagerService', 'Logical displays / policy'),
+    'display-bufferqueue': ('BLASTBufferQueue', 'Buffer transactions'),
+    'display-flinger': ('SurfaceFlinger', 'Compose / present layers'),
+    'display-gralloc': ('libgralloccore.so / QtiMapper', 'Allocate / import buffers'),
+    'display-composer': ('HWCSession', 'Validate / present layers'),
+    'display-sdm': ('libsdmcore.so', 'Display composition plan'),
+    'display-drm-adapter': ('libsdedrm.so / libdrmutils.so\nlibdrm.so', 'DRM objects / atomic commit'),
+    'display-renderengine': ('RenderEngine', 'GPU composition'),
+    'display-hwui': ('libhwui.so / RenderThread', 'Application GPU rendering'),
+    'display-opengl': ('libEGL_adreno.so\nlibGLESv2_adreno.so', 'EGL / GLES rendering'),
+    'display-vulkan': ('vulkan.adreno.so', 'Vulkan rendering'),
+    'display-gsl-client': ('libgsl.so', 'Guest GPU APIs'),
+    'display-wfd-fe': ('msm_hyp.ko', 'wfd_kms · display frontend'),
+    'display-android-gpu': ('qcom_hgsl.ko', 'HGSL · guest GPU driver'),
+    'display-khab': ('msm_hab / khab', 'MM_GFX / MM_DISP'),
     'display-gpu': ('GPU', 'Rendering / client composition'),
     'display-buffers': ('Shared Frame Buffers', 'Mapped image storage'),
     'display-dpu': ('Display Processing Unit', 'Fetch · mix · scale · scanout'),
@@ -261,7 +261,12 @@ def render_graph(modules):
         ny=(h-text_height)/2+13
         sy=ny+len(title_lines)*line_height+3
         if m['domain'] != 'qnx':
-            ny,sy=(18,33) if h<50 else ((22,41) if h<=60 else (27,49))
+            if len(title_lines) == 1:
+                ny,sy=(18,33) if h<50 else ((22,41) if h<=60 else (27,49))
+            else:
+                line_height=16
+                ny=(h-(len(title_lines)*line_height+17))/2+13
+                sy=ny+(len(title_lines)-1)*line_height+17
         shape=_rect(x,y,w,h,fill,stroke,8,1.3)
         if m.get('kind')=='memory':
             shape=_rect(x+8,y-8,w,h,fill,stroke,0)+_rect(x+4,y-4,w,h,fill,stroke,0)+_rect(x,y,w,h,fill,stroke,0)
@@ -277,7 +282,7 @@ def render_graph(modules):
         dash=' stroke-dasharray="5 4"' if kind in ('storage','status') else ''
         legend.append(f'<path d="M{x},31 h22" stroke="{PALETTE[kind]}" stroke-width="2"{dash}/>'+_text(x+30,35,title,11,PALETTE[kind],600))
     return (f'<svg xmlns="http://www.w3.org/2000/svg" class="sw-ota-diagram sw-display-diagram" id="sw-display-diagram" viewBox="0 0 {WIDTH} {HEIGHT}" width="{WIDTH}" height="{HEIGHT}" font-family="Arial, sans-serif" role="group" aria-label="Display software component interactions">'
-            '<title>Display software component interactions</title><desc>QNX native display clients and Android WFD frontend meet at OpenWFD. Guest rendering uses GSL Client, HGSL and KHAB; direct GFX and DISP connections show separate HAB channels to the QNX host. Android follows Java, Native, HAL and Linux Kernel layers. Shared command queues are an HGSL capability. Separate routes show control, shared buffer references, physical pixels and completion events.</desc>'
+            '<title>Display software component interactions</title><desc>QNX native display clients and Android WFD frontend meet at OpenWFD. Guest rendering uses libgsl.so, qcom_hgsl.ko and msm_hab/KHAB; direct GFX and DISP connections show separate HAB channels to the QNX host. Android follows Java, Native, HAL and Linux Kernel layers. Shared command queues are an HGSL capability. Separate routes show control, shared buffer references, physical pixels and completion events.</desc>'
             +''.join(defs)+f'<rect width="{WIDTH}" height="{HEIGHT}" fill="#fff"/>'
             +_text(30,36,'DISPLAY SOFTWARE COMPONENT INTERACTIONS',18,'#202124',700)
             +''.join(legend)+''.join(frame)+routes.render()+'<g class="ota-nodes">'+''.join(nodes)+'</g></svg>')
