@@ -5,22 +5,22 @@ from software_ota_graph import Routes, COLORS, _rect, _text, _layer
 
 WIDTH, HEIGHT = 2040, 1850
 NODES = {
-    'display-cluster': (350,195,270,70),
-    'display-qnx-render': (350,335,270,70),
-    'display-screen': (350,445,270,70),
-    'display-wfd-be': (660,445,240,70),
-    'display-wfd-client': (350,615,270,70),
-    'display-wfd-server': (350,735,270,70),
-    'display-wfd-core': (350,855,270,70),
-    'display-mdss': (350,975,270,70),
-    'display-panel-driver': (350,1095,270,70),
-    'display-interface-driver': (350,1215,270,70),
-    'display-screen-config': (65,445,240,70),
-    'display-wfd-config': (65,735,240,70),
-    'display-qnx-hab': (660,615,240,70),
-    'display-gsl-be': (660,735,240,70),
-    'display-qnx-gsl': (660,855,240,70),
-    'display-qnx-gpu': (660,975,240,70),
+    'display-cluster': (70, 195, 830, 70),
+    'display-qnx-render': (70, 335, 350, 70),
+    'display-screen': (70, 445, 350, 70),
+    'display-wfd-be': (550, 445, 350, 70),
+    'display-wfd-client': (70, 615, 350, 70),
+    'display-wfd-server': (70, 735, 350, 70),
+    'display-wfd-core': (70, 855, 350, 70),
+    'display-mdss': (70, 975, 350, 70),
+    'display-panel-driver': (70, 1095, 350, 88),
+    'display-interface-driver': (70, 1235, 350, 70),
+    'display-screen-config': (550, 335, 350, 70),
+    'display-wfd-config': (550, 615, 350, 70),
+    'display-qnx-hab': (550, 735, 350, 70),
+    'display-gsl-be': (550, 855, 350, 70),
+    'display-qnx-gsl': (550, 975, 350, 70),
+    'display-qnx-gpu': (550, 1095, 350, 70),
     'display-apps': (1140,195,850,50),
     'display-viewroot': (1140,275,250,50),
     'display-threaded-renderer': (1440,275,250,50),
@@ -68,22 +68,22 @@ NATIVE = {'display-screen','display-apps','display-wms','display-dms',
 HARDWARE = {'display-gpu','display-buffers','display-dpu','display-output',
             'display-link','display-panel'}
 DISPLAY_NAMES = {
-    'display-cluster': ('Cluster HMI', 'Kanzi · Screen / EGL clients'),
-    'display-qnx-render': ('EGL / OpenGL ES', 'QNX rendering libraries'),
-    'display-screen': ('QNX Screen', 'Windows · surfaces · composition'),
-    'display-wfd-be': ('WFD Backend / wfd_be', 'Guest commands · buffer import'),
-    'display-wfd-client': ('WFD Client', 'libopenwfd_qnx.so'),
-    'display-wfd-server': ('OpenWFD Server', 'QNX resource-manager endpoint'),
-    'display-wfd-core': ('OpenWFD Core', 'Inside server · ports / pipelines'),
-    'display-mdss': ('QDI / MDP / MDSS', 'Inside server · scanout programming'),
-    'display-interface-driver': ('DSI / DP Driver & HAL', 'Inside server · link / PHY control'),
-    'display-screen-config': ('Screen Configuration', 'graphics.conf'),
-    'display-wfd-config': ('OpenWFD Configuration', 'qcdisplaycfg.xml'),
-    'display-panel-driver': ('Panel / Bridge Libraries', 'Loaded in OpenWFD server'),
-    'display-qnx-gpu': ('KGSL', 'QNX driver · kgsl / GSLKernel.so'),
-    'display-gsl-be': ('GSL HAB Server', 'gsl_hab_server · HAB endpoint'),
-    'display-qnx-gsl': ('GSL', 'libGSLUser.so · host GPU APIs'),
-    'display-qnx-hab': ('UHAB / HAB', 'libuhab.so · /dev/hab/hab'),
+    'display-cluster': ('ClusterApp', 'Kanzi HMI'),
+    'display-qnx-render': ('libESXEGL_Adreno.so\nlibESXGLESv2_Adreno.so', 'EGL / GLES rendering'),
+    'display-screen': ('screen / libscreen.so.1', 'Windows / composition'),
+    'display-wfd-be': ('wfd_be', 'Guest display backend'),
+    'display-wfd-client': ('libopenwfd_qnx.so\nlibopenwfd.so', 'Screen client / generic client'),
+    'display-wfd-server': ('openwfd_server', 'Display service'),
+    'display-wfd-core': ('openwfd_core', 'Linked in server · WFD objects'),
+    'display-mdss': ('qdi / qdiplatform_s8155', 'Linked in server · MDP / MDSS'),
+    'display-interface-driver': ('qdidsihost / qdidphost', 'Linked in server · DSI / DP'),
+    'display-screen-config': ('graphics.conf', 'Screen configuration'),
+    'display-wfd-config': ('qcdisplaycfg.xml', 'OpenWFD configuration'),
+    'display-panel-driver': ('libDSI_COMMON_QC_0.so\nlibDP0_COMMON_QC.so\nlibbridgechip_client.so', 'Panel adapters (examples) / bridge IPC'),
+    'display-qnx-gpu': ('kgsl / GSLKernel.so', 'GPU driver'),
+    'display-gsl-be': ('gsl_hab_server', 'Guest graphics backend'),
+    'display-qnx-gsl': ('libGSLUser.so', 'Host GPU APIs'),
+    'display-qnx-hab': ('libuhab.so / hab', 'HAB host endpoint'),
     'display-apps': ('Android UI Applications', 'View · Canvas · SurfaceView'),
     'display-viewroot': ('ViewRootImpl / ViewTree', 'UI thread · traversal · draw'),
     'display-threaded-renderer': ('ThreadedRenderer', 'syncAndDrawFrame'),
@@ -131,19 +131,20 @@ class DisplayRoutes(Routes):
 
 def make_routes():
     r = DisplayRoutes()
-    r.add('display-cluster','display-qnx-render',[(485,265),(485,335)],flow='control',label='Render API',at=(485,295))
-    r.add('display-qnx-render','display-screen',[(485,405),(485,445)],flow='control,buffers',label='Screen surface / post',at=(485,428))
-    r.add('display-screen','display-wfd-client',[(485,515),(485,615)],flow='control,buffers',label='WFD API / image handle',at=(485,540))
-    r.add('display-wfd-be','display-wfd-client',[(720,515),(720,580),(630,580),(630,650),(620,650)],flow='control,buffers',label='WFD API',at=(720,565))
-    r.add('display-wfd-client','display-wfd-server',[(485,685),(485,735)],flow='control,buffers',both=True,label='QNX read / write IPC',at=(485,714))
-    r.add('display-wfd-server','display-wfd-core',[(485,805),(485,855)],flow='control,buffers',label='Wire handler dispatch',at=(485,832))
-    r.add('display-wfd-core','display-mdss',[(485,925),(485,975)],flow='control,buffers',label='QDI commit',at=(485,952))
-    r.add('display-mdss','display-panel-driver',[(485,1045),(485,1095)],flow='control',label='Panel callbacks',at=(485,1072),note='OEM panel and bridge library calls inside OpenWFD server')
-    r.add('display-panel-driver','display-interface-driver',[(485,1165),(485,1215)],flow='control',label='DSI / DP host APIs',at=(485,1192),note='OEM panel libraries call the selected DSI or DP host driver to configure its output interface')
-    r.add('display-wfd-config','display-wfd-server',[(305,770),(350,770)],kind='storage',flow='control',note='OpenWFD Server loads qcdisplaycfg.xml for clients, devices, ports, pipelines and panel libraries')
-    r.add('display-screen-config','display-screen',[(305,480),(350,480)],kind='storage',flow='control',note='QNX Screen reads graphics.conf for rendering libraries, WFD drivers, display modes and window classes')
-    r.add('display-qnx-render','display-qnx-gsl',[(620,370),(650,370),(650,890),(660,890)],flow='control',label='Host GSL APIs',at=(650,710))
-    r.add('display-wfd-server','display-wfd-be',[(620,750),(635,750),(635,725),(920,725),(920,506),(900,506)],kind='status',flow='events',label='WFD events',at=(860,725))
+    # Two QNX columns: display submission at left, configuration and GPU at right.
+    r.add('display-cluster','display-qnx-render',[(245,265),(245,335)],flow='control',label='EGL / GLES',at=(245,295))
+    r.add('display-qnx-render','display-screen',[(245,405),(245,445)],flow='control,buffers',label='Screen surface / post',at=(245,428))
+    r.add('display-screen','display-wfd-client',[(245,515),(245,615)],flow='control,buffers',label='WFD API / image handle',at=(245,540))
+    r.add('display-wfd-be','display-wfd-client',[(670,515),(670,590),(375,590),(375,615)],flow='control,buffers',label='WFD API',at=(590,590))
+    r.add('display-wfd-client','display-wfd-server',[(245,685),(245,735)],flow='control,buffers',both=True,label='QNX read / write IPC',at=(245,714))
+    r.add('display-wfd-server','display-wfd-core',[(245,805),(245,855)],flow='control,buffers',label='Wire handler dispatch',at=(245,832))
+    r.add('display-wfd-core','display-mdss',[(245,925),(245,975)],flow='control,buffers',label='QDI commit',at=(245,952))
+    r.add('display-mdss','display-panel-driver',[(245,1045),(245,1095)],flow='control',label='Panel callbacks',at=(245,1072),note='OEM panel and bridge library calls inside OpenWFD server')
+    r.add('display-panel-driver','display-interface-driver',[(245,1183),(245,1235)],flow='control',label='DSI / DP host APIs',at=(245,1210),note='OEM panel libraries call the selected DSI or DP host driver to configure its output interface')
+    r.add('display-wfd-config','display-wfd-server',[(620,685),(620,710),(375,710),(375,735)],kind='storage',flow='control',note='OpenWFD Server loads qcdisplaycfg.xml for clients, devices, ports, pipelines and panel libraries')
+    r.add('display-screen-config','display-screen',[(550,370),(520,370),(520,420),(375,420),(375,445)],kind='storage',flow='control',note='QNX Screen reads graphics.conf for rendering libraries, WFD drivers, display modes and window classes')
+    r.add('display-qnx-render','display-qnx-gsl',[(420,370),(465,370),(465,1010),(550,1010)],flow='control',label='gsl_*',at=(465,910))
+    r.add('display-wfd-server','display-wfd-be',[(420,770),(490,770),(490,530),(760,530),(760,515)],kind='status',flow='events',label='WFD events',at=(585,530))
     # Java mirrors the UI traversal, recording and SurfaceView branches.
     r.add('display-apps','display-viewroot',[(1265,245),(1265,275)],flow='control')
     r.add('display-apps','display-surfaceview',[(1865,245),(1865,275)],flow='control')
@@ -188,18 +189,18 @@ def make_routes():
     for target,y,name,flow,note in [('display-qnx-hab',1380,'GFX','control',gfx_note),('display-wfd-be',1350,'DISP','control,buffers,events',disp_note)]:
         r.add('display-khab',target,[(1440,y),(1406,y)],flow=flow,both=True,note=note)
         r.port('display-khab',target,1380,y,name,flow,note)
-    r.port('display-khab','display-qnx-hab',780,570,'GFX','control',gfx_note)
-    r.add('display-khab','display-qnx-hab',[(780,582),(780,615)],flow='control',both=True,note=gfx_note)
+    r.port('display-khab','display-qnx-hab',985,770,'GFX','control',gfx_note)
+    r.add('display-khab','display-qnx-hab',[(959,770),(900,770)],flow='control',both=True,note=gfx_note)
     r.port('display-khab','display-wfd-be',985,485,'DISP','control,buffers,events',disp_note)
     r.add('display-khab','display-wfd-be',[(959,485),(900,485)],flow='control,buffers,events',both=True,note=disp_note)
     r.add('display-wfd-be','display-buffers',[(860,515),(860,540),(950,540),(950,1425),(610,1425),(610,1570),(790,1570),(790,1600)],kind='storage',flow='buffers',label='PMEM mapping',at=(610,1490))
     r.add('display-vm-notify','display-vm-memory',[(1240,1496),(1140,1496)],kind='status',flow='events',note='Peer notification wakes the receiver of the HAB communication pipe')
-    r.add('display-gsl-be','display-qnx-hab',[(780,735),(780,685)],flow='control',both=True,label='habmm_*',at=(780,714),note='GSL HAB Server uses libuhab.so; UHAB calls the QNX HAB resource manager')
-    r.add('display-gsl-be','display-qnx-gsl',[(780,805),(780,855)],flow='control',label='gsl_*',at=(780,840),note='The server imports GSL context, memory and command APIs from libGSLUser.so')
-    r.add('display-qnx-gsl','display-qnx-gpu',[(780,925),(780,975)],flow='control',label='GPU driver IPC',at=(780,952),note='QNX libGSLUser.so opens /dev/kgsl-3D and calls the KGSL driver through QNX IPC')
-    r.add('display-qnx-gpu','display-gpu',[(660,1010),(650,1010),(650,1310),(505,1310),(505,1590),(180,1590),(180,1600)],flow='control',label='GPU HW control',at=(505,1460),note='QNX KGSL controls the GPU hardware; internal queue scheduling is not expanded')
-    r.add('display-mdss','display-dpu',[(350,1010),(335,1010),(335,1540),(1265,1540),(1265,1600)],flow='control',label='Display HW programming',at=(335,1460))
-    r.add('display-interface-driver','display-output',[(620,1250),(925,1250),(925,1438),(1795,1438),(1795,1600)],flow='control',label='Link / PHY configuration',at=(1795,1538),note='DSI / DP drivers configure the output controller, link timing, PHY and clocks through HAL')
+    r.add('display-gsl-be','display-qnx-hab',[(725,855),(725,805)],flow='control',both=True,label='habmm_*',at=(725,832),note='GSL HAB Server uses libuhab.so; UHAB calls the QNX HAB resource manager')
+    r.add('display-gsl-be','display-qnx-gsl',[(725,925),(725,975)],flow='control',label='gsl_*',at=(725,952),note='The server imports GSL context, memory and command APIs from libGSLUser.so')
+    r.add('display-qnx-gsl','display-qnx-gpu',[(725,1045),(725,1095)],flow='control',label='GPU driver IPC',at=(725,1072),note='QNX libGSLUser.so opens /dev/kgsl-3D and calls the KGSL driver through QNX IPC')
+    r.add('display-qnx-gpu','display-gpu',[(725,1165),(725,1340),(505,1340),(505,1590),(180,1590),(180,1600)],flow='control',label='GPU HW control',at=(505,1460),note='QNX KGSL controls the GPU hardware; internal queue scheduling is not expanded')
+    r.add('display-mdss','display-dpu',[(70,1010),(55,1010),(55,1540),(1265,1540),(1265,1600)],flow='control',label='Display HW programming',at=(235,1540))
+    r.add('display-interface-driver','display-output',[(420,1270),(925,1270),(925,1438),(1795,1438),(1795,1600)],flow='control',label='Link / PHY configuration',at=(1795,1538),note='DSI / DP drivers configure the output controller, link timing, PHY and clocks through HAL')
     # The physical pixel path is confined to the shared hardware/output region.
     r.add('display-gpu','display-buffers',[(290,1635),(640,1635)],kind='install',flow='pixels',label='Rendered pixels',at=(460,1635))
     r.add('display-buffers','display-dpu',[(940,1635),(1140,1635)],kind='install',flow='pixels',label='Memory fetch',at=(1040,1635))
@@ -258,13 +259,19 @@ def render_graph(modules):
         elif mid in NATIVE: fill,stroke='#e6f4ea','#81b991'
         elif m.get('kind')=='config': fill,stroke='#fff','#a9b3bf'
         else: fill,stroke='#fef7e0','#d7b353'
-        ny,sy=(18,33) if h<50 else ((22,41) if h<=60 else (27,49))
+        title_lines=name.split('\n')
+        line_height=18
+        text_height=len(title_lines)*line_height+17
+        ny=(h-text_height)/2+13
+        sy=ny+len(title_lines)*line_height+3
+        if m['domain'] != 'qnx':
+            ny,sy=(18,33) if h<50 else ((22,41) if h<=60 else (27,49))
         shape=_rect(x,y,w,h,fill,stroke,8,1.3)
         if m.get('kind')=='memory':
             shape=_rect(x+8,y-8,w,h,fill,stroke,0)+_rect(x+4,y-4,w,h,fill,stroke,0)+_rect(x,y,w,h,fill,stroke,0)
         if m.get('kind')=='config':
             shape+=f'<path d="M{x+w-18},{y} V{y+18} H{x+w}" fill="none" stroke="{stroke}"/>'
-        nodes.append(f'<g class="ota-node" data-sw-module="{mid}" role="button" tabindex="0" aria-pressed="false" aria-label="{escape(m["name"],quote=True)}"><title>{escape(m["name"])}</title>'+shape+_text(x+12,y+ny,name,13.5,'#20312a',700)+_text(x+12,y+sy,short,11,'#596579')+'</g>')
+        nodes.append(f'<g class="ota-node" data-sw-module="{mid}" role="button" tabindex="0" aria-pressed="false" aria-label="{escape(m["name"],quote=True)}"><title>{escape(m["name"])}</title>'+shape+''.join(_text(x+12,y+ny+i*line_height,line,13.5,'#20312a',700) for i,line in enumerate(title_lines))+_text(x+12,y+sy,short,11,'#596579')+'</g>')
     defs=['<defs>']
     for kind,color in PALETTE.items():
         defs.append(f'<marker id="display-arrow-{kind}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L7 4 L0 8" fill="none" stroke="{color}" stroke-width="1.3"/></marker>')
