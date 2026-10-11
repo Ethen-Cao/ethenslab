@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "meta": {"id": "base-template", "title": "Linux Logging Architecture", "scope": "system", "view": "layered", "colorMode": "technical"},
+  "canvas": {"width": 900, "height": 620},
+  "sources": [{"id": "systemd", "title": "systemd-journald kernel log ingestion", "locator": "https://github.com/systemd/systemd/blob/main/src/journal/journald-kmsg.c"}],
+  "containers": [
+    {"id": "linux", "kind": "domain", "title": "Linux", "domainType": "os", "x": 24, "y": 24, "w": 852, "h": 572},
+    {"id": "services", "kind": "layer", "title": "System Services", "parent": "linux", "order": 0, "x": 44, "y": 104, "w": 812, "h": 180},
+    {"id": "kernel", "kind": "layer", "title": "Linux Kernel", "parent": "linux", "order": 1, "x": 44, "y": 364, "w": 812, "h": 208}
+  ],
+  "nodes": [
+    {"id": "journald", "entityType": "process", "canonicalName": "systemd-journald", "description": "Journal collection and storage", "parent": "services", "x": 300, "y": 178, "w": 300, "h": 80, "evidence": ["systemd"]},
+    {"id": "kernel-log", "entityType": "subsystem", "canonicalName": "Kernel Logging", "parent": "kernel", "x": 300, "y": 438, "w": 300, "h": 80, "evidence": ["systemd"]}
+  ],
+  "edges": [
+    {"id": "kernel-journal", "from": "kernel-log", "to": "journald", "relation": "transfer", "label": "/dev/kmsg", "fromSide": "top", "toSide": "bottom", "evidence": ["systemd"]}
+  ]
+}

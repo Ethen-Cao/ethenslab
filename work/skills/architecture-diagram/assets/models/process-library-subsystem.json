@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "meta": {"id": "process-library-subsystem", "title": "PVM GPU Control Backend", "subtitle": "Process boundaries, peer libraries and local IPC", "description": "The HAB RPC backend uses two peer libraries. libgsl.so connects to the separate kgsl process. This view covers control and resource requests, not the DBCQ steady-state command path.", "scope": "subsystem", "view": "layered", "colorMode": "origin"},
+  "canvas": {"width": 1184, "height": 660},
+  "sources": [
+    {"id": "gpu", "title": "SA8797 GPU architecture, PVM backend", "locator": "content/gunyah/sa8797-sa8397-gpu-architecture.md#33-pvm-gpu-后端"},
+    {"id": "rgs", "title": "KGSL and RGS architecture", "locator": "content/gunyah/kgsl-rgs-architecture.md"},
+    {"id": "hab", "title": "VirtIO HAB transport components", "locator": "content/gunyah/display-virtio-hab-datapath.md"}
+  ],
+  "containers": [
+    {"id": "pvm", "kind": "domain", "title": "Linux PVM", "domainType": "vm", "x": 24, "y": 24, "w": 1136, "h": 612},
+    {"id": "userspace", "kind": "layer", "title": "User Space", "parent": "pvm", "order": 0, "x": 44, "y": 100, "w": 1096, "h": 274},
+    {"id": "hab-server", "kind": "process", "title": "gsl_hab_server", "parent": "userspace", "evidence": ["gpu"], "x": 64, "y": 176, "w": 560, "h": 174},
+    {"id": "kgsl", "kind": "process", "title": "kgsl", "parent": "userspace", "evidence": ["gpu", "rgs"], "x": 764, "y": 176, "w": 356, "h": 174},
+    {"id": "kernel", "kind": "layer", "title": "Linux Kernel", "parent": "pvm", "order": 1, "x": 44, "y": 414, "w": 1096, "h": 200}
+  ],
+  "nodes": [
+    {"id": "uhab", "entityType": "library", "canonicalName": "libuhab.so", "description": "HAB RPC transport", "parent": "hab-server", "origin": "vendor", "evidence": ["gpu", "hab"], "x": 84, "y": 250, "w": 240, "h": 80},
+    {"id": "gsl", "entityType": "library", "canonicalName": "libgsl.so", "description": "Local GSL client", "parent": "hab-server", "origin": "vendor", "evidence": ["gpu", "rgs"], "x": 364, "y": 250, "w": 240, "h": 80},
+    {"id": "rgs", "entityType": "library", "canonicalName": "libGSLKernel.so", "description": "RGS implementation", "parent": "kgsl", "origin": "vendor", "evidence": ["gpu", "rgs"], "x": 812, "y": 250, "w": 260, "h": 80},
+    {"id": "hab-device", "entityType": "kernel-interface", "interfacePath": "/dev/hab", "moduleName": "msm_hab", "description": "HAB channels and vhost transport", "parent": "kernel", "origin": "vendor", "evidence": ["hab"], "x": 84, "y": 486, "w": 240, "h": 80}
+  ],
+  "edges": [
+    {"id": "gsl-rgs", "from": "gsl", "to": "rgs", "relation": "ipc", "mechanism": "Local socket IPC", "fromSide": "right", "toSide": "left", "labelPosition": {"x": 694, "y": 265}, "evidence": ["rgs"]},
+    {"id": "uhab-device", "from": "uhab", "to": "hab-device", "relation": "call", "label": "ioctl", "labelPosition": {"x": 238, "y": 389}, "evidence": ["hab"]}
+  ]
+}

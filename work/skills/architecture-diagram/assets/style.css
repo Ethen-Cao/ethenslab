@@ -1,0 +1,77 @@
+/* Architecture diagram v2: one logical pixel is one CSS pixel. No fit-to-page scaling. */
+:root {
+  color-scheme: light;
+  --page: #f8f9fa;
+  --panel: #ffffff;
+  --ink: #202124;
+  --muted: #5f6368;
+  --line: #cbd1d8;
+  --domain: #f5f6f7;
+  --layer: #fafbfc;
+  --process: #ffffff;
+  --technical: #edf3f8;
+  --technical-line: #8eabc3;
+  --hardware: #edf0f2;
+  --hardware-line: #9aa0a6;
+  --oem: #4285f4;
+  --native: #34a853;
+  --vendor: #fbbc04;
+  --control: #356dc9;
+  --data: #237a44;
+  font-family: var(--font-sans);
+  font-synthesis: none;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { padding: 24px; background: var(--page); color: var(--ink); }
+.architecture-document { width: 100%; margin: 0; }
+.diagram-header { margin: 0 0 20px; }
+.diagram-header h1 { margin: 0; font-size: var(--type-title); line-height: 1.25; font-weight: 700; }
+.diagram-header p { margin: 8px 0 0; font-size: var(--type-body); line-height: 1.5; color: var(--muted); }
+.diagram-shell { width: max-content; max-width: 100%; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-shell); }
+svg#architecture { display: block; max-width: none; flex: none; background: var(--panel); }
+svg#architecture text { font-family: var(--font-sans); fill: var(--ink); }
+svg#architecture text.code { font-family: var(--font-mono); }
+.container-frame { fill: var(--layer); stroke: var(--line); stroke-width: var(--stroke-frame); }
+.container.domain > .container-frame { fill: var(--domain); stroke-width: var(--stroke-domain); }
+.container.process > .container-frame { fill: var(--process); stroke: #aab3bf; }
+.container.hardware-region > .container-frame, .container.hypervisor > .container-frame { fill: var(--domain); }
+.container-title { font-size: var(--type-container); font-weight: 700; }
+.container.domain > .container-title { font-size: var(--type-domain); }
+.container-subtitle { font-size: var(--type-subtitle); fill: var(--muted) !important; }
+.container-rule { stroke: var(--line); stroke-width: 1; }
+.node > rect { fill: var(--node-fill, var(--technical)); stroke: var(--node-stroke, var(--technical-line)); stroke-width: var(--stroke-node); }
+.node > text { fill: var(--node-ink, var(--ink)) !important; }
+.node.hardware > rect, .node.memory > rect, .node.register > rect { fill: var(--hardware); stroke: var(--hardware-line); }
+.node.configured > rect { fill: var(--process); stroke: var(--muted); stroke-dasharray: 5 4; }
+.node.configured > text { fill: var(--muted) !important; }
+.node-name { font-size: var(--type-node); font-weight: 700; }
+.node-subtitle { font-size: var(--type-subtitle); }
+.edge { fill: none; stroke: var(--control); stroke-width: var(--stroke-control); stroke-linecap: round; stroke-linejoin: round; }
+.edge.data { stroke: var(--data); stroke-width: var(--stroke-data); }
+.edge.notification { stroke-width: var(--stroke-notification); stroke-dasharray: 3 5; }
+.edge.config { stroke: var(--muted); stroke-width: var(--stroke-config); stroke-dasharray: 6 5; }
+.edge.dependency { stroke: var(--muted); stroke-width: var(--stroke-dependency); }
+.bridge-halo { fill: none; stroke: var(--panel); stroke-width: var(--bridge-halo-width); stroke-linecap: round; stroke-linejoin: round; }
+.marker { fill: none; stroke: var(--control); stroke-width: var(--stroke-arrow); stroke-linecap: round; stroke-linejoin: round; }
+.marker.data { stroke: var(--data); stroke-width: var(--stroke-arrow-data); }
+.marker.config, .marker.dependency { stroke: var(--muted); }
+.flow-junction { fill: var(--control); stroke: none; }
+.flow-junction.data { fill: var(--data); }
+.flow-junction.config, .flow-junction.dependency { fill: var(--muted); }
+.edge-label rect { fill: var(--panel); }
+.edge-label text { fill: var(--control) !important; font-size: var(--type-label); }
+.edge-label.data text { fill: var(--data) !important; }
+.edge-label.config text, .edge-label.dependency text { fill: var(--muted) !important; }
+.diagram-legend { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; font-size: var(--type-legend); line-height: 20px; color: var(--muted); }
+.diagram-legend:empty { display: none; }
+.legend-item { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.legend-heading { color: var(--ink); font-weight: 700; }
+.legend-chip { width: 20px; height: 13px; border: 1px solid var(--line); border-radius: var(--radius-label); background: var(--chip-fill, var(--technical)); }
+.legend-line { display: block; width: 28px; height: 12px; flex: none; overflow: visible; }
+.render-error { padding: 16px; border: 1px solid #b3261e; background: #fce8e6; color: #8c1d18; font: var(--type-body)/1.5 var(--font-mono); white-space: pre-wrap; }
+@media print {
+  body { background: #ffffff; }
+  .diagram-shell { overflow: visible; border: 0; }
+  * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}

@@ -1,0 +1,920 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "h56ez-ota-architecture",
+    "title": "H56EZ Vehicle OTA System Architecture",
+    "subtitle": "Cross-domain firmware orchestration across Android, QNX, and MCU",
+    "description": "End-to-end OTA architecture for H56EZ automotive platform, covering Android IVI, QNX RTOS, and vehicle MCU over ZeroMQ, SPI, and shared eMMC partitions.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "origin"
+  },
+  "canvas": {
+    "width": 1680,
+    "height": 1100
+  },
+  "sources": [
+    {
+      "id": "ota-design",
+      "title": "H56EZ OTA Architecture Detailed Design",
+      "locator": "work/H56EZ_OTA_Architecture_Design.md"
+    },
+    {
+      "id": "voyah-update",
+      "title": "Android UpdateService and JMQClient",
+      "locator": "android/vendor/voyah/system/update/UpdateService/"
+    },
+    {
+      "id": "voyah-updater",
+      "title": "QNX Base Updater Daemon",
+      "locator": "bsp/vendor/voyah_base/updater/src/updater.cpp"
+    },
+    {
+      "id": "voyah-script",
+      "title": "QNX Flash Script and Progress Tool",
+      "locator": "build/scripts/tools/update-script/update_ic.sh"
+    },
+    {
+      "id": "cluster-updatemgr",
+      "title": "Cluster MCU Upgrade Manager",
+      "locator": "cluster/platforms/updatemgr/src/upgrade_mcu.cpp"
+    },
+    {
+      "id": "cluster-rpcd",
+      "title": "Cluster RPC SPI Dispatcher",
+      "locator": "cluster/platforms/rpcd/inc/rpcd_local.h"
+    }
+  ],
+  "containers": [
+    {
+      "id": "android",
+      "kind": "domain",
+      "domainType": "os",
+      "title": "Android OS (IVI SoC)",
+      "x": 24,
+      "y": 24,
+      "w": 480,
+      "h": 730
+    },
+    {
+      "id": "android-apps",
+      "kind": "layer",
+      "order": 0,
+      "title": "Applications",
+      "parent": "android",
+      "x": 44,
+      "y": 96,
+      "w": 440,
+      "h": 146
+    },
+    {
+      "id": "android-services",
+      "kind": "layer",
+      "order": 1,
+      "title": "System Services",
+      "parent": "android",
+      "x": 44,
+      "y": 270,
+      "w": 440,
+      "h": 246
+    },
+    {
+      "id": "android-native",
+      "kind": "layer",
+      "order": 2,
+      "title": "Native Daemons",
+      "parent": "android",
+      "x": 44,
+      "y": 540,
+      "w": 440,
+      "h": 194
+    },
+    {
+      "id": "qnx",
+      "kind": "domain",
+      "domainType": "os",
+      "title": "QNX Neutrino RTOS (Cluster SoC)",
+      "x": 540,
+      "y": 24,
+      "w": 670,
+      "h": 740
+    },
+    {
+      "id": "qnx-mgmt",
+      "kind": "layer",
+      "order": 0,
+      "title": "Management Services",
+      "parent": "qnx",
+      "x": 560,
+      "y": 96,
+      "w": 630,
+      "h": 148
+    },
+    {
+      "id": "qnx-exec",
+      "kind": "layer",
+      "order": 1,
+      "title": "Executors",
+      "parent": "qnx",
+      "x": 560,
+      "y": 270,
+      "w": 630,
+      "h": 144
+    },
+    {
+      "id": "qnx-comm",
+      "kind": "layer",
+      "order": 2,
+      "title": "RPC Stack",
+      "parent": "qnx",
+      "x": 894,
+      "y": 436,
+      "w": 296,
+      "h": 150
+    },
+    {
+      "id": "qnx-drivers",
+      "kind": "layer",
+      "order": 3,
+      "title": "Device Drivers",
+      "parent": "qnx",
+      "x": 894,
+      "y": 598,
+      "w": 296,
+      "h": 150
+    },
+    {
+      "id": "mcu",
+      "kind": "domain",
+      "domainType": "mcu",
+      "title": "Vehicle MCU",
+      "x": 1246,
+      "y": 24,
+      "w": 364,
+      "h": 730
+    },
+    {
+      "id": "mcu-runtime",
+      "kind": "layer",
+      "order": 0,
+      "title": "Firmware Runtime",
+      "parent": "mcu",
+      "x": 1266,
+      "y": 96,
+      "w": 324,
+      "h": 314
+    },
+    {
+      "id": "mcu-hw-ctrl",
+      "kind": "layer",
+      "order": 1,
+      "title": "SPI Slave",
+      "parent": "mcu",
+      "x": 1266,
+      "y": 432,
+      "w": 324,
+      "h": 304
+    },
+    {
+      "id": "storage-hw",
+      "kind": "hardware-region",
+      "title": "Storage",
+      "x": 24,
+      "y": 780,
+      "w": 1632,
+      "h": 290
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ota-trigger",
+      "entityType": "class",
+      "canonicalName": "UsbUpdateActivity",
+      "description": "USB OTA trigger entry",
+      "parent": "android-apps",
+      "origin": "oem",
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ],
+      "x": 64,
+      "y": 172,
+      "w": 180,
+      "h": 54
+    },
+    {
+      "id": "doip-manager",
+      "entityType": "class",
+      "canonicalName": "DoipOtaManager",
+      "description": "DOIP diagnostic OTA entry",
+      "parent": "android-apps",
+      "origin": "oem",
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ],
+      "x": 280,
+      "y": 172,
+      "w": 180,
+      "h": 54
+    },
+    {
+      "id": "update-service",
+      "entityType": "class",
+      "canonicalName": "UpdateService",
+      "description": "TaskScheduler & DeviceManager",
+      "parent": "android-services",
+      "origin": "oem",
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ],
+      "x": 154,
+      "y": 344,
+      "w": 240,
+      "h": 54
+    },
+    {
+      "id": "update-impl",
+      "entityType": "class",
+      "canonicalName": "UpdateImpl",
+      "description": "Orchestration pipeline",
+      "parent": "android-services",
+      "origin": "oem",
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ],
+      "x": 64,
+      "y": 436,
+      "w": 200,
+      "h": 64
+    },
+    {
+      "id": "jmq-client",
+      "entityType": "class",
+      "canonicalName": "JMQClient",
+      "description": "ZeroMQ client (port 5030)",
+      "parent": "android-services",
+      "origin": "oem",
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ],
+      "x": 290,
+      "y": 436,
+      "w": 170,
+      "h": 64
+    },
+    {
+      "id": "update-engine",
+      "entityType": "process",
+      "canonicalName": "update_engine",
+      "description": "applyPayload() to inactive slot",
+      "parent": "android-native",
+      "origin": "native",
+      "evidence": [
+        "ota-design"
+      ],
+      "x": 154,
+      "y": 624,
+      "w": 240,
+      "h": 64
+    },
+    {
+      "id": "qnx-updater",
+      "entityType": "process",
+      "canonicalName": "updater",
+      "description": "ZeroMQ REP daemon (port 5030)",
+      "parent": "qnx-mgmt",
+      "origin": "oem",
+      "evidence": [
+        "ota-design",
+        "voyah-updater"
+      ],
+      "x": 580,
+      "y": 172,
+      "w": 280,
+      "h": 54
+    },
+    {
+      "id": "update-ic",
+      "entityType": "process",
+      "canonicalName": "update_ic.sh",
+      "description": "Inactive bank flasher",
+      "parent": "qnx-exec",
+      "origin": "oem",
+      "evidence": [
+        "ota-design",
+        "voyah-script"
+      ],
+      "x": 610,
+      "y": 344,
+      "w": 150,
+      "h": 54
+    },
+    {
+      "id": "swdl-utils",
+      "entityType": "process",
+      "canonicalName": "swdl_utils",
+      "description": "Bank switch utility",
+      "parent": "qnx-exec",
+      "origin": "vendor",
+      "evidence": [
+        "ota-design",
+        "voyah-updater"
+      ],
+      "x": 784,
+      "y": 344,
+      "w": 140,
+      "h": 54
+    },
+    {
+      "id": "upgrade-mcu",
+      "entityType": "process",
+      "canonicalName": "upgrademcu",
+      "description": "512B chunk streaming & CRC16",
+      "parent": "qnx-exec",
+      "origin": "oem",
+      "evidence": [
+        "ota-design",
+        "cluster-updatemgr"
+      ],
+      "x": 948,
+      "y": 344,
+      "w": 226,
+      "h": 54
+    },
+    {
+      "id": "librpcif",
+      "entityType": "library",
+      "canonicalName": "librpcif.so",
+      "description": "Client RPC library",
+      "parent": "qnx-comm",
+      "origin": "vendor",
+      "evidence": [
+        "ota-design",
+        "cluster-rpcd"
+      ],
+      "x": 914,
+      "y": 508,
+      "w": 132,
+      "h": 60
+    },
+    {
+      "id": "rpcd",
+      "entityType": "process",
+      "canonicalName": "rpcd",
+      "description": "SPI dispatcher",
+      "parent": "qnx-comm",
+      "origin": "vendor",
+      "evidence": [
+        "ota-design",
+        "cluster-rpcd"
+      ],
+      "x": 1070,
+      "y": 508,
+      "w": 104,
+      "h": 60
+    },
+    {
+      "id": "spi-driver",
+      "entityType": "kernel-interface",
+      "interfacePath": "/dev/spi9",
+      "moduleName": "spi-master",
+      "description": "5MHz mode-0 SPI bus interface",
+      "parent": "qnx-drivers",
+      "origin": "vendor",
+      "evidence": [
+        "ota-design",
+        "cluster-rpcd"
+      ],
+      "x": 934,
+      "y": 672,
+      "w": 240,
+      "h": 58
+    },
+    {
+      "id": "mcu-app",
+      "entityType": "firmware",
+      "canonicalName": "MCU Firmware Application",
+      "description": "BootLoader & SUB_A / SUB_B handlers",
+      "parent": "mcu-runtime",
+      "origin": "vendor",
+      "evidence": [
+        "ota-design",
+        "cluster-updatemgr"
+      ],
+      "x": 1296,
+      "y": 210,
+      "w": 264,
+      "h": 76
+    },
+    {
+      "id": "mcu-spi-ctrl",
+      "entityType": "hardware",
+      "canonicalName": "MCU SPI Slave Controller",
+      "description": "5MHz SPI slave RX/TX engine",
+      "parent": "mcu-hw-ctrl",
+      "evidence": [
+        "ota-design",
+        "cluster-rpcd"
+      ],
+      "x": 1296,
+      "y": 530,
+      "w": 264,
+      "h": 76
+    },
+    {
+      "id": "android-slots",
+      "entityType": "memory",
+      "canonicalName": "Android A/B eMMC Slots",
+      "resourceId": "emmc-android-slots",
+      "description": "boot / system / vendor inactive slot",
+      "parent": "storage-hw",
+      "evidence": [
+        "ota-design"
+      ],
+      "x": 64,
+      "y": 890,
+      "w": 240,
+      "h": 80
+    },
+    {
+      "id": "shared-emmc",
+      "entityType": "memory",
+      "canonicalName": "eMMC Shared Partition",
+      "resourceId": "emmc-otaqnx-shared",
+      "description": "/otaqnx/ (Android) ↔ /ota/ (QNX)",
+      "parent": "storage-hw",
+      "evidence": [
+        "ota-design",
+        "voyah-update",
+        "voyah-updater"
+      ],
+      "x": 350,
+      "y": 890,
+      "w": 260,
+      "h": 80
+    },
+    {
+      "id": "qnx-banks",
+      "entityType": "memory",
+      "canonicalName": "QNX Dual-Bank Partitions",
+      "resourceId": "emmc-qnx-banks",
+      "description": "system / ifs2 / hyp BANK_A & BANK_B",
+      "parent": "storage-hw",
+      "evidence": [
+        "ota-design",
+        "voyah-script"
+      ],
+      "x": 650,
+      "y": 890,
+      "w": 240,
+      "h": 80
+    },
+    {
+      "id": "mcu-flash",
+      "entityType": "memory",
+      "canonicalName": "MCU Dual-Bank Flash",
+      "resourceId": "mcu-app-flash",
+      "description": "APP_A / APP_B flash sectors",
+      "parent": "storage-hw",
+      "evidence": [
+        "ota-design",
+        "cluster-updatemgr"
+      ],
+      "x": 1296,
+      "y": 890,
+      "w": 264,
+      "h": 80
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-trigger-service",
+      "from": "ota-trigger",
+      "to": "update-service",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "toOffset": -40,
+      "via": [
+        {
+          "y": 258
+        },
+        {
+          "x": 234
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ]
+    },
+    {
+      "id": "edge-doip-service",
+      "from": "doip-manager",
+      "to": "update-service",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "toOffset": 40,
+      "via": [
+        {
+          "y": 258
+        },
+        {
+          "x": 314
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ]
+    },
+    {
+      "id": "edge-service-impl",
+      "from": "update-service",
+      "to": "update-impl",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        {
+          "y": 418
+        },
+        {
+          "x": 164
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ]
+    },
+    {
+      "id": "edge-impl-jmq",
+      "from": "update-impl",
+      "to": "jmq-client",
+      "relation": "call",
+      "fromSide": "right",
+      "toSide": "left",
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ]
+    },
+    {
+      "id": "edge-impl-engine",
+      "from": "update-impl",
+      "to": "update-engine",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "fromOffset": 48,
+      "via": [
+        {
+          "y": 560
+        },
+        {
+          "x": 274
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ]
+    },
+    {
+      "id": "edge-jmq-updater",
+      "from": "jmq-client",
+      "to": "qnx-updater",
+      "relation": "ipc",
+      "mechanism": "ZeroMQ (port 5030)",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        {
+          "x": 518
+        },
+        {
+          "y": 199
+        }
+      ],
+      "labelPosition": {
+        "x": 500,
+        "y": 310,
+        "anchor": "end"
+      },
+      "evidence": [
+        "ota-design",
+        "voyah-update",
+        "voyah-updater"
+      ]
+    },
+    {
+      "id": "edge-updater-updateic",
+      "from": "qnx-updater",
+      "to": "update-ic",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "fromOffset": -35,
+      "via": [
+        {
+          "y": 256
+        },
+        {
+          "x": 685
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-updater",
+        "voyah-script"
+      ]
+    },
+    {
+      "id": "edge-updater-swdl",
+      "from": "qnx-updater",
+      "to": "swdl-utils",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "fromOffset": 134,
+      "via": [
+        {
+          "y": 256
+        },
+        {
+          "x": 854
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-updater"
+      ]
+    },
+    {
+      "id": "edge-updater-upgrademcu",
+      "from": "qnx-updater",
+      "to": "upgrade-mcu",
+      "relation": "call",
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [
+        {
+          "x": 888
+        },
+        {
+          "y": 256
+        },
+        {
+          "x": 1061
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-updater",
+        "cluster-updatemgr"
+      ]
+    },
+    {
+      "id": "edge-upgrademcu-rpcif",
+      "from": "upgrade-mcu",
+      "to": "librpcif",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "via": [
+        {
+          "y": 425
+        },
+        {
+          "x": 880
+        },
+        {
+          "y": 538
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "cluster-updatemgr",
+        "cluster-rpcd"
+      ]
+    },
+    {
+      "id": "edge-rpcif-rpcd",
+      "from": "librpcif",
+      "to": "rpcd",
+      "relation": "ipc",
+      "mechanism": "QNX msgpass",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelPosition": {
+        "x": 1110,
+        "y": 465,
+        "anchor": "middle"
+      },
+      "evidence": [
+        "ota-design",
+        "cluster-rpcd"
+      ]
+    },
+    {
+      "id": "edge-rpcd-spidrv",
+      "from": "rpcd",
+      "to": "spi-driver",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        {
+          "y": 576
+        },
+        {
+          "x": 1054
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "cluster-rpcd"
+      ]
+    },
+    {
+      "id": "edge-spidrv-mcuspi",
+      "from": "spi-driver",
+      "to": "mcu-spi-ctrl",
+      "relation": "transfer",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        {
+          "x": 1228
+        },
+        {
+          "y": 568
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "cluster-rpcd"
+      ]
+    },
+    {
+      "id": "edge-mcuspi-mcuapp",
+      "from": "mcu-spi-ctrl",
+      "to": "mcu-app",
+      "relation": "notification",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "via": [
+        {
+          "y": 360
+        },
+        {
+          "x": 1428
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "cluster-rpcd",
+        "cluster-updatemgr"
+      ]
+    },
+    {
+      "id": "edge-mcuapp-flash",
+      "from": "mcu-app",
+      "to": "mcu-flash",
+      "relation": "write",
+      "fromSide": "right",
+      "toSide": "right",
+      "via": [
+        {
+          "x": 1640
+        },
+        {
+          "y": 930
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "cluster-updatemgr"
+      ]
+    },
+    {
+      "id": "edge-engine-slots",
+      "from": "update-engine",
+      "to": "android-slots",
+      "relation": "write",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        {
+          "y": 814
+        },
+        {
+          "x": 184
+        }
+      ],
+      "evidence": [
+        "ota-design"
+      ]
+    },
+    {
+      "id": "edge-impl-shared",
+      "from": "update-impl",
+      "to": "shared-emmc",
+      "relation": "write",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "fromOffset": 80,
+      "toOffset": -50,
+      "via": [
+        {
+          "y": 524
+        },
+        {
+          "x": 440
+        },
+        {
+          "y": 836
+        },
+        {
+          "x": 430
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-update"
+      ]
+    },
+    {
+      "id": "edge-shared-updateic",
+      "from": "shared-emmc",
+      "to": "update-ic",
+      "relation": "read",
+      "fromSide": "top",
+      "toSide": "left",
+      "fromOffset": 50,
+      "via": [
+        {
+          "y": 820
+        },
+        {
+          "x": 532
+        },
+        {
+          "y": 371
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-script"
+      ]
+    },
+    {
+      "id": "edge-updateic-banks",
+      "from": "update-ic",
+      "to": "qnx-banks",
+      "relation": "write",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "toOffset": -50,
+      "via": [
+        {
+          "y": 560
+        },
+        {
+          "x": 720
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-script"
+      ]
+    },
+    {
+      "id": "edge-swdl-banks",
+      "from": "swdl-utils",
+      "to": "qnx-banks",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "toOffset": 50,
+      "via": [
+        {
+          "y": 640
+        },
+        {
+          "x": 820
+        }
+      ],
+      "evidence": [
+        "ota-design",
+        "voyah-updater"
+      ]
+    }
+  ]
+}

@@ -1,192 +1,65 @@
 ---
 name: architecture-diagram
-description: 创建或修改独立 HTML 软件架构图（框图、block diagram、软件栈图、模块调用与数据流图），统一系统级与子模块级图的配色、分层、组件命名和连线。适用于软件栈、多 OS/VM、SoC/MCU 以及模块调用与数据流；不用于一般业务流程图、时序图，也不用于文章内可用 mermaid / PlantUML 代码块表达的简单图。
+description: 创建或修改独立 HTML 软件架构图，统一系统级与子模块级的技术分层、真实组件命名、进程归属、数据路径和连线布局。适用于 Android、Linux、QNX、多 OS/VM 及硬件/共享内存；不用于一般业务流程、时序图或 PPT。
 ---
 
-# 软件架构图
+# Architecture Diagram
 
-输出可独立打开的 HTML，使用 HTML/CSS/SVG 绘制。用户明确要求优先于本规范；参考图只提供布局，不是其他平台的技术事实。
-需要分域分层、交互聚焦或精细排版时才用本 skill；文章内的简单流程、时序、类图直接用 mermaid / PlantUML 代码块（PlantUML 按 plantuml skill 的样式和模板）。
+生成独立、静态、全英文 HTML：标题、架构图、必要图例。无工具栏、主题切换、详情面板或 PPT 布局。使用本 skill 的模型与公共 renderer，不重新拼一套 HTML/CSS/SVG；字体、圆角、线宽统一取自 `assets/theme.json`，构建器内嵌固定字体，加载成功后才测量与绘制。用户当前明确要求优先；示例提供合规建模与布局，不提供其他平台的技术事实。
 
-## 起点与参考
+## Decide the scope
 
-新图复制 [base-template.html](assets/base-template.html)，只改顶部数据段：`META`、`SLIDE`、`containers`、`nodes`、`edges`、`junctions`、`views`、`flows`。主题、节点、连线、跨线弧、分支点、缩放、聚焦、图例和嵌入高度已实现；数据错误会在控制台抛出。
+先明确图要回答的问题，并记录独立维度：
 
-以下参考只看布局，路径相对于本 skill；不要每次读取全部 HTML。
+- **粒度**：`system` 展示真实子系统、层次和关键依赖；`subsystem` 展示实际进程、库、核心类、内核接口及相关资源。
+- **视图**：`layered` 为分层主图，可叠加关键控制/数据流；`dataflow` 是路径补充视图，不能替代用户要求的主图。
+- **用途**：`technical` 默认只解释技术实现；`origin` 才按组件来源着色；`responsibility` 明确一种项目责任后按责任方着色。来源、责任和技术层次不能相互推断。
 
-- 单 OS 系统概览：[android_architecture.html](assets/architecture_diagrams/android_architecture.html)。
-- 多 OS/VM 系统概览：[multios_architecture.html](assets/architecture_diagrams/multios_architecture.html)。
-- SoC/MCU 系统概览：[soc_mcu_architecture.html](assets/architecture_diagrams/soc_mcu_architecture.html)。
-- 简单子模块分层：[display_architecture.html](assets/architecture_diagrams/display_architecture.html)。
-- 复杂子模块、进程边界、控制/数据流：[pvm-graphics-stack-architecture.html](assets/architecture_diagrams/pvm-graphics-stack-architecture.html)。参考大图的分栏、用户态/内核态边界和硬件区排布，不照搬业务节点和坐标。
-- 跨安全域、多 OS 播放链路与显示输出：[cockpit-drm-playback-architecture.html](assets/architecture_diagrams/cockpit-drm-playback-architecture.html)。重点参考 TEE / QNX / Android 分区、受保护内存、串行显示链路及不同输出配置的布局；其配色、字号和英文界面不沿用。
+只在缺失信息影响主链正确性时询问；非关键细节停留在已确认父组件，不伪造 SO、类名或功能性 Block。
 
-参考模板的配色和实现不一致，一律以本规范和 base-template 为准。参考资源是 skill 内的独立快照，不自动反向覆盖发布文件。
+## Read the relevant rules
 
-## 技术模型与粒度
+绘制或修改前完整读取：
 
-- 先确定组件实体、所属域/层/进程，以及关系的方向、机制和依据，再布局。
-- 系统级展示责任域、软件层与核心能力；只画必要的跨域接口，不展开全部库和类。
-- 子模块级展示实际进程、库/类、内核接口和相关硬件；保留解释主要路径所必需的细节。
-- 区分包含、调用、IPC、数据读写、通知和配置。共享内存承载的数据与 doorbell/IRQ 通知分别建模。
-- 不为缩短连线而省略必要的跨进程/跨 VM/硬件接口，也不将资源授权误画成每次数据都经过的处理节点。
-- 未确认的实体和机制不得猜测。重要不确定项简短标明或询问；证据、分析过程和详细限制放节点详情或注释。
-- 节点只画实体（进程、库/类、驱动、硬件、内存）。文档里的职责分组、要点列表和“XX 面”不画成节点，也不让连线穿过它们。
-- 跨 VM / 跨域通信：Hypervisor 的公共承载层只画一次（见“布局”），HAB 等传输层按真实实体及各 VM 内的驱动建模；消息通道画成直接连接两端用户态组件的连线，按真实方向标注通道与消息；建立通道、映射共享页属于配置关系，需展开时用配置线表示，否则放在详情中。
-- 同一块物理内存只画一个实体，放在硬件区，副标题写明分配方与导入方；不在各 VM 和 Hypervisor 里重复建节点。
-- 像素/数据线只连接真正读写数据的组件和内存；只传 index、fd 或句柄的组件走控制或通知线。
-- 成对的跨域操作（export / import、发送 / 接收）两侧在同一层级建模：都从用户态发起方画，或都从内核驱动画。同一职责只归一个节点，连线从该节点出发，不在另一个节点的副标题里重复声明。
-- 画完后对照源文档逐条核对消息方向、发起方和接收方；每条跨域链路都应两端落在实体上。
+1. [modeling.md](references/modeling.md)：类别适用范围、命名、Android / Linux / QNX 分层、跨 VM 与硬件/内存条件规则。
+2. [layout.md](references/layout.md)：必须满足的相对布局、英文文字、容器 header、节点、端点、走线、标签、用途配色与最小间距。
+3. [schema.md](references/schema.md)：版本 2 模型、构建命令、校验及交付要求。
 
-## 统一视觉
+只有用户要求更新文章或发布到本站时读取 [publishing.md](references/publishing.md)。普通简单流程/时序无需强行使用本架构模型。
 
-组件填充色表达来源或实体类别；域、软件层和进程由位置、容器和标题表达，容器不着来源色。
+## Non-negotiable boundaries
 
-来源颜色为强制要求，亮暗主题取值相同，且不用于其他含义：
+- **MUST**：大软件层次按主要能力依赖自上而下；同层可以横排或竖排。强制架构语义，不强制复制模板坐标、列数或宽高。
+- **MUST**：层是技术角色，进程是运行归属。实际 SO / 类归属正确；`.so` 后缀、实现语言或开发方都不能直接决定层次。
+- **MUST**：系统级允许有真实边界的子系统名称；子模块使用已确认实体名。职责只作副标题。内核文件接口为 `path · module`，无文件路径时不编造。
+- **MUST**：图内所有可见文字及无障碍说明用英文，真实标识符保留拼写；图外讨论可用中文。
+- **MUST**：保留真实边界与传输机制；数据、控制、通知、配置分开。Hypervisor 只覆盖实际承载 VM；内存按实际读写链定位，不强制放硬件区。
+- **MUST**：静态、自包含、无网络依赖；不增加未要求的控制面板、PPT 分支或装饰说明。
+- **MUST**：修改时保留已确认名称与归属；技术或布局原因确需更改时说明，不无故恢复旧结果。
 
-| 来源 | 颜色 |
+参考中 `MUST` 为验收约束，`SHOULD` 为可因实际内容调整的建议；示例不是组件清单。若规则与旧图冲突，按现行规则生成，不能以旧图为例外依据。
+
+## Choose one relevant example
+
+模型源位于 `assets/models/`，以下 HTML 均由同一 renderer 生成；只读取当前任务有关的模型/示例。
+
+| Example | 适用问题 |
 | --- | --- |
-| OEM 自研 | 蓝 `#4285F4` |
-| 系统原生（AOSP / QNX / Linux 等） | 绿 `#34A853` |
-| Vendor / Tier1（SoC 厂商、Tier1、第三方方案） | 黄 `#FBBC04` |
+| [android-system.html](assets/architecture_diagrams/android-system.html) | 官方宏观层次；Core Android APIs 与 Car APIs 同层，System Services 可展开真实进程 |
+| [linux-system.html](assets/architecture_diagrams/linux-system.html) | 应用/客户端接口/服务/内核依赖，非强制 PAL 的嵌入式 Linux 骨架 |
+| [qnx-system.html](assets/architecture_diagrams/qnx-system.html) | 客户端、服务、用户态驱动与 `procnto`，避免把驱动全部放入 Kernel |
+| [multi-domain-system.html](assets/architecture_diagrams/multi-domain-system.html) | 并列 VM、各域纵向分层、公共 Hypervisor 与不受其承载的独立域 |
+| [process-library-subsystem.html](assets/architecture_diagrams/process-library-subsystem.html) | 实际进程、内部库/类、并列依赖、IPC 与内核接口 |
+| [shared-memory-io.html](assets/architecture_diagrams/shared-memory-io.html) | 输入/输出方向、唯一 Buffer、真实读写者与通知分离 |
+| [layout-primitives.html](assets/architecture_diagrams/layout-primitives.html) | 抽象布局小样：标题、长名称、多路入口、真分支与跨线弧；不作技术事实来源 |
 
-其他类别：
+`assets/legacy/` 保存历史快照供追溯，不是默认示例。不要从中复制旧命名、配色、中文界面、交互或幻灯片代码。
 
-| 类别 | 填充 | 描边 / 文字 |
-| --- | --- | --- |
-| 硬件 / 寄存器 / 内存 | 亮 `#9AA0A6`，暗 `#5F6368` | 文字亮 `#202124`、暗 `#fff`；内存用堆叠矩形 |
-| 硬件区域面板变体 | 亮 `#edf0f2`，暗 `#3c4043` | 描边用硬件灰，副标题用 muted |
-| 来源未确定 | process 色 | muted 实线描边，ink 文字 |
-| 仅配置 / 未启用 | process 色 | muted 虚线 `5 4`，muted 文字 |
+## Generate and verify
 
-模板中对应 `kind`：`oem` / `native` / `vendor` / `hardware` / `neutral`；修饰属性 `memory`（堆叠）、`zone`（硬件面板）、`configured`（仅配置）。
+1. 先确定实体、层次、运行归属、关系与证据，再按规则布置容器、节点、线和标签。
+2. 从 `assets/base-model.json` 或所选模型起步，按 schema 修改 JSON；运行 `node scripts/build-diagram.mjs <model.json> <output.html>`。`assets/base-template.html` 是生成预览，不手工修改。
+3. 模型校验、浏览器几何校验、截图目视和技术证据复核分别完成；模型/渲染数量必须准确对应，不能让空 DOM 的检查冒充通过。命令和判定标准见 schema。
+4. 报告输出与源模型路径、错误/警告计数、实际检查的视图及未确认或省略内容。未进行浏览器检查必须明说；自动检查不证明架构事实正确。
 
-蓝、绿、黄节点文字统一用 `#102116`。主题 token：
-
-| token | 亮 | 暗 |
-| --- | --- | --- |
-| page | `#f8f9fa` | `#202124` |
-| panel | `#fff` | `#282a2d` |
-| domain | `#f5f6f7` | `#242629` |
-| process | `#fff` | `#303337` |
-| ink | `#202124` | `#e8eaed` |
-| muted | `#5f6368` | `#afb5be` |
-| line | `#cbd1d8` | `#565c66` |
-
-参考模板中以下配色不沿用：
-
-- 黄色表示“汽车专属 / Car Services”、灰色表示 HAL / BSP / 虚拟化：车辆功能、HAL、虚拟化按来源着色，灰色只用于硬件实体。
-- 蓝→绿渐变表示“OEM 定制原生组件”：按代码主体来源着色，副标题注明“OEM 定制”。
-- 域边框按 OS 着色：容器保持中性。
-- cockpit 中蓝色表示 External services：外部服务按来源着色，来源不明用中性色。
-- 统一灰色箭头：连线颜色按机制区分，见“连线”。
-
-固件按来源着色并标明 firmware，不与硬件寄存器混为实体。
-主题、字体和节点样式以 base-template 为准：节点主标题 16、副标题 12、线标签 13（SVG 逻辑单位）。
-不要混用其他模板的字号体系或近似颜色（如 cockpit 的绿线 `#28854d`）。
-容器低对比，组件清晰；图例只列本图实际使用的语义。
-
-## 布局
-
-- 先排容器和节点，再规划连线，最后放标签。
-- 横向表达并行域、OS/VM 或服务链；纵向表达依赖层次。容器嵌套表示归属，不暗示调用。
-- Hypervisor 共同承载多个并列 VM 时，画成它们下方的独立横向层带：左边界对齐最左 VM，右边界对齐最右 VM 的外边界，覆盖 VM 之间的间隔；不缩成某个 VM 下方的小组件，也不延伸到不受其承载的域。
-  - 用中性容器表示层带，标题使用实际名称，如 `Gunyah Hypervisor`；需要展开的实现组件放在层带内部，按来源着色，不重复绘制同一 Hypervisor。
-  - 层带表示共同承载，不是所有数据必经的处理节点。像素/数据线仍连接实际读写组件与内存，可经过层带空白区域但不得穿过标题或内部组件；不因穿越层带而添加箭头或连接点。Hypervisor 的实际调用与配置关系另行明确表达。
-- Android 可用 Applications → Framework/Runtime → Native/HAL → Kernel或者 Java → Native → HAL → Linux kernel 分层。其他 OS 按实际架构划分。
-- 子模块的进程用独立容器，库/类放在所属进程内；同级依赖并列，不因布局方便伪造成串行调用。
-- 同层对齐、统一间距，跨列/跨层路径预留走线通道；不同 OS 无需强凑同名层。
-- 按数据交接关系布局硬件与内存：物理 I/O 链按真实连接顺序排列；Buffer／共享内存作为独立资源，优先布置在实际读写它的硬件单元与软件组件之间。通过位置和箭头明确谁写入、谁读取，使主数据流连续、少折返，不把内存当作物理链路中的串行处理节点。软件在上、物理接口在下时，内存通常位于两者之间；不强制内存固定在硬件上方。
-  - 采集方向：物理输入 → 采集硬件 → 内存 → 软件处理。
-  - 输出方向：软件生成 → 内存 → 输出硬件 → 物理输出。
-- 涉及显示硬件时，将处理单元、共享图像内存和显示接口组织在硬件区域，物理输出链放在下一行；内存用堆叠矩形。
-- 容器标题占顶部：domain 50、process 40、layer 48（含分隔线），子容器和节点放在其下，memory 节点另留 8；越界时模板直接报错。连线不穿过容器标题，也不贴着容器边框走（间距至少 6）。
-- 内容过多时扩大画布（`WIDTH`/`HEIGHT`）、加局部放大（`views`）或路径聚焦（`flows`），或拆图；不缩小字体塞进固定宽高比。
-
-## PPT 版式
-
-用户要求 PPT / 幻灯片版式时，设置模板的 `SLIDE`，页面即为一张固定尺寸的幻灯片：
-
-- 尺寸：未指定比例时用 `'16:9'`（PowerPoint 默认 13.333 × 7.5 in → 1280 × 720）；4:3 用 `'4:3'`（10 × 7.5 in → 960 × 720）；用户给出具体尺寸时按 96 dpi 换算为 `{width, height}`（1 in = 96 px，1 cm ≈ 37.8 px），宽高比与给定尺寸一致。
-- 幻灯片内只保留标题、图和图例；工具栏、聚焦按钮、详情和依据自动隐藏，默认浅色主题，打印页面尺寸自动设为幻灯片尺寸。
-- 画布 `WIDTH`/`HEIGHT` 按图区（幻灯片去掉标题和图例后的区域）的比例设计。缩放后节点主标题不得低于 10pt（缩放比例 ≥ 0.83），模板和检查脚本对此报错并给出画布上限；放不下就精简，不缩小字号。比例不一致导致大面积留白时按 `slide-letterbox` 提示调整。
-- 导出图片或 PDF 时，视口等于幻灯片尺寸：
-
-  ```js
-  const context = await browser.newContext({viewport: {width: 1280, height: 720}, deviceScaleFactor: 2});
-  const page = await context.newPage();
-  await page.goto('file:///<path>/diagram.html');
-  await page.screenshot({path: 'slide.png'});  // 2560×1440，插入 PPT 时铺满整页
-  await page.pdf({path: 'slide.pdf', width: '1280px', height: '720px', printBackground: true});
-  ```
-
-- 交付说明写明版式、像素尺寸和导出文件。
-
-## 命名与文字
-
-- 系统级允许准确的能力、服务和子系统名称；子模块用户态优先实际进程名、SONAME 或核心类名。
-- 实体名称与职责分开：`libsdmcore.so` 是组件名，“合成策略”是副标题，不单独伪装成组件。
-- 内核对外接口写“文件路径 · 模块名”，如 `/dev/hgsl · qcom_hgsl`；没有设备文件时不编造路径。
-- 硬件、固件、寄存器和共享内存明确区分。主标题通常 1–2 行，职责副标题简短。
-- 不添加左侧装饰编号、教学口号、大段解释或核验免责声明。保留影响理解的“仅配置”“可选”等状态。
-- 界面、图例、详情和容器说明用中文；组件名、接口、协议和硬件术语保留原文。
-
-## 连线
-
-- 调用/控制：蓝色细实线，亮色 `#356dc9` / 深色 `#8ab4f8`，线宽 2.1。
-- 数据/像素：绿色较粗实线，亮色 `#237a44` / 深色 `#81c995`，线宽 3.3。
-- 密文数据（需与明文或受保护数据区分时）：muted 灰实线，线宽 2。
-- 通知/doorbell/IRQ：蓝色点线，线宽 2.1，间隔 `3 5`。
-- 配置/分配：muted 灰虚线，线宽 1.8，间隔 `6 5`；不表示逐次执行路径。
-
-箭头、标签文字和分支实心点与所在连线同色。
-
-优先正交、独立通道、少折返，不穿过无关节点、标题或标签。
-纵向主链默认接上下边中心，横向主链默认接左右边中心。
-节点某条边只接一条连线（或多条连线共用同一点）时，必须接在该边中心，检查脚本对偏移报错。需要直线时移动或调宽节点使中心对齐，或加折点，不用偏移凑直线。用户明确指定的偏移锚点保留，在该连线上设 `keepAnchor: true`，并在交付说明里写明。
-多路输入时主链保留中心入口，其他线路分配独立入口；不堆叠箭头，不合并不同机制。连线接在朝向另一端节点的边上：对方在下方就不从上边绕入，对方在左侧就不从右边绕出；被中间节点挡住时可用侧边绕行。入口按来向排列，左侧来的线接左侧，避免两条线在目标前交换左右；同一对连线最多交叉一次。
-连线留在两端共同所在的最小容器内，不绕出再绕回。被整宽的进程或层挡住时调整布局（把进程并排、换层或留走线通道），不借域间空隙绕行；域间空隙不堆多条平行长线。一条线拐 5 次以上，先改布局。
-不可避免的非连接交叉使用跨线弧，真实分支使用实心点；先优化布局，再处理交叉。
-跨线弧由模板的 `routeCrossingBridges()` 自动生成，只支持单段绝对坐标正交 `M/H/V/L` 路径（其他写法模板直接报错）。交点距线段端点或拐点不足 9、同一线段上相邻交点间距小于 16、或弧线会碰到附近线路时不加弧，需调整走线。
-扇出分支在 `junctions` 中列出共享前缀的连线，实心点自动落在分叉处，不手写坐标。
-标签只写必要的接口、协议或数据名称，不遮挡连线。
-端点用 `fromSide`/`toSide` 与 `fromOffset`/`toOffset` 由节点边界计算，折点用 `via`；移动节点后连线、跨线弧和分支点自动重算，手写 `lx`/`ly` 的标签需复核。
-
-## 修改与验收
-
-- 修改现有图时保留已确认的命名、层次和锚点，只调整相关节点与路径，避免无关重排。
-- 用 [check-diagram.js](scripts/check-diagram.js) 做几何检查：`errors` 必须为空，`warnings` 逐条修正或确认合理。它检查重复 ID、未知端点、节点/容器归属、节点压住容器标题、连线穿过标题或节点、贴边框走线、箭头贴边与方向、单线锚点居中、背向对方连接、绕出容器、重复交叉、同节点连线互相交叉、走线过繁、节点重叠、文字溢出、主标题缩字、箭头堆叠、交叉缺弧、连线重合和标签遮挡，以及 PPT 版式的尺寸、溢出、最小字号和留白：
-
-  ```js
-  await page.goto('file:///<path>/diagram.html?theme=dark');
-  await page.addScriptTag({path: '<skill>/scripts/check-diagram.js'});
-  const report = await page.evaluate(() => checkDiagram());
-  ```
-
-- 在浏览器截图检查全图、关键局部及亮暗主题（URL 加 `?theme=dark` 可直接切换）；核对箭头、标签、跨线弧和交互。只跑检查脚本不算预览；未能截图时明确说明。
-- 再核对技术关系；几何通过不等于架构正确。
-- 交付说明必须包含：检查脚本的 errors / warnings 数量，每条 warning 的处理（已修正，或保留及理由）；截图检查看了哪些视图、发现了什么；与源文档不一致、未确认或被省略的内容。不要只写“验证通过”。
-- 默认不改参考资源或原始文章。
-
-## 发布与嵌入（ethenslab）
-
-- 图写入 `static/diagrams/<name>.html`，发布地址为 `/ethenslab/diagrams/<name>.html`；`docs/` 由 Hugo 生成，不手工编辑。
-- 文章里的 iframe 和备用链接用相对路径：`../` 的个数等于文章 URL 在 `/ethenslab/` 之后的层数。`content/gunyah/foo.md`（`/ethenslab/gunyah/foo/`）写 `../../diagrams/<name>.html`；`content/android-dev/media/foo.md` 写 `../../../diagrams/<name>.html`。不要写 `static/` 前缀，Hugo 构建后会失效。
-- 模板在 iframe 中向父页面发送 `{type: '<DIAGRAM_ID>-height', height}`。文章按下列写法接收，并校验来源窗口与 origin：
-
-  ```html
-  <iframe id="<DIAGRAM_ID>" src="../../diagrams/<name>.html" title="<图标题>" loading="lazy" style="display:block;box-sizing:border-box;width:100%;height:720px;border:1px solid #dadce0;border-radius:8px;overflow:hidden;"></iframe>
-  <script>
-  (() => {
-    const frame = document.getElementById('<DIAGRAM_ID>');
-    const origin = new URL(frame.src, document.baseURI).origin;
-    window.addEventListener('message', event => {
-      if (event.source !== frame.contentWindow || event.origin !== origin || event.data?.type !== '<DIAGRAM_ID>-height') return;
-      const height = Number(event.data.height);
-      if (Number.isFinite(height) && height > 0) frame.style.height = `${Math.min(2400, Math.ceil(height) + 2)}px`;
-    });
-  })();
-  </script>
-
-  [独立打开架构图](../../diagrams/<name>.html)
-  ```
+除用户明确要求外，不改原文或已发布图。维护本 skill 时改公共源和模型后统一重建示例，不逐份修补生成 HTML。

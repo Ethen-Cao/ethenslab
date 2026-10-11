@@ -1,345 +1,401 @@
-/*
- * 架构图几何检查。在浏览器中注入本文件后调用 checkDiagram()，返回 {ok, errors, warnings}。
- *   Playwright: await page.addScriptTag({path: '<skill>/scripts/check-diagram.js'});
- *               const report = await page.evaluate(() => checkDiagram());
- *   也可粘贴到浏览器控制台执行。errors 必须为空；warnings 逐条确认。
- * DOM 约定（与 assets/base-template.html 一致）：
- *   节点 [data-node]，外框 rect.face，可选 data-parent；容器 g[data-container]（首个 rect 为边框，text/path 为标题与分隔线），可选 data-parent；
- *   连线 g[data-edge]，data-from / data-to / data-route / data-keep-anchor（缺省时读页面全局 edges 数组）；
- *   标签 .edge-label（可选 data-label-for）；跨线弧 [data-bridge]；分支点 .flow-junction。
- */
+/* Architecture diagram v2 browser geometry audit. Inject after rendering and call checkDiagram(). */
 (() => {
   'use strict';
-  const TOL = 1.5;
-
+  const EPS = 0.05, TOL = 1.25;
+  const NORMAL = {top: [0, -1], bottom: [0, 1], left: [-1, 0], right: [1, 0]};
+  const near = (a, b, t = TOL) => Math.abs(a - b) <= t;
+  const equal = (a, b) => near(a.x, b.x) && near(a.y, b.y);
+  const overlap = (a, b) => Math.max(0, Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1)) * Math.max(0, Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1));
+  const contains = (a, b, p = 0) => b.x1 >= a.x1 + p - TOL && b.y1 >= a.y1 + p - TOL && b.x2 <= a.x2 - p + TOL && b.y2 <= a.y2 - p + TOL;
+  const expanded = (b, p) => ({x1: b.x1 - p, y1: b.y1 - p, x2: b.x2 + p, y2: b.y2 + p});
+  const distance = (a, b) => Math.hypot(Math.max(a.x1 - b.x2, b.x1 - a.x2, 0), Math.max(a.y1 - b.y2, b.y1 - a.y2, 0));
+  const pointInside = (p, b) => p.x >= b.x1 - TOL && p.x <= b.x2 + TOL && p.y >= b.y1 - TOL && p.y <= b.y2 + TOL;
   function parseRoute(d) {
-    if (!d || /[^\d\s.,+\-eEMHVL]/.test(d)) return null;
+    if (typeof d !== 'string' || !d || /[^\d\s.,+\-eEMHVL]/.test(d)) return null;
     const tokens = d.match(/[MHVL]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g) || [];
-    const points = [];
-    let command = null, index = 0;
+    const points = []; let command = null, index = 0;
     const read = () => Number(tokens[index++]);
     while (index < tokens.length) {
       if (/^[MHVL]$/.test(tokens[index])) command = tokens[index++];
-      const last = points[points.length - 1];
-      let next;
-      if (command === 'M') {
-        if (last) return null;
-        next = {x: read(), y: read()};
-        command = 'L';
-      } else if (!last) return null;
+      const last = points[points.length - 1]; let next;
+      if (command === 'M') { if (last) return null; next = {x: read(), y: read()}; command = 'L'; }
+      else if (!last) return null;
       else if (command === 'L') next = {x: read(), y: read()};
       else if (command === 'H') next = {x: read(), y: last.y};
-      else next = {x: last.x, y: read()};
+      else if (command === 'V') next = {x: last.x, y: read()};
+      else return null;
       if (!Number.isFinite(next.x) || !Number.isFinite(next.y)) return null;
-      if (last && Math.abs(last.x - next.x) > 1e-6 && Math.abs(last.y - next.y) > 1e-6) return null;
-      if (!last || last.x !== next.x || last.y !== next.y) points.push(next);
+      if (last && !near(last.x, next.x, EPS) && !near(last.y, next.y, EPS)) return null;
+      if (!last || !equal(last, next)) points.push(next);
     }
     return points.length >= 2 ? points : null;
   }
-
   function segmentsOf(points) {
     return points.slice(1).map((b, i) => {
-      const a = points[i];
-      const horizontal = Math.abs(a.y - b.y) < 1e-6;
-      return horizontal
-        ? {horizontal, c: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x)}
-        : {horizontal, c: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y)};
+      const a = points[i], horizontal = near(a.y, b.y, EPS);
+      return {a, b, horizontal, c: horizontal ? a.y : a.x, lo: horizontal ? Math.min(a.x, b.x) : Math.min(a.y, b.y), hi: horizontal ? Math.max(a.x, b.x) : Math.max(a.y, b.y)};
     });
   }
-
-  // inset > 0 shrinks the box; inset < 0 grows it.
-  function segmentHitsBox(s, box, inset) {
-    const x1 = box.x1 + inset, x2 = box.x2 - inset, y1 = box.y1 + inset, y2 = box.y2 - inset;
-    if (x1 >= x2 || y1 >= y2) return false;
-    return s.horizontal
-      ? s.c > y1 && s.c < y2 && s.hi > x1 && s.lo < x2
-      : s.c > x1 && s.c < x2 && s.hi > y1 && s.lo < y2;
+  function hits(s, box, pad = 0) {
+    const b = expanded(box, pad);
+    return s.horizontal ? s.c > b.y1 + EPS && s.c < b.y2 - EPS && s.hi > b.x1 + EPS && s.lo < b.x2 - EPS :
+      s.c > b.x1 + EPS && s.c < b.x2 - EPS && s.hi > b.y1 + EPS && s.lo < b.y2 - EPS;
   }
-  const overlapArea = (a, b) => Math.max(0, Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1)) * Math.max(0, Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1));
-  const contains = (outer, inner, pad = 0) =>
-    inner.x1 >= outer.x1 + pad - TOL && inner.x2 <= outer.x2 - pad + TOL && inner.y1 >= outer.y1 + pad - TOL && inner.y2 <= outer.y2 - pad + TOL;
-
   function sideOf(p, b) {
-    if (p.x < b.x1 - TOL || p.x > b.x2 + TOL || p.y < b.y1 - TOL || p.y > b.y2 + TOL) return null;
-    if (Math.abs(p.y - b.y1) <= TOL) return 'top';
-    if (Math.abs(p.y - b.y2) <= TOL) return 'bottom';
-    if (Math.abs(p.x - b.x1) <= TOL) return 'left';
-    if (Math.abs(p.x - b.x2) <= TOL) return 'right';
-    return null;
+    if (!pointInside(p, b)) return null;
+    if (near(p.y, b.y1)) return 'top'; if (near(p.y, b.y2)) return 'bottom';
+    if (near(p.x, b.x1)) return 'left'; if (near(p.x, b.x2)) return 'right'; return null;
   }
-  const OUTWARD = {top: [0, -1], bottom: [0, 1], left: [-1, 0], right: [1, 0]};
-  const unit = (a, b) => [Math.sign(b.x - a.x), Math.sign(b.y - a.y)];
-  // True when the side's outward normal points away from a node lying strictly on the opposite side.
-  const facesAway = (side, own, other) =>
-    (side === 'top' && other.y1 >= own.y2) || (side === 'bottom' && other.y2 <= own.y1) ||
-    (side === 'left' && other.x1 >= own.x2) || (side === 'right' && other.x2 <= own.x1);
+  const direction = (a, b) => [Math.sign(b.x - a.x), Math.sign(b.y - a.y)];
+  const away = (s, a, b) => (s === 'top' && b.y1 >= a.y2) || (s === 'bottom' && b.y2 <= a.y1) || (s === 'left' && b.x1 >= a.x2) || (s === 'right' && b.x2 <= a.x1);
 
   function checkDiagram(options = {}) {
-    const svg = options.svg ?? document.querySelector('svg#architecture') ?? document.querySelector('svg');
-    if (!svg) throw new Error('No SVG found');
-    const root = document.getElementById('viewport') ?? svg;
-    const rootMatrix = root.getScreenCTM();
-    if (!rootMatrix) throw new Error('Diagram is not rendered');
-    const rootInverse = rootMatrix.inverse();
-    const errors = [], warnings = [];
-    const error = (code, message) => errors.push({code, message});
-    const warn = (code, message) => warnings.push({code, message});
-    const toRoot = el => rootInverse.multiply(el.getScreenCTM());
+    const errors = [], warnings = [], seenProblems = new Set();
+    const issue = (list, code, message) => { const key = `${code}:${message}`; if (!seenProblems.has(key)) { list.push({code, message}); seenProblems.add(key); } };
+    const error = (c, m) => issue(errors, c, m), warn = (c, m) => issue(warnings, c, m);
+    const model = window.architectureModel, geometry = window.architectureGeometry, theme = window.ArchitectureTheme;
+    const counts = {containers: 0, nodes: 0, edges: 0, labels: 0, bridges: 0, junctions: 0};
+    const expectedCounts = {containers: Array.isArray(model?.containers) ? model.containers.length : 0,
+      nodes: Array.isArray(model?.nodes) ? model.nodes.length : 0, edges: Array.isArray(model?.edges) ? model.edges.length : 0,
+      labels: Array.isArray(model?.edges) ? model.edges.filter(e => e.label || e.relation === 'ipc').length : 0};
+    const finish = () => {
+      const result = {ok: errors.length === 0, errors, warnings, counts, expectedCounts};
+      if (!options.quiet) { console.log(`Architecture geometry: ${errors.length} errors, ${warnings.length} warnings`, {counts, expectedCounts}); if (errors.length) console.table(errors); if (warnings.length) console.table(warnings); }
+      return result;
+    };
+    if (!model || model.version !== 2 || !Array.isArray(model.nodes) || !Array.isArray(model.edges) || !Array.isArray(model.containers)) {
+      error('unknown-model', 'A v2 architectureModel is required; legacy or arbitrary SVG cannot pass this audit.'); return finish();
+    }
+    if (!expectedCounts.nodes) error('empty-model', 'The architecture model must contain at least one node.');
+    if (!window.ArchitectureModel) error('missing-validator', 'The semantic model validator is not loaded.');
+    else for (const p of window.ArchitectureModel.validate(model).errors) error(`model-${p.code}`, p.message);
+    if (!geometry) error('missing-geometry', 'The renderer did not publish architectureGeometry.');
+    const hasTheme = theme?.version === 1 && theme.fonts && theme.type && theme.radii && theme.strokes && theme.geometry && theme.code;
+    if (!hasTheme) error('missing-theme', 'The shared ArchitectureTheme visual contract must be loaded.');
+    const familyName = value => String(value || '').trim().replace(/^['"]|['"]$/g, '');
+    const weightMatches = (value, weight) => {
+      const parts = String(value === 'normal' ? 400 : value === 'bold' ? 700 : value).trim().split(/\s+/).map(Number);
+      return parts.length === 1 ? parts[0] === weight : parts.length === 2 && weight >= parts[0] && weight <= parts[1];
+    };
+    if (hasTheme) {
+      const fontRules = [];
+      for (const sheet of document.styleSheets) {
+        try { for (const rule of sheet.cssRules) if (rule.type === CSSRule.FONT_FACE_RULE) fontRules.push(rule); }
+        catch { error('font-stylesheet-access', 'Font stylesheets must be local and inspectable in the standalone document.'); }
+      }
+      for (const font of Object.values(theme.fonts)) for (const weight of font.weights) {
+        const matches = [...document.fonts].filter(face => familyName(face.family) === font.family && weightMatches(face.weight, weight) && face.style === 'normal');
+        if (!matches.some(face => face.status === 'loaded')) error('font-not-loaded', `${font.family} ${weight} must be an actually loaded FontFace, not a system fallback.`);
+        const rules = fontRules.filter(rule => familyName(rule.style.fontFamily) === font.family && weightMatches(rule.style.fontWeight, weight));
+        if (!rules.some(rule => /^url\(["']?data:/i.test(rule.style.getPropertyValue('src').trim()) && !/\blocal\s*\(/i.test(rule.style.getPropertyValue('src')))) {
+          error('font-not-embedded', `${font.family} ${weight} needs an embedded data-URL font face; remote or local-only fonts are not self-contained.`);
+        }
+      }
+    }
+    const checkFont = (el, mono, label, expectedWeight) => {
+      if (!hasTheme) return;
+      const style = getComputedStyle(el), expected = theme.fonts[mono ? 'mono' : 'sans'].family;
+      if (familyName(style.fontFamily.split(',')[0]) !== expected) error('font-family', `${label} must use ${expected} as its first font family.`);
+      if (expectedWeight !== undefined && !weightMatches(style.fontWeight, expectedWeight)) error('font-weight', `${label} must use weight ${expectedWeight}.`);
+    };
+    const numericStyle = (el, property, expected, code, label) => {
+      if (hasTheme && !near(parseFloat(getComputedStyle(el)[property]), expected, EPS)) error(code, `${label} must use ${expected} for ${property}.`);
+    };
+    const checkRadius = (el, expected, label) => numericStyle(el, 'rx', expected, 'shape-radius', label);
+    const isCodeText = value => hasTheme && new RegExp(theme.code.textPattern).test(String(value || '').trim());
+    const checkEdgeStyle = (el, type, label) => {
+      if (!hasTheme) return;
+      numericStyle(el, 'strokeWidth', theme.strokes[type], 'edge-stroke-width', label);
+      const actual = getComputedStyle(el).strokeDasharray.match(/[\d.]+/g)?.map(Number) || [];
+      const expected = type === 'notification' ? [3, 5] : type === 'config' ? [6, 5] : [];
+      if (actual.length !== expected.length || actual.some((value, i) => !near(value, expected[i], EPS))) error('edge-dash-style', `${label} has a dash pattern inconsistent with ${type}.`);
+    };
+    const svg = document.querySelector('svg#architecture');
+    if (!svg) { error('missing-svg', 'No rendered architecture SVG was found.'); return finish(); }
+    const root = svg.querySelector('#viewport');
+    if (!root || !root.getScreenCTM()) { error('not-rendered', 'The architecture viewport is missing or not rendered.'); return finish(); }
+    const inverse = root.getScreenCTM().inverse();
+    const toRoot = el => inverse.multiply(el.getScreenCTM());
     const mapPoint = (m, x, y) => { const p = new DOMPoint(x, y).matrixTransform(m); return {x: p.x, y: p.y}; };
-    const boxOf = el => {
-      const b = el.getBBox(), m = toRoot(el);
-      const a = mapPoint(m, b.x, b.y), c = mapPoint(m, b.x + b.width, b.y + b.height);
-      return {x1: Math.min(a.x, c.x), y1: Math.min(a.y, c.y), x2: Math.max(a.x, c.x), y2: Math.max(a.y, c.y)};
-    };
-    const rendered = el => {
-      for (let n = el; n && n !== svg; n = n.parentElement) {
-        if (getComputedStyle(n).display === 'none' || n.classList.contains('hidden-flow')) return false;
+    const boxOf = el => { const b = el.getBBox(), m = toRoot(el), a = mapPoint(m, b.x, b.y), c = mapPoint(m, b.x + b.width, b.y + b.height); return {x1: Math.min(a.x, c.x), y1: Math.min(a.y, c.y), x2: Math.max(a.x, c.x), y2: Math.max(a.y, c.y)}; };
+    const rendered = el => { for (let p = el; p; p = p.parentElement) { const s = getComputedStyle(p); if (s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse' || Number(s.opacity) === 0) return false; } return true; };
+    const canvas = {x1: 0, y1: 0, x2: model.canvas.width, y2: model.canvas.height};
+    if (!near(svg.getBoundingClientRect().width, model.canvas.width) || !near(svg.getBoundingClientRect().height, model.canvas.height)) error('diagram-scaled', 'The SVG must retain its natural logical-pixel size; scroll instead of fit-shrinking.');
+    const title = document.getElementById('diagram-title');
+    if (!title || title.textContent !== model.meta.title) error('diagram-title', 'The visible diagram title must match the model title.');
+    else {
+      if (!near(parseFloat(getComputedStyle(title).fontSize), theme?.type?.title || 24, EPS)) error('diagram-title-size', 'The diagram title must use the shared title size.');
+      checkFont(title, false, 'Diagram title', 700);
+    }
+    const subtitle = document.getElementById('diagram-subtitle');
+    if (subtitle) checkFont(subtitle, false, 'Diagram subtitle', 400);
+    const shell = document.querySelector('.diagram-shell');
+    if (!shell) error('missing-shell', 'The diagram needs its natural-size scrolling shell.');
+    else if (hasTheme) for (const property of ['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius']) numericStyle(shell, property, theme.radii.shell, 'shell-radius', 'Diagram shell');
+    const ids = new Map(); document.querySelectorAll('[id]').forEach(el => ids.set(el.id, (ids.get(el.id) || 0) + 1));
+    for (const [id, total] of ids) if (total > 1) error('duplicate-dom-id', `Duplicate DOM id: ${id}`);
+    const modeled = {container: new Map(model.containers.map(c => [c.id, c])), node: new Map(model.nodes.map(n => [n.id, n])), edge: new Map(model.edges.map(e => [e.id, e]))};
+    function collect(kind, selector) {
+      const result = new Map();
+      for (const g of svg.querySelectorAll(selector)) {
+        const id = g.dataset[kind];
+        if (!modeled[kind].has(id)) error('unknown-rendered-id', `Rendered ${kind} ${id} is absent from the model.`);
+        if (result.has(id)) error('duplicate-rendered-id', `Rendered ${kind} ${id} occurs more than once.`);
+        if (!rendered(g)) { error('hidden-entity', `Modeled ${kind} ${id} is hidden.`); continue; }
+        result.set(id, g);
       }
-      return true;
-    };
-
-    const idCounts = new Map();
-    document.querySelectorAll('[id]').forEach(el => idCounts.set(el.id, (idCounts.get(el.id) ?? 0) + 1));
-    idCounts.forEach((count, id) => { if (count > 1) error('duplicate-id', `重复 id：${id}（${count} 次）`); });
-
-    const containerMap = new Map();
-    const containerMarks = [];
-    svg.querySelectorAll('g[data-container]').forEach(g => {
-      const rect = g.querySelector('rect');
-      if (!rect || !rendered(g)) return;
-      containerMap.set(g.dataset.container, {box: boxOf(rect), parent: g.dataset.parent});
-      g.querySelectorAll('text, path').forEach(el => {
-        const b = boxOf(el);
-        // Rules are zero-height lines; give them thickness so overlaps register.
-        const box = el.tagName === 'path' ? {x1: b.x1 - 1, y1: b.y1 - 1, x2: b.x2 + 1, y2: b.y2 + 1} : b;
-        containerMarks.push({container: g.dataset.container, text: el.tagName === 'text', label: el.textContent || '分隔线', box});
-      });
-    });
-    containerMap.forEach((c, id) => {
-      if (!c.parent) return;
-      const parent = containerMap.get(c.parent);
-      if (!parent) error('unknown-parent', `容器 ${id} 的父容器不存在：${c.parent}`);
-      else if (!contains(parent.box, c.box)) error('outside-parent', `容器 ${id} 超出父容器 ${c.parent}`);
-    });
-
-    const allNodeIds = new Set();
-    const nodeMap = new Map();
-    svg.querySelectorAll('[data-node]').forEach(g => {
-      const id = g.dataset.node;
-      if (allNodeIds.has(id)) error('duplicate-node', `重复节点：${id}`);
-      allNodeIds.add(id);
-      if (!rendered(g)) return;
-      const face = g.querySelector('rect.face') ?? [...g.querySelectorAll('rect')].pop();
-      if (!face) return;
-      const box = boxOf(face);
-      nodeMap.set(id, {id, box, parent: g.dataset.parent});
-      const outline = boxOf(g);
-      for (const mark of containerMarks) {
-        if (overlapArea(outline, mark.box) > 0) error('title-overlap', `节点 ${id} 压住容器 ${mark.container} 的${mark.text ? '标题：' + mark.label : '分隔线'}`);
+      for (const id of modeled[kind].keys()) if (!result.has(id)) error('missing-entity', `Modeled ${kind} ${id} was not rendered.`);
+      return result;
+    }
+    const containerGroups = collect('container', 'g[data-container]'), nodeGroups = collect('node', 'g[data-node]'), edgeGroups = collect('edge', 'g[data-edge]');
+    const containers = new Map(), nodes = new Map(), edges = [], marks = [];
+    counts.containers = containerGroups.size; counts.nodes = nodeGroups.size; counts.edges = edgeGroups.size;
+    const isAncestor = (parent, child) => { const seen = new Set(); let id = child; while (id && !seen.has(id)) { if (id === parent) return true; seen.add(id); id = modeled.container.get(id)?.parent; } return false; };
+    for (const [id, g] of containerGroups) {
+      const frame = g.querySelector(':scope > rect.container-frame');
+      if (!frame) { error('missing-container-frame', `Container ${id} has no measurable frame.`); continue; }
+      if (hasTheme) {
+        const domain = modeled.container.get(id)?.kind === 'domain';
+        checkRadius(frame, theme.radii[domain ? 'domain' : 'container'], `Container ${id}`);
+        numericStyle(frame, 'strokeWidth', theme.strokes[domain ? 'domain' : 'frame'], 'frame-stroke-width', `Container ${id}`);
       }
-      if (g.dataset.parent) {
-        const parent = containerMap.get(g.dataset.parent);
-        if (!parent) error('unknown-parent', `节点 ${id} 的容器不存在：${g.dataset.parent}`);
-        else if (!contains(parent.box, box)) error('outside-parent', `节点 ${id} 超出容器 ${g.dataset.parent}`);
-      }
-      g.querySelectorAll('text').forEach(text => {
-        if (!contains(box, boxOf(text), 2)) error('text-overflow', `节点 ${id} 文字溢出：${text.textContent}`);
-      });
-      g.querySelectorAll('.node-name').forEach(text => {
-        if (parseFloat(getComputedStyle(text).fontSize) < 16) warn('font-shrink', `节点 ${id} 主标题小于 16：${text.textContent}`);
-      });
-    });
-    const nodeList = [...nodeMap.values()];
-    for (let i = 0; i < nodeList.length; i++) {
-      for (let j = i + 1; j < nodeList.length; j++) {
-        if (overlapArea(nodeList[i].box, nodeList[j].box) > 1) error('node-overlap', `节点重叠：${nodeList[i].id} / ${nodeList[j].id}`);
+      const box = boxOf(frame), headerBottom = Number(g.dataset.headerBottom), contentTop = Number(g.dataset.contentTop);
+      if (!Number.isFinite(headerBottom) || !Number.isFinite(contentTop)) error('missing-header', `Container ${id} has no measured header boundary.`);
+      if (!contains(canvas, box)) error('canvas-overflow', `Container ${id} exceeds the canvas.`);
+      if (!g.querySelector(':scope > .container-title')) error('missing-container-title', `Container ${id} has no title.`);
+      containers.set(id, {id, box, parent: g.dataset.parent, headerBottom, contentTop});
+      for (const text of g.querySelectorAll(':scope > text')) {
+        const mark = {id, box: boxOf(text), text: text.textContent}; marks.push(mark);
+        if (!contains(box, mark.box, 8)) error('container-text-overflow', `Container ${id} does not fit: ${mark.text}`);
+        if (mark.box.y2 > headerBottom - 8 + TOL) error('header-text-clearance', `Container ${id} needs more header room below: ${mark.text}`);
+        const isSubtitle = text.classList.contains('container-subtitle');
+        const expectedSize = isSubtitle ? theme?.type?.subtitle || 12 : modeled.container.get(id)?.kind === 'domain' ? theme?.type?.domain || 20 : theme?.type?.container || 18;
+        if (!near(parseFloat(getComputedStyle(text).fontSize), expectedSize, EPS)) error('container-font-size', `Container ${id} text must use ${expectedSize} px type.`);
+        checkFont(text, false, `Container ${id} text`, isSubtitle ? 400 : 700);
       }
     }
-
-    const edgeData = new Map(typeof edges !== 'undefined' && Array.isArray(edges) ? edges.map(e => [e.id, e]) : []);
-    const seenEdges = new Set();
-    const edgeList = [];
-    svg.querySelectorAll('g[data-edge]').forEach(g => {
-      const id = g.dataset.edge;
-      if (seenEdges.has(id)) error('duplicate-edge', `重复连线：${id}`);
-      seenEdges.add(id);
-      if (!rendered(g)) return;
-      const data = edgeData.get(id) ?? {};
-      const from = g.dataset.from ?? data.from, to = g.dataset.to ?? data.to;
-      if (!allNodeIds.has(from) || !allNodeIds.has(to)) { error('unknown-endpoint', `连线 ${id} 端点不存在：${from} → ${to}`); return; }
-      const path = g.querySelector('path.edge') ?? g.querySelector('path:not(.edge-halo)');
-      const raw = parseRoute(g.dataset.route ?? data.d ?? path?.getAttribute('d'));
-      if (!raw) { error('route-format', `连线 ${id} 须为单段绝对坐标正交 M/H/V/L 路径`); return; }
-      const m = toRoot(path);
-      const points = raw.map(p => mapPoint(m, p.x, p.y));
-      const type = data.type ?? ['control', 'data', 'pixel', 'encrypted', 'config'].find(t => path.classList.contains(t));
-      const keep = g.dataset.keepAnchor !== undefined || Boolean(data.keepAnchor);
-      edgeList.push({id, from, to, type, keep, points, segments: segmentsOf(points)});
-    });
-
-    // Distinct attachment points per node side; a side holding a single point must use its center.
-    const anchors = new Map();
-    const addAnchor = (nodeId, side, p, edge) => {
-      const key = `${nodeId}\u0000${side}`;
-      const list = anchors.get(key) ?? [];
-      const same = list.find(a => Math.hypot(a.p.x - p.x, a.p.y - p.y) < 1);
-      if (same) { same.ids.push(edge.id); same.keep = same.keep || edge.keep; }
-      else list.push({nodeId, side, p, ids: [edge.id], keep: edge.keep});
-      anchors.set(key, list);
-    };
-
-    for (const edge of edgeList) {
-      const fromNode = nodeMap.get(edge.from), toNode = nodeMap.get(edge.to);
-      if (!fromNode || !toNode) continue;
-      const start = edge.points[0], end = edge.points[edge.points.length - 1];
-      const startSide = sideOf(start, fromNode.box), endSide = sideOf(end, toNode.box);
-      if (startSide) addAnchor(edge.from, startSide, start, edge);
-      if (endSide) addAnchor(edge.to, endSide, end, edge);
-      if (edge.from !== edge.to) {
-        if (startSide && facesAway(startSide, fromNode.box, toNode.box)) warn('away-side', `连线 ${edge.id} 从 ${edge.from} 的 ${startSide} 边离开，但 ${edge.to} 在相反方向；改接朝向对方的边`);
-        if (endSide && facesAway(endSide, toNode.box, fromNode.box)) warn('away-side', `连线 ${edge.id} 从 ${edge.to} 的 ${endSide} 边进入，但 ${edge.from} 在相反方向；改接朝向对方的边`);
+    for (const c of containers.values()) {
+      if (!c.parent) continue; const p = containers.get(c.parent);
+      if (!p) { error('unknown-container-parent', `Container ${c.id} has no rendered parent ${c.parent}.`); continue; }
+      if (!contains(p.box, c.box, 16) || c.box.y1 < p.contentTop - TOL) error('container-outside-content', `Container ${c.id} must be inside ${c.parent}, below its header, with 16 px padding.`);
+    }
+    const containerList = [...containers.values()];
+    for (let i = 0; i < containerList.length; i++) for (let j = i + 1; j < containerList.length; j++) {
+      const a = containerList[i], b = containerList[j];
+      if (!isAncestor(a.id, b.id) && !isAncestor(b.id, a.id) && overlap(a.box, b.box) > TOL) error('container-overlap', `Unrelated containers overlap: ${a.id} / ${b.id}`);
+    }
+    for (const [id, g] of nodeGroups) {
+      const face = g.querySelector(':scope > rect.face');
+      if (!face) { error('missing-node-face', `Node ${id} has no measurable face.`); continue; }
+      if (hasTheme) for (const sheet of g.querySelectorAll(':scope > rect')) {
+        checkRadius(sheet, theme.radii.node, `Node ${id}`);
+        numericStyle(sheet, 'strokeWidth', theme.strokes.node, 'node-stroke-width', `Node ${id}`);
       }
-      if (!startSide) error('start-off-boundary', `连线 ${edge.id} 起点不在 ${edge.from} 边框上`);
-      else if (unit(start, edge.points[1]).join() !== OUTWARD[startSide].join()) error('start-direction', `连线 ${edge.id} 起始段未垂直离开 ${edge.from} 的 ${startSide} 边`);
-      if (!endSide) error('end-off-boundary', `连线 ${edge.id} 箭头未贴 ${edge.to} 边框`);
+      const faceBox = boxOf(face), outline = boxOf(g), parent = containers.get(g.dataset.parent);
+      const sheets = [...g.querySelectorAll(':scope > rect')].map(boxOf);
+      const box = modeled.node.get(id)?.entityType === 'memory' ? {
+        x1: Math.min(...sheets.map(b => b.x1)), y1: Math.min(...sheets.map(b => b.y1)),
+        x2: Math.max(...sheets.map(b => b.x2)), y2: Math.max(...sheets.map(b => b.y2))
+      } : faceBox;
+      nodes.set(id, {id, box, outline, parent: g.dataset.parent});
+      if (!contains(canvas, outline)) error('canvas-overflow', `Node ${id} exceeds the canvas.`);
+      if (!parent) error('unknown-node-parent', `Node ${id} has no rendered parent ${g.dataset.parent}.`);
+      else if (!contains(parent.box, outline, 16) || outline.y1 < parent.contentTop - TOL) error('node-outside-content', `Node ${id} must be inside ${parent.id}, below its header, with 16 px padding.`);
+      for (const c of containers.values()) if (!isAncestor(c.id, g.dataset.parent) && overlap(outline, c.box) > TOL) error('node-wrong-container', `Node ${id} visually enters ${c.id}, which is not its declared owner.`);
+      for (const mark of marks) if (overlap(outline, expanded(mark.box, 8)) > TOL) error('node-title-overlap', `Node ${id} overlaps the title clearance of ${mark.id}.`);
+      const name = [...g.querySelectorAll(':scope > .node-name')];
+      if (!name.length) error('missing-node-name', `Node ${id} has no visible canonical name.`);
+      const expectedName = modeled.node.has(id) && window.ArchitectureModel?.displayName(modeled.node.get(id));
+      if (expectedName && name.map(t => t.textContent).join('').replace(/\s/g, '') !== expectedName.replace(/\s/g, '')) error('name-mismatch', `Node ${id} does not show its model canonical name.`);
+      for (const text of g.querySelectorAll(':scope > text')) {
+        if (!contains(faceBox, boxOf(text), 8)) error('text-overflow', `Node ${id} needs more room for: ${text.textContent}`);
+        const primary = text.classList.contains('node-name');
+        const size = parseFloat(getComputedStyle(text).fontSize), expected = primary ? theme?.type?.node || 16 : theme?.type?.subtitle || 12;
+        if (!near(size, expected, 0.05)) error('node-font-size', `Node ${id} uses ${size}px; expected ${expected}px.`);
+        checkFont(text, primary ? hasTheme && theme.code.nodeTypes.includes(modeled.node.get(id)?.entityType) : isCodeText(modeled.node.get(id)?.description), `Node ${id} ${primary ? 'name' : 'subtitle'}`, primary ? 700 : 400);
+        const textBox = boxOf(text);
+        if (![textBox.x1, textBox.y1, textBox.x2, textBox.y2].every(Number.isFinite) || textBox.x2 <= textBox.x1 || textBox.y2 <= textBox.y1) error('unmeasurable-text', `Node ${id} has empty or unmeasurable visible text.`);
+      }
+      const textBoxes = [...g.querySelectorAll(':scope > text')].map(boxOf);
+      if (textBoxes.length && !near((Math.min(...textBoxes.map(b => b.y1)) + Math.max(...textBoxes.map(b => b.y2))) / 2, (faceBox.y1 + faceBox.y2) / 2)) error('text-group-center', `Node ${id} text group must be vertically centered using measured font bounds.`);
+    }
+    const nodeList = [...nodes.values()];
+    for (let i = 0; i < nodeList.length; i++) for (let j = i + 1; j < nodeList.length; j++) {
+      const a = nodeList[i], b = nodeList[j];
+      if (overlap(a.outline, b.outline) > TOL) error('node-overlap', `Nodes overlap: ${a.id} / ${b.id}`);
+      else if (distance(a.outline, b.outline) < 24 - TOL) warn('node-gap', `Nodes ${a.id} / ${b.id} have less than 24 px separation.`);
+    }
+    for (const [id, g] of edgeGroups) {
+      const path = g.querySelector(':scope > path.edge'), item = modeled.edge.get(id);
+      if (!path || !item) { error('unmeasurable-edge', `Edge ${id} has no recognized path or model entry.`); continue; }
+      const expectedType = window.ArchitectureModel?.edgeType(item);
+      if (g.dataset.type !== expectedType) error('edge-type-mismatch', `Edge ${id} style type differs from its modeled relationship.`);
+      if (expectedType) checkEdgeStyle(path, expectedType, `Edge ${id}`);
+      if (g.querySelectorAll(':scope > path.edge').length !== 1) error('ambiguous-edge-path', `Edge ${id} must have exactly one primary path.`);
+      const raw = parseRoute(g.dataset.route);
+      if (!raw) { error('route-format', `Edge ${id} needs an absolute orthogonal M/H/V/L source route.`); continue; }
+      if (g.dataset.from !== item.from || g.dataset.to !== item.to) error('endpoint-mismatch', `Rendered endpoints of ${id} differ from its model.`);
+      const matrix = toRoot(path), points = raw.map(p => mapPoint(matrix, p.x, p.y));
+      if (!path.getAttribute('d') || path.getTotalLength() < 1) error('empty-path', `Edge ${id} has no visible route.`);
+      if (geometry?.routes?.[id]?.renderedD !== path.getAttribute('d')) error('rendered-route-mismatch', `Visible edge ${id} differs from its generated route; no path may be silently ignored.`);
+      if (!path.getAttribute('marker-end')) error('missing-arrow', `Edge ${id} has no direction marker.`);
+      else if (expectedType && path.getAttribute('marker-end') !== `url(#arrow-${expectedType})`) error('arrow-type-mismatch', `Edge ${id} must use its relationship's arrow marker.`);
+      edges.push({...item, points, segments: segmentsOf(points), type: g.dataset.type, keep: Boolean(item.keepAnchor)});
+    }
+    for (const path of svg.querySelectorAll('path.edge')) if (!path.closest('[data-edge]') && !path.closest('[data-bridge]')) error('unmodeled-path', 'A visible edge path has no model edge or bridge owner.');
+    if (edges.length !== model.edges.length) error('edge-check-coverage', `Only ${edges.length} of ${model.edges.length} edges could be geometrically checked.`);
+    const attachments = new Map();
+    const addAttachment = (node, side, point, edge, end) => {
+      const key = `${node.id}:${side}`, list = attachments.get(key) || []; let item = list.find(p => equal(p.point, point));
+      if (!item) { item = {node, side, point, edges: [], keep: false, arrivals: []}; list.push(item); }
+      item.edges.push(edge.id); item.keep ||= edge.keep; if (end) item.arrivals.push(edge.id); attachments.set(key, list);
+    };
+    for (const edge of edges) {
+      const from = nodes.get(edge.from), to = nodes.get(edge.to);
+      if (!from || !to) { error('unknown-endpoint', `Edge ${edge.id} has an unrendered endpoint.`); continue; }
+      const first = edge.points[0], last = edge.points[edge.points.length - 1], startSide = sideOf(first, from.box), endSide = sideOf(last, to.box);
+      if (!startSide) error('start-off-boundary', `Edge ${edge.id} does not start on ${from.id}.`);
       else {
-        const before = edge.points[edge.points.length - 2];
-        const inward = OUTWARD[endSide].map(v => -v).join();
-        if (unit(before, end).join() !== inward) error('end-direction', `连线 ${edge.id} 箭头未垂直进入 ${edge.to} 的 ${endSide} 边`);
-        if (Math.abs(end.x - before.x) + Math.abs(end.y - before.y) < 12) warn('short-arrow', `连线 ${edge.id} 末段短于 12，箭头会压住拐点`);
+        addAttachment(from, startSide, first, edge, false);
+        if (direction(first, edge.points[1]).join() !== NORMAL[startSide].join()) error('start-direction', `Edge ${edge.id} must leave ${from.id} perpendicularly outward.`);
+        if (away(startSide, from.box, to.box)) warn('away-side', `Edge ${edge.id} leaves ${from.id} facing away from ${to.id}; review routing.`);
       }
-      for (const node of nodeList) {
-        if (edge.segments.some(s => segmentHitsBox(s, node.box, 2))) error('through-node', `连线 ${edge.id} 穿过节点 ${node.id}`);
+      if (!endSide) error('end-off-boundary', `Edge ${edge.id} does not end on ${to.id}.`);
+      else {
+        addAttachment(to, endSide, last, edge, true); const before = edge.points[edge.points.length - 2];
+        if (direction(before, last).join() !== NORMAL[endSide].map(v => -v).join()) error('end-direction', `Edge ${edge.id} must enter ${to.id} perpendicularly inward.`);
+        if (Math.abs(last.x - before.x) + Math.abs(last.y - before.y) < 16 - TOL) error('short-arrow', `Edge ${edge.id} needs a final straight segment of at least 16 px.`);
+        if (away(endSide, to.box, from.box)) warn('away-side', `Edge ${edge.id} enters ${to.id} facing away from ${from.id}; review routing.`);
       }
-      for (const mark of containerMarks) {
-        if (mark.text && edge.segments.some(s => segmentHitsBox(s, mark.box, -1))) error('edge-title', `连线 ${edge.id} 穿过容器 ${mark.container} 的标题：${mark.label}`);
+      for (const n of nodeList) {
+        if (edge.segments.some(s => hits(s, n.box, -0.25))) error('through-node', `Edge ${edge.id} passes through node ${n.id}.`);
+        else if (n.id !== from.id && n.id !== to.id && edge.segments.some(s => hits(s, n.outline, 8 - TOL))) error('edge-node-clearance', `Edge ${edge.id} needs 8 px clearance from node ${n.id}.`);
       }
-      containerMap.forEach((c, cid) => {
-        const b = c.box;
-        const hugs = edge.segments.some(s => {
-          const sides = s.horizontal ? [b.y1, b.y2] : [b.x1, b.x2];
-          const [lo, hi] = s.horizontal ? [b.x1, b.x2] : [b.y1, b.y2];
-          return sides.some(side => Math.abs(s.c - side) < 6) && Math.min(s.hi, hi) - Math.max(s.lo, lo) > 16;
-        });
-        if (hugs) warn('edge-on-border', `连线 ${edge.id} 贴着容器 ${cid} 的边框走`);
-      });
+      for (const mark of marks) if (edge.segments.some(s => hits(s, mark.box, 8 - TOL))) error('edge-title-clearance', `Edge ${edge.id} enters the title clearance of ${mark.id}: ${mark.text}`);
+      for (const c of containers.values()) if (edge.segments.some(s => (s.horizontal ? [c.box.y1, c.box.y2] : [c.box.x1, c.box.x2]).some(v => Math.abs(s.c - v) < 8 - TOL) &&
+        Math.min(s.hi, s.horizontal ? c.box.x2 : c.box.y2) - Math.max(s.lo, s.horizontal ? c.box.x1 : c.box.y1) > 16)) warn('edge-on-border', `Edge ${edge.id} follows the border of ${c.id}.`);
+      if (edge.points.some(p => !pointInside(p, canvas))) error('route-outside-canvas', `Edge ${edge.id} leaves the canvas.`);
+      const common = containerList.filter(c => isAncestor(c.id, from.parent) && isAncestor(c.id, to.parent)).sort((a, b) => (a.box.x2 - a.box.x1) * (a.box.y2 - a.box.y1) - (b.box.x2 - b.box.x1) * (b.box.y2 - b.box.y1))[0];
+      if (common && edge.points.some(p => !pointInside(p, common.box))) warn('leaves-container', `Edge ${edge.id} leaves its smallest common container ${common.id}.`);
+      const bends = edge.segments.filter((s, i) => i && s.horizontal !== edge.segments[i - 1].horizontal).length;
+      if (bends >= 5) warn('complex-route', `Edge ${edge.id} has ${bends} bends; review the layout.`);
     }
-
-    anchors.forEach(list => {
-      if (list.length !== 1 || list[0].keep) return;
-      const {nodeId, side, p, ids} = list[0];
-      const b = nodeMap.get(nodeId).box;
-      const offset = side === 'top' || side === 'bottom' ? p.x - (b.x1 + b.x2) / 2 : p.y - (b.y1 + b.y2) / 2;
-      if (Math.abs(offset) > TOL) error('off-center', `${nodeId} 的 ${side} 边只接了 ${ids.join(' / ')}，应接在中心（当前偏移 ${Math.round(offset)}）`);
-    });
-
-    const ends = new Map();
-    for (const edge of edgeList) {
-      const end = edge.points[edge.points.length - 1];
-      const clash = (ends.get(edge.to) ?? []).find(other => Math.hypot(other.p.x - end.x, other.p.y - end.y) < 8);
-      if (clash) warn('arrow-stack', `箭头堆叠：${clash.id} / ${edge.id} → ${edge.to}`);
-      ends.set(edge.to, [...(ends.get(edge.to) ?? []), {id: edge.id, p: end}]);
+    for (const list of attachments.values()) {
+      if (list.length === 1 && !list[0].keep) {
+        const {node, side, point, edges: names} = list[0], offset = ['top', 'bottom'].includes(side) ? point.x - (node.box.x1 + node.box.x2) / 2 : point.y - (node.box.y1 + node.box.y2) / 2;
+        if (Math.abs(offset) > TOL) error('off-center-anchor', `The single attachment on ${node.id}.${side} must be centered (${names.join(', ')}).`);
+      }
+      for (let i = 0; i < list.length; i++) {
+        if (list[i].arrivals.length > 1) error('stacked-arrows', `Multiple arrows share one point on ${list[i].node.id}: ${list[i].arrivals.join(', ')}.`);
+        for (let j = i + 1; j < list.length; j++) if (Math.hypot(list[i].point.x - list[j].point.x, list[i].point.y - list[j].point.y) < 12 - TOL) error('port-spacing', `Ports on ${list[i].node.id}.${list[i].side} need at least 12 px separation.`);
+      }
     }
-
-    const dots = [...svg.querySelectorAll('.flow-junction')].filter(rendered)
-      .map(c => mapPoint(toRoot(c), +c.getAttribute('cx'), +c.getAttribute('cy')));
-    const arcs = [...svg.querySelectorAll('[data-bridge] path.edge')].filter(rendered).map(p => {
-      const n = (p.getAttribute('d').match(/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g) || []).map(Number);
-      const m = toRoot(p), a = mapPoint(m, n[0], n[1]), b = mapPoint(m, n[n.length - 2], n[n.length - 1]);
-      return {x1: Math.min(a.x, b.x), x2: Math.max(a.x, b.x), y: a.y};
+    const junctions = [...svg.querySelectorAll('.flow-junction')].filter(rendered).map(el => {
+      const edgeIds = (el.dataset.junctionEdges || '').split(' '), owner = edgeGroups.get(edgeIds[0])?.querySelector('path.edge');
+      if (hasTheme && !near(Number(el.getAttribute('r')), theme.geometry.junctionRadius, EPS)) error('junction-radius', 'A true junction must use the shared junction radius.');
+      if (owner && getComputedStyle(el).fill !== getComputedStyle(owner).stroke) error('junction-color', 'A junction must match its relationship color.');
+      return {...mapPoint(toRoot(el), Number(el.getAttribute('cx')), Number(el.getAttribute('cy'))), edges: edgeIds};
     });
-    const inside = (v, lo, hi) => v > lo + .5 && v < hi - .5;
-    const pairCrossings = new Map();
-    const sharedNodeCrossings = new Map();
-    for (const a of edgeList) {
-      for (const b of edgeList) {
-        if (a === b) continue;
-        for (const h of a.segments.filter(s => s.horizontal)) {
-          for (const v of b.segments.filter(s => !s.horizontal)) {
-            const x = v.c, y = h.c;
-            if (!inside(x, h.lo, h.hi) || !inside(y, v.lo, v.hi)) continue;
-            if (dots.some(d => Math.hypot(d.x - x, d.y - y) < 2)) continue;
-            const pair = [a.id, b.id].sort().join(' × ');
-            pairCrossings.set(pair, (pairCrossings.get(pair) ?? 0) + 1);
-            const common = [a.from, a.to].find(n => n === b.from || n === b.to);
-            if (common) sharedNodeCrossings.set(pair, common);
-            if (!arcs.some(arc => Math.abs(arc.y - y) < .5 && arc.x1 < x && x < arc.x2)) {
-              warn('crossing-no-bridge', `交叉无跨线弧：${a.id} × ${b.id} @ (${Math.round(x)}, ${Math.round(y)})，可能离拐点/端点过近或线路过密`);
-            }
-          }
+    const bridges = [...svg.querySelectorAll('[data-bridge]')].filter(rendered).map(el => {
+      const item = modeled.edge.get(el.dataset.bridge), type = item && window.ArchitectureModel?.edgeType(item);
+      const halo = el.querySelector('.bridge-halo'), line = el.querySelector('path.edge');
+      if (!item || !halo || !line) error('bridge-style-coverage', `Bridge ${el.dataset.bridge} needs a modeled owner, halo and visible line.`);
+      else if (hasTheme) {
+        numericStyle(halo, 'strokeWidth', theme.strokes[type] + 2 * theme.geometry.bridgeHaloPadding, 'bridge-halo-width', `Bridge ${item.id}`);
+        checkEdgeStyle(line, type, `Bridge ${item.id}`);
+        if (halo.getAttribute('d') !== line.getAttribute('d')) error('bridge-halo-route', `Bridge ${item.id} halo must follow its visible arc.`);
+      }
+      return {id: el.dataset.bridge, ...mapPoint(toRoot(el), Number(el.dataset.x), Number(el.dataset.y)), radius: Number(el.dataset.radius), box: boxOf(el)};
+    });
+    counts.bridges = bridges.length; counts.junctions = junctions.length;
+    for (const bridge of bridges) {
+      if (![bridge.x, bridge.y, bridge.radius].every(Number.isFinite) || bridge.radius <= 0) error('invalid-bridge', `Bridge for ${bridge.id} has invalid geometry.`);
+      if (hasTheme && !near(bridge.radius, theme.geometry.bridgeRadius, EPS)) error('bridge-radius', `Bridge ${bridge.id} must use the shared bridge radius.`);
+      for (const n of nodeList) if (overlap(bridge.box, expanded(n.outline, 8 - TOL)) > TOL) error('bridge-node-clearance', `Bridge for ${bridge.id} crowds node ${n.id}.`);
+      for (const m of marks) if (overlap(bridge.box, expanded(m.box, 8 - TOL)) > TOL) error('bridge-title-clearance', `Bridge for ${bridge.id} crowds the title of ${m.id}.`);
+    }
+    const junctionAt = (p, a, b) => junctions.some(j => equal(j, p) && j.edges.includes(a.id) && j.edges.includes(b.id));
+    const declaredTrunk = (a, b) => (model.junctions || []).some(j => j.edges.includes(a.id) && j.edges.includes(b.id));
+    const sharedEndpoint = (p, a, b) => [[a.from, a.points[0]], [a.to, a.points[a.points.length - 1]]].some(([id, q]) => equal(q, p) && [[b.from, b.points[0]], [b.to, b.points[b.points.length - 1]]].some(([other, r]) => other === id && equal(r, p)));
+    for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
+      const a = edges[i], b = edges[j], crossings = [];
+      for (const s of a.segments) for (const t of b.segments) {
+        if (s.horizontal === t.horizontal) {
+          const length = Math.min(s.hi, t.hi) - Math.max(s.lo, t.lo), gap = Math.abs(s.c - t.c);
+          if (length > 1 && gap < EPS && !declaredTrunk(a, b)) error('undeclared-edge-overlap', `Edges ${a.id} / ${b.id} overlap without a declared shared trunk.`);
+          else if (length > 16 && gap > EPS && gap < 12 - TOL) warn('parallel-line-spacing', `Edges ${a.id} / ${b.id} have less than 12 px parallel separation.`);
+          continue;
         }
-        if (a.id < b.id) {
-          const shared = a.from === b.from && a.type === b.type;
-          for (const s of a.segments) {
-            for (const t of b.segments) {
-              if (s.horizontal !== t.horizontal || Math.abs(s.c - t.c) > .5) continue;
-              if (Math.min(s.hi, t.hi) - Math.max(s.lo, t.lo) > 1 && !shared) warn('edge-overlap', `连线重合：${a.id} / ${b.id}`);
-            }
-          }
-        }
+        const h = s.horizontal ? s : t, v = s.horizontal ? t : s, p = {x: v.c, y: h.c};
+        if (p.x < h.lo - EPS || p.x > h.hi + EPS || p.y < v.lo - EPS || p.y > v.hi + EPS) continue;
+        if (junctionAt(p, a, b) || sharedEndpoint(p, a, b)) continue;
+        if (!crossings.some(q => equal(p, q))) crossings.push(p);
+        const interior = p.x > h.lo + EPS && p.x < h.hi - EPS && p.y > v.lo + EPS && p.y < v.hi - EPS, horizontalEdge = s.horizontal ? a : b;
+        if (!interior) error('ambiguous-route-contact', `Edges ${a.id} / ${b.id} touch at an elbow or endpoint (${p.x}, ${p.y}) without a true junction.`);
+        else if (!bridges.some(bridge => bridge.id === horizontalEdge.id && equal(bridge, p))) error('crossing-without-bridge', `Edges ${a.id} / ${b.id} cross without a bridge at (${p.x}, ${p.y}).`);
       }
+      if (crossings.length > 1) warn('repeated-crossing', `Edges ${a.id} / ${b.id} cross ${crossings.length} times.`);
+      if (crossings.length && [a.from, a.to].some(id => id === b.from || id === b.to)) warn('shared-node-crossing', `Edges ${a.id} / ${b.id} share a node and cross; order ports by approach.`);
     }
-    pairCrossings.forEach((count, pair) => {
-      if (count > 1) warn('repeat-crossing', `连线 ${pair} 交叉 ${count} 次，调换入口或走线即可消除`);
-    });
-    sharedNodeCrossings.forEach((node, pair) => {
-      warn('shared-node-crossing', `连线 ${pair} 都连接 ${node} 却互相交叉，按来向调整 ${node} 上的入口顺序或所在边`);
-    });
-    for (const edge of edgeList) {
-      const bends = edge.segments.filter((s, i) => i > 0 && s.horizontal !== edge.segments[i - 1].horizontal).length;
-      if (bends >= 5) warn('complex-route', `连线 ${edge.id} 拐 ${bends} 次，先调整布局再走线`);
-      const fromNode = nodeMap.get(edge.from), toNode = nodeMap.get(edge.to);
-      if (!fromNode || !toNode) continue;
-      // Smallest container holding both endpoints; the route should not leave it.
-      let home = null;
-      containerMap.forEach((c, cid) => {
-        if (!contains(c.box, fromNode.box) || !contains(c.box, toNode.box)) return;
-        const area = (c.box.x2 - c.box.x1) * (c.box.y2 - c.box.y1);
-        if (!home || area < home.area) home = {cid, box: c.box, area};
-      });
-      if (home && edge.points.some(p => p.x < home.box.x1 - TOL || p.x > home.box.x2 + TOL || p.y < home.box.y1 - TOL || p.y > home.box.y2 + TOL)) {
-        warn('leaves-container', `连线 ${edge.id} 两端都在 ${home.cid} 内，路径却绕到容器外`);
-      }
-    }
-
     const labels = [...svg.querySelectorAll('.edge-label')].filter(rendered).map(g => {
-      const shape = g.querySelector('rect') ?? g.querySelector('text');
-      return {id: g.dataset.labelFor ?? g.textContent.trim(), box: boxOf(shape)};
-    });
-    labels.forEach((label, i) => {
-      for (const node of nodeList) if (overlapArea(label.box, node.box) > 1) warn('label-node', `标签 ${label.id} 压住节点 ${node.id}`);
-      for (const other of labels.slice(i + 1)) if (overlapArea(label.box, other.box) > 1) warn('label-overlap', `标签重叠：${label.id} / ${other.id}`);
-      for (const edge of edgeList) {
-        if (edge.segments.some(s => segmentHitsBox(s, label.box, -1))) warn('label-edge', `标签 ${label.id} 遮挡连线 ${edge.id}`);
-      }
-    });
-
-    if (document.documentElement.classList.contains('slide')) {
-      const rootStyle = getComputedStyle(document.documentElement);
-      const want = {w: parseFloat(rootStyle.getPropertyValue('--slide-w')), h: parseFloat(rootStyle.getPropertyValue('--slide-h'))};
-      const main = document.querySelector('main');
-      const frame = main.getBoundingClientRect();
-      if (Math.abs(frame.width - want.w) > 1 || Math.abs(frame.height - want.h) > 1) {
-        error('slide-size', `幻灯片应为 ${want.w}×${want.h}，实际 ${Math.round(frame.width)}×${Math.round(frame.height)}`);
-      }
-      if (main.scrollHeight > main.clientHeight + 1 || main.scrollWidth > main.clientWidth + 1) error('slide-overflow', '内容超出幻灯片');
-      const px = svg.getScreenCTM().a;
-      const titles = [...svg.querySelectorAll('.node-name')].filter(rendered);
-      const smallest = Math.min(...titles.map(t => parseFloat(getComputedStyle(t).fontSize) * px));
-      if (smallest < 13.3) error('slide-font', `节点主标题缩放后 ${smallest.toFixed(1)}px，低于 10pt（13.3px）`);
-      const area = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
-      const fill = Math.min(vb.width * px / area.width, vb.height * px / area.height);
-      if (fill < 0.85) warn('slide-letterbox', `画布 ${vb.width}×${vb.height} 与图区 ${Math.round(area.width)}×${Math.round(area.height)} 比例不一致，留白较多`);
+      const shape = g.querySelector('rect'), text = g.querySelector('text'), id = g.dataset.labelFor;
+      if (!shape || !text) { error('unmeasurable-label', `Label ${id} needs text and a measurable background.`); return null; }
+      if (!modeled.edge.has(id)) error('unknown-label', `Label ${id} does not belong to a model edge.`);
+      if (!near(parseFloat(getComputedStyle(text).fontSize), theme?.type?.label || 13, 0.05)) error('label-font-size', `Label ${id} must use the shared label size.`);
+      checkFont(text, isCodeText(text.textContent), `Edge label ${id}`, 400);
+      if (hasTheme) checkRadius(shape, theme.radii.label, `Edge label ${id}`);
+      if (!contains(boxOf(shape), boxOf(text))) error('label-text-overflow', `Label ${id} text must fit its measured background.`);
+      return {id, box: boxOf(shape)};
+    }).filter(Boolean);
+    counts.labels = labels.length;
+    for (let i = 0; i < labels.length; i++) {
+      const label = labels[i];
+      if (!contains(canvas, label.box)) error('label-outside-canvas', `Label ${label.id} leaves the canvas.`);
+      for (const n of nodeList) if (overlap(label.box, expanded(n.outline, 8 - TOL)) > TOL) error('label-node-clearance', `Label ${label.id} crowds node ${n.id}.`);
+      for (const m of marks) if (overlap(label.box, expanded(m.box, 8 - TOL)) > TOL) error('label-title-clearance', `Label ${label.id} crowds the title of ${m.id}.`);
+      for (const e of edges) if (e.segments.some(s => hits(s, label.box, 8 - TOL))) error('label-edge-clearance', `Label ${label.id} needs 8 px clearance from edge ${e.id}.`);
+      for (const b of bridges) if (overlap(label.box, expanded(b.box, 8 - TOL)) > TOL) error('label-bridge-clearance', `Label ${label.id} crowds the bridge on ${b.id}.`);
+      for (let j = i + 1; j < labels.length; j++) if (overlap(label.box, expanded(labels[j].box, 8 - TOL)) > TOL) error('label-overlap', `Labels ${label.id} / ${labels[j].id} overlap or are too close.`);
     }
-
-    const report = {ok: errors.length === 0, errors, warnings, counts: {nodes: nodeMap.size, edges: edgeList.length, labels: labels.length}};
-    if (!options.quiet) {
-      console.log(`checkDiagram: ${errors.length} errors, ${warnings.length} warnings`, report.counts);
-      if (errors.length) console.table(errors);
-      if (warnings.length) console.table(warnings);
+    const labelsByEdge = new Map(); for (const l of labels) labelsByEdge.set(l.id, (labelsByEdge.get(l.id) || 0) + 1);
+    for (const e of model.edges) if ((e.label || e.relation === 'ipc') && labelsByEdge.get(e.id) !== 1) error('label-coverage', `Edge ${e.id} must have exactly one rendered label.`);
+    const usedTypes = new Set(model.edges.map(edge => window.ArchitectureModel?.edgeType(edge)));
+    const legend = document.querySelector('.diagram-legend');
+    if (!legend && usedTypes.size) error('missing-legend', 'Used relationship styles need a legend.');
+    if (legend) {
+      checkFont(legend, false, 'Legend', 400);
+      if (hasTheme) numericStyle(legend, 'fontSize', theme.type.legend, 'legend-font-size', 'Legend');
+      for (const text of legend.querySelectorAll('.legend-item, .legend-heading')) checkFont(text, false, 'Legend text', text.classList.contains('legend-heading') ? 700 : 400);
+      for (const chip of legend.querySelectorAll('.legend-chip')) if (hasTheme) for (const property of ['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius']) numericStyle(chip, property, theme.radii.label, 'legend-chip-radius', 'Legend color swatch');
+      const swatches = [...legend.querySelectorAll('.legend-line')];
+      for (const type of usedTypes) {
+        const matching = swatches.filter(swatch => swatch.dataset.type === type && rendered(swatch));
+        if (matching.length !== 1) error('legend-coverage', `Relationship ${type} needs exactly one visible legend swatch.`);
+      }
+      for (const swatch of swatches) {
+        const type = swatch.dataset.type, path = swatch.querySelector('path.edge');
+        if (!usedTypes.has(type) || swatch.tagName.toLowerCase() !== 'svg' || !path) { error('legend-style-coverage', 'Legend lines must be measured SVG swatches for actual modeled relationship types.'); continue; }
+        if (!rendered(path) || path.getTotalLength() < 1) error('legend-empty-line', `Legend ${type} needs a visible nonempty line.`);
+        checkEdgeStyle(path, type, `Legend ${type}`);
+        const owner = edges.find(edge => edge.type === type), diagramPath = owner && edgeGroups.get(owner.id)?.querySelector('path.edge');
+        if (diagramPath && getComputedStyle(path).stroke !== getComputedStyle(diagramPath).stroke) error('legend-color', `Legend ${type} must match its diagram line color.`);
+      }
     }
-    return report;
+    for (const type of usedTypes) {
+      const marker = svg.querySelector(`#arrow-${type}`), shape = marker?.querySelector('path');
+      if (!marker || !shape) { error('missing-arrow-shape', `Relationship ${type} lacks a measurable arrow marker.`); continue; }
+      if (hasTheme) {
+        numericStyle(shape, 'strokeWidth', theme.strokes[type === 'data' ? 'arrowData' : 'arrow'], 'arrow-stroke-width', `Arrow ${type}`);
+        const bounds = shape.getBBox();
+        if (!near(bounds.width, theme.geometry.arrowLength, EPS) || !near(bounds.height, theme.geometry.arrowHalfWidth * 2, EPS) ||
+          !near(Number(marker.getAttribute('refX')), bounds.x + bounds.width, EPS) || !near(Number(marker.getAttribute('refY')), bounds.y + bounds.height / 2, EPS) ||
+          marker.getAttribute('markerUnits') !== 'userSpaceOnUse') error('arrow-geometry', `Arrow ${type} must use shared logical-pixel geometry with the tip on its endpoint.`);
+      }
+      const owner = edges.find(edge => edge.type === type), path = owner && edgeGroups.get(owner.id)?.querySelector('path.edge');
+      if (path && getComputedStyle(shape).stroke !== getComputedStyle(path).stroke) error('arrow-color', `Arrow ${type} must match its relationship color.`);
+    }
+    for (const kind of ['containers', 'nodes', 'edges', 'labels']) if (counts[kind] !== expectedCounts[kind]) error('render-coverage', `Expected ${expectedCounts[kind]} ${kind}; rendered and checked ${counts[kind]}.`);
+    return finish();
   }
-
   window.checkDiagram = checkDiagram;
 })();
