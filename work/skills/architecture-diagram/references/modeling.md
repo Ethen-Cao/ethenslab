@@ -48,13 +48,13 @@
 
 ### Embedded Linux example
 
-建议骨架：`Applications` → `Frameworks & Client APIs` → `Services` → `Platform Adaptation` → `Linux Kernel` → `Hardware`。这是一种绘图骨架，不是统一行业标准。
+建议骨架：`Applications` → `Frameworks & Client APIs` → `Services` → `Platform Adaptation` → `Linux Kernel` → `Hardware`。
 
 服务可按主题区分领域服务与基础系统服务，不能按 OEM / Vendor / upstream 来源分层。客户端 API、服务内部实现、HAL 都可能是 `.so`。`systemd` 管理进程生命周期，不代表被管理服务的业务请求都经过它。无真实平台适配组件时省略该层，不发明一个 PAL。
 
 ### QNX example
 
-建议区分应用、客户端接口、服务 / Resource Managers / 用户态驱动，以及 `procnto` 提供的系统能力。大量 QNX 服务和驱动位于用户态，不能全部塞入 Kernel。展开 `procnto` 时区分微内核与进程管理职能，不能把包含用户态管理部分的整个进程等同于纯内核。参考 [QNX System processes](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.sys_arch/topic/intro_System_processes.html)。
+建议区分应用、客户端接口、服务 / Resource Managers / 用户态驱动，以及 `procnto` 提供的系统能力。
 
 ## 4. Conditional topology rules
 

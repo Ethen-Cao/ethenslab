@@ -15,11 +15,11 @@
     {"id": "gvm-user", "kind": "layer", "title": "User Space", "order": 0, "parent": "gvm", "x": 534, "y": 100, "w": 410, "h": 294},
     {"id": "gvm-kernel", "kind": "layer", "title": "Kernel", "order": 1, "parent": "gvm", "x": 534, "y": 430, "w": 410, "h": 190},
     {"id": "hypervisor", "kind": "hypervisor", "title": "Gunyah Hypervisor", "hosts": ["pvm", "gvm"], "evidence": ["pvm"], "x": 24, "y": 684, "w": 940, "h": 90},
-    {"id": "soc", "kind": "hardware-region", "title": "Application SoC", "x": 24, "y": 808, "w": 940, "h": 90},
+    {"id": "soc", "kind": "hardware-region", "title": "Hardware", "x": 24, "y": 808, "w": 940, "h": 90},
     {"id": "mcu", "kind": "domain", "title": "Independent MCU", "domainType": "mcu", "x": 1040, "y": 24, "w": 416, "h": 874},
     {"id": "mcu-app", "kind": "layer", "title": "Application Software", "order": 0, "parent": "mcu", "x": 1060, "y": 100, "w": 376, "h": 204},
     {"id": "mcu-platform", "kind": "layer", "title": "Platform Software", "order": 1, "parent": "mcu", "x": 1060, "y": 350, "w": 376, "h": 260},
-    {"id": "mcu-hw", "kind": "hardware-region", "title": "MCU Hardware", "parent": "mcu", "x": 1060, "y": 660, "w": 376, "h": 210}
+    {"id": "mcu-hw", "kind": "hardware-region", "title": "Hardware", "parent": "mcu", "x": 1060, "y": 660, "w": 376, "h": 210}
   ],
   "nodes": [
     {"id": "weston", "entityType": "process", "canonicalName": "weston", "description": "Native display services", "parent": "pvm-user", "evidence": ["pvm"], "x": 104, "y": 186, "w": 290, "h": 80},
