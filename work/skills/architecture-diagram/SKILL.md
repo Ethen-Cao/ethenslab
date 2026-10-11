@@ -1,6 +1,6 @@
 ---
 name: architecture-diagram
-description: 创建或修改独立 HTML 软件架构图，统一系统级与子模块级的技术分层、真实组件命名、进程归属、数据路径和连线布局。适用于 Android、Linux、QNX、多 OS/VM 及硬件/共享内存；不用于一般业务流程、时序图或 PPT。
+description: 创建或修改独立 HTML 软件架构图，统一系统级与子模块级的技术分层、真实组件命名、进程归属、数据路径和连线布局。适用于 Android、Linux、QNX、多 OS/VM 及硬件/共享内存.
 ---
 
 # Architecture Diagram
@@ -57,7 +57,7 @@ description: 创建或修改独立 HTML 软件架构图，统一系统级与子�
 
 ## Generate and verify
 
-1. 先确定实体、层次、运行归属、关系与证据，再按规则布置容器、节点、线和标签。
+1. 先确定部署骨架，确定实体、层次、运行归属、关系与证据，逐项确定组件的技术层与运行归属，自我审查通过后才按规则布置容器、节点、线和标签。
 2. 从 `assets/base-model.json` 或所选模型起步，按 schema 修改 JSON；运行 `node scripts/build-diagram.mjs <model.json> <output.html>`。`assets/base-template.html` 是生成预览，不手工修改。
 3. 模型校验、浏览器几何校验、截图目视和技术证据复核分别完成；模型/渲染数量必须准确对应，不能让空 DOM 的检查冒充通过。命令和判定标准见 schema。
 4. 报告输出与源模型路径、错误/警告计数、实际检查的视图及未确认或省略内容。未进行浏览器检查必须明说；自动检查不证明架构事实正确。
