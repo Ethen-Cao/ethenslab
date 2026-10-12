@@ -28,7 +28,7 @@
 
 | 方式 | 入口 | 升级包来源 |
 |------|------|-----------|
-| U盘升级 | `UsbUpdateActivity` → `VoyahOtaUpdateManager.triggerUpgrade()` | `/ota/usb/update.zip` |
+| U盘升级 | `UsbUpdateActivity` → `VoyahOtaUpdateImpl.triggerUpgrade()` | `/ota/usb/update.zip` |
 | DOIP 诊断 | `DoipOtaManager` | `/ota/doip/update.zip` |
 | Recovery 模式 | native recovery 客户端（`icupdater`，路径以实际仓库为准） | 通过 ZeroMQ 直连 updater 服务（与 JMQClient 协议一致） |
 
@@ -51,77 +51,47 @@ int getTotalProgress() {
 
 ### 2.1 整体架构图
 
-```mermaid
-graph TD
-    subgraph Android["Android (SoC)"]
-        Trigger["OTA Trigger<br/>HMI / TBOX / Recovery"]
-        UpdateService["UpdateService<br/>TaskScheduler / DeviceManager"]
-        UpdateImpl["UpdateImpl<br/>流程编排"]
-        JMQClient["JMQClient<br/>ZeroMQ REQ"]
-        UpdateEngine["UpdateEngine<br/>applyPayload()"]
-        AndroidSlots[("Android A/B slots<br/>inactive slot")]
-        OTA_PATH["/ota/"]
-        QNX_PATH["/otaqnx/update/"]
-        MCU_PATH["/otaqnx/update_mcu/"]
-    end
+<iframe id="h56ez-ota-architecture-redrawn" src="../static/diagrams/h56ez-ota-architecture.html" title="H56EZ OTA Architecture" loading="lazy" style="display:block;box-sizing:border-box;width:100%;height:2400px;border:1px solid #dadce0;border-radius:8px;"></iframe>
+<script>
+(() => {
+  const frame = document.getElementById('h56ez-ota-architecture-redrawn');
+  const origin = new URL(frame.src, document.baseURI).origin;
+  window.addEventListener('message', event => {
+    if (event.source !== frame.contentWindow || event.origin !== origin || event.data?.type !== 'h56ez-ota-architecture-redrawn-height') return;
+    const height = Number(event.data.height);
+    if (Number.isFinite(height) && height > 0 && height <= 12000) {
+      frame.style.height = `${Math.ceil(height) + 2}px`;
+    }
+  });
+})();
+</script>
 
-    subgraph QNX["QNX (SoC)"]
-        Updater["updater<br/>ZeroMQ REP<br/>bsp/vendor/voyah_base/updater"]
-        UpdateIC["update_ic.sh<br/>zstd patch"]
-        SwdlUtils["swdl_utils<br/>bank detect / switch"]
-        UpgradeMcu["upgrademcu<br/>cluster/platforms/updatemgr"]
-        Rpcif["librpcif"]
-        Rpcd["rpcd"]
-        QnxWorkDir["/data/update/"]
-        QnxProgress["/data/update/fifo_progress"]
-        McuProgress["/ota/update_mcu/mcu_update_process"]
-        QnxBanks[("QNX BANK_A / BANK_B<br/>system / ifs2 / hyp")]
-    end
+[独立打开架构图](../static/diagrams/h56ez-ota-architecture.html) · [架构图源模型](h56ez-ota-architecture-redrawn.diagram.json)
 
-    subgraph MCU["MCU"]
-        McuApp["MCU boot/app"]
-        McuFlash[("APP_A / APP_B flash")]
-    end
+QNX Cluster 位于 PVM，Android IVI 位于 GVM，二者在同一 SoC 上由公共 Hypervisor 承载；Vehicle MCU 位于 SoC 外的独立域。QNX 的 `Services` 区以 `updater` 为升级协调入口，依赖的工具位于其下方；`rpcd` 与 `updater` 并列，`spi_service` 为 `rpcd` 提供底层 SPI 服务。工具、库和服务的布局表示依赖，不能解释为它们全部运行在 `updater` 进程内。
 
-    Trigger --> UpdateService
-    UpdateService --> UpdateImpl
-    UpdateImpl --> JMQClient
-    UpdateImpl --> UpdateEngine
-    UpdateEngine --> AndroidSlots
+本图展开 USB / DOIP 触发的 QNX、Android、MCU 三条主升级链。Recovery 客户端和 LCD / HUD / TP 等外围 ECU 的升级支持仍见本文相关章节，不在总览图中展开。
 
-    UpdateImpl --> QNX_PATH
-    UpdateImpl --> MCU_PATH
-    UpdateImpl --> OTA_PATH
-
-    JMQClient <--"tcp://10.10.200.1:5030<br/>11-byte binary frame"--> Updater
-
-    Updater --> QnxWorkDir
-    Updater --> QnxProgress
-    Updater --> UpdateIC
-    UpdateIC --> QnxProgress
-    UpdateIC --> QnxBanks
-    
-    Updater --> SwdlUtils
-    SwdlUtils --> QnxBanks
-
-    Updater --> UpgradeMcu
-    UpgradeMcu --> McuProgress
-    UpgradeMcu --> Rpcif
-    Rpcif --> Rpcd
-    Rpcd <--"SPI<br/>SOC-MCU msg block"--> McuApp
-    McuApp --> McuFlash
-```
+节点配色为：黄色表示高通实现及 Qualcomm 平台适配，绿色表示原生 OS / 上游组件，蓝色表示其余项目定制组件。蓝色包含 PATEO 定制模块，不表示其版权全部归 OEM。容器、硬件和存储保持中性配色；连线颜色独立表示依赖、控制 / IPC、数据和配置关系。
 
 ### 2.2 组件部署位置
 
-| 组件 | 源码路径 | 运行位置 |
-|------|---------|---------|
-| UpdateService / UpdateImpl / JMQClient | `android/vendor/voyah/system/update/UpdateService/` | Android |
-| updater | `bsp/vendor/voyah_base/updater/` | QNX |
-| update_ic.sh / update_ic_progress.sh | `build/scripts/tools/update-script/` | QNX（打包进 OTA zip） |
-| swdl_utils | `bsp/apps/qnx_ap/AMSS/platform/services/applications/swdl_utils/` | QNX |
-| upgrademcu | `cluster/platforms/updatemgr/` | QNX |
-| librpcif / rpcd | `cluster/platforms/rpcd/` | QNX |
+| 组件 | 源码 / 配置路径 | 运行位置与归属 |
+|------|-----------------|----------------|
+| `UsbUpdateActivity` / `VoyahOtaUpdateImpl` | `android/vendor/voyah/system/update/UsbUpdate/`；`android/vendor/voyah/system/update/UpdateService/sdk/voyah_ota_sdk/` | Android GVM，USB 客户端及其进程内 SDK |
+| `UpdateService` / `UpdateBinder` / `DoipOtaManager` / `TaskScheduler` / `DeviceManager` / `UpdateImpl` / `JMQClient` | `android/vendor/voyah/system/update/UpdateService/service/` | Android GVM，`com.voyah.update` 进程 |
+| `android.os.UpdateEngine` | `android/frameworks/base/core/java/android/os/UpdateEngine.java` | Android GVM，OTA 服务调用的 Framework 客户端 API |
+| `update_engine` / `BinderUpdateEngineAndroidService` / `DeltaPerformer` / `BootControlAndroid` | `android/system/update_engine/` | Android GVM，独立 Native 服务进程 `update_engine` |
+| `android.hardware.boot@1.2-service` | `android/hardware/interfaces/boot/1.2/default/` | Android GVM，独立 Boot HAL 服务；slot 查询 / 激活分支 |
+| `updater` | `bsp/vendor/voyah_base/updater/` | QNX PVM，升级协调服务进程 |
+| `update_ic.sh` / `update_ic_progress.sh` / `zstd` | `build/scripts/tools/update-script/`；OTA 包内 `tools/` | QNX PVM，独立脚本 / 工具；`update_ic.sh` 调用 `zstd` |
+| `swdl_utils` | `bsp/apps/qnx_ap/AMSS/platform/services/applications/swdl_utils/` | QNX PVM，由 `updater` 启动的 bank 管理工具 |
+| `upgrademcu` | `cluster/platforms/updatemgr/` | QNX PVM，由 `updater` 启动的独立 MCU 升级进程 |
+| `librpcif.so` / `rpcd` | `cluster/platforms/rpcd/` | QNX PVM；库加载在 `upgrademcu` 内，`rpcd` 是独立服务进程 |
+| `libspi_client.so` / `spi_service` | `bsp/apps/qnx_ap/AMSS/platform/qal/clients/spi_client/`；`bsp/apps/qnx_ap/AMSS/platform/services/daemons/spi_service/` | QNX PVM；库加载在 `rpcd` 内，`spi_service` 是 `/dev/spi9` 的用户态 Resource Manager |
+| `qvm` / `vdev-virtio-blk.so` | `bsp/apps/qnx_ap/target/hypervisor/gvm/ivi/la/la_dp_enabled_b.config` | QNX PVM，`qvm` 进程及其加载的 VirtIO-BLK 后端插件 |
+| `devb-ufs-qualcomm` | `bsp/apps/qnx_ap/target/hypervisor/host/out_8540/ifs_disk.build` | QNX PVM，用户态 block / filesystem 服务进程 |
+| `nfsd` | `bsp/apps/qnx_ap/target/hypervisor/host/out_8540/startup-qvmhost.sh` | QNX PVM，导出 `/ota` 的文件服务进程 |
 
 ### 2.3 文件系统布局
 
@@ -138,8 +108,8 @@ graph TD
 
 | 路径 | 用途 |
 |------|------|
-| `/ota/update/` | Android 提取的 QNX 升级包（共享挂载） |
-| `/ota/update_mcu/` | Android 提取的 MCU 固件（共享挂载） |
+| `/ota/update/` | QNX 本地升级包目录，经 NFS 供 Android 写入 |
+| `/ota/update_mcu/` | QNX 本地 MCU 固件目录，经 NFS 供 Android 写入 |
 | `/ota/update_ipc_lcd/` | 仪表屏固件 |
 | `/ota/update_ivi_lcd/` | 中控屏固件 |
 | `/ota/update_hud/` | HUD 固件 |
@@ -147,7 +117,11 @@ graph TD
 | `/data/update/fifo_progress` | QNX 分区升级进度文件 |
 | `/ota/update_mcu/mcu_update_process` | MCU 升级进度文件 |
 
-Android 和 QNX 通过 `/otaqnx/` ↔ `/ota/` 共享文件系统（同一条 eMMC 的共享分区）。
+Android 的 NFS 客户端将 QNX 导出的 `/ota/` 挂载到 `/otaqnx/`，因此 Android 的 `/otaqnx/update/` 对应 QNX 的 `/ota/update/`，`/otaqnx/update_mcu/` 对应 `/ota/update_mcu/`。QNX 先将 `/dev/disk/qnx_ota` 以 QNX6 文件系统挂载到本地 `/ota`，再由 `nfsd` 提供文件访问。
+
+这条文件共享链不是两个 OS 直接共享挂载同一磁盘分区，也不经过 Android payload 的 VirtIO-BLK 写入链。底层存储在架构图中统称 `Shared Storage`；当前目标由 `devb-ufs-qualcomm` 提供 UFS block / filesystem 服务。Android 本地 `/ota/` 与 QNX 本地 `/ota/` 是不同域中的目录，不能因名称相同而视为同一对象。
+
+对应配置：Android 的 `init.qvm_nfs.sh` 执行 `func_mountnfs /ota /otaqnx`；QNX 的 `startup-qvmhost.sh` 挂载 `/dev/disk/qnx_ota` 并启动 `nfsd`。
 
 ---
 
@@ -303,7 +277,7 @@ zmq_setsockopt(response, ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
 
 #### 3.2.1 rpcif 客户端 API
 
-`librpcif` 提供以下 API，供 `upgrademcu` 调用：
+`librpcif.so` 是加载在 `upgrademcu` 进程中的客户端库，不是独立服务。它经本地 Unix-domain socket 与独立的 `rpcd` 进程通信，并提供以下 API：
 
 ```c
 // rpcif.h
@@ -364,6 +338,10 @@ MCU 返回消息使用相同格式，rpcd 解析到 channel `0x1` 后分发给�
 
 #### 3.2.3 SPI 物理帧格式
 
+图中的 SPI 调用链为：`rpcd` → 进程内 `libspi_client.so` 的 `spi_xchange()` → `devctlv(DCMD_SPI_XCHANGE)` → `spi_service`（`/dev/spi9`）→ SoC SPI Controller → MCU。
+
+`spi_service` 是 QNX 用户态 Resource Manager，与 `rpcd` 是不同进程；`libspi_client.so` 的跨进程请求通过 QNX I/O 消息发送，不能把该服务画成内核模块，也不能将 `rpcd` 到 MCU 的连线理解为直接硬件访问。
+
 ```cpp
 // rpcd_local.h L117-143
 #pragma pack(1)
@@ -398,18 +376,23 @@ rpcd 维护会话管理表 `g_RpcdSessionMgr[RPCIF_RX_MAX]`（最大 200 个会�
 
 ### 4.1 UpdateService 服务架构
 
+```text
+com.voyah.update (process)
+  ├── UpdateService       — Android Service 入口
+  ├── UpdateBinder        — IUpdateService.Stub
+  ├── TaskScheduler       — 任务流水线
+  ├── DeviceManager       — 设备协议路由
+  ├── UpdateImpl          — 升级执行与 ECU 协调
+  ├── JMQClient           — ZeroMQ REQ 客户端
+  ├── UpdateNotifier      — 状态通知
+  └── DoipOtaManager      — DOIP 升级入口（普通单例类）
 ```
-UpdateService.java (Service)
-  └── UpdateBinder.java (IUpdateService.Stub)
-        ├── TaskScheduler.java — 任务流水线
-        ├── DeviceManager.java — 设备路由
-        ├── UpdateNotifier.java — 状态通知
-        └── DoipOtaManager.java — DOIP 管理
-```
+
+上图表示同一进程中的实现组件，不表示 Java 内部类关系。`UpdateService.onCreate()` 调用 `UpdateBinder.init()`，后者初始化 `DoipOtaManager.initDoip()`；收到 DOIP 升级命令后，`DoipOtaManager` 直接调用 `UpdateBinder.self().applyAction()`，这是进程内调用，不是一次额外的 Binder IPC。
 
 **服务注册**：`ServiceManager.addService("voyah.ota.update", ...)`
 
-**客户端接入**：`VoyahOtaUpdateManager.java` 通过 `ServiceManager.getService("voyah.ota.update")` 绑定。
+**客户端接入**：`VoyahOtaUpdateImpl.java` 通过 `ServiceManager.getService("voyah.ota.update")` 获取 `IUpdateService` Binder 接口，与上述服务进程通信。
 
 #### 4.1.1 任务流水线
 
@@ -501,6 +484,12 @@ void startAndroidUpgrade(DeviceInfo info) {
                               config.properties.toArray(new String[0]));
 }
 ```
+
+`android.os.UpdateEngine` 是 Framework 客户端 API，`applyPayload()` 经 Binder 交给独立 Native 进程 `update_engine`。该进程通过 `BinderUpdateEngineAndroidService` 接收请求，使用 `DeltaPerformer` 执行 payload 写入。
+
+总览图按系统粒度折叠了 device-mapper 的逻辑分区映射细节，展开的动态系统分区数据路径为：`DeltaPerformer` → `/dev/block/vda · virtio_blk` → QNX PVM 的 `qvm` / `vdev-virtio-blk.so` → `devb-ufs-qualcomm` → `la_super` 中的非活动逻辑分区。`/dev/block/vda` 在当前 VM 配置中对应 `/dev/disk/la_super`，不能用这一个设备代表所有 Android payload 目标；boot / dtbo / vbmeta 等其他分区通道未在总览图中展开。
+
+`BootControlAndroid` → `android.hardware.boot@1.2-service` 是独立的 slot 查询 / 激活控制分支，不是 payload 数据必须经过的串行节点。图中的服务壳来自 AOSP；本平台另配置了 `android.hardware.boot@1.2-impl-qti` 实现库，主图没有展开该库。QNX / MCU 固件准备使用的 NFS 文件共享则见 §2.3，与这条 Android 系统镜像写入链分开。
 
 #### 4.2.4 MCU 升级
 
@@ -1579,6 +1568,12 @@ QNX 侧无持久化状态——升级结果在 `update_ic.sh` 完成后通过 `t
 | 组件 | 路径 |
 |------|------|
 | Android UpdateService | `android/vendor/voyah/system/update/UpdateService/service/src/com/voyah/update/` |
+| OTA SDK 客户端 | `android/vendor/voyah/system/update/UpdateService/sdk/voyah_ota_sdk/src/main/java/com/voyah/update/sdk/VoyahOtaUpdateImpl.java` |
+| DOIP 升级入口 | `android/vendor/voyah/system/update/UpdateService/service/src/com/voyah/update/service/DoipOtaManager.java` |
+| Framework UpdateEngine API | `android/frameworks/base/core/java/android/os/UpdateEngine.java` |
+| Native update_engine 服务 | `android/system/update_engine/aosp/daemon_android.cc` |
+| Android payload 写入 | `android/system/update_engine/payload_consumer/delta_performer.cc` |
+| Boot HAL 服务壳 / QTI 实现 | `android/hardware/interfaces/boot/1.2/default/service.cpp`；`android/hardware/qcom/bootctrl/1.2/impl/` |
 | JMQClient | `android/.../update/jmq/JMQClient.java` |
 | UpdateImpl | `android/.../update/impl/UpdateImpl.java` |
 | BaseUpdateImpl | `android/.../update/impl/BaseUpdateImpl.java` |
@@ -1594,6 +1589,11 @@ QNX 侧无持久化状态——升级结果在 `update_ic.sh` 完成后通过 `t
 | rpcif common | `cluster/platforms/rpcd/inc/rpcif-common.h` |
 | rpcd SPI 协议 | `cluster/platforms/rpcd/inc/rpcd_local.h` |
 | rpcd 会话管理 | `cluster/platforms/rpcd/src/rpcd_dispatch.c` |
+| SPI 客户端 / Resource Manager | `bsp/apps/qnx_ap/AMSS/platform/qal/clients/spi_client/src/spi_client.c`；`bsp/apps/qnx_ap/AMSS/platform/services/daemons/spi_service/src/spi_service.c` |
+| Android NFS 挂载配置 | `android/device/qcom/common/rootdir/etc/init.qvm_nfs.sh` |
+| QNX OTA 挂载 / NFS 服务启动 | `bsp/apps/qnx_ap/target/hypervisor/host/out_8540/startup-qvmhost.sh` |
+| VirtIO-BLK Guest / hostdev 映射 | `bsp/apps/qnx_ap/target/hypervisor/gvm/ivi/la/la_dp_enabled_b.config` |
+| QNX 存储 Resource Manager 配置 | `bsp/apps/qnx_ap/target/hypervisor/host/out_8540/ifs_disk.build` |
 | msgblock 注册 | `cluster/apps/coreservice/fds/v6.3.1/whitelist/msgblock_topic.conf` |
 
 ### 11.2 命令码速查表
@@ -1628,8 +1628,8 @@ QNX 侧无持久化状态——升级结果在 `update_ic.sh` 完成后通过 `t
 | 路径 | 用途 | 读写者 |
 |------|------|--------|
 | `/ota/` | Android OTA 包存放 | Android |
-| `/otaqnx/update/` | QNX 升级文件 | Android(写) / QNX(读) |
-| `/otaqnx/update_mcu/` | MCU 固件文件 | Android(写) / QNX(读) |
+| `/otaqnx/update/` ↔ QNX `/ota/update/` | NFS 共享的 QNX 升级文件 | Android 写入，QNX 通过本地路径读取 |
+| `/otaqnx/update_mcu/` ↔ QNX `/ota/update_mcu/` | NFS 共享的 MCU 固件文件 | Android 写入，`upgrademcu` 通过 QNX 本地路径读取 |
 | `/data/update/` | QNX 升级工作目录 | QNX |
 | `/data/update/tools/update_ic.sh` | 分区刷写脚本 | QNX updater |
 | `/data/update/fifo_progress` | QNX 升级进度 | update_ic_progress.sh(写) / updater(读) |
@@ -1639,3 +1639,6 @@ QNX 侧无持久化状态——升级结果在 `update_ic.sh` 完成后通过 `t
 | `/dev/disk/system_inactive` | QNX system 非活动分区 | update_ic.sh |
 | `/dev/disk/ifs2_inactive` | QNX ifs2 非活动分区 | update_ic.sh |
 | `/dev/disk/hyp_inactive` | QNX hyp 非活动分区 | update_ic.sh |
+| QNX `/dev/disk/qnx_ota` | 本地 `/ota` 的 QNX6 存储分区 | `devb-ufs-qualcomm` 提供 block / filesystem 服务，`nfsd` 导出文件 |
+| Android `/dev/block/vda` ↔ QNX `/dev/disk/la_super` | Android 动态系统分区后端映射 | Android `virtio_blk` / QNX `qvm` 的 `vdev-virtio-blk.so` |
+| QNX `/dev/spi9` | MCU SPI 设备接口 | `rpcd` 内的 `libspi_client.so` → 独立 `spi_service` |

@@ -1,0 +1,472 @@
+<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制 | Ethen 的实验室</title><meta name=keywords content><meta name=description content="Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制
+
+  
+    文档版本: 2.0.0 (Comprehensive Edition)
+状态: 正式发布 (Approved)
+涵盖模块: DisplayManagerService (DMS), WindowManagerService (WMS), SurfaceFlinger (SF), CompositionEngine, HWComposer (HWC), Qualcomm SDM (Snapdragon Display Manager), Linux DRM/KMS
+适用平台: Android 10 ~ Android 14+ (包含 AOSP Phone/Tablet、Foldable 折叠屏、Android Automotive OS 车载多屏以及高通芯片座舱平台)
+
+  
+
+
+目录
+
+引言与架构全景
+
+显示管理的核心双层语义
+
+第一层语义：物理显示设备的生命周期管理
+
+
+3.1 硬件端口感知与 PhysicalDisplayId 编码
+
+3.2 Hotplug 热插拔与设备注册全链路
+
+3.3 Java 框架内部设备流转与 LogicalDisplay 创建流水线
+
+3.4 SurfaceFlinger Native 层的 Display 实体体系
+
+
+
+第二层语义：逻辑映射与合成管线（LayerStack、Output 与 Display）
+
+
+4.1 核心实体定义与概念矩阵
+
+4.2 DisplayDevice 与 Output 的关系
+
+4.3 LayerStack 的设计哲学与分配机制（与 DisplayID 的解耦）
+
+4.4 LayerStack 与 Output 的空间路由机制
+
+4.5 OutputLayer：图层在输出端的具象化
+
+
+
+经典拓扑映射模式实战
+
+
+5.1 模式 A：车载独立多屏与座舱显示组隔离（DisplayGroup）
+
+5.2 模式 B：显示镜像模式（Display Mirroring）
+
+5.3 模式 C：折叠屏内外屏动态切换与设备状态机（Layout）
+
+
+
+运行期核心策略调度
+
+
+6.1 动态刷新率与分辨率仲裁（DisplayModeDirector）
+
+6.2 显示电源与平滑亮度调光（DisplayPowerController & DisplayPowerState）
+
+6.3 输入视口映射与触控分发（InputManagerService 协同）
+
+
+
+高通平台 (Qualcomm SDM) 硬件合成器实现深度剖析
+
+
+7.1 高通 HWC 架构全景与服务入口
+
+7.2 高通 HWC 启动与 Display 创建全流程时序
+
+7.3 核心实现组件深度解析
+
+7.4 车载虚拟化环境下的典型避坑经验
+
+
+
+关键源码对照与跟踪索引
+
+
+
+1. 引言与架构全景
+在 Android 显示子系统中，显示管理（Display Management） 是连接上层应用界面布局与底层芯片硬件扫描输出的承上启下中枢。上层 WindowManagerService (WMS) 负责管理“窗口放在哪块屏上”，下层 Hardware Composer (HWC) 负责调度“哪个硬件扫描通道（Pipeline）输出信号”，全部由 DisplayManagerService (DMS) 与 SurfaceFlinger (SF) 协同完成仲裁、抽象与路由。"><meta name=author content><link rel=canonical href=https://ethen-cao.github.io/ethenslab/android-dev/display/android_display_subsystem_wiki/><link crossorigin=anonymous href=/ethenslab/assets/css/stylesheet.4b7d7e3e0b462c209763a310362b999f7099a9571f86a6f3aebd8f6576a78faa.css integrity="sha256-S31+PgtGLCCXY6MQNiuZn3CZqVcfhqbzrr2PZXanj6o=" rel="preload stylesheet" as=style><link rel=icon href=https://ethen-cao.github.io/ethenslab/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://ethen-cao.github.io/ethenslab/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://ethen-cao.github.io/ethenslab/favicon-32x32.png><link rel=apple-touch-icon href=https://ethen-cao.github.io/ethenslab/apple-touch-icon.png><link rel=mask-icon href=https://ethen-cao.github.io/ethenslab/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://ethen-cao.github.io/ethenslab/android-dev/display/android_display_subsystem_wiki/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://ethen-cao.github.io/ethenslab/android-dev/display/android_display_subsystem_wiki/"><meta property="og:site_name" content="Ethen 的实验室"><meta property="og:title" content="Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制"><meta property="og:description" content="Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制 文档版本: 2.0.0 (Comprehensive Edition)
+状态: 正式发布 (Approved)
+涵盖模块: DisplayManagerService (DMS), WindowManagerService (WMS), SurfaceFlinger (SF), CompositionEngine, HWComposer (HWC), Qualcomm SDM (Snapdragon Display Manager), Linux DRM/KMS
+适用平台: Android 10 ~ Android 14+ (包含 AOSP Phone/Tablet、Foldable 折叠屏、Android Automotive OS 车载多屏以及高通芯片座舱平台)
+目录 引言与架构全景 显示管理的核心双层语义 第一层语义：物理显示设备的生命周期管理 3.1 硬件端口感知与 PhysicalDisplayId 编码 3.2 Hotplug 热插拔与设备注册全链路 3.3 Java 框架内部设备流转与 LogicalDisplay 创建流水线 3.4 SurfaceFlinger Native 层的 Display 实体体系 第二层语义：逻辑映射与合成管线（LayerStack、Output 与 Display） 4.1 核心实体定义与概念矩阵 4.2 DisplayDevice 与 Output 的关系 4.3 LayerStack 的设计哲学与分配机制（与 DisplayID 的解耦） 4.4 LayerStack 与 Output 的空间路由机制 4.5 OutputLayer：图层在输出端的具象化 经典拓扑映射模式实战 5.1 模式 A：车载独立多屏与座舱显示组隔离（DisplayGroup） 5.2 模式 B：显示镜像模式（Display Mirroring） 5.3 模式 C：折叠屏内外屏动态切换与设备状态机（Layout） 运行期核心策略调度 6.1 动态刷新率与分辨率仲裁（DisplayModeDirector） 6.2 显示电源与平滑亮度调光（DisplayPowerController & DisplayPowerState） 6.3 输入视口映射与触控分发（InputManagerService 协同） 高通平台 (Qualcomm SDM) 硬件合成器实现深度剖析 7.1 高通 HWC 架构全景与服务入口 7.2 高通 HWC 启动与 Display 创建全流程时序 7.3 核心实现组件深度解析 7.4 车载虚拟化环境下的典型避坑经验 关键源码对照与跟踪索引 1. 引言与架构全景 在 Android 显示子系统中，显示管理（Display Management） 是连接上层应用界面布局与底层芯片硬件扫描输出的承上启下中枢。上层 WindowManagerService (WMS) 负责管理“窗口放在哪块屏上”，下层 Hardware Composer (HWC) 负责调度“哪个硬件扫描通道（Pipeline）输出信号”，全部由 DisplayManagerService (DMS) 与 SurfaceFlinger (SF) 协同完成仲裁、抽象与路由。"><meta property="og:locale" content="en"><meta property="og:type" content="article"><meta property="article:section" content="android-dev"><meta property="article:published_time" content="2026-10-12T00:00:00+00:00"><meta property="article:modified_time" content="2026-10-12T00:00:00+00:00"><meta name=twitter:card content="summary"><meta name=twitter:title content="Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制"><meta name=twitter:description content="Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制 文档版本: 2.0.0 (Comprehensive Edition)
+状态: 正式发布 (Approved)
+涵盖模块: DisplayManagerService (DMS), WindowManagerService (WMS), SurfaceFlinger (SF), CompositionEngine, HWComposer (HWC), Qualcomm SDM (Snapdragon Display Manager), Linux DRM/KMS
+适用平台: Android 10 ~ Android 14+ (包含 AOSP Phone/Tablet、Foldable 折叠屏、Android Automotive OS 车载多屏以及高通芯片座舱平台)
+目录 引言与架构全景 显示管理的核心双层语义 第一层语义：物理显示设备的生命周期管理 3.1 硬件端口感知与 PhysicalDisplayId 编码 3.2 Hotplug 热插拔与设备注册全链路 3.3 Java 框架内部设备流转与 LogicalDisplay 创建流水线 3.4 SurfaceFlinger Native 层的 Display 实体体系 第二层语义：逻辑映射与合成管线（LayerStack、Output 与 Display） 4.1 核心实体定义与概念矩阵 4.2 DisplayDevice 与 Output 的关系 4.3 LayerStack 的设计哲学与分配机制（与 DisplayID 的解耦） 4.4 LayerStack 与 Output 的空间路由机制 4.5 OutputLayer：图层在输出端的具象化 经典拓扑映射模式实战 5.1 模式 A：车载独立多屏与座舱显示组隔离（DisplayGroup） 5.2 模式 B：显示镜像模式（Display Mirroring） 5.3 模式 C：折叠屏内外屏动态切换与设备状态机（Layout） 运行期核心策略调度 6.1 动态刷新率与分辨率仲裁（DisplayModeDirector） 6.2 显示电源与平滑亮度调光（DisplayPowerController & DisplayPowerState） 6.3 输入视口映射与触控分发（InputManagerService 协同） 高通平台 (Qualcomm SDM) 硬件合成器实现深度剖析 7.1 高通 HWC 架构全景与服务入口 7.2 高通 HWC 启动与 Display 创建全流程时序 7.3 核心实现组件深度解析 7.4 车载虚拟化环境下的典型避坑经验 关键源码对照与跟踪索引 1. 引言与架构全景 在 Android 显示子系统中，显示管理（Display Management） 是连接上层应用界面布局与底层芯片硬件扫描输出的承上启下中枢。上层 WindowManagerService (WMS) 负责管理“窗口放在哪块屏上”，下层 Hardware Composer (HWC) 负责调度“哪个硬件扫描通道（Pipeline）输出信号”，全部由 DisplayManagerService (DMS) 与 SurfaceFlinger (SF) 协同完成仲裁、抽象与路由。"><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Android系统开发","item":"https://ethen-cao.github.io/ethenslab/android-dev/"},{"@type":"ListItem","position":2,"name":"Display Manager","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/"},{"@type":"ListItem","position":3,"name":"Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制","item":"https://ethen-cao.github.io/ethenslab/android-dev/display/android_display_subsystem_wiki/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制","name":"Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制","description":"Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制 文档版本: 2.0.0 (Comprehensive Edition)\n状态: 正式发布 (Approved)\n涵盖模块: DisplayManagerService (DMS), WindowManagerService (WMS), SurfaceFlinger (SF), CompositionEngine, HWComposer (HWC), Qualcomm SDM (Snapdragon Display Manager), Linux DRM/KMS\n适用平台: Android 10 ~ Android 14+ (包含 AOSP Phone/Tablet、Foldable 折叠屏、Android Automotive OS 车载多屏以及高通芯片座舱平台)\n目录 引言与架构全景 显示管理的核心双层语义 第一层语义：物理显示设备的生命周期管理 3.1 硬件端口感知与 PhysicalDisplayId 编码 3.2 Hotplug 热插拔与设备注册全链路 3.3 Java 框架内部设备流转与 LogicalDisplay 创建流水线 3.4 SurfaceFlinger Native 层的 Display 实体体系 第二层语义：逻辑映射与合成管线（LayerStack、Output 与 Display） 4.1 核心实体定义与概念矩阵 4.2 DisplayDevice 与 Output 的关系 4.3 LayerStack 的设计哲学与分配机制（与 DisplayID 的解耦） 4.4 LayerStack 与 Output 的空间路由机制 4.5 OutputLayer：图层在输出端的具象化 经典拓扑映射模式实战 5.1 模式 A：车载独立多屏与座舱显示组隔离（DisplayGroup） 5.2 模式 B：显示镜像模式（Display Mirroring） 5.3 模式 C：折叠屏内外屏动态切换与设备状态机（Layout） 运行期核心策略调度 6.1 动态刷新率与分辨率仲裁（DisplayModeDirector） 6.2 显示电源与平滑亮度调光（DisplayPowerController \u0026amp; DisplayPowerState） 6.3 输入视口映射与触控分发（InputManagerService 协同） 高通平台 (Qualcomm SDM) 硬件合成器实现深度剖析 7.1 高通 HWC 架构全景与服务入口 7.2 高通 HWC 启动与 Display 创建全流程时序 7.3 核心实现组件深度解析 7.4 车载虚拟化环境下的典型避坑经验 关键源码对照与跟踪索引 1. 引言与架构全景 在 Android 显示子系统中，显示管理（Display Management） 是连接上层应用界面布局与底层芯片硬件扫描输出的承上启下中枢。上层 WindowManagerService (WMS) 负责管理“窗口放在哪块屏上”，下层 Hardware Composer (HWC) 负责调度“哪个硬件扫描通道（Pipeline）输出信号”，全部由 DisplayManagerService (DMS) 与 SurfaceFlinger (SF) 协同完成仲裁、抽象与路由。\n","keywords":[],"articleBody":"Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制 文档版本: 2.0.0 (Comprehensive Edition)\n状态: 正式发布 (Approved)\n涵盖模块: DisplayManagerService (DMS), WindowManagerService (WMS), SurfaceFlinger (SF), CompositionEngine, HWComposer (HWC), Qualcomm SDM (Snapdragon Display Manager), Linux DRM/KMS\n适用平台: Android 10 ~ Android 14+ (包含 AOSP Phone/Tablet、Foldable 折叠屏、Android Automotive OS 车载多屏以及高通芯片座舱平台)\n目录 引言与架构全景 显示管理的核心双层语义 第一层语义：物理显示设备的生命周期管理 3.1 硬件端口感知与 PhysicalDisplayId 编码 3.2 Hotplug 热插拔与设备注册全链路 3.3 Java 框架内部设备流转与 LogicalDisplay 创建流水线 3.4 SurfaceFlinger Native 层的 Display 实体体系 第二层语义：逻辑映射与合成管线（LayerStack、Output 与 Display） 4.1 核心实体定义与概念矩阵 4.2 DisplayDevice 与 Output 的关系 4.3 LayerStack 的设计哲学与分配机制（与 DisplayID 的解耦） 4.4 LayerStack 与 Output 的空间路由机制 4.5 OutputLayer：图层在输出端的具象化 经典拓扑映射模式实战 5.1 模式 A：车载独立多屏与座舱显示组隔离（DisplayGroup） 5.2 模式 B：显示镜像模式（Display Mirroring） 5.3 模式 C：折叠屏内外屏动态切换与设备状态机（Layout） 运行期核心策略调度 6.1 动态刷新率与分辨率仲裁（DisplayModeDirector） 6.2 显示电源与平滑亮度调光（DisplayPowerController \u0026 DisplayPowerState） 6.3 输入视口映射与触控分发（InputManagerService 协同） 高通平台 (Qualcomm SDM) 硬件合成器实现深度剖析 7.1 高通 HWC 架构全景与服务入口 7.2 高通 HWC 启动与 Display 创建全流程时序 7.3 核心实现组件深度解析 7.4 车载虚拟化环境下的典型避坑经验 关键源码对照与跟踪索引 1. 引言与架构全景 在 Android 显示子系统中，显示管理（Display Management） 是连接上层应用界面布局与底层芯片硬件扫描输出的承上启下中枢。上层 WindowManagerService (WMS) 负责管理“窗口放在哪块屏上”，下层 Hardware Composer (HWC) 负责调度“哪个硬件扫描通道（Pipeline）输出信号”，全部由 DisplayManagerService (DMS) 与 SurfaceFlinger (SF) 协同完成仲裁、抽象与路由。\n下图展示了从 Android 顶层应用到芯片显示控制器（DPU）的端到端分层架构图：\n+========================================================================================================+ | [Application \u0026 Window Management Layer (Java)] | | | | Application / ViewRootImpl | | │ | | ▼ (Request to add window) | | WindowManagerService (WMS) | | │ | | ├──\u003e RootWindowContainer | | │ └──\u003e DisplayContent (Window hierarchy tree per logical display) | | │ | | └──\u003e SurfaceControl.setLayerStack(windowLayerStack) | | │ | +====================╪===================================================================================+ │ +====================▼===================================================================================+ | [Display Policy Authority: DisplayManagerService] | | | | DisplayManagerService (DMS) | | │ | | ├──\u003e LogicalDisplayMapper (Core Mapping Engine) | | │ │ | | │ ├──\u003e DisplayGroup 0 (Default Group: Driver / System) | | │ │ ├──\u003e LogicalDisplay 0 (Default Display, displayId=0, layerStack=0) | | │ │ └──\u003e LogicalDisplay 2 (Cluster Display, displayId=2, layerStack=2) | | │ │ | | │ └──\u003e DisplayGroup 1 (Passenger Group: Passenger User) | | │ └──\u003e LogicalDisplay 1 (Passenger Display, displayId=1, layerStack=1) | | │ | | ├──\u003e DisplayDeviceRepository \u0026 DisplayAdapter Family | | │ ├──\u003e LocalDisplayAdapter ───\u003e LocalDisplayDevice (Built-in panels, HDMI/DP external) | | │ ├──\u003e VirtualDisplayAdapter ───\u003e VirtualDisplayDevice (Record, Cast, CarPlay/Auto) | | │ └──\u003e WifiDisplayAdapter ───\u003e WifiDisplayDevice (Miracast wireless displays) | | │ | | ├──\u003e DisplayModeDirector (Refresh rate 60/120Hz, resolution arbitration) | | └──\u003e DisplayPowerController (DisplayPowerState, PhotonicModulator thread, ColorFade) | +===================================================╪====================================================+ │ SurfaceControl.Transaction: │ - setDisplayLayerStack(displayToken, layerStack) │ - setDisplayProjection(displayToken, orient, rect...) │ - setDisplayPowerMode(displayToken, mode) +===================================================▼====================================================+ | [Composition Core: SurfaceFlinger \u0026 CompositionEngine] | | | | SurfaceFlinger (Main Service State Machine) | | │ | | ├──\u003e mDisplays map: std::map","wordCount":"2611","inLanguage":"en","datePublished":"2026-10-12T00:00:00Z","dateModified":"2026-10-12T00:00:00Z","mainEntityOfPage":{"@type":"WebPage","@id":"https://ethen-cao.github.io/ethenslab/android-dev/display/android_display_subsystem_wiki/"},"publisher":{"@type":"Organization","name":"Ethen 的实验室","logo":{"@type":"ImageObject","url":"https://ethen-cao.github.io/ethenslab/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=header-nav><div class=logo><a href=https://ethen-cao.github.io/ethenslab/ accesskey=h title="Ethen 的实验室 (Alt + H)">Ethen 的实验室</a><div class=logo-switches><button id=theme-toggle class=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu class=menu><li><a href=https://ethen-cao.github.io/ethenslab/android-dev/ title=Android系统开发><span>Android系统开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/android-automotive-os-dev/ title="Android Automotive"><span>Android Automotive</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/qnx/ title=QNX开发><span>QNX开发</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/gunyah/ title=Gunyah><span>Gunyah</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/ivi-solution/ title=智能座舱方案><span>智能座舱方案</span></a></li><li><a href=https://ethen-cao.github.io/ethenslab/explore-ai title="Explore AI"><span>Explore AI</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><nav class=breadcrumbs role=navigation aria-label=Breadcrumb><a href=/ethenslab/>Home</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
+<a href=/ethenslab/android-dev/>Android系统开发</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
+<a href=/ethenslab/android-dev/display/>Display Manager</a>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right"><polyline points="9 18 15 12 9 6"/></svg></nav><h1 class="post-title entry-hint-parent">Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制</h1><div class=post-meta><span title='2026-10-12 00:00:00 +0000 UTC'>October 12, 2026</span>&nbsp;·&nbsp;<span>13 min</span>&nbsp;·&nbsp;<span>2611 words</span></div></header><div class="post-content md-content"><h1 id=android-显示系统架构displaymanagerservice-与-surfaceflinger-双层显示管理机制>Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制<a hidden class=anchor aria-hidden=true href=#android-显示系统架构displaymanagerservice-与-surfaceflinger-双层显示管理机制>#</a></h1><blockquote><p><strong>文档版本</strong>: 2.0.0 (Comprehensive Edition)<br><strong>状态</strong>: 正式发布 (Approved)<br><strong>涵盖模块</strong>: DisplayManagerService (DMS), WindowManagerService (WMS), SurfaceFlinger (SF), CompositionEngine, HWComposer (HWC), Qualcomm SDM (Snapdragon Display Manager), Linux DRM/KMS<br><strong>适用平台</strong>: Android 10 ~ Android 14+ (包含 AOSP Phone/Tablet、Foldable 折叠屏、Android Automotive OS 车载多屏以及高通芯片座舱平台)</p></blockquote><hr><h2 id=目录>目录<a hidden class=anchor aria-hidden=true href=#目录>#</a></h2><ol><li><a href=#1-%e5%bc%95%e8%a8%80%e4%b8%8e%e6%9e%b6%e6%9e%84%e5%85%a8%e6%99%af>引言与架构全景</a></li><li><a href=#2-%e6%98%be%e7%a4%ba%e7%ae%a1%e7%90%86%e7%9a%84%e6%a0%b8%e5%bf%83%e5%8f%8c%e5%b1%82%e8%af%ad%e4%b9%89>显示管理的核心双层语义</a></li><li><a href=#3-%e7%ac%ac%e4%b8%80%e5%b1%82%e8%af%ad%e4%b9%89%e7%89%a9%e7%90%86%e6%98%be%e7%a4%ba%e8%ae%be%e5%a4%87%e7%9a%84%e7%94%9f%e5%91%bd%e5%91%a8%e6%9c%9f%e7%ae%a1%e7%90%86>第一层语义：物理显示设备的生命周期管理</a><ul><li>3.1 <a href=#31-%e7%a1%ac%e4%bb%b6%e7%ab%af%e5%8f%a3%e6%84%9f%e7%9f%a5%e4%b8%8e-physicaldisplayid-%e7%bc%96%e7%a0%81>硬件端口感知与 PhysicalDisplayId 编码</a></li><li>3.2 <a href=#32-hotplug-%e7%83%ad%e6%8f%92%e6%8b%94%e4%b8%8e%e8%ae%be%e5%a4%87%e6%b3%a8%e5%86%8c%e5%85%a8%e9%93%be%e8%b7%af>Hotplug 热插拔与设备注册全链路</a></li><li>3.3 <a href=#33-java-%e6%a1%86%e6%9e%b6%e5%86%85%e9%83%a8%e8%ae%be%e5%a4%87%e6%b5%81%e8%bd%ac%e4%b8%8e-logicaldisplay-%e5%88%9b%e5%bb%ba%e6%b5%81%e6%b0%b4%e7%ba%bf>Java 框架内部设备流转与 LogicalDisplay 创建流水线</a></li><li>3.4 <a href=#34-surfaceflinger-native-%e5%b1%82%e7%9a%84-display-%e5%ae%9e%e4%bd%93%e4%bd%93%e7%b3%bb>SurfaceFlinger Native 层的 Display 实体体系</a></li></ul></li><li><a href=#4-%e7%ac%ac%e4%ba%8c%e5%b1%82%e8%af%ad%e4%b9%89%e9%80%bb%e8%be%91%e6%98%a0%e5%b0%84%e4%b8%8e%e5%90%88%e6%88%90%e7%ae%a1%e7%ba%bflayerstackoutput-%e4%b8%8e-display>第二层语义：逻辑映射与合成管线（LayerStack、Output 与 Display）</a><ul><li>4.1 <a href=#41-%e6%a0%b8%e5%bf%83%e5%ae%9e%e4%bd%93%e5%ae%9a%e4%b9%89%e4%b8%8e%e6%a6%82%e5%bf%b5%e7%9f%a9%e9%98%b5>核心实体定义与概念矩阵</a></li><li>4.2 <a href=#42-displaydevice-%e4%b8%8e-output-%e7%9a%84%e5%85%b3%e7%b3%bb>DisplayDevice 与 Output 的关系</a></li><li>4.3 <a href=#43-layerstack-%e7%9a%84%e8%ae%be%e8%ae%a1%e5%93%b2%e5%ad%a6%e4%b8%8e%e5%88%86%e9%85%8d%e6%9c%ba%e5%88%b6%e4%b8%8e-displayid-%e7%9a%84%e8%a7%a3%e8%80%a6>LayerStack 的设计哲学与分配机制（与 DisplayID 的解耦）</a></li><li>4.4 <a href=#44-layerstack-%e4%b8%8e-output-%e7%9a%84%e7%a9%ba%e9%97%b4%e8%b7%af%e7%94%b1%e6%9c%ba%e5%88%b6>LayerStack 与 Output 的空间路由机制</a></li><li>4.5 <a href=#45-outputlayer%e5%9b%be%e5%b1%82%e5%9c%a8%e8%be%93%e5%87%ba%e7%ab%af%e7%9a%84%e5%85%b7%e8%b1%a1%e5%8c%96>OutputLayer：图层在输出端的具象化</a></li></ul></li><li><a href=#5-%e7%bb%8f%e5%85%b8%e6%8b%93%e6%89%91%e6%98%a0%e5%b0%84%e6%a8%a1%e5%bc%8f%e5%ae%9e%e6%88%98>经典拓扑映射模式实战</a><ul><li>5.1 <a href=#51-%e6%a8%a1%e5%bc%8f-a%e8%bd%a6%e8%bd%bd%e7%8b%ac%e7%ab%8b%e5%a4%9a%e5%b1%8f%e4%b8%8e%e5%ba%a7%e8%88%b1%e6%98%be%e7%a4%ba%e7%bb%84%e9%9a%94%e7%a6%bbdisplaygroup>模式 A：车载独立多屏与座舱显示组隔离（DisplayGroup）</a></li><li>5.2 <a href=#52-%e6%a8%a1%e5%bc%8f-b%e6%98%be%e7%a4%ba%e9%95%9c%e5%83%8f%e6%a8%a1%e5%bc%8fdisplay-mirroring>模式 B：显示镜像模式（Display Mirroring）</a></li><li>5.3 <a href=#53-%e6%a8%a1%e5%bc%8f-c%e6%8a%98%e5%8f%a0%e5%b1%8f%e5%86%85%e5%a4%96%e5%b1%8f%e5%8a%a8%e6%80%81%e5%88%87%e6%8d%a2%e4%b8%8e%e8%ae%be%e5%a4%87%e7%8a%b6%e6%80%81%e6%9c%balayout>模式 C：折叠屏内外屏动态切换与设备状态机（Layout）</a></li></ul></li><li><a href=#6-%e8%bf%90%e8%a1%8c%e6%9c%9f%e6%a0%b8%e5%bf%83%e7%ad%96%e7%95%a5%e8%b0%83%e5%ba%a6>运行期核心策略调度</a><ul><li>6.1 <a href=#61-%e5%8a%a8%e6%80%81%e5%88%b7%e6%96%b0%e7%8e%87%e4%b8%8e%e5%88%86%e8%be%a8%e7%8e%87%e4%bb%b2%e8%a3%81displaymodedirector>动态刷新率与分辨率仲裁（DisplayModeDirector）</a></li><li>6.2 <a href=#62-%e6%98%be%e7%a4%ba%e7%94%b5%e6%ba%90%e4%b8%8e%e5%b9%b3%e6%bb%91%e4%ba%ae%e5%ba%a6%e8%b0%83%e5%85%89displaypowercontroller--displaypowerstate>显示电源与平滑亮度调光（DisplayPowerController & DisplayPowerState）</a></li><li>6.3 <a href=#63-%e8%be%93%e5%85%a5%e8%a7%86%e5%8f%a3%e6%98%a0%e5%b0%84%e4%b8%8e%e8%a7%a6%e6%8e%a7%e5%88%86%e5%8f%91inputmanagerservice-%e5%8d%8f%e5%90%8c>输入视口映射与触控分发（InputManagerService 协同）</a></li></ul></li><li><a href=#7-%e9%ab%98%e9%80%9a%e5%b9%b3%e5%8f%b0-qualcomm-sdm-%e7%a1%ac%e4%bb%b6%e5%90%88%e6%88%90%e5%99%a8%e5%ae%9e%e7%8e%b0%e6%b7%b1%e5%ba%a6%e5%89%96%e6%9e%90>高通平台 (Qualcomm SDM) 硬件合成器实现深度剖析</a><ul><li>7.1 <a href=#71-%e9%ab%98%e9%80%9a-hwc-%e6%9e%b6%e6%9e%84%e5%85%a8%e6%99%af%e4%b8%8e%e6%9c%8d%e5%8a%a1%e5%85%a5%e5%8f%a3>高通 HWC 架构全景与服务入口</a></li><li>7.2 <a href=#72-%e9%ab%98%e9%80%9a-hwc-%e5%90%af%e5%8a%a8%e4%b8%8e-display-%e5%88%9b%e5%bb%ba%e5%85%a8%e6%b5%81%e7%a8%8b%e6%97%b6%e5%ba%8f>高通 HWC 启动与 Display 创建全流程时序</a></li><li>7.3 <a href=#73-%e6%a0%b8%e5%bf%83%e5%ae%9e%e7%8e%b0%e7%bb%84%e4%bb%b6%e6%b7%b1%e5%ba%a6%e8%a7%a3%e6%9e%90>核心实现组件深度解析</a></li><li>7.4 <a href=#74-%e8%bd%a6%e8%bd%bd%e8%99%9a%e6%8b%9f%e5%8c%96%e7%8e%af%e5%a2%83%e4%b8%8b%e7%9a%84%e5%85%b8%e5%9e%8b%e9%81%bf%e5%9d%91%e7%bb%8f%e9%aa%8c>车载虚拟化环境下的典型避坑经验</a></li></ul></li><li><a href=#8-%e5%85%b3%e9%94%ae%e6%ba%90%e7%a0%81%e5%af%b9%e7%85%a7%e4%b8%8e%e8%b7%9f%e8%b8%aa%e7%b4%a2%e5%bc%95>关键源码对照与跟踪索引</a></li></ol><hr><h2 id=1-引言与架构全景>1. 引言与架构全景<a hidden class=anchor aria-hidden=true href=#1-引言与架构全景>#</a></h2><p>在 Android 显示子系统中，<strong>显示管理（Display Management）</strong> 是连接上层应用界面布局与底层芯片硬件扫描输出的承上启下中枢。上层 <code>WindowManagerService</code> (WMS) 负责管理“窗口放在哪块屏上”，下层 <code>Hardware Composer</code> (HWC) 负责调度“哪个硬件扫描通道（Pipeline）输出信号”，全部由 <strong>DisplayManagerService (DMS)</strong> 与 <strong>SurfaceFlinger (SF)</strong> 协同完成仲裁、抽象与路由。</p><p>下图展示了从 Android 顶层应用到芯片显示控制器（DPU）的端到端分层架构图：</p><pre tabindex=0><code>+========================================================================================================+
+|                              [Application &amp; Window Management Layer (Java)]                            |
+|                                                                                                        |
+|    Application / ViewRootImpl                                                                          |
+|         │                                                                                              |
+|         ▼ (Request to add window)                                                                      |
+|    WindowManagerService (WMS)                                                                          |
+|         │                                                                                              |
+|         ├──&gt; RootWindowContainer                                                                       |
+|         │         └──&gt; DisplayContent (Window hierarchy tree per logical display)                     |
+|         │                                                                                              |
+|         └──&gt; SurfaceControl.setLayerStack(windowLayerStack)                                            |
+|                    │                                                                                   |
++====================╪===================================================================================+
+                     │                                                                                   
++====================▼===================================================================================+
+|                                 [Display Policy Authority: DisplayManagerService]                      |
+|                                                                                                        |
+|  DisplayManagerService (DMS)                                                                           |
+|       │                                                                                                |
+|       ├──&gt; LogicalDisplayMapper (Core Mapping Engine)                                                  |
+|       │         │                                                                                      |
+|       │         ├──&gt; DisplayGroup 0 (Default Group: Driver / System)                                   |
+|       │         │         ├──&gt; LogicalDisplay 0 (Default Display, displayId=0, layerStack=0)           |
+|       │         │         └──&gt; LogicalDisplay 2 (Cluster Display, displayId=2, layerStack=2)           |
+|       │         │                                                                                      |
+|       │         └──&gt; DisplayGroup 1 (Passenger Group: Passenger User)                                  |
+|       │                   └──&gt; LogicalDisplay 1 (Passenger Display, displayId=1, layerStack=1)         |
+|       │                                                                                                |
+|       ├──&gt; DisplayDeviceRepository &amp; DisplayAdapter Family                                             |
+|       │         ├──&gt; LocalDisplayAdapter   ───&gt; LocalDisplayDevice (Built-in panels, HDMI/DP external) |
+|       │         ├──&gt; VirtualDisplayAdapter ───&gt; VirtualDisplayDevice (Record, Cast, CarPlay/Auto)      |
+|       │         └──&gt; WifiDisplayAdapter    ───&gt; WifiDisplayDevice (Miracast wireless displays)         |
+|       │                                                                                                |
+|       ├──&gt; DisplayModeDirector    (Refresh rate 60/120Hz, resolution arbitration)                      |
+|       └──&gt; DisplayPowerController (DisplayPowerState, PhotonicModulator thread, ColorFade)             |
++===================================================╪====================================================+
+                                                    │ SurfaceControl.Transaction:
+                                                    │   - setDisplayLayerStack(displayToken, layerStack)
+                                                    │   - setDisplayProjection(displayToken, orient, rect...)
+                                                    │   - setDisplayPowerMode(displayToken, mode)
++===================================================▼====================================================+
+|                              [Composition Core: SurfaceFlinger &amp; CompositionEngine]                    |
+|                                                                                                        |
+|  SurfaceFlinger (Main Service State Machine)                                                           |
+|       │                                                                                                |
+|       ├──&gt; mDisplays map: std::map&lt;IBinder /*token*/, sp&lt;DisplayDevice&gt;&gt;                               |
+|       │                                                                                                |
+|       └──&gt; CompositionEngine (libcompositionengine)                                                    |
+|                 │                                                                                      |
+|                 ▼                                                                                      |
+|        +──────────────────────────────────────────────────────────────+                                |
+|        │  DisplayDevice (Native Display Endpoint)                     │                                |
+|        │    - Holds: displayToken, DisplayId, PowerMode, ActiveMode   │                                |
+|        │    - Owns: std::shared_ptr&lt;compositionengine::Display&gt;       │                                |
+|        +──────────────────────────────┬───────────────────────────────+                                |
+|                                       │ (C++ inheritance: is-a)                                        |
+|                                       ▼                                                                |
+|        +──────────────────────────────────────────────────────────────+                                |
+|        │  compositionengine::Output (Abstract Composition Target)     │                                |
+|        │    - Output::State.layerStack (Filtered LayerStack ID)       │                                |
+|        │    - Viewport / Frame / Projection spatial transform matrices│                                |
+|        │    - RenderSurface / Framebuffer target render buffer        │                                |
+|        +──────────────────────────────┬───────────────────────────────+                                |
+|                                       │                                                                |
+|      ┌────────────────────────────────┴──────────────────────────────┐                                 |
+|      ▼ (Filtered by LayerStack)                                      ▼                                 |
+| Layer (Window Buffer Layer)                                      OutputLayer                           |
+| - Layer.layerStack == Output.layerStack ─────────────────&gt; (Layer projection instance on Output)       |
++===================================================╪====================================================+
+                                                    │ Submit composition plan &amp; mode specs               
++===================================================▼====================================================+
+|                         [Hardware Composer &amp; Qualcomm SDM HAL Layer]                                   |
+|                                                                                                        |
+|  HWComposer (Hardware Composer Manager in SF)                                                          |
+|       │                                                                                                |
+|       ▼ (AIDL / HIDL IComposerClient)                                                                  |
+|  AidlComposer (BnComposer) ───&gt; ConcurrencyMgr (SDM Interface Singleton)                               |
+|                                     │                                                                  |
+|                                     ├──&gt; SDMDisplayBuilder ───&gt; DisplayBuiltIn                         |
+|                                     │                                │                                 |
+|                                     └──&gt; CoreImpl                    ▼                                 |
+|                                            │                  DPUMultiCore (Mux)                       |
+|                                            ▼                         │                                 |
+|                                     HWInfoInterface                  ▼                                 |
+|                                            │                  HWPeripheralDRM                          |
+|                                            ▼                         │                                 |
+|                                     DRM Capabilities                 ▼                                 |
+|                                     (/dev/dri/card0)          HWDeviceDRM::Init()                      |
++===================================================╪====================================================+
+                                                    │ Linux Kernel DRM/KMS IOCTL                         
++===================================================▼====================================================+
+|                                    [Kernel Drivers &amp; Display Hardware]                                 |
+|                                                                                                        |
+|  Linux Kernel DRM/KMS Driver (msm_drm / DPU Driver)                                                    |
+|  Display Processing Unit (DPU) &amp; Hardware Scanout Engines                                              |
+|  Physical Panels (DSI-0 / Cluster, DP-0 / Center Console, DP-1 / Passenger Screen)                     |
++========================================================================================================+
+</code></pre><hr><h2 id=2-显示管理的核心双层语义>2. 显示管理的核心双层语义<a hidden class=anchor aria-hidden=true href=#2-显示管理的核心双层语义>#</a></h2><p>Display 的管理天然具备两层不可混淆的维度：</p><table><thead><tr><th style=text-align:left>语义层级</th><th style=text-align:left>核心关注点</th><th style=text-align:left>核心实体</th><th style=text-align:left>责任边界</th></tr></thead><tbody><tr><td style=text-align:left><strong>第一层：物理设备管理</strong><br><em>(Physical Management)</em></td><td style=text-align:left><strong>硬件存在与物理生命周期</strong></td><td style=text-align:left><code>HWComposer::Display</code><br><code>PhysicalDisplayId</code><br><code>DisplayDevice</code>(Native)<br><code>DisplayAdapter</code></td><td style=text-align:left>感知屏幕硬件插拔、获取 EDID 与端口号、与 Composer HAL 建立通信、控制物理通断电、调度 VSync 节拍。</td></tr><tr><td style=text-align:left><strong>第二层：逻辑映射与合成路由</strong><br><em>(Logical & Composition)</em></td><td style=text-align:left><strong>窗口内容到输出通道的精准路由</strong></td><td style=text-align:left><code>LogicalDisplay</code><br><code>DisplayGroup</code><br><code>LayerStack</code><br><code>compositionengine::Output</code><br><code>OutputLayer</code></td><td style=text-align:left>抽象系统 <code>displayId</code>；划定 <code>DisplayGroup</code> 边界；分配 <code>layerStack</code>；在合成阶段过滤图层；完成视口投影（Projection）与多屏/镜像/折叠切换。</td></tr></tbody></table><hr><h2 id=3-第一层语义物理显示设备的生命周期管理>3. 第一层语义：物理显示设备的生命周期管理<a hidden class=anchor aria-hidden=true href=#3-第一层语义物理显示设备的生命周期管理>#</a></h2><h3 id=31-硬件端口感知与-physicaldisplayid-编码>3.1 硬件端口感知与 PhysicalDisplayId 编码<a hidden class=anchor aria-hidden=true href=#31-硬件端口感知与-physicaldisplayid-编码>#</a></h3><p>在底层驱动中，物理屏幕往往连接在 SoC 的不同硬件接口（如 DSI-0、DP-0、HDMI 等）。现代 Android（Android 10+）通过 64 位的 <code>PhysicalDisplayId</code> 唯一标识一个物理硬件屏。</p><p><code>PhysicalDisplayId</code> 的位结构中明确包含了：</p><ol><li><strong>Port ID (端口号)</strong>：8 位整数，由底层驱动（DRM Connector ID）指定，对应硬件物理插槽。在车载环境中，Port ID 决定了硬件连线是接往仪表板、中控屏还是副驾屏。</li><li><strong>EDID Model / Serial Hash</strong>：屏幕的固件特征哈希，用于识别显示器的厂商与制造批次。</li></ol><h3 id=32-hotplug-热插拔与设备注册全链路>3.2 Hotplug 热插拔与设备注册全链路<a hidden class=anchor aria-hidden=true href=#32-hotplug-热插拔与设备注册全链路>#</a></h3><p>当屏幕接入或系统初始化扫描硬件端口时，热插拔事件在跨进程系统各层依次触发：</p><div class=mermaid>sequenceDiagram
+autonumber
+participant DPU as Linux DRM/KMS Driver
+participant HWC as HWC / Composer HAL
+participant SF as SurfaceFlinger
+participant LDA as LocalDisplayAdapter (Java)
+participant DMS as DisplayManagerService
+participant LDM as LogicalDisplayMapper
+participant WMS as WindowManagerService
+DPU->>HWC: Hardware interrupt (uevent / irq)
+HWC->>SF: IComposerCallback::onHotplug(displayToken, Connected)
+Note over SF: HWComposer creates HWC2::Display<br>Create Native DisplayDevice and register in mDisplays
+SF->>LDA: DisplayEventReceiver.onHotplug(physicalDisplayId, connected)
+LDA->>LDA: Create LocalDisplayDevice (holds displayToken)
+LDA->>DMS: sendDisplayDeviceEventLocked(device, ADDED)
+DMS->>LDM: handleDisplayDeviceAddedLocked(device)
+Note over LDM: Match policy/config:<br>Allocate displayId (e.g. 0 or 1)<br>Allocate dedicated layerStack
+LDM->>DMS: Create LogicalDisplay instance
+DMS->>SF: SurfaceControl.Transaction:<br>setDisplayLayerStack(token, layerStack)<br>setDisplayProjection(token, orient, rect...)
+DMS->>WMS: DisplayManagerInternal.DisplayListener.onDisplayAdded(displayId)
+WMS->>WMS: Create DisplayContent(displayId)<br>Build window hierarchy tree for display
+DMS->>DMS: Broadcast ACTION_DISPLAY_ADDED</div><h3 id=33-java-框架内部设备流转与-logicaldisplay-创建流水线>3.3 Java 框架内部设备流转与 LogicalDisplay 创建流水线<a hidden class=anchor aria-hidden=true href=#33-java-框架内部设备流转与-logicaldisplay-创建流水线>#</a></h3><p>在 <code>DisplayManagerService</code> 内部，从接收设备通知到上层窗口管理容器创建，经历了精密的 Handler 消息解耦和状态更新流水线：</p><div class=mermaid>sequenceDiagram
+autonumber
+participant SS as SystemServer
+participant DMS as DisplayManagerService
+participant Handler as DMS Handler
+participant LDA as LocalDisplayAdapter
+participant SC as SurfaceControl
+participant Repo as DisplayDeviceRepository
+participant LDM as LogicalDisplayMapper
+participant WMS as WindowManagerService
+participant Root as RootWindowContainer
+SS->>DMS: onStart()
+DMS->>Handler: sendEmptyMessage(MSG_REGISTER_DEFAULT_DISPLAY_ADAPTERS)
+Handler->>DMS: registerDefaultDisplayAdapters()
+DMS->>LDA: new LocalDisplayAdapter() & register()
+activate LDA
+LDA->>SC: SurfaceControl.getPhysicalDisplayIds()
+SC-->>LDA: physicalDisplayIds[]
+loop For each physical display
+LDA->>LDA: new LocalDisplayDevice(physicalDisplayId)
+LDA->>DMS: sendDisplayDeviceEventLocked(device, DISPLAY_DEVICE_EVENT_ADDED)
+end
+deactivate LDA
+DMS->>Repo: onDisplayDeviceEvent(device, ADDED)
+activate Repo
+Repo->>Repo: addDisplayDeviceLocked(device)
+Repo->>LDM: onDisplayDeviceAdded(device)
+deactivate Repo
+activate LDM
+LDM->>LDM: createNewLogicalDisplayLocked(device, displayId)
+LDM->>LDM: applyLayoutLocked()
+LDM->>LDM: updateLogicalDisplaysLocked()
+LDM->>DMS: onLogicalDisplayEventLocked(display, LOGICAL_DISPLAY_EVENT_ADDED)
+deactivate LDM
+DMS->>DMS: handleLogicalDisplayAddedLocked(display)
+DMS->>Handler: sendEmptyMessage(MSG_DELIVER_DISPLAY_EVENT)
+Handler->>DMS: deliverDisplayEvent(displayId, EVENT_DISPLAY_ADDED)
+DMS->>WMS: DisplayListener.onDisplayAdded(displayId)
+activate WMS
+WMS->>Root: mRoot.getDisplayContentOrCreate(displayId)
+activate Root
+Root->>Root: new DisplayContent(displayId, ...)
+Root-->>WMS: DisplayContent
+deactivate Root
+deactivate WMS</div><h4 id=关键实现步骤解析>关键实现步骤解析：<a hidden class=anchor aria-hidden=true href=#关键实现步骤解析>#</a></h4><ol><li><strong>初始化阶段</strong>:<ul><li><code>SystemServer</code> 启动 DMS 调用 <code>onStart()</code>；</li><li>发送 <code>MSG_REGISTER_DEFAULT_DISPLAY_ADAPTERS</code> 消息到 Handler，执行 <code>registerDefaultDisplayAdapters()</code> 创建 <code>LocalDisplayAdapter</code>。</li></ul></li><li><strong>设备探测与适配器上报</strong>:<ul><li><code>LocalDisplayAdapter</code> 调用 <code>SurfaceControl.getPhysicalDisplayIds()</code> 扫描硬件；</li><li>为每个硬件屏幕创建 <code>LocalDisplayDevice</code> 并封装 SurfaceFlinger 返回的 <code>displayToken</code>；</li><li>调用 <code>sendDisplayDeviceEventLocked</code> 发送 <code>DISPLAY_DEVICE_EVENT_ADDED</code>。</li></ul></li><li><strong>设备仓储（DisplayDeviceRepository）中转</strong>:<ul><li><code>DisplayDeviceRepository</code> 统一缓存所有激活的物理设备；</li><li>触发监听器通知 <code>LogicalDisplayMapper</code>。</li></ul></li><li><strong>逻辑显示绑定（LogicalDisplayMapper）</strong>:<ul><li><code>LogicalDisplayMapper</code> 接收到设备后，执行 <code>createNewLogicalDisplayLocked</code> 创建 <code>LogicalDisplay</code> 实例；</li><li>调用 <code>applyLayoutLocked</code> 依据当前设备状态（DeviceState）配置布局；</li><li>调用 <code>updateLogicalDisplaysLocked</code> 刷新全局状态，回调 <code>onLogicalDisplayEventLocked(LOGICAL_DISPLAY_EVENT_ADDED)</code>。</li></ul></li><li><strong>通知 WMS 构建窗口树</strong>:<ul><li>DMS 发送 <code>MSG_DELIVER_DISPLAY_EVENT</code> 内部异步消息；</li><li>最终通过 <code>DisplayListener</code> 回调 <code>WindowManagerService.onDisplayAdded(displayId)</code>；</li><li>WMS 调用 <code>mRoot.getDisplayContentOrCreate(displayId)</code> 构建该屏幕独立的窗口层级根节点 <code>DisplayContent</code>。</li></ul></li></ol><h3 id=34-surfaceflinger-native-层的-display-实体体系>3.4 SurfaceFlinger Native 层的 Display 实体体系<a hidden class=anchor aria-hidden=true href=#34-surfaceflinger-native-层的-display-实体体系>#</a></h3><p>在 Native 层，SurfaceFlinger 并不是直接操作物理屏驱动，而是通过三层实体实现管理解耦：</p><ol><li><strong><code>HWComposer</code></strong>：持有 <code>mDisplayData: std::map&lt;hal::HWDisplayId, HWC2::Display></code>，直接面向 HAL 发起硬件图层准备（<code>validateDisplay</code>）与提交（<code>presentDisplay</code>）。</li><li><strong><code>DisplayDevice</code> (Native)</strong>：<ul><li>代表一个完整的显示端点，持有一个匿名的 Binder 句柄 <code>displayToken</code>；</li><li>管理当前设备的物理特性：电源状态（<code>PowerMode</code>）、显示模式（<code>DisplayMode</code>，如 3840x2160@60Hz）、支持的色彩空间；</li><li>内部聚合了合成引擎中的核心实现——<code>compositionengine::Display</code>。</li></ul></li><li><strong><code>SurfaceFlinger::mDisplays</code></strong>：<ul><li>全局字典 <code>std::map&lt;IBinder, sp&lt;DisplayDevice>></code>；</li><li>DMS 下发的所有 <code>SurfaceControl</code> 事务（配置 LayerStack、投影矩形、电源状态），都以 <code>displayToken</code> 为 Key 检索并修改对应的 <code>DisplayDevice</code>。</li></ul></li></ol><hr><h2 id=4-第二层语义逻辑映射与合成管线layerstackoutput-与-display>4. 第二层语义：逻辑映射与合成管线（LayerStack、Output 与 Display）<a hidden class=anchor aria-hidden=true href=#4-第二层语义逻辑映射与合成管线layerstackoutput-与-display>#</a></h2><p>这是现代 Android 显示引擎最精妙的解耦设计，涉及图层空间隔离、几何投影与最终像素合成。</p><h3 id=41-核心实体定义与概念矩阵>4.1 核心实体定义与概念矩阵<a hidden class=anchor aria-hidden=true href=#41-核心实体定义与概念矩阵>#</a></h3><pre tabindex=0><code>                ┌──────────────────────────────────┐
+                │          LogicalDisplay          │ (Window reference frame, holds displayId)
+                └─────────────────┬────────────────┘
+                                  │ 1:1 Allocation
+                                  ▼
+                ┌──────────────────────────────────┐
+                │            LayerStack            │ (Logical routing bus ID)
+                └────────┬─────────────────┬───────┘
+                         │ Route tag       │ Monitored &amp; bound
+                         ▼                 ▼
+             ┌────────────────┐       ┌──────────────────────────────┐
+             │  Layer (Window)│       │ compositionengine::Output    │ (Composition output target)
+             └───────┬────────┘       └──────────────┬───────────────┘
+                     │                               │
+                     └───────────────┬───────────────┘
+                                     │ Spatial match instantiation
+                                     ▼
+                      ┌─────────────────────────────┐
+                      │         OutputLayer         │ (Projection instance of Layer on Output)
+                      └──────────────┬──────────────┘
+                                     │
+                                     ▼
+                      ┌─────────────────────────────┐
+                      │    HWComposer / HWC Layer   │ (Submitted to hardware composition pipeline)
+                      └─────────────────────────────┘
+</code></pre><h3 id=42-displaydevice-与-output-的关系>4.2 DisplayDevice 与 Output 的关系<a hidden class=anchor aria-hidden=true href=#42-displaydevice-与-output-的关系>#</a></h3><p>自 Android 10 重构引入 <code>libcompositionengine</code> 后，Google 将显示设备（设备端）与合成管线（输出端）彻底解耦：</p><ul><li><strong><code>compositionengine::Output</code> (输出基类)</strong>：<ul><li>一个纯粹的图像合成目标抽象；</li><li>内部维护视口状态：<code>displayBounds</code>（像素边界）、<code>layerStackSpaceRect</code>（逻辑坐标空间）、<code>transform</code>（旋转与缩放矩阵）、<code>layerStack</code>（当前监听的图层栈 ID）；</li><li>它不需要知道自己连接的是真实硬件屏还是虚拟 Buffer。</li></ul></li><li><strong><code>compositionengine::Display</code> (设备特化实现)</strong>：<ul><li><strong>继承自 <code>compositionengine::Output</code></strong> (<code>class Display : public Output</code>)；</li><li>扩展了物理屏特征：持有 <code>HWComposer</code> 引用、硬件 <code>DisplayId</code>、色彩变换矩阵等。</li></ul></li><li><strong><code>DisplayDevice</code> (Native 外观类)</strong>：<ul><li>拥有 <code>std::shared_ptr&lt;compositionengine::Display></code>；</li><li><strong>关系结论</strong>：<strong><code>DisplayDevice</code> 封装并代表显示设备，其内核中的 <code>compositionengine::Output</code> 承载实际的合成管线与渲染输出。</strong></li></ul></li></ul><h3 id=43-layerstack-的设计哲学与分配机制与-displayid-的解耦>4.3 LayerStack 的设计哲学与分配机制（与 DisplayID 的解耦）<a hidden class=anchor aria-hidden=true href=#43-layerstack-的设计哲学与分配机制与-displayid-的解耦>#</a></h3><p>在初学 Android 显示系统时，极易产生一个直觉认知：“既然每个屏幕都有一个 DisplayID，那 LayerStack 是不是就等于 DisplayID？为什么不直接在 SurfaceFlinger 中使用 DisplayID？”</p><p>答案是：<strong>在常规的独立屏幕中，AOSP 源码中默认确实将 <code>layerStack</code> 赋值为 <code>displayId</code>；但在系统架构设计上，两者的概念、语义与生命周期是彻底解耦的，并且在特定场景下它们绝不相等。</strong></p><h4 id=1-默认分配逻辑源码级实现>1. 默认分配逻辑：源码级实现<a hidden class=anchor aria-hidden=true href=#1-默认分配逻辑源码级实现>#</a></h4><p>在 <code>LogicalDisplayMapper.java</code> 创建逻辑显示时：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// frameworks/base/services/core/java/com/android/server/display/LogicalDisplayMapper.java</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>private</span> LogicalDisplay <span style=color:#a6e22e>createNewLogicalDisplayLocked</span>(DisplayDevice device, <span style=color:#66d9ef>int</span> displayId) {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>final</span> <span style=color:#66d9ef>int</span> layerStack <span style=color:#f92672>=</span> assignLayerStackLocked(displayId);
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>final</span> LogicalDisplay display <span style=color:#f92672>=</span> <span style=color:#66d9ef>new</span> LogicalDisplay(displayId, layerStack, device);
+</span></span><span style=display:flex><span>    ...
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> display;
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>private</span> <span style=color:#66d9ef>int</span> <span style=color:#a6e22e>assignLayerStackLocked</span>(<span style=color:#66d9ef>int</span> displayId) {
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// AOSP 源码经典注释：</span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// &#34;Layer stacks are just unique integers. We assign them to match</span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>//  the logical display id since that&#39;s easy and convenient.&#34;</span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>return</span> displayId;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></div><p>对于系统默认创建的普通主屏（<code>displayId=0</code>）、独立外接屏（<code>displayId=1</code>）或副驾屏（<code>displayId=2</code>），DMS 确实“为了简便”，直接分配了与其 <code>displayId</code> 相同数值的 <code>layerStack</code>。</p><h4 id=2-核心设计理念为什么必须将两者彻底解耦>2. 核心设计理念：为什么必须将两者彻底解耦？<a hidden class=anchor aria-hidden=true href=#2-核心设计理念为什么必须将两者彻底解耦>#</a></h4><p>如果让底层的 SurfaceFlinger 直接理解并依赖 <code>displayId</code>，会破坏分层架构的独立性：</p><table><thead><tr><th style=text-align:left>维度</th><th style=text-align:left><code>displayId</code> (逻辑显示 ID)</th><th style=text-align:left><code>layerStack</code> (图层栈 ID)</th></tr></thead><tbody><tr><td style=text-align:left><strong>所属体系</strong></td><td style=text-align:left><strong>Java Framework / WMS / 应用运行环境</strong></td><td style=text-align:left><strong>Native C++ / SurfaceFlinger / 合成引擎</strong></td></tr><tr><td style=text-align:left><strong>形象比喻</strong></td><td style=text-align:left><strong>“房间号”</strong>（应用和窗口在哪里安家）</td><td style=text-align:left><strong>“电视频道号”</strong>（显示端输出哪路节目的信号）</td></tr><tr><td style=text-align:left><strong>关注核心</strong></td><td style=text-align:left>窗口层级树、输入焦点、屏幕尺寸/DPI、多用户（UserId）隔离</td><td style=text-align:left>图层缓冲（Buffer）、可见性裁剪、硬件管线叠加（HWC Overlay）</td></tr><tr><td style=text-align:left><strong>生命周期</strong></td><td style=text-align:left>与 WMS 的 <code>DisplayContent</code> 强绑定，创建和销毁开销极高</td><td style=text-align:left>仅是一个 32 位整型标记（Token），可在不同输出端之间极低成本地动态换绑</td></tr></tbody></table><p>通过解耦：</p><ul><li><strong>上层保持稳定</strong>：Activity 和 WMS 只需要认准自己的“房间”（<code>displayId</code>），窗口树无需因为底层输出端的插拔或切换而频繁重建。</li><li><strong>底层极其灵活</strong>：SurfaceFlinger 是一套纯粹的 C++ 高性能渲染引擎，它无需理会上层复杂的 Java 窗口状态与多用户权限，只需基于简单的整数相等比对（<code>layer->getLayerStack() == output->getLayerStack()</code>）即可完成极速过滤。</li></ul><h4 id=3-核心实战两者不相等的典型场景>3. 核心实战：两者不相等的典型场景<a hidden class=anchor aria-hidden=true href=#3-核心实战两者不相等的典型场景>#</a></h4><p>在以下关键场景中，<code>displayId</code> 与 <code>layerStack</code> 表现出明确的分离：</p><h5 id=场景-a屏幕镜像与系统录屏auto-mirroring--virtualdisplay>场景 A：屏幕镜像与系统录屏（Auto-Mirroring & VirtualDisplay）<a hidden class=anchor aria-hidden=true href=#场景-a屏幕镜像与系统录屏auto-mirroring--virtualdisplay>#</a></h5><ul><li>当通过 <code>DisplayManager.createVirtualDisplay()</code> 创建录屏或投屏时，系统为虚拟屏分配了一个全新的逻辑 ID（例如 <code>displayId = 3</code>）。</li><li>若指定了 <code>VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR</code>，该虚拟屏的使命是采集主屏（<code>displayId = 0</code>）的画面。</li><li><strong>底层行为</strong>：DMS 将该虚拟屏幕对应的 <code>Output</code> 绑定的不是 <code>layerStack 3</code>，而是 <strong><code>layerStack = 0</code></strong>！</li><li><strong>结果</strong>：<strong><code>displayId (3) != layerStack (0)</code></strong>。两个不同的 Output（物理主屏和虚拟录屏缓冲）同时监听 <code>layerStack 0</code>，主屏上的所有窗口被同时合成并投递到录屏 Surface 中。</li></ul><h5 id=场景-b黑屏待机保护blanked_layer_stack>场景 B：黑屏待机保护（<code>BLANKED_LAYER_STACK</code>）<a hidden class=anchor aria-hidden=true href=#场景-b黑屏待机保护blanked_layer_stack>#</a></h5><p>在 <code>LogicalDisplay.configureDisplayLocked()</code> 中：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-java data-lang=java><span style=display:flex><span><span style=color:#75715e>// 当物理设备处于休眠/灭屏或未准备好的中间状态时</span>
+</span></span><span style=display:flex><span>device.<span style=color:#a6e22e>setLayerStackLocked</span>(t, isBlanked <span style=color:#f92672>?</span> BLANKED_LAYER_STACK : mLayerStack);
+</span></span></code></pre></div><ul><li><code>BLANKED_LAYER_STACK</code> 的值为 <code>0xFFFFFFFF</code> (<code>-1</code>)。</li><li>当屏幕处于关闭或瞬态切换时，DMS 将该输出端临时切换到无效栈。此时该屏幕的逻辑 <code>displayId</code> 依然是 0，但底层合成端监听的 <code>layerStack = -1</code>，确保 SurfaceFlinger 不会在此期间将任何图层误合成输出，避免灭屏闪烁。</li></ul><h5 id=场景-c折叠屏动态重定向foldable-switching>场景 C：折叠屏动态重定向（Foldable Switching）<a hidden class=anchor aria-hidden=true href=#场景-c折叠屏动态重定向foldable-switching>#</a></h5><ul><li>折叠屏手机在内大屏和外小屏切换时，主屏幕逻辑上的 <code>displayId</code> 与 <code>layerStack</code> 始终保持为 0（保证前台 App 绝不销毁）；</li><li>DMS 将 <code>layerStack 0</code> 从外屏的底层 Token 解绑，重新重定向绑定到内屏的底层 Token。</li><li>这印证了：<strong><code>layerStack</code> 是一条流动的数据路由总线，它与特定的硬件设备并不绑定，可以在多个硬件输出端之间灵活调度。</strong></li></ul><h3 id=44-layerstack-与-output-的空间路由机制>4.4 LayerStack 与 Output 的空间路由机制<a hidden class=anchor aria-hidden=true href=#44-layerstack-与-output-的空间路由机制>#</a></h3><p>为什么应用窗口只会显示在指定的屏幕上，而不会跑偏到其他屏幕？</p><ol><li><strong>WMS 图层标记</strong>：<ul><li>当 WMS 将某个 Activity 或 Dialog 放置在特定的逻辑屏上时，它读取该逻辑屏的 <code>layerStack</code>。</li><li>调用 <code>SurfaceControl.setLayerStack(windowLayerStack)</code>，将该整型 ID 赋予该窗口的图层。</li></ul></li><li><strong>DMS 输出端绑定</strong>：<ul><li>DMS 初始化或更新屏幕时，调用 <code>SurfaceControl.setDisplayLayerStack(displayToken, layerStack)</code>。</li><li>SurfaceFlinger 依据 <code>displayToken</code> 找到 <code>DisplayDevice</code>，将其关联的 <code>Output::State.layerStack</code> 设为相同的值。</li></ul></li></ol><h3 id=45-outputlayer图层在输出端的具象化>4.5 OutputLayer：图层在输出端的具象化<a hidden class=anchor aria-hidden=true href=#45-outputlayer图层在输出端的具象化>#</a></h3><p>在 SurfaceFlinger 每一帧合成遍历时（<code>calculateOutputLayerState</code>）：</p><ul><li>系统遍历所有具有绘制内容的 <code>Layer</code>；</li><li>遍历所有注册的合成目标 <code>Output</code>；</li><li><strong>空间比对规则</strong>：
+$$\text{if } (\text{Layer.layerStack} == \text{Output.layerStack})$$</li><li>只要匹配成功，合成引擎便会创建（或复用）一个 <strong><code>OutputLayer</code></strong> 实体。</li><li><strong><code>OutputLayer</code> 的核心职责</strong>：<ul><li>存储该 <code>Layer</code> 针对该 <code>Output</code> 的专属变换状态（例如在当前屏幕上的绝对显示区域、可见裁切区域、局部不透明度、Z-Order 堆叠次序）；</li><li>决定采用 <strong>Device Composition (HWC 硬件叠加)</strong> 还是 <strong>Client Composition (RenderEngine GPU 回写合成)</strong>。</li></ul></li></ul><hr><h2 id=5-经典拓扑映射模式实战>5. 经典拓扑映射模式实战<a hidden class=anchor aria-hidden=true href=#5-经典拓扑映射模式实战>#</a></h2><h3 id=51-模式-a车载独立多屏与座舱显示组隔离displaygroup>5.1 模式 A：车载独立多屏与座舱显示组隔离（DisplayGroup）<a hidden class=anchor aria-hidden=true href=#51-模式-a车载独立多屏与座舱显示组隔离displaygroup>#</a></h3><p>在车载智能座舱系统中，液晶仪表（Cluster）、中控主屏（Center Console）与副驾娱乐屏（Passenger Screen）通常由一颗车规级芯片统一驱动。传统的单屏架构无法满足车载系统的<strong>安全隔离</strong>与<strong>多用户并发</strong>诉求。为此，Android 引入了 <strong><code>DisplayGroup</code>（显示组）</strong> 机制。</p><h4 id=1-为什么需要-displaygroup>1. 为什么需要 DisplayGroup？<a hidden class=anchor aria-hidden=true href=#1-为什么需要-displaygroup>#</a></h4><ol><li><strong>业务与弹窗逻辑隔离（Cross-screen Isolation）</strong>：<ul><li>避免副驾屏的音视频 App 弹窗（Activity）意外跳到中控屏上遮挡关键 ADAS 导航。</li><li><code>WindowManagerService</code> 依据 <code>DisplayGroup</code> 限制 Activity 启动边界，跨 Group 默认禁止路由。</li></ul></li><li><strong>座舱多用户并发（Concurrent Multi-User）</strong>：<ul><li>车载系统要求主驾与副驾同时以不同账号独立登录（如主驾 User 0，副驾 User 10）。</li><li>Android 将 <code>DisplayGroup</code> 与系统的 <code>UserId</code> 绑定，每个 DisplayGroup 运行一套独立的 SystemUI、Launcher 和应用进程空间。</li></ul></li></ol><h4 id=2-displaygroup-层级拓扑图>2. DisplayGroup 层级拓扑图<a hidden class=anchor aria-hidden=true href=#2-displaygroup-层级拓扑图>#</a></h4><pre tabindex=0><code>DisplayManagerService (Global System Authority)
+    │
+    ├── DisplayGroup 0 (Primary Group -&gt; User 0: Driver / Vehicle Services)
+    │     ├── LogicalDisplay 0 (Center Console / Default Display, layerStack=0)
+    │     └── LogicalDisplay 2 (Instrument Cluster / Navigation, layerStack=2)
+    │
+    └── DisplayGroup 1 (Secondary Group -&gt; User 10: Front Passenger)
+          └── LogicalDisplay 1 (Passenger Entertainment Screen, layerStack=1)
+</code></pre><pre tabindex=0><code>[Physical Port]     Port 0 (DSI-0)              Port 1 (DP-0)              Port 2 (DP-1)
+                          │                           │                          │
+[SF Device]         DisplayDevice 0             DisplayDevice 1            DisplayDevice 2
+                          │                           │                          │
+[Composition]       Output 0                    Output 1                   Output 2
+                          ▲                           ▲                          ▲
+[Layer Routing]      LayerStack 0                LayerStack 1               LayerStack 2
+                          ▲                           ▲                          ▲
+[Logical Mapping]   LogicalDisplay 0            LogicalDisplay 1           LogicalDisplay 2
+                    (displayId = 0)             (displayId = 1)            (displayId = 2)
+                          ▲                           ▲                          ▲
+[Display Group]     └─────┬─────────────────────┘   └─────────────┬────────────┘
+                    DisplayGroup 0 (User 0)               DisplayGroup 1 (User 10)
+                          │                                       │
+[WMS Window Tree]   DisplayContent (0) / (2)              DisplayContent (1)
+                    [Cluster / Center Console]            [Passenger Entertainment]
+</code></pre><h4 id=3-carservice-配置与自动划分实践>3. CarService 配置与自动划分实践<a hidden class=anchor aria-hidden=true href=#3-carservice-配置与自动划分实践>#</a></h4><p>通过在 <code>packages/services/Car/service/res/values/config.xml</code> 中配置物理端口与座舱乘员区的映射：</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-xml data-lang=xml><span style=display:flex><span><span style=color:#f92672>&lt;string-array</span> <span style=color:#a6e22e>name=</span><span style=color:#e6db74>&#34;config_occupant_display_mapping&#34;</span><span style=color:#f92672>&gt;</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>&lt;item&gt;</span>displayPort=129:type=DRIVER:seat=0<span style=color:#f92672>&lt;/item&gt;</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>&lt;item&gt;</span>displayPort=130:type=PASSENGER:seat=1<span style=color:#f92672>&lt;/item&gt;</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>&lt;item&gt;</span>displayPort=131:type=PASSENGER:seat=2<span style=color:#f92672>&lt;/item&gt;</span>
+</span></span><span style=display:flex><span><span style=color:#f92672>&lt;/string-array&gt;</span>
+</span></span></code></pre></div><p><strong>运行链路</strong>：</p><ol><li><code>CarOccupantZoneService</code> 启动时解析该配置；</li><li>为副驾（Seat 1）拉起独立的用户（如 User 10）；</li><li>调用 <code>WindowManager</code> 接口将对应 Port 的屏幕绑定给 User 10；</li><li>WMS 自动创建并分配独立的 <code>DisplayGroup</code>，将副驾屏纳入其中，实现完全隔离的座舱交互空间。</li></ol><hr><h3 id=52-模式-b显示镜像模式display-mirroring>5.2 模式 B：显示镜像模式（Display Mirroring）<a hidden class=anchor aria-hidden=true href=#52-模式-b显示镜像模式display-mirroring>#</a></h3><p>常见于投屏、会议室演示或副驾同步中控导航画面。</p><pre tabindex=0><code>[Logical Mapping]                   LogicalDisplay 0 (displayId = 0)
+                                                 │
+[Layer Routing]                             LayerStack 0
+                                                 │
+                          ┌──────────────────────┴──────────────────────┐
+                          ▼                                             ▼
+[Composition]        Output 0 (Primary Output)                     Output 1 (Mirror Output)
+                          │                                             │
+[SF Device]          DisplayDevice 0 (Built-in Display)            DisplayDevice 1 (External Display)
+                          │                                             │
+[Physical Port]      Port 0 (Internal Panel)                       Port 1 (HDMI / Type-C DP)
+</code></pre><ul><li><strong>核心特征</strong>：<ul><li><strong>一个 <code>LayerStack</code> 绑定给了两个不同的 <code>Output</code></strong>；</li><li>SurfaceFlinger 在遍历属于 <code>LayerStack 0</code> 的窗口时，会同时向 <code>Output 0</code> 和 <code>Output 1</code> 分别生成 <code>OutputLayer</code>；</li><li>两个屏幕虽然显示相同的内容，但各自的 <code>Output</code> 可以配置独立的 <code>Viewport</code> 缩放比和 <code>Projection</code> 裁切以适应不同物理分辨率。</li></ul></li></ul><hr><h3 id=53-模式-c折叠屏内外屏动态切换与设备状态机layout>5.3 模式 C：折叠屏内外屏动态切换与设备状态机（Layout）<a hidden class=anchor aria-hidden=true href=#53-模式-c折叠屏内外屏动态切换与设备状态机layout>#</a></h3><p>折叠屏设备具有多块物理屏幕（外小屏、内大屏），但用户在使用中希望窗口状态平滑过渡，不需要创建两套独立的系统桌面。</p><pre tabindex=0><code>[Unfolded State]:
+LogicalDisplay 0  ──&gt;  LayerStack 0  ──&gt;  Output 0  ──&gt;  DisplayDevice 0 (Inner Main Screen, Active)
+                                                          DisplayDevice 1 (Outer Sub Screen, Off/Doze)
+
+              ======================= User folds device =======================
+
+[Folded State]:
+LogicalDisplay 0  ──&gt;  LayerStack 0  ──&gt;  Output 1  ──&gt;  DisplayDevice 1 (Outer Sub Screen, Active)
+                                                          DisplayDevice 0 (Inner Main Screen, Off/Doze)
+</code></pre><h4 id=核心机制状态驱动的-layout-映射表>核心机制：状态驱动的 <code>Layout</code> 映射表<a hidden class=anchor aria-hidden=true href=#核心机制状态驱动的-layout-映射表>#</a></h4><p>在 <code>LogicalDisplayMapper</code> 内部，设备形态与屏幕的绑定由 <code>Layout</code> 类统一抽象：</p><ul><li><strong><code>Layout</code> 内部数据结构</strong>：
+每个设备状态（展开、折叠、半折叠等）对应一份 <code>Layout</code> 配置。<code>Layout</code> 包含一组 <code>Layout.Display</code> 对象：<ul><li><strong>物理地址 (<code>mAddress</code>)</strong>：对应物理显示设备 <code>DisplayDevice</code> 的唯一地址（<code>DisplayAddress</code>）；</li><li><strong>逻辑显示 ID (<code>mLogicalDisplayId</code>)</strong>：该设备当前应映射到的逻辑 ID（主屏始终固定映射为 <code>DEFAULT_DISPLAY = 0</code>）；</li><li><strong>使能状态 (<code>mIsEnabled</code>)</strong>：指示在该形态下该物理屏应当处于开启（ON）还是休眠（OFF）状态。</li></ul></li><li><strong>动态无感切换原理</strong>：<ol><li>铰链传感器上报设备形态变更至 <code>DeviceStateManager</code>；</li><li><code>LogicalDisplayMapper</code> 查表获取目标形态的 <code>Layout</code> 蓝图；</li><li>执行 <code>applyLayoutLocked</code>：将 <code>LogicalDisplay 0</code>（<code>LayerStack 0</code>）与旧物理设备解除绑定，动态重定向绑定到目标物理设备；</li><li>应用层由于始终运行在固定的 <code>displayId=0</code> 上，仅收到屏幕尺寸与配置变更事件（<code>onConfigurationChanged</code>），<strong>无需销毁重建 Activity</strong>，实现流畅的折叠过渡体验。</li></ol></li></ul><hr><h2 id=6-运行期核心策略调度>6. 运行期核心策略调度<a hidden class=anchor aria-hidden=true href=#6-运行期核心策略调度>#</a></h2><h3 id=61-动态刷新率与分辨率仲裁displaymodedirector>6.1 动态刷新率与分辨率仲裁（DisplayModeDirector）<a hidden class=anchor aria-hidden=true href=#61-动态刷新率与分辨率仲裁displaymodedirector>#</a></h3><p>现代屏幕支持高刷动态切换（如 60Hz、90Hz、120Hz、VRR/LTPO 自适应）：</p><ul><li><strong>多维度投票仲裁机制（Votes）</strong>：
+<code>DisplayModeDirector</code> 维护了投票器体系，汇总各方诉求：<ol><li><strong>应用层投票（App Request）</strong>：通过 <code>Window.getAttributes().preferredDisplayModeId</code> 或 <code>preferredRefreshRate</code>（游戏申请 120Hz，视频播放器申请 24/60Hz）；</li><li><strong>系统设置投票（User Settings）</strong>：用户开启平滑显示或限制省电模式；</li><li><strong>温控保护投票（Thermal Throttling）</strong>：设备高温时锁定最高 60Hz 降温；</li><li><strong>低亮度防频闪投票（Low Brightness）</strong>：低亮度下锁定高刷新率以规避 OLED PWM 闪烁。</li></ol></li><li><strong>生效机制</strong>：
+DMS 仲裁出兼顾流畅与功耗的最优 Mode，通过 <code>SurfaceControl.setDesiredDisplayModeSpecs()</code> 传给 SurfaceFlinger，SF 在垂直同步（VSync）边界内安全驱动硬件完成切换。</li></ul><h3 id=62-显示电源与平滑亮度调光displaypowercontroller--displaypowerstate>6.2 显示电源与平滑亮度调光（DisplayPowerController & DisplayPowerState）<a hidden class=anchor aria-hidden=true href=#62-显示电源与平滑亮度调光displaypowercontroller--displaypowerstate>#</a></h3><p>屏幕电源管理的核心痛点是：<strong>底层硬件通断电操作耗时极长（百毫秒级），若在系统主线程同步执行必然引发系统冻结（ANR）。</strong></p><h4 id=1-displaypowerstate-的异步状态机与线程模型>1. DisplayPowerState 的异步状态机与线程模型<a hidden class=anchor aria-hidden=true href=#1-displaypowerstate-的异步状态机与线程模型>#</a></h4><p><code>DisplayPowerState</code> 充当了策略控制器与硬件执行之间的异步解耦层：</p><ul><li><strong>状态缓存器 (State Holder)</strong>：
+在 Java 内存中维护期望的目标状态：<code>mScreenState</code>（电源状态）、<code>mScreenBrightness</code>（背光亮度）、<code>mColorFadeLevel</code>（渐变透明度）。</li><li><strong>异步更新线程 (<code>PhotonicModulator</code>)</strong>：<ul><li>当状态改变时触发 <code>scheduleScreenUpdate()</code>；</li><li>任务投递给独立的后台线程 <code>PhotonicModulator</code>；</li><li>该线程循环接收状态，在后台调用 <code>mBlanker.requestDisplayState()</code>，通过 JNI 穿透到底层 SurfaceFlinger/HAL 执行硬件通断电与背光写入，<strong>彻底解放 DMS 主线程</strong>。</li></ul></li><li><strong><code>ColorFade</code> 开关屏动画协调</strong>：
+开关屏时协调绘制淡入淡出遮罩，通过 <code>Choreographer</code> 保证动画与屏幕 VSync 严格同步。</li><li><strong>状态收敛栅障 (<code>waitUntilClean</code>)</strong>：
+提供 <code>waitUntilClean(Runnable listener)</code> 回调。只有当 <code>PhotonicModulator</code> 确认硬件写入完成（<code>mScreenReady = true</code>）且遮罩动画结束时，才回调通知上层控制器完成状态收敛。</li></ul><h3 id=63-输入视口映射与触控分发inputmanagerservice-协同>6.3 输入视口映射与触控分发（InputManagerService 协同）<a hidden class=anchor aria-hidden=true href=#63-输入视口映射与触控分发inputmanagerservice-协同>#</a></h3><p>在多屏系统（尤其是车载多触控屏）中，物理触控事件必须准确路由到发生触摸的屏幕：</p><ul><li>DMS 通过 <code>DisplayViewport</code> 结构体，向 <code>InputManagerService</code> (IMS) 同步每个屏幕的绝对物理坐标、方向和缩放矩阵；</li><li>IMS 结合 Linux <code>evdev</code> 驱动的硬件端口名或 USB 总线路径，将物理触摸屏与对应的 <code>LogicalDisplay</code> 进行硬件级绑定，防止中控屏触摸错位影响副驾屏。</li></ul><hr><h2 id=7-高通平台-qualcomm-sdm-硬件合成器实现深度剖析>7. 高通平台 (Qualcomm SDM) 硬件合成器实现深度剖析<a hidden class=anchor aria-hidden=true href=#7-高通平台-qualcomm-sdm-硬件合成器实现深度剖析>#</a></h2><p>在搭载高通 SoC（如 SA8155、SA8295、SA8775 以及骁龙手机芯片）的平台上，Android 标准层定义的 <code>IComposerClient</code> HAL 接口具体落地为高通专属的 <strong>SDM (Snapdragon Display Manager)</strong> 显示框架。</p><h3 id=71-高通-hwc-架构全景与服务入口>7.1 高通 HWC 架构全景与服务入口<a hidden class=anchor aria-hidden=true href=#71-高通-hwc-架构全景与服务入口>#</a></h3><p>高通 HWC 架构分为四个核心层次：</p><ol><li><strong>Service Process Entry</strong>：进程入口 <code>service.cpp</code>，遵循 Android VINTF 规范暴露 <code>AidlComposer</code> (<code>BnComposer</code>) AIDL 服务。</li><li><strong>SDM Client Layer</strong>：包含隐藏的单例管理中枢 <strong><code>ConcurrencyMgr</code></strong> 与负责组装屏幕的 <code>SDMDisplayBuilder</code>。</li><li><strong>SDM Core Layer</strong>：包含核心业务实现 <code>CoreImpl</code>、内建屏幕实体 <code>DisplayBuiltIn</code>、以及负责多 DPU 核心管线复用的 <code>DPUMultiCore (Mux)</code>。</li><li><strong>Device Abstraction Layer (DAL)</strong>：包含硬件探测接口 <code>HWInfoInterface</code> 与驱动对接实体 <strong><code>HWPeripheralDRM</code></strong>。</li></ol><h3 id=72-高通-hwc-启动与-display-创建全流程时序>7.2 高通 HWC 启动与 Display 创建全流程时序<a hidden class=anchor aria-hidden=true href=#72-高通-hwc-启动与-display-创建全流程时序>#</a></h3><p>以下 Mermaid 时序图展现了从 <code>service.cpp</code> 启动到底层物理屏幕对象完整构建的详细步骤：</p><div class=mermaid>sequenceDiagram
+autonumber
+box Service Process Entry
+participant Main as Main (service.cpp)
+participant AC as AidlComposer (BnComposer)
+end
+box SDM Client Layer
+participant Factory as SDMInterfaceFactory
+participant CM as ConcurrencyMgr
+participant Builder as SDMDisplayBuilder
+end
+box SDM Core Layer
+participant CoreStatic as CoreInterface
+participant Core as CoreImpl
+participant DBI as DisplayBuiltIn
+participant Mux as DPUMultiCore (Mux)
+end
+box Device Abstraction Layer (DAL)
+participant HWInfo as HWInfoInterface
+participant HWFactory as HWInterface (Factory)
+participant HW as HWPeripheralDRM
+end
+%% Phase 1: Service Startup & Interface Binding
+Note over Main,AC: Phase 1: Service Startup & Interface Binding
+Main->>Main: setpriority / sched_setscheduler
+Main->>AC: new AidlComposer()
+activate AC
+AC->>Factory: CreateLifeCycleIntf() / CreateSettingsIntf()
+activate Factory
+Factory->>CM: ConcurrencyMgr::GetInstance() (Singleton)
+activate CM
+CM-->>Factory: instance
+deactivate CM
+Factory-->>AC: shared_ptr<concurrencymgr>
+deactivate Factory
+AC->>CM: Init(buffer_allocator, ...)
+activate CM
+%% Phase 2: SDM Core Environment Initialization
+Note over CM,Builder: Phase 2: SDM Core Environment Initialization
+CM->>CM: InitSubModules()
+CM->>CoreStatic: CreateCore(...)
+activate CoreStatic
+CoreStatic->>Core: new CoreImpl(...)
+activate Core
+Core->>Core: Init()
+Core->>HWInfo: Create(&hw_info_intf)
+activate HWInfo
+HWInfo->>HWInfo: Open DRM (/dev/dri/card0) & Get Caps
+HWInfo-->>Core: Success
+deactivate HWInfo
+Core-->>CoreStatic: Success
+deactivate Core
+CoreStatic-->>CM: core_intf_
+deactivate CoreStatic
+CM->>Builder: new SDMDisplayBuilder(core_intf_, ...)
+activate Builder
+CM->>Builder: Init()
+%% Phase 3: Primary Display Creation
+Note over CM,HW: Phase 3: Primary Display Creation
+CM->>CM: CreatePrimaryDisplay()
+CM->>Builder: CreatePrimaryDisplay()
+Builder->>Core: GetDisplaysStatus()
+activate Core
+Core->>HWInfo: GetDisplaysStatus()
+activate HWInfo
+HWInfo-->>Core: HWDisplaysInfo (is_connected=true, type=BuiltIn)
+deactivate HWInfo
+Core-->>Builder: HWDisplaysInfo
+deactivate Core
+Builder->>DBI: DisplayBuiltIn::Create(...)
+activate DBI
+DBI->>DBI: Init()
+DBI->>Mux: DPUCoreFactory::Create(...)
+activate Mux
+Mux->>Mux: Init()
+loop For Each DPU Core
+Mux->>HWFactory: HWInterface::Create(type=kBuiltIn)
+activate HWFactory
+HWFactory->>HW: new HWPeripheralDRM(...)
+activate HW
+HWFactory->>HW: Init()
+HW->>HW: HWDeviceDRM::Init() (Register Display)
+HW->>HW: PopulateHWPanelInfo() (Read Max Brightness)
+HW-->>HWFactory: Success
+deactivate HW
+HWFactory-->>Mux: HWInterface*
+deactivate HWFactory
+end
+Mux-->>DBI: Success
+deactivate Mux
+DBI-->>Builder: Display*
+deactivate DBI
+Builder->>CM: SetDisplayByClientId(Primary, DBI*)
+Note right of CM: sdm_display_[0] = DBI
+Builder-->>CM: Success
+deactivate Builder
+CM-->>AC: Success
+deactivate CM
+AC-->>Main: Created
+deactivate AC
+%% Phase 4: Service Ready
+Note over Main: Phase 4: Service Ready
+Main->>Main: AServiceManager_addService(AidlComposer)
+Note right of Main: Service ready, awaiting SurfaceFlinger connection</div><h3 id=73-核心实现组件深度解析>7.3 核心实现组件深度解析<a hidden class=anchor aria-hidden=true href=#73-核心实现组件深度解析>#</a></h3><h4 id=1-进程门面servicecpp-与-aidlcomposer>1. 进程门面：<code>service.cpp</code> 与 <code>AidlComposer</code><a hidden class=anchor aria-hidden=true href=#1-进程门面servicecpp-与-aidlcomposer>#</a></h4><p>HWC 进程启动时不直接触碰硬件，而是优先构造 <code>AidlComposer</code>。该类是整个 Composer HAL 面向 Binder 客户端（SurfaceFlinger）的服务实现门面。</p><h4 id=2-上帝对象concurrencymgr>2. 上帝对象：<code>ConcurrencyMgr</code><a hidden class=anchor aria-hidden=true href=#2-上帝对象concurrencymgr>#</a></h4><p><code>AidlComposer</code> 初始化时通过工厂类获取 <code>LifeCycle</code>、<code>Settings</code> 等关键接口。在源码底层，这些接口全部由同一个单例实现——<strong><code>ConcurrencyMgr</code></strong>。它是 SDM Client 层的总控制台，负责全局并发会话仲裁与屏幕生命周期流转。</p><h4 id=3-硬件扫描hwinfointerface>3. 硬件扫描：<code>HWInfoInterface</code><a hidden class=anchor aria-hidden=true href=#3-硬件扫描hwinfointerface>#</a></h4><p>在构建屏幕实例前，SDM 必须先摸清硬件底细。<code>CoreImpl</code> 初始化时调用 <code>HWInfoInterface</code> 打开 Linux DRM 主节点（<code>/dev/dri/card0</code>），扫描 Connector 列表并解析 EDID，判定内建屏与外接屏的连接状态。</p><h4 id=4-对象工厂链条builder-rightarrow-displaybuiltin-rightarrow-hwperipheraldrm>4. 对象工厂链条：<code>Builder</code> $\rightarrow$ <code>DisplayBuiltIn</code> $\rightarrow$ <code>HWPeripheralDRM</code><a hidden class=anchor aria-hidden=true href=#4-对象工厂链条builder-rightarrow-displaybuiltin-rightarrow-hwperipheraldrm>#</a></h4><ul><li><strong><code>SDMDisplayBuilder</code></strong>：识别出主屏连接后，创建 <code>DisplayBuiltIn</code> 逻辑对象。</li><li><strong><code>DPUMultiCore (Mux)</code></strong>：针对高分辨率超宽屏或双目屏，控制多个 DPU Core 分工合并。</li><li><strong><code>HWPeripheralDRM</code></strong>：作为底层驱动抽象（DAL），真正建立与 Linux DRM/KMS 的 Session 并在 <code>PopulateHWPanelInfo</code> 中读取面板属性。</li></ul><h3 id=74-车载虚拟化环境下的典型避坑经验>7.4 车载虚拟化环境下的典型避坑经验<a hidden class=anchor aria-hidden=true href=#74-车载虚拟化环境下的典型避坑经验>#</a></h3><p>在基于 Hypervisor（如 QNX、Gunyah）的车载虚拟化架构中，Android 通常作为 Guest VM 运行：</p><ul><li><strong>背光路径与 BadConfig 隐患</strong>：
+<code>HWPeripheralDRM</code> 初始化时会调用 <code>PopulateHWPanelInfo()</code> 尝试读取 <code>/sys/class/backlight/...</code> 节点获取屏幕最大亮度与调光曲线。</li><li><strong>典型失效模式</strong>：
+若在虚拟机配置中没有给 Android 正确透传或虚拟化背光节点，HWC 在初始化时由于路径不存在可能将 <code>max_brightness</code> 置为 0。随后当 SurfaceFlinger 或 DMS 首次下发亮度更新或显示模式时，SDM 会抛出 <code>BadConfig</code> 或无声忽略，导致车载屏幕在休眠唤醒后出现**“背光全黑但系统正常运行”**的棘手故障。</li></ul><hr><h2 id=8-关键源码对照与跟踪索引>8. 关键源码对照与跟踪索引<a hidden class=anchor aria-hidden=true href=#8-关键源码对照与跟踪索引>#</a></h2><table><thead><tr><th style=text-align:left>业务领域</th><th style=text-align:left>核心类 / 接口</th><th style=text-align:left>源码路径 (AOSP / Qualcomm SDM)</th><th style=text-align:left>核心职责</th></tr></thead><tbody><tr><td style=text-align:left><strong>Java 逻辑显示服务</strong></td><td style=text-align:left><code>DisplayManagerService</code></td><td style=text-align:left><code>frameworks/base/services/core/java/com/android/server/display/DisplayManagerService.java</code></td><td style=text-align:left>系统总入口，处理生命周期与策略流转</td></tr><tr><td style=text-align:left><strong>设备仓储中枢</strong></td><td style=text-align:left><code>DisplayDeviceRepository</code></td><td style=text-align:left><code>frameworks/base/services/core/java/com/android/server/display/DisplayDeviceRepository.java</code></td><td style=text-align:left>集中缓存所有激活的硬件/虚拟设备实体</td></tr><tr><td style=text-align:left><strong>逻辑映射中枢</strong></td><td style=text-align:left><code>LogicalDisplayMapper</code></td><td style=text-align:left><code>frameworks/base/services/core/java/com/android/server/display/LogicalDisplayMapper.java</code></td><td style=text-align:left>物理设备与逻辑设备绑定、多屏与折叠屏策略</td></tr><tr><td style=text-align:left><strong>状态机与布局配置</strong></td><td style=text-align:left><code>Layout</code></td><td style=text-align:left><code>frameworks/base/services/core/java/com/android/server/display/layout/Layout.java</code></td><td style=text-align:left>物理地址与逻辑 ID 的映射蓝图定义</td></tr><tr><td style=text-align:left><strong>电源异步更新中枢</strong></td><td style=text-align:left><code>DisplayPowerState</code></td><td style=text-align:left><code>frameworks/base/services/core/java/com/android/server/display/DisplayPowerState.java</code></td><td style=text-align:left>管理 <code>PhotonicModulator</code> 异步线程与调光动画</td></tr><tr><td style=text-align:left><strong>Native 合成服务</strong></td><td style=text-align:left><code>SurfaceFlinger</code></td><td style=text-align:left><code>frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp</code></td><td style=text-align:left>合成总管，维护 <code>mDisplays</code> 字典与帧调度</td></tr><tr><td style=text-align:left><strong>Native 显示设备</strong></td><td style=text-align:left><code>DisplayDevice</code></td><td style=text-align:left><code>frameworks/native/services/surfaceflinger/DisplayDevice.cpp</code></td><td style=text-align:left>Native 显示端点抽象，封装 <code>compositionengine::Display</code></td></tr><tr><td style=text-align:left><strong>合成输出端基类</strong></td><td style=text-align:left><code>compositionengine::Output</code></td><td style=text-align:left><code>frameworks/native/services/surfaceflinger/CompositionEngine/src/Output.cpp</code></td><td style=text-align:left>视口、投影几何变换、LayerStack 过滤与合成</td></tr><tr><td style=text-align:left><strong>图层具象输出实例</strong></td><td style=text-align:left><code>compositionengine::OutputLayer</code></td><td style=text-align:left><code>frameworks/native/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp</code></td><td style=text-align:left>Layer 在特定 Output 上的状态与硬件准备</td></tr><tr><td style=text-align:left><strong>高通 AIDL Composer 门面</strong></td><td style=text-align:left><code>AidlComposer</code></td><td style=text-align:left><code>hardware/qcom/display/sdm/libs/hwc2/service.cpp</code></td><td style=text-align:left>高通 HWC 进程入口与 Binder 服务实现</td></tr><tr><td style=text-align:left><strong>高通 SDM 单例控制中枢</strong></td><td style=text-align:left><code>ConcurrencyMgr</code></td><td style=text-align:left><code>hardware/qcom/display/sdm/libs/hwc2/concurrency_mgr.cpp</code></td><td style=text-align:left>SDM Client 总控制台，驱动屏幕构建流转</td></tr><tr><td style=text-align:left><strong>高通内建屏幕逻辑实现</strong></td><td style=text-align:left><code>DisplayBuiltIn</code></td><td style=text-align:left><code>hardware/qcom/display/sdm/libs/core/display_builtin.cpp</code></td><td style=text-align:left>内建显示屏业务逻辑，对接 DPU 多核多通道</td></tr><tr><td style=text-align:left><strong>高通 DRM 硬件交互适配</strong></td><td style=text-align:left><code>HWPeripheralDRM</code></td><td style=text-align:left><code>hardware/qcom/display/sdm/libs/core/drm/hw_peripheral_drm.cpp</code></td><td style=text-align:left>对接 Linux DRM/KMS IOCTL，读取背光与配置</td></tr></tbody></table><hr><p><em>End of Documentation.</em></p></div><footer class=post-footer><ul class=post-tags></ul><nav class=paginav><a class=next href=https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-buffer-stuffing/><span class=title>Next »</span>
+<span>Android BufferQueue 与 Buffer Stuffing：状态、同步和恢复机制</span></a></nav></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://ethen-cao.github.io/ethenslab/>Ethen 的实验室</a></span> ·
+<span>Powered by
+<a href="https://gohugo.io/?utm_source=papermod" rel=noopener target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top id=top-link class="top-link hidden" aria-label="go to top" title="Go to Top (Alt + G)" accesskey=g><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevrons-up"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+</a><script src=https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js></script><script>mermaid.initialize({startOnLoad:!0,theme:"default"})</script><script src=https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js></script><script>(function(){const e=document.querySelectorAll("pre > code.language-plantuml, pre > code.language-planuml");e.forEach(e=>{const s=e.innerText,o=plantumlEncoder.encode(s),i="https://www.plantuml.com/plantuml/svg/"+o,t=document.createElement("img");t.src=i,t.alt="PlantUML Diagram",t.style.maxWidth="100%";const n=e.parentNode;n.parentNode.replaceChild(t,n)})})()</script><script>let menu=document.getElementById("menu");if(menu){const e=localStorage.getItem("menu-scroll-position");e&&(menu.scrollLeft=parseInt(e,10)),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}}document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var toplink=document.getElementById("top-link");window.onscroll=function(){const e=window.innerHeight;document.body.scrollTop>e||document.documentElement.scrollTop>e?toplink.classList.remove("hidden"):toplink.classList.add("hidden")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{const e=document.querySelector("html");e.dataset.theme==="dark"?(e.dataset.theme="light",localStorage.setItem("pref-theme","light")):(e.dataset.theme="dark",localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

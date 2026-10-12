@@ -8,7 +8,7 @@
   const ORIGINS = {oem: '#4285F4', native: '#34A853', vendor: '#FBBC04'};
   const PARTY_COLORS = {oem: '#4285F4', tier1: '#FBBC04', 'soc-vendor': '#A78BFA', 'os-vendor': '#34A853', other: '#38BDF8'};
   const PALETTE_COLORS = {blue: '#4285F4', green: '#34A853', amber: '#FBBC04', purple: '#A78BFA', cyan: '#38BDF8', orange: '#FB923C', pink: '#F472B6', indigo: '#818CF8'};
-  const EDGE_LABELS = {dependency: 'Dependency', control: 'Call / IPC', data: 'Data / pixels', notification: 'Notification / interrupt', config: 'Configuration / allocation'};
+  const EDGE_LABELS = {dependency: 'Dependency', control: 'Call / IPC', data: 'Data', notification: 'Notification / interrupt', config: 'Configuration / allocation'};
   const same = (a, b) => Math.abs(a - b) < 0.001;
   const fmt = n => String(Math.round(n * 1000) / 1000);
   const equal = (a, b) => same(a.x, b.x) && same(a.y, b.y);

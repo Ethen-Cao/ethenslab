@@ -1,4 +1,81 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/</link><description>Recent content on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Sat, 10 Oct 2026 00:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml"/><item><title>SA8797 PVM panic 后的 Minidump 与 rawdump 流程</title><link>https://ethen-cao.github.io/ethenslab/gunyah/pvm-panic-boot-firmware-minidump-rawdump/</link><pubDate>Mon, 28 Sep 2026 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/pvm-panic-boot-firmware-minidump-rawdump/</guid><description>从 PVM 内核登记转储区域、panic 与复位，到启动固件写 rawdump 和下次启动提取的源码链</description></item><item><title>Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查</title><link>https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/</link><pubDate>Mon, 21 Sep 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/</guid><description>理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。</description></item><item><title>GVM Watchdog 原理：la_gvm 串口文件阻塞如何演变为 Watchdog Bite</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gvm-watchdog-virtio-console-backpressure/</link><pubDate>Sun, 20 Sep 2026 13:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gvm-watchdog-virtio-console-backpressure/</guid><description>&lt;h2 id="一结论先行"&gt;一、结论先行&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/</link><description>Recent content on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Mon, 12 Oct 2026 00:00:00 +0000</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml"/><item><title>Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/android_display_subsystem_wiki/</link><pubDate>Mon, 12 Oct 2026 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/android_display_subsystem_wiki/</guid><description>&lt;h1 id="android-显示系统架构displaymanagerservice-与-surfaceflinger-双层显示管理机制"&gt;Android 显示系统架构：DisplayManagerService 与 SurfaceFlinger 双层显示管理机制&lt;/h1&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;文档版本&lt;/strong&gt;: 2.0.0 (Comprehensive Edition)&lt;br&gt;
+&lt;strong&gt;状态&lt;/strong&gt;: 正式发布 (Approved)&lt;br&gt;
+&lt;strong&gt;涵盖模块&lt;/strong&gt;: DisplayManagerService (DMS), WindowManagerService (WMS), SurfaceFlinger (SF), CompositionEngine, HWComposer (HWC), Qualcomm SDM (Snapdragon Display Manager), Linux DRM/KMS&lt;br&gt;
+&lt;strong&gt;适用平台&lt;/strong&gt;: Android 10 ~ Android 14+ (包含 AOSP Phone/Tablet、Foldable 折叠屏、Android Automotive OS 车载多屏以及高通芯片座舱平台)&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;hr&gt;
+&lt;h2 id="目录"&gt;目录&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;a href="#1-%e5%bc%95%e8%a8%80%e4%b8%8e%e6%9e%b6%e6%9e%84%e5%85%a8%e6%99%af"&gt;引言与架构全景&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="#2-%e6%98%be%e7%a4%ba%e7%ae%a1%e7%90%86%e7%9a%84%e6%a0%b8%e5%bf%83%e5%8f%8c%e5%b1%82%e8%af%ad%e4%b9%89"&gt;显示管理的核心双层语义&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="#3-%e7%ac%ac%e4%b8%80%e5%b1%82%e8%af%ad%e4%b9%89%e7%89%a9%e7%90%86%e6%98%be%e7%a4%ba%e8%ae%be%e5%a4%87%e7%9a%84%e7%94%9f%e5%91%bd%e5%91%a8%e6%9c%9f%e7%ae%a1%e7%90%86"&gt;第一层语义：物理显示设备的生命周期管理&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;3.1 &lt;a href="#31-%e7%a1%ac%e4%bb%b6%e7%ab%af%e5%8f%a3%e6%84%9f%e7%9f%a5%e4%b8%8e-physicaldisplayid-%e7%bc%96%e7%a0%81"&gt;硬件端口感知与 PhysicalDisplayId 编码&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;3.2 &lt;a href="#32-hotplug-%e7%83%ad%e6%8f%92%e6%8b%94%e4%b8%8e%e8%ae%be%e5%a4%87%e6%b3%a8%e5%86%8c%e5%85%a8%e9%93%be%e8%b7%af"&gt;Hotplug 热插拔与设备注册全链路&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;3.3 &lt;a href="#33-java-%e6%a1%86%e6%9e%b6%e5%86%85%e9%83%a8%e8%ae%be%e5%a4%87%e6%b5%81%e8%bd%ac%e4%b8%8e-logicaldisplay-%e5%88%9b%e5%bb%ba%e6%b5%81%e6%b0%b4%e7%ba%bf"&gt;Java 框架内部设备流转与 LogicalDisplay 创建流水线&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;3.4 &lt;a href="#34-surfaceflinger-native-%e5%b1%82%e7%9a%84-display-%e5%ae%9e%e4%bd%93%e4%bd%93%e7%b3%bb"&gt;SurfaceFlinger Native 层的 Display 实体体系&lt;/a&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="#4-%e7%ac%ac%e4%ba%8c%e5%b1%82%e8%af%ad%e4%b9%89%e9%80%bb%e8%be%91%e6%98%a0%e5%b0%84%e4%b8%8e%e5%90%88%e6%88%90%e7%ae%a1%e7%ba%bflayerstackoutput-%e4%b8%8e-display"&gt;第二层语义：逻辑映射与合成管线（LayerStack、Output 与 Display）&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;4.1 &lt;a href="#41-%e6%a0%b8%e5%bf%83%e5%ae%9e%e4%bd%93%e5%ae%9a%e4%b9%89%e4%b8%8e%e6%a6%82%e5%bf%b5%e7%9f%a9%e9%98%b5"&gt;核心实体定义与概念矩阵&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;4.2 &lt;a href="#42-displaydevice-%e4%b8%8e-output-%e7%9a%84%e5%85%b3%e7%b3%bb"&gt;DisplayDevice 与 Output 的关系&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;4.3 &lt;a href="#43-layerstack-%e7%9a%84%e8%ae%be%e8%ae%a1%e5%93%b2%e5%ad%a6%e4%b8%8e%e5%88%86%e9%85%8d%e6%9c%ba%e5%88%b6%e4%b8%8e-displayid-%e7%9a%84%e8%a7%a3%e8%80%a6"&gt;LayerStack 的设计哲学与分配机制（与 DisplayID 的解耦）&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;4.4 &lt;a href="#44-layerstack-%e4%b8%8e-output-%e7%9a%84%e7%a9%ba%e9%97%b4%e8%b7%af%e7%94%b1%e6%9c%ba%e5%88%b6"&gt;LayerStack 与 Output 的空间路由机制&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;4.5 &lt;a href="#45-outputlayer%e5%9b%be%e5%b1%82%e5%9c%a8%e8%be%93%e5%87%ba%e7%ab%af%e7%9a%84%e5%85%b7%e8%b1%a1%e5%8c%96"&gt;OutputLayer：图层在输出端的具象化&lt;/a&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="#5-%e7%bb%8f%e5%85%b8%e6%8b%93%e6%89%91%e6%98%a0%e5%b0%84%e6%a8%a1%e5%bc%8f%e5%ae%9e%e6%88%98"&gt;经典拓扑映射模式实战&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;5.1 &lt;a href="#51-%e6%a8%a1%e5%bc%8f-a%e8%bd%a6%e8%bd%bd%e7%8b%ac%e7%ab%8b%e5%a4%9a%e5%b1%8f%e4%b8%8e%e5%ba%a7%e8%88%b1%e6%98%be%e7%a4%ba%e7%bb%84%e9%9a%94%e7%a6%bbdisplaygroup"&gt;模式 A：车载独立多屏与座舱显示组隔离（DisplayGroup）&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;5.2 &lt;a href="#52-%e6%a8%a1%e5%bc%8f-b%e6%98%be%e7%a4%ba%e9%95%9c%e5%83%8f%e6%a8%a1%e5%bc%8fdisplay-mirroring"&gt;模式 B：显示镜像模式（Display Mirroring）&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;5.3 &lt;a href="#53-%e6%a8%a1%e5%bc%8f-c%e6%8a%98%e5%8f%a0%e5%b1%8f%e5%86%85%e5%a4%96%e5%b1%8f%e5%8a%a8%e6%80%81%e5%88%87%e6%8d%a2%e4%b8%8e%e8%ae%be%e5%a4%87%e7%8a%b6%e6%80%81%e6%9c%balayout"&gt;模式 C：折叠屏内外屏动态切换与设备状态机（Layout）&lt;/a&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="#6-%e8%bf%90%e8%a1%8c%e6%9c%9f%e6%a0%b8%e5%bf%83%e7%ad%96%e7%95%a5%e8%b0%83%e5%ba%a6"&gt;运行期核心策略调度&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;6.1 &lt;a href="#61-%e5%8a%a8%e6%80%81%e5%88%b7%e6%96%b0%e7%8e%87%e4%b8%8e%e5%88%86%e8%be%a8%e7%8e%87%e4%bb%b2%e8%a3%81displaymodedirector"&gt;动态刷新率与分辨率仲裁（DisplayModeDirector）&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;6.2 &lt;a href="#62-%e6%98%be%e7%a4%ba%e7%94%b5%e6%ba%90%e4%b8%8e%e5%b9%b3%e6%bb%91%e4%ba%ae%e5%ba%a6%e8%b0%83%e5%85%89displaypowercontroller--displaypowerstate"&gt;显示电源与平滑亮度调光（DisplayPowerController &amp;amp; DisplayPowerState）&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;6.3 &lt;a href="#63-%e8%be%93%e5%85%a5%e8%a7%86%e5%8f%a3%e6%98%a0%e5%b0%84%e4%b8%8e%e8%a7%a6%e6%8e%a7%e5%88%86%e5%8f%91inputmanagerservice-%e5%8d%8f%e5%90%8c"&gt;输入视口映射与触控分发（InputManagerService 协同）&lt;/a&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="#7-%e9%ab%98%e9%80%9a%e5%b9%b3%e5%8f%b0-qualcomm-sdm-%e7%a1%ac%e4%bb%b6%e5%90%88%e6%88%90%e5%99%a8%e5%ae%9e%e7%8e%b0%e6%b7%b1%e5%ba%a6%e5%89%96%e6%9e%90"&gt;高通平台 (Qualcomm SDM) 硬件合成器实现深度剖析&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;7.1 &lt;a href="#71-%e9%ab%98%e9%80%9a-hwc-%e6%9e%b6%e6%9e%84%e5%85%a8%e6%99%af%e4%b8%8e%e6%9c%8d%e5%8a%a1%e5%85%a5%e5%8f%a3"&gt;高通 HWC 架构全景与服务入口&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;7.2 &lt;a href="#72-%e9%ab%98%e9%80%9a-hwc-%e5%90%af%e5%8a%a8%e4%b8%8e-display-%e5%88%9b%e5%bb%ba%e5%85%a8%e6%b5%81%e7%a8%8b%e6%97%b6%e5%ba%8f"&gt;高通 HWC 启动与 Display 创建全流程时序&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;7.3 &lt;a href="#73-%e6%a0%b8%e5%bf%83%e5%ae%9e%e7%8e%b0%e7%bb%84%e4%bb%b6%e6%b7%b1%e5%ba%a6%e8%a7%a3%e6%9e%90"&gt;核心实现组件深度解析&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;7.4 &lt;a href="#74-%e8%bd%a6%e8%bd%bd%e8%99%9a%e6%8b%9f%e5%8c%96%e7%8e%af%e5%a2%83%e4%b8%8b%e7%9a%84%e5%85%b8%e5%9e%8b%e9%81%bf%e5%9d%91%e7%bb%8f%e9%aa%8c"&gt;车载虚拟化环境下的典型避坑经验&lt;/a&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;a href="#8-%e5%85%b3%e9%94%ae%e6%ba%90%e7%a0%81%e5%af%b9%e7%85%a7%e4%b8%8e%e8%b7%9f%e8%b8%aa%e7%b4%a2%e5%bc%95"&gt;关键源码对照与跟踪索引&lt;/a&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h2 id="1-引言与架构全景"&gt;1. 引言与架构全景&lt;/h2&gt;
+&lt;p&gt;在 Android 显示子系统中，&lt;strong&gt;显示管理（Display Management）&lt;/strong&gt; 是连接上层应用界面布局与底层芯片硬件扫描输出的承上启下中枢。上层 &lt;code&gt;WindowManagerService&lt;/code&gt; (WMS) 负责管理“窗口放在哪块屏上”，下层 &lt;code&gt;Hardware Composer&lt;/code&gt; (HWC) 负责调度“哪个硬件扫描通道（Pipeline）输出信号”，全部由 &lt;strong&gt;DisplayManagerService (DMS)&lt;/strong&gt; 与 &lt;strong&gt;SurfaceFlinger (SF)&lt;/strong&gt; 协同完成仲裁、抽象与路由。&lt;/p&gt;</description></item><item><title>Android BufferQueue 与 Buffer Stuffing：状态、同步和恢复机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-buffer-stuffing/</link><pubDate>Mon, 12 Oct 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-buffer-stuffing/</guid><description>从 Buffer Slot 状态和 Fence 出发，理解 BLAST 进程架构、缓冲积压、FrameTimeline 分类、Choreographer 恢复，以及 Perfetto 验证方法。</description></item><item><title>SA8797 PVM panic 后的 Minidump 与 rawdump 流程</title><link>https://ethen-cao.github.io/ethenslab/gunyah/pvm-panic-boot-firmware-minidump-rawdump/</link><pubDate>Mon, 28 Sep 2026 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/pvm-panic-boot-firmware-minidump-rawdump/</guid><description>从 PVM 内核登记转储区域、panic 与复位，到启动固件写 rawdump 和下次启动提取的源码链</description></item><item><title>Graphics Hypervisor Architecture：从 Guest 图形内存到 QNX 黑屏与 PMEM 排查</title><link>https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/</link><pubDate>Mon, 21 Sep 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/graphics-hypervisor-architecture/</guid><description>理解 HGSL、HAB、KGSL 与 SMMU 的协作，区分 Guest buffer 和 Host GPU context 内存，并通过一次黑屏与 pmemtbl 快照建立完整排查方法。</description></item><item><title>GVM Watchdog 原理：la_gvm 串口文件阻塞如何演变为 Watchdog Bite</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gvm-watchdog-virtio-console-backpressure/</link><pubDate>Sun, 20 Sep 2026 13:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gvm-watchdog-virtio-console-backpressure/</guid><description>&lt;h2 id="一结论先行"&gt;一、结论先行&lt;/h2&gt;
 &lt;p&gt;SA8797 的 GVM watchdog 不只检查 watchdog 内核线程是否还能调度，还会逐个检查所有在线 vCPU 能否执行一次 IPI 回调。当前实现使用同步调用：只要一个 vCPU 迟迟不响应，watchdog 线程就停在该 vCPU 上，无法执行本轮硬件喂狗。&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;la_gvm.txt&lt;/code&gt; 是 GVM virtio-console 在 PVM 侧的文件后端。GVM 的 hvc console 发送不是“把字符交给队列就返回”，而是把描述符放入 virtqueue 后，关闭本地中断并忙等 PVM 返回 used descriptor。PVM 的 qcrosvm 又是在 &lt;code&gt;/log/la_gvm/la_gvm.txt&lt;/code&gt; 的 &lt;code&gt;write_all()&lt;/code&gt; 返回之后才归还这个描述符。因此，PVM 文件写入的长尾延迟会跨过虚拟机边界，直接延长 GVM vCPU 的关中断等待时间。&lt;/p&gt;
 &lt;p&gt;当下面三个条件同时成立时，普通的日志写入延迟就可能升级成 GVM watchdog：&lt;/p&gt;
@@ -1633,183 +1710,7 @@ Browser_IMM --&amp;gt;&amp;gt; Browser: return false
 deactivate Browser_IMM
 deactivate Browser_VRI
 @enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;本时序图展示了一个配置为 &lt;code&gt;TYPE_APPLICATION_OVERLAY&lt;/code&gt; 但缺失 &lt;code&gt;FLAG_NOT_FOCUSABLE&lt;/code&gt; 属性的悬浮窗口（Overlay），如何在系统层（WMS）和输入法服务层（IMMS）通过标准生命周期回调，强制剥夺底层应用（Browser）的输入法连接权（Input Connection），导致底层应用虽然能响应点击但无法弹出软键盘的异常流程。&lt;/p&gt;</description></item><item><title>DisplayManagerService设计</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/displaymanagerservice/</guid><description>&lt;h2 id="logicaldisplay的创建过程"&gt;LogicalDisplay的创建过程&lt;/h2&gt;
-&lt;p&gt;这个时序图展示了从底层物理屏幕发现到上层窗口管理容器创建的完整链路。&lt;/p&gt;
-&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-13-LogicalDisplay-creating-sequence.png" alt="" /&gt;&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;初始化阶段&lt;/strong&gt;:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 启动，在 &lt;code&gt;onStart&lt;/code&gt; 方法中发送 &lt;code&gt;MSG_REGISTER_DEFAULT_DISPLAY_ADAPTERS&lt;/code&gt; 消息。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 的 Handler 处理该消息，调用 &lt;code&gt;registerDefaultDisplayAdapters&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;在 &lt;code&gt;registerDefaultDisplayAdapters&lt;/code&gt; 中，创建 &lt;code&gt;LocalDisplayAdapter&lt;/code&gt; 实例并注册。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;LocalDisplayAdapter 发现设备&lt;/strong&gt;:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;LocalDisplayAdapter&lt;/code&gt; 初始化时会从 &lt;code&gt;SurfaceControl&lt;/code&gt; 获取物理屏幕信息（通过 &lt;code&gt;SurfaceControlProxy&lt;/code&gt;）。&lt;/li&gt;
-&lt;li&gt;发现物理屏幕后，创建 &lt;code&gt;LocalDisplayDevice&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;调用 &lt;code&gt;sendDisplayDeviceEventLocked&lt;/code&gt; 发送 &lt;code&gt;DISPLAY_DEVICE_EVENT_ADDED&lt;/code&gt; 事件。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;DisplayDeviceRepository 处理事件&lt;/strong&gt;:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;DisplayAdapter&lt;/code&gt; 将事件发送给 &lt;code&gt;DisplayDeviceRepository&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;DisplayDeviceRepository&lt;/code&gt; 将 &lt;code&gt;LocalDisplayDevice&lt;/code&gt; 添加到列表，并通知监听者，即 &lt;code&gt;LogicalDisplayMapper&lt;/code&gt;。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;LogicalDisplayMapper 创建 LogicalDisplay&lt;/strong&gt;:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;LogicalDisplayMapper&lt;/code&gt; 收到 &lt;code&gt;DISPLAY_DEVICE_EVENT_ADDED&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;如果是默认屏幕，先进行初始化配置。&lt;/li&gt;
-&lt;li&gt;调用 &lt;code&gt;createNewLogicalDisplayLocked&lt;/code&gt; 创建 &lt;code&gt;LogicalDisplay&lt;/code&gt; 对象。&lt;/li&gt;
-&lt;li&gt;调用 &lt;code&gt;applyLayoutLocked&lt;/code&gt; 来根据设备状态配置布局。&lt;/li&gt;
-&lt;li&gt;最后调用 &lt;code&gt;updateLogicalDisplaysLocked&lt;/code&gt; 来更新整个系统的显示状态。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;strong&gt;通知系统和 WMS&lt;/strong&gt;:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;updateLogicalDisplaysLocked&lt;/code&gt; 中，&lt;code&gt;LogicalDisplayMapper&lt;/code&gt; 通知 &lt;code&gt;DisplayManagerService&lt;/code&gt; (通过 &lt;code&gt;Listener&lt;/code&gt;) &lt;code&gt;LOGICAL_DISPLAY_EVENT_ADDED&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 收到事件，调用 &lt;code&gt;handleLogicalDisplayAddedLocked&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 发送 &lt;code&gt;DisplayManagerGlobal.EVENT_DISPLAY_ADDED&lt;/code&gt; 到 Handler。&lt;/li&gt;
-&lt;li&gt;Handler 处理消息，调用 &lt;code&gt;deliverDisplayEvent&lt;/code&gt; 通知所有注册的 &lt;code&gt;IDisplayManagerCallback&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;关键点&lt;/strong&gt;: &lt;code&gt;WindowManagerService&lt;/code&gt; 在初始化时通过 &lt;code&gt;DisplayManagerInternal&lt;/code&gt; 获取了 &lt;code&gt;DisplayManager&lt;/code&gt; 的回调或直接监听。但在代码中，WMS 实际上是通过 &lt;code&gt;DisplayManagerInternal.registerDisplayTransactionListener&lt;/code&gt; 或直接轮询/监听来感知的。&lt;/li&gt;
-&lt;li&gt;更具体的路径是：&lt;code&gt;DisplayManagerService&lt;/code&gt; 在 &lt;code&gt;handleLogicalDisplayAddedLocked&lt;/code&gt; 中会配置显示属性，并最终触发 &lt;code&gt;DisplayTransactionListener&lt;/code&gt; 或发送广播。&lt;/li&gt;
-&lt;li&gt;在 &lt;code&gt;WindowManagerService&lt;/code&gt; 中，通常通过 &lt;code&gt;DisplayManager&lt;/code&gt; 的回调 &lt;code&gt;onDisplayAdded&lt;/code&gt; 感知，然后调用 &lt;code&gt;mRoot.createDisplayContent&lt;/code&gt;。在提供的代码中，&lt;code&gt;DisplayManagerService&lt;/code&gt; 拥有 &lt;code&gt;mDisplayTransactionListeners&lt;/code&gt;。&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;DisplayManagerService&lt;/code&gt; 的 &lt;code&gt;handleLogicalDisplayAddedLocked&lt;/code&gt; 会调用 &lt;code&gt;sendDisplayEventLocked&lt;/code&gt;，进而触发回调。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;&lt;em&gt;补充：&lt;code&gt;WindowManagerService&lt;/code&gt; 如何创建 &lt;code&gt;DisplayContent&lt;/code&gt;&lt;/em&gt;&lt;/p&gt;</description></item><item><title>HWC简介</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/composor/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/composor/</guid><description>&lt;p&gt;HWC 服务启动到底层 Display 对象创建完成的完整时序,这个过程主要分为三个阶段：&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;&lt;strong&gt;服务启动与依赖注入&lt;/strong&gt;：&lt;code&gt;service.cpp&lt;/code&gt; 启动进程，创建 AIDL 服务实体。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;SDM 环境初始化&lt;/strong&gt;：&lt;code&gt;ConcurrencyMgr&lt;/code&gt; 初始化，加载 Core 层和硬件信息。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Display 对象构建&lt;/strong&gt;：&lt;code&gt;DisplayBuilder&lt;/code&gt; 根据硬件信息创建具体的 &lt;code&gt;DisplayBuiltIn&lt;/code&gt; 和 &lt;code&gt;HWPeripheralDRM&lt;/code&gt;。&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h3 id="qualcomm-hwc-启动与-display-创建全流程"&gt;Qualcomm HWC 启动与 Display 创建全流程&lt;/h3&gt;
-&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
-!theme plain
-skinparam MaxMessageSize 200
-skinparam participantPadding 10
-skinparam boxPadding 10
-skinparam defaultFontName Monospaced
-autonumber &amp;#34;&amp;lt;b&amp;gt;[Boot-0]&amp;lt;/b&amp;gt;&amp;#34;
-title HWC Service Startup &amp;amp; Display Creation Sequence (Final Fix)
-box &amp;#34;Service Process Entry&amp;#34; #White
-participant &amp;#34;Main (service.cpp)&amp;#34; as Main
-participant &amp;#34;AidlComposer\n(BnComposer)&amp;#34; as AC
-end box
-box &amp;#34;SDM Client Layer&amp;#34; #LightYellow
-participant &amp;#34;SDMInterfaceFactory&amp;#34; as Factory
-participant &amp;#34;ConcurrencyMgr&amp;#34; as CM
-participant &amp;#34;SDMDisplayBuilder&amp;#34; as Builder
-end box
-box &amp;#34;SDM Core Layer&amp;#34; #LightGreen
-participant &amp;#34;CoreInterface&amp;#34; as CoreStatic
-participant &amp;#34;CoreImpl&amp;#34; as Core
-participant &amp;#34;DisplayBuiltIn&amp;#34; as DBI
-participant &amp;#34;DPUMultiCore\n(Mux)&amp;#34; as Mux
-end box
-box &amp;#34;Device Abstraction Layer (DAL)&amp;#34; #LightGray
-participant &amp;#34;HWInfoInterface&amp;#34; as HWInfo
-participant &amp;#34;HWInterface\n(Factory)&amp;#34; as HWFactory
-participant &amp;#34;HWPeripheralDRM&amp;#34; as HW
-end box
-== 阶段 1: 服务启动与接口绑定 ==
-Main -&amp;gt; Main: setpriority / sched_setscheduler
-create AC
-Main -&amp;gt; AC: **new AidlComposer()**
-activate AC
-&amp;#39; 1.1 创建核心管理对象 ConcurrencyMgr
-AC -&amp;gt; Factory: CreateLifeCycleIntf() / CreateSettingsIntf() ...
-activate Factory
-Factory -&amp;gt; CM: **GetInstance()** (Singleton)
-activate CM
-CM --&amp;gt; Factory: instance
-deactivate CM
-Factory --&amp;gt; AC: shared_ptr&amp;lt;ConcurrencyMgr&amp;gt;
-deactivate Factory
-&amp;#39; 1.2 初始化 ConcurrencyMgr
-AC -&amp;gt; CM: **Init(buffer_allocator, ...)**
-activate CM
-== 阶段 2: SDM 核心环境初始化 ==
-CM -&amp;gt; CM: InitSubModules()
-&amp;#39; 2.1 创建 CoreImpl
-CM -&amp;gt; CoreStatic: **CreateCore(...)**
-activate CoreStatic
-create Core
-CoreStatic -&amp;gt; Core: new CoreImpl(...)
-Core -&amp;gt; Core: Init()
-&amp;#39; 2.2 加载硬件信息 (DRM Capability)
-Core -&amp;gt; HWInfo: Create(&amp;amp;hw_info_intf)
-activate HWInfo
-HWInfo -&amp;gt; HWInfo: Open DRM / Get Caps
-HWInfo --&amp;gt; Core: Success
-deactivate HWInfo
-Core --&amp;gt; CoreStatic: Success
-CoreStatic --&amp;gt; CM: core_intf_
-deactivate CoreStatic
-&amp;#39; 2.3 创建 Builder
-create Builder
-CM -&amp;gt; Builder: new SDMDisplayBuilder(core_intf_, ...)
-CM -&amp;gt; Builder: Init()
-== 阶段 3: 创建主显示设备 (Primary Display) ==
-CM -&amp;gt; CM: CreatePrimaryDisplay()
-CM -&amp;gt; Builder: **CreatePrimaryDisplay()**
-activate Builder
-&amp;#39; 3.1 查询连接状态
-Builder -&amp;gt; Core: GetDisplaysStatus()
-Core -&amp;gt; HWInfo: GetDisplaysStatus()
-HWInfo --&amp;gt; Core: HWDisplaysInfo (is_connected=true, type=BuiltIn)
-Core --&amp;gt; Builder: HWDisplaysInfo
-&amp;#39; 3.2 发现 Primary BuiltIn Display，开始构建
-create DBI
-Builder -&amp;gt; DBI: **Create(...)**
-activate DBI
-DBI -&amp;gt; DBI: Init()
-&amp;#39; 3.3 创建 DPU Mux (处理多核/Split)
-&amp;#39; [修复点] create Mux 必须紧邻发送给 Mux 的消息
-create Mux
-DBI -&amp;gt; Mux: **DPUCoreFactory::Create(...)**
-activate Mux
-Mux -&amp;gt; Mux: Init()
-&amp;#39; 3.4 创建底层 HW Interface
-loop For Each DPU Core
-Mux -&amp;gt; HWFactory: **HWInterface::Create(type=kBuiltIn)**
-activate HWFactory
-create HW
-HWFactory -&amp;gt; HW: **new HWPeripheralDRM(...)**
-activate HW
-HWFactory -&amp;gt; HW: Init()
-&amp;#39; 3.5 HW 初始化 (DRM Session)
-HW -&amp;gt; HW: HWDeviceDRM::Init() (Register Display)
-HW -&amp;gt; HW: PopulateHWPanelInfo() (Read Max Brightness)
-HW --&amp;gt; HWFactory: Success
-deactivate HW
-HWFactory --&amp;gt; Mux: HWInterface*
-deactivate HWFactory
-end
-Mux --&amp;gt; DBI: Success
-deactivate Mux
-DBI --&amp;gt; Builder: Display*
-deactivate DBI
-&amp;#39; 3.6 注册回 ConcurrencyMgr
-Builder -&amp;gt; CM: SetDisplayByClientId(Primary, DBI*)
-note right of CM: sdm_display_[0] = DBI
-Builder --&amp;gt; CM: Success
-deactivate Builder
-CM --&amp;gt; AC: Success
-deactivate CM
-AC --&amp;gt; Main: Created
-deactivate AC
-Main -&amp;gt; Main: AServiceManager_addService(AidlComposer)
-note right of Main: 服务就绪，等待 SurfaceFlinger 连接
-@enduml
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id="关键步骤解析"&gt;关键步骤解析&lt;/h3&gt;
-&lt;h4 id="1-唯一入口servicecpp"&gt;1. 唯一入口：&lt;code&gt;service.cpp&lt;/code&gt;&lt;/h4&gt;
-&lt;p&gt;这是 HWC 进程的起点。它并没有直接去操作硬件，而是先创建了 &lt;code&gt;AidlComposer&lt;/code&gt;。这符合 Android VINTF 架构，将 AIDL 接口作为服务的门面。&lt;/p&gt;</description></item><item><title>InputMethodManagerService 技术文档</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/</guid><description>&lt;h2 id="架构概述与系统定位"&gt;架构概述与系统定位&lt;/h2&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;本时序图展示了一个配置为 &lt;code&gt;TYPE_APPLICATION_OVERLAY&lt;/code&gt; 但缺失 &lt;code&gt;FLAG_NOT_FOCUSABLE&lt;/code&gt; 属性的悬浮窗口（Overlay），如何在系统层（WMS）和输入法服务层（IMMS）通过标准生命周期回调，强制剥夺底层应用（Browser）的输入法连接权（Input Connection），导致底层应用虽然能响应点击但无法弹出软键盘的异常流程。&lt;/p&gt;</description></item><item><title>InputMethodManagerService 技术文档</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/</link><pubDate>Mon, 29 Sep 2025 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/inputmethod/</guid><description>&lt;h2 id="架构概述与系统定位"&gt;架构概述与系统定位&lt;/h2&gt;
 &lt;p&gt;IME（Input Method Editor，输入法编辑器）是 Android 中负责文本输入的独立应用，典型例子是系统键盘。它运行在自己的进程中，通过软键盘界面接收用户输入，再将文本提交给当前获得焦点的应用。&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;InputMethodManagerService&lt;/code&gt; (IMMS) 是运行在 &lt;code&gt;system_server&lt;/code&gt; 中的系统输入法中枢。它本身不负责编辑文本，也不负责绘制键盘界面；它的主要职责是：&lt;/p&gt;
 &lt;ul&gt;
@@ -4242,100 +4143,7 @@ LPM1 --&gt; GLP
 &lt;/table&gt;
 &lt;hr&gt;
 &lt;h2 id="二分层设计"&gt;二、分层设计&lt;/h2&gt;
-&lt;p&gt;系统分为四层，从上到下依次为:&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-statemachine/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/bufferqueue-statemachine/</guid><description>&lt;h1 id="深入理解-bufferqueue-状态机"&gt;深入理解 BufferQueue 状态机&lt;/h1&gt;
-&lt;h2 id="一核心状态定义"&gt;一、核心状态定义&lt;/h2&gt;
-&lt;p&gt;在 BufferQueue 中，每个 Buffer Slot 的状态由一个计数器三元组 &lt;code&gt;(mDequeueCount, mQueueCount, mAcquireCount)&lt;/code&gt; 以及 &lt;code&gt;mShared&lt;/code&gt; 标志位共同决定。具体分为以下 5 种核心状态：&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;状态&lt;/th&gt;
-&lt;th style="text-align: center"&gt;标识位 (mShared)&lt;/th&gt;
-&lt;th style="text-align: center"&gt;Dequeue 计数&lt;/th&gt;
-&lt;th style="text-align: center"&gt;Queue 计数&lt;/th&gt;
-&lt;th style="text-align: center"&gt;Acquire 计数&lt;/th&gt;
-&lt;th&gt;当前持有者&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;FREE&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: center"&gt;false&lt;/td&gt;
-&lt;td style="text-align: center"&gt;0&lt;/td&gt;
-&lt;td style="text-align: center"&gt;0&lt;/td&gt;
-&lt;td style="text-align: center"&gt;0&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;BufferQueue&lt;/strong&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;DEQUEUED&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: center"&gt;false&lt;/td&gt;
-&lt;td style="text-align: center"&gt;1&lt;/td&gt;
-&lt;td style="text-align: center"&gt;0&lt;/td&gt;
-&lt;td style="text-align: center"&gt;0&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;Producer&lt;/strong&gt; (App 渲染线程)&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;QUEUED&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: center"&gt;false&lt;/td&gt;
-&lt;td style="text-align: center"&gt;0&lt;/td&gt;
-&lt;td style="text-align: center"&gt;1&lt;/td&gt;
-&lt;td style="text-align: center"&gt;0&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;BufferQueue&lt;/strong&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;ACQUIRED&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: center"&gt;false&lt;/td&gt;
-&lt;td style="text-align: center"&gt;0&lt;/td&gt;
-&lt;td style="text-align: center"&gt;0&lt;/td&gt;
-&lt;td style="text-align: center"&gt;1&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;Consumer&lt;/strong&gt; (SurfaceFlinger)&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;&lt;strong&gt;SHARED&lt;/strong&gt;&lt;/td&gt;
-&lt;td style="text-align: center"&gt;true&lt;/td&gt;
-&lt;td style="text-align: center"&gt;任意&lt;/td&gt;
-&lt;td style="text-align: center"&gt;任意&lt;/td&gt;
-&lt;td style="text-align: center"&gt;任意&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;Producer &amp;amp; Consumer&lt;/strong&gt; (共享模式)&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h3 id="状态详解"&gt;状态详解：&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;FREE (空闲)&lt;/strong&gt;：Buffer 完全由 BufferQueue 拥有，随时可以被 Producer 申请（Dequeue）。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;DEQUEUED (已出队)&lt;/strong&gt;：Producer 成功申请了该 Buffer，目前由 Producer 独占。Producer 必须等待相关的 Release Fence 发出信号后，才能安全地向其中写入数据。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;QUEUED (已入队)&lt;/strong&gt;：Producer 完成了绘制并将 Buffer 交还给 BufferQueue 排队。此时 Buffer 内容已就绪，但 Consumer 必须等待 Acquire Fence 发出信号才能读取。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;ACQUIRED (已获取)&lt;/strong&gt;：Consumer (如 SurfaceFlinger) 拿到了该 Buffer 进行合成或显示。当消费完成后，Consumer 会将其释放回 FREE 状态。&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;SHARED (共享)&lt;/strong&gt;：特殊模式，允许多个组件同时并发访问该 Buffer（不仅限于单一状态）。&lt;/li&gt;
-&lt;/ul&gt;
-&lt;hr&gt;
-&lt;h2 id="二状态流转与核心-api"&gt;二、状态流转与核心 API&lt;/h2&gt;
-&lt;p&gt;Buffer 的生命周期本质上是 Producer 和 Consumer 之间的数据传递过程。以下是完整的状态转换图及其对应的核心 API。&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/display/recoverable_from_buffer_stuffing/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/recoverable_from_buffer_stuffing/</guid><description>&lt;h1 id="recoverable_from_buffer_stuffing-机制详解"&gt;RECOVERABLE_FROM_BUFFER_STUFFING 机制详解&lt;/h1&gt;
-&lt;h2 id="一什么是-buffer-stuffing"&gt;一、什么是 Buffer Stuffing&lt;/h2&gt;
-&lt;p&gt;&lt;strong&gt;Buffer Stuffing&lt;/strong&gt;（缓冲区拥堵）是 Android 图形系统中一种特定的 Jank 类型（&lt;code&gt;JankType::BufferStuffing = 0x40&lt;/code&gt;）。&lt;/p&gt;
-&lt;h3 id="11-定义"&gt;1.1 定义&lt;/h3&gt;
-&lt;blockquote&gt;
-&lt;p&gt;如果一帧原本预期在某个 vsync 上送出（present），但因为&lt;strong&gt;前一帧占用了它的预期 vsync 槽位&lt;/strong&gt;而被迫延迟到下一个 vsync 才送出，这一帧就被称为被 &amp;ldquo;stuffed&amp;rdquo;（拥堵）。这通常发生在一帧意外耗时过长，导致后续所有缓冲帧都进入拥堵状态。&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;p&gt;—— &lt;code&gt;frameworks/native/libs/gui/include/gui/JankInfo.h:38-42&lt;/code&gt;&lt;/p&gt;
-&lt;h3 id="12-直观理解"&gt;1.2 直观理解&lt;/h3&gt;
-&lt;p&gt;&lt;strong&gt;三缓冲的 BufferQueue 状态机（回顾）&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;每个 buffer slot 有三种状态：&lt;code&gt;FREE&lt;/code&gt;（可分配）→ &lt;code&gt;DEQUEUED&lt;/code&gt;（App 渲染中）→ &lt;code&gt;QUEUED&lt;/code&gt;（等待 SF 消费）→ &lt;code&gt;ACQUIRED&lt;/code&gt;（SF 持有，正在显示）→ &lt;code&gt;FREE&lt;/code&gt;（SF 释放）。&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;dequeueBuffer()&lt;/code&gt; 的分配条件：只要 slot 状态为 &lt;code&gt;FREE&lt;/code&gt;，即可分配——&lt;strong&gt;与 release fence 是否 signaled 无关&lt;/strong&gt;。fence 作为出参返回给 App，由 GPU 侧异步等待。&lt;/p&gt;
-&lt;p&gt;三缓冲管线在正常情况下以 vsync 节奏运行，始终有 0~1 帧在排队：&lt;/p&gt;
-&lt;pre tabindex="0"&gt;&lt;code&gt; Normal Pipeline (Triple Buffer, 60fps)
-Vsync: V0 V1 V2 V3 V4
-| | | | |
-App: [==A==] [==B==] [==C==] [==D==] [==E==]
-| | | | |
-SF latch: A B C D E
-| | | | |
-SF present: A B C D E
-Slot trace (S=Slot, *=in use, .=free):
-V0-&amp;gt;V1: S0=[A SF-acquired*] S1=.free S2=.free -&amp;gt; depth=0
-V1-&amp;gt;V2: S0=.free (A released) S1=[B SF-acquired*] S2=.free -&amp;gt; depth=0
-V2-&amp;gt;V3: S0=.free S1=.free (B released) S2=[C SF-acquired*] -&amp;gt; depth=0
-^ free slot always available for dequeue
-&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;当某一帧（Frame B）渲染耗时异常长（例如 25ms，远超 16.67ms 的 vsync 周期）时：&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;
+&lt;p&gt;系统分为四层，从上到下依次为:&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/visualquerydetector/visualquerydetector/</guid><description>&lt;h2 id="hotword-detection的流程"&gt;Hotword Detection的流程&lt;/h2&gt;
 &lt;p&gt;基于提供AOSP的代码，以“Hi Google”为例，语音唤醒（Hotword Detection）的完整流程是一个跨进程、跨层级的复杂协作过程。它主要涉及&lt;strong&gt;底层硬件触发&lt;/strong&gt;、&lt;strong&gt;系统服务路由&lt;/strong&gt;、&lt;strong&gt;沙盒服务校验&lt;/strong&gt;以及&lt;strong&gt;上层应用响应&lt;/strong&gt;四个关键阶段。&lt;/p&gt;
 &lt;p&gt;以下是基于代码分析的时序流程：&lt;/p&gt;
 &lt;h3 id="第一阶段底层硬件触发与系统层接收-hardware-trigger--system-layer"&gt;第一阶段：底层硬件触发与系统层接收 (Hardware Trigger &amp;amp; System Layer)&lt;/h3&gt;
