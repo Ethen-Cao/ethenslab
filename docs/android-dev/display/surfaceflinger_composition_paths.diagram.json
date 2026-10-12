@@ -1,0 +1,929 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "surfaceflinger-composition-paths",
+    "title": "SurfaceFlinger Buffer Submission & Composition",
+    "subtitle": "App buffers → SurfaceFlinger → Hardware Composer",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical",
+    "description": "A layered system view with the surfaceflinger process expanded around buffer handling. The user-selected Native row contains native processes and libraries; the native-libraries role is its schema macro rank, not an assertion that surfaceflinger is a library. Layer state and per-output OutputLayer state serve both CLIENT and DEVICE composition. One input GraphicBuffer represents the currently latched application buffer. One client-target GraphicBuffer belongs to the display queue. RenderSurface obtains and queues the target; RenderEngine reads the input and writes the target. The IGBC response edge carries the acquired handle and fence, not pixels or a callback that initiates consumption. HWComposer is shown at the article's HWC-client abstraction level; HWC2::Layer and Composer transport internals are collapsed, so the DEVICE edge describes submission rather than a HWComposer::setLayerBuffer method. CLIENT and DEVICE can coexist. Java services and unrelated kernel details are omitted."
+  },
+  "canvas": {
+    "width": 1840,
+    "height": 2580
+  },
+  "sources": [
+    {
+      "id": "article",
+      "title": "SurfaceFlinger composition, sections 2.2 and 3.1",
+      "locator": "content/android-dev/display/surfaceflinger_composition.md"
+    },
+    {
+      "id": "output",
+      "title": "AOSP Output client composition requests and RenderEngine invocation",
+      "locator": "https://android.googlesource.com/platform/frameworks/native/+/refs/heads/master/services/surfaceflinger/CompositionEngine/src/Output.cpp"
+    },
+    {
+      "id": "rs",
+      "title": "AOSP RenderSurface dequeue, queue and advanceFrame",
+      "locator": "https://android.googlesource.com/platform/frameworks/native/+/7148e8da298b3ece2e710aa184424424082887e0/services/surfaceflinger/CompositionEngine/src/RenderSurface.cpp"
+    },
+    {
+      "id": "fbs",
+      "title": "AOSP FramebufferSurface target acquisition and submission",
+      "locator": "https://android.googlesource.com/platform/frameworks/native/+/refs/heads/main/services/surfaceflinger/DisplayHardware/FramebufferSurface.cpp"
+    },
+    {
+      "id": "hwc",
+      "title": "AOSP display composition operations",
+      "locator": "https://source.android.com/docs/core/graphics/implement-hwc#display-composition-operations"
+    },
+    {
+      "id": "bq",
+      "title": "AOSP BufferQueue and Gralloc",
+      "locator": "https://source.android.com/docs/core/graphics/arch-bq-gralloc"
+    },
+    {
+      "id": "blast",
+      "title": "AOSP BLASTBufferQueue application-side buffer submission",
+      "locator": "https://android.googlesource.com/platform/frameworks/native/+/refs/heads/main/libs/gui/BLASTBufferQueue.cpp"
+    }
+  ],
+  "deployment": {
+    "profile": "single-domain",
+    "evidence": [
+      "article",
+      "hwc"
+    ]
+  },
+  "containers": [
+    {
+      "id": "android",
+      "kind": "domain",
+      "title": "Android",
+      "x": 24,
+      "y": 24,
+      "w": 1792,
+      "h": 2508,
+      "domainType": "os",
+      "platform": "android"
+    },
+    {
+      "id": "apps",
+      "kind": "layer",
+      "title": "Applications",
+      "parent": "android",
+      "x": 48,
+      "y": 96,
+      "w": 1744,
+      "h": 180,
+      "role": "applications",
+      "order": 0
+    },
+    {
+      "id": "native",
+      "kind": "layer",
+      "title": "Native",
+      "parent": "android",
+      "x": 48,
+      "y": 304,
+      "w": 1744,
+      "h": 1936,
+      "role": "native-libraries",
+      "order": 3
+    },
+    {
+      "id": "libgui",
+      "kind": "group",
+      "title": "libgui.so",
+      "parent": "native",
+      "x": 128,
+      "y": 376,
+      "w": 1584,
+      "h": 180,
+      "subtitle": "Application-side buffer submission",
+      "evidence": [
+        "blast",
+        "bq"
+      ]
+    },
+    {
+      "id": "sf",
+      "kind": "process",
+      "title": "surfaceflinger",
+      "parent": "native",
+      "x": 96,
+      "y": 624,
+      "w": 1648,
+      "h": 1576,
+      "evidence": [
+        "article"
+      ],
+      "subtitle": "Layer state · CLIENT composition · DEVICE submission"
+    },
+    {
+      "id": "input-state",
+      "kind": "group",
+      "title": "Layer state",
+      "parent": "sf",
+      "x": 144,
+      "y": 824,
+      "w": 960,
+      "h": 228,
+      "evidence": [
+        "article"
+      ]
+    },
+    {
+      "id": "target-queue",
+      "kind": "group",
+      "title": "Display BufferQueue",
+      "parent": "sf",
+      "x": 144,
+      "y": 1616,
+      "w": 960,
+      "h": 216,
+      "evidence": [
+        "article",
+        "rs",
+        "fbs"
+      ]
+    },
+    {
+      "id": "hal",
+      "kind": "layer",
+      "title": "Hardware Abstraction Layer",
+      "parent": "android",
+      "x": 48,
+      "y": 2276,
+      "w": 1744,
+      "h": 220,
+      "role": "hal",
+      "order": 4
+    }
+  ],
+  "nodes": [
+    {
+      "id": "app",
+      "entityType": "subsystem",
+      "canonicalName": "Graphics Applications",
+      "description": "Render and submit layer buffers",
+      "parent": "apps",
+      "x": 600,
+      "y": 168,
+      "w": 440,
+      "h": 76,
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "applications"
+    },
+    {
+      "id": "input-bq",
+      "entityType": "class",
+      "canonicalName": "BufferQueue",
+      "description": "Input queue · IGBP / IGBC",
+      "parent": "libgui",
+      "x": 380,
+      "y": 456,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "bq",
+        "blast"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "blast",
+      "entityType": "class",
+      "canonicalName": "BLASTBufferQueue",
+      "description": "Acquire buffer · BufferState transaction",
+      "parent": "libgui",
+      "x": 1000,
+      "y": 456,
+      "w": 400,
+      "h": 84,
+      "evidence": [
+        "blast"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "sf-core",
+      "entityType": "class",
+      "canonicalName": "SurfaceFlinger",
+      "description": "Apply transactions · latch layer buffers",
+      "parent": "sf",
+      "x": 680,
+      "y": 704,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article",
+        "blast"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "display-device",
+      "entityType": "class",
+      "canonicalName": "DisplayDevice",
+      "description": "Physical display",
+      "parent": "sf",
+      "x": 1280,
+      "y": 704,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "input-buffer",
+      "entityType": "memory",
+      "canonicalName": "GraphicBuffer",
+      "description": "Current application buffer",
+      "parent": "input-state",
+      "x": 184,
+      "y": 908,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article",
+        "bq"
+      ],
+      "resourceId": "latched-application-buffer"
+    },
+    {
+      "id": "layer",
+      "entityType": "class",
+      "canonicalName": "Layer",
+      "description": "mBufferInfo · LayerFE snapshot",
+      "parent": "input-state",
+      "x": 680,
+      "y": 908,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "display",
+      "entityType": "class",
+      "canonicalName": "Display",
+      "description": "CompositionEngine · Output implementation",
+      "parent": "sf",
+      "x": 1280,
+      "y": 908,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article",
+        "output"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "output-layer",
+      "entityType": "class",
+      "canonicalName": "OutputLayer",
+      "description": "Per-display layer state · CLIENT / DEVICE",
+      "parent": "sf",
+      "x": 680,
+      "y": 1116,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article",
+        "output"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "render-engine",
+      "entityType": "class",
+      "canonicalName": "RenderEngine",
+      "description": "CLIENT · sample inputs and render target",
+      "parent": "sf",
+      "x": 184,
+      "y": 1312,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article",
+        "output"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "render-surface",
+      "entityType": "class",
+      "canonicalName": "RenderSurface",
+      "description": "dequeueBuffer() / queueBuffer()",
+      "parent": "sf",
+      "x": 680,
+      "y": 1312,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article",
+        "rs"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "native-window",
+      "entityType": "interface",
+      "canonicalName": "ANativeWindow",
+      "description": "Display queue producer · IGBP",
+      "parent": "sf",
+      "x": 680,
+      "y": 1492,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article",
+        "rs"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "client-target",
+      "entityType": "memory",
+      "canonicalName": "GraphicBuffer",
+      "description": "ClientTarget · GPU-composited output",
+      "parent": "target-queue",
+      "x": 184,
+      "y": 1700,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article",
+        "rs",
+        "fbs"
+      ],
+      "resourceId": "client-target-buffer"
+    },
+    {
+      "id": "output-bq",
+      "entityType": "class",
+      "canonicalName": "BufferQueue",
+      "description": "Output queue · IGBP / IGBC",
+      "parent": "target-queue",
+      "x": 680,
+      "y": 1700,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article",
+        "rs",
+        "fbs",
+        "bq"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "framebuffer-surface",
+      "entityType": "class",
+      "canonicalName": "FramebufferSurface",
+      "description": "DisplaySurface implementation · consume target",
+      "parent": "sf",
+      "x": 680,
+      "y": 1892,
+      "w": 360,
+      "h": 84,
+      "evidence": [
+        "article",
+        "fbs"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "hw-composer",
+      "entityType": "class",
+      "canonicalName": "HWComposer",
+      "description": "HWC client abstraction · layers + client target",
+      "parent": "sf",
+      "x": 600,
+      "y": 2080,
+      "w": 520,
+      "h": 84,
+      "evidence": [
+        "article",
+        "hwc"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "composer-hal",
+      "entityType": "interface",
+      "canonicalName": "IComposerClient",
+      "description": "Composer HAL · final composition and present",
+      "parent": "hal",
+      "x": 600,
+      "y": 2360,
+      "w": 520,
+      "h": 84,
+      "evidence": [
+        "article",
+        "hwc"
+      ],
+      "layerRole": "hal"
+    }
+  ],
+  "edges": [
+    {
+      "id": "app-submit",
+      "from": "app",
+      "to": "input-bq",
+      "relation": "call",
+      "label": "queueBuffer() · buffer + fence",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "article",
+        "bq"
+      ],
+      "via": [
+        {
+          "y": 340
+        },
+        {
+          "x": 560
+        }
+      ],
+      "labelPosition": {
+        "x": 706,
+        "y": 326
+      }
+    },
+    {
+      "id": "input-available",
+      "from": "input-bq",
+      "to": "blast",
+      "relation": "notification",
+      "label": "Buffer available",
+      "fromSide": "right",
+      "toSide": "left",
+      "evidence": [
+        "blast"
+      ],
+      "labelPosition": {
+        "x": 870,
+        "y": 480
+      }
+    },
+    {
+      "id": "transaction",
+      "from": "blast",
+      "to": "sf-core",
+      "relation": "ipc",
+      "label": "BufferState transaction · Binder",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "blast"
+      ],
+      "mechanism": "Binder",
+      "via": [
+        {
+          "y": 592
+        },
+        {
+          "x": 860
+        }
+      ],
+      "labelPosition": {
+        "x": 1050,
+        "y": 578
+      }
+    },
+    {
+      "id": "latch",
+      "from": "sf-core",
+      "to": "layer",
+      "relation": "call",
+      "label": "setBuffer() / latchBuffer()",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "article"
+      ],
+      "labelPosition": {
+        "x": 986,
+        "y": 866
+      }
+    },
+    {
+      "id": "layer-buffer",
+      "from": "layer",
+      "to": "input-buffer",
+      "relation": "dependency",
+      "label": "mBufferInfo",
+      "fromSide": "left",
+      "toSide": "right",
+      "evidence": [
+        "article"
+      ],
+      "labelPosition": {
+        "x": 612,
+        "y": 936
+      }
+    },
+    {
+      "id": "displays",
+      "from": "sf-core",
+      "to": "display-device",
+      "relation": "dependency",
+      "label": "Displays",
+      "fromSide": "right",
+      "toSide": "left",
+      "evidence": [
+        "article"
+      ],
+      "labelPosition": {
+        "x": 1160,
+        "y": 732
+      }
+    },
+    {
+      "id": "composition-display",
+      "from": "display-device",
+      "to": "display",
+      "relation": "dependency",
+      "label": "mCompositionDisplay",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "article"
+      ],
+      "labelPosition": {
+        "x": 1580,
+        "y": 850
+      }
+    },
+    {
+      "id": "layer-snapshot",
+      "from": "output-layer",
+      "to": "layer",
+      "relation": "dependency",
+      "label": "LayerFE snapshot",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "evidence": [
+        "article",
+        "output"
+      ],
+      "labelPosition": {
+        "x": 970,
+        "y": 1020
+      }
+    },
+    {
+      "id": "output-layers",
+      "from": "display",
+      "to": "output-layer",
+      "relation": "dependency",
+      "label": "mOutputLayers",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "article",
+        "output"
+      ],
+      "toOffset": 100,
+      "via": [
+        {
+          "y": 1080
+        },
+        {
+          "x": 960
+        }
+      ],
+      "labelPosition": {
+        "x": 1310,
+        "y": 1066
+      }
+    },
+    {
+      "id": "client-draw",
+      "from": "display",
+      "to": "render-engine",
+      "relation": "call",
+      "label": "CLIENT · drawLayers()",
+      "fromSide": "left",
+      "toSide": "top",
+      "evidence": [
+        "article",
+        "output"
+      ],
+      "fromOffset": -18,
+      "toOffset": 80,
+      "via": [
+        {
+          "x": 1184
+        },
+        {
+          "y": 1060
+        },
+        {
+          "x": 600
+        },
+        {
+          "y": 1240
+        },
+        {
+          "x": 444
+        }
+      ],
+      "labelPosition": {
+        "x": 544,
+        "y": 1262
+      }
+    },
+    {
+      "id": "output-surface",
+      "from": "display",
+      "to": "render-surface",
+      "relation": "dependency",
+      "fromSide": "left",
+      "toSide": "right",
+      "evidence": [
+        "article",
+        "output",
+        "rs"
+      ],
+      "fromOffset": 18,
+      "toOffset": -20,
+      "via": [
+        {
+          "x": 1220
+        },
+        {
+          "y": 1100
+        },
+        {
+          "x": 1120
+        },
+        {
+          "y": 1334
+        }
+      ]
+    },
+    {
+      "id": "sample-input",
+      "from": "input-buffer",
+      "to": "render-engine",
+      "relation": "read",
+      "label": "Sample layer pixels",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "article",
+        "output"
+      ],
+      "labelPosition": {
+        "x": 466,
+        "y": 1176
+      }
+    },
+    {
+      "id": "write-target",
+      "from": "render-engine",
+      "to": "client-target",
+      "relation": "write",
+      "label": "Render ClientTarget",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "article",
+        "output"
+      ],
+      "labelPosition": {
+        "x": 462,
+        "y": 1540
+      }
+    },
+    {
+      "id": "dequeue-target",
+      "from": "render-surface",
+      "to": "client-target",
+      "relation": "configuration",
+      "label": "dequeueBuffer()",
+      "fromSide": "left",
+      "toSide": "top",
+      "evidence": [
+        "rs",
+        "output"
+      ],
+      "toOffset": 80,
+      "via": [
+        {
+          "x": 584
+        },
+        {
+          "y": 1648
+        },
+        {
+          "x": 444
+        }
+      ],
+      "labelPosition": {
+        "x": 514,
+        "y": 1464
+      }
+    },
+    {
+      "id": "queue-target",
+      "from": "render-surface",
+      "to": "native-window",
+      "relation": "call",
+      "label": "queueBuffer()",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "article",
+        "rs"
+      ],
+      "labelPosition": {
+        "x": 956,
+        "y": 1464
+      }
+    },
+    {
+      "id": "window-queue",
+      "from": "native-window",
+      "to": "output-bq",
+      "relation": "call",
+      "label": "Target handle + ready fence",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "rs",
+        "bq"
+      ],
+      "labelPosition": {
+        "x": 970,
+        "y": 1656
+      }
+    },
+    {
+      "id": "queue-slots",
+      "from": "output-bq",
+      "to": "client-target",
+      "relation": "dependency",
+      "label": "Buffer slots",
+      "fromSide": "left",
+      "toSide": "right",
+      "evidence": [
+        "bq"
+      ],
+      "labelPosition": {
+        "x": 612,
+        "y": 1728
+      }
+    },
+    {
+      "id": "acquired-target",
+      "from": "output-bq",
+      "to": "framebuffer-surface",
+      "relation": "call",
+      "label": "acquireBuffer() result",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "bq",
+        "fbs"
+      ],
+      "mechanism": "IGraphicBufferConsumer response · target handle and fence",
+      "labelPosition": {
+        "x": 986,
+        "y": 1860
+      }
+    },
+    {
+      "id": "advance-frame",
+      "from": "render-surface",
+      "to": "framebuffer-surface",
+      "relation": "call",
+      "label": "advanceFrame()",
+      "fromSide": "right",
+      "toSide": "right",
+      "evidence": [
+        "rs",
+        "fbs"
+      ],
+      "fromOffset": 20,
+      "via": [
+        {
+          "x": 1080
+        },
+        {
+          "y": 1934
+        }
+      ],
+      "labelPosition": {
+        "x": 988,
+        "y": 1420
+      }
+    },
+    {
+      "id": "submit-target",
+      "from": "framebuffer-surface",
+      "to": "hw-composer",
+      "relation": "call",
+      "label": "CLIENT · setClientTarget()",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "article",
+        "fbs",
+        "hwc"
+      ],
+      "labelPosition": {
+        "x": 712,
+        "y": 2028
+      }
+    },
+    {
+      "id": "submit-device",
+      "from": "output-layer",
+      "to": "hw-composer",
+      "relation": "call",
+      "label": "DEVICE · original buffer + state",
+      "fromSide": "right",
+      "toSide": "right",
+      "evidence": [
+        "article",
+        "hwc"
+      ],
+      "via": [
+        {
+          "x": 1140
+        },
+        {
+          "y": 2122
+        }
+      ],
+      "labelPosition": {
+        "x": 1270,
+        "y": 1504
+      }
+    },
+    {
+      "id": "validate-present",
+      "from": "display",
+      "to": "hw-composer",
+      "relation": "call",
+      "label": "validate / present",
+      "fromSide": "right",
+      "toSide": "right",
+      "evidence": [
+        "output",
+        "hwc"
+      ],
+      "toOffset": 22,
+      "via": [
+        {
+          "x": 1708
+        },
+        {
+          "y": 2032
+        },
+        {
+          "x": 1250
+        },
+        {
+          "y": 2144
+        }
+      ],
+      "labelPosition": {
+        "x": 1460,
+        "y": 2014
+      }
+    },
+    {
+      "id": "composer-ipc",
+      "from": "hw-composer",
+      "to": "composer-hal",
+      "relation": "ipc",
+      "label": "CLIENT target + DEVICE layers · Binder",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "evidence": [
+        "hwc"
+      ],
+      "mechanism": "Composer Binder IPC",
+      "labelPosition": {
+        "x": 1054,
+        "y": 2258
+      }
+    }
+  ],
+  "junctions": []
+}

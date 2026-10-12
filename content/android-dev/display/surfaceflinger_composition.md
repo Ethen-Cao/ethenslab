@@ -312,182 +312,28 @@ LayerSettings --|> RELayerSettings : 继承/兼容
 
 ### 3.1 数据流与合成路径选择
 
-下图展示了 Buffer 从 App 生产到最终显示的物理流转路径，以及基于 RenderEngine 和 HWC 的分流机制。
+下图展示应用 Buffer 经 SurfaceFlinger 接收、锁定并按 Display 组织后，通过 CLIENT 或 DEVICE 路径提交给 HWC 的过程。同一帧可以同时包含两种合成方式。
 
-```plantuml
-@startuml
-!theme cerulean
-hide empty members
-skinparam linetype ortho
-skinparam nodesep 60
-skinparam ranksep 50
+![SurfaceFlinger Buffer Submission & Composition](../../../images/surfaceflinger_composition_paths.png)
 
-' ==========================================
-' 1. App Layer System (新增部分：生产端)
-' ==========================================
-package "App Layer System" {
-    package "App BufferQueue" <<Rectangle>> {
-        interface "IGBP (App)" as AppIGBP
-        class "BufferQueue (App)" as AppBQ
-        interface "IGBC (Layer)" as AppIGBC
-    }
+[查看原图](../../../images/surfaceflinger_composition_paths.png) · [下载可编辑 draw.io 文件](../../../images/surfaceflinger_composition_paths.drawio)
 
-    ' App 生产流程
-    AppIGBP -down-o AppBQ: App 写入
-    AppBQ o-down- AppIGBC: Layer 读取
+SurfaceFlinger 是 Native 层的进程。`Layer` 保存当前锁定的 Buffer 状态，`OutputLayer` 通过 `LayerFE` 引用图层的合成状态，表示该图层在某个 Display 上的输出状态；它同时参与 CLIENT 和 DEVICE 路径。`Display / Output` 组织这些输出图层，并与 HWC 协商合成方式。
 
-}
+**路径 A：GPU 合成（Client Composition）**
 
-' ==========================================
-' 2. SurfaceFlinger (总管)
-' ==========================================
-package "SurfaceFlinger Core" {
-    class SurfaceFlinger {
-        - mLayers : List<sp<Layer>>
-        - mDisplays : Map
-        + handleMessageInvalidate()
-    }
+- **选择条件**：经合成策略和 HWC 能力校验，需要由客户端合成的图层，例如硬件不支持的效果或超出硬件合成能力的图层。
+- **输入与处理**：`Output` 根据图层状态生成绘制请求，由 `RenderEngine` 读取各 Layer 的 Buffer，完成 GPU 合成。
+- **目标 Buffer**：`RenderSurface` 从输出队列获取目标 `GraphicBuffer`，`RenderEngine` 将合成结果写入该 Buffer。
+- **提交链**：`RenderSurface` 经 `ANativeWindow / IGBP` 将目标 Buffer 入队，并通过 `DisplaySurface::advanceFrame()` 推进显示。`FramebufferSurface` 从 `IGBC` 获取该 Buffer 及 fence，再经 `HWComposer` 将它作为 **ClientTarget** 提交给 HWC。
 
-    class DisplayDevice {
-        - mCompositionDisplay
-        - mDisplaySurface
-    }
+**路径 B：硬件合成（Device Composition）**
 
-    class Layer {
-        - mDrawingState : State
-        - mBufferInfo : BufferInfo
-        + setBuffer() : "接收 Buffer (BufferState 模式)"
-        + latchBufferImpl() : "锁定最新 Buffer"
-        + getBuffer() : "获取 GraphicBuffer"
-    }    
-}
+- **选择条件**：经 HWC 校验，图层可由显示硬件直接合成。
+- **提交链**：`OutputLayer::writeStateToHWC()` 将原始 Layer Buffer 的句柄及裁切、位置、混合等状态提交给 HWC 客户端接口；图中将这组接口收拢在 `HWComposer` 抽象块中。
+- **输出**：这些图层不经过 `RenderEngine`，也不生成 GPU 合成的中间目标 Buffer。显示硬件读取原始图层 Buffer，并与 ClientTarget（若有）一起完成最终合成与扫描输出。
 
-AppIGBC -right-> Layer : 消费
-' SF 管理 Layer 和 Display
-SurfaceFlinger -down-> Layer : 遍历 Layer
-SurfaceFlinger -down-> DisplayDevice : 管理 Display
-
-' ==========================================
-' 3. CompositionEngine (逻辑核心 & 决策)
-' ==========================================
-package "CompositionEngine" {
-    abstract class Output {
-        - mRenderSurface
-        - mOutputLayers : List<OutputLayer>
-        + composeSurfaces()
-    }
-
-    class "\tOutputLayer\t\t\t\t\t" as OutputLayer {
-        - mLayerFE : LayerFE
-        + writeStateToHWC()
-    }
-
-    class Display {
-        ' 逻辑对象
-    }
-
-    class RenderSurface {
-        - mNativeWindow
-        - mDisplaySurface
-        + queueBuffer()
-    }
-    
-    class RenderEngine {
-        + drawLayers()
-    }
-
-    interface DisplaySurface {
-        + advanceFrame()
-    }
-}
-
-' CE 内部关系
-DisplayDevice -down-> Display : 持有
-Display -down-|> Output
-Output "1" *-down- "*" OutputLayer : 包含
-Output "1" *-down- "1" RenderSurface : 拥有
-
-' OutputLayer 关联具体的 Layer 数据
-OutputLayer .left.> Layer : 引用 Layer 数据
-
-' ==========================================
-' 4. 关键分支：渲染路径选择
-' ==========================================
-
-' 路径 A: GPU 合成 (RenderEngine 读取 Layer Buffer)
-RenderEngine .up.> Layer : Path A: 读取 Layer Buffer (纹理)
-Output .right.> RenderEngine #purple : 指挥绘图
-RenderEngine .down.> RenderSurface#purple : 绘制结果 (Target)
-
-
-' ==========================================
-' 5. 实现层 & 基础设施
-' ==========================================
-package "Display Hardware" {
-    class "\t\t\tFramebufferSurface\t\t" as FramebufferSurface{
-        + advanceFrame()
-        + setClientTarget()
-    }
-    
-    interface "\t\tANativeWindow\t\t" as SFNativeWindow {
-        + queueBuffer()
-        + queueBuffer()
-    }
-
-    ' ==========================================
-    ' 6. SF BufferQueue (输出端)
-    ' ==========================================
-    package "Display BufferQueue" <<Rectangle>> {
-        interface "IGBP" as SFIGBP
-        class "BufferQueue" as SFBQ
-        interface "IGBC" as SFIGBC
-    }
-
-}
-
-package "HWC Abstraction" {
-    class "\t\t\t\tHWComposer\t\t\t\t\t\t" as HWComposer{
-        + setLayerBuffer()
-        + setClientTarget()
-    }
-}
-
-' RenderSurface 的分发
-DisplayDevice -right-> DisplaySurface : 持有管道
-RenderSurface -right-> DisplaySurface : 控制流
-RenderSurface -down-> SFNativeWindow#purple : 数据流
-
-' FramebufferSurface 实现
-FramebufferSurface .up.|> DisplaySurface
-FramebufferSurface -down-> HWComposer#purple : 提交合成后的ClientTarget
-' 路径 B: HWC 合成 (直接透传 Layer Buffer)
-OutputLayer ..> HWComposer #red : Path B: setLayerBuffer(直接送给硬件)
-
-
-SFNativeWindow -down-> SFIGBP
-SFIGBP --o SFBQ
-SFBQ o-- SFIGBC
-SFIGBC --> FramebufferSurface
-
-@enduml
-
-```
-
-**技术路径详解：**
-
-1. **路径 A：GPU 合成 (Client Composition)**（紫色路径）
-* **触发条件**：HWC 无法处理的 Layer（如超出图层数量限制、不支持的混合模式、复杂的圆角/模糊特效）。
-* **输入**：`Output` 将这些 Layer 标记为 `Client`，提取其 Buffer 句柄作为**纹理**。
-* **处理**：`RenderEngine` 使用 OpenGL/Skia 对纹理进行采样和片段着色。
-* **输出**：渲染结果写入 `RenderSurface` 申请的 `GraphicBuffer`。该 Buffer 入队后，由 `FramebufferSurface` 消费，并作为 **ClientTarget** 提交给 HWC。
-
-
-2. **路径 B：HWC 合成 (Device Composition)**（红色路径）
-* **触发条件**：标准的 Overlay 图层，硬件直接支持。
-* **处理**：`OutputLayer` 通过 `writeStateToHWC`，将 Layer 的 Buffer 句柄、屏幕坐标、裁切区域直接配置给 `HWComposer`。
-* **输出**：无中间 Buffer 生成。显示控制器（Display Controller）在扫描输出时，利用 DMA 直接读取 App 的 Buffer 内存进行叠加。
-
-
+图中的绿色连线表示图像数据读写，蓝色连线表示调用、IPC 或 Buffer 句柄传递，虚实线的具体含义见图例。`GraphicBuffer` 表示像素存储；`BufferQueue` 管理 Buffer 槽位、句柄与同步 fence，入队和出队不表示复制像素数据。
 
 ### 3.2 完整的合成时序
 
