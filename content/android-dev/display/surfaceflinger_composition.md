@@ -6,6 +6,38 @@ title = 'Android SurfaceFlinger 深度解析'
 
 SurfaceFlinger 是 Android 图形栈的核心系统服务，负责全系统的图形合成与显示管理。本文基于 Android 源码，深入剖析其从 Display 创建、Layer 状态管理、合成策略决策到 RenderEngine 渲染执行及 HWC 提交的完整技术链路。
 
+---
+
+## 目录
+
+- [1. Display 创建过程](#1-display-创建过程)
+  - [1.1 核心流程时序解析](#11-核心流程时序解析)
+  - [1.2 核心对象构建与状态流转细节](#12-核心对象构建与状态流转细节)
+- [2. Layer 管理与渲染架构](#2-layer-管理与渲染架构)
+  - [2.1 Layer 核心架构类图](#21-layer-核心架构类图)
+  - [2.2 核心组件职责与实现 (Layer / LayerFE / OutputLayer)](#22-核心组件职责与实现-layer--layerfe--outputlayer)
+- [3. Display 图像合成流程](#3-display-图像合成流程)
+  - [3.1 数据流与合成路径选择](#31-数据流与合成路径选择)
+  - [3.2 完整的合成时序](#32-完整的合成时序)
+    - [Phase 1: 调度与锁定 (Scheduling & Latching)](#phase-1-调度与锁定-scheduling--latching)
+    - [Phase 2: 进入合成入口 (Composite Entry)](#phase-2-进入合成入口-composite-entry)
+    - [Phase 3: CompositionEngine 核心流程 (The Core Loop)](#phase-3-compositionengine-核心流程-the-core-loop)
+    - [Phase 4: 后处理 (Post Composition)](#phase-4-后处理-post-composition)
+- [4. 深入 RenderEngine：GPU 合成详解](#4-深入-renderenginegpu-合成详解)
+  - [4.1 RenderEngine 架构概览](#41-renderengine-架构概览)
+  - [4.2 物理数据流与内存视图](#42-物理数据流与内存视图)
+  - [4.3 逻辑工作流：Draw Call 视图](#43-逻辑工作流draw-call-视图)
+  - [4.4 RenderEngine 异步调用时序](#44-renderengine-异步调用时序)
+- [5. Scheduler 与 VSYNC 调度](#5-scheduler-与-vsync-调度)
+  - [5.1 Scheduler 核心架构](#51-scheduler-核心架构)
+  - [5.2 智能刷新率决策流程](#52-智能刷新率决策流程)
+- [6. HWComposer 硬件抽象与通信](#6-hwcomposer-硬件抽象与通信)
+  - [6.1 HWComposer 架构设计](#61-hwcomposer-架构设计)
+  - [6.2 命令批处理机制 (Batching)](#62-命令批处理机制-batching)
+  - [6.3 HWC 交互时序](#63-hwc-交互时序)
+
+---
+
 ## 1. Display 创建过程
 
 在 SurfaceFlinger 中，`Display` 是物理屏幕（由 HWC 管理）或虚拟屏幕（由系统服务请求创建）的抽象实体。Display 的创建是一个异步且多阶段的过程，涉及内核事件响应、状态机更新及渲染资源的初始化。
@@ -99,7 +131,7 @@ sequenceDiagram
 
 ```
 
-**技术实现细节：**
+### 1.2 核心对象构建与状态流转细节
 
 1. **事件触发与状态标记**：
 * **物理屏幕**：`HWComposer` 收到内核的 Hotplug 事件，回调 `onHotplugReceived`。SF 将新的 Display 信息添加到 `mCurrentState.displays` 中，并调用 `setTransactionFlags(eDisplayTransactionNeeded)`，请求在主线程下一次遍历时处理。
@@ -253,7 +285,7 @@ LayerSettings --|> RELayerSettings : 继承/兼容
 
 ```
 
-**组件职责与实现：**
+### 2.2 核心组件职责与实现 (Layer / LayerFE / OutputLayer)
 
 1. **`Layer` (SurfaceFlinger)**：
 * **BufferState 管理**：实现了 BufferStateLayer 模式。通过 `setBuffer` 接收应用提交的 BufferData，更新 `mDrawingState`。
@@ -697,7 +729,7 @@ deactivate SF
 @enduml
 ```
 
-#### **Phase 1: 调度与锁定 (Scheduling & Latching)**
+#### Phase 1: 调度与锁定 (Scheduling & Latching)
 
 这是合成周期的起点，目的是冻结当前帧的数据状态，确保合成过程的一致性。
 
@@ -708,14 +740,14 @@ deactivate SF
    * **关键动作**: 调用 `LayerFE::updateSnapshot()`。这会将 Layer 当前的属性（几何、Buffer句柄等）复制到 `LayerFE` 中。后续的合成操作仅读取 LayerFE 的快照，从而允许 SF 主线程在合成进行的同时处理下一帧的逻辑（实现了无锁并发）。
 
 
-#### **Phase 2: 进入合成入口 (Composite Entry)**
+#### Phase 2: 进入合成入口 (Composite Entry)
 
 此阶段负责准备合成所需的数据结构。
 
 * **参数打包**: `SurfaceFlinger::composite` 将所有的 LayerFE 快照移动到 `CompositionRefreshArgs` 对象中。
 * **预处理**: 触发 `onPreComposition`，更新图层的可信呈现（TrustedPresentation）状态等元数据。
 
-#### **Phase 3: CompositionEngine 核心流程 (The Core Loop)**
+#### Phase 3: CompositionEngine 核心流程 (The Core Loop)
 
 这是最复杂的阶段，由 `CompositionEngine::present` 驱动，分为策略（Prepare）和执行（Present）两个子步骤。
 
@@ -747,7 +779,7 @@ deactivate SF
   * 调用 `Output::presentFrameAndReleaseLayers` -> `HWC::presentDisplay()`。
   * 这是硬件刷新的“扳机”。HWC 驱动会读取之前配置的 Overlay Layers 和 ClientTarget Buffer，将它们混合并输出到物理屏幕。
 
-#### **Phase 4: 后处理 (Post Composition)**
+#### Phase 4: 后处理 (Post Composition)
 
 一帧提交后的收尾工作。
 
