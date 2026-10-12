@@ -1,0 +1,1813 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "h56ez-ota-architecture-redrawn",
+    "title": "H56EZ OTA Architecture",
+    "subtitle": "QNX PVM · Android GVM · Independent Vehicle MCU",
+    "description": "Deployment and technical dependencies for USB/DOIP OTA of three main targets. In QNX Services, updater and rpcd are peer services. updater launches the independent update_ic.sh, upgrademcu and swdl_utils executables; update_ic.sh invokes zstd. These utility dependencies are not a global Applications layer or updater-internal objects. librpcif.so is loaded by upgrademcu; libspi_client.so is loaded by rpcd and uses devctlv to spi_service below it. Android payload writes follow VirtIO-BLK to the QNX block backend; firmware staging uses NFS /otaqnx to QNX /ota. Boot HAL is a separate slot-control branch. QNX block/filesystem internals are folded at system scope. The outer MCU-file corridor avoids utility nodes and the occupied lower client-library ports. Component fills use the user's three groups: Qualcomm and Qualcomm-target adaptation in yellow, native OS/upstream implementations in green, and remaining project-specific modules in blue. The blue group includes PATEO customization and does not assert exclusive OEM copyright. Containers, hardware and storage remain neutral; edge colors retain their relationship meanings.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "origin"
+  },
+  "canvas": {
+    "width": 3028,
+    "height": 2240
+  },
+  "deployment": {
+    "profile": "virtualized-soc",
+    "soc": "soc",
+    "vms": [
+      "pvm",
+      "gvm"
+    ],
+    "hypervisor": "hypervisor",
+    "hardware": "hardware",
+    "independent": [
+      "mcu"
+    ],
+    "evidence": [
+      "user",
+      "blocks"
+    ]
+  },
+  "sources": [
+    {
+      "id": "user",
+      "title": "H56EZ deployment confirmed by the user, 2026-10-12",
+      "locator": "codex://threads/01a123c4-a54c-77d3-8ef4-77a1f3717b42"
+    },
+    {
+      "id": "doc",
+      "title": "H56EZ OTA design: commands, shared files and three ECU targets",
+      "locator": "work/H56EZ_OTA_Architecture_Design.md"
+    },
+    {
+      "id": "sdk",
+      "title": "OTA SDK Binder client",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/vendor/voyah/system/update/UpdateService/sdk/voyah_ota_sdk/src/main/java/com/voyah/update/sdk/VoyahOtaUpdateImpl.java:99"
+    },
+    {
+      "id": "usb",
+      "title": "USB update application",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/vendor/voyah/system/update/UsbUpdate/src/com/voyah/usbupdate/UsbUpdateActivity.java:40"
+    },
+    {
+      "id": "service",
+      "title": "OTA process and service",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/vendor/voyah/system/update/UpdateService/service/AndroidManifest.xml"
+    },
+    {
+      "id": "tasks",
+      "title": "Binder and task scheduler",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/vendor/voyah/system/update/UpdateService/service/src/com/voyah/update/service/UpdateBinder.java:71"
+    },
+    {
+      "id": "protocols",
+      "title": "Device routing via update protocols",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/vendor/voyah/system/update/UpdateService/service/src/com/voyah/update/service/DeviceManager.java:53"
+    },
+    {
+      "id": "doip",
+      "title": "DOIP calls the OTA Binder implementation",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/vendor/voyah/system/update/UpdateService/service/src/com/voyah/update/service/DoipOtaManager.java:95"
+    },
+    {
+      "id": "impl",
+      "title": "OTA orchestration and JMQ calls",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/vendor/voyah/system/update/UpdateService/service/src/com/voyah/update/impl/UpdateImpl.java"
+    },
+    {
+      "id": "jmq",
+      "title": "JMQ REQ endpoint",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/vendor/voyah/system/update/UpdateService/service/src/com/voyah/update/jmq/JMQClient.java"
+    },
+    {
+      "id": "framework",
+      "title": "Framework UpdateEngine Binder client",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/frameworks/base/core/java/android/os/UpdateEngine.java:249"
+    },
+    {
+      "id": "daemon",
+      "title": "Native update_engine service",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/system/update_engine/aosp/daemon_android.cc:53"
+    },
+    {
+      "id": "performer",
+      "title": "Payload partition writer",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/system/update_engine/payload_consumer/delta_performer.cc"
+    },
+    {
+      "id": "boot",
+      "title": "Boot HAL client",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/system/update_engine/aosp/boot_control_android.cc:61"
+    },
+    {
+      "id": "packages",
+      "title": "Boot HAL and update_engine packages",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/device/qcom/msmnile_gvmq/msmnile_gvmq.mk:262"
+    },
+    {
+      "id": "blocks",
+      "title": "Guest virtual block mapping",
+      "locator": "/home/ethen/workspace/HBEZ/bsp/apps/qnx_ap/target/hypervisor/gvm/ivi/la/la_dp_enabled_b.config:68"
+    },
+    {
+      "id": "virtio",
+      "title": "Guest virtio_blk driver",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/kernel_platform/common/drivers/block/virtio_blk.c"
+    },
+    {
+      "id": "rpcif",
+      "title": "Shared rpcif library and SPI client dependency",
+      "locator": "/home/ethen/workspace/HBEZ/cluster_source_code/platforms/rpcd/cmake/rpcd_qnx.cmake"
+    },
+    {
+      "id": "uds",
+      "title": "QNX IPC local socket implementation",
+      "locator": "/home/ethen/workspace/HBEZ/cluster_source_code/platforms/libipc/src/backend-local/local-socket-client.cpp:36"
+    },
+    {
+      "id": "spi",
+      "title": "rpcd SPI endpoint and spi_xchange",
+      "locator": "/home/ethen/workspace/HBEZ/cluster_source_code/platforms/rpcd/src/rpcd_mcu_spi.c:39"
+    },
+    {
+      "id": "spi-service",
+      "title": "SPI resource manager and client library",
+      "locator": "/home/ethen/workspace/HBEZ/bsp/apps/qnx_ap/target/hypervisor/host/out_8540/ifs_coreservices.build:148"
+    },
+    {
+      "id": "storage",
+      "title": "QNX native storage resource manager",
+      "locator": "/home/ethen/workspace/HBEZ/bsp/apps/qnx_ap/target/hypervisor/host/out_8540/ifs_disk.build:36"
+    },
+    {
+      "id": "qnx-core",
+      "title": "QNX core module and C library",
+      "locator": "/home/ethen/workspace/HBEZ/bsp/apps/qnx_ap/target/hypervisor/host/out_8540/mifs_hyp_la_qcc6.perf.build:33"
+    },
+    {
+      "id": "android-nfs",
+      "title": "Target starts NFS mount of /ota as /otaqnx",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/device/qcom/common/rootdir/etc/init.qvm_nfs.sh:39"
+    },
+    {
+      "id": "qnx-nfs",
+      "title": "QNX OTA partition mount and NFS server startup",
+      "locator": "/home/ethen/workspace/HBEZ/bsp/apps/qnx_ap/target/hypervisor/host/out_8540/startup-qvmhost.sh:1235"
+    },
+    {
+      "id": "spi-devctl",
+      "title": "SPI client sends DCMD_SPI_XCHANGE via devctlv",
+      "locator": "/home/ethen/workspace/HBEZ/bsp/apps/qnx_ap/AMSS/platform/qal/clients/spi_client/src/spi_client.c:281"
+    },
+    {
+      "id": "color-policy",
+      "title": "User-defined component-color groups: Qualcomm yellow, native green, remaining project-specific components OEM blue. Blue is a project grouping, not a copyright assertion.",
+      "locator": "codex://threads/01a123c4-a54c-77d3-8ef4-77a1f3717b42"
+    },
+    {
+      "id": "swdl-origin",
+      "title": "Qualcomm copyright in swdl_utils",
+      "locator": "/home/ethen/workspace/HBEZ/bsp/apps/qnx_ap/AMSS/platform/services/applications/swdl_utils/main.c:6"
+    },
+    {
+      "id": "spi-service-origin",
+      "title": "Qualcomm copyright in spi_service",
+      "locator": "/home/ethen/workspace/HBEZ/bsp/apps/qnx_ap/AMSS/platform/services/daemons/spi_service/src/spi_service.c:2"
+    },
+    {
+      "id": "spi-client-origin",
+      "title": "Qualcomm copyright in libspi_client",
+      "locator": "/home/ethen/workspace/HBEZ/bsp/apps/qnx_ap/AMSS/platform/qal/clients/spi_client/src/spi_client.c:2"
+    },
+    {
+      "id": "rpc-project-origin",
+      "title": "PATEO project modules assigned to the user's blue project-customization group",
+      "locator": "/home/ethen/workspace/HBEZ/cluster_source_code/platforms/rpcd/LICENSE"
+    },
+    {
+      "id": "mcu-tool-project-origin",
+      "title": "PATEO upgrademcu assigned to the user's blue project-customization group",
+      "locator": "/home/ethen/workspace/HBEZ/cluster_source_code/platforms/updatemgr/LICENSE"
+    },
+    {
+      "id": "boot-service-origin",
+      "title": "AOSP Boot HAL service shell, separate from the QTI implementation library",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/hardware/interfaces/boot/1.2/default/service.cpp:2"
+    },
+    {
+      "id": "native-kernel-origin",
+      "title": "Linux NFS client and upstream VirtIO block implementation",
+      "locator": "/home/ethen/workspace/HBEZ/android/android/kernel_platform/common/fs/nfs"
+    },
+    {
+      "id": "native-qnx-origin",
+      "title": "QNX SDP native runtime, Hypervisor block plugin and NFS server",
+      "locator": "/home/ethen/workspace/HBEZ/QNX/qnx710/target/qnx7"
+    },
+    {
+      "id": "ufs-platform-origin",
+      "title": "Qualcomm-target UFS platform adaptation; not a claim of exclusive Qualcomm code authorship",
+      "locator": "/home/ethen/workspace/HBEZ/bsp/apps/qnx_ap/target/hypervisor/host/out_8540/ifs_disk.build:36"
+    }
+  ],
+  "containers": [
+    {
+      "id": "soc",
+      "kind": "domain",
+      "domainType": "soc",
+      "title": "SoC",
+      "x": 24,
+      "y": 24,
+      "w": 2500,
+      "h": 2192,
+      "evidence": [
+        "user"
+      ]
+    },
+    {
+      "id": "pvm",
+      "kind": "domain",
+      "domainType": "vm",
+      "platform": "qnx",
+      "title": "PVM · QNX Cluster",
+      "parent": "soc",
+      "x": 44,
+      "y": 104,
+      "w": 1180,
+      "h": 1620,
+      "evidence": [
+        "user"
+      ]
+    },
+    {
+      "id": "gvm",
+      "kind": "domain",
+      "domainType": "vm",
+      "platform": "android",
+      "title": "GVM · Android IVI",
+      "parent": "soc",
+      "x": 1324,
+      "y": 104,
+      "w": 1180,
+      "h": 1620,
+      "evidence": [
+        "user"
+      ]
+    },
+    {
+      "id": "mcu",
+      "kind": "domain",
+      "domainType": "mcu",
+      "title": "Vehicle MCU",
+      "x": 2604,
+      "y": 24,
+      "w": 400,
+      "h": 2192,
+      "evidence": [
+        "user"
+      ]
+    },
+    {
+      "id": "p-services",
+      "kind": "layer",
+      "role": "services",
+      "order": 0,
+      "title": "Services",
+      "parent": "pvm",
+      "x": 64,
+      "y": 180,
+      "w": 1140,
+      "h": 1258
+    },
+    {
+      "id": "p-core",
+      "kind": "layer",
+      "role": "kernel",
+      "order": 1,
+      "title": "Microkernel & Process Manager",
+      "parent": "pvm",
+      "x": 64,
+      "y": 1478,
+      "w": 1140,
+      "h": 220
+    },
+    {
+      "id": "g-apps",
+      "kind": "layer",
+      "role": "applications",
+      "order": 0,
+      "title": "Applications",
+      "parent": "gvm",
+      "x": 1344,
+      "y": 180,
+      "w": 1140,
+      "h": 220
+    },
+    {
+      "id": "g-framework",
+      "kind": "layer",
+      "role": "framework-api",
+      "order": 1,
+      "title": "Java API Framework",
+      "parent": "gvm",
+      "x": 2048,
+      "y": 448,
+      "w": 436,
+      "h": 184
+    },
+    {
+      "id": "g-services",
+      "kind": "layer",
+      "role": "system-services",
+      "order": 2,
+      "title": "System Services",
+      "parent": "gvm",
+      "x": 1344,
+      "y": 688,
+      "w": 1140,
+      "h": 530
+    },
+    {
+      "id": "ota-process",
+      "kind": "process",
+      "title": "com.voyah.update",
+      "subtitle": "UpdateService",
+      "parent": "g-services",
+      "x": 1364,
+      "y": 764,
+      "w": 644,
+      "h": 438,
+      "evidence": [
+        "service"
+      ]
+    },
+    {
+      "id": "engine-process",
+      "kind": "process",
+      "title": "update_engine",
+      "parent": "g-services",
+      "x": 2048,
+      "y": 764,
+      "w": 416,
+      "h": 438,
+      "evidence": [
+        "daemon"
+      ]
+    },
+    {
+      "id": "g-hal",
+      "kind": "layer",
+      "role": "hal",
+      "order": 3,
+      "title": "Hardware Abstraction Layer",
+      "parent": "gvm",
+      "x": 1344,
+      "y": 1242,
+      "w": 1140,
+      "h": 196
+    },
+    {
+      "id": "g-kernel",
+      "kind": "layer",
+      "role": "kernel",
+      "order": 4,
+      "title": "Linux Kernel",
+      "parent": "gvm",
+      "x": 1344,
+      "y": 1478,
+      "w": 1140,
+      "h": 220
+    },
+    {
+      "id": "qvm-process",
+      "kind": "process",
+      "title": "qvm",
+      "parent": "p-services",
+      "x": 824,
+      "y": 1042,
+      "w": 360,
+      "h": 216,
+      "evidence": [
+        "blocks",
+        "qnx-core"
+      ]
+    },
+    {
+      "id": "hypervisor",
+      "kind": "hypervisor",
+      "title": "Hypervisor",
+      "hosts": [
+        "pvm",
+        "gvm"
+      ],
+      "parent": "soc",
+      "x": 44,
+      "y": 1764,
+      "w": 2460,
+      "h": 96,
+      "evidence": [
+        "user"
+      ]
+    },
+    {
+      "id": "hardware",
+      "kind": "hardware-region",
+      "title": "Hardware",
+      "parent": "soc",
+      "x": 44,
+      "y": 1900,
+      "w": 2460,
+      "h": 292
+    },
+    {
+      "id": "storage-region",
+      "kind": "group",
+      "title": "Shared Storage",
+      "parent": "hardware",
+      "x": 64,
+      "y": 1980,
+      "w": 1760,
+      "h": 196
+    },
+    {
+      "id": "mcu-flash",
+      "kind": "hardware-region",
+      "title": "Application Flash",
+      "parent": "mcu",
+      "x": 2624,
+      "y": 1900,
+      "w": 360,
+      "h": 292
+    },
+    {
+      "id": "g-apis",
+      "kind": "layer",
+      "role": "client-api",
+      "order": 1,
+      "title": "Client APIs",
+      "parent": "gvm",
+      "x": 1344,
+      "y": 448,
+      "w": 664,
+      "h": 184
+    }
+  ],
+  "nodes": [
+    {
+      "id": "upgrademcu",
+      "entityType": "process",
+      "canonicalName": "upgrademcu",
+      "parent": "p-services",
+      "x": 760,
+      "y": 510,
+      "w": 200,
+      "h": 80,
+      "evidence": [
+        "doc",
+        "color-policy",
+        "mcu-tool-project-origin"
+      ],
+      "description": "MCU firmware sender",
+      "layerRole": "services",
+      "origin": "oem"
+    },
+    {
+      "id": "script",
+      "entityType": "process",
+      "canonicalName": "update_ic.sh",
+      "parent": "p-services",
+      "x": 504,
+      "y": 510,
+      "w": 200,
+      "h": 80,
+      "evidence": [
+        "doc",
+        "color-policy"
+      ],
+      "description": "Inactive-bank flash script",
+      "layerRole": "services",
+      "origin": "oem"
+    },
+    {
+      "id": "zstd",
+      "entityType": "process",
+      "canonicalName": "zstd",
+      "parent": "p-services",
+      "x": 504,
+      "y": 696,
+      "w": 200,
+      "h": 80,
+      "evidence": [
+        "doc",
+        "color-policy"
+      ],
+      "description": "Patch and partition writer",
+      "layerRole": "services",
+      "origin": "native"
+    },
+    {
+      "id": "swdl",
+      "entityType": "process",
+      "canonicalName": "swdl_utils",
+      "parent": "p-services",
+      "x": 992,
+      "y": 510,
+      "w": 172,
+      "h": 80,
+      "evidence": [
+        "doc",
+        "color-policy",
+        "swdl-origin"
+      ],
+      "description": "Bank query / activation",
+      "layerRole": "services",
+      "origin": "vendor"
+    },
+    {
+      "id": "rpcif",
+      "entityType": "library",
+      "canonicalName": "librpcif.so",
+      "parent": "p-services",
+      "x": 760,
+      "y": 696,
+      "w": 200,
+      "h": 80,
+      "evidence": [
+        "rpcif",
+        "color-policy",
+        "rpc-project-origin"
+      ],
+      "description": "Loaded by upgrademcu",
+      "layerRole": "services",
+      "origin": "oem"
+    },
+    {
+      "id": "spi-client",
+      "entityType": "library",
+      "canonicalName": "libspi_client.so",
+      "parent": "p-services",
+      "x": 94,
+      "y": 510,
+      "w": 300,
+      "h": 80,
+      "evidence": [
+        "rpcif",
+        "spi-service",
+        "color-policy",
+        "spi-client-origin"
+      ],
+      "description": "Loaded by rpcd",
+      "layerRole": "services",
+      "origin": "vendor"
+    },
+    {
+      "id": "libc",
+      "entityType": "library",
+      "canonicalName": "libc.so.5",
+      "parent": "p-services",
+      "x": 504,
+      "y": 886,
+      "w": 200,
+      "h": 80,
+      "evidence": [
+        "qnx-core",
+        "color-policy",
+        "native-qnx-origin"
+      ],
+      "description": "POSIX partition I/O",
+      "layerRole": "services",
+      "origin": "native"
+    },
+    {
+      "id": "rpcd",
+      "entityType": "process",
+      "canonicalName": "rpcd",
+      "parent": "p-services",
+      "x": 94,
+      "y": 276,
+      "w": 300,
+      "h": 80,
+      "evidence": [
+        "doc",
+        "spi",
+        "color-policy",
+        "rpc-project-origin"
+      ],
+      "description": "RPC frames and SPI dispatch",
+      "layerRole": "services",
+      "origin": "oem"
+    },
+    {
+      "id": "spi-server",
+      "entityType": "process",
+      "canonicalName": "spi_service",
+      "parent": "p-services",
+      "x": 94,
+      "y": 696,
+      "w": 300,
+      "h": 80,
+      "evidence": [
+        "spi-service",
+        "spi",
+        "color-policy",
+        "spi-service-origin"
+      ],
+      "description": "/dev/spi9 · resource manager",
+      "layerRole": "services",
+      "origin": "vendor"
+    },
+    {
+      "id": "updater",
+      "entityType": "process",
+      "canonicalName": "updater",
+      "parent": "p-services",
+      "x": 504,
+      "y": 276,
+      "w": 660,
+      "h": 80,
+      "evidence": [
+        "doc",
+        "color-policy"
+      ],
+      "description": "ZeroMQ REP · upgrade orchestration",
+      "layerRole": "services",
+      "origin": "oem"
+    },
+    {
+      "id": "vdev",
+      "entityType": "library",
+      "canonicalName": "vdev-virtio-blk.so",
+      "parent": "qvm-process",
+      "x": 844,
+      "y": 1124,
+      "w": 320,
+      "h": 96,
+      "evidence": [
+        "blocks",
+        "color-policy",
+        "native-qnx-origin"
+      ],
+      "description": "/dev/disk/la_super · block backend",
+      "layerRole": "services",
+      "origin": "native"
+    },
+    {
+      "id": "disk",
+      "entityType": "process",
+      "canonicalName": "devb-ufs-qualcomm",
+      "parent": "p-services",
+      "x": 504,
+      "y": 1124,
+      "w": 200,
+      "h": 96,
+      "evidence": [
+        "storage",
+        "color-policy",
+        "ufs-platform-origin"
+      ],
+      "description": "Block I/O · QNX6 filesystem",
+      "layerRole": "services",
+      "origin": "vendor"
+    },
+    {
+      "id": "procnto",
+      "entityType": "process",
+      "canonicalName": "procnto-smp-instr",
+      "parent": "p-core",
+      "x": 660,
+      "y": 1564,
+      "w": 504,
+      "h": 88,
+      "evidence": [
+        "qnx-core",
+        "color-policy",
+        "native-qnx-origin"
+      ],
+      "description": "Scheduling · IPC · memory",
+      "layerRole": "kernel",
+      "origin": "native"
+    },
+    {
+      "id": "usb",
+      "entityType": "class",
+      "canonicalName": "UsbUpdateActivity",
+      "parent": "g-apps",
+      "x": 1384,
+      "y": 266,
+      "w": 608,
+      "h": 80,
+      "evidence": [
+        "usb",
+        "color-policy"
+      ],
+      "description": "USB upgrade entry",
+      "layerRole": "applications",
+      "origin": "oem"
+    },
+    {
+      "id": "sdk",
+      "entityType": "class",
+      "canonicalName": "VoyahOtaUpdateImpl",
+      "parent": "g-apis",
+      "x": 1384,
+      "y": 528,
+      "w": 608,
+      "h": 80,
+      "evidence": [
+        "sdk",
+        "color-policy"
+      ],
+      "description": "Application-facing OTA SDK",
+      "layerRole": "client-api",
+      "origin": "oem"
+    },
+    {
+      "id": "engine-api",
+      "entityType": "class",
+      "canonicalName": "android.os.UpdateEngine",
+      "parent": "g-framework",
+      "x": 2072,
+      "y": 528,
+      "w": 344,
+      "h": 80,
+      "evidence": [
+        "framework",
+        "color-policy"
+      ],
+      "description": "IUpdateEngine client API",
+      "layerRole": "framework-api",
+      "origin": "native"
+    },
+    {
+      "id": "binder",
+      "entityType": "class",
+      "canonicalName": "UpdateBinder",
+      "parent": "ota-process",
+      "x": 1384,
+      "y": 866,
+      "w": 288,
+      "h": 80,
+      "evidence": [
+        "tasks",
+        "color-policy"
+      ],
+      "description": "voyah.ota.update",
+      "layerRole": "system-services",
+      "origin": "oem"
+    },
+    {
+      "id": "scheduler",
+      "entityType": "class",
+      "canonicalName": "TaskScheduler",
+      "parent": "ota-process",
+      "x": 1708,
+      "y": 866,
+      "w": 280,
+      "h": 80,
+      "evidence": [
+        "tasks",
+        "protocols",
+        "color-policy"
+      ],
+      "description": "Load / Flash / Activate tasks",
+      "layerRole": "system-services",
+      "origin": "oem"
+    },
+    {
+      "id": "doip",
+      "entityType": "class",
+      "canonicalName": "DoipOtaManager",
+      "parent": "ota-process",
+      "x": 1384,
+      "y": 988,
+      "w": 288,
+      "h": 80,
+      "evidence": [
+        "doip",
+        "color-policy"
+      ],
+      "description": "Diagnostic upgrade entry",
+      "layerRole": "system-services",
+      "origin": "oem"
+    },
+    {
+      "id": "devices",
+      "entityType": "class",
+      "canonicalName": "DeviceManager",
+      "parent": "ota-process",
+      "x": 1708,
+      "y": 988,
+      "w": 280,
+      "h": 80,
+      "evidence": [
+        "protocols",
+        "color-policy"
+      ],
+      "description": "QNX / Android / MCU protocols",
+      "layerRole": "system-services",
+      "origin": "oem"
+    },
+    {
+      "id": "jmq",
+      "entityType": "class",
+      "canonicalName": "JMQClient",
+      "parent": "ota-process",
+      "x": 1384,
+      "y": 1106,
+      "w": 288,
+      "h": 80,
+      "evidence": [
+        "jmq",
+        "doc",
+        "color-policy"
+      ],
+      "description": "REQ · 10.10.200.1:5030",
+      "layerRole": "system-services",
+      "origin": "oem"
+    },
+    {
+      "id": "impl",
+      "entityType": "class",
+      "canonicalName": "UpdateImpl",
+      "parent": "ota-process",
+      "x": 1708,
+      "y": 1106,
+      "w": 280,
+      "h": 80,
+      "evidence": [
+        "impl",
+        "color-policy"
+      ],
+      "description": "File preparation and ECU orchestration",
+      "layerRole": "system-services",
+      "origin": "oem"
+    },
+    {
+      "id": "native-binder",
+      "entityType": "class",
+      "canonicalName": "BinderUpdateEngineAndroidService",
+      "parent": "engine-process",
+      "x": 2072,
+      "y": 846,
+      "w": 344,
+      "h": 112,
+      "evidence": [
+        "daemon",
+        "color-policy"
+      ],
+      "description": "android.os.UpdateEngineService",
+      "layerRole": "system-services",
+      "origin": "native"
+    },
+    {
+      "id": "delta",
+      "entityType": "class",
+      "canonicalName": "DeltaPerformer",
+      "parent": "engine-process",
+      "x": 2072,
+      "y": 992,
+      "w": 344,
+      "h": 76,
+      "evidence": [
+        "performer",
+        "color-policy"
+      ],
+      "description": "System payload writer",
+      "layerRole": "system-services",
+      "origin": "native"
+    },
+    {
+      "id": "boot-client",
+      "entityType": "class",
+      "canonicalName": "BootControlAndroid",
+      "parent": "engine-process",
+      "x": 2072,
+      "y": 1110,
+      "w": 344,
+      "h": 76,
+      "evidence": [
+        "boot",
+        "color-policy"
+      ],
+      "description": "Boot HAL client",
+      "layerRole": "system-services",
+      "origin": "native"
+    },
+    {
+      "id": "boot-hal",
+      "entityType": "process",
+      "canonicalName": "android.hardware.boot@1.2-service",
+      "parent": "g-hal",
+      "x": 2072,
+      "y": 1316,
+      "w": 344,
+      "h": 88,
+      "evidence": [
+        "packages",
+        "boot",
+        "color-policy",
+        "boot-service-origin"
+      ],
+      "description": "IBootControl · slot query / activation",
+      "layerRole": "hal",
+      "origin": "native"
+    },
+    {
+      "id": "block-front",
+      "entityType": "kernel-interface",
+      "canonicalName": "/dev/block/vda · virtio_blk",
+      "parent": "g-kernel",
+      "x": 2056,
+      "y": 1564,
+      "w": 408,
+      "h": 88,
+      "evidence": [
+        "blocks",
+        "virtio",
+        "color-policy"
+      ],
+      "description": "la_super · dynamic system partitions",
+      "layerRole": "kernel",
+      "interfacePath": "/dev/block/vda",
+      "moduleName": "virtio_blk",
+      "executionContext": "kernel",
+      "origin": "native"
+    },
+    {
+      "id": "staging",
+      "entityType": "memory",
+      "canonicalName": "OTA Staging Partition",
+      "parent": "storage-region",
+      "x": 84,
+      "y": 2058,
+      "w": 540,
+      "h": 88,
+      "evidence": [
+        "qnx-nfs",
+        "doc"
+      ],
+      "description": "/dev/disk/qnx_ota · QNX /ota",
+      "resourceId": "shared-ota-partition"
+    },
+    {
+      "id": "qnx-banks",
+      "entityType": "memory",
+      "canonicalName": "QNX BANK_A / BANK_B",
+      "parent": "storage-region",
+      "x": 662,
+      "y": 2058,
+      "w": 534,
+      "h": 88,
+      "evidence": [
+        "doc"
+      ],
+      "description": "system · ifs2 · hyp · inactive bank",
+      "resourceId": "qnx-bank-partitions"
+    },
+    {
+      "id": "android-ab",
+      "entityType": "memory",
+      "canonicalName": "Android System A/B",
+      "parent": "storage-region",
+      "x": 1232,
+      "y": 2058,
+      "w": 570,
+      "h": 88,
+      "evidence": [
+        "doc",
+        "blocks"
+      ],
+      "description": "la_super · inactive logical partitions",
+      "resourceId": "android-system-partitions"
+    },
+    {
+      "id": "spi-hw",
+      "entityType": "hardware",
+      "canonicalName": "SoC SPI Controller",
+      "parent": "hardware",
+      "x": 1884,
+      "y": 2058,
+      "w": 580,
+      "h": 88,
+      "evidence": [
+        "spi",
+        "doc"
+      ],
+      "description": "5 MHz · mode 0 · 8-bit"
+    },
+    {
+      "id": "mcu-firmware",
+      "entityType": "subsystem",
+      "canonicalName": "MCU Application Firmware",
+      "parent": "mcu",
+      "x": 2644,
+      "y": 868,
+      "w": 320,
+      "h": 140,
+      "evidence": [
+        "doc",
+        "color-policy"
+      ],
+      "description": "SOC-MCU msg block · flash / CRC16",
+      "origin": "oem"
+    },
+    {
+      "id": "mcu-banks",
+      "entityType": "memory",
+      "canonicalName": "APP_A / APP_B",
+      "parent": "mcu-flash",
+      "x": 2644,
+      "y": 2058,
+      "w": 320,
+      "h": 88,
+      "evidence": [
+        "doc"
+      ],
+      "description": "Inactive application bank",
+      "resourceId": "mcu-app-flash"
+    },
+    {
+      "id": "nfs-client",
+      "entityType": "driver",
+      "canonicalName": "nfs",
+      "parent": "g-kernel",
+      "x": 1384,
+      "y": 1564,
+      "w": 624,
+      "h": 88,
+      "evidence": [
+        "android-nfs",
+        "color-policy",
+        "native-kernel-origin"
+      ],
+      "description": "NFS client · /otaqnx mount",
+      "layerRole": "kernel",
+      "executionContext": "kernel",
+      "origin": "native"
+    },
+    {
+      "id": "nfs-server",
+      "entityType": "process",
+      "canonicalName": "nfsd",
+      "parent": "p-services",
+      "x": 94,
+      "y": 1292,
+      "w": 300,
+      "h": 80,
+      "evidence": [
+        "qnx-nfs",
+        "color-policy",
+        "native-qnx-origin"
+      ],
+      "description": "Exports QNX /ota",
+      "layerRole": "services",
+      "origin": "native"
+    }
+  ],
+  "edges": [
+    {
+      "id": "usb-sdk",
+      "from": "usb",
+      "to": "sdk",
+      "relation": "call",
+      "evidence": [
+        "sdk",
+        "usb"
+      ]
+    },
+    {
+      "id": "sdk-binder",
+      "from": "sdk",
+      "to": "binder",
+      "relation": "ipc",
+      "evidence": [
+        "sdk"
+      ],
+      "mechanism": "Binder",
+      "via": [
+        {
+          "y": 836
+        },
+        {
+          "x": 1528
+        }
+      ],
+      "labelPosition": {
+        "x": 1742,
+        "y": 664
+      }
+    },
+    {
+      "id": "doip-binder",
+      "from": "doip",
+      "to": "binder",
+      "relation": "call",
+      "evidence": [
+        "doip"
+      ],
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "binder-scheduler",
+      "from": "binder",
+      "to": "scheduler",
+      "relation": "call",
+      "evidence": [
+        "tasks"
+      ],
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "scheduler-devices",
+      "from": "scheduler",
+      "to": "devices",
+      "relation": "dependency",
+      "evidence": [
+        "tasks",
+        "protocols"
+      ]
+    },
+    {
+      "id": "devices-impl",
+      "from": "devices",
+      "to": "impl",
+      "relation": "dependency",
+      "evidence": [
+        "protocols",
+        "impl"
+      ]
+    },
+    {
+      "id": "impl-jmq",
+      "from": "impl",
+      "to": "jmq",
+      "relation": "call",
+      "evidence": [
+        "impl",
+        "jmq"
+      ],
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "impl-api",
+      "from": "impl",
+      "to": "engine-api",
+      "relation": "call",
+      "evidence": [
+        "impl",
+        "framework"
+      ],
+      "fromSide": "right",
+      "toSide": "bottom",
+      "toOffset": -80,
+      "via": [
+        {
+          "x": 2024
+        },
+        {
+          "y": 652
+        },
+        {
+          "x": 2164
+        }
+      ],
+      "label": "applyPayload()",
+      "labelPosition": {
+        "x": 1952,
+        "y": 650
+      }
+    },
+    {
+      "id": "api-native",
+      "from": "engine-api",
+      "to": "native-binder",
+      "relation": "ipc",
+      "evidence": [
+        "framework",
+        "daemon"
+      ],
+      "mechanism": "Binder",
+      "fromOffset": 80,
+      "toOffset": 0,
+      "via": [
+        {
+          "y": 714
+        },
+        {
+          "x": 2244
+        }
+      ],
+      "labelPosition": {
+        "x": 2378,
+        "y": 682
+      }
+    },
+    {
+      "id": "native-performer",
+      "from": "native-binder",
+      "to": "delta",
+      "relation": "dependency",
+      "evidence": [
+        "performer",
+        "daemon"
+      ]
+    },
+    {
+      "id": "native-boot",
+      "from": "native-binder",
+      "to": "boot-client",
+      "relation": "dependency",
+      "evidence": [
+        "daemon",
+        "boot"
+      ],
+      "fromSide": "right",
+      "toSide": "right",
+      "via": [
+        {
+          "x": 2440
+        },
+        {
+          "y": 1148
+        }
+      ]
+    },
+    {
+      "id": "boot-hidl",
+      "from": "boot-client",
+      "to": "boot-hal",
+      "relation": "ipc",
+      "evidence": [
+        "boot",
+        "packages"
+      ],
+      "mechanism": "HIDL",
+      "via": [],
+      "labelPosition": {
+        "x": 2290,
+        "y": 1268
+      }
+    },
+    {
+      "id": "impl-files",
+      "from": "impl",
+      "to": "nfs-client",
+      "relation": "write",
+      "evidence": [
+        "impl",
+        "android-nfs"
+      ],
+      "fromOffset": 0,
+      "toOffset": 0,
+      "via": [
+        {
+          "y": 1448
+        },
+        {
+          "x": 1696
+        }
+      ],
+      "label": "Firmware staging",
+      "labelPosition": {
+        "x": 1774,
+        "y": 1400
+      }
+    },
+    {
+      "id": "payload-block",
+      "from": "delta",
+      "to": "block-front",
+      "relation": "write",
+      "evidence": [
+        "performer",
+        "blocks"
+      ],
+      "fromSide": "left",
+      "toSide": "top",
+      "toOffset": 0,
+      "via": [
+        {
+          "x": 2036
+        },
+        {
+          "y": 1462
+        },
+        {
+          "x": 2260
+        }
+      ],
+      "label": "System payload",
+      "labelPosition": {
+        "x": 2148,
+        "y": 1490
+      }
+    },
+    {
+      "id": "virtio-backend",
+      "from": "block-front",
+      "to": "vdev",
+      "relation": "transfer",
+      "evidence": [
+        "blocks",
+        "virtio"
+      ],
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        {
+          "x": 2032
+        },
+        {
+          "y": 1710
+        },
+        {
+          "x": 1254
+        },
+        {
+          "y": 1172
+        }
+      ],
+      "label": "VirtIO-BLK",
+      "labelPosition": {
+        "x": 2140,
+        "y": 1738
+      }
+    },
+    {
+      "id": "backend-disk",
+      "from": "vdev",
+      "to": "disk",
+      "relation": "write",
+      "evidence": [
+        "blocks",
+        "storage"
+      ],
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "disk-stage",
+      "from": "disk",
+      "to": "staging",
+      "relation": "write",
+      "evidence": [
+        "doc",
+        "storage"
+      ],
+      "fromOffset": -60,
+      "via": [
+        {
+          "y": 2018
+        },
+        {
+          "x": 354
+        }
+      ]
+    },
+    {
+      "id": "disk-qnx",
+      "from": "disk",
+      "to": "qnx-banks",
+      "relation": "write",
+      "evidence": [
+        "doc",
+        "storage"
+      ],
+      "via": [
+        {
+          "y": 2018
+        },
+        {
+          "x": 929
+        }
+      ]
+    },
+    {
+      "id": "disk-android",
+      "from": "disk",
+      "to": "android-ab",
+      "relation": "write",
+      "evidence": [
+        "blocks",
+        "storage"
+      ],
+      "fromOffset": 60,
+      "via": [
+        {
+          "y": 1284
+        },
+        {
+          "x": 1194
+        },
+        {
+          "y": 2018
+        },
+        {
+          "x": 1517
+        }
+      ]
+    },
+    {
+      "id": "files-mcu",
+      "from": "staging",
+      "to": "upgrademcu",
+      "relation": "read",
+      "evidence": [
+        "doc"
+      ],
+      "fromSide": "top",
+      "toSide": "bottom",
+      "via": [
+        {
+          "y": 2028
+        },
+        {
+          "x": 32
+        },
+        {
+          "y": 670
+        },
+        {
+          "x": 780
+        }
+      ],
+      "label": "MCU firmware files",
+      "labelPosition": {
+        "x": 114,
+        "y": 1100
+      },
+      "fromOffset": -180,
+      "toOffset": -80
+    },
+    {
+      "id": "mcu-rpc-call",
+      "from": "upgrademcu",
+      "to": "rpcif",
+      "relation": "call",
+      "evidence": [
+        "doc",
+        "rpcif"
+      ]
+    },
+    {
+      "id": "mcu-rpc-data",
+      "from": "upgrademcu",
+      "to": "rpcif",
+      "relation": "transfer",
+      "evidence": [
+        "doc",
+        "rpcif"
+      ],
+      "fromOffset": 50,
+      "toOffset": 50
+    },
+    {
+      "id": "rpc-socket",
+      "from": "rpcif",
+      "to": "rpcd",
+      "relation": "ipc",
+      "evidence": [
+        "rpcif",
+        "uds"
+      ],
+      "mechanism": "Unix-domain socket",
+      "labelPosition": {
+        "x": 536,
+        "y": 420
+      },
+      "fromSide": "left",
+      "fromOffset": -20,
+      "toSide": "right",
+      "toOffset": -20,
+      "via": [
+        {
+          "x": 740
+        },
+        {
+          "y": 622
+        },
+        {
+          "x": 440
+        },
+        {
+          "y": 300
+        }
+      ]
+    },
+    {
+      "id": "rpc-chunks",
+      "from": "rpcif",
+      "to": "rpcd",
+      "relation": "transfer",
+      "evidence": [
+        "doc",
+        "uds"
+      ],
+      "fromOffset": 20,
+      "toOffset": 20,
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        {
+          "x": 716
+        },
+        {
+          "y": 646
+        },
+        {
+          "x": 416
+        },
+        {
+          "y": 340
+        }
+      ]
+    },
+    {
+      "id": "rpc-spi-api",
+      "from": "rpcd",
+      "to": "spi-client",
+      "relation": "call",
+      "evidence": [
+        "rpcif",
+        "spi"
+      ],
+      "fromSide": "bottom",
+      "toSide": "top",
+      "toOffset": 0,
+      "via": [],
+      "label": "spi_xchange()",
+      "labelPosition": {
+        "x": 166,
+        "y": 428
+      },
+      "fromOffset": 0
+    },
+    {
+      "id": "spi-client-server",
+      "from": "spi-client",
+      "to": "spi-server",
+      "relation": "ipc",
+      "evidence": [
+        "spi",
+        "spi-service",
+        "spi-devctl"
+      ],
+      "fromOffset": 0,
+      "via": [],
+      "label": "devctlv",
+      "labelPosition": {
+        "x": 308,
+        "y": 638
+      },
+      "mechanism": "QNX devctlv"
+    },
+    {
+      "id": "spi-bus",
+      "from": "spi-server",
+      "to": "spi-hw",
+      "relation": "transfer",
+      "evidence": [
+        "spi",
+        "doc"
+      ],
+      "via": [
+        {
+          "y": 824
+        },
+        {
+          "x": 1240
+        },
+        {
+          "y": 1994
+        },
+        {
+          "x": 2174
+        }
+      ],
+      "label": "SPI frames",
+      "labelPosition": {
+        "x": 2052,
+        "y": 1968
+      }
+    },
+    {
+      "id": "spi-mcu",
+      "from": "spi-hw",
+      "to": "mcu-firmware",
+      "relation": "transfer",
+      "evidence": [
+        "spi",
+        "doc"
+      ],
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        {
+          "x": 2554
+        },
+        {
+          "y": 938
+        }
+      ],
+      "label": "SPI / msg block",
+      "labelPosition": {
+        "x": 2630,
+        "y": 1540
+      }
+    },
+    {
+      "id": "mcu-flash",
+      "from": "mcu-firmware",
+      "to": "mcu-banks",
+      "relation": "write",
+      "evidence": [
+        "doc"
+      ]
+    },
+    {
+      "id": "jmq-updater",
+      "from": "jmq",
+      "to": "updater",
+      "relation": "ipc",
+      "evidence": [
+        "jmq",
+        "doc"
+      ],
+      "mechanism": "ZeroMQ REQ/REP over TCP",
+      "label": "ZeroMQ",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        {
+          "x": 1284
+        },
+        {
+          "y": 316
+        }
+      ],
+      "labelPosition": {
+        "x": 1330,
+        "y": 940
+      },
+      "toOffset": 0
+    },
+    {
+      "id": "spawn-script",
+      "from": "updater",
+      "to": "script",
+      "relation": "call",
+      "evidence": [
+        "doc"
+      ],
+      "fromSide": "bottom",
+      "fromOffset": -230,
+      "toSide": "top",
+      "via": [],
+      "toOffset": 0
+    },
+    {
+      "id": "spawn-mcu",
+      "from": "updater",
+      "to": "upgrademcu",
+      "relation": "call",
+      "evidence": [
+        "doc"
+      ],
+      "fromSide": "bottom",
+      "fromOffset": 26,
+      "toSide": "top",
+      "via": [],
+      "toOffset": 0
+    },
+    {
+      "id": "spawn-swdl",
+      "from": "updater",
+      "to": "swdl",
+      "relation": "call",
+      "evidence": [
+        "doc"
+      ],
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [],
+      "fromOffset": 244,
+      "toOffset": 0
+    },
+    {
+      "id": "script-zstd",
+      "from": "script",
+      "to": "zstd",
+      "relation": "call",
+      "evidence": [
+        "doc"
+      ],
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": []
+    },
+    {
+      "id": "zstd-libc",
+      "from": "zstd",
+      "to": "libc",
+      "relation": "call",
+      "evidence": [
+        "doc",
+        "qnx-core"
+      ],
+      "via": []
+    },
+    {
+      "id": "libc-disk",
+      "from": "libc",
+      "to": "disk",
+      "relation": "ipc",
+      "evidence": [
+        "qnx-core",
+        "storage"
+      ],
+      "mechanism": "QNX I/O messages",
+      "via": [],
+      "labelPosition": {
+        "x": 714,
+        "y": 1010
+      }
+    },
+    {
+      "id": "bank-select",
+      "from": "swdl",
+      "to": "qnx-banks",
+      "relation": "configuration",
+      "evidence": [
+        "doc"
+      ],
+      "fromSide": "right",
+      "via": [
+        {
+          "x": 1214
+        },
+        {
+          "y": 2102
+        }
+      ],
+      "label": "Next-boot bank",
+      "labelPosition": {
+        "x": 1130,
+        "y": 1818
+      },
+      "toSide": "right"
+    },
+    {
+      "id": "nfs-cross-vm",
+      "from": "nfs-client",
+      "to": "nfs-server",
+      "relation": "transfer",
+      "evidence": [
+        "android-nfs",
+        "qnx-nfs"
+      ],
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        {
+          "x": 1284
+        },
+        {
+          "y": 1332
+        }
+      ],
+      "label": "NFS / IP",
+      "labelPosition": {
+        "x": 1040,
+        "y": 1308
+      }
+    },
+    {
+      "id": "nfs-disk",
+      "from": "nfs-server",
+      "to": "disk",
+      "relation": "write",
+      "evidence": [
+        "qnx-nfs",
+        "storage"
+      ],
+      "fromSide": "top",
+      "toSide": "left",
+      "toOffset": 0,
+      "via": [
+        {
+          "y": 1172
+        }
+      ],
+      "label": "File I/O",
+      "labelPosition": {
+        "x": 354,
+        "y": 1210
+      }
+    }
+  ]
+}

@@ -60,4 +60,4 @@ python scripts/check-drawio.py /path/output.drawio --model /path/input.diagram.j
 
 ## OTA reference
 
-已验证的实例：[OTA model](../../h56ez-ota-architecture-redrawn.diagram.json)、[editable diagram](../../h56ez-ota-architecture.drawio)。用于检查转换结果，不是其他系统的固定组件清单或唯一布局。实例不在当前仓库时不影响此 skill 的执行。
+已验证的实例随本 skill 保存在 `assets/`：[OTA model](assets/h56ez-ota-architecture-redrawn.diagram.json)、[editable diagram](assets/h56ez-ota-architecture.drawio)。用于检查转换结果，不是其他系统的固定组件清单或唯一布局。示例保留原始内容，不依赖 `work/` 下的外部副本。
