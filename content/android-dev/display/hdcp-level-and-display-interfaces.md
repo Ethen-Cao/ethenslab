@@ -13,32 +13,39 @@ draft = false
 ---
 
 ## 目录
-1. [问题背景与核心反常现象](#1-问题背景与核心反常现象)
-2. [HDCP 保护机制与 DRM 业务决策模型](#2-hdcp-保护机制与-drm-业务决策模型)
-   - 2.1 [HDCP 协议演进与等级矩阵](#21-hdcp-协议演进与等级矩阵)
-   - 2.2 [Max HDCP 与 Current HDCP 的“木桶协商”](#22-max-hdcp-与-current-hdcp-的木桶协商)
-   - 2.3 [DRM 输出保护策略（Output Protection Policy）对分辨率的裁决](#23-drm-输出保护策略output-protection-policy对分辨率的裁决)
-3. [Android HDCP 级别获取全链路源码剖析](#3-android-hdcp-级别获取全链路源码剖析)
-   - 3.1 [全景调用时序图](#31-全景调用时序图)
-   - 3.2 [Framework 层：MediaDrm 与 @HdcpLevel 枚举](#32-framework-层mediadrm-与-hdcplevel-枚举)
-   - 3.3 [HIDL / AIDL HAL 层：WVDrmPlugin 状态映射](#33-hidl--aidl-hal-层wvdrmplugin-状态映射)
-   - 3.4 [CDM 核心引擎：CdmEngine 与 MapHdcpVersion](#34-cdm-核心引擎cdmengine-与-maphdcpversion)
-   - 3.5 [TEE 安全层：OEMCryptoCENC 规范与 HDCP_NO_DIGITAL_OUTPUT](#35-tee-安全层oemcryptocenc-规范与-hdcp_no_digital_output)
-4. [物理显示接口对决：MIPI DSI vs DisplayPort (DP / eDP)](#4-物理显示接口对决mipi-dsi-vs-displayport-dp--edp)
-   - 4.1 [核心技术指标对比矩阵](#41-核心技术指标对比矩阵)
-   - 4.2 [MIPI DSI 架构：协议、物理层与车载走线局限](#42-mipi-dsi-架构协议物理层与车载走线局限)
-   - 4.3 [DisplayPort 架构：微包传输、AUX 握手与 MST 菊花链](#43-displayport-架构微包传输aux-握手与-mst-菊花链)
-   - 4.4 [DP 的外置形态与 HDMI 互转机制（DP++ 与 Type-C DP Alt Mode）](#44-dp-的外置形态与-hdmi-互转机制dp-与-type-c-dp-alt-mode)
-5. [DRM 安全模型：内屏免 HDCP 与外屏强校验的本质哲学](#5-drm-安全模型内屏免-hdcp-与外屏强校验的本质哲学)
-   - 5.1 [SVP（Secure Video Path）全流程数据通路](#51-svpsecure-video-path全流程数据通路)
-   - 5.2 [为什么 DSI 内部屏免 HDCP？](#52-为什么-dsi-内部屏免-hdcp)
-   - 5.3 [为什么外接 DP / HDMI 必须强制 HDCP？](#53-为什么外接-dp--hdmi-必须强制-hdcp)
-   - 5.4 [内置 eDP 的特殊定位与权衡](#54-内置-edp-的特殊定位与权衡)
-6. [车载座舱（高通 8155 GVM）工程实战解密](#6-车载座舱高通-8155-gvm工程实战解密)
-   - 6.1 [为什么硬件 SerDes 无 HDCP 却上报 HDCP 2.3？](#61-为什么硬件-serdes-无-hdcp-却上报-hdcp-23)
-   - 6.2 [虚拟化显示链路与 QNX Host 隔离模型](#62-虚拟化显示链路与-qnx-host-隔离模型)
-   - 6.3 [工程设计与安全合规建议](#63-工程设计与安全合规建议)
-7. [总结与核心速查清单](#7-总结与核心速查清单)
+- [Android 显示架构深度剖析：HDCP 级别获取机制与 DSI / DP 显示接口核心差异](#android-显示架构深度剖析hdcp-级别获取机制与-dsi--dp-显示接口核心差异)
+  - [目录](#目录)
+  - [1. 问题背景与核心反常现象](#1-问题背景与核心反常现象)
+  - [2. HDCP 保护机制与 DRM 业务决策模型](#2-hdcp-保护机制与-drm-业务决策模型)
+    - [2.1 HDCP 协议演进与等级矩阵](#21-hdcp-协议演进与等级矩阵)
+    - [2.2 Max HDCP 与 Current HDCP 的“木桶协商”](#22-max-hdcp-与-current-hdcp-的木桶协商)
+    - [2.3 DRM 输出保护策略（Output Protection Policy）对分辨率的裁决](#23-drm-输出保护策略output-protection-policy对分辨率的裁决)
+  - [3. Android HDCP 级别获取全链路源码剖析](#3-android-hdcp-级别获取全链路源码剖析)
+    - [3.1 全景调用时序图](#31-全景调用时序图)
+    - [3.2 Framework 层：MediaDrm 与 @HdcpLevel 枚举](#32-framework-层mediadrm-与-hdcplevel-枚举)
+    - [3.3 HIDL / AIDL HAL 层：WVDrmPlugin 状态映射](#33-hidl--aidl-hal-层wvdrmplugin-状态映射)
+    - [3.4 CDM 核心引擎：CdmEngine 与 MapHdcpVersion](#34-cdm-核心引擎cdmengine-与-maphdcpversion)
+    - [3.5 TEE 安全层：OEMCryptoCENC 规范与 HDCP\_NO\_DIGITAL\_OUTPUT](#35-tee-安全层oemcryptocenc-规范与-hdcp_no_digital_output)
+  - [4. 物理显示接口对决：MIPI DSI vs DisplayPort (DP / eDP)](#4-物理显示接口对决mipi-dsi-vs-displayport-dp--edp)
+    - [4.1 核心技术指标对比矩阵](#41-核心技术指标对比矩阵)
+    - [4.2 MIPI DSI 架构：协议、物理层与车载走线局限](#42-mipi-dsi-架构协议物理层与车载走线局限)
+    - [4.3 DisplayPort 架构：微包传输、AUX 握手与 MST 菊花链](#43-displayport-架构微包传输aux-握手与-mst-菊花链)
+    - [4.4 DP 的外置形态与 HDMI 互转机制（DP++ 与 Type-C DP Alt Mode）](#44-dp-的外置形态与-hdmi-互转机制dp-与-type-c-dp-alt-mode)
+      - [① 常见物理接口形态](#-常见物理接口形态)
+      - [② DP 与 HDMI 的互通机制](#-dp-与-hdmi-的互通机制)
+  - [5. DRM 安全模型：内屏免 HDCP 与外屏强校验的本质哲学](#5-drm-安全模型内屏免-hdcp-与外屏强校验的本质哲学)
+    - [5.1 SVP（Secure Video Path）全流程数据通路](#51-svpsecure-video-path全流程数据通路)
+    - [5.2 为什么 DSI 内部屏免 HDCP？](#52-为什么-dsi-内部屏免-hdcp)
+    - [5.3 为什么外接 DP / HDMI 必须强制 HDCP？](#53-为什么外接-dp--hdmi-必须强制-hdcp)
+    - [5.4 内置 eDP 的特殊定位与权衡](#54-内置-edp-的特殊定位与权衡)
+  - [6. 车载座舱（高通 8155 GVM）工程实战解密](#6-车载座舱高通-8155-gvm工程实战解密)
+    - [6.1 为什么硬件 SerDes 无 HDCP 却上报 HDCP 2.3？](#61-为什么硬件-serdes-无-hdcp-却上报-hdcp-23)
+      - [解密一：SoC 与串行器是 MIPI DSI 直连，SoC 根本无法感知外部 SerDes 是否支持 HDCP](#解密一soc-与串行器是-mipi-dsi-直连soc-根本无法感知外部-serdes-是否支持-hdcp)
+      - [解密二：虚拟化（GVM）环境下的层级隔离与透传阻断](#解密二虚拟化gvm环境下的层级隔离与透传阻断)
+      - [解密三：BSP 与 OEMCrypto 为通过 Widevine 认证的默认行为（Mock / Policy Defaults）](#解密三bsp-与-oemcrypto-为通过-widevine-认证的默认行为mock--policy-defaults)
+    - [6.2 虚拟化显示链路与 QNX Host 隔离模型](#62-虚拟化显示链路与-qnx-host-隔离模型)
+    - [6.3 工程设计与安全合规建议](#63-工程设计与安全合规建议)
+  - [7. 总结与核心速查清单](#7-总结与核心速查清单)
 
 ---
 
@@ -513,7 +520,7 @@ MIPI DSI 的核心理念是**“极致精简与极致低功耗”**：
 
 ## 6. 车载座舱（高通 8155 GVM）工程实战解密
 
-回到前文的核心疑问：**“为什么 HBEZ 项目的硬件 SerDes 不支持 HDCP，DRM Info 却赫然显示 `HDCP 2.3`？”**
+回到前文的核心疑问：**“为什么项目的硬件 SerDes 不支持 HDCP，DRM Info 却赫然显示 `HDCP 2.3`？”**
 
 结合高通 8155 平台虚拟机架构，其底层机理在于三重解耦：
 
