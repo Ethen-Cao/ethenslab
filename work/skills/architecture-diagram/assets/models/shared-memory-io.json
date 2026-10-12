@@ -1,40 +1,348 @@
 {
   "version": 2,
-  "meta": {"id": "shared-memory-io", "title": "Image Memory and Physical I/O", "subtitle": "Capture and scanout data-path excerpts", "description": "The capture input pool lies between acquisition hardware and its software reader. The display buffer lies between its GPU writer and DPU reader. These are independent excerpts, not one joined pipeline.", "scope": "subsystem", "view": "dataflow", "colorMode": "technical"},
-  "canvas": {"width": 1440, "height": 1050},
+  "meta": {
+    "id": "shared-memory-io",
+    "title": "Image Memory and Physical I/O",
+    "subtitle": "Capture and scanout data-path excerpts",
+    "description": "The capture input pool lies between acquisition hardware and its software reader. The display buffer lies between its GPU writer and DPU reader. These are independent excerpts, not one joined pipeline.",
+    "scope": "subsystem",
+    "view": "dataflow",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 1440,
+    "height": 1050
+  },
   "sources": [
-    {"id": "camera", "title": "Camera capture and buffer ownership", "locator": "content/gunyah/camera-virtualization-architecture.md#5-camera-输入与-pvm-四合一载荷"},
-    {"id": "gpu", "title": "GPU rendering and DPU scanout", "locator": "content/gunyah/sa8797-sa8397-gpu-architecture.md"},
-    {"id": "display", "title": "PVM display hardware and output", "locator": "content/gunyah/pvm-graphics-stack.md"}
+    {
+      "id": "camera",
+      "title": "Camera capture and buffer ownership",
+      "locator": "content/gunyah/camera-virtualization-architecture.md#5-camera-输入与-pvm-四合一载荷"
+    },
+    {
+      "id": "gpu",
+      "title": "GPU rendering and DPU scanout",
+      "locator": "content/gunyah/sa8797-sa8397-gpu-architecture.md"
+    },
+    {
+      "id": "display",
+      "title": "PVM display hardware and output",
+      "locator": "content/gunyah/pvm-graphics-stack.md"
+    }
   ],
   "containers": [
-    {"id": "capture", "kind": "group", "title": "Camera Capture", "x": 24, "y": 24, "w": 680, "h": 1000},
-    {"id": "camera-process", "kind": "process", "title": "v4q_be_server", "parent": "capture", "evidence": ["camera"], "x": 48, "y": 104, "w": 632, "h": 200},
-    {"id": "camera-memory", "kind": "hardware-region", "title": "Image Memory", "parent": "capture", "x": 48, "y": 354, "w": 632, "h": 200},
-    {"id": "camera-hardware", "kind": "hardware-region", "title": "Capture Hardware", "parent": "capture", "x": 48, "y": 604, "w": 632, "h": 200},
-    {"id": "camera-input", "kind": "hardware-region", "title": "Physical Input", "parent": "capture", "x": 48, "y": 854, "w": 632, "h": 154},
-    {"id": "display", "kind": "group", "title": "Display Scanout", "x": 736, "y": 24, "w": 680, "h": 1000},
-    {"id": "display-render", "kind": "hardware-region", "title": "Rendering Hardware", "parent": "display", "x": 760, "y": 104, "w": 632, "h": 200},
-    {"id": "display-memory", "kind": "hardware-region", "title": "Image Memory", "parent": "display", "x": 760, "y": 354, "w": 632, "h": 200},
-    {"id": "display-hardware", "kind": "hardware-region", "title": "Display Hardware", "parent": "display", "x": 760, "y": 604, "w": 632, "h": 200},
-    {"id": "display-output", "kind": "hardware-region", "title": "Physical Output", "parent": "display", "x": 760, "y": 854, "w": 632, "h": 154}
+    {
+      "id": "capture",
+      "kind": "group",
+      "title": "Camera Capture",
+      "x": 24,
+      "y": 24,
+      "w": 680,
+      "h": 1000
+    },
+    {
+      "id": "camera-process",
+      "kind": "process",
+      "title": "v4q_be_server",
+      "parent": "capture",
+      "evidence": [
+        "camera"
+      ],
+      "x": 48,
+      "y": 104,
+      "w": 632,
+      "h": 200
+    },
+    {
+      "id": "camera-memory",
+      "kind": "hardware-region",
+      "title": "Image Memory",
+      "parent": "capture",
+      "x": 48,
+      "y": 354,
+      "w": 632,
+      "h": 200
+    },
+    {
+      "id": "camera-hardware",
+      "kind": "hardware-region",
+      "title": "Capture Hardware",
+      "parent": "capture",
+      "x": 48,
+      "y": 604,
+      "w": 632,
+      "h": 200
+    },
+    {
+      "id": "camera-input",
+      "kind": "hardware-region",
+      "title": "Physical Input",
+      "parent": "capture",
+      "x": 48,
+      "y": 854,
+      "w": 632,
+      "h": 154
+    },
+    {
+      "id": "display",
+      "kind": "group",
+      "title": "Display Scanout",
+      "x": 736,
+      "y": 24,
+      "w": 680,
+      "h": 1000
+    },
+    {
+      "id": "display-render",
+      "kind": "hardware-region",
+      "title": "Rendering Hardware",
+      "parent": "display",
+      "x": 760,
+      "y": 104,
+      "w": 632,
+      "h": 200
+    },
+    {
+      "id": "display-memory",
+      "kind": "hardware-region",
+      "title": "Image Memory",
+      "parent": "display",
+      "x": 760,
+      "y": 354,
+      "w": 632,
+      "h": 200
+    },
+    {
+      "id": "display-hardware",
+      "kind": "hardware-region",
+      "title": "Display Hardware",
+      "parent": "display",
+      "x": 760,
+      "y": 604,
+      "w": 632,
+      "h": 200
+    },
+    {
+      "id": "display-output",
+      "kind": "hardware-region",
+      "title": "Physical Output",
+      "parent": "display",
+      "x": 760,
+      "y": 854,
+      "w": 632,
+      "h": 154
+    }
   ],
   "nodes": [
-    {"id": "capture-reader", "entityType": "class", "canonicalName": "v4q::v4q_QcarcamOneframe", "description": "CPU reads captured input frames", "parent": "camera-process", "evidence": ["camera"], "x": 166, "y": 184, "w": 396, "h": 80},
-    {"id": "capture-buffer", "entityType": "memory", "canonicalName": "QCarCam Input Buffers", "description": "DMA-written UYVY frames", "resourceId": "qcarcam-input-pool", "parent": "camera-memory", "evidence": ["camera"], "x": 184, "y": 438, "w": 360, "h": 80},
-    {"id": "capture-dma", "entityType": "hardware", "canonicalName": "ISP / IFE and Camera DMA", "parent": "camera-hardware", "evidence": ["camera"], "x": 184, "y": 684, "w": 360, "h": 80},
-    {"id": "sensor", "entityType": "hardware", "canonicalName": "Camera Sensors", "description": "SerDes and MIPI CSI-2 input", "parent": "camera-input", "evidence": ["camera"], "x": 184, "y": 928, "w": 360, "h": 64},
-    {"id": "gpu", "entityType": "hardware", "canonicalName": "Adreno GPU", "description": "Rendering and client composition", "parent": "display-render", "evidence": ["gpu"], "x": 896, "y": 184, "w": 360, "h": 80},
-    {"id": "display-buffer", "entityType": "memory", "canonicalName": "Shared Image Buffers", "description": "Rendered pixels in mapped memory", "resourceId": "display-image-pool", "parent": "display-memory", "evidence": ["gpu", "display"], "x": 896, "y": 438, "w": 360, "h": 80},
-    {"id": "dpu", "entityType": "hardware", "canonicalName": "Display Processing Unit", "description": "Fetch, blend and scanout", "parent": "display-hardware", "evidence": ["display"], "x": 896, "y": 684, "w": 360, "h": 80},
-    {"id": "panel", "entityType": "hardware", "canonicalName": "Display Panel", "description": "DP output and board-specific bridge", "parent": "display-output", "evidence": ["display"], "x": 896, "y": 928, "w": 360, "h": 64}
+    {
+      "id": "capture-reader",
+      "entityType": "class",
+      "canonicalName": "v4q::v4q_QcarcamOneframe",
+      "description": "CPU reads captured input frames",
+      "parent": "camera-process",
+      "evidence": [
+        "camera"
+      ],
+      "x": 166,
+      "y": 184,
+      "w": 396,
+      "h": 80
+    },
+    {
+      "id": "capture-buffer",
+      "entityType": "memory",
+      "canonicalName": "QCarCam Input Buffers",
+      "description": "DMA-written UYVY frames",
+      "resourceId": "qcarcam-input-pool",
+      "parent": "camera-memory",
+      "evidence": [
+        "camera"
+      ],
+      "x": 184,
+      "y": 438,
+      "w": 360,
+      "h": 80
+    },
+    {
+      "id": "capture-dma",
+      "entityType": "hardware",
+      "canonicalName": "ISP / IFE and Camera DMA",
+      "parent": "camera-hardware",
+      "evidence": [
+        "camera"
+      ],
+      "x": 184,
+      "y": 684,
+      "w": 360,
+      "h": 80
+    },
+    {
+      "id": "sensor",
+      "entityType": "hardware",
+      "canonicalName": "Camera Sensors",
+      "description": "SerDes and MIPI CSI-2 input",
+      "parent": "camera-input",
+      "evidence": [
+        "camera"
+      ],
+      "x": 184,
+      "y": 928,
+      "w": 360,
+      "h": 64
+    },
+    {
+      "id": "gpu",
+      "entityType": "hardware",
+      "canonicalName": "Adreno GPU",
+      "description": "Rendering and client composition",
+      "parent": "display-render",
+      "evidence": [
+        "gpu"
+      ],
+      "x": 896,
+      "y": 184,
+      "w": 360,
+      "h": 80
+    },
+    {
+      "id": "display-buffer",
+      "entityType": "memory",
+      "canonicalName": "Shared Image Buffers",
+      "description": "Rendered pixels in mapped memory",
+      "resourceId": "display-image-pool",
+      "parent": "display-memory",
+      "evidence": [
+        "gpu",
+        "display"
+      ],
+      "x": 896,
+      "y": 438,
+      "w": 360,
+      "h": 80
+    },
+    {
+      "id": "dpu",
+      "entityType": "hardware",
+      "canonicalName": "Display Processing Unit",
+      "description": "Fetch, blend and scanout",
+      "parent": "display-hardware",
+      "evidence": [
+        "display"
+      ],
+      "x": 896,
+      "y": 684,
+      "w": 360,
+      "h": 80
+    },
+    {
+      "id": "panel",
+      "entityType": "hardware",
+      "canonicalName": "Display Panel",
+      "description": "DP output and board-specific bridge",
+      "parent": "display-output",
+      "evidence": [
+        "display"
+      ],
+      "x": 896,
+      "y": 928,
+      "w": 360,
+      "h": 64
+    }
   ],
   "edges": [
-    {"id": "input-capture", "from": "sensor", "to": "capture-dma", "relation": "transfer", "fromSide": "top", "toSide": "bottom", "label": "Image stream", "labelPosition": {"x": 434, "y": 831}, "evidence": ["camera"]},
-    {"id": "capture-write", "from": "capture-dma", "to": "capture-buffer", "relation": "write", "fromSide": "top", "toSide": "bottom", "label": "DMA write", "labelPosition": {"x": 430, "y": 580}, "evidence": ["camera"]},
-    {"id": "capture-read", "from": "capture-buffer", "to": "capture-reader", "relation": "read", "fromSide": "top", "toSide": "bottom", "label": "CPU read", "labelPosition": {"x": 430, "y": 328}, "evidence": ["camera"]},
-    {"id": "gpu-write", "from": "gpu", "to": "display-buffer", "relation": "write", "label": "Rendered pixels", "labelPosition": {"x": 1160, "y": 328}, "evidence": ["gpu"]},
-    {"id": "dpu-read", "from": "display-buffer", "to": "dpu", "relation": "read", "label": "Memory fetch", "labelPosition": {"x": 1154, "y": 580}, "evidence": ["gpu", "display"]},
-    {"id": "display-scanout", "from": "dpu", "to": "panel", "relation": "transfer", "label": "Scanout pixels", "labelPosition": {"x": 1156, "y": 831}, "evidence": ["display"]}
-  ]
+    {
+      "id": "input-capture",
+      "from": "sensor",
+      "to": "capture-dma",
+      "relation": "transfer",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "Image stream",
+      "labelPosition": {
+        "x": 434,
+        "y": 831
+      },
+      "evidence": [
+        "camera"
+      ]
+    },
+    {
+      "id": "capture-write",
+      "from": "capture-dma",
+      "to": "capture-buffer",
+      "relation": "write",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "DMA write",
+      "labelPosition": {
+        "x": 430,
+        "y": 580
+      },
+      "evidence": [
+        "camera"
+      ]
+    },
+    {
+      "id": "capture-read",
+      "from": "capture-buffer",
+      "to": "capture-reader",
+      "relation": "read",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "CPU read",
+      "labelPosition": {
+        "x": 430,
+        "y": 328
+      },
+      "evidence": [
+        "camera"
+      ]
+    },
+    {
+      "id": "gpu-write",
+      "from": "gpu",
+      "to": "display-buffer",
+      "relation": "write",
+      "label": "Rendered pixels",
+      "labelPosition": {
+        "x": 1160,
+        "y": 328
+      },
+      "evidence": [
+        "gpu"
+      ]
+    },
+    {
+      "id": "dpu-read",
+      "from": "display-buffer",
+      "to": "dpu",
+      "relation": "read",
+      "label": "Memory fetch",
+      "labelPosition": {
+        "x": 1154,
+        "y": 580
+      },
+      "evidence": [
+        "gpu",
+        "display"
+      ]
+    },
+    {
+      "id": "display-scanout",
+      "from": "dpu",
+      "to": "panel",
+      "relation": "transfer",
+      "label": "Scanout pixels",
+      "labelPosition": {
+        "x": 1156,
+        "y": 831
+      },
+      "evidence": [
+        "display"
+      ]
+    }
+  ],
+  "deployment": {
+    "profile": "single-domain"
+  }
 }

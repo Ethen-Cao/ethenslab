@@ -1,49 +1,464 @@
 {
   "version": 2,
-  "meta": {"id": "android-system", "title": "Android Platform Architecture", "subtitle": "Automotive APIs and service implementation", "description": "The major layers follow the Android platform diagram. Core Android APIs and Car APIs share the Java API Framework layer. System services are expanded to distinguish system_server from com.android.car. Native libraries and ART are peer regions; HAL remains separate.", "scope": "system", "view": "layered", "colorMode": "technical"},
-  "canvas": {"width": 1180, "height": 1650},
+  "meta": {
+    "id": "android-system",
+    "title": "Android Platform Architecture",
+    "subtitle": "Automotive APIs and service implementation",
+    "description": "The major layers follow the Android platform diagram. Core Android APIs and Car APIs share the Java API Framework layer. System services are expanded to distinguish system_server from com.android.car. Native libraries and ART are peer regions; HAL remains separate.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 1180,
+    "height": 1650
+  },
   "sources": [
-    {"id": "platform", "title": "Android platform architecture", "locator": "https://developer.android.com/guide/platform"},
-    {"id": "car", "title": "AAOS Car Framework Core, pages 6-10", "locator": "https://source.android.com/static/docs/automotive/car-framework-core/gapb-2024-aaos-101-day3-carframework-core.pdf#page=6"},
-    {"id": "vhal", "title": "Vehicle HAL overview", "locator": "https://source.android.com/docs/automotive/vhal"},
-    {"id": "system", "title": "AOSP architecture overview", "locator": "https://source.android.com/docs/core/architecture"},
-    {"id": "ams", "title": "AOSP ActivityManagerService implementation", "locator": "https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android15-release/services/core/java/com/android/server/am/ActivityManagerService.java"},
-    {"id": "gl", "title": "AOSP EGL and GLES shared library targets", "locator": "https://android.googlesource.com/platform/frameworks/native/+/995b24692c/opengl/libs/Android.bp"}
+    {
+      "id": "platform",
+      "title": "Android platform architecture",
+      "locator": "https://developer.android.com/guide/platform"
+    },
+    {
+      "id": "car",
+      "title": "AAOS Car Framework Core, pages 6-10",
+      "locator": "https://source.android.com/static/docs/automotive/car-framework-core/gapb-2024-aaos-101-day3-carframework-core.pdf#page=6"
+    },
+    {
+      "id": "vhal",
+      "title": "Vehicle HAL overview",
+      "locator": "https://source.android.com/docs/automotive/vhal"
+    },
+    {
+      "id": "system",
+      "title": "AOSP architecture overview",
+      "locator": "https://source.android.com/docs/core/architecture"
+    },
+    {
+      "id": "ams",
+      "title": "AOSP ActivityManagerService implementation",
+      "locator": "https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android15-release/services/core/java/com/android/server/am/ActivityManagerService.java"
+    },
+    {
+      "id": "gl",
+      "title": "AOSP EGL and GLES shared library targets",
+      "locator": "https://android.googlesource.com/platform/frameworks/native/+/995b24692c/opengl/libs/Android.bp"
+    }
   ],
   "containers": [
-    {"id": "android", "kind": "domain", "title": "Android Automotive OS", "domainType": "os", "x": 24, "y": 24, "w": 1132, "h": 1600},
-    {"id": "apps", "kind": "layer", "title": "Applications", "order": 0, "parent": "android", "x": 44, "y": 100, "w": 1092, "h": 172},
-    {"id": "java", "kind": "layer", "title": "Java API Framework", "order": 1, "parent": "android", "x": 44, "y": 300, "w": 1092, "h": 280},
-    {"id": "core-api", "kind": "group", "title": "Core Android APIs", "parent": "java", "x": 64, "y": 374, "w": 496, "h": 180},
-    {"id": "car-api", "kind": "group", "title": "Car APIs", "parent": "java", "x": 620, "y": 374, "w": 496, "h": 180},
-    {"id": "services", "kind": "layer", "title": "System Services", "order": 2, "parent": "android", "x": 44, "y": 616, "w": 1092, "h": 294},
-    {"id": "system-server", "kind": "process", "title": "system_server", "parent": "services", "evidence": ["system", "car"], "x": 64, "y": 690, "w": 496, "h": 196},
-    {"id": "car-service", "kind": "process", "title": "com.android.car", "subtitle": "CarService", "parent": "services", "evidence": ["car"], "x": 620, "y": 690, "w": 496, "h": 196},
-    {"id": "native", "kind": "layer", "title": "Native C/C++ Libraries", "order": 3, "parent": "android", "x": 44, "y": 946, "w": 652, "h": 196},
-    {"id": "art", "kind": "layer", "title": "Android Runtime", "order": 3, "parent": "android", "x": 736, "y": 946, "w": 400, "h": 196},
-    {"id": "hal", "kind": "layer", "title": "Hardware Abstraction Layer", "order": 4, "parent": "android", "x": 44, "y": 1178, "w": 1092, "h": 200},
-    {"id": "kernel", "kind": "layer", "title": "Linux Kernel", "order": 5, "parent": "android", "x": 44, "y": 1414, "w": 1092, "h": 184}
+    {
+      "id": "android",
+      "kind": "domain",
+      "title": "Android Automotive OS",
+      "domainType": "os",
+      "x": 24,
+      "y": 24,
+      "w": 1132,
+      "h": 1600,
+      "platform": "android"
+    },
+    {
+      "id": "apps",
+      "kind": "layer",
+      "title": "Applications",
+      "order": 0,
+      "parent": "android",
+      "x": 44,
+      "y": 100,
+      "w": 1092,
+      "h": 172,
+      "role": "applications"
+    },
+    {
+      "id": "java",
+      "kind": "layer",
+      "title": "Java API Framework",
+      "order": 1,
+      "parent": "android",
+      "x": 44,
+      "y": 300,
+      "w": 1092,
+      "h": 280,
+      "role": "framework-api"
+    },
+    {
+      "id": "core-api",
+      "kind": "group",
+      "title": "Core Android APIs",
+      "parent": "java",
+      "x": 64,
+      "y": 374,
+      "w": 496,
+      "h": 180
+    },
+    {
+      "id": "car-api",
+      "kind": "group",
+      "title": "Car APIs",
+      "parent": "java",
+      "x": 620,
+      "y": 374,
+      "w": 496,
+      "h": 180
+    },
+    {
+      "id": "services",
+      "kind": "layer",
+      "title": "System Services",
+      "order": 2,
+      "parent": "android",
+      "x": 44,
+      "y": 616,
+      "w": 1092,
+      "h": 294,
+      "role": "system-services"
+    },
+    {
+      "id": "system-server",
+      "kind": "process",
+      "title": "system_server",
+      "parent": "services",
+      "evidence": [
+        "system",
+        "car"
+      ],
+      "x": 64,
+      "y": 690,
+      "w": 496,
+      "h": 196
+    },
+    {
+      "id": "car-service",
+      "kind": "process",
+      "title": "com.android.car",
+      "subtitle": "CarService",
+      "parent": "services",
+      "evidence": [
+        "car"
+      ],
+      "x": 620,
+      "y": 690,
+      "w": 496,
+      "h": 196
+    },
+    {
+      "id": "native",
+      "kind": "layer",
+      "title": "Native C/C++ Libraries",
+      "order": 3,
+      "parent": "android",
+      "x": 44,
+      "y": 946,
+      "w": 652,
+      "h": 196,
+      "role": "native-libraries"
+    },
+    {
+      "id": "art",
+      "kind": "layer",
+      "title": "Android Runtime",
+      "order": 3,
+      "parent": "android",
+      "x": 736,
+      "y": 946,
+      "w": 400,
+      "h": 196,
+      "role": "runtime"
+    },
+    {
+      "id": "hal",
+      "kind": "layer",
+      "title": "Hardware Abstraction Layer",
+      "order": 4,
+      "parent": "android",
+      "x": 44,
+      "y": 1178,
+      "w": 1092,
+      "h": 200,
+      "role": "hal"
+    },
+    {
+      "id": "kernel",
+      "kind": "layer",
+      "title": "Linux Kernel",
+      "order": 5,
+      "parent": "android",
+      "x": 44,
+      "y": 1414,
+      "w": 1092,
+      "h": 184,
+      "role": "kernel"
+    }
   ],
   "nodes": [
-    {"id": "core-apps", "entityType": "subsystem", "canonicalName": "Android Applications", "parent": "apps", "evidence": ["platform"], "x": 132, "y": 176, "w": 360, "h": 80},
-    {"id": "car-apps", "entityType": "subsystem", "canonicalName": "Automotive Applications", "parent": "apps", "evidence": ["car"], "x": 688, "y": 176, "w": 360, "h": 80},
-    {"id": "activity-api", "entityType": "class", "canonicalName": "ActivityManager", "description": "Application-facing API", "parent": "core-api", "evidence": ["platform", "system"], "x": 132, "y": 452, "w": 360, "h": 80},
-    {"id": "property-api", "entityType": "class", "canonicalName": "CarPropertyManager", "description": "Vehicle property API", "parent": "car-api", "evidence": ["car"], "x": 688, "y": 452, "w": 360, "h": 80},
-    {"id": "activity-service", "entityType": "class", "canonicalName": "ActivityManagerService", "parent": "system-server", "evidence": ["system", "ams"], "x": 132, "y": 780, "w": 360, "h": 80},
-    {"id": "property-service", "entityType": "class", "canonicalName": "CarPropertyService", "parent": "car-service", "evidence": ["car"], "x": 688, "y": 780, "w": 360, "h": 80},
-    {"id": "egl", "entityType": "library", "canonicalName": "libEGL.so", "parent": "native", "evidence": ["gl"], "x": 82, "y": 1022, "w": 270, "h": 80},
-    {"id": "gles", "entityType": "library", "canonicalName": "libGLESv2.so", "parent": "native", "evidence": ["gl"], "x": 388, "y": 1022, "w": 270, "h": 80},
-    {"id": "runtime", "entityType": "runtime", "canonicalName": "ART", "description": "DEX execution and core libraries", "parent": "art", "evidence": ["platform"], "x": 776, "y": 1022, "w": 320, "h": 80},
-    {"id": "camera-hal", "entityType": "subsystem", "canonicalName": "Camera HAL", "parent": "hal", "evidence": ["platform"], "x": 132, "y": 1254, "w": 360, "h": 80},
-    {"id": "vehicle-hal", "entityType": "subsystem", "canonicalName": "Vehicle HAL", "description": "IVehicle", "parent": "hal", "evidence": ["vhal", "car"], "x": 688, "y": 1254, "w": 360, "h": 80},
-    {"id": "drivers", "entityType": "subsystem", "canonicalName": "Device Drivers", "parent": "kernel", "evidence": ["platform"], "x": 132, "y": 1488, "w": 360, "h": 80},
-    {"id": "binder", "entityType": "subsystem", "canonicalName": "Binder IPC", "parent": "kernel", "evidence": ["system"], "x": 688, "y": 1488, "w": 360, "h": 80}
+    {
+      "id": "core-apps",
+      "entityType": "subsystem",
+      "canonicalName": "Android Applications",
+      "parent": "apps",
+      "evidence": [
+        "platform"
+      ],
+      "x": 132,
+      "y": 176,
+      "w": 360,
+      "h": 80,
+      "layerRole": "applications"
+    },
+    {
+      "id": "car-apps",
+      "entityType": "subsystem",
+      "canonicalName": "Automotive Applications",
+      "parent": "apps",
+      "evidence": [
+        "car"
+      ],
+      "x": 688,
+      "y": 176,
+      "w": 360,
+      "h": 80,
+      "layerRole": "applications"
+    },
+    {
+      "id": "activity-api",
+      "entityType": "class",
+      "canonicalName": "ActivityManager",
+      "description": "Application-facing API",
+      "parent": "core-api",
+      "evidence": [
+        "platform",
+        "system"
+      ],
+      "x": 132,
+      "y": 452,
+      "w": 360,
+      "h": 80,
+      "layerRole": "framework-api"
+    },
+    {
+      "id": "property-api",
+      "entityType": "class",
+      "canonicalName": "CarPropertyManager",
+      "description": "Vehicle property API",
+      "parent": "car-api",
+      "evidence": [
+        "car"
+      ],
+      "x": 688,
+      "y": 452,
+      "w": 360,
+      "h": 80,
+      "layerRole": "framework-api"
+    },
+    {
+      "id": "activity-service",
+      "entityType": "class",
+      "canonicalName": "ActivityManagerService",
+      "parent": "system-server",
+      "evidence": [
+        "system",
+        "ams"
+      ],
+      "x": 132,
+      "y": 780,
+      "w": 360,
+      "h": 80,
+      "layerRole": "system-services"
+    },
+    {
+      "id": "property-service",
+      "entityType": "class",
+      "canonicalName": "CarPropertyService",
+      "parent": "car-service",
+      "evidence": [
+        "car"
+      ],
+      "x": 688,
+      "y": 780,
+      "w": 360,
+      "h": 80,
+      "layerRole": "system-services"
+    },
+    {
+      "id": "egl",
+      "entityType": "library",
+      "canonicalName": "libEGL.so",
+      "parent": "native",
+      "evidence": [
+        "gl"
+      ],
+      "x": 82,
+      "y": 1022,
+      "w": 270,
+      "h": 80,
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "gles",
+      "entityType": "library",
+      "canonicalName": "libGLESv2.so",
+      "parent": "native",
+      "evidence": [
+        "gl"
+      ],
+      "x": 388,
+      "y": 1022,
+      "w": 270,
+      "h": 80,
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "runtime",
+      "entityType": "runtime",
+      "canonicalName": "ART",
+      "description": "DEX execution and core libraries",
+      "parent": "art",
+      "evidence": [
+        "platform"
+      ],
+      "x": 776,
+      "y": 1022,
+      "w": 320,
+      "h": 80,
+      "layerRole": "runtime"
+    },
+    {
+      "id": "camera-hal",
+      "entityType": "subsystem",
+      "canonicalName": "Camera HAL",
+      "parent": "hal",
+      "evidence": [
+        "platform"
+      ],
+      "x": 132,
+      "y": 1254,
+      "w": 360,
+      "h": 80,
+      "layerRole": "hal"
+    },
+    {
+      "id": "vehicle-hal",
+      "entityType": "subsystem",
+      "canonicalName": "Vehicle HAL",
+      "description": "IVehicle",
+      "parent": "hal",
+      "evidence": [
+        "vhal",
+        "car"
+      ],
+      "x": 688,
+      "y": 1254,
+      "w": 360,
+      "h": 80,
+      "layerRole": "hal"
+    },
+    {
+      "id": "drivers",
+      "entityType": "subsystem",
+      "canonicalName": "Device Drivers",
+      "parent": "kernel",
+      "evidence": [
+        "platform"
+      ],
+      "x": 132,
+      "y": 1488,
+      "w": 360,
+      "h": 80,
+      "layerRole": "kernel"
+    },
+    {
+      "id": "binder",
+      "entityType": "subsystem",
+      "canonicalName": "Binder IPC",
+      "parent": "kernel",
+      "evidence": [
+        "system"
+      ],
+      "x": 688,
+      "y": 1488,
+      "w": 360,
+      "h": 80,
+      "layerRole": "kernel"
+    }
   ],
   "edges": [
-    {"id": "core-app-api", "from": "core-apps", "to": "activity-api", "relation": "call", "evidence": ["platform"]},
-    {"id": "car-app-api", "from": "car-apps", "to": "property-api", "relation": "call", "evidence": ["car"]},
-    {"id": "core-api-service", "from": "activity-api", "to": "activity-service", "relation": "ipc", "mechanism": "Binder", "labelPosition": {"x": 356, "y": 598}, "evidence": ["system", "ams"]},
-    {"id": "car-api-service", "from": "property-api", "to": "property-service", "relation": "ipc", "mechanism": "Binder", "labelPosition": {"x": 912, "y": 598}, "evidence": ["car"]},
-    {"id": "car-service-vhal", "from": "property-service", "to": "vehicle-hal", "relation": "ipc", "mechanism": "Binder / AIDL", "fromSide": "right", "toSide": "top", "via": [{"x": 1124}, {"y": 1224}, {"x": 868}], "labelPosition": {"x": 966, "y": 1204}, "evidence": ["car", "vhal"]}
-  ]
+    {
+      "id": "core-app-api",
+      "from": "core-apps",
+      "to": "activity-api",
+      "relation": "call",
+      "evidence": [
+        "platform"
+      ]
+    },
+    {
+      "id": "car-app-api",
+      "from": "car-apps",
+      "to": "property-api",
+      "relation": "call",
+      "evidence": [
+        "car"
+      ]
+    },
+    {
+      "id": "core-api-service",
+      "from": "activity-api",
+      "to": "activity-service",
+      "relation": "ipc",
+      "mechanism": "Binder",
+      "labelPosition": {
+        "x": 356,
+        "y": 598
+      },
+      "evidence": [
+        "system",
+        "ams"
+      ]
+    },
+    {
+      "id": "car-api-service",
+      "from": "property-api",
+      "to": "property-service",
+      "relation": "ipc",
+      "mechanism": "Binder",
+      "labelPosition": {
+        "x": 912,
+        "y": 598
+      },
+      "evidence": [
+        "car"
+      ]
+    },
+    {
+      "id": "car-service-vhal",
+      "from": "property-service",
+      "to": "vehicle-hal",
+      "relation": "ipc",
+      "mechanism": "Binder / AIDL",
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [
+        {
+          "x": 1124
+        },
+        {
+          "y": 1224
+        },
+        {
+          "x": 868
+        }
+      ],
+      "labelPosition": {
+        "x": 966,
+        "y": 1204
+      },
+      "evidence": [
+        "car",
+        "vhal"
+      ]
+    }
+  ],
+  "deployment": {
+    "profile": "single-domain"
+  }
 }

@@ -40,6 +40,40 @@ reject('unknown display-name override', m => {m.nodes[0].name = 'Service';}, 'un
 reject('English figure text', m => {m.nodes[0].description = '服务';}, 'english');
 reject('real library artifact', m => {m.nodes[0].entityType = 'library'; m.nodes[0].canonicalName = 'Logging client';}, 'library-name');
 reject('required evidence', m => {m.nodes[0].evidence = [];}, 'evidence');
+reject('real diagrams need deployment intent', m => {delete m.deployment;}, 'deployment-required');
+reject('OS domain platform is explicit', m => {delete m.containers.find(c => c.domainType === 'os').platform;}, 'platform');
+reject('domain type cannot hide deployment identity', m => {delete m.containers.find(c => c.kind === 'domain').domainType;}, 'domain-type');
+reject('platform layers need technical roles', m => {delete m.containers.find(c => c.kind === 'layer').role;}, 'layer-role');
+reject('platform software needs role assignment', m => {delete m.nodes[0].layerRole;}, 'node-layer-role');
+reject('node role matches its technical layer', m => {m.nodes[0].layerRole = 'kernel';}, 'node-layer-role');
+reject('software role labels do not replace technical layers', m => {m.nodes[0].parent = m.containers.find(c => c.kind === 'domain').id;}, 'node-layer-role');
+reject('single-domain cannot include another domain kind', m => {m.containers.push({id: 'extra-mcu', kind: 'domain', domainType: 'mcu', title: 'MCU', x: 24, y: 24, w: 100, h: 100});}, 'deployment-profile');
+reject('technical layer rank is not arbitrary order', m => {
+  m.containers.find(c => c.id === 'services').role = 'kernel';
+  m.containers.find(c => c.id === 'kernel').role = 'services';
+}, 'technical-layer-order');
+const android = await read('assets/models/android-system.json');
+reject('Android API rank stays above service implementation', m => {
+  m.containers.find(c => c.role === 'framework-api').role = 'system-services';
+  m.containers.find(c => c.role === 'system-services' && c.id === 'services').role = 'framework-api';
+}, 'technical-layer-order', android);
+test('Android native libraries and runtime are peer technical ranks', () => {
+  const native = android.containers.find(c => c.role === 'native-libraries'), runtime = android.containers.find(c => c.role === 'runtime');
+  assert.equal(native.order, runtime.order); assert.equal(native.y, runtime.y);
+  assert.equal(validate(android).ok, true);
+});
+reject('Android runtime does not stack below native libraries', m => {m.containers.find(c => c.role === 'runtime').y += 100;}, 'android-native-runtime-peers', android);
+reject('Android native/runtime peer layers cannot horizontally overlap', m => {m.containers.find(c => c.role === 'runtime').x = m.containers.find(c => c.role === 'native-libraries').x;}, 'android-native-runtime-peers', android);
+const qnx = await read('assets/models/qnx-system.json');
+reject('QNX user-space drivers stay above kernel even when numeric order passes', m => {
+  const drivers = m.containers.find(c => c.role === 'user-drivers'), kernel = m.containers.find(c => c.role === 'kernel');
+  drivers.role = 'kernel'; kernel.role = 'user-drivers';
+}, 'technical-layer-order', qnx);
+test('QNX services and user-space drivers are peer technical regions', () => {
+  const services = qnx.containers.find(c => c.role === 'services'), drivers = qnx.containers.find(c => c.role === 'user-drivers');
+  assert.equal(services.order, drivers.order); assert.equal(services.y, drivers.y);
+  assert.equal(validate(qnx).ok, true);
+});
 reject('evidence reference integrity', m => {m.edges[0].evidence = ['missing'];}, 'evidence-ref');
 reject('parent reference integrity', m => {m.nodes[0].parent = 'missing';}, 'parent');
 reject('containment cycle', m => {m.containers[0].parent = m.containers[1].id;}, 'parent-cycle');
@@ -64,10 +98,59 @@ test('responsibility distinct from origin', () => assert.equal(validate(responsi
 reject('distinct parties need distinct colors', m => {delete m.parties[1].paletteKey;}, 'party-color', responsibility);
 const subsystem = await read('assets/models/process-library-subsystem.json');
 reject('library stays in actual process', m => {m.nodes.find(n => n.entityType === 'library').parent = 'userspace';}, 'process-membership', subsystem);
+reject('a process node does not duplicate its owning process', m => {
+  const process = m.containers.find(c => c.kind === 'process'), source = m.nodes[0];
+  m.nodes.push({...structuredClone(source), id: 'duplicate-process-node', entityType: 'process', canonicalName: process.title, parent: process.id, x: process.x + 16, y: process.y + 80, w: 150, h: 50});
+}, 'duplicate-process', subsystem);
 reject('subsystem needs concrete entities', m => {m.nodes[0].entityType = 'subsystem';}, 'concrete-name', subsystem);
+test('explicit one-VM implementation excerpt preserves real identity', () => {
+  assert.equal(subsystem.deployment.profile, 'single-domain');
+  assert.equal(subsystem.deployment.excerpt, true);
+  assert.equal(subsystem.containers.find(c => c.id === subsystem.deployment.domain).domainType, 'vm');
+  assert.equal(validate(subsystem).ok, true);
+});
+reject('scope alone does not exempt a VM', m => {delete m.deployment.excerpt; delete m.deployment.domain;}, 'deployment-profile', subsystem);
+reject('VM excerpt needs evidence', m => {m.deployment.evidence = [];}, 'evidence', subsystem);
+reject('VM excerpt needs one declared domain', m => {delete m.deployment.domain;}, 'deployment-reference', subsystem);
+reject('system overview cannot claim implementation excerpt', m => {m.meta.scope = 'system';}, 'deployment-excerpt', subsystem);
+reject('excerpt cannot contain hardware', m => {m.nodes[0].entityType = 'hardware';}, 'deployment-excerpt', subsystem);
+reject('excerpt cannot contain hardware regions', m => {m.containers.push({id: 'hardware-region', kind: 'hardware-region', title: 'Hardware', x: 24, y: 24, w: 100, h: 100});}, 'deployment-excerpt', subsystem);
+reject('excerpt cannot contain independent MCU', m => {m.containers.push({id: 'extra-mcu', kind: 'domain', domainType: 'mcu', title: 'MCU', x: 24, y: 24, w: 100, h: 100});}, 'deployment-excerpt', subsystem);
+reject('excerpt cannot carry edges outside its domain', m => {
+  m.containers.push({id: 'outside', kind: 'group', title: 'Outside', x: 24, y: 24, w: 300, h: 200});
+  const source = m.nodes[0], outside = {...structuredClone(source), id: 'outside-node', parent: 'outside', x: 44, y: 100, w: 100, h: 60};
+  m.nodes.push(outside);
+  m.edges.push({id: 'outside-edge', from: source.id, to: outside.id, relation: 'dependency', evidence: source.evidence});
+}, 'deployment-excerpt-edge', subsystem);
 const multi = await read('assets/models/multi-domain-system.json');
 reject('Hypervisor spans VM union', m => {m.containers.find(c => c.kind === 'hypervisor').w -= 100;}, 'hypervisor-span', multi);
 reject('Hypervisor only hosts VMs', m => {m.containers.find(c => c.kind === 'hypervisor').hosts.push(m.containers.find(c => c.domainType === 'mcu').id);}, 'hypervisor-hosts', multi);
+reject('deleting Hypervisor does not disable deployment checks', m => {m.containers = m.containers.filter(c => c.id !== m.deployment.hypervisor);}, 'deployment-reference', multi);
+reject('deleting Hypervisor declaration still fails', m => {m.containers = m.containers.filter(c => c.id !== m.deployment.hypervisor); delete m.deployment.hypervisor;}, 'deployment-reference', multi);
+reject('changing deployment profile cannot hide VMs', m => {m.deployment.profile = 'single-domain';}, 'deployment-profile', multi);
+reject('deleting all declared VM objects still fails', m => {m.containers = m.containers.filter(c => !m.deployment.vms.includes(c.id));}, 'deployment-reference', multi);
+reject('VM declarations cover actual VMs', m => {m.deployment.vms.pop();}, 'deployment-vms', multi);
+reject('SoC boundary cannot be deleted', m => {m.containers = m.containers.filter(c => c.id !== m.deployment.soc);}, 'deployment-reference', multi);
+reject('VMs are contained by the shared SoC', m => {delete m.containers.find(c => c.id === m.deployment.vms[0]).parent;}, 'deployment-parent', multi);
+reject('parallel VMs have aligned tops', m => {m.containers.find(c => c.id === m.deployment.vms[1]).y += 100;}, 'deployment-vm-alignment', multi);
+reject('VMs cannot be vertically stacked', m => {const a = m.containers.find(c => c.id === m.deployment.vms[0]), b = m.containers.find(c => c.id === m.deployment.vms[1]); b.x = a.x; b.y = a.y + a.h + 40;}, 'deployment-vm-overlap', multi);
+reject('independent MCU cannot follow a software endpoint downward', m => {m.containers.find(c => c.id === m.deployment.independent[0]).y += 100;}, 'deployment-independent-position', multi);
+reject('independent MCU cannot be inside the SoC', m => {m.containers.find(c => c.id === m.deployment.independent[0]).parent = m.deployment.soc;}, 'deployment-independent-parent', multi);
+reject('independent MCU must remain declared', m => {delete m.deployment.independent;}, 'deployment-independent', multi);
+reject('shared Hardware follows hosted software', m => {m.containers.find(c => c.id === m.deployment.hardware).y = m.containers.find(c => c.id === m.deployment.hypervisor).y;}, 'deployment-hardware-position', multi);
+reject('shared Hardware covers the hosted regions', m => {m.containers.find(c => c.id === m.deployment.hardware).w /= 2;}, 'deployment-hardware-span', multi);
+reject('virtualized deployment needs its own evidence', m => {m.deployment.evidence = [];}, 'evidence', multi);
+test('malformed deployment returns a failed report, never throws', () => {
+  for (const value of [null, [], 1, {profile: 'virtualized-soc', vms: {}}, {profile: 'virtualized-soc', independent: [null]}]) {
+    const m = structuredClone(multi); m.deployment = value;
+    assert.equal(validate(m).ok, false);
+  }
+});
+const teeLayout = await read('assets/models/soc-vm-mcu-layout.json');
+reject('participating TEE is left/top aligned and reaches Hypervisor bottom', m => {m.containers.find(c => c.id === m.deployment.tee).y += 100;}, 'deployment-tee-position', teeLayout);
+reject('participating TEE is explicitly declared', m => {delete m.deployment.tee;}, 'deployment-tee', teeLayout);
+reject('deleted TEE declaration still references a required object', m => {m.containers = m.containers.filter(c => c.id !== m.deployment.tee);}, 'deployment-reference', teeLayout);
+reject('physical Hardware cannot ignore TEE span', m => {const hw = m.containers.find(c => c.id === m.deployment.hardware), vm = m.containers.find(c => c.id === m.deployment.vms[0]); hw.w -= vm.x - hw.x; hw.x = vm.x;}, 'deployment-hardware-span', teeLayout);
 const io = await read('assets/models/shared-memory-io.json');
 reject('one physical memory once', m => {const n = structuredClone(m.nodes.find(n => n.entityType === 'memory')); n.id = 'duplicate'; m.nodes.push(n);}, 'duplicate-resource', io);
 const specimen = await read('assets/models/layout-primitives.json');

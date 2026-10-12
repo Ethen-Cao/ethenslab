@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="generator" content="architecture-diagram v2">
-  <title>Multi-Domain System Architecture</title>
+  <title>SoC Virtualization and Independent MCU</title>
   <style>
 @font-face {
   font-family: 'Roboto';
@@ -133,22 +133,22 @@ svg#architecture text.code { font-family: var(--font-mono); }
   "version": 2,
   "meta": {
     "id": "multi-domain-system",
-    "title": "Multi-Domain System Architecture",
-    "subtitle": "Illustrative VM and independent MCU deployment",
-    "description": "Two virtual machines share a hypervisor. A separate MCU has its own software and hardware and is not hosted by that hypervisor. Deployment placement is illustrative, not a board configuration.",
+    "title": "SoC Virtualization and Independent MCU",
+    "subtitle": "Shared SoC, hosted VMs and a separate controller",
+    "description": "The Linux PVM and Android GVM reflect the referenced Gunyah graphics stack. The independent MCU and its generic software illustrate the user-approved topology, not a verified board configuration. TEE is omitted because it is not established by this example's sources.",
     "scope": "system",
     "view": "layered",
     "colorMode": "technical"
   },
   "canvas": {
-    "width": 1480,
-    "height": 930
+    "width": 1544,
+    "height": 1100
   },
   "sources": [
     {
       "id": "layout",
       "title": "User-approved illustrative multi-domain layout",
-      "locator": "User-approved architecture-diagram skill rules: VM bands and independent MCU scope"
+      "locator": "work/skills/architecture-diagram/references/modeling.md#multiple-vms--hypervisor"
     },
     {
       "id": "pvm",
@@ -163,25 +163,42 @@ svg#architecture text.code { font-family: var(--font-mono); }
   ],
   "containers": [
     {
+      "id": "soc",
+      "kind": "domain",
+      "domainType": "soc",
+      "title": "Application SoC",
+      "evidence": [
+        "pvm",
+        "layout"
+      ],
+      "x": 24,
+      "y": 24,
+      "w": 980,
+      "h": 1052
+    },
+    {
       "id": "pvm",
       "kind": "domain",
       "title": "Linux PVM",
       "domainType": "vm",
-      "x": 24,
-      "y": 24,
+      "x": 44,
+      "y": 100,
       "w": 450,
-      "h": 624
+      "h": 624,
+      "parent": "soc",
+      "platform": "linux"
     },
     {
       "id": "pvm-user",
       "kind": "layer",
-      "title": "User Space",
+      "title": "Display Services",
       "order": 0,
       "parent": "pvm",
-      "x": 44,
-      "y": 100,
+      "x": 64,
+      "y": 176,
       "w": 410,
-      "h": 294
+      "h": 294,
+      "role": "services"
     },
     {
       "id": "pvm-kernel",
@@ -189,31 +206,35 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Kernel",
       "order": 1,
       "parent": "pvm",
-      "x": 44,
-      "y": 430,
+      "x": 64,
+      "y": 506,
       "w": 410,
-      "h": 190
+      "h": 190,
+      "role": "kernel"
     },
     {
       "id": "gvm",
       "kind": "domain",
       "title": "Android GVM",
       "domainType": "vm",
-      "x": 514,
-      "y": 24,
+      "x": 534,
+      "y": 100,
       "w": 450,
-      "h": 624
+      "h": 624,
+      "parent": "soc",
+      "platform": "android"
     },
     {
       "id": "gvm-user",
       "kind": "layer",
-      "title": "User Space",
+      "title": "Java API Framework",
       "order": 0,
       "parent": "gvm",
-      "x": 534,
-      "y": 100,
+      "x": 554,
+      "y": 176,
       "w": 410,
-      "h": 294
+      "h": 294,
+      "role": "framework-api"
     },
     {
       "id": "gvm-kernel",
@@ -221,10 +242,11 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Kernel",
       "order": 1,
       "parent": "gvm",
-      "x": 534,
-      "y": 430,
+      "x": 554,
+      "y": 506,
       "w": 410,
-      "h": 190
+      "h": 190,
+      "role": "kernel"
     },
     {
       "id": "hypervisor",
@@ -237,29 +259,31 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "pvm"
       ],
-      "x": 24,
-      "y": 684,
+      "x": 44,
+      "y": 760,
       "w": 940,
-      "h": 90
+      "h": 100,
+      "parent": "soc"
     },
     {
-      "id": "soc",
+      "id": "soc-hardware",
       "kind": "hardware-region",
-      "title": "Hardware",
-      "x": 24,
-      "y": 808,
+      "title": "Shared SoC Hardware",
+      "x": 44,
+      "y": 900,
       "w": 940,
-      "h": 90
+      "h": 152,
+      "parent": "soc"
     },
     {
       "id": "mcu",
       "kind": "domain",
       "title": "Independent MCU",
       "domainType": "mcu",
-      "x": 1040,
+      "x": 1044,
       "y": 24,
-      "w": 416,
-      "h": 874
+      "w": 476,
+      "h": 1052
     },
     {
       "id": "mcu-app",
@@ -267,10 +291,11 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Application Software",
       "order": 0,
       "parent": "mcu",
-      "x": 1060,
+      "x": 1064,
       "y": 100,
-      "w": 376,
-      "h": 204
+      "w": 436,
+      "h": 204,
+      "role": "applications"
     },
     {
       "id": "mcu-platform",
@@ -278,20 +303,21 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Platform Software",
       "order": 1,
       "parent": "mcu",
-      "x": 1060,
+      "x": 1064,
       "y": 350,
-      "w": 376,
-      "h": 260
+      "w": 436,
+      "h": 260,
+      "role": "firmware"
     },
     {
       "id": "mcu-hw",
       "kind": "hardware-region",
       "title": "Hardware",
       "parent": "mcu",
-      "x": 1060,
+      "x": 1064,
       "y": 660,
-      "w": 376,
-      "h": 210
+      "w": 436,
+      "h": 392
     }
   ],
   "nodes": [
@@ -304,10 +330,11 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "pvm"
       ],
-      "x": 104,
-      "y": 186,
+      "x": 124,
+      "y": 262,
       "w": 290,
-      "h": 80
+      "h": 80,
+      "layerRole": "services"
     },
     {
       "id": "pvm-linux",
@@ -317,23 +344,25 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "pvm"
       ],
-      "x": 104,
-      "y": 510,
+      "x": 124,
+      "y": 586,
       "w": 290,
-      "h": 80
+      "h": 80,
+      "layerRole": "kernel"
     },
     {
-      "id": "android-services",
+      "id": "android-api",
       "entityType": "subsystem",
-      "canonicalName": "Android Framework and Services",
+      "canonicalName": "Core Android APIs",
       "parent": "gvm-user",
       "evidence": [
         "android"
       ],
-      "x": 594,
-      "y": 186,
+      "x": 614,
+      "y": 262,
       "w": 290,
-      "h": 80
+      "h": 80,
+      "layerRole": "framework-api"
     },
     {
       "id": "gvm-linux",
@@ -344,10 +373,11 @@ svg#architecture text.code { font-family: var(--font-mono); }
         "android",
         "pvm"
       ],
-      "x": 594,
-      "y": 510,
+      "x": 614,
+      "y": 586,
       "w": 290,
-      "h": 80
+      "h": 80,
+      "layerRole": "kernel"
     },
     {
       "id": "mcu-control",
@@ -357,7 +387,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "layout"
       ],
-      "x": 1104,
+      "x": 1138,
       "y": 186,
       "w": 288,
       "h": 80
@@ -370,7 +400,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "layout"
       ],
-      "x": 1104,
+      "x": 1138,
       "y": 448,
       "w": 288,
       "h": 80
@@ -383,10 +413,36 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "layout"
       ],
-      "x": 1104,
-      "y": 750,
+      "x": 1138,
+      "y": 822,
       "w": 288,
       "h": 80
+    },
+    {
+      "id": "soc-gpu",
+      "entityType": "hardware",
+      "canonicalName": "Adreno GPU",
+      "parent": "soc-hardware",
+      "evidence": [
+        "pvm"
+      ],
+      "x": 84,
+      "y": 976,
+      "w": 360,
+      "h": 56
+    },
+    {
+      "id": "soc-dpu",
+      "entityType": "hardware",
+      "canonicalName": "Display Processing Unit",
+      "parent": "soc-hardware",
+      "evidence": [
+        "pvm"
+      ],
+      "x": 584,
+      "y": 976,
+      "w": 360,
+      "h": 56
     }
   ],
   "edges": [
@@ -401,7 +457,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
     },
     {
       "id": "android-kernel",
-      "from": "android-services",
+      "from": "android-api",
       "to": "gvm-linux",
       "relation": "dependency",
       "evidence": [
@@ -426,7 +482,24 @@ svg#architecture text.code { font-family: var(--font-mono); }
         "layout"
       ]
     }
-  ]
+  ],
+  "deployment": {
+    "profile": "virtualized-soc",
+    "soc": "soc",
+    "vms": [
+      "pvm",
+      "gvm"
+    ],
+    "hypervisor": "hypervisor",
+    "hardware": "soc-hardware",
+    "independent": [
+      "mcu"
+    ],
+    "evidence": [
+      "layout",
+      "pvm"
+    ]
+  }
 }</script>
   <script id="diagram-theme" type="application/json">{
   "version": 1,
@@ -548,6 +621,9 @@ svg#architecture text.code { font-family: var(--font-mono); }
     responsibilityBasis: ['development', 'delivery', 'integration', 'maintenance'],
     container: ['domain', 'layer', 'process', 'group', 'hypervisor', 'hardware-region'],
     domainType: ['os', 'vm', 'soc', 'mcu', 'tee'],
+    deploymentProfile: ['single-domain', 'multi-domain', 'virtualized-soc'],
+    platform: ['android', 'qnx', 'linux', 'other'],
+    layerRole: ['applications', 'framework-api', 'client-api', 'system-services', 'services', 'native-libraries', 'runtime', 'hal', 'platform-adaptation', 'resource-managers', 'user-drivers', 'kernel', 'firmware', 'hardware'],
     entityType: ['subsystem', 'process', 'library', 'class', 'interface', 'kernel-interface', 'driver', 'hardware', 'memory', 'firmware', 'runtime'],
     executionContext: ['userspace', 'kernel', 'hypervisor', 'firmware'],
     relation: ['dependency', 'call', 'ipc', 'read', 'write', 'transfer', 'notification', 'configuration'],
@@ -557,15 +633,24 @@ svg#architecture text.code { font-family: var(--font-mono); }
     side: ['top', 'bottom', 'left', 'right']
   };
   const fields = {
-    model: 'version meta canvas sources parties containers nodes edges junctions',
+    model: 'version meta canvas deployment sources parties containers nodes edges junctions',
     meta: 'id title subtitle description scope view colorMode responsibilityBasis specimen',
+    deployment: 'profile soc vms hypervisor hardware tee independent evidence domain excerpt',
     source: 'id title locator', party: 'id label category paletteKey',
-    container: 'id kind title subtitle parent x y w h domainType order hosts evidence',
-    node: 'id entityType canonicalName description parent x y w h origin responsibleParty configured evidence resourceId interfacePath moduleName executionContext',
+    container: 'id kind title subtitle parent x y w h domainType platform order role hosts evidence',
+    node: 'id entityType canonicalName description parent x y w h origin responsibleParty configured evidence resourceId interfacePath moduleName executionContext layerRole',
     edge: 'id from to relation mechanism label fromSide toSide fromOffset toOffset keepAnchor anchorReason via labelPosition evidence dataKind',
     junction: 'id edges'
   };
   const categoryPalette = {oem: 'blue', tier1: 'amber', 'soc-vendor': 'purple', 'os-vendor': 'green', other: 'cyan'};
+  // Technical role is independent of caller-supplied numeric order and implementation language.
+  // Equal ranks permit peers, e.g. Android native libraries and ART, or QNX services and drivers.
+  const roleRanks = {
+    android: {applications: 0, 'framework-api': 1, 'client-api': 1, 'system-services': 2, services: 2, 'native-libraries': 3, runtime: 3, hal: 4, 'platform-adaptation': 4, kernel: 5, firmware: 6, hardware: 7},
+    qnx: {applications: 0, 'client-api': 1, 'framework-api': 1, 'system-services': 2, services: 2, 'resource-managers': 2, 'user-drivers': 2, kernel: 3, firmware: 4, hardware: 5},
+    linux: {applications: 0, 'framework-api': 1, 'client-api': 1, 'system-services': 2, services: 2, 'platform-adaptation': 3, hal: 3, 'resource-managers': 3, 'user-drivers': 3, kernel: 4, firmware: 5, hardware: 6},
+    other: {applications: 0, 'framework-api': 1, 'client-api': 1, 'system-services': 2, services: 2, 'native-libraries': 2, runtime: 2, 'resource-managers': 2, 'user-drivers': 3, 'platform-adaptation': 3, hal: 3, kernel: 4, firmware: 5, hardware: 6}
+  };
   const nonSoftware = new Set(['hardware', 'memory']);
   const object = x => x !== null && typeof x === 'object' && !Array.isArray(x);
   const nonempty = x => typeof x === 'string' && x.trim().length > 0;
@@ -634,10 +719,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       if (!nonempty(source.locator)) error('source', `Source ${source.id} needs a URL or repository path locator.`);
       else if (/^\s*(javascript|data):/i.test(source.locator)) error('source', `Source ${source.id} uses an invalid evidence locator.`);
     }
-    const evidence = (item, required) => {
+    const evidence = (item, required, label = item.id) => {
       if (item.evidence === undefined && !required) return;
-      if (!Array.isArray(item.evidence) || (required && !item.evidence.length)) {error('evidence', `${item.id} needs nonempty evidence source ids.`); return;}
-      for (const ref of item.evidence) if (!maps.sources.has(ref)) error('evidence-ref', `${item.id} references unknown source ${ref}.`);
+      if (!Array.isArray(item.evidence) || (required && !item.evidence.length)) {error('evidence', `${label} needs nonempty evidence source ids.`); return;}
+      for (const ref of item.evidence) if (!nonempty(ref) || !maps.sources.has(ref)) error('evidence-ref', `${label} references an unknown evidence source.`);
     };
     const ancestors = item => {
       const list = [], seen = new Set([item.id]);
@@ -656,6 +741,9 @@ svg#architecture text.code { font-family: var(--font-mono); }
       const parent = maps.containers.get(item.parent);
       if (parent && (item.x < parent.x || item.y < parent.y || item.x + item.w > parent.x + parent.w || item.y + item.h > parent.y + parent.h)) error('containment', `${item.id} lies outside its parent ${parent.id}.`);
     };
+    const validBox = item => item && ['x', 'y', 'w', 'h'].every(k => finite(item[k])) && item.w > 0 && item.h > 0;
+    const aligned = (a, b) => Math.abs(a - b) <= 0.5;
+    const platformDomain = item => ancestors(item).find(c => c.kind === 'domain' && c.platform !== undefined);
     for (const c of maps.containers.values()) {
       choice(c.kind, 'container', `container ${c.id}.kind`);
       english(c.title, `${c.id}.title`, true); english(c.subtitle, `${c.id}.subtitle`);
@@ -663,6 +751,17 @@ svg#architecture text.code { font-family: var(--font-mono); }
       if (c.kind === 'process' && !meta.specimen && !identifier(c.title)) error('process-name', `${c.id} must name a real process; put its role in subtitle.`);
       choice(c.domainType, 'domainType', `${c.id}.domainType`, true);
       if (c.domainType !== undefined && c.kind !== 'domain') error('domain-type', `Only domain containers have domainType: ${c.id}.`);
+      if (!meta.specimen && c.kind === 'domain' && c.domainType === undefined) error('domain-type', `${c.id} needs an explicit domainType; do not hide deployment identity in an untyped container.`);
+      choice(c.platform, 'platform', `${c.id}.platform`, true);
+      if (c.platform !== undefined && (c.kind !== 'domain' || !['os', 'vm'].includes(c.domainType))) error('platform', `${c.id}.platform belongs only to an OS or VM domain.`);
+      if (!meta.specimen && c.kind === 'domain' && ['os', 'vm'].includes(c.domainType) && c.platform === undefined) error('platform', `${c.id} needs its actual OS platform.`);
+      choice(c.role, 'layerRole', `${c.id}.role`, true);
+      if (c.role !== undefined && c.kind !== 'layer') error('layer-role', `Only layer containers have role: ${c.id}.`);
+      if (c.kind === 'layer') {
+        const domain = platformDomain(c);
+        if (domain && !meta.specimen && c.role === undefined) error('layer-role', `${c.id} needs a technical role within ${domain.id}.`);
+        if (domain && c.role !== undefined && roleRanks[domain.platform] && roleRanks[domain.platform][c.role] === undefined) error('platform-role', `${c.id} uses ${c.role}, which is not a defined technical layer for ${domain.platform}.`);
+      }
       if (c.kind === 'layer' && (!Number.isInteger(c.order) || c.order < 0)) error('layer-order', `Layer ${c.id} needs a nonnegative integer order.`);
       if (c.kind !== 'layer' && c.order !== undefined) error('layer-order', `Only layer containers have order: ${c.id}.`);
       if (c.kind !== 'hypervisor' && c.hosts !== undefined) error('hypervisor', `Only hypervisor containers have hosts: ${c.id}.`);
@@ -677,6 +776,90 @@ svg#architecture text.code { font-family: var(--font-mono); }
         for (const other of maps.containers.values()) if (other.kind === 'domain' && !c.hosts.includes(other.id) && !ancestorsOfHosted.has(other.id) && !ancestors(other).some(a => c.hosts.includes(a.id)) && other.x < right && other.x + other.w > left && other.y < c.y) error('hypervisor-scope', `${c.id} spans unrelated domain ${other.id}.`);
       }
     }
+    // Deployment is an explicit intent record. Deleting a required object cannot disable its check.
+    let deployment;
+    if (model.deployment === undefined) {
+      if (!meta.specimen) error('deployment-required', 'A real architecture needs an explicit deployment profile before geometry is assigned.');
+    } else if (keys(model.deployment, 'deployment', 'deployment')) {
+      deployment = model.deployment;
+      choice(deployment.profile, 'deploymentProfile', 'deployment.profile');
+      if (deployment.excerpt !== undefined && typeof deployment.excerpt !== 'boolean') error('type', 'deployment.excerpt must be boolean.');
+      evidence(deployment, (deployment.profile === 'virtualized-soc' || deployment.excerpt === true) && !meta.specimen, 'deployment');
+    }
+    const actualVMs = [...maps.containers.values()].filter(c => c.kind === 'domain' && c.domainType === 'vm');
+    const actualHypervisors = [...maps.containers.values()].filter(c => c.kind === 'hypervisor');
+    const excerpt = deployment?.excerpt === true && deployment.profile === 'single-domain' && meta.scope === 'subsystem';
+    if ((!meta.specimen || deployment) && (actualVMs.length || actualHypervisors.length) && deployment?.profile !== 'virtualized-soc' && !excerpt) error('deployment-profile', 'VM deployment requires virtualized-soc, except an explicitly evidenced single-domain subsystem excerpt.');
+    if (deployment) {
+      const ref = (field, kind, domainType, required = false) => {
+        const id = deployment[field];
+        if (id === undefined && !required) return;
+        if (!nonempty(id)) {error('deployment-reference', `deployment.${field} needs a container id.`); return;}
+        const c = maps.containers.get(id);
+        if (!c || c.kind !== kind || (domainType !== undefined && c.domainType !== domainType)) {error('deployment-reference', `deployment.${field} must reference an existing ${domainType || kind} container.`); return;}
+        return c;
+      };
+      const refs = (field, required = false) => {
+        const ids = deployment[field];
+        if (ids === undefined && !required) return [];
+        if (!Array.isArray(ids) || (required && !ids.length) || ids.some(id => !nonempty(id)) || new Set(ids).size !== ids.length) {error('deployment-reference', `deployment.${field} needs distinct domain ids${required ? ' and must not be empty' : ''}.`); return [];}
+        return ids.map(id => {
+          const c = maps.containers.get(id);
+          if (!c || c.kind !== 'domain') {error('deployment-reference', `deployment.${field} references a missing or non-domain container.`); return;}
+          return c;
+        }).filter(Boolean);
+      };
+      const virtual = deployment.profile === 'virtualized-soc';
+      if (deployment.excerpt === true) {
+        if (!excerpt) error('deployment-excerpt', 'A deployment excerpt requires single-domain and subsystem scope.');
+        const domain = ref('domain', 'domain', undefined, true);
+        const domains = [...maps.containers.values()].filter(c => c.kind === 'domain');
+        if (!domain || !['os', 'vm'].includes(domain.domainType) || domains.length !== 1 || domains[0] !== domain) error('deployment-excerpt', 'An excerpt must contain only its one declared OS/VM domain; no SoC, TEE, MCU or other domain.');
+        if (actualHypervisors.length || [...maps.containers.values()].some(c => c.kind === 'hardware-region') || [...maps.nodes.values()].some(n => n.entityType === 'hardware')) error('deployment-excerpt', 'A single-domain excerpt must not claim shared deployment, Hypervisor or physical hardware layout.');
+        if (['soc', 'vms', 'hypervisor', 'hardware', 'tee', 'independent'].some(field => deployment[field] !== undefined)) error('deployment-excerpt', 'An excerpt cannot also declare cross-domain or SoC topology.');
+        for (const edge of maps.edges.values()) {
+          const a = maps.nodes.get(edge.from), b = maps.nodes.get(edge.to);
+          if (a && b && (!ancestors(a).some(c => c.id === domain?.id) || !ancestors(b).some(c => c.id === domain?.id))) error('deployment-excerpt-edge', `${edge.id} is outside the declared single-domain excerpt.`);
+        }
+      } else if (deployment.domain !== undefined) error('deployment-excerpt', 'deployment.domain is only used by an explicit single-domain excerpt.');
+      const soc = ref('soc', 'domain', 'soc', virtual);
+      const hypervisor = ref('hypervisor', 'hypervisor', undefined, virtual);
+      const hardware = ref('hardware', 'hardware-region', undefined, virtual);
+      const tee = ref('tee', 'domain', 'tee');
+      const vms = refs('vms', virtual), independent = refs('independent');
+      if (deployment.profile === 'single-domain' && [...maps.containers.values()].filter(c => c.kind === 'domain').length > 1) error('deployment-profile', 'single-domain cannot declare multiple domains.');
+      if (virtual) {
+        if (vms.some(vm => vm.domainType !== 'vm')) error('deployment-vms', 'deployment.vms must contain only VM domains.');
+        if (actualVMs.length !== vms.length || actualVMs.some(vm => !vms.includes(vm))) error('deployment-vms', 'deployment.vms must name every VM in this deployment exactly once.');
+        const actualTEEs = [...maps.containers.values()].filter(c => c.kind === 'domain' && c.domainType === 'tee');
+        if (actualTEEs.some(domain => domain !== tee) || (tee && actualTEEs.length !== 1)) error('deployment-tee', 'A participating TEE must be explicitly declared as deployment.tee.');
+        for (const domain of maps.containers.values()) if (domain.kind === 'domain' && domain.domainType === 'mcu' && !independent.includes(domain)) error('deployment-independent', `${domain.id} must be declared as an independent domain outside the SoC.`);
+        if (actualHypervisors.length !== 1 || actualHypervisors[0] !== hypervisor) error('deployment-hypervisor', 'virtualized-soc needs the one declared shared Hypervisor.');
+        if (hypervisor && (!Array.isArray(hypervisor.hosts) || hypervisor.hosts.length !== vms.length || vms.some(vm => !hypervisor.hosts.includes(vm.id)))) error('deployment-hosts', 'Hypervisor hosts must exactly match deployment.vms.');
+        for (const child of [...vms, hypervisor, hardware, tee].filter(Boolean)) if (soc && child.parent !== soc.id) error('deployment-parent', `${child.id} must be a direct child of the declared SoC.`);
+        const positionedVMs = vms.filter(validBox).sort((a, b) => a.x - b.x);
+        for (let i = 1; i < positionedVMs.length; i++) {
+          if (!aligned(positionedVMs[i].y, positionedVMs[0].y)) error('deployment-vm-alignment', 'VM domains must be side by side with aligned tops.');
+          if (positionedVMs[i - 1].x + positionedVMs[i - 1].w > positionedVMs[i].x) error('deployment-vm-overlap', 'VM domains must not overlap horizontally or be stacked vertically.');
+        }
+        if (validBox(hardware)) {
+          const above = [...positionedVMs, hypervisor, tee].filter(validBox);
+          if (above.some(c => hardware.y < c.y + c.h)) error('deployment-hardware-position', 'Shared Hardware must be below the VMs, Hypervisor and any participating TEE.');
+          const span = [...positionedVMs, tee].filter(validBox);
+          if (span.length && (hardware.x > Math.min(...span.map(c => c.x)) + 0.5 || hardware.x + hardware.w < Math.max(...span.map(c => c.x + c.w)) - 0.5)) error('deployment-hardware-span', 'Shared Hardware must cover the combined horizontal extent of the VM and TEE regions.');
+        }
+        if (validBox(tee) && positionedVMs.length && validBox(hypervisor)) {
+          if (tee.x + tee.w > positionedVMs[0].x || !aligned(tee.y, positionedVMs[0].y) || !aligned(tee.y + tee.h, hypervisor.y + hypervisor.h)) error('deployment-tee-position', 'Participating TEE must be left of the VMs, top-aligned with them and bottom-aligned with Hypervisor.');
+        }
+        for (const domain of independent) {
+          if (soc && (domain === soc || domain.parent !== soc.parent)) error('deployment-independent-parent', `${domain.id} must be a sibling outside the SoC, not hosted inside it.`);
+          if (validBox(soc) && validBox(domain) && (!aligned(domain.y, soc.y) || !aligned(domain.y + domain.h, soc.y + soc.h) || (domain.x < soc.x + soc.w && domain.x + domain.w > soc.x))) error('deployment-independent-position', `${domain.id} must be beside the SoC with its top and bottom aligned.`);
+        }
+        for (const domain of maps.containers.values()) if (domain.kind === 'domain' && !ancestors(domain).some(c => c.id === soc?.id) && domain !== soc && domain.parent === soc?.parent && !independent.includes(domain)) error('deployment-independent', `${domain.id} is outside the SoC and must be declared in deployment.independent.`);
+        const peers = independent.filter(validBox).sort((a, b) => a.x - b.x);
+        for (let i = 1; i < peers.length; i++) if (peers[i - 1].x + peers[i - 1].w > peers[i].x) error('deployment-independent-position', 'Independent domains must not overlap horizontally.');
+      }
+    }
     const layers = [...maps.containers.values()].filter(c => c.kind === 'layer');
     for (let i = 0; i < layers.length; i++) for (let j = i + 1; j < layers.length; j++) {
       const a = layers[i], b = layers[j];
@@ -684,12 +867,32 @@ svg#architecture text.code { font-family: var(--font-mono); }
       const top = a.order < b.order ? a : b, bottom = top === a ? b : a;
       if (top.y + top.h > bottom.y) error('layer-order', `${top.id} must be entirely above ${bottom.id}; a horizontal flow does not replace major layers.`);
     }
+    for (let i = 0; i < layers.length; i++) for (let j = i + 1; j < layers.length; j++) {
+      const a = layers[i], b = layers[j], domain = platformDomain(a);
+      if (!domain || platformDomain(b)?.id !== domain.id) continue;
+      if (domain.platform === 'android' && new Set([a.role, b.role]).size === 2 && [a.role, b.role].every(role => ['native-libraries', 'runtime'].includes(role)) && validBox(a) && validBox(b)) {
+        if (!aligned(a.y, b.y) || (a.x < b.x + b.w && a.x + a.w > b.x)) error('android-native-runtime-peers', 'Android Native Libraries and Runtime must be side-by-side, top-aligned peer layers, not a serial stack.');
+      }
+      const ranks = roleRanks[domain.platform], aRank = ranks?.[a.role], bRank = ranks?.[b.role];
+      if (aRank === undefined || bRank === undefined || aRank === bRank) continue;
+      const top = aRank < bRank ? a : b, bottom = top === a ? b : a;
+      if (validBox(top) && validBox(bottom) && top.y + top.h > bottom.y) error('technical-layer-order', `${top.id} (${top.role}) must be above ${bottom.id} (${bottom.role}) in ${domain.platform}, regardless of numeric order.`);
+    }
     const resources = new Map(), usedParties = new Set();
     for (const n of maps.nodes.values()) {
       choice(n.entityType, 'entityType', `${n.id}.entityType`);
       choice(n.executionContext, 'executionContext', `${n.id}.executionContext`, true);
       if (!nonempty(n.parent)) error('parent', `Node ${n.id} needs a parent container.`);
       const chain = ancestors(n); box(n); evidence(n, !meta.specimen);
+      choice(n.layerRole, 'layerRole', `${n.id}.layerRole`, true);
+      const domain = chain.find(c => c.kind === 'domain' && c.platform !== undefined);
+      if (domain && meta.view === 'layered' && !nonSoftware.has(n.entityType) && !meta.specimen && n.layerRole === undefined) error('node-layer-role', `${n.id} needs its technical layerRole within ${domain.id}.`);
+      const layer = domain && chain.slice(0, chain.indexOf(domain)).find(c => c.kind === 'layer');
+      if (domain && meta.view === 'layered' && !nonSoftware.has(n.entityType) && !meta.specimen && !layer) error('node-layer-role', `${n.id} must be laid out within its technical layer, not only assigned a layerRole label.`);
+      if (domain && n.layerRole !== undefined) {
+        if (layer && n.layerRole !== layer.role) error('node-layer-role', `${n.id}.layerRole must match its nearest technical layer ${layer.id}.`);
+        if (roleRanks[domain.platform] && roleRanks[domain.platform][n.layerRole] === undefined) error('platform-role', `${n.id} uses ${n.layerRole}, which is not a defined technical role for ${domain.platform}.`);
+      }
       english(n.description, `${n.id}.description`);
       choice(n.origin, 'origin', `${n.id}.origin`, true);
       if (n.configured !== undefined && typeof n.configured !== 'boolean') error('type', `${n.id}.configured must be boolean.`);

@@ -1,39 +1,372 @@
 {
   "version": 2,
-  "meta": {"id": "multi-domain-system", "title": "Multi-Domain System Architecture", "subtitle": "Illustrative VM and independent MCU deployment", "description": "Two virtual machines share a hypervisor. A separate MCU has its own software and hardware and is not hosted by that hypervisor. Deployment placement is illustrative, not a board configuration.", "scope": "system", "view": "layered", "colorMode": "technical"},
-  "canvas": {"width": 1480, "height": 930},
+  "meta": {
+    "id": "multi-domain-system",
+    "title": "SoC Virtualization and Independent MCU",
+    "subtitle": "Shared SoC, hosted VMs and a separate controller",
+    "description": "The Linux PVM and Android GVM reflect the referenced Gunyah graphics stack. The independent MCU and its generic software illustrate the user-approved topology, not a verified board configuration. TEE is omitted because it is not established by this example's sources.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 1544,
+    "height": 1100
+  },
   "sources": [
-    {"id": "layout", "title": "User-approved illustrative multi-domain layout", "locator": "User-approved architecture-diagram skill rules: VM bands and independent MCU scope"},
-    {"id": "pvm", "title": "Linux PVM and Android GVM deployment", "locator": "content/gunyah/pvm-graphics-stack.md"},
-    {"id": "android", "title": "Android platform architecture", "locator": "https://developer.android.com/guide/platform"}
+    {
+      "id": "layout",
+      "title": "User-approved illustrative multi-domain layout",
+      "locator": "work/skills/architecture-diagram/references/modeling.md#multiple-vms--hypervisor"
+    },
+    {
+      "id": "pvm",
+      "title": "Linux PVM and Android GVM deployment",
+      "locator": "content/gunyah/pvm-graphics-stack.md"
+    },
+    {
+      "id": "android",
+      "title": "Android platform architecture",
+      "locator": "https://developer.android.com/guide/platform"
+    }
   ],
   "containers": [
-    {"id": "pvm", "kind": "domain", "title": "Linux PVM", "domainType": "vm", "x": 24, "y": 24, "w": 450, "h": 624},
-    {"id": "pvm-user", "kind": "layer", "title": "User Space", "order": 0, "parent": "pvm", "x": 44, "y": 100, "w": 410, "h": 294},
-    {"id": "pvm-kernel", "kind": "layer", "title": "Kernel", "order": 1, "parent": "pvm", "x": 44, "y": 430, "w": 410, "h": 190},
-    {"id": "gvm", "kind": "domain", "title": "Android GVM", "domainType": "vm", "x": 514, "y": 24, "w": 450, "h": 624},
-    {"id": "gvm-user", "kind": "layer", "title": "User Space", "order": 0, "parent": "gvm", "x": 534, "y": 100, "w": 410, "h": 294},
-    {"id": "gvm-kernel", "kind": "layer", "title": "Kernel", "order": 1, "parent": "gvm", "x": 534, "y": 430, "w": 410, "h": 190},
-    {"id": "hypervisor", "kind": "hypervisor", "title": "Gunyah Hypervisor", "hosts": ["pvm", "gvm"], "evidence": ["pvm"], "x": 24, "y": 684, "w": 940, "h": 90},
-    {"id": "soc", "kind": "hardware-region", "title": "Hardware", "x": 24, "y": 808, "w": 940, "h": 90},
-    {"id": "mcu", "kind": "domain", "title": "Independent MCU", "domainType": "mcu", "x": 1040, "y": 24, "w": 416, "h": 874},
-    {"id": "mcu-app", "kind": "layer", "title": "Application Software", "order": 0, "parent": "mcu", "x": 1060, "y": 100, "w": 376, "h": 204},
-    {"id": "mcu-platform", "kind": "layer", "title": "Platform Software", "order": 1, "parent": "mcu", "x": 1060, "y": 350, "w": 376, "h": 260},
-    {"id": "mcu-hw", "kind": "hardware-region", "title": "Hardware", "parent": "mcu", "x": 1060, "y": 660, "w": 376, "h": 210}
+    {
+      "id": "soc",
+      "kind": "domain",
+      "domainType": "soc",
+      "title": "Application SoC",
+      "evidence": [
+        "pvm",
+        "layout"
+      ],
+      "x": 24,
+      "y": 24,
+      "w": 980,
+      "h": 1052
+    },
+    {
+      "id": "pvm",
+      "kind": "domain",
+      "title": "Linux PVM",
+      "domainType": "vm",
+      "x": 44,
+      "y": 100,
+      "w": 450,
+      "h": 624,
+      "parent": "soc",
+      "platform": "linux"
+    },
+    {
+      "id": "pvm-user",
+      "kind": "layer",
+      "title": "Display Services",
+      "order": 0,
+      "parent": "pvm",
+      "x": 64,
+      "y": 176,
+      "w": 410,
+      "h": 294,
+      "role": "services"
+    },
+    {
+      "id": "pvm-kernel",
+      "kind": "layer",
+      "title": "Kernel",
+      "order": 1,
+      "parent": "pvm",
+      "x": 64,
+      "y": 506,
+      "w": 410,
+      "h": 190,
+      "role": "kernel"
+    },
+    {
+      "id": "gvm",
+      "kind": "domain",
+      "title": "Android GVM",
+      "domainType": "vm",
+      "x": 534,
+      "y": 100,
+      "w": 450,
+      "h": 624,
+      "parent": "soc",
+      "platform": "android"
+    },
+    {
+      "id": "gvm-user",
+      "kind": "layer",
+      "title": "Java API Framework",
+      "order": 0,
+      "parent": "gvm",
+      "x": 554,
+      "y": 176,
+      "w": 410,
+      "h": 294,
+      "role": "framework-api"
+    },
+    {
+      "id": "gvm-kernel",
+      "kind": "layer",
+      "title": "Kernel",
+      "order": 1,
+      "parent": "gvm",
+      "x": 554,
+      "y": 506,
+      "w": 410,
+      "h": 190,
+      "role": "kernel"
+    },
+    {
+      "id": "hypervisor",
+      "kind": "hypervisor",
+      "title": "Gunyah Hypervisor",
+      "hosts": [
+        "pvm",
+        "gvm"
+      ],
+      "evidence": [
+        "pvm"
+      ],
+      "x": 44,
+      "y": 760,
+      "w": 940,
+      "h": 100,
+      "parent": "soc"
+    },
+    {
+      "id": "soc-hardware",
+      "kind": "hardware-region",
+      "title": "Shared SoC Hardware",
+      "x": 44,
+      "y": 900,
+      "w": 940,
+      "h": 152,
+      "parent": "soc"
+    },
+    {
+      "id": "mcu",
+      "kind": "domain",
+      "title": "Independent MCU",
+      "domainType": "mcu",
+      "x": 1044,
+      "y": 24,
+      "w": 476,
+      "h": 1052
+    },
+    {
+      "id": "mcu-app",
+      "kind": "layer",
+      "title": "Application Software",
+      "order": 0,
+      "parent": "mcu",
+      "x": 1064,
+      "y": 100,
+      "w": 436,
+      "h": 204,
+      "role": "applications"
+    },
+    {
+      "id": "mcu-platform",
+      "kind": "layer",
+      "title": "Platform Software",
+      "order": 1,
+      "parent": "mcu",
+      "x": 1064,
+      "y": 350,
+      "w": 436,
+      "h": 260,
+      "role": "firmware"
+    },
+    {
+      "id": "mcu-hw",
+      "kind": "hardware-region",
+      "title": "Hardware",
+      "parent": "mcu",
+      "x": 1064,
+      "y": 660,
+      "w": 436,
+      "h": 392
+    }
   ],
   "nodes": [
-    {"id": "weston", "entityType": "process", "canonicalName": "weston", "description": "Native display services", "parent": "pvm-user", "evidence": ["pvm"], "x": 104, "y": 186, "w": 290, "h": 80},
-    {"id": "pvm-linux", "entityType": "subsystem", "canonicalName": "Linux Kernel", "parent": "pvm-kernel", "evidence": ["pvm"], "x": 104, "y": 510, "w": 290, "h": 80},
-    {"id": "android-services", "entityType": "subsystem", "canonicalName": "Android Framework and Services", "parent": "gvm-user", "evidence": ["android"], "x": 594, "y": 186, "w": 290, "h": 80},
-    {"id": "gvm-linux", "entityType": "subsystem", "canonicalName": "Linux Kernel", "parent": "gvm-kernel", "evidence": ["android", "pvm"], "x": 594, "y": 510, "w": 290, "h": 80},
-    {"id": "mcu-control", "entityType": "subsystem", "canonicalName": "Vehicle Control Applications", "parent": "mcu-app", "evidence": ["layout"], "x": 1104, "y": 186, "w": 288, "h": 80},
-    {"id": "mcu-services", "entityType": "subsystem", "canonicalName": "RTOS and Device Drivers", "parent": "mcu-platform", "evidence": ["layout"], "x": 1104, "y": 448, "w": 288, "h": 80},
-    {"id": "mcu-device", "entityType": "hardware", "canonicalName": "MCU Cores and Peripherals", "parent": "mcu-hw", "evidence": ["layout"], "x": 1104, "y": 750, "w": 288, "h": 80}
+    {
+      "id": "weston",
+      "entityType": "process",
+      "canonicalName": "weston",
+      "description": "Native display services",
+      "parent": "pvm-user",
+      "evidence": [
+        "pvm"
+      ],
+      "x": 124,
+      "y": 262,
+      "w": 290,
+      "h": 80,
+      "layerRole": "services"
+    },
+    {
+      "id": "pvm-linux",
+      "entityType": "subsystem",
+      "canonicalName": "Linux Kernel",
+      "parent": "pvm-kernel",
+      "evidence": [
+        "pvm"
+      ],
+      "x": 124,
+      "y": 586,
+      "w": 290,
+      "h": 80,
+      "layerRole": "kernel"
+    },
+    {
+      "id": "android-api",
+      "entityType": "subsystem",
+      "canonicalName": "Core Android APIs",
+      "parent": "gvm-user",
+      "evidence": [
+        "android"
+      ],
+      "x": 614,
+      "y": 262,
+      "w": 290,
+      "h": 80,
+      "layerRole": "framework-api"
+    },
+    {
+      "id": "gvm-linux",
+      "entityType": "subsystem",
+      "canonicalName": "Linux Kernel",
+      "parent": "gvm-kernel",
+      "evidence": [
+        "android",
+        "pvm"
+      ],
+      "x": 614,
+      "y": 586,
+      "w": 290,
+      "h": 80,
+      "layerRole": "kernel"
+    },
+    {
+      "id": "mcu-control",
+      "entityType": "subsystem",
+      "canonicalName": "Vehicle Control Applications",
+      "parent": "mcu-app",
+      "evidence": [
+        "layout"
+      ],
+      "x": 1138,
+      "y": 186,
+      "w": 288,
+      "h": 80
+    },
+    {
+      "id": "mcu-services",
+      "entityType": "subsystem",
+      "canonicalName": "RTOS and Device Drivers",
+      "parent": "mcu-platform",
+      "evidence": [
+        "layout"
+      ],
+      "x": 1138,
+      "y": 448,
+      "w": 288,
+      "h": 80
+    },
+    {
+      "id": "mcu-device",
+      "entityType": "hardware",
+      "canonicalName": "MCU Cores and Peripherals",
+      "parent": "mcu-hw",
+      "evidence": [
+        "layout"
+      ],
+      "x": 1138,
+      "y": 822,
+      "w": 288,
+      "h": 80
+    },
+    {
+      "id": "soc-gpu",
+      "entityType": "hardware",
+      "canonicalName": "Adreno GPU",
+      "parent": "soc-hardware",
+      "evidence": [
+        "pvm"
+      ],
+      "x": 84,
+      "y": 976,
+      "w": 360,
+      "h": 56
+    },
+    {
+      "id": "soc-dpu",
+      "entityType": "hardware",
+      "canonicalName": "Display Processing Unit",
+      "parent": "soc-hardware",
+      "evidence": [
+        "pvm"
+      ],
+      "x": 584,
+      "y": 976,
+      "w": 360,
+      "h": 56
+    }
   ],
   "edges": [
-    {"id": "weston-kernel", "from": "weston", "to": "pvm-linux", "relation": "dependency", "evidence": ["pvm"]},
-    {"id": "android-kernel", "from": "android-services", "to": "gvm-linux", "relation": "dependency", "evidence": ["android"]},
-    {"id": "mcu-app-platform", "from": "mcu-control", "to": "mcu-services", "relation": "dependency", "evidence": ["layout"]},
-    {"id": "mcu-platform-hw", "from": "mcu-services", "to": "mcu-device", "relation": "dependency", "evidence": ["layout"]}
-  ]
+    {
+      "id": "weston-kernel",
+      "from": "weston",
+      "to": "pvm-linux",
+      "relation": "dependency",
+      "evidence": [
+        "pvm"
+      ]
+    },
+    {
+      "id": "android-kernel",
+      "from": "android-api",
+      "to": "gvm-linux",
+      "relation": "dependency",
+      "evidence": [
+        "android"
+      ]
+    },
+    {
+      "id": "mcu-app-platform",
+      "from": "mcu-control",
+      "to": "mcu-services",
+      "relation": "dependency",
+      "evidence": [
+        "layout"
+      ]
+    },
+    {
+      "id": "mcu-platform-hw",
+      "from": "mcu-services",
+      "to": "mcu-device",
+      "relation": "dependency",
+      "evidence": [
+        "layout"
+      ]
+    }
+  ],
+  "deployment": {
+    "profile": "virtualized-soc",
+    "soc": "soc",
+    "vms": [
+      "pvm",
+      "gvm"
+    ],
+    "hypervisor": "hypervisor",
+    "hardware": "soc-hardware",
+    "independent": [
+      "mcu"
+    ],
+    "evidence": [
+      "layout",
+      "pvm"
+    ]
+  }
 }

@@ -12,6 +12,7 @@ All geometry uses absolute SVG logical pixels. All figure text, including access
 | `meta` | Required classification, purpose and figure identity; see below |
 | `canvas` | Required positive `width`, `height`; no slide ratio |
 | `sources` | Evidence records `{id, title, locator}`; locator is a document path, source location or authoritative URL |
+| `deployment` | Required for real diagrams: selected deployment profile and, for a virtualized SoC, explicit references to its required domains and substrate |
 | `containers` | Domain, layer, process and resource-region geometry |
 | `nodes` | Nonempty concrete or scope-appropriate logical entities |
 | `edges` | Directed typed relationships; endpoints are node IDs |
@@ -44,8 +45,8 @@ Every container has unique `id`, `kind`, English `title`, optional `subtitle`, a
 
 | `kind` | Required semantics / extra fields |
 | --- | --- |
-| `domain` | OS / VM / SoC / MCU / TEE; optional `domainType`: `os`, `vm`, `soc`, `mcu`, `tee` |
-| `layer` | Required integer `order` ≥ 0. Sibling layers of different order must appear top-to-bottom without vertical overlap; equal order permits horizontally parallel regions |
+| `domain` | OS / VM / SoC / MCU / TEE; `domainType`: `os`, `vm`, `soc`, `mcu`, `tee`; real OS / VM domains also declare `platform`: `android`, `qnx`, `linux`, `other` |
+| `layer` | Required integer `order` ≥ 0; layers inside a platform domain also declare technical `role`. Sibling layers of different order must appear top-to-bottom without vertical overlap; equal order permits horizontally parallel regions |
 | `process` | Actual process name in `title`; role in `subtitle`; nonempty `evidence` unless specimen |
 | `group` | Logical grouping, not an invented process |
 | `hypervisor` | Required `hosts` array of actual hosted `domain` IDs with `domainType: "vm"`; band below and spanning those VMs |
@@ -53,7 +54,54 @@ Every container has unique `id`, `kind`, English `title`, optional `subtitle`, a
 
 Logical containers may include `evidence`. Text is measured by the shared renderer; reserve room for computed header plus content padding. A layer and a process are different boundaries: use correct containment and do not duplicate process instances merely to fill rows.
 
+A layer title names its technical capability category; its child nodes name the actual implementation entities at the selected scope. A layer with only one implementation is valid. For example, the QNX layer is `Microkernel & Process Manager`, containing the actual `procnto` module.
+
 A source saying only `Application` does not establish an executable/process name. In a system overview it can be a logical `group`, not a `process` with a made-up identifier. If an essential process identity is missing from a requested subsystem view, ask or agree on a narrower scope rather than bypassing process membership or enabling specimen mode.
+
+### Deployment contract
+
+Select the profile from confirmed deployment facts **before** coordinates. `deployment` is non-visible model metadata, not a disclaimer in the figure. It is required for real diagrams; an abstract specimen may also declare it to exercise the topology checks.
+
+```json
+{
+  "profile": "virtualized-soc",
+  "soc": "soc-domain",
+  "vms": ["pvm", "gvm"],
+  "hypervisor": "hypervisor",
+  "hardware": "soc-hardware",
+  "tee": "tee-domain",
+  "independent": ["mcu"],
+  "evidence": ["platform-source"]
+}
+```
+
+- `profile`: `single-domain`, `multi-domain`, or `virtualized-soc`. The first two do not impose a SoC frame on unrelated systems. Do not select them to disguise a virtualized system.
+- `soc`, `vms`, `hypervisor`, `hardware`, and nonempty `evidence` are required for a real `virtualized-soc` diagram. All references must resolve to their declared container types. Removing a required container remains an error even if no container of that kind survives.
+- The SoC is a `domain` with `domainType: soc`; its VM domains, Hypervisor band and hardware region share it as their immediate parent. VMs are horizontally separate and top-aligned. Hypervisor `hosts` must match the declared VM set and its band must span that set only.
+- `tee` is optional: include it only when involved and evidenced. In this deployment layout it is the VM-left peer inside the SoC, top-aligned with the VMs and bottom-aligned with the Hypervisor. Do not infer a platform's TEE implementation from the abstract example.
+- `hardware` references the shared `hardware-region` below the VM / Hypervisor / participating TEE, spanning their combined horizontal extent. It is not the SoC outer boundary.
+- `independent` lists participating independent domains such as MCU. They are outside the SoC, share its parent, and are horizontally beside it with aligned top/bottom boundaries. A short IPC edge is not a reason to move one below the SoC.
+- Focused single-VM software excerpts may use `{profile: "single-domain", domain: "pvm", excerpt: true, evidence: ["source"]}` only in `subsystem` scope: exactly that one execution domain, no cross-domain endpoints, no physical hardware nodes or hardware regions. Keep the VM identity. This is not a deployment overview and cannot replace one.
+
+### Technical-role contract
+
+Roles are non-visible identifiers independent of display titles and `order` numbers. They express an evidence-backed classification, not the order of jobs or requests.
+
+Allowed `layer.role` / `node.layerRole` values: `applications`, `framework-api`, `client-api`, `system-services`, `services`, `native-libraries`, `runtime`, `hal`, `platform-adaptation`, `resource-managers`, `user-drivers`, `kernel`, `firmware`, `hardware`.
+
+In a layered view, software nodes within a platform domain declare `layerRole`, matching their nearest technical-layer ancestor; assigning the tag without placing the node in a real technical-layer container is not sufficient. This is the macro placement role, not every local class responsibility: a private messaging client inside a service is not automatically a shared Framework API. Hardware and memory nodes do not need it. A process remains a runtime container, not a layer. Do not duplicate a runtime process to fill multiple technical rows; real distinct instances of the same executable are not forbidden merely because their names match.
+
+Platform checks enforce technical rank separately from the author-supplied `order`:
+
+| Platform | Top-to-bottom role order |
+| --- | --- |
+| Android | Applications → Framework / Client APIs → System Services → parallel Native Libraries / Runtime → HAL → Kernel |
+| QNX | Applications → Client APIs → peer Services / Resource Managers / User-space Drivers → Microkernel & Process Manager (`kernel` rank) |
+| Linux | Applications → Framework / Client APIs → Services → evidenced Platform Adaptation → Kernel |
+
+Omitted roles do not require empty layers. Android service expansion is an implementation view, not a claim that the official platform diagram has a separate services row. A native service stays a service; its language does not move it into Native Libraries. QNX `kernel` rank positions `procnto` system capabilities; it does not claim Process Manager or user-space drivers are pure kernel code.
+
+The validator checks consistency of **declared** roles. It does not independently establish that a class or library really has that role: review the evidence and client/server distinction before routing. No component-name blacklist or automatic suffix-to-layer inference substitutes for this check.
 
 ### Nodes
 
@@ -137,12 +185,15 @@ The browser harness accepts `--browser /path/to/chromium` when a browser binary 
 
 ## Validation and delivery
 
-There are three independent checks:
+Pass the deployment and component-role gates in `modeling.md` before routing. There are four distinct acceptance results; none replaces another:
 
-1. **Model validation**: `ArchitectureModel.validate(model)` returns `{ok, errors, warnings}`. The builder rejects model errors. It checks typed identity, relationships and structural constraints; a source ID being present does not prove the source supports a claim.
-2. **Browser geometry and style**: await `architectureReady` and require `{ok: true}` before checking; the renderer exposes `architectureModel` and `architectureGeometry`. Inject `scripts/check-diagram.js`, then call `checkDiagram({quiet: true})`. Require actual loaded embedded font faces, semantic font selection, shared radii / line styles, exact model/render node, edge and container counts, nonempty recognized content, and zero errors. A font-family declaration or `document.fonts.check()` alone does not prove the intended font loaded. Review every warning; no empty-DOM or legacy-schema fallback is a pass.
-3. **Visual and technical review**: inspect full figure and key regions at readable size; check names, ownership, layering, routing, labels, bridges and main-path evidence. Geometry success is not factual correctness, and a saved screenshot is not a reviewed screenshot.
+1. **Model structure and declared roles**: `ArchitectureModel.validate(model)` returns `{ok, errors, warnings}`. The builder rejects model errors. It checks required deployment references, containment, relative positions, declared role ordering, identity formats and typed relationships. A source ID being present does not prove the source supports a claim.
+2. **Technical evidence review**: verify the deployment skeleton, each entity's actual role and execution ownership, and every main-path endpoint/mechanism against evidence. Check whether omissions falsely imply direct API-to-hardware or Guest-to-protected-hardware access. If unresolved, stop or agree on a narrower scope; a geometry pass does not authorize delivery as a correct architecture.
+3. **Browser geometry and style**: await `architectureReady` and require `{ok: true}` before checking; the renderer exposes `architectureModel` and `architectureGeometry`. Inject `scripts/check-diagram.js`, then call `checkDiagram({quiet: true})`. Require actual loaded embedded font faces, semantic font selection, shared radii / line styles, exact model/render node, edge and container counts, nonempty recognized content, and zero errors. A font-family declaration or `document.fonts.check()` alone does not prove the intended font loaded. Review every warning; no empty-DOM or legacy-schema fallback is a pass.
+4. **Visual review**: inspect the full deployment outline and readable OS / subsystem regions, then names, ownership, layering, routing, labels and bridges. A saved screenshot is not a reviewed screenshot.
 
 Generated canonical examples target zero errors and zero warnings. For task diagrams fix warnings or state each retained warning with a concrete reason; do not silently downgrade violations. After a source or style edit rebuild and rerun the relevant checks.
 
-Delivery reports name the generated HTML and source model, model/geometry error and warning counts, what was visually inspected, and any unresolved evidence or intentionally omitted non-main-path detail. If browser review was unavailable, say so explicitly. Do not replace the user's original document unless asked.
+Delivery reports name the generated HTML and source model, structure/role and geometry error/warning counts separately, technical review result, what was visually inspected, and any intentionally omitted non-main-path detail. Never describe automated “zero errors” as proof of full architecture compliance. If browser review was unavailable, say so explicitly. Do not replace the user's original document unless asked.
+
+When changing this skill's contract, update the source examples and add negative tests for the changed invariants, rebuild generated examples, and inspect them. Retain factual models separately from abstract layout specimens; otherwise a template may look compliant while teaching unsupported platform facts.

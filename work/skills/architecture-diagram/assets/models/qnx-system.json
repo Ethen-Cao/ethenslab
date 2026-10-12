@@ -1,37 +1,309 @@
 {
   "version": 2,
-  "meta": {"id": "qnx-system", "title": "QNX System Layers", "subtitle": "Client libraries, user-space services and the system process", "description": "User-space resource managers and device drivers remain above the procnto system process. procnto contains both the microkernel and Process Manager; it is not labeled as a pure kernel-only component.", "scope": "system", "view": "layered", "colorMode": "technical"},
-  "canvas": {"width": 1100, "height": 1280},
+  "meta": {
+    "id": "qnx-system",
+    "title": "QNX System Layers",
+    "subtitle": "Client libraries, user-space services and the system process",
+    "description": "User-space resource managers and device drivers remain above the procnto system process. procnto contains both the microkernel and Process Manager; it is not labeled as a pure kernel-only component.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 1100,
+    "height": 1280
+  },
   "sources": [
-    {"id": "minimal", "title": "QNX SDP 8.0 minimal configuration", "locator": "https://qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.building/topic/config/minimal_configuration.html"},
-    {"id": "procnto", "title": "QNX Process Manager", "locator": "https://qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.sys_arch/topic/proc.html"},
-    {"id": "uart", "title": "QNX devc-ser8250", "locator": "https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/d/devc-ser8250.html"},
-    {"id": "screen", "title": "QNX Screen client and server model", "locator": "content/qnx/qnx-screen-graphics-subsystem.md"}
+    {
+      "id": "minimal",
+      "title": "QNX SDP 8.0 minimal configuration",
+      "locator": "https://qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.building/topic/config/minimal_configuration.html"
+    },
+    {
+      "id": "procnto",
+      "title": "QNX Process Manager",
+      "locator": "https://qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.sys_arch/topic/proc.html"
+    },
+    {
+      "id": "uart",
+      "title": "QNX devc-ser8250",
+      "locator": "https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/d/devc-ser8250.html"
+    },
+    {
+      "id": "screen",
+      "title": "QNX Screen client and server model",
+      "locator": "content/qnx/qnx-screen-graphics-subsystem.md"
+    }
   ],
   "containers": [
-    {"id": "qnx", "kind": "domain", "title": "QNX OS", "domainType": "os", "x": 24, "y": 24, "w": 1052, "h": 1038},
-    {"id": "apps", "kind": "layer", "title": "Applications", "order": 0, "parent": "qnx", "x": 44, "y": 100, "w": 1012, "h": 170},
-    {"id": "clients", "kind": "layer", "title": "Client Libraries", "order": 1, "parent": "qnx", "x": 44, "y": 294, "w": 1012, "h": 164},
-    {"id": "services", "kind": "layer", "title": "Services", "subtitle": "User-space resource managers", "order": 2, "parent": "qnx", "x": 44, "y": 494, "w": 1012, "h": 236},
-    {"id": "system", "kind": "layer", "title": "OS & Drivers", "order": 3, "parent": "qnx", "x": 44, "y": 780, "w": 1012, "h": 258},
-    {"id": "hardware", "kind": "hardware-region", "title": "Hardware", "x": 24, "y": 1098, "w": 1052, "h": 156}
+    {
+      "id": "qnx",
+      "kind": "domain",
+      "title": "QNX OS",
+      "domainType": "os",
+      "x": 24,
+      "y": 24,
+      "w": 1052,
+      "h": 1038,
+      "platform": "qnx"
+    },
+    {
+      "id": "apps",
+      "kind": "layer",
+      "title": "Applications",
+      "order": 0,
+      "parent": "qnx",
+      "x": 44,
+      "y": 100,
+      "w": 1012,
+      "h": 170,
+      "role": "applications"
+    },
+    {
+      "id": "clients",
+      "kind": "layer",
+      "title": "Client Libraries",
+      "order": 1,
+      "parent": "qnx",
+      "x": 44,
+      "y": 294,
+      "w": 1012,
+      "h": 164,
+      "role": "client-api"
+    },
+    {
+      "id": "user-drivers",
+      "kind": "layer",
+      "title": "User-Space Drivers",
+      "role": "user-drivers",
+      "order": 2,
+      "parent": "qnx",
+      "x": 44,
+      "y": 494,
+      "w": 496,
+      "h": 236
+    },
+    {
+      "id": "services",
+      "kind": "layer",
+      "title": "User-Space Services",
+      "order": 2,
+      "parent": "qnx",
+      "x": 580,
+      "y": 494,
+      "w": 476,
+      "h": 236,
+      "role": "services"
+    },
+    {
+      "id": "system",
+      "kind": "layer",
+      "title": "Microkernel & Process Manager",
+      "order": 3,
+      "parent": "qnx",
+      "x": 44,
+      "y": 780,
+      "w": 1012,
+      "h": 258,
+      "role": "kernel"
+    },
+    {
+      "id": "hardware",
+      "kind": "hardware-region",
+      "title": "Hardware",
+      "x": 24,
+      "y": 1098,
+      "w": 1052,
+      "h": 156
+    }
   ],
   "nodes": [
-    {"id": "posix-apps", "entityType": "subsystem", "canonicalName": "POSIX Applications", "parent": "apps", "evidence": ["minimal", "uart"], "x": 160, "y": 176, "w": 300, "h": 74},
-    {"id": "screen-apps", "entityType": "subsystem", "canonicalName": "Screen Applications", "parent": "apps", "evidence": ["screen"], "x": 640, "y": 176, "w": 300, "h": 74},
-    {"id": "libc", "entityType": "library", "canonicalName": "libc.so", "description": "POSIX calls and message passing", "parent": "clients", "evidence": ["minimal", "procnto"], "x": 160, "y": 364, "w": 300, "h": 74},
-    {"id": "libscreen", "entityType": "library", "canonicalName": "libscreen.so", "description": "Screen client API", "parent": "clients", "evidence": ["screen"], "x": 640, "y": 364, "w": 300, "h": 74},
-    {"id": "serial-driver", "entityType": "process", "canonicalName": "devc-ser8250", "description": "/dev/ser1 resource manager", "parent": "services", "evidence": ["uart"], "x": 160, "y": 596, "w": 300, "h": 80},
-    {"id": "screen", "entityType": "process", "canonicalName": "screen", "description": "Screen server", "parent": "services", "evidence": ["screen"], "x": 640, "y": 596, "w": 300, "h": 80},
-    {"id": "procnto", "entityType": "process", "canonicalName": "procnto", "description": "Microkernel and Process Manager", "parent": "system", "evidence": ["procnto"], "x": 620, "y": 868, "w": 340, "h": 88},
-    {"id": "uart", "entityType": "hardware", "canonicalName": "8250-Compatible UART", "parent": "hardware", "evidence": ["uart"], "x": 160, "y": 1168, "w": 300, "h": 66}
+    {
+      "id": "posix-apps",
+      "entityType": "subsystem",
+      "canonicalName": "POSIX Applications",
+      "parent": "apps",
+      "evidence": [
+        "minimal",
+        "uart"
+      ],
+      "x": 160,
+      "y": 176,
+      "w": 300,
+      "h": 74,
+      "layerRole": "applications"
+    },
+    {
+      "id": "screen-apps",
+      "entityType": "subsystem",
+      "canonicalName": "Screen Applications",
+      "parent": "apps",
+      "evidence": [
+        "screen"
+      ],
+      "x": 640,
+      "y": 176,
+      "w": 300,
+      "h": 74,
+      "layerRole": "applications"
+    },
+    {
+      "id": "libc",
+      "entityType": "library",
+      "canonicalName": "libc.so",
+      "description": "POSIX calls and message passing",
+      "parent": "clients",
+      "evidence": [
+        "minimal",
+        "procnto"
+      ],
+      "x": 160,
+      "y": 364,
+      "w": 300,
+      "h": 74,
+      "layerRole": "client-api"
+    },
+    {
+      "id": "libscreen",
+      "entityType": "library",
+      "canonicalName": "libscreen.so",
+      "description": "Screen client API",
+      "parent": "clients",
+      "evidence": [
+        "screen"
+      ],
+      "x": 640,
+      "y": 364,
+      "w": 300,
+      "h": 74,
+      "layerRole": "client-api"
+    },
+    {
+      "id": "serial-driver",
+      "entityType": "process",
+      "canonicalName": "devc-ser8250",
+      "description": "/dev/ser1 resource manager",
+      "parent": "user-drivers",
+      "evidence": [
+        "uart"
+      ],
+      "x": 160,
+      "y": 596,
+      "w": 300,
+      "h": 80,
+      "layerRole": "user-drivers"
+    },
+    {
+      "id": "screen",
+      "entityType": "process",
+      "canonicalName": "screen",
+      "description": "Screen server",
+      "parent": "services",
+      "evidence": [
+        "screen"
+      ],
+      "x": 640,
+      "y": 596,
+      "w": 300,
+      "h": 80,
+      "layerRole": "services"
+    },
+    {
+      "id": "procnto",
+      "entityType": "process",
+      "canonicalName": "procnto",
+      "description": "Microkernel and Process Manager",
+      "parent": "system",
+      "evidence": [
+        "procnto"
+      ],
+      "x": 620,
+      "y": 900,
+      "w": 340,
+      "h": 88,
+      "layerRole": "kernel"
+    },
+    {
+      "id": "uart",
+      "entityType": "hardware",
+      "canonicalName": "8250-Compatible UART",
+      "parent": "hardware",
+      "evidence": [
+        "uart"
+      ],
+      "x": 160,
+      "y": 1168,
+      "w": 300,
+      "h": 66
+    }
   ],
   "edges": [
-    {"id": "app-libc", "from": "posix-apps", "to": "libc", "relation": "call", "evidence": ["uart", "minimal"]},
-    {"id": "app-screen", "from": "screen-apps", "to": "libscreen", "relation": "call", "evidence": ["screen"]},
-    {"id": "libc-serial", "from": "libc", "to": "serial-driver", "relation": "ipc", "mechanism": "QNX messages", "labelPosition": {"x": 392, "y": 476}, "evidence": ["uart", "procnto"]},
-    {"id": "libscreen-server", "from": "libscreen", "to": "screen", "relation": "dependency", "evidence": ["screen"]},
-    {"id": "screen-system", "from": "screen", "to": "procnto", "relation": "dependency", "evidence": ["procnto", "screen"]},
-    {"id": "serial-hardware", "from": "serial-driver", "to": "uart", "relation": "call", "label": "Register access", "labelPosition": {"x": 400, "y": 1080}, "evidence": ["uart"]}
-  ]
+    {
+      "id": "app-libc",
+      "from": "posix-apps",
+      "to": "libc",
+      "relation": "call",
+      "evidence": [
+        "uart",
+        "minimal"
+      ]
+    },
+    {
+      "id": "app-screen",
+      "from": "screen-apps",
+      "to": "libscreen",
+      "relation": "call",
+      "evidence": [
+        "screen"
+      ]
+    },
+    {
+      "id": "libc-serial",
+      "from": "libc",
+      "to": "serial-driver",
+      "relation": "ipc",
+      "mechanism": "QNX messages",
+      "labelPosition": {
+        "x": 392,
+        "y": 476
+      },
+      "evidence": [
+        "uart",
+        "procnto"
+      ]
+    },
+    {
+      "id": "libscreen-server",
+      "from": "libscreen",
+      "to": "screen",
+      "relation": "dependency",
+      "evidence": [
+        "screen"
+      ]
+    },
+    {
+      "id": "screen-system",
+      "from": "screen",
+      "to": "procnto",
+      "relation": "dependency",
+      "evidence": [
+        "procnto",
+        "screen"
+      ]
+    },
+    {
+      "id": "serial-hardware",
+      "from": "serial-driver",
+      "to": "uart",
+      "relation": "call",
+      "label": "Register access",
+      "via": [{"y": 756}, {"x": 420}, {"y": 1076}, {"x": 310}],
+      "evidence": [
+        "uart"
+      ]
+    }
+  ],
+  "deployment": {
+    "profile": "single-domain"
+  }
 }

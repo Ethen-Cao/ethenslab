@@ -1,37 +1,267 @@
 {
   "version": 2,
-  "meta": {"id": "linux-system", "title": "Linux System Layers", "subtitle": "Client APIs, peer services and kernel facilities", "description": "A compact Linux layering example uses the systemd journal API and service. The platform interface region is a logical API grouping, not a claimed mandatory hardware abstraction layer.", "scope": "system", "view": "layered", "colorMode": "technical"},
-  "canvas": {"width": 1000, "height": 1240},
+  "meta": {
+    "id": "linux-system",
+    "title": "Linux System Layers",
+    "subtitle": "Client APIs, peer services and kernel facilities",
+    "description": "Application-facing journal APIs precede peer system services. systemd manages service lifecycle, while systemd-journald uses kernel facilities directly; no artificial platform abstraction layer is introduced.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 1000,
+    "height": 1040
+  },
   "sources": [
-    {"id": "systemd", "title": "systemd System and Service Manager", "locator": "https://systemd.io/"},
-    {"id": "journal", "title": "Native Journal Protocol", "locator": "https://systemd.io/JOURNAL_NATIVE_PROTOCOL/"},
-    {"id": "api", "title": "libsystemd journal API source", "locator": "https://github.com/systemd/systemd/blob/main/man/sd_journal_print.xml"},
-    {"id": "abi", "title": "systemd shared library ABI version", "locator": "https://github.com/systemd/systemd-stable/blob/v255-stable/meson.build"},
-    {"id": "kernel", "title": "Linux system call interface", "locator": "https://man7.org/linux/man-pages/man2/syscalls.2.html"}
+    {
+      "id": "systemd",
+      "title": "systemd System and Service Manager",
+      "locator": "https://systemd.io/"
+    },
+    {
+      "id": "journal",
+      "title": "Native Journal Protocol",
+      "locator": "https://systemd.io/JOURNAL_NATIVE_PROTOCOL/"
+    },
+    {
+      "id": "api",
+      "title": "libsystemd journal API source",
+      "locator": "https://github.com/systemd/systemd/blob/main/man/sd_journal_print.xml"
+    },
+    {
+      "id": "abi",
+      "title": "systemd shared library ABI version",
+      "locator": "https://github.com/systemd/systemd-stable/blob/v255-stable/meson.build"
+    },
+    {
+      "id": "kernel",
+      "title": "Linux system call interface",
+      "locator": "https://man7.org/linux/man-pages/man2/syscalls.2.html"
+    }
   ],
   "containers": [
-    {"id": "linux", "kind": "domain", "title": "Linux", "domainType": "os", "x": 24, "y": 24, "w": 952, "h": 1190},
-    {"id": "apps", "kind": "layer", "title": "Applications", "order": 0, "parent": "linux", "x": 44, "y": 100, "w": 912, "h": 170},
-    {"id": "clients", "kind": "layer", "title": "Client APIs", "order": 1, "parent": "linux", "x": 44, "y": 294, "w": 912, "h": 164},
-    {"id": "services", "kind": "layer", "title": "System Services", "order": 2, "parent": "linux", "x": 44, "y": 494, "w": 912, "h": 290},
-    {"id": "platform", "kind": "layer", "title": "Platform Interfaces", "order": 3, "parent": "linux", "x": 44, "y": 820, "w": 912, "h": 166},
-    {"id": "kernel", "kind": "layer", "title": "Linux Kernel", "order": 4, "parent": "linux", "x": 44, "y": 1022, "w": 912, "h": 166}
+    {
+      "id": "linux",
+      "kind": "domain",
+      "title": "Linux",
+      "domainType": "os",
+      "x": 24,
+      "y": 24,
+      "w": 952,
+      "h": 990,
+      "platform": "linux"
+    },
+    {
+      "id": "apps",
+      "kind": "layer",
+      "title": "Applications",
+      "order": 0,
+      "parent": "linux",
+      "x": 44,
+      "y": 100,
+      "w": 912,
+      "h": 170,
+      "role": "applications"
+    },
+    {
+      "id": "clients",
+      "kind": "layer",
+      "title": "Client APIs",
+      "order": 1,
+      "parent": "linux",
+      "x": 44,
+      "y": 294,
+      "w": 912,
+      "h": 164,
+      "role": "client-api"
+    },
+    {
+      "id": "services",
+      "kind": "layer",
+      "title": "System Services",
+      "order": 2,
+      "parent": "linux",
+      "x": 44,
+      "y": 494,
+      "w": 912,
+      "h": 290,
+      "role": "system-services"
+    },
+    {
+      "id": "kernel",
+      "kind": "layer",
+      "title": "Linux Kernel",
+      "order": 3,
+      "parent": "linux",
+      "x": 44,
+      "y": 820,
+      "w": 912,
+      "h": 166,
+      "role": "kernel"
+    }
   ],
   "nodes": [
-    {"id": "applications", "entityType": "subsystem", "canonicalName": "Application Clients", "parent": "apps", "evidence": ["api"], "x": 340, "y": 176, "w": 300, "h": 74},
-    {"id": "journal-api", "entityType": "library", "canonicalName": "libsystemd.so.0", "description": "sd_journal_send()", "parent": "clients", "evidence": ["api", "abi"], "x": 340, "y": 364, "w": 300, "h": 74},
-    {"id": "manager", "entityType": "process", "canonicalName": "systemd", "description": "PID 1 and service lifecycle", "parent": "services", "evidence": ["systemd"], "x": 96, "y": 574, "w": 300, "h": 80},
-    {"id": "journald", "entityType": "process", "canonicalName": "systemd-journald", "description": "Journal ingestion and storage", "parent": "services", "evidence": ["systemd", "journal"], "x": 580, "y": 574, "w": 300, "h": 80},
-    {"id": "posix", "entityType": "subsystem", "canonicalName": "POSIX APIs", "description": "File and socket interfaces", "parent": "platform", "evidence": ["kernel", "journal"], "x": 580, "y": 890, "w": 300, "h": 74},
-    {"id": "scheduling", "entityType": "subsystem", "canonicalName": "Scheduling and Memory", "parent": "kernel", "evidence": ["kernel", "systemd"], "x": 96, "y": 1092, "w": 300, "h": 74},
-    {"id": "vfs", "entityType": "subsystem", "canonicalName": "VFS and Unix Sockets", "parent": "kernel", "evidence": ["kernel", "journal"], "x": 580, "y": 1092, "w": 300, "h": 74}
+    {
+      "id": "applications",
+      "entityType": "subsystem",
+      "canonicalName": "Application Clients",
+      "parent": "apps",
+      "evidence": [
+        "api"
+      ],
+      "x": 340,
+      "y": 176,
+      "w": 300,
+      "h": 74,
+      "layerRole": "applications"
+    },
+    {
+      "id": "journal-api",
+      "entityType": "library",
+      "canonicalName": "libsystemd.so.0",
+      "description": "sd_journal_send()",
+      "parent": "clients",
+      "evidence": [
+        "api",
+        "abi"
+      ],
+      "x": 340,
+      "y": 364,
+      "w": 300,
+      "h": 74,
+      "layerRole": "client-api"
+    },
+    {
+      "id": "manager",
+      "entityType": "process",
+      "canonicalName": "systemd",
+      "description": "PID 1 and service lifecycle",
+      "parent": "services",
+      "evidence": [
+        "systemd"
+      ],
+      "x": 96,
+      "y": 574,
+      "w": 300,
+      "h": 80,
+      "layerRole": "system-services"
+    },
+    {
+      "id": "journald",
+      "entityType": "process",
+      "canonicalName": "systemd-journald",
+      "description": "Journal ingestion and storage",
+      "parent": "services",
+      "evidence": [
+        "systemd",
+        "journal"
+      ],
+      "x": 580,
+      "y": 574,
+      "w": 300,
+      "h": 80,
+      "layerRole": "system-services"
+    },
+    {
+      "id": "scheduling",
+      "entityType": "subsystem",
+      "canonicalName": "Scheduling and Memory",
+      "parent": "kernel",
+      "evidence": [
+        "kernel",
+        "systemd"
+      ],
+      "x": 96,
+      "y": 890,
+      "w": 300,
+      "h": 74,
+      "layerRole": "kernel"
+    },
+    {
+      "id": "vfs",
+      "entityType": "subsystem",
+      "canonicalName": "VFS and Unix Sockets",
+      "parent": "kernel",
+      "evidence": [
+        "kernel",
+        "journal"
+      ],
+      "x": 580,
+      "y": 890,
+      "w": 300,
+      "h": 74,
+      "layerRole": "kernel"
+    }
   ],
   "edges": [
-    {"id": "app-api", "from": "applications", "to": "journal-api", "relation": "call", "evidence": ["api"]},
-    {"id": "api-journal", "from": "journal-api", "to": "journald", "relation": "ipc", "mechanism": "Unix datagram socket", "via": [{"y": 476}], "labelPosition": {"x": 820, "y": 475}, "evidence": ["journal", "api"]},
-    {"id": "manager-journal", "from": "manager", "to": "journald", "relation": "configuration", "label": "Service lifecycle", "fromSide": "right", "toSide": "left", "labelPosition": {"x": 488, "y": 590}, "evidence": ["systemd"]},
-    {"id": "journal-posix", "from": "journald", "to": "posix", "relation": "dependency", "evidence": ["journal", "kernel"]},
-    {"id": "posix-vfs", "from": "posix", "to": "vfs", "relation": "dependency", "evidence": ["kernel"]},
-    {"id": "manager-kernel", "from": "manager", "to": "scheduling", "relation": "dependency", "evidence": ["systemd", "kernel"]}
-  ]
+    {
+      "id": "app-api",
+      "from": "applications",
+      "to": "journal-api",
+      "relation": "call",
+      "evidence": [
+        "api"
+      ]
+    },
+    {
+      "id": "api-journal",
+      "from": "journal-api",
+      "to": "journald",
+      "relation": "ipc",
+      "mechanism": "Unix datagram socket",
+      "via": [
+        {
+          "y": 476
+        }
+      ],
+      "labelPosition": {
+        "x": 820,
+        "y": 475
+      },
+      "evidence": [
+        "journal",
+        "api"
+      ]
+    },
+    {
+      "id": "manager-journal",
+      "from": "manager",
+      "to": "journald",
+      "relation": "configuration",
+      "label": "Service lifecycle",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelPosition": {
+        "x": 488,
+        "y": 590
+      },
+      "evidence": [
+        "systemd"
+      ]
+    },
+    {
+      "id": "manager-kernel",
+      "from": "manager",
+      "to": "scheduling",
+      "relation": "dependency",
+      "evidence": [
+        "systemd",
+        "kernel"
+      ]
+    },
+    {
+      "id": "journal-kernel",
+      "from": "journald",
+      "to": "vfs",
+      "relation": "dependency",
+      "evidence": [
+        "journal",
+        "kernel"
+      ]
+    }
+  ],
+  "deployment": {
+    "profile": "single-domain"
+  }
 }
