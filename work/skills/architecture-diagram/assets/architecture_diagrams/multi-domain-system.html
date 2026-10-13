@@ -23,14 +23,14 @@
 :root {
   --font-sans: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'Roboto Mono', 'SF Mono', Consolas, 'Liberation Mono', monospace;
-  --type-title: 24px;
-  --type-domain: 20px;
-  --type-container: 18px;
-  --type-node: 16px;
-  --type-subtitle: 12px;
-  --type-label: 13px;
-  --type-body: 14px;
-  --type-legend: 12px;
+  --type-title: 36px;
+  --type-domain: 30px;
+  --type-container: 27px;
+  --type-node: 24px;
+  --type-subtitle: 18px;
+  --type-label: 19.5px;
+  --type-body: 21px;
+  --type-legend: 18px;
   --radius-label: 4px;
   --radius-node: 8px;
   --radius-container: 8px;
@@ -112,7 +112,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
 .edge-label text { fill: var(--control) !important; font-size: var(--type-label); }
 .edge-label.data text { fill: var(--data) !important; }
 .edge-label.config text, .edge-label.dependency text { fill: var(--muted) !important; }
-.diagram-legend { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; font-size: var(--type-legend); line-height: 20px; color: var(--muted); }
+.diagram-legend { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; font-size: var(--type-legend); line-height: 1.5; color: var(--muted); }
 .diagram-legend:empty { display: none; }
 .legend-item { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .legend-heading { color: var(--ink); font-weight: 700; }
@@ -141,8 +141,8 @@ svg#architecture text.code { font-family: var(--font-mono); }
     "colorMode": "technical"
   },
   "canvas": {
-    "width": 1544,
-    "height": 1100
+    "width": 2316,
+    "height": 1650
   },
   "sources": [
     {
@@ -171,20 +171,20 @@ svg#architecture text.code { font-family: var(--font-mono); }
         "pvm",
         "layout"
       ],
-      "x": 24,
-      "y": 24,
-      "w": 980,
-      "h": 1052
+      "x": 36,
+      "y": 36,
+      "w": 1470,
+      "h": 1578
     },
     {
       "id": "pvm",
       "kind": "domain",
       "title": "Linux PVM",
       "domainType": "vm",
-      "x": 44,
-      "y": 100,
-      "w": 450,
-      "h": 624,
+      "x": 66,
+      "y": 150,
+      "w": 675,
+      "h": 936,
       "parent": "soc",
       "platform": "linux"
     },
@@ -194,10 +194,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Display Services",
       "order": 0,
       "parent": "pvm",
-      "x": 64,
-      "y": 176,
-      "w": 410,
-      "h": 294,
+      "x": 96,
+      "y": 264,
+      "w": 615,
+      "h": 441,
       "role": "services"
     },
     {
@@ -206,10 +206,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Kernel",
       "order": 1,
       "parent": "pvm",
-      "x": 64,
-      "y": 506,
-      "w": 410,
-      "h": 190,
+      "x": 96,
+      "y": 759,
+      "w": 615,
+      "h": 285,
       "role": "kernel"
     },
     {
@@ -217,10 +217,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "kind": "domain",
       "title": "Android GVM",
       "domainType": "vm",
-      "x": 534,
-      "y": 100,
-      "w": 450,
-      "h": 624,
+      "x": 801,
+      "y": 150,
+      "w": 675,
+      "h": 936,
       "parent": "soc",
       "platform": "android"
     },
@@ -230,10 +230,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Java API Framework",
       "order": 0,
       "parent": "gvm",
-      "x": 554,
-      "y": 176,
-      "w": 410,
-      "h": 294,
+      "x": 831,
+      "y": 264,
+      "w": 615,
+      "h": 441,
       "role": "framework-api"
     },
     {
@@ -242,10 +242,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Kernel",
       "order": 1,
       "parent": "gvm",
-      "x": 554,
-      "y": 506,
-      "w": 410,
-      "h": 190,
+      "x": 831,
+      "y": 759,
+      "w": 615,
+      "h": 285,
       "role": "kernel"
     },
     {
@@ -259,20 +259,20 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "pvm"
       ],
-      "x": 44,
-      "y": 760,
-      "w": 940,
-      "h": 100,
+      "x": 66,
+      "y": 1140,
+      "w": 1410,
+      "h": 150,
       "parent": "soc"
     },
     {
       "id": "soc-hardware",
       "kind": "hardware-region",
       "title": "Shared SoC Hardware",
-      "x": 44,
-      "y": 900,
-      "w": 940,
-      "h": 152,
+      "x": 66,
+      "y": 1350,
+      "w": 1410,
+      "h": 228,
       "parent": "soc"
     },
     {
@@ -280,10 +280,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "kind": "domain",
       "title": "Independent MCU",
       "domainType": "mcu",
-      "x": 1044,
-      "y": 24,
-      "w": 476,
-      "h": 1052
+      "x": 1566,
+      "y": 36,
+      "w": 714,
+      "h": 1578
     },
     {
       "id": "mcu-app",
@@ -291,10 +291,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Application Software",
       "order": 0,
       "parent": "mcu",
-      "x": 1064,
-      "y": 100,
-      "w": 436,
-      "h": 204,
+      "x": 1596,
+      "y": 150,
+      "w": 654,
+      "h": 306,
       "role": "applications"
     },
     {
@@ -303,10 +303,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Platform Software",
       "order": 1,
       "parent": "mcu",
-      "x": 1064,
-      "y": 350,
-      "w": 436,
-      "h": 260,
+      "x": 1596,
+      "y": 525,
+      "w": 654,
+      "h": 390,
       "role": "firmware"
     },
     {
@@ -314,10 +314,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "kind": "hardware-region",
       "title": "Hardware",
       "parent": "mcu",
-      "x": 1064,
-      "y": 660,
-      "w": 436,
-      "h": 392
+      "x": 1596,
+      "y": 990,
+      "w": 654,
+      "h": 588
     }
   ],
   "nodes": [
@@ -330,10 +330,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "pvm"
       ],
-      "x": 124,
-      "y": 262,
-      "w": 290,
-      "h": 80,
+      "x": 186,
+      "y": 393,
+      "w": 435,
+      "h": 120,
       "layerRole": "services"
     },
     {
@@ -344,10 +344,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "pvm"
       ],
-      "x": 124,
-      "y": 586,
-      "w": 290,
-      "h": 80,
+      "x": 186,
+      "y": 879,
+      "w": 435,
+      "h": 120,
       "layerRole": "kernel"
     },
     {
@@ -358,10 +358,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "android"
       ],
-      "x": 614,
-      "y": 262,
-      "w": 290,
-      "h": 80,
+      "x": 921,
+      "y": 393,
+      "w": 435,
+      "h": 120,
       "layerRole": "framework-api"
     },
     {
@@ -373,10 +373,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
         "android",
         "pvm"
       ],
-      "x": 614,
-      "y": 586,
-      "w": 290,
-      "h": 80,
+      "x": 921,
+      "y": 879,
+      "w": 435,
+      "h": 120,
       "layerRole": "kernel"
     },
     {
@@ -387,10 +387,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "layout"
       ],
-      "x": 1138,
-      "y": 186,
-      "w": 288,
-      "h": 80
+      "x": 1707,
+      "y": 279,
+      "w": 432,
+      "h": 120
     },
     {
       "id": "mcu-services",
@@ -400,10 +400,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "layout"
       ],
-      "x": 1138,
-      "y": 448,
-      "w": 288,
-      "h": 80
+      "x": 1707,
+      "y": 672,
+      "w": 432,
+      "h": 120
     },
     {
       "id": "mcu-device",
@@ -413,10 +413,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "layout"
       ],
-      "x": 1138,
-      "y": 822,
-      "w": 288,
-      "h": 80
+      "x": 1707,
+      "y": 1233,
+      "w": 432,
+      "h": 120
     },
     {
       "id": "soc-gpu",
@@ -426,10 +426,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "pvm"
       ],
-      "x": 84,
-      "y": 976,
-      "w": 360,
-      "h": 56
+      "x": 126,
+      "y": 1464,
+      "w": 540,
+      "h": 84
     },
     {
       "id": "soc-dpu",
@@ -439,10 +439,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "pvm"
       ],
-      "x": 584,
-      "y": 976,
-      "w": 360,
-      "h": 56
+      "x": 876,
+      "y": 1464,
+      "w": 540,
+      "h": 84
     }
   ],
   "edges": [
@@ -523,14 +523,14 @@ svg#architecture text.code { font-family: var(--font-mono); }
     }
   },
   "type": {
-    "title": 24,
-    "domain": 20,
-    "container": 18,
-    "node": 16,
-    "subtitle": 12,
-    "label": 13,
-    "body": 14,
-    "legend": 12
+    "title": 36,
+    "domain": 30,
+    "container": 27,
+    "node": 24,
+    "subtitle": 18,
+    "label": 19.5,
+    "body": 21,
+    "legend": 18
   },
   "radii": {
     "label": 4,
@@ -994,7 +994,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
   const ORIGINS = {oem: '#4285F4', native: '#34A853', vendor: '#FBBC04'};
   const PARTY_COLORS = {oem: '#4285F4', tier1: '#FBBC04', 'soc-vendor': '#A78BFA', 'os-vendor': '#34A853', other: '#38BDF8'};
   const PALETTE_COLORS = {blue: '#4285F4', green: '#34A853', amber: '#FBBC04', purple: '#A78BFA', cyan: '#38BDF8', orange: '#FB923C', pink: '#F472B6', indigo: '#818CF8'};
-  const EDGE_LABELS = {dependency: 'Dependency', control: 'Call / IPC', data: 'Data / pixels', notification: 'Notification / interrupt', config: 'Configuration / allocation'};
+  const EDGE_LABELS = {dependency: 'Dependency', control: 'Call / IPC', data: 'Data', notification: 'Notification / interrupt', config: 'Configuration / allocation'};
   const same = (a, b) => Math.abs(a - b) < 0.001;
   const fmt = n => String(Math.round(n * 1000) / 1000);
   const equal = (a, b) => same(a.x, b.x) && same(a.y, b.y);

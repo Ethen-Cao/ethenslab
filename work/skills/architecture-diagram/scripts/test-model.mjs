@@ -168,6 +168,7 @@ const fontManifest = await read('assets/fonts/manifest.json');
 const embeddedJSON = id => JSON.parse(html.match(new RegExp(`<script id="${id}" type="application/json">([\\s\\S]*?)<\\/script>`))[1]);
 test('shared theme embedded without drift', () => assert.deepEqual(embeddedJSON('diagram-theme'), theme));
 test('approved visual tokens', () => {
+  assert.deepEqual(theme.type, {title: 36, domain: 30, container: 27, node: 24, subtitle: 18, label: 19.5, body: 21, legend: 18});
   assert.deepEqual(theme.radii, {label: 4, node: 8, container: 8, domain: 12, shell: 12});
   assert.equal(theme.strokes.control, 1.8); assert.equal(theme.strokes.data, 2.6);
   assert.equal(theme.strokes.notification, 1.8);

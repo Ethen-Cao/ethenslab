@@ -5,7 +5,7 @@ description: 创建或修改独立 HTML 软件架构图，先建立部署骨架�
 
 # Architecture Diagram
 
-生成独立、静态、全英文 HTML：标题、架构图、必要图例。无工具栏、主题切换、详情面板或 PPT 布局。使用本 skill 的模型与公共 renderer，不重新拼一套 HTML/CSS/SVG；字体、圆角、线宽统一取自 `assets/theme.json`，构建器内嵌固定字体，加载成功后才测量与绘制。用户当前明确要求优先；示例提供合规建模与布局，不提供其他平台的技术事实。
+生成独立、静态、全英文 HTML：标题、架构图、必要图例。无工具栏、主题切换、详情面板或 PPT 布局。使用本 skill 的模型与公共 renderer，不重新拼一套 HTML/CSS/SVG；字体、圆角、线宽统一取自 `assets/theme.json`，Block 主名称基准为 24px，构建器内嵌固定字体，加载成功后才测量与绘制。用户当前明确要求优先；示例提供合规建模与布局，不提供其他平台的技术事实。
 
 ## Decide the scope
 

@@ -10,8 +10,8 @@
     "colorMode": "origin"
   },
   "canvas": {
-    "width": 3028,
-    "height": 2240
+    "width": 4542.0,
+    "height": 3360.0
   },
   "deployment": {
     "profile": "virtualized-soc",
@@ -218,10 +218,10 @@
       "kind": "domain",
       "domainType": "soc",
       "title": "SoC",
-      "x": 24,
-      "y": 24,
-      "w": 2500,
-      "h": 2192,
+      "x": 36.0,
+      "y": 36.0,
+      "w": 3750.0,
+      "h": 3288.0,
       "evidence": [
         "user"
       ]
@@ -233,10 +233,10 @@
       "platform": "qnx",
       "title": "PVM · QNX Cluster",
       "parent": "soc",
-      "x": 44,
-      "y": 104,
-      "w": 1180,
-      "h": 1620,
+      "x": 66.0,
+      "y": 156.0,
+      "w": 1770.0,
+      "h": 2430.0,
       "evidence": [
         "user"
       ]
@@ -248,10 +248,10 @@
       "platform": "android",
       "title": "GVM · Android IVI",
       "parent": "soc",
-      "x": 1324,
-      "y": 104,
-      "w": 1180,
-      "h": 1620,
+      "x": 1986.0,
+      "y": 156.0,
+      "w": 1770.0,
+      "h": 2430.0,
       "evidence": [
         "user"
       ]
@@ -261,10 +261,10 @@
       "kind": "domain",
       "domainType": "mcu",
       "title": "Vehicle MCU",
-      "x": 2604,
-      "y": 24,
-      "w": 400,
-      "h": 2192,
+      "x": 3906.0,
+      "y": 36.0,
+      "w": 600.0,
+      "h": 3288.0,
       "evidence": [
         "user"
       ]
@@ -276,10 +276,10 @@
       "order": 0,
       "title": "Services",
       "parent": "pvm",
-      "x": 64,
-      "y": 180,
-      "w": 1140,
-      "h": 1258
+      "x": 96.0,
+      "y": 270.0,
+      "w": 1710.0,
+      "h": 1887.0
     },
     {
       "id": "p-core",
@@ -288,10 +288,10 @@
       "order": 1,
       "title": "Microkernel & Process Manager",
       "parent": "pvm",
-      "x": 64,
-      "y": 1478,
-      "w": 1140,
-      "h": 220
+      "x": 96.0,
+      "y": 2217.0,
+      "w": 1710.0,
+      "h": 330.0
     },
     {
       "id": "g-apps",
@@ -300,10 +300,10 @@
       "order": 0,
       "title": "Applications",
       "parent": "gvm",
-      "x": 1344,
-      "y": 180,
-      "w": 1140,
-      "h": 220
+      "x": 2016.0,
+      "y": 270.0,
+      "w": 1710.0,
+      "h": 330.0
     },
     {
       "id": "g-framework",
@@ -312,10 +312,10 @@
       "order": 1,
       "title": "Java API Framework",
       "parent": "gvm",
-      "x": 2048,
-      "y": 448,
-      "w": 436,
-      "h": 184
+      "x": 3072.0,
+      "y": 672.0,
+      "w": 654.0,
+      "h": 276.0
     },
     {
       "id": "g-services",
@@ -324,10 +324,10 @@
       "order": 2,
       "title": "System Services",
       "parent": "gvm",
-      "x": 1344,
-      "y": 688,
-      "w": 1140,
-      "h": 530
+      "x": 2016.0,
+      "y": 1032.0,
+      "w": 1710.0,
+      "h": 795.0
     },
     {
       "id": "ota-process",
@@ -335,10 +335,10 @@
       "title": "com.voyah.update",
       "subtitle": "UpdateService",
       "parent": "g-services",
-      "x": 1364,
-      "y": 764,
-      "w": 644,
-      "h": 438,
+      "x": 2046.0,
+      "y": 1146.0,
+      "w": 966.0,
+      "h": 657.0,
       "evidence": [
         "service"
       ]
@@ -348,10 +348,10 @@
       "kind": "process",
       "title": "update_engine",
       "parent": "g-services",
-      "x": 2048,
-      "y": 764,
-      "w": 416,
-      "h": 438,
+      "x": 3072.0,
+      "y": 1146.0,
+      "w": 624.0,
+      "h": 657.0,
       "evidence": [
         "daemon"
       ]
@@ -363,10 +363,10 @@
       "order": 3,
       "title": "Hardware Abstraction Layer",
       "parent": "gvm",
-      "x": 1344,
-      "y": 1242,
-      "w": 1140,
-      "h": 196
+      "x": 2016.0,
+      "y": 1863.0,
+      "w": 1710.0,
+      "h": 294.0
     },
     {
       "id": "g-kernel",
@@ -375,20 +375,20 @@
       "order": 4,
       "title": "Linux Kernel",
       "parent": "gvm",
-      "x": 1344,
-      "y": 1478,
-      "w": 1140,
-      "h": 220
+      "x": 2016.0,
+      "y": 2217.0,
+      "w": 1710.0,
+      "h": 330.0
     },
     {
       "id": "qvm-process",
       "kind": "process",
       "title": "qvm",
       "parent": "p-services",
-      "x": 824,
-      "y": 1042,
-      "w": 360,
-      "h": 216,
+      "x": 1236.0,
+      "y": 1563.0,
+      "w": 540.0,
+      "h": 324.0,
       "evidence": [
         "blocks",
         "qnx-core"
@@ -403,10 +403,10 @@
         "gvm"
       ],
       "parent": "soc",
-      "x": 44,
-      "y": 1764,
-      "w": 2460,
-      "h": 96,
+      "x": 66.0,
+      "y": 2646.0,
+      "w": 3690.0,
+      "h": 144.0,
       "evidence": [
         "user"
       ]
@@ -416,30 +416,30 @@
       "kind": "hardware-region",
       "title": "Hardware",
       "parent": "soc",
-      "x": 44,
-      "y": 1900,
-      "w": 2460,
-      "h": 292
+      "x": 66.0,
+      "y": 2850.0,
+      "w": 3690.0,
+      "h": 438.0
     },
     {
       "id": "storage-region",
       "kind": "group",
       "title": "Shared Storage",
       "parent": "hardware",
-      "x": 64,
-      "y": 1980,
-      "w": 1760,
-      "h": 196
+      "x": 96.0,
+      "y": 2970.0,
+      "w": 2640.0,
+      "h": 294.0
     },
     {
       "id": "mcu-flash",
       "kind": "hardware-region",
       "title": "Application Flash",
       "parent": "mcu",
-      "x": 2624,
-      "y": 1900,
-      "w": 360,
-      "h": 292
+      "x": 3936.0,
+      "y": 2850.0,
+      "w": 540.0,
+      "h": 438.0
     },
     {
       "id": "g-apis",
@@ -448,10 +448,10 @@
       "order": 1,
       "title": "Client APIs",
       "parent": "gvm",
-      "x": 1344,
-      "y": 448,
-      "w": 664,
-      "h": 184
+      "x": 2016.0,
+      "y": 672.0,
+      "w": 996.0,
+      "h": 276.0
     }
   ],
   "nodes": [
@@ -460,10 +460,10 @@
       "entityType": "process",
       "canonicalName": "upgrademcu",
       "parent": "p-services",
-      "x": 760,
-      "y": 510,
-      "w": 200,
-      "h": 80,
+      "x": 1140.0,
+      "y": 765.0,
+      "w": 300.0,
+      "h": 120.0,
       "evidence": [
         "doc",
         "color-policy",
@@ -478,10 +478,10 @@
       "entityType": "process",
       "canonicalName": "update_ic.sh",
       "parent": "p-services",
-      "x": 504,
-      "y": 510,
-      "w": 200,
-      "h": 80,
+      "x": 756.0,
+      "y": 765.0,
+      "w": 300.0,
+      "h": 120.0,
       "evidence": [
         "doc",
         "color-policy"
@@ -495,10 +495,10 @@
       "entityType": "process",
       "canonicalName": "zstd",
       "parent": "p-services",
-      "x": 504,
-      "y": 696,
-      "w": 200,
-      "h": 80,
+      "x": 756.0,
+      "y": 1044.0,
+      "w": 300.0,
+      "h": 120.0,
       "evidence": [
         "doc",
         "color-policy"
@@ -512,10 +512,10 @@
       "entityType": "process",
       "canonicalName": "swdl_utils",
       "parent": "p-services",
-      "x": 992,
-      "y": 510,
-      "w": 172,
-      "h": 80,
+      "x": 1488.0,
+      "y": 765.0,
+      "w": 258.0,
+      "h": 120.0,
       "evidence": [
         "doc",
         "color-policy",
@@ -530,10 +530,10 @@
       "entityType": "library",
       "canonicalName": "librpcif.so",
       "parent": "p-services",
-      "x": 760,
-      "y": 696,
-      "w": 200,
-      "h": 80,
+      "x": 1140.0,
+      "y": 1044.0,
+      "w": 300.0,
+      "h": 120.0,
       "evidence": [
         "rpcif",
         "color-policy",
@@ -548,10 +548,10 @@
       "entityType": "library",
       "canonicalName": "libspi_client.so",
       "parent": "p-services",
-      "x": 94,
-      "y": 510,
-      "w": 300,
-      "h": 80,
+      "x": 141.0,
+      "y": 765.0,
+      "w": 450.0,
+      "h": 120.0,
       "evidence": [
         "rpcif",
         "spi-service",
@@ -567,10 +567,10 @@
       "entityType": "library",
       "canonicalName": "libc.so.5",
       "parent": "p-services",
-      "x": 504,
-      "y": 886,
-      "w": 200,
-      "h": 80,
+      "x": 756.0,
+      "y": 1329.0,
+      "w": 300.0,
+      "h": 120.0,
       "evidence": [
         "qnx-core",
         "color-policy",
@@ -585,10 +585,10 @@
       "entityType": "process",
       "canonicalName": "rpcd",
       "parent": "p-services",
-      "x": 94,
-      "y": 276,
-      "w": 300,
-      "h": 80,
+      "x": 141.0,
+      "y": 414.0,
+      "w": 450.0,
+      "h": 120.0,
       "evidence": [
         "doc",
         "spi",
@@ -604,10 +604,10 @@
       "entityType": "process",
       "canonicalName": "spi_service",
       "parent": "p-services",
-      "x": 94,
-      "y": 696,
-      "w": 300,
-      "h": 80,
+      "x": 141.0,
+      "y": 1044.0,
+      "w": 450.0,
+      "h": 120.0,
       "evidence": [
         "spi-service",
         "spi",
@@ -623,10 +623,10 @@
       "entityType": "process",
       "canonicalName": "updater",
       "parent": "p-services",
-      "x": 504,
-      "y": 276,
-      "w": 660,
-      "h": 80,
+      "x": 756.0,
+      "y": 414.0,
+      "w": 990.0,
+      "h": 120.0,
       "evidence": [
         "doc",
         "color-policy"
@@ -640,10 +640,10 @@
       "entityType": "library",
       "canonicalName": "vdev-virtio-blk.so",
       "parent": "qvm-process",
-      "x": 844,
-      "y": 1124,
-      "w": 320,
-      "h": 96,
+      "x": 1266.0,
+      "y": 1686.0,
+      "w": 480.0,
+      "h": 144.0,
       "evidence": [
         "blocks",
         "color-policy",
@@ -658,10 +658,10 @@
       "entityType": "process",
       "canonicalName": "devb-ufs-qualcomm",
       "parent": "p-services",
-      "x": 504,
-      "y": 1124,
-      "w": 200,
-      "h": 96,
+      "x": 756.0,
+      "y": 1686.0,
+      "w": 300.0,
+      "h": 144.0,
       "evidence": [
         "storage",
         "color-policy",
@@ -676,10 +676,10 @@
       "entityType": "process",
       "canonicalName": "procnto-smp-instr",
       "parent": "p-core",
-      "x": 660,
-      "y": 1564,
-      "w": 504,
-      "h": 88,
+      "x": 990.0,
+      "y": 2346.0,
+      "w": 756.0,
+      "h": 132.0,
       "evidence": [
         "qnx-core",
         "color-policy",
@@ -694,10 +694,10 @@
       "entityType": "class",
       "canonicalName": "UsbUpdateActivity",
       "parent": "g-apps",
-      "x": 1384,
-      "y": 266,
-      "w": 608,
-      "h": 80,
+      "x": 2076.0,
+      "y": 399.0,
+      "w": 912.0,
+      "h": 120.0,
       "evidence": [
         "usb",
         "color-policy"
@@ -711,10 +711,10 @@
       "entityType": "class",
       "canonicalName": "VoyahOtaUpdateImpl",
       "parent": "g-apis",
-      "x": 1384,
-      "y": 528,
-      "w": 608,
-      "h": 80,
+      "x": 2076.0,
+      "y": 792.0,
+      "w": 912.0,
+      "h": 120.0,
       "evidence": [
         "sdk",
         "color-policy"
@@ -728,10 +728,10 @@
       "entityType": "class",
       "canonicalName": "android.os.UpdateEngine",
       "parent": "g-framework",
-      "x": 2072,
-      "y": 528,
-      "w": 344,
-      "h": 80,
+      "x": 3108.0,
+      "y": 792.0,
+      "w": 516.0,
+      "h": 120.0,
       "evidence": [
         "framework",
         "color-policy"
@@ -745,10 +745,10 @@
       "entityType": "class",
       "canonicalName": "UpdateBinder",
       "parent": "ota-process",
-      "x": 1384,
-      "y": 866,
-      "w": 288,
-      "h": 80,
+      "x": 2076.0,
+      "y": 1299.0,
+      "w": 432.0,
+      "h": 120.0,
       "evidence": [
         "tasks",
         "color-policy"
@@ -762,10 +762,10 @@
       "entityType": "class",
       "canonicalName": "TaskScheduler",
       "parent": "ota-process",
-      "x": 1708,
-      "y": 866,
-      "w": 280,
-      "h": 80,
+      "x": 2562.0,
+      "y": 1299.0,
+      "w": 420.0,
+      "h": 120.0,
       "evidence": [
         "tasks",
         "protocols",
@@ -780,10 +780,10 @@
       "entityType": "class",
       "canonicalName": "DoipOtaManager",
       "parent": "ota-process",
-      "x": 1384,
-      "y": 988,
-      "w": 288,
-      "h": 80,
+      "x": 2076.0,
+      "y": 1482.0,
+      "w": 432.0,
+      "h": 120.0,
       "evidence": [
         "doip",
         "color-policy"
@@ -797,10 +797,10 @@
       "entityType": "class",
       "canonicalName": "DeviceManager",
       "parent": "ota-process",
-      "x": 1708,
-      "y": 988,
-      "w": 280,
-      "h": 80,
+      "x": 2562.0,
+      "y": 1482.0,
+      "w": 420.0,
+      "h": 120.0,
       "evidence": [
         "protocols",
         "color-policy"
@@ -814,10 +814,10 @@
       "entityType": "class",
       "canonicalName": "JMQClient",
       "parent": "ota-process",
-      "x": 1384,
-      "y": 1106,
-      "w": 288,
-      "h": 80,
+      "x": 2076.0,
+      "y": 1659.0,
+      "w": 432.0,
+      "h": 120.0,
       "evidence": [
         "jmq",
         "doc",
@@ -832,10 +832,10 @@
       "entityType": "class",
       "canonicalName": "UpdateImpl",
       "parent": "ota-process",
-      "x": 1708,
-      "y": 1106,
-      "w": 280,
-      "h": 80,
+      "x": 2562.0,
+      "y": 1659.0,
+      "w": 420.0,
+      "h": 120.0,
       "evidence": [
         "impl",
         "color-policy"
@@ -849,10 +849,10 @@
       "entityType": "class",
       "canonicalName": "BinderUpdateEngineAndroidService",
       "parent": "engine-process",
-      "x": 2072,
-      "y": 846,
-      "w": 344,
-      "h": 112,
+      "x": 3108.0,
+      "y": 1269.0,
+      "w": 516.0,
+      "h": 168.0,
       "evidence": [
         "daemon",
         "color-policy"
@@ -866,10 +866,10 @@
       "entityType": "class",
       "canonicalName": "DeltaPerformer",
       "parent": "engine-process",
-      "x": 2072,
-      "y": 992,
-      "w": 344,
-      "h": 76,
+      "x": 3108.0,
+      "y": 1488.0,
+      "w": 516.0,
+      "h": 114.0,
       "evidence": [
         "performer",
         "color-policy"
@@ -883,10 +883,10 @@
       "entityType": "class",
       "canonicalName": "BootControlAndroid",
       "parent": "engine-process",
-      "x": 2072,
-      "y": 1110,
-      "w": 344,
-      "h": 76,
+      "x": 3108.0,
+      "y": 1665.0,
+      "w": 516.0,
+      "h": 114.0,
       "evidence": [
         "boot",
         "color-policy"
@@ -900,10 +900,10 @@
       "entityType": "process",
       "canonicalName": "android.hardware.boot@1.2-service",
       "parent": "g-hal",
-      "x": 2072,
-      "y": 1316,
-      "w": 344,
-      "h": 88,
+      "x": 3108.0,
+      "y": 1974.0,
+      "w": 516.0,
+      "h": 132.0,
       "evidence": [
         "packages",
         "boot",
@@ -919,10 +919,10 @@
       "entityType": "kernel-interface",
       "canonicalName": "/dev/block/vda · virtio_blk",
       "parent": "g-kernel",
-      "x": 2056,
-      "y": 1564,
-      "w": 408,
-      "h": 88,
+      "x": 3084.0,
+      "y": 2346.0,
+      "w": 612.0,
+      "h": 132.0,
       "evidence": [
         "blocks",
         "virtio",
@@ -940,10 +940,10 @@
       "entityType": "memory",
       "canonicalName": "OTA Staging Partition",
       "parent": "storage-region",
-      "x": 84,
-      "y": 2058,
-      "w": 540,
-      "h": 88,
+      "x": 126.0,
+      "y": 3087.0,
+      "w": 810.0,
+      "h": 132.0,
       "evidence": [
         "qnx-nfs",
         "doc"
@@ -956,10 +956,10 @@
       "entityType": "memory",
       "canonicalName": "QNX BANK_A / BANK_B",
       "parent": "storage-region",
-      "x": 662,
-      "y": 2058,
-      "w": 534,
-      "h": 88,
+      "x": 993.0,
+      "y": 3087.0,
+      "w": 801.0,
+      "h": 132.0,
       "evidence": [
         "doc"
       ],
@@ -971,10 +971,10 @@
       "entityType": "memory",
       "canonicalName": "Android System A/B",
       "parent": "storage-region",
-      "x": 1232,
-      "y": 2058,
-      "w": 570,
-      "h": 88,
+      "x": 1848.0,
+      "y": 3087.0,
+      "w": 855.0,
+      "h": 132.0,
       "evidence": [
         "doc",
         "blocks"
@@ -987,10 +987,10 @@
       "entityType": "hardware",
       "canonicalName": "SoC SPI Controller",
       "parent": "hardware",
-      "x": 1884,
-      "y": 2058,
-      "w": 580,
-      "h": 88,
+      "x": 2826.0,
+      "y": 3087.0,
+      "w": 870.0,
+      "h": 132.0,
       "evidence": [
         "spi",
         "doc"
@@ -1002,10 +1002,10 @@
       "entityType": "subsystem",
       "canonicalName": "MCU Application Firmware",
       "parent": "mcu",
-      "x": 2644,
-      "y": 868,
-      "w": 320,
-      "h": 140,
+      "x": 3966.0,
+      "y": 1302.0,
+      "w": 480.0,
+      "h": 210.0,
       "evidence": [
         "doc",
         "color-policy"
@@ -1018,10 +1018,10 @@
       "entityType": "memory",
       "canonicalName": "APP_A / APP_B",
       "parent": "mcu-flash",
-      "x": 2644,
-      "y": 2058,
-      "w": 320,
-      "h": 88,
+      "x": 3966.0,
+      "y": 3087.0,
+      "w": 480.0,
+      "h": 132.0,
       "evidence": [
         "doc"
       ],
@@ -1033,10 +1033,10 @@
       "entityType": "driver",
       "canonicalName": "nfs",
       "parent": "g-kernel",
-      "x": 1384,
-      "y": 1564,
-      "w": 624,
-      "h": 88,
+      "x": 2076.0,
+      "y": 2346.0,
+      "w": 936.0,
+      "h": 132.0,
       "evidence": [
         "android-nfs",
         "color-policy",
@@ -1052,10 +1052,10 @@
       "entityType": "process",
       "canonicalName": "nfsd",
       "parent": "p-services",
-      "x": 94,
-      "y": 1292,
-      "w": 300,
-      "h": 80,
+      "x": 141.0,
+      "y": 1938.0,
+      "w": 450.0,
+      "h": 120.0,
       "evidence": [
         "qnx-nfs",
         "color-policy",
@@ -1088,15 +1088,15 @@
       "mechanism": "Binder",
       "via": [
         {
-          "y": 836
+          "y": 1254.0
         },
         {
-          "x": 1528
+          "x": 2292.0
         }
       ],
       "labelPosition": {
-        "x": 1742,
-        "y": 664
+        "x": 2613.0,
+        "y": 996.0
       }
     },
     {
@@ -1164,22 +1164,22 @@
       ],
       "fromSide": "right",
       "toSide": "bottom",
-      "toOffset": -80,
+      "toOffset": -120.0,
       "via": [
         {
-          "x": 2024
+          "x": 3036.0
         },
         {
-          "y": 652
+          "y": 978.0
         },
         {
-          "x": 2164
+          "x": 3246.0
         }
       ],
       "label": "applyPayload()",
       "labelPosition": {
-        "x": 1952,
-        "y": 650
+        "x": 2928.0,
+        "y": 975.0
       }
     },
     {
@@ -1192,19 +1192,19 @@
         "daemon"
       ],
       "mechanism": "Binder",
-      "fromOffset": 80,
-      "toOffset": 0,
+      "fromOffset": 120.0,
+      "toOffset": 0.0,
       "via": [
         {
-          "y": 714
+          "y": 1071.0
         },
         {
-          "x": 2244
+          "x": 3366.0
         }
       ],
       "labelPosition": {
-        "x": 2378,
-        "y": 682
+        "x": 3567.0,
+        "y": 1023.0
       }
     },
     {
@@ -1230,10 +1230,10 @@
       "toSide": "right",
       "via": [
         {
-          "x": 2440
+          "x": 3660.0
         },
         {
-          "y": 1148
+          "y": 1722.0
         }
       ]
     },
@@ -1249,8 +1249,8 @@
       "mechanism": "HIDL",
       "via": [],
       "labelPosition": {
-        "x": 2290,
-        "y": 1268
+        "x": 3435.0,
+        "y": 1902.0
       }
     },
     {
@@ -1262,20 +1262,20 @@
         "impl",
         "android-nfs"
       ],
-      "fromOffset": 0,
-      "toOffset": 0,
+      "fromOffset": 0.0,
+      "toOffset": 0.0,
       "via": [
         {
-          "y": 1448
+          "y": 2172.0
         },
         {
-          "x": 1696
+          "x": 2544.0
         }
       ],
       "label": "Firmware staging",
       "labelPosition": {
-        "x": 1774,
-        "y": 1400
+        "x": 2661.0,
+        "y": 2100.0
       }
     },
     {
@@ -1289,22 +1289,22 @@
       ],
       "fromSide": "left",
       "toSide": "top",
-      "toOffset": 0,
+      "toOffset": 0.0,
       "via": [
         {
-          "x": 2036
+          "x": 3054.0
         },
         {
-          "y": 1462
+          "y": 2193.0
         },
         {
-          "x": 2260
+          "x": 3390.0
         }
       ],
       "label": "System payload",
       "labelPosition": {
-        "x": 2148,
-        "y": 1490
+        "x": 3222.0,
+        "y": 2235.0
       }
     },
     {
@@ -1320,22 +1320,22 @@
       "toSide": "right",
       "via": [
         {
-          "x": 2032
+          "x": 3048.0
         },
         {
-          "y": 1710
+          "y": 2565.0
         },
         {
-          "x": 1254
+          "x": 1881.0
         },
         {
-          "y": 1172
+          "y": 1758.0
         }
       ],
       "label": "VirtIO-BLK",
       "labelPosition": {
-        "x": 2140,
-        "y": 1738
+        "x": 3210.0,
+        "y": 2607.0
       }
     },
     {
@@ -1359,13 +1359,13 @@
         "doc",
         "storage"
       ],
-      "fromOffset": -60,
+      "fromOffset": -90.0,
       "via": [
         {
-          "y": 2018
+          "y": 3027.0
         },
         {
-          "x": 354
+          "x": 531.0
         }
       ]
     },
@@ -1380,10 +1380,10 @@
       ],
       "via": [
         {
-          "y": 2018
+          "y": 3027.0
         },
         {
-          "x": 929
+          "x": 1393.5
         }
       ]
     },
@@ -1396,19 +1396,19 @@
         "blocks",
         "storage"
       ],
-      "fromOffset": 60,
+      "fromOffset": 90.0,
       "via": [
         {
-          "y": 1284
+          "y": 1926.0
         },
         {
-          "x": 1194
+          "x": 1791.0
         },
         {
-          "y": 2018
+          "y": 3027.0
         },
         {
-          "x": 1517
+          "x": 2275.5
         }
       ]
     },
@@ -1424,25 +1424,25 @@
       "toSide": "bottom",
       "via": [
         {
-          "y": 2028
+          "y": 3042.0
         },
         {
-          "x": 32
+          "x": 48.0
         },
         {
-          "y": 670
+          "y": 1005.0
         },
         {
-          "x": 780
+          "x": 1170.0
         }
       ],
       "label": "MCU firmware files",
       "labelPosition": {
-        "x": 114,
-        "y": 1100
+        "x": 171.0,
+        "y": 1650.0
       },
-      "fromOffset": -180,
-      "toOffset": -80
+      "fromOffset": -270.0,
+      "toOffset": -120.0
     },
     {
       "id": "mcu-rpc-call",
@@ -1463,8 +1463,8 @@
         "doc",
         "rpcif"
       ],
-      "fromOffset": 50,
-      "toOffset": 50
+      "fromOffset": 75.0,
+      "toOffset": 75.0
     },
     {
       "id": "rpc-socket",
@@ -1477,25 +1477,25 @@
       ],
       "mechanism": "Unix-domain socket",
       "labelPosition": {
-        "x": 536,
-        "y": 420
+        "x": 804.0,
+        "y": 630.0
       },
       "fromSide": "left",
-      "fromOffset": -20,
+      "fromOffset": -30.0,
       "toSide": "right",
-      "toOffset": -20,
+      "toOffset": -30.0,
       "via": [
         {
-          "x": 740
+          "x": 1110.0
         },
         {
-          "y": 622
+          "y": 933.0
         },
         {
-          "x": 440
+          "x": 660.0
         },
         {
-          "y": 300
+          "y": 450.0
         }
       ]
     },
@@ -1508,22 +1508,22 @@
         "doc",
         "uds"
       ],
-      "fromOffset": 20,
-      "toOffset": 20,
+      "fromOffset": 30.0,
+      "toOffset": 30.0,
       "fromSide": "left",
       "toSide": "right",
       "via": [
         {
-          "x": 716
+          "x": 1074.0
         },
         {
-          "y": 646
+          "y": 969.0
         },
         {
-          "x": 416
+          "x": 624.0
         },
         {
-          "y": 340
+          "y": 510.0
         }
       ]
     },
@@ -1538,14 +1538,14 @@
       ],
       "fromSide": "bottom",
       "toSide": "top",
-      "toOffset": 0,
+      "toOffset": 0.0,
       "via": [],
       "label": "spi_xchange()",
       "labelPosition": {
-        "x": 166,
-        "y": 428
+        "x": 249.0,
+        "y": 642.0
       },
-      "fromOffset": 0
+      "fromOffset": 0.0
     },
     {
       "id": "spi-client-server",
@@ -1557,12 +1557,12 @@
         "spi-service",
         "spi-devctl"
       ],
-      "fromOffset": 0,
+      "fromOffset": 0.0,
       "via": [],
       "label": "devctlv",
       "labelPosition": {
-        "x": 308,
-        "y": 638
+        "x": 462.0,
+        "y": 957.0
       },
       "mechanism": "QNX devctlv"
     },
@@ -1577,22 +1577,22 @@
       ],
       "via": [
         {
-          "y": 824
+          "y": 1236.0
         },
         {
-          "x": 1240
+          "x": 1860.0
         },
         {
-          "y": 1994
+          "y": 2991.0
         },
         {
-          "x": 2174
+          "x": 3261.0
         }
       ],
       "label": "SPI frames",
       "labelPosition": {
-        "x": 2052,
-        "y": 1968
+        "x": 3078.0,
+        "y": 2952.0
       }
     },
     {
@@ -1608,16 +1608,16 @@
       "toSide": "left",
       "via": [
         {
-          "x": 2554
+          "x": 3831.0
         },
         {
-          "y": 938
+          "y": 1407.0
         }
       ],
       "label": "SPI / msg block",
       "labelPosition": {
-        "x": 2630,
-        "y": 1540
+        "x": 3945.0,
+        "y": 2310.0
       }
     },
     {
@@ -1644,17 +1644,17 @@
       "toSide": "right",
       "via": [
         {
-          "x": 1284
+          "x": 1926.0
         },
         {
-          "y": 316
+          "y": 474.0
         }
       ],
       "labelPosition": {
-        "x": 1330,
-        "y": 940
+        "x": 1995.0,
+        "y": 1410.0
       },
-      "toOffset": 0
+      "toOffset": 0.0
     },
     {
       "id": "spawn-script",
@@ -1665,10 +1665,10 @@
         "doc"
       ],
       "fromSide": "bottom",
-      "fromOffset": -230,
+      "fromOffset": -345.0,
       "toSide": "top",
       "via": [],
-      "toOffset": 0
+      "toOffset": 0.0
     },
     {
       "id": "spawn-mcu",
@@ -1679,10 +1679,10 @@
         "doc"
       ],
       "fromSide": "bottom",
-      "fromOffset": 26,
+      "fromOffset": 39.0,
       "toSide": "top",
       "via": [],
-      "toOffset": 0
+      "toOffset": 0.0
     },
     {
       "id": "spawn-swdl",
@@ -1695,8 +1695,8 @@
       "fromSide": "bottom",
       "toSide": "top",
       "via": [],
-      "fromOffset": 244,
-      "toOffset": 0
+      "fromOffset": 366.0,
+      "toOffset": 0.0
     },
     {
       "id": "script-zstd",
@@ -1733,8 +1733,8 @@
       "mechanism": "QNX I/O messages",
       "via": [],
       "labelPosition": {
-        "x": 714,
-        "y": 1010
+        "x": 1071.0,
+        "y": 1515.0
       }
     },
     {
@@ -1748,16 +1748,16 @@
       "fromSide": "right",
       "via": [
         {
-          "x": 1214
+          "x": 1821.0
         },
         {
-          "y": 2102
+          "y": 3153.0
         }
       ],
       "label": "Next-boot bank",
       "labelPosition": {
-        "x": 1130,
-        "y": 1818
+        "x": 1695.0,
+        "y": 2727.0
       },
       "toSide": "right"
     },
@@ -1774,16 +1774,16 @@
       "toSide": "right",
       "via": [
         {
-          "x": 1284
+          "x": 1926.0
         },
         {
-          "y": 1332
+          "y": 1998.0
         }
       ],
       "label": "NFS / IP",
       "labelPosition": {
-        "x": 1040,
-        "y": 1308
+        "x": 1560.0,
+        "y": 1962.0
       }
     },
     {
@@ -1797,16 +1797,16 @@
       ],
       "fromSide": "top",
       "toSide": "left",
-      "toOffset": 0,
+      "toOffset": 0.0,
       "via": [
         {
-          "y": 1172
+          "y": 1758.0
         }
       ],
       "label": "File I/O",
       "labelPosition": {
-        "x": 354,
-        "y": 1210
+        "x": 531.0,
+        "y": 1815.0
       }
     }
   ]

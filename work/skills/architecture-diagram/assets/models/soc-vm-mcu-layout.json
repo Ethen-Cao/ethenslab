@@ -10,7 +10,7 @@
     "colorMode": "technical",
     "specimen": true
   },
-  "canvas": {"width": 1340, "height": 1052},
+  "canvas": {"width": 2010, "height": 1578},
   "deployment": {
     "profile": "virtualized-soc",
     "soc": "soc",
@@ -25,21 +25,21 @@
     {"id": "layout", "title": "User-approved SoC / VM / MCU relative-layout specimen", "locator": "work/skills/architecture-diagram/references/modeling.md#multiple-vms--hypervisor"}
   ],
   "containers": [
-    {"id": "soc", "kind": "domain", "domainType": "soc", "title": "SoC", "x": 24, "y": 24, "w": 1024, "h": 1004},
-    {"id": "tee", "kind": "domain", "domainType": "tee", "title": "TEE", "parent": "soc", "x": 44, "y": 104, "w": 224, "h": 652},
-    {"id": "pvm", "kind": "domain", "domainType": "vm", "title": "PVM", "parent": "soc", "x": 308, "y": 104, "w": 340, "h": 492},
-    {"id": "gvm", "kind": "domain", "domainType": "vm", "title": "GVM", "parent": "soc", "x": 688, "y": 104, "w": 340, "h": 492},
-    {"id": "hypervisor", "kind": "hypervisor", "title": "Hypervisor", "hosts": ["pvm", "gvm"], "parent": "soc", "x": 308, "y": 632, "w": 720, "h": 124},
-    {"id": "hardware", "kind": "hardware-region", "title": "Shared Hardware and Memory", "parent": "soc", "x": 44, "y": 796, "w": 984, "h": 208},
-    {"id": "mcu", "kind": "domain", "domainType": "mcu", "title": "MCU", "x": 1088, "y": 24, "w": 228, "h": 1004}
+    {"id": "soc", "kind": "domain", "domainType": "soc", "title": "SoC", "x": 36, "y": 36, "w": 1536, "h": 1506},
+    {"id": "tee", "kind": "domain", "domainType": "tee", "title": "TEE", "parent": "soc", "x": 66, "y": 156, "w": 336, "h": 978},
+    {"id": "pvm", "kind": "domain", "domainType": "vm", "title": "PVM", "parent": "soc", "x": 462, "y": 156, "w": 510, "h": 738},
+    {"id": "gvm", "kind": "domain", "domainType": "vm", "title": "GVM", "parent": "soc", "x": 1032, "y": 156, "w": 510, "h": 738},
+    {"id": "hypervisor", "kind": "hypervisor", "title": "Hypervisor", "hosts": ["pvm", "gvm"], "parent": "soc", "x": 462, "y": 948, "w": 1080, "h": 186},
+    {"id": "hardware", "kind": "hardware-region", "title": "Shared Hardware and Memory", "parent": "soc", "x": 66, "y": 1194, "w": 1476, "h": 312},
+    {"id": "mcu", "kind": "domain", "domainType": "mcu", "title": "MCU", "x": 1632, "y": 36, "w": 342, "h": 1506}
   ],
   "nodes": [
-    {"id": "trusted-runtime", "entityType": "firmware", "canonicalName": "Trusted Runtime", "parent": "tee", "x": 64, "y": 360, "w": 184, "h": 88},
-    {"id": "pvm-software", "entityType": "subsystem", "canonicalName": "PVM Software", "parent": "pvm", "x": 328, "y": 296, "w": 300, "h": 80},
-    {"id": "gvm-software", "entityType": "subsystem", "canonicalName": "GVM Software", "parent": "gvm", "x": 708, "y": 296, "w": 300, "h": 80},
-    {"id": "soc-hardware", "entityType": "hardware", "canonicalName": "SoC Hardware", "parent": "hardware", "x": 64, "y": 892, "w": 420, "h": 88},
-    {"id": "shared-memory", "entityType": "memory", "canonicalName": "Shared Memory", "resourceId": "specimen-shared-memory", "parent": "hardware", "x": 604, "y": 892, "w": 404, "h": 88},
-    {"id": "mcu-firmware", "entityType": "firmware", "canonicalName": "MCU Firmware", "parent": "mcu", "x": 1108, "y": 450, "w": 188, "h": 88}
+    {"id": "trusted-runtime", "entityType": "firmware", "canonicalName": "Trusted Runtime", "parent": "tee", "x": 96, "y": 540, "w": 276, "h": 132},
+    {"id": "pvm-software", "entityType": "subsystem", "canonicalName": "PVM Software", "parent": "pvm", "x": 492, "y": 444, "w": 450, "h": 120},
+    {"id": "gvm-software", "entityType": "subsystem", "canonicalName": "GVM Software", "parent": "gvm", "x": 1062, "y": 444, "w": 450, "h": 120},
+    {"id": "soc-hardware", "entityType": "hardware", "canonicalName": "SoC Hardware", "parent": "hardware", "x": 96, "y": 1338, "w": 630, "h": 132},
+    {"id": "shared-memory", "entityType": "memory", "canonicalName": "Shared Memory", "resourceId": "specimen-shared-memory", "parent": "hardware", "x": 906, "y": 1338, "w": 606, "h": 132},
+    {"id": "mcu-firmware", "entityType": "firmware", "canonicalName": "MCU Firmware", "parent": "mcu", "x": 1662, "y": 675, "w": 282, "h": 132}
   ],
   "edges": []
 }

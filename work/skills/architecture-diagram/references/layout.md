@@ -19,18 +19,22 @@
 
 | 项目 | 基线 |
 | --- | ---: |
-| Figure title | 24 |
-| OS / VM / domain title | 20 |
-| Layer / process title | 18 |
-| Node name | 16 |
-| Node subtitle | 12 |
-| Edge label | 13 |
+| Figure title | 36 |
+| OS / VM / domain title | 30 |
+| Layer / process title | 27 |
+| Node name | 24 |
+| Node / container subtitle | 18 |
+| Edge label | 19.5 |
+| Body text | 21 |
+| Legend text | 18 |
 | Container content padding | ≥ 16 |
 | Peer node gap | ≥ 24 |
 | Parallel OS / VM gap | ≥ 40 |
 | Parallel line center distance | ≥ 12 |
 | Line clearance from unrelated text / nodes | ≥ 8 |
 | Final straight segment before arrow | ≥ 16 |
+
+字号以 Block 主名称 24px 为统一基准；HTML 与软件架构 draw.io 共用同一套参数，不能用整体缩放把实际文字压回旧字号。调整字号时同步检查节点、header、标签与通道的真实文本空间，必要时扩展画布和几何，不改技术层次与连接关系。
 
 增加线路和长标签时扩宽通道。无副标题时不预留空行；不为填满节点添加无意义文字。
 

@@ -128,7 +128,10 @@
       checkFont(title, false, 'Diagram title', 700);
     }
     const subtitle = document.getElementById('diagram-subtitle');
-    if (subtitle) checkFont(subtitle, false, 'Diagram subtitle', 400);
+    if (subtitle) {
+      checkFont(subtitle, false, 'Diagram subtitle', 400);
+      if (hasTheme) numericStyle(subtitle, 'fontSize', theme.type.body, 'diagram-subtitle-size', 'Diagram subtitle');
+    }
     const shell = document.querySelector('.diagram-shell');
     if (!shell) error('missing-shell', 'The diagram needs its natural-size scrolling shell.');
     else if (hasTheme) for (const property of ['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius']) numericStyle(shell, property, theme.radii.shell, 'shell-radius', 'Diagram shell');

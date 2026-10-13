@@ -10,8 +10,8 @@
     "colorMode": "technical"
   },
   "canvas": {
-    "width": 1440,
-    "height": 1050
+    "width": 2160,
+    "height": 1575
   },
   "sources": [
     {
@@ -35,10 +35,10 @@
       "id": "capture",
       "kind": "group",
       "title": "Camera Capture",
-      "x": 24,
-      "y": 24,
-      "w": 680,
-      "h": 1000
+      "x": 36,
+      "y": 36,
+      "w": 1020,
+      "h": 1500
     },
     {
       "id": "camera-process",
@@ -48,89 +48,89 @@
       "evidence": [
         "camera"
       ],
-      "x": 48,
-      "y": 104,
-      "w": 632,
-      "h": 200
+      "x": 72,
+      "y": 156,
+      "w": 948,
+      "h": 300
     },
     {
       "id": "camera-memory",
       "kind": "hardware-region",
       "title": "Image Memory",
       "parent": "capture",
-      "x": 48,
-      "y": 354,
-      "w": 632,
-      "h": 200
+      "x": 72,
+      "y": 531,
+      "w": 948,
+      "h": 300
     },
     {
       "id": "camera-hardware",
       "kind": "hardware-region",
       "title": "Capture Hardware",
       "parent": "capture",
-      "x": 48,
-      "y": 604,
-      "w": 632,
-      "h": 200
+      "x": 72,
+      "y": 906,
+      "w": 948,
+      "h": 300
     },
     {
       "id": "camera-input",
       "kind": "hardware-region",
       "title": "Physical Input",
       "parent": "capture",
-      "x": 48,
-      "y": 854,
-      "w": 632,
-      "h": 154
+      "x": 72,
+      "y": 1281,
+      "w": 948,
+      "h": 231
     },
     {
       "id": "display",
       "kind": "group",
       "title": "Display Scanout",
-      "x": 736,
-      "y": 24,
-      "w": 680,
-      "h": 1000
+      "x": 1104,
+      "y": 36,
+      "w": 1020,
+      "h": 1500
     },
     {
       "id": "display-render",
       "kind": "hardware-region",
       "title": "Rendering Hardware",
       "parent": "display",
-      "x": 760,
-      "y": 104,
-      "w": 632,
-      "h": 200
+      "x": 1140,
+      "y": 156,
+      "w": 948,
+      "h": 300
     },
     {
       "id": "display-memory",
       "kind": "hardware-region",
       "title": "Image Memory",
       "parent": "display",
-      "x": 760,
-      "y": 354,
-      "w": 632,
-      "h": 200
+      "x": 1140,
+      "y": 531,
+      "w": 948,
+      "h": 300
     },
     {
       "id": "display-hardware",
       "kind": "hardware-region",
       "title": "Display Hardware",
       "parent": "display",
-      "x": 760,
-      "y": 604,
-      "w": 632,
-      "h": 200
+      "x": 1140,
+      "y": 906,
+      "w": 948,
+      "h": 300
     },
     {
       "id": "display-output",
       "kind": "hardware-region",
       "title": "Physical Output",
       "parent": "display",
-      "x": 760,
-      "y": 854,
-      "w": 632,
-      "h": 154
+      "x": 1140,
+      "y": 1281,
+      "w": 948,
+      "h": 231
     }
   ],
   "nodes": [
@@ -143,10 +143,10 @@
       "evidence": [
         "camera"
       ],
-      "x": 166,
-      "y": 184,
-      "w": 396,
-      "h": 80
+      "x": 249,
+      "y": 276,
+      "w": 594,
+      "h": 120
     },
     {
       "id": "capture-buffer",
@@ -158,10 +158,10 @@
       "evidence": [
         "camera"
       ],
-      "x": 184,
-      "y": 438,
-      "w": 360,
-      "h": 80
+      "x": 276,
+      "y": 657,
+      "w": 540,
+      "h": 120
     },
     {
       "id": "capture-dma",
@@ -171,10 +171,10 @@
       "evidence": [
         "camera"
       ],
-      "x": 184,
-      "y": 684,
-      "w": 360,
-      "h": 80
+      "x": 276,
+      "y": 1026,
+      "w": 540,
+      "h": 120
     },
     {
       "id": "sensor",
@@ -185,10 +185,10 @@
       "evidence": [
         "camera"
       ],
-      "x": 184,
-      "y": 928,
-      "w": 360,
-      "h": 64
+      "x": 276,
+      "y": 1392,
+      "w": 540,
+      "h": 96
     },
     {
       "id": "gpu",
@@ -199,10 +199,10 @@
       "evidence": [
         "gpu"
       ],
-      "x": 896,
-      "y": 184,
-      "w": 360,
-      "h": 80
+      "x": 1344,
+      "y": 276,
+      "w": 540,
+      "h": 120
     },
     {
       "id": "display-buffer",
@@ -215,10 +215,10 @@
         "gpu",
         "display"
       ],
-      "x": 896,
-      "y": 438,
-      "w": 360,
-      "h": 80
+      "x": 1344,
+      "y": 657,
+      "w": 540,
+      "h": 120
     },
     {
       "id": "dpu",
@@ -229,10 +229,10 @@
       "evidence": [
         "display"
       ],
-      "x": 896,
-      "y": 684,
-      "w": 360,
-      "h": 80
+      "x": 1344,
+      "y": 1026,
+      "w": 540,
+      "h": 120
     },
     {
       "id": "panel",
@@ -243,10 +243,10 @@
       "evidence": [
         "display"
       ],
-      "x": 896,
-      "y": 928,
-      "w": 360,
-      "h": 64
+      "x": 1344,
+      "y": 1392,
+      "w": 540,
+      "h": 96
     }
   ],
   "edges": [
@@ -259,8 +259,8 @@
       "toSide": "bottom",
       "label": "Image stream",
       "labelPosition": {
-        "x": 434,
-        "y": 831
+        "x": 651,
+        "y": 1246.5
       },
       "evidence": [
         "camera"
@@ -275,8 +275,8 @@
       "toSide": "bottom",
       "label": "DMA write",
       "labelPosition": {
-        "x": 430,
-        "y": 580
+        "x": 645,
+        "y": 870
       },
       "evidence": [
         "camera"
@@ -291,8 +291,8 @@
       "toSide": "bottom",
       "label": "CPU read",
       "labelPosition": {
-        "x": 430,
-        "y": 328
+        "x": 645,
+        "y": 492
       },
       "evidence": [
         "camera"
@@ -305,8 +305,8 @@
       "relation": "write",
       "label": "Rendered pixels",
       "labelPosition": {
-        "x": 1160,
-        "y": 328
+        "x": 1740,
+        "y": 492
       },
       "evidence": [
         "gpu"
@@ -319,8 +319,8 @@
       "relation": "read",
       "label": "Memory fetch",
       "labelPosition": {
-        "x": 1154,
-        "y": 580
+        "x": 1731,
+        "y": 870
       },
       "evidence": [
         "gpu",
@@ -334,8 +334,8 @@
       "relation": "transfer",
       "label": "Scanout pixels",
       "labelPosition": {
-        "x": 1156,
-        "y": 831
+        "x": 1734,
+        "y": 1246.5
       },
       "evidence": [
         "display"

@@ -23,14 +23,14 @@
 :root {
   --font-sans: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'Roboto Mono', 'SF Mono', Consolas, 'Liberation Mono', monospace;
-  --type-title: 24px;
-  --type-domain: 20px;
-  --type-container: 18px;
-  --type-node: 16px;
-  --type-subtitle: 12px;
-  --type-label: 13px;
-  --type-body: 14px;
-  --type-legend: 12px;
+  --type-title: 36px;
+  --type-domain: 30px;
+  --type-container: 27px;
+  --type-node: 24px;
+  --type-subtitle: 18px;
+  --type-label: 19.5px;
+  --type-body: 21px;
+  --type-legend: 18px;
   --radius-label: 4px;
   --radius-node: 8px;
   --radius-container: 8px;
@@ -112,7 +112,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
 .edge-label text { fill: var(--control) !important; font-size: var(--type-label); }
 .edge-label.data text { fill: var(--data) !important; }
 .edge-label.config text, .edge-label.dependency text { fill: var(--muted) !important; }
-.diagram-legend { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; font-size: var(--type-legend); line-height: 20px; color: var(--muted); }
+.diagram-legend { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; font-size: var(--type-legend); line-height: 1.5; color: var(--muted); }
 .diagram-legend:empty { display: none; }
 .legend-item { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .legend-heading { color: var(--ink); font-weight: 700; }
@@ -141,8 +141,8 @@ svg#architecture text.code { font-family: var(--font-mono); }
     "colorMode": "technical"
   },
   "canvas": {
-    "width": 1180,
-    "height": 1650
+    "width": 1770,
+    "height": 2475
   },
   "sources": [
     {
@@ -182,10 +182,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "kind": "domain",
       "title": "Android Automotive OS",
       "domainType": "os",
-      "x": 24,
-      "y": 24,
-      "w": 1132,
-      "h": 1600,
+      "x": 36,
+      "y": 36,
+      "w": 1698,
+      "h": 2400,
       "platform": "android"
     },
     {
@@ -194,10 +194,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Applications",
       "order": 0,
       "parent": "android",
-      "x": 44,
-      "y": 100,
-      "w": 1092,
-      "h": 172,
+      "x": 66,
+      "y": 150,
+      "w": 1638,
+      "h": 258,
       "role": "applications"
     },
     {
@@ -206,10 +206,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Java API Framework",
       "order": 1,
       "parent": "android",
-      "x": 44,
-      "y": 300,
-      "w": 1092,
-      "h": 280,
+      "x": 66,
+      "y": 450,
+      "w": 1638,
+      "h": 420,
       "role": "framework-api"
     },
     {
@@ -217,20 +217,20 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "kind": "group",
       "title": "Core Android APIs",
       "parent": "java",
-      "x": 64,
-      "y": 374,
-      "w": 496,
-      "h": 180
+      "x": 96,
+      "y": 561,
+      "w": 744,
+      "h": 270
     },
     {
       "id": "car-api",
       "kind": "group",
       "title": "Car APIs",
       "parent": "java",
-      "x": 620,
-      "y": 374,
-      "w": 496,
-      "h": 180
+      "x": 930,
+      "y": 561,
+      "w": 744,
+      "h": 270
     },
     {
       "id": "services",
@@ -238,10 +238,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "System Services",
       "order": 2,
       "parent": "android",
-      "x": 44,
-      "y": 616,
-      "w": 1092,
-      "h": 294,
+      "x": 66,
+      "y": 924,
+      "w": 1638,
+      "h": 441,
       "role": "system-services"
     },
     {
@@ -253,10 +253,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
         "system",
         "car"
       ],
-      "x": 64,
-      "y": 690,
-      "w": 496,
-      "h": 196
+      "x": 96,
+      "y": 1035,
+      "w": 744,
+      "h": 294
     },
     {
       "id": "car-service",
@@ -267,10 +267,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "car"
       ],
-      "x": 620,
-      "y": 690,
-      "w": 496,
-      "h": 196
+      "x": 930,
+      "y": 1035,
+      "w": 744,
+      "h": 294
     },
     {
       "id": "native",
@@ -278,10 +278,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Native C/C++ Libraries",
       "order": 3,
       "parent": "android",
-      "x": 44,
-      "y": 946,
-      "w": 652,
-      "h": 196,
+      "x": 66,
+      "y": 1419,
+      "w": 978,
+      "h": 294,
       "role": "native-libraries"
     },
     {
@@ -290,10 +290,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Android Runtime",
       "order": 3,
       "parent": "android",
-      "x": 736,
-      "y": 946,
-      "w": 400,
-      "h": 196,
+      "x": 1104,
+      "y": 1419,
+      "w": 600,
+      "h": 294,
       "role": "runtime"
     },
     {
@@ -302,10 +302,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Hardware Abstraction Layer",
       "order": 4,
       "parent": "android",
-      "x": 44,
-      "y": 1178,
-      "w": 1092,
-      "h": 200,
+      "x": 66,
+      "y": 1767,
+      "w": 1638,
+      "h": 300,
       "role": "hal"
     },
     {
@@ -314,10 +314,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Linux Kernel",
       "order": 5,
       "parent": "android",
-      "x": 44,
-      "y": 1414,
-      "w": 1092,
-      "h": 184,
+      "x": 66,
+      "y": 2121,
+      "w": 1638,
+      "h": 276,
       "role": "kernel"
     }
   ],
@@ -330,10 +330,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "platform"
       ],
-      "x": 132,
-      "y": 176,
-      "w": 360,
-      "h": 80,
+      "x": 198,
+      "y": 264,
+      "w": 540,
+      "h": 120,
       "layerRole": "applications"
     },
     {
@@ -344,10 +344,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "car"
       ],
-      "x": 688,
-      "y": 176,
-      "w": 360,
-      "h": 80,
+      "x": 1032,
+      "y": 264,
+      "w": 540,
+      "h": 120,
       "layerRole": "applications"
     },
     {
@@ -360,10 +360,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
         "platform",
         "system"
       ],
-      "x": 132,
-      "y": 452,
-      "w": 360,
-      "h": 80,
+      "x": 198,
+      "y": 678,
+      "w": 540,
+      "h": 120,
       "layerRole": "framework-api"
     },
     {
@@ -375,10 +375,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "car"
       ],
-      "x": 688,
-      "y": 452,
-      "w": 360,
-      "h": 80,
+      "x": 1032,
+      "y": 678,
+      "w": 540,
+      "h": 120,
       "layerRole": "framework-api"
     },
     {
@@ -390,10 +390,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
         "system",
         "ams"
       ],
-      "x": 132,
-      "y": 780,
-      "w": 360,
-      "h": 80,
+      "x": 198,
+      "y": 1170,
+      "w": 540,
+      "h": 120,
       "layerRole": "system-services"
     },
     {
@@ -404,10 +404,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "car"
       ],
-      "x": 688,
-      "y": 780,
-      "w": 360,
-      "h": 80,
+      "x": 1032,
+      "y": 1170,
+      "w": 540,
+      "h": 120,
       "layerRole": "system-services"
     },
     {
@@ -418,10 +418,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "gl"
       ],
-      "x": 82,
-      "y": 1022,
-      "w": 270,
-      "h": 80,
+      "x": 123,
+      "y": 1533,
+      "w": 405,
+      "h": 120,
       "layerRole": "native-libraries"
     },
     {
@@ -432,10 +432,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "gl"
       ],
-      "x": 388,
-      "y": 1022,
-      "w": 270,
-      "h": 80,
+      "x": 582,
+      "y": 1533,
+      "w": 405,
+      "h": 120,
       "layerRole": "native-libraries"
     },
     {
@@ -447,10 +447,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "platform"
       ],
-      "x": 776,
-      "y": 1022,
-      "w": 320,
-      "h": 80,
+      "x": 1164,
+      "y": 1533,
+      "w": 480,
+      "h": 120,
       "layerRole": "runtime"
     },
     {
@@ -461,10 +461,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "platform"
       ],
-      "x": 132,
-      "y": 1254,
-      "w": 360,
-      "h": 80,
+      "x": 198,
+      "y": 1881,
+      "w": 540,
+      "h": 120,
       "layerRole": "hal"
     },
     {
@@ -477,10 +477,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
         "vhal",
         "car"
       ],
-      "x": 688,
-      "y": 1254,
-      "w": 360,
-      "h": 80,
+      "x": 1032,
+      "y": 1881,
+      "w": 540,
+      "h": 120,
       "layerRole": "hal"
     },
     {
@@ -491,10 +491,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "platform"
       ],
-      "x": 132,
-      "y": 1488,
-      "w": 360,
-      "h": 80,
+      "x": 198,
+      "y": 2232,
+      "w": 540,
+      "h": 120,
       "layerRole": "kernel"
     },
     {
@@ -505,10 +505,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "evidence": [
         "system"
       ],
-      "x": 688,
-      "y": 1488,
-      "w": 360,
-      "h": 80,
+      "x": 1032,
+      "y": 2232,
+      "w": 540,
+      "h": 120,
       "layerRole": "kernel"
     }
   ],
@@ -538,8 +538,8 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "relation": "ipc",
       "mechanism": "Binder",
       "labelPosition": {
-        "x": 356,
-        "y": 598
+        "x": 534,
+        "y": 897
       },
       "evidence": [
         "system",
@@ -553,8 +553,8 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "relation": "ipc",
       "mechanism": "Binder",
       "labelPosition": {
-        "x": 912,
-        "y": 598
+        "x": 1368,
+        "y": 897
       },
       "evidence": [
         "car"
@@ -570,18 +570,18 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "toSide": "top",
       "via": [
         {
-          "x": 1124
+          "x": 1686
         },
         {
-          "y": 1224
+          "y": 1836
         },
         {
-          "x": 868
+          "x": 1302
         }
       ],
       "labelPosition": {
-        "x": 966,
-        "y": 1204
+        "x": 1449,
+        "y": 1806
       },
       "evidence": [
         "car",
@@ -615,14 +615,14 @@ svg#architecture text.code { font-family: var(--font-mono); }
     }
   },
   "type": {
-    "title": 24,
-    "domain": 20,
-    "container": 18,
-    "node": 16,
-    "subtitle": 12,
-    "label": 13,
-    "body": 14,
-    "legend": 12
+    "title": 36,
+    "domain": 30,
+    "container": 27,
+    "node": 24,
+    "subtitle": 18,
+    "label": 19.5,
+    "body": 21,
+    "legend": 18
   },
   "radii": {
     "label": 4,
@@ -1086,7 +1086,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
   const ORIGINS = {oem: '#4285F4', native: '#34A853', vendor: '#FBBC04'};
   const PARTY_COLORS = {oem: '#4285F4', tier1: '#FBBC04', 'soc-vendor': '#A78BFA', 'os-vendor': '#34A853', other: '#38BDF8'};
   const PALETTE_COLORS = {blue: '#4285F4', green: '#34A853', amber: '#FBBC04', purple: '#A78BFA', cyan: '#38BDF8', orange: '#FB923C', pink: '#F472B6', indigo: '#818CF8'};
-  const EDGE_LABELS = {dependency: 'Dependency', control: 'Call / IPC', data: 'Data / pixels', notification: 'Notification / interrupt', config: 'Configuration / allocation'};
+  const EDGE_LABELS = {dependency: 'Dependency', control: 'Call / IPC', data: 'Data', notification: 'Notification / interrupt', config: 'Configuration / allocation'};
   const same = (a, b) => Math.abs(a - b) < 0.001;
   const fmt = n => String(Math.round(n * 1000) / 1000);
   const equal = (a, b) => same(a.x, b.x) && same(a.y, b.y);

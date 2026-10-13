@@ -1,41 +1,41 @@
 {
   "version": 2,
   "meta": {"id": "layout-primitives", "title": "Architecture Layout Primitives", "subtitle": "Abstract geometry specimens", "description": "Layout-only examples demonstrate fixed typography, wrapped container titles, centered ports, a non-connected crossing, a true fan-out junction and ordered independent inputs. Names do not describe a deployed platform.", "scope": "subsystem", "view": "dataflow", "colorMode": "technical", "specimen": true},
-  "canvas": {"width": 1380, "height": 1306},
+  "canvas": {"width": 2070, "height": 1959},
   "sources": [],
   "containers": [
-    {"id": "text", "kind": "group", "title": "Container Headers and Node Text", "x": 24, "y": 24, "w": 1332, "h": 320},
-    {"id": "process", "kind": "process", "title": "sample_service", "subtitle": "Runtime process", "parent": "text", "x": 48, "y": 100, "w": 610, "h": 220},
-    {"id": "long-title", "kind": "group", "title": "Component Group with a Wrapped Container Title and Reserved Space for Its Content", "parent": "text", "x": 704, "y": 100, "w": 628, "h": 220},
-    {"id": "crossing", "kind": "group", "title": "Crossing Without Connection", "x": 24, "y": 390, "w": 740, "h": 430},
-    {"id": "junction", "kind": "group", "title": "Shared-Source Fan-Out", "x": 800, "y": 390, "w": 556, "h": 430},
-    {"id": "inputs", "kind": "group", "title": "Ordered Independent Inputs", "x": 24, "y": 866, "w": 1332, "h": 410}
+    {"id": "text", "kind": "group", "title": "Container Headers and Node Text", "x": 36, "y": 36, "w": 1998, "h": 480},
+    {"id": "process", "kind": "process", "title": "sample_service", "subtitle": "Runtime process", "parent": "text", "x": 72, "y": 150, "w": 915, "h": 330},
+    {"id": "long-title", "kind": "group", "title": "Component Group with a Wrapped Container Title and Reserved Space for Its Content", "parent": "text", "x": 1056, "y": 150, "w": 942, "h": 330},
+    {"id": "crossing", "kind": "group", "title": "Crossing Without Connection", "x": 36, "y": 585, "w": 1110, "h": 645},
+    {"id": "junction", "kind": "group", "title": "Shared-Source Fan-Out", "x": 1200, "y": 585, "w": 834, "h": 645},
+    {"id": "inputs", "kind": "group", "title": "Ordered Independent Inputs", "x": 36, "y": 1299, "w": 1998, "h": 615}
   ],
   "nodes": [
-    {"id": "adapter", "entityType": "class", "canonicalName": "InputAdapter", "description": "Short responsibility", "parent": "process", "origin": "native", "x": 80, "y": 196, "w": 240, "h": 88},
-    {"id": "coordinator", "entityType": "class", "canonicalName": "FrameCoordinator", "description": "Queue ownership and scheduling", "parent": "process", "origin": "vendor", "x": 380, "y": 196, "w": 240, "h": 88},
-    {"id": "long-name", "entityType": "class", "canonicalName": "VideoPipeline::BufferLifetimeCoordinator", "description": "Widen the block to preserve the real name", "parent": "long-title", "origin": "oem", "x": 760, "y": 196, "w": 516, "h": 88},
-    {"id": "payload-source", "entityType": "class", "canonicalName": "PayloadProducer", "parent": "crossing", "origin": "oem", "x": 54, "y": 580, "w": 200, "h": 80},
-    {"id": "payload-sink", "entityType": "class", "canonicalName": "PayloadConsumer", "parent": "crossing", "origin": "vendor", "x": 530, "y": 580, "w": 200, "h": 80},
-    {"id": "event-source", "entityType": "class", "canonicalName": "EventSource", "parent": "crossing", "origin": "native", "x": 290, "y": 462, "w": 200, "h": 80},
-    {"id": "event-sink", "entityType": "class", "canonicalName": "EventSink", "parent": "crossing", "origin": "native", "x": 290, "y": 708, "w": 200, "h": 80},
-    {"id": "dispatcher", "entityType": "class", "canonicalName": "Dispatcher", "parent": "junction", "origin": "oem", "x": 958, "y": 462, "w": 240, "h": 80},
-    {"id": "worker-a", "entityType": "class", "canonicalName": "WorkerA", "parent": "junction", "origin": "native", "x": 832, "y": 708, "w": 220, "h": 80},
-    {"id": "worker-b", "entityType": "class", "canonicalName": "WorkerB", "parent": "junction", "origin": "vendor", "x": 1104, "y": 708, "w": 220, "h": 80},
-    {"id": "input-a", "entityType": "class", "canonicalName": "InputA", "parent": "inputs", "origin": "native", "x": 100, "y": 952, "w": 260, "h": 80},
-    {"id": "input-main", "entityType": "class", "canonicalName": "MainInput", "parent": "inputs", "origin": "oem", "x": 548, "y": 952, "w": 260, "h": 80},
-    {"id": "input-b", "entityType": "class", "canonicalName": "InputB", "parent": "inputs", "origin": "vendor", "x": 996, "y": 952, "w": 260, "h": 80},
-    {"id": "request-handler", "entityType": "class", "canonicalName": "RequestHandler", "parent": "inputs", "origin": "native", "x": 438, "y": 1168, "w": 480, "h": 80}
+    {"id": "adapter", "entityType": "class", "canonicalName": "InputAdapter", "description": "Short responsibility", "parent": "process", "origin": "native", "x": 120, "y": 294, "w": 360, "h": 132},
+    {"id": "coordinator", "entityType": "class", "canonicalName": "FrameCoordinator", "description": "Queue ownership and scheduling", "parent": "process", "origin": "vendor", "x": 570, "y": 294, "w": 360, "h": 132},
+    {"id": "long-name", "entityType": "class", "canonicalName": "VideoPipeline::BufferLifetimeCoordinator", "description": "Widen the block to preserve the real name", "parent": "long-title", "origin": "oem", "x": 1140, "y": 294, "w": 774, "h": 132},
+    {"id": "payload-source", "entityType": "class", "canonicalName": "PayloadProducer", "parent": "crossing", "origin": "oem", "x": 81, "y": 870, "w": 300, "h": 120},
+    {"id": "payload-sink", "entityType": "class", "canonicalName": "PayloadConsumer", "parent": "crossing", "origin": "vendor", "x": 795, "y": 870, "w": 300, "h": 120},
+    {"id": "event-source", "entityType": "class", "canonicalName": "EventSource", "parent": "crossing", "origin": "native", "x": 435, "y": 693, "w": 300, "h": 120},
+    {"id": "event-sink", "entityType": "class", "canonicalName": "EventSink", "parent": "crossing", "origin": "native", "x": 435, "y": 1062, "w": 300, "h": 120},
+    {"id": "dispatcher", "entityType": "class", "canonicalName": "Dispatcher", "parent": "junction", "origin": "oem", "x": 1437, "y": 693, "w": 360, "h": 120},
+    {"id": "worker-a", "entityType": "class", "canonicalName": "WorkerA", "parent": "junction", "origin": "native", "x": 1248, "y": 1062, "w": 330, "h": 120},
+    {"id": "worker-b", "entityType": "class", "canonicalName": "WorkerB", "parent": "junction", "origin": "vendor", "x": 1656, "y": 1062, "w": 330, "h": 120},
+    {"id": "input-a", "entityType": "class", "canonicalName": "InputA", "parent": "inputs", "origin": "native", "x": 150, "y": 1428, "w": 390, "h": 120},
+    {"id": "input-main", "entityType": "class", "canonicalName": "MainInput", "parent": "inputs", "origin": "oem", "x": 822, "y": 1428, "w": 390, "h": 120},
+    {"id": "input-b", "entityType": "class", "canonicalName": "InputB", "parent": "inputs", "origin": "vendor", "x": 1494, "y": 1428, "w": 390, "h": 120},
+    {"id": "request-handler", "entityType": "class", "canonicalName": "RequestHandler", "parent": "inputs", "origin": "native", "x": 657, "y": 1752, "w": 720, "h": 120}
   ],
   "edges": [
     {"id": "adapter-call", "from": "adapter", "to": "coordinator", "relation": "call", "fromSide": "right", "toSide": "left"},
-    {"id": "payload", "from": "payload-source", "to": "payload-sink", "relation": "transfer", "fromSide": "right", "toSide": "left", "label": "Payload", "labelPosition": {"x": 466, "y": 594}},
-    {"id": "event", "from": "event-source", "to": "event-sink", "relation": "notification", "label": "Event", "labelPosition": {"x": 430, "y": 680}},
-    {"id": "dispatch-a", "from": "dispatcher", "to": "worker-a", "relation": "call", "via": [{"y": 616}]},
-    {"id": "dispatch-b", "from": "dispatcher", "to": "worker-b", "relation": "call", "via": [{"y": 616}]},
-    {"id": "ordered-a", "from": "input-a", "to": "request-handler", "relation": "call", "toOffset": -120, "via": [{"y": 1094}]},
+    {"id": "payload", "from": "payload-source", "to": "payload-sink", "relation": "transfer", "fromSide": "right", "toSide": "left", "label": "Payload", "labelPosition": {"x": 699, "y": 891}},
+    {"id": "event", "from": "event-source", "to": "event-sink", "relation": "notification", "label": "Event", "labelPosition": {"x": 645, "y": 1020}},
+    {"id": "dispatch-a", "from": "dispatcher", "to": "worker-a", "relation": "call", "via": [{"y": 924}]},
+    {"id": "dispatch-b", "from": "dispatcher", "to": "worker-b", "relation": "call", "via": [{"y": 924}]},
+    {"id": "ordered-a", "from": "input-a", "to": "request-handler", "relation": "call", "toOffset": -180, "via": [{"y": 1641}]},
     {"id": "ordered-main", "from": "input-main", "to": "request-handler", "relation": "call"},
-    {"id": "ordered-b", "from": "input-b", "to": "request-handler", "relation": "call", "toOffset": 120, "via": [{"y": 1094}]}
+    {"id": "ordered-b", "from": "input-b", "to": "request-handler", "relation": "call", "toOffset": 180, "via": [{"y": 1641}]}
   ],
   "junctions": [{"id": "dispatch-fanout", "edges": ["dispatch-a", "dispatch-b"]}]
 }

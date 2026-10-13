@@ -23,14 +23,14 @@
 :root {
   --font-sans: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'Roboto Mono', 'SF Mono', Consolas, 'Liberation Mono', monospace;
-  --type-title: 24px;
-  --type-domain: 20px;
-  --type-container: 18px;
-  --type-node: 16px;
-  --type-subtitle: 12px;
-  --type-label: 13px;
-  --type-body: 14px;
-  --type-legend: 12px;
+  --type-title: 36px;
+  --type-domain: 30px;
+  --type-container: 27px;
+  --type-node: 24px;
+  --type-subtitle: 18px;
+  --type-label: 19.5px;
+  --type-body: 21px;
+  --type-legend: 18px;
   --radius-label: 4px;
   --radius-node: 8px;
   --radius-container: 8px;
@@ -112,7 +112,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
 .edge-label text { fill: var(--control) !important; font-size: var(--type-label); }
 .edge-label.data text { fill: var(--data) !important; }
 .edge-label.config text, .edge-label.dependency text { fill: var(--muted) !important; }
-.diagram-legend { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; font-size: var(--type-legend); line-height: 20px; color: var(--muted); }
+.diagram-legend { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; font-size: var(--type-legend); line-height: 1.5; color: var(--muted); }
 .diagram-legend:empty { display: none; }
 .legend-item { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .legend-heading { color: var(--ink); font-weight: 700; }
@@ -139,8 +139,8 @@ svg#architecture text.code { font-family: var(--font-mono); }
     "colorMode": "technical"
   },
   "canvas": {
-    "width": 900,
-    "height": 620
+    "width": 1350,
+    "height": 930
   },
   "deployment": {
     "profile": "single-domain"
@@ -159,10 +159,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "title": "Linux",
       "domainType": "os",
       "platform": "linux",
-      "x": 24,
-      "y": 24,
-      "w": 852,
-      "h": 572
+      "x": 36,
+      "y": 36,
+      "w": 1278,
+      "h": 858
     },
     {
       "id": "services",
@@ -171,10 +171,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "role": "system-services",
       "parent": "linux",
       "order": 0,
-      "x": 44,
-      "y": 104,
-      "w": 812,
-      "h": 180
+      "x": 66,
+      "y": 156,
+      "w": 1218,
+      "h": 270
     },
     {
       "id": "kernel",
@@ -183,10 +183,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "role": "kernel",
       "parent": "linux",
       "order": 1,
-      "x": 44,
-      "y": 364,
-      "w": 812,
-      "h": 208
+      "x": 66,
+      "y": 546,
+      "w": 1218,
+      "h": 312
     }
   ],
   "nodes": [
@@ -197,10 +197,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "description": "Journal collection and storage",
       "layerRole": "system-services",
       "parent": "services",
-      "x": 300,
-      "y": 178,
-      "w": 300,
-      "h": 80,
+      "x": 450,
+      "y": 267,
+      "w": 450,
+      "h": 120,
       "evidence": [
         "systemd"
       ]
@@ -211,10 +211,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "canonicalName": "Kernel Logging",
       "layerRole": "kernel",
       "parent": "kernel",
-      "x": 300,
-      "y": 438,
-      "w": 300,
-      "h": 80,
+      "x": 450,
+      "y": 657,
+      "w": 450,
+      "h": 120,
       "evidence": [
         "systemd"
       ]
@@ -257,14 +257,14 @@ svg#architecture text.code { font-family: var(--font-mono); }
     }
   },
   "type": {
-    "title": 24,
-    "domain": 20,
-    "container": 18,
-    "node": 16,
-    "subtitle": 12,
-    "label": 13,
-    "body": 14,
-    "legend": 12
+    "title": 36,
+    "domain": 30,
+    "container": 27,
+    "node": 24,
+    "subtitle": 18,
+    "label": 19.5,
+    "body": 21,
+    "legend": 18
   },
   "radii": {
     "label": 4,
@@ -728,7 +728,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
   const ORIGINS = {oem: '#4285F4', native: '#34A853', vendor: '#FBBC04'};
   const PARTY_COLORS = {oem: '#4285F4', tier1: '#FBBC04', 'soc-vendor': '#A78BFA', 'os-vendor': '#34A853', other: '#38BDF8'};
   const PALETTE_COLORS = {blue: '#4285F4', green: '#34A853', amber: '#FBBC04', purple: '#A78BFA', cyan: '#38BDF8', orange: '#FB923C', pink: '#F472B6', indigo: '#818CF8'};
-  const EDGE_LABELS = {dependency: 'Dependency', control: 'Call / IPC', data: 'Data / pixels', notification: 'Notification / interrupt', config: 'Configuration / allocation'};
+  const EDGE_LABELS = {dependency: 'Dependency', control: 'Call / IPC', data: 'Data', notification: 'Notification / interrupt', config: 'Configuration / allocation'};
   const same = (a, b) => Math.abs(a - b) < 0.001;
   const fmt = n => String(Math.round(n * 1000) / 1000);
   const equal = (a, b) => same(a.x, b.x) && same(a.y, b.y);

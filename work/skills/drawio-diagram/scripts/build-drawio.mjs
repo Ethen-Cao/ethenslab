@@ -60,23 +60,30 @@ function objectCell(id,label,s,parent,x,y,w,h,metadata={}) {
   cells.push(`<object ${attrs({id,label,...metadata})}><mxCell ${attrs({style:style(s),vertex:1,parent})}>${geometry(x,y,w,h)}</mxCell></object>`);
 }
 const boxBase = {rounded:1,absoluteArcSize:1,arcSize:2*theme.radii.node,html:1,whiteSpace:'wrap',shadow:0,glass:0,fontFamily:sans,fontColor:ink,rotation:0};
+const subtitleGap = theme.type.subtitle / 3;
+const textHeight = size => Math.ceil(size * 1.42);
+const headerPadding = {x:theme.type.subtitle * 4 / 3,top:theme.type.subtitle * 7 / 6,bottom:theme.type.subtitle * 4 / 3};
 const title = (name,description,size=theme.type.node,code=false) =>
   `<div style="font-family:${code?mono:sans};font-size:${size}px;font-weight:700;line-height:1.25;">${esc(name)}</div>`+
-  (description?`<div style="font-family:${new RegExp(theme.code.textPattern).test(description)?mono:sans};font-size:${theme.type.subtitle}px;font-weight:400;line-height:1.42;margin-top:4px;">${esc(description)}</div>`:'');
+  (description?`<div style="font-family:${new RegExp(theme.code.textPattern).test(description)?mono:sans};font-size:${theme.type.subtitle}px;font-weight:400;line-height:1.42;margin-top:${subtitleGap}px;">${esc(description)}</div>`:'');
 const plainText = {shape:'text',html:1,strokeColor:'none',fillColor:'none',fontFamily:sans,fontColor:ink,align:'left',verticalAlign:'middle',spacing:0,whiteSpace:'wrap',rounded:0};
-vertex('figure-title',model.meta.title,{...plainText,fontFamily:theme.fonts.sans.family,fontSource:encodeURIComponent(fontSources[theme.fonts.sans.family]),fontSize:theme.type.title,fontStyle:1},'1',24,16,model.canvas.width,34);
-if(model.meta.subtitle) vertex('figure-subtitle',model.meta.subtitle,{...plainText,fontSize:theme.type.body,fontColor:muted},'1',24,54,model.canvas.width,24);
+const figureTitleY=16, figureTitleHeight=textHeight(theme.type.title);
+const figureSubtitleY=figureTitleY+figureTitleHeight+subtitleGap;
+const canvasY=figureSubtitleY+(model.meta.subtitle?textHeight(theme.type.body):0)+24;
+vertex('figure-title',model.meta.title,{...plainText,fontFamily:theme.fonts.sans.family,fontSource:encodeURIComponent(fontSources[theme.fonts.sans.family]),fontSize:theme.type.title,fontStyle:1},'1',24,figureTitleY,model.canvas.width,figureTitleHeight);
+if(model.meta.subtitle) vertex('figure-subtitle',model.meta.subtitle,{...plainText,fontSize:theme.type.body,fontColor:muted},'1',24,figureSubtitleY,model.canvas.width,textHeight(theme.type.body));
 // extFonts alone is insufficient in the tested Electron CLI. Register Mono even
 // when no library node uses it; an empty native text cell adds no visible element.
-vertex('font-registration-mono','',{...plainText,fontFamily:theme.fonts.mono.family,fontSource:encodeURIComponent(fontSources[theme.fonts.mono.family]),fontSize:1,selectable:0,movable:0},'1',24,80,1,1,{connectable:0});
-objectCell(figure,'',{...boxBase,arcSize:2*theme.radii.shell,container:1,recursiveResize:0,collapsible:0,fillColor:'#ffffff',strokeColor:border,strokeWidth:theme.strokes.frame},'1',24,100,model.canvas.width,model.canvas.height,{modelId:model.meta.id,description:model.meta.description,sourceModel:input});
+vertex('font-registration-mono','',{...plainText,fontFamily:theme.fonts.mono.family,fontSource:encodeURIComponent(fontSources[theme.fonts.mono.family]),fontSize:1,selectable:0,movable:0},'1',24,canvasY-2,1,1,{connectable:0});
+objectCell(figure,'',{...boxBase,arcSize:2*theme.radii.shell,container:1,recursiveResize:0,collapsible:0,fillColor:'#ffffff',strokeColor:border,strokeWidth:theme.strokes.frame},'1',24,canvasY,model.canvas.width,model.canvas.height,{modelId:model.meta.id,description:model.meta.description,sourceModel:input});
 function depth(c) {let d=0;while(c.parent){d++;c=containers.get(c.parent);}return d;}
 for(const c of [...model.containers].sort((a,b)=>depth(a)-depth(b))) {
   const p=containers.get(c.parent), x=c.x-(p?.x||0),y=c.y-(p?.y||0);
   const fill=c.kind==='process'?'#ffffff':['domain','hypervisor','hardware-region'].includes(c.kind)?'#f5f6f7':'#fafbfc';
   const fontSize=c.kind==='domain'?theme.type.domain:theme.type.container;
-  const s={...boxBase,arcSize:2*(c.kind==='domain'?theme.radii.domain:theme.radii.container),container:1,recursiveResize:0,collapsible:0,connectable:0,fillColor:fill,strokeColor:c.kind==='process'?'#aab3bf':border,strokeWidth:c.kind==='domain'?theme.strokes.domain:theme.strokes.frame,align:'left',verticalAlign:'top',spacing:0,spacingLeft:16,spacingRight:16,spacingTop:14,fontSize};
-  if(c.kind==='layer') Object.assign(s,{shape:'swimlane',horizontal:1,startSize:c.subtitle?72:54,swimlaneFillColor:fill,swimlaneLine:1});
+  const s={...boxBase,arcSize:2*(c.kind==='domain'?theme.radii.domain:theme.radii.container),container:1,recursiveResize:0,collapsible:0,connectable:0,fillColor:fill,strokeColor:c.kind==='process'?'#aab3bf':border,strokeWidth:c.kind==='domain'?theme.strokes.domain:theme.strokes.frame,align:'left',verticalAlign:'top',spacing:0,spacingLeft:headerPadding.x,spacingRight:headerPadding.x,spacingTop:headerPadding.top,fontSize};
+  const headerHeight=Math.ceil(headerPadding.top+fontSize*1.25+(c.subtitle?subtitleGap+theme.type.subtitle*1.42:0)+headerPadding.bottom);
+  if(c.kind==='layer') Object.assign(s,{shape:'swimlane',horizontal:1,startSize:headerHeight,swimlaneFillColor:fill,swimlaneLine:1});
   objectCell(C(c.id),title(c.title,c.subtitle,fontSize),s,p?C(p.id):figure,x,y,c.w,c.h,{modelId:c.id,kind:c.kind,domainType:c.domainType,platform:c.platform,role:c.role,hosts:c.hosts?.join(','),evidence:c.evidence?.join(',')});
 }
 function nodeFill(n) {
@@ -93,7 +100,7 @@ for(const n of model.nodes) {
   const p=containers.get(n.parent), x=n.x-p.x, y=n.y-p.y;
   const neutral=['memory','hardware'].includes(n.entityType);
   const fill=nodeFill(n);
-  const s={...boxBase,fillColor:fill,strokeColor:neutral?'#9aa0a6':'#72808f',strokeWidth:theme.strokes.node,align:'center',verticalAlign:'middle',spacing:8,fontSize:theme.type.node,fontColor:neutral?ink:'#102116'};
+  const s={...boxBase,fillColor:fill,strokeColor:neutral?'#9aa0a6':'#72808f',strokeWidth:theme.strokes.node,align:'center',verticalAlign:'middle',spacing:theme.type.node/2,fontSize:theme.type.node,fontColor:neutral?ink:'#102116'};
   if(n.configured)Object.assign(s,{dashed:1,dashPattern:'6 5'});
   const label=title(displayName(n),n.description,theme.type.node,theme.code.nodeTypes.includes(n.entityType));
   const metadata={modelId:n.id,entityType:n.entityType,canonicalName:displayName(n),origin:n.origin,responsibleParty:n.responsibleParty,configured:n.configured,layerRole:n.layerRole,resourceId:n.resourceId,interfacePath:n.interfacePath,moduleName:n.moduleName,executionContext:n.executionContext,evidence:(n.evidence||[]).join(',')};
@@ -151,7 +158,7 @@ function connection(n,side,offset=0) {
 function labelGeometry(points,position) {
   const lengths=points.slice(1).map((b,i)=>Math.hypot(b.x-points[i].x,b.y-points[i].y));
   const total=lengths.reduce((a,b)=>a+b,0);let best=null,walk=0;
-  const target=position||{x:(points[0].x+points.at(-1).x)/2+44,y:(points[0].y+points.at(-1).y)/2};
+  const target=position||{x:(points[0].x+points.at(-1).x)/2+theme.type.label*3.5,y:(points[0].y+points.at(-1).y)/2};
   for(let i=0;i<lengths.length;i++) {
     const a=points[i],b=points[i+1],dx=b.x-a.x,dy=b.y-a.y;
     const t=Math.max(0,Math.min(1,((target.x-a.x)*dx+(target.y-a.y)*dy)/(lengths[i]**2)));
@@ -209,35 +216,42 @@ for(const group of model.junctions||[]) {
   }
   if(!count)throw new Error(`Junction has no real shared-prefix branch: ${group.id}`);
 }
-const legendY=100+model.canvas.height+20;
+const legendY=canvasY+model.canvas.height+20;
+const legendHeight=textHeight(theme.type.legend),legendGap=theme.type.legend*2;
+// Conservative native text space follows the shared font size. Actual font
+// loading, wrapping and legibility are checked in the draw.io export.
+const legendTextWidth=name=>Math.ceil(name.length*theme.type.legend*0.65);
 let lx=24;
 const legendChip=(name,color)=>{
-  const w=Math.max(110,name.length*7+40);
-  vertex('legend-chip-'+lx,'',{...boxBase,arcSize:2*theme.radii.label,fillColor:color,strokeColor:border,strokeWidth:1},'1',lx,legendY+6,20,13);
-  vertex('legend-text-'+lx,name,{...plainText,fontSize:theme.type.legend,fontColor:muted},'1',lx+28,legendY,w-28,24);lx+=w+24;
+  const swatchWidth=theme.type.legend*5/3,textOffset=swatchWidth+theme.type.legend*2/3,w=textOffset+legendTextWidth(name);
+  vertex('legend-chip-'+lx,'',{...boxBase,arcSize:2*theme.radii.label,fillColor:color,strokeColor:border,strokeWidth:1},'1',lx,legendY+(legendHeight-theme.type.legend)/2,swatchWidth,theme.type.legend);
+  vertex('legend-text-'+lx,name,{...plainText,fontSize:theme.type.legend,fontColor:muted},'1',lx+textOffset,legendY,w-textOffset,legendHeight);lx+=w+legendGap;
 };
 const software=model.nodes.filter(n=>!['hardware','memory'].includes(n.entityType)&&!n.configured);
 if(model.meta.colorMode==='origin') {
-  vertex('legend-origin-title','Component origin',{...plainText,fontSize:theme.type.legend,fontStyle:1},'1',lx,legendY,130,24);lx+=148;
+  const heading='Component origin',w=legendTextWidth(heading);
+  vertex('legend-origin-title',heading,{...plainText,fontSize:theme.type.legend,fontStyle:1},'1',lx,legendY,w,legendHeight);lx+=w+legendGap;
   const used=new Set(software.map(n=>n.origin||'unknown'));
   for(const key of ['vendor','native','oem','unknown'])if(used.has(key))legendChip(originLabels[key]||{vendor:'Vendor / Tier1',native:'Native / Upstream',oem:'OEM / Custom',unknown:'Unspecified origin'}[key],colors[key]);
 } else if(model.meta.colorMode==='responsibility') {
   const heading=model.meta.responsibilityBasis[0].toUpperCase()+model.meta.responsibilityBasis.slice(1)+' responsibility';
-  const w=Math.max(180,heading.length*7);
-  vertex('legend-responsibility-title',heading,{...plainText,fontSize:theme.type.legend,fontStyle:1},'1',lx,legendY,w,24);lx+=w+20;
+  const w=legendTextWidth(heading);
+  vertex('legend-responsibility-title',heading,{...plainText,fontSize:theme.type.legend,fontStyle:1},'1',lx,legendY,w,legendHeight);lx+=w+legendGap;
   for(const id of new Set(software.map(n=>n.responsibleParty||'unknown'))) {
     const party=parties.get(id);legendChip(party?.label||'Unspecified party',palette[party?.paletteKey||categoryPalette[party?.category]]||'#ffffff');
   }
 }
-for(const [type,name,w] of [['dependency','Dependency',140],['control','Call / IPC',136],['data','Data',100],['notification','Notification / interrupt',230],['config','Configuration / allocation',226]]) {
+for(const [type,name] of [['dependency','Dependency'],['control','Call / IPC'],['data','Data'],['notification','Notification / interrupt'],['config','Configuration / allocation']]) {
   if(!model.edges.some(e=>edgeType(e)===type))continue;
   const paint=relations[type],s={edgeStyle:'none',strokeColor:paint.color,strokeWidth:paint.width,endArrow:'none',startArrow:'none',html:1};
   if(paint.dash)Object.assign(s,{dashed:1,dashPattern:paint.dash});
-  cells.push(`<mxCell ${attrs({id:'legend-line-'+type,style:style(s),edge:1,parent:'1'})}><mxGeometry relative="1" as="geometry"><mxPoint ${attrs({x:lx,y:legendY+12,as:'sourcePoint'})}/><mxPoint ${attrs({x:lx+28,y:legendY+12,as:'targetPoint'})}/></mxGeometry></mxCell>`);
-  vertex('legend-text-'+type,name,{...plainText,fontSize:theme.type.legend,fontColor:muted},'1',lx+36,legendY,w-36,24);lx+=w+24;
+  const lineWidth=theme.type.legend*7/3,textOffset=lineWidth+theme.type.legend*2/3,w=textOffset+legendTextWidth(name);
+  cells.push(`<mxCell ${attrs({id:'legend-line-'+type,style:style(s),edge:1,parent:'1'})}><mxGeometry relative="1" as="geometry"><mxPoint ${attrs({x:lx,y:legendY+legendHeight/2,as:'sourcePoint'})}/><mxPoint ${attrs({x:lx+lineWidth,y:legendY+legendHeight/2,as:'targetPoint'})}/></mxGeometry></mxCell>`);
+  vertex('legend-text-'+type,name,{...plainText,fontSize:theme.type.legend,fontColor:muted},'1',lx+textOffset,legendY,w-textOffset,legendHeight);lx+=w+legendGap;
 }
 const fontVars=JSON.stringify({fontLicense,fontFamilies:Object.keys(fontSources).join('; '),fontVersions:fontManifest.fonts.map(f=>({family:f.family,file:f.file,sha256:f.sha256})),modelMeta:model.meta,deployment:model.deployment,sources:model.sources,parties:model.parties});
-const xml=`<?xml version="1.0" encoding="UTF-8"?>\n<mxfile host="Electron" compressed="false" vars="${esc(fontVars)}"><diagram ${attrs({id:model.meta.id+'-editable',name:model.meta.title})}><mxGraphModel ${attrs({dx:model.canvas.width+48,dy:model.canvas.height+160,grid:0,gridSize:8,guides:1,tooltips:1,connect:1,arrows:1,fold:0,page:0,pageScale:1,pageWidth:model.canvas.width+48,pageHeight:model.canvas.height+160,math:0,shadow:0,background:'#ffffff',extFonts:Object.entries(fontSources).map(([name,url])=>name+'^'+url).join('|')})}><root>\n${cells.join('\n')}\n</root></mxGraphModel></diagram></mxfile>\n`;
+const pageWidth=Math.max(model.canvas.width+48,lx+24),pageHeight=legendY+legendHeight+24;
+const xml=`<?xml version="1.0" encoding="UTF-8"?>\n<mxfile host="Electron" compressed="false" vars="${esc(fontVars)}"><diagram ${attrs({id:model.meta.id+'-editable',name:model.meta.title})}><mxGraphModel ${attrs({dx:pageWidth,dy:pageHeight,grid:0,gridSize:8,guides:1,tooltips:1,connect:1,arrows:1,fold:0,page:0,pageScale:1,pageWidth,pageHeight,math:0,shadow:0,background:'#ffffff',extFonts:Object.entries(fontSources).map(([name,url])=>name+'^'+url).join('|')})}><root>\n${cells.join('\n')}\n</root></mxGraphModel></diagram></mxfile>\n`;
 await mkdir(dirname(resolve(output)),{recursive:true});
 try {await writeFile(resolve(output),xml,{flag:overwrite?'w':'wx'});}
 catch(error) {if(error.code==='EEXIST')throw new Error(`Output exists; preserve manual edits. Choose another path or use --overwrite only when replacement is intended: ${output}`);throw error;}

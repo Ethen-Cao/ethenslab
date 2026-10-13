@@ -10,8 +10,8 @@
     "colorMode": "technical"
   },
   "canvas": {
-    "width": 1100,
-    "height": 1280
+    "width": 1650,
+    "height": 1920
   },
   "sources": [
     {
@@ -41,10 +41,10 @@
       "kind": "domain",
       "title": "QNX OS",
       "domainType": "os",
-      "x": 24,
-      "y": 24,
-      "w": 1052,
-      "h": 1038,
+      "x": 36,
+      "y": 36,
+      "w": 1578,
+      "h": 1557,
       "platform": "qnx"
     },
     {
@@ -53,10 +53,10 @@
       "title": "Applications",
       "order": 0,
       "parent": "qnx",
-      "x": 44,
-      "y": 100,
-      "w": 1012,
-      "h": 170,
+      "x": 66,
+      "y": 150,
+      "w": 1518,
+      "h": 255,
       "role": "applications"
     },
     {
@@ -65,10 +65,10 @@
       "title": "Client Libraries",
       "order": 1,
       "parent": "qnx",
-      "x": 44,
-      "y": 294,
-      "w": 1012,
-      "h": 164,
+      "x": 66,
+      "y": 441,
+      "w": 1518,
+      "h": 246,
       "role": "client-api"
     },
     {
@@ -78,10 +78,10 @@
       "role": "user-drivers",
       "order": 2,
       "parent": "qnx",
-      "x": 44,
-      "y": 494,
-      "w": 496,
-      "h": 236
+      "x": 66,
+      "y": 741,
+      "w": 744,
+      "h": 354
     },
     {
       "id": "services",
@@ -89,10 +89,10 @@
       "title": "User-Space Services",
       "order": 2,
       "parent": "qnx",
-      "x": 580,
-      "y": 494,
-      "w": 476,
-      "h": 236,
+      "x": 870,
+      "y": 741,
+      "w": 714,
+      "h": 354,
       "role": "services"
     },
     {
@@ -101,20 +101,20 @@
       "title": "Microkernel & Process Manager",
       "order": 3,
       "parent": "qnx",
-      "x": 44,
-      "y": 780,
-      "w": 1012,
-      "h": 258,
+      "x": 66,
+      "y": 1170,
+      "w": 1518,
+      "h": 387,
       "role": "kernel"
     },
     {
       "id": "hardware",
       "kind": "hardware-region",
       "title": "Hardware",
-      "x": 24,
-      "y": 1098,
-      "w": 1052,
-      "h": 156
+      "x": 36,
+      "y": 1647,
+      "w": 1578,
+      "h": 234
     }
   ],
   "nodes": [
@@ -127,10 +127,10 @@
         "minimal",
         "uart"
       ],
-      "x": 160,
-      "y": 176,
-      "w": 300,
-      "h": 74,
+      "x": 240,
+      "y": 264,
+      "w": 450,
+      "h": 111,
       "layerRole": "applications"
     },
     {
@@ -141,10 +141,10 @@
       "evidence": [
         "screen"
       ],
-      "x": 640,
-      "y": 176,
-      "w": 300,
-      "h": 74,
+      "x": 960,
+      "y": 264,
+      "w": 450,
+      "h": 111,
       "layerRole": "applications"
     },
     {
@@ -157,10 +157,10 @@
         "minimal",
         "procnto"
       ],
-      "x": 160,
-      "y": 364,
-      "w": 300,
-      "h": 74,
+      "x": 240,
+      "y": 546,
+      "w": 450,
+      "h": 111,
       "layerRole": "client-api"
     },
     {
@@ -172,10 +172,10 @@
       "evidence": [
         "screen"
       ],
-      "x": 640,
-      "y": 364,
-      "w": 300,
-      "h": 74,
+      "x": 960,
+      "y": 546,
+      "w": 450,
+      "h": 111,
       "layerRole": "client-api"
     },
     {
@@ -187,10 +187,10 @@
       "evidence": [
         "uart"
       ],
-      "x": 160,
-      "y": 596,
-      "w": 300,
-      "h": 80,
+      "x": 240,
+      "y": 894,
+      "w": 450,
+      "h": 120,
       "layerRole": "user-drivers"
     },
     {
@@ -202,10 +202,10 @@
       "evidence": [
         "screen"
       ],
-      "x": 640,
-      "y": 596,
-      "w": 300,
-      "h": 80,
+      "x": 960,
+      "y": 894,
+      "w": 450,
+      "h": 120,
       "layerRole": "services"
     },
     {
@@ -217,10 +217,10 @@
       "evidence": [
         "procnto"
       ],
-      "x": 620,
-      "y": 900,
-      "w": 340,
-      "h": 88,
+      "x": 930,
+      "y": 1350,
+      "w": 510,
+      "h": 132,
       "layerRole": "kernel"
     },
     {
@@ -231,10 +231,10 @@
       "evidence": [
         "uart"
       ],
-      "x": 160,
-      "y": 1168,
-      "w": 300,
-      "h": 66
+      "x": 240,
+      "y": 1752,
+      "w": 450,
+      "h": 99
     }
   ],
   "edges": [
@@ -264,8 +264,8 @@
       "relation": "ipc",
       "mechanism": "QNX messages",
       "labelPosition": {
-        "x": 392,
-        "y": 476
+        "x": 588,
+        "y": 714
       },
       "evidence": [
         "uart",
@@ -297,7 +297,7 @@
       "to": "uart",
       "relation": "call",
       "label": "Register access",
-      "via": [{"y": 756}, {"x": 420}, {"y": 1076}, {"x": 310}],
+      "via": [{"y": 1134}, {"x": 630}, {"y": 1614}, {"x": 465}],
       "evidence": [
         "uart"
       ]

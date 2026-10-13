@@ -23,14 +23,14 @@
 :root {
   --font-sans: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'Roboto Mono', 'SF Mono', Consolas, 'Liberation Mono', monospace;
-  --type-title: 24px;
-  --type-domain: 20px;
-  --type-container: 18px;
-  --type-node: 16px;
-  --type-subtitle: 12px;
-  --type-label: 13px;
-  --type-body: 14px;
-  --type-legend: 12px;
+  --type-title: 36px;
+  --type-domain: 30px;
+  --type-container: 27px;
+  --type-node: 24px;
+  --type-subtitle: 18px;
+  --type-label: 19.5px;
+  --type-body: 21px;
+  --type-legend: 18px;
   --radius-label: 4px;
   --radius-node: 8px;
   --radius-container: 8px;
@@ -112,7 +112,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
 .edge-label text { fill: var(--control) !important; font-size: var(--type-label); }
 .edge-label.data text { fill: var(--data) !important; }
 .edge-label.config text, .edge-label.dependency text { fill: var(--muted) !important; }
-.diagram-legend { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; font-size: var(--type-legend); line-height: 20px; color: var(--muted); }
+.diagram-legend { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; font-size: var(--type-legend); line-height: 1.5; color: var(--muted); }
 .diagram-legend:empty { display: none; }
 .legend-item { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .legend-heading { color: var(--ink); font-weight: 700; }
@@ -142,8 +142,8 @@ svg#architecture text.code { font-family: var(--font-mono); }
     "specimen": true
   },
   "canvas": {
-    "width": 1340,
-    "height": 1052
+    "width": 2010,
+    "height": 1578
   },
   "deployment": {
     "profile": "virtualized-soc",
@@ -175,10 +175,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "kind": "domain",
       "domainType": "soc",
       "title": "SoC",
-      "x": 24,
-      "y": 24,
-      "w": 1024,
-      "h": 1004
+      "x": 36,
+      "y": 36,
+      "w": 1536,
+      "h": 1506
     },
     {
       "id": "tee",
@@ -186,10 +186,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "domainType": "tee",
       "title": "TEE",
       "parent": "soc",
-      "x": 44,
-      "y": 104,
-      "w": 224,
-      "h": 652
+      "x": 66,
+      "y": 156,
+      "w": 336,
+      "h": 978
     },
     {
       "id": "pvm",
@@ -197,10 +197,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "domainType": "vm",
       "title": "PVM",
       "parent": "soc",
-      "x": 308,
-      "y": 104,
-      "w": 340,
-      "h": 492
+      "x": 462,
+      "y": 156,
+      "w": 510,
+      "h": 738
     },
     {
       "id": "gvm",
@@ -208,10 +208,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "domainType": "vm",
       "title": "GVM",
       "parent": "soc",
-      "x": 688,
-      "y": 104,
-      "w": 340,
-      "h": 492
+      "x": 1032,
+      "y": 156,
+      "w": 510,
+      "h": 738
     },
     {
       "id": "hypervisor",
@@ -222,30 +222,30 @@ svg#architecture text.code { font-family: var(--font-mono); }
         "gvm"
       ],
       "parent": "soc",
-      "x": 308,
-      "y": 632,
-      "w": 720,
-      "h": 124
+      "x": 462,
+      "y": 948,
+      "w": 1080,
+      "h": 186
     },
     {
       "id": "hardware",
       "kind": "hardware-region",
       "title": "Shared Hardware and Memory",
       "parent": "soc",
-      "x": 44,
-      "y": 796,
-      "w": 984,
-      "h": 208
+      "x": 66,
+      "y": 1194,
+      "w": 1476,
+      "h": 312
     },
     {
       "id": "mcu",
       "kind": "domain",
       "domainType": "mcu",
       "title": "MCU",
-      "x": 1088,
-      "y": 24,
-      "w": 228,
-      "h": 1004
+      "x": 1632,
+      "y": 36,
+      "w": 342,
+      "h": 1506
     }
   ],
   "nodes": [
@@ -254,40 +254,40 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "entityType": "firmware",
       "canonicalName": "Trusted Runtime",
       "parent": "tee",
-      "x": 64,
-      "y": 360,
-      "w": 184,
-      "h": 88
+      "x": 96,
+      "y": 540,
+      "w": 276,
+      "h": 132
     },
     {
       "id": "pvm-software",
       "entityType": "subsystem",
       "canonicalName": "PVM Software",
       "parent": "pvm",
-      "x": 328,
-      "y": 296,
-      "w": 300,
-      "h": 80
+      "x": 492,
+      "y": 444,
+      "w": 450,
+      "h": 120
     },
     {
       "id": "gvm-software",
       "entityType": "subsystem",
       "canonicalName": "GVM Software",
       "parent": "gvm",
-      "x": 708,
-      "y": 296,
-      "w": 300,
-      "h": 80
+      "x": 1062,
+      "y": 444,
+      "w": 450,
+      "h": 120
     },
     {
       "id": "soc-hardware",
       "entityType": "hardware",
       "canonicalName": "SoC Hardware",
       "parent": "hardware",
-      "x": 64,
-      "y": 892,
-      "w": 420,
-      "h": 88
+      "x": 96,
+      "y": 1338,
+      "w": 630,
+      "h": 132
     },
     {
       "id": "shared-memory",
@@ -295,20 +295,20 @@ svg#architecture text.code { font-family: var(--font-mono); }
       "canonicalName": "Shared Memory",
       "resourceId": "specimen-shared-memory",
       "parent": "hardware",
-      "x": 604,
-      "y": 892,
-      "w": 404,
-      "h": 88
+      "x": 906,
+      "y": 1338,
+      "w": 606,
+      "h": 132
     },
     {
       "id": "mcu-firmware",
       "entityType": "firmware",
       "canonicalName": "MCU Firmware",
       "parent": "mcu",
-      "x": 1108,
-      "y": 450,
-      "w": 188,
-      "h": 88
+      "x": 1662,
+      "y": 675,
+      "w": 282,
+      "h": 132
     }
   ],
   "edges": []
@@ -335,14 +335,14 @@ svg#architecture text.code { font-family: var(--font-mono); }
     }
   },
   "type": {
-    "title": 24,
-    "domain": 20,
-    "container": 18,
-    "node": 16,
-    "subtitle": 12,
-    "label": 13,
-    "body": 14,
-    "legend": 12
+    "title": 36,
+    "domain": 30,
+    "container": 27,
+    "node": 24,
+    "subtitle": 18,
+    "label": 19.5,
+    "body": 21,
+    "legend": 18
   },
   "radii": {
     "label": 4,
@@ -806,7 +806,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
   const ORIGINS = {oem: '#4285F4', native: '#34A853', vendor: '#FBBC04'};
   const PARTY_COLORS = {oem: '#4285F4', tier1: '#FBBC04', 'soc-vendor': '#A78BFA', 'os-vendor': '#34A853', other: '#38BDF8'};
   const PALETTE_COLORS = {blue: '#4285F4', green: '#34A853', amber: '#FBBC04', purple: '#A78BFA', cyan: '#38BDF8', orange: '#FB923C', pink: '#F472B6', indigo: '#818CF8'};
-  const EDGE_LABELS = {dependency: 'Dependency', control: 'Call / IPC', data: 'Data / pixels', notification: 'Notification / interrupt', config: 'Configuration / allocation'};
+  const EDGE_LABELS = {dependency: 'Dependency', control: 'Call / IPC', data: 'Data', notification: 'Notification / interrupt', config: 'Configuration / allocation'};
   const same = (a, b) => Math.abs(a - b) < 0.001;
   const fmt = n => String(Math.round(n * 1000) / 1000);
   const equal = (a, b) => same(a.x, b.x) && same(a.y, b.y);

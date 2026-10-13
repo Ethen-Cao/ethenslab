@@ -10,8 +10,8 @@
     "colorMode": "technical"
   },
   "canvas": {
-    "width": 1544,
-    "height": 1100
+    "width": 2316,
+    "height": 1650
   },
   "sources": [
     {
@@ -40,20 +40,20 @@
         "pvm",
         "layout"
       ],
-      "x": 24,
-      "y": 24,
-      "w": 980,
-      "h": 1052
+      "x": 36,
+      "y": 36,
+      "w": 1470,
+      "h": 1578
     },
     {
       "id": "pvm",
       "kind": "domain",
       "title": "Linux PVM",
       "domainType": "vm",
-      "x": 44,
-      "y": 100,
-      "w": 450,
-      "h": 624,
+      "x": 66,
+      "y": 150,
+      "w": 675,
+      "h": 936,
       "parent": "soc",
       "platform": "linux"
     },
@@ -63,10 +63,10 @@
       "title": "Display Services",
       "order": 0,
       "parent": "pvm",
-      "x": 64,
-      "y": 176,
-      "w": 410,
-      "h": 294,
+      "x": 96,
+      "y": 264,
+      "w": 615,
+      "h": 441,
       "role": "services"
     },
     {
@@ -75,10 +75,10 @@
       "title": "Kernel",
       "order": 1,
       "parent": "pvm",
-      "x": 64,
-      "y": 506,
-      "w": 410,
-      "h": 190,
+      "x": 96,
+      "y": 759,
+      "w": 615,
+      "h": 285,
       "role": "kernel"
     },
     {
@@ -86,10 +86,10 @@
       "kind": "domain",
       "title": "Android GVM",
       "domainType": "vm",
-      "x": 534,
-      "y": 100,
-      "w": 450,
-      "h": 624,
+      "x": 801,
+      "y": 150,
+      "w": 675,
+      "h": 936,
       "parent": "soc",
       "platform": "android"
     },
@@ -99,10 +99,10 @@
       "title": "Java API Framework",
       "order": 0,
       "parent": "gvm",
-      "x": 554,
-      "y": 176,
-      "w": 410,
-      "h": 294,
+      "x": 831,
+      "y": 264,
+      "w": 615,
+      "h": 441,
       "role": "framework-api"
     },
     {
@@ -111,10 +111,10 @@
       "title": "Kernel",
       "order": 1,
       "parent": "gvm",
-      "x": 554,
-      "y": 506,
-      "w": 410,
-      "h": 190,
+      "x": 831,
+      "y": 759,
+      "w": 615,
+      "h": 285,
       "role": "kernel"
     },
     {
@@ -128,20 +128,20 @@
       "evidence": [
         "pvm"
       ],
-      "x": 44,
-      "y": 760,
-      "w": 940,
-      "h": 100,
+      "x": 66,
+      "y": 1140,
+      "w": 1410,
+      "h": 150,
       "parent": "soc"
     },
     {
       "id": "soc-hardware",
       "kind": "hardware-region",
       "title": "Shared SoC Hardware",
-      "x": 44,
-      "y": 900,
-      "w": 940,
-      "h": 152,
+      "x": 66,
+      "y": 1350,
+      "w": 1410,
+      "h": 228,
       "parent": "soc"
     },
     {
@@ -149,10 +149,10 @@
       "kind": "domain",
       "title": "Independent MCU",
       "domainType": "mcu",
-      "x": 1044,
-      "y": 24,
-      "w": 476,
-      "h": 1052
+      "x": 1566,
+      "y": 36,
+      "w": 714,
+      "h": 1578
     },
     {
       "id": "mcu-app",
@@ -160,10 +160,10 @@
       "title": "Application Software",
       "order": 0,
       "parent": "mcu",
-      "x": 1064,
-      "y": 100,
-      "w": 436,
-      "h": 204,
+      "x": 1596,
+      "y": 150,
+      "w": 654,
+      "h": 306,
       "role": "applications"
     },
     {
@@ -172,10 +172,10 @@
       "title": "Platform Software",
       "order": 1,
       "parent": "mcu",
-      "x": 1064,
-      "y": 350,
-      "w": 436,
-      "h": 260,
+      "x": 1596,
+      "y": 525,
+      "w": 654,
+      "h": 390,
       "role": "firmware"
     },
     {
@@ -183,10 +183,10 @@
       "kind": "hardware-region",
       "title": "Hardware",
       "parent": "mcu",
-      "x": 1064,
-      "y": 660,
-      "w": 436,
-      "h": 392
+      "x": 1596,
+      "y": 990,
+      "w": 654,
+      "h": 588
     }
   ],
   "nodes": [
@@ -199,10 +199,10 @@
       "evidence": [
         "pvm"
       ],
-      "x": 124,
-      "y": 262,
-      "w": 290,
-      "h": 80,
+      "x": 186,
+      "y": 393,
+      "w": 435,
+      "h": 120,
       "layerRole": "services"
     },
     {
@@ -213,10 +213,10 @@
       "evidence": [
         "pvm"
       ],
-      "x": 124,
-      "y": 586,
-      "w": 290,
-      "h": 80,
+      "x": 186,
+      "y": 879,
+      "w": 435,
+      "h": 120,
       "layerRole": "kernel"
     },
     {
@@ -227,10 +227,10 @@
       "evidence": [
         "android"
       ],
-      "x": 614,
-      "y": 262,
-      "w": 290,
-      "h": 80,
+      "x": 921,
+      "y": 393,
+      "w": 435,
+      "h": 120,
       "layerRole": "framework-api"
     },
     {
@@ -242,10 +242,10 @@
         "android",
         "pvm"
       ],
-      "x": 614,
-      "y": 586,
-      "w": 290,
-      "h": 80,
+      "x": 921,
+      "y": 879,
+      "w": 435,
+      "h": 120,
       "layerRole": "kernel"
     },
     {
@@ -256,10 +256,10 @@
       "evidence": [
         "layout"
       ],
-      "x": 1138,
-      "y": 186,
-      "w": 288,
-      "h": 80
+      "x": 1707,
+      "y": 279,
+      "w": 432,
+      "h": 120
     },
     {
       "id": "mcu-services",
@@ -269,10 +269,10 @@
       "evidence": [
         "layout"
       ],
-      "x": 1138,
-      "y": 448,
-      "w": 288,
-      "h": 80
+      "x": 1707,
+      "y": 672,
+      "w": 432,
+      "h": 120
     },
     {
       "id": "mcu-device",
@@ -282,10 +282,10 @@
       "evidence": [
         "layout"
       ],
-      "x": 1138,
-      "y": 822,
-      "w": 288,
-      "h": 80
+      "x": 1707,
+      "y": 1233,
+      "w": 432,
+      "h": 120
     },
     {
       "id": "soc-gpu",
@@ -295,10 +295,10 @@
       "evidence": [
         "pvm"
       ],
-      "x": 84,
-      "y": 976,
-      "w": 360,
-      "h": 56
+      "x": 126,
+      "y": 1464,
+      "w": 540,
+      "h": 84
     },
     {
       "id": "soc-dpu",
@@ -308,10 +308,10 @@
       "evidence": [
         "pvm"
       ],
-      "x": 584,
-      "y": 976,
-      "w": 360,
-      "h": 56
+      "x": 876,
+      "y": 1464,
+      "w": 540,
+      "h": 84
     }
   ],
   "edges": [

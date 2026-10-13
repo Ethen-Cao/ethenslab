@@ -19,7 +19,7 @@ await mkdir(output, {recursive: true});
 let playwright;
 try {playwright = require(process.env.PLAYWRIGHT_MODULE || 'playwright');}
 catch {throw new Error('Playwright is unavailable. Use an existing installation via NODE_PATH or PLAYWRIGHT_MODULE; do not install dependencies just for this test.');}
-const browser = await playwright.chromium.launch({headless: true, ...(options.browser ? {executablePath: options.browser} : {})});
+const browser = await playwright.chromium.launch({headless: true, chromiumSandbox: true, ...(options.browser ? {executablePath: options.browser} : {})});
 const results = [], negatives = [];
 try {
   const page = await browser.newPage({viewport: {width: 1500, height: 1050}, deviceScaleFactor: 1});
@@ -71,13 +71,13 @@ try {
     console.log(`${file.name}: ${result.errors.length} errors, ${result.warnings.length} warnings; ${JSON.stringify(result.counts)}`);
     page.off('pageerror', listener);
   }
-  const negative = async (name, mutate, input = 'assets/base-template.html') => {
+  const negative = async (name, mutate, input = 'assets/base-template.html', expectedCode) => {
     await page.setContent(await readFile(resolve(root, input), 'utf8'), {waitUntil: 'load'});
     await ready();
     await page.addScriptTag({content: checker});
     await page.evaluate(mutate);
     const result = await page.evaluate(() => checkDiagram({quiet: true}));
-    negatives.push({name, rejected: !result.ok, errors: result.errors});
+    negatives.push({name, rejected: !result.ok && (!expectedCode || result.errors.some(error => error.code === expectedCode)), ...(expectedCode ? {expectedCode} : {}), errors: result.errors});
   };
   if (!options.input) {
     await negative('missing-node', () => document.querySelector('[data-node]').remove());
@@ -89,6 +89,15 @@ try {
     await negative('missing-theme', () => {window.ArchitectureTheme = undefined;});
     await negative('wrong-sans-family', () => document.querySelector('.node-name').style.fontFamily = 'Arial');
     await negative('wrong-monospace-family', () => document.querySelector('.node.library .node-name').style.fontFamily = 'Arial', 'assets/architecture_diagrams/process-library-subsystem.html');
+    await negative('old-node-name-size', () => document.querySelector('.node-name').style.fontSize = '16px', undefined, 'node-font-size');
+    await negative('old-node-subtitle-size', () => document.querySelector('.node-subtitle').style.fontSize = '12px', undefined, 'node-font-size');
+    await negative('old-domain-title-size', () => document.querySelector('.container.domain > .container-title').style.fontSize = '20px', undefined, 'container-font-size');
+    await negative('old-container-title-size', () => document.querySelector('.container.layer > .container-title').style.fontSize = '18px', undefined, 'container-font-size');
+    await negative('old-container-subtitle-size', () => document.querySelector('.container-subtitle').style.fontSize = '12px', 'assets/architecture_diagrams/layout-primitives.html', 'container-font-size');
+    await negative('old-edge-label-size', () => document.querySelector('.edge-label text').style.fontSize = '13px', undefined, 'label-font-size');
+    await negative('old-figure-title-size', () => document.querySelector('#diagram-title').style.fontSize = '24px', undefined, 'diagram-title-size');
+    await negative('old-figure-subtitle-size', () => document.querySelector('#diagram-subtitle').style.fontSize = '14px', 'assets/architecture_diagrams/layout-primitives.html', 'diagram-subtitle-size');
+    await negative('old-legend-size', () => document.querySelector('.diagram-legend').style.fontSize = '12px', undefined, 'legend-font-size');
     await negative('missing-loaded-font', () => {
       // CSS-connected FontFace objects cannot be deleted from document.fonts;
       // remove their defining CSS rule to exercise a genuinely missing face.
