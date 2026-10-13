@@ -1,0 +1,523 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="Electron" agent="draw.io" compressed="false">
+  <diagram id="videocore-architecture" name="VideoCore Architecture">
+    <mxGraphModel dx="6034" dy="4184.25" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="4672.5" pageHeight="5477.5" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="soc" parent="1" style="rounded=1;absoluteArcSize=1;arcSize=24;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#f5f7f9;strokeColor=#c8d0d9;strokeWidth=2.1;fontFamily=Roboto;fontSize=36;" value="&lt;div style=&quot;font-family:Roboto;font-size:36px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Qualcomm SA8397 (sa8797)&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:left;color:#52606d&quot;&gt;Virtualized codec subsystem&lt;/div&gt;" vertex="1">
+          <mxGeometry height="5201" width="4553.5" x="42" y="182" as="geometry" />
+        </mxCell>
+        <mxCell id="pvm" parent="soc" style="rounded=1;absoluteArcSize=1;arcSize=24;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#f5f7f9;strokeColor=#c8d0d9;strokeWidth=2.1;fontFamily=Roboto;fontSize=36;" value="&lt;div style=&quot;font-family:Roboto;font-size:36px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Linux PVM&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:left;color:#52606d&quot;&gt;Yocto Linux 6.6 PREEMPT_RT&lt;/div&gt;" vertex="1">
+          <mxGeometry height="3727.5" width="1820" x="35" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="pvm-userspace" parent="pvm" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#fafbfd;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;User Space&lt;/div&gt;" vertex="1">
+          <mxGeometry height="2730" width="1750" x="35" y="192.5" as="geometry" />
+        </mxCell>
+        <mxCell id="v4q" parent="pvm-userspace" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#ffffff;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;v4q_be_server&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:left;color:#52606d&quot;&gt;Native PVM video decoding client&lt;/div&gt;" vertex="1">
+          <mxGeometry height="357" width="752.5" x="35" y="122.5" as="geometry" />
+        </mxCell>
+        <mxCell id="native-api" parent="v4q" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto Mono, Liberation Mono;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;libvidc_client.so&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;device_open / device_ioctl / device_close&lt;/div&gt;" vertex="1">
+          <mxGeometry height="140" width="682.5" x="35" y="175" as="geometry" />
+        </mxCell>
+        <mxCell id="videoCore" parent="pvm-userspace" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#ffffff;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;videoCore&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:left;color:#52606d&quot;&gt;Codec service / user-space driver&lt;/div&gt;" vertex="1">
+          <mxGeometry height="1914.5" width="1680" x="35" y="780.5" as="geometry" />
+        </mxCell>
+        <mxCell id="vidc-lib" parent="videoCore" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#ffffff;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;libvidc.so&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:left;color:#52606d&quot;&gt;User-space codec driver implementation&lt;/div&gt;" vertex="1">
+          <mxGeometry height="927.5" width="1260" x="210" y="952" as="geometry" />
+        </mxCell>
+        <mxCell id="vidc-vm" parent="vidc-lib" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;VIDC Sessions &amp;amp; VM Management&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;vidc_api.c / vidc_session.c / vidc_vm.c&lt;/div&gt;" vertex="1">
+          <mxGeometry height="140" width="1085" x="87.5" y="175" as="geometry" />
+        </mxCell>
+        <mxCell id="vidc-hfi" parent="vidc-lib" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;Venus HFI&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;HFI packets, queues and response handling&lt;/div&gt;" vertex="1">
+          <mxGeometry height="140" width="1085" x="87.5" y="402.5" as="geometry" />
+        </mxCell>
+        <mxCell id="vidc-os" parent="vidc-lib" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;Iris36 / Linux Adaptation&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;libkiumd.so / firmware boot / VM queue setup&lt;/div&gt;" vertex="1">
+          <mxGeometry height="140" width="1085" x="87.5" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="vm-hfi" edge="1" parent="vidc-lib" source="vidc-vm" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#5f6368;strokeWidth=2.25;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vidc-hfi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="hfi-os" edge="1" parent="vidc-lib" source="vidc-hfi" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#5f6368;strokeWidth=2.25;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vidc-os">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vidc-server" parent="videoCore" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;VIDC Client Server&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;vidc_server.c / per-client handlers&lt;/div&gt;" vertex="1">
+          <mxGeometry height="175" width="1085" x="297.5" y="217" as="geometry" />
+        </mxCell>
+        <mxCell id="server-api" edge="1" parent="videoCore" source="vidc-server" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vidc-vm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="hyp-be" parent="pvm-userspace" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;hyp_video_be&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;HAB backend / libvidc_client.so&lt;/div&gt;" vertex="1">
+          <mxGeometry height="175" width="752.5" x="962.5" y="297.5" as="geometry" />
+        </mxCell>
+        <mxCell id="native-open" edge="1" parent="pvm-userspace" source="native-api" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vidc-server">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="411.25" y="682.5" />
+              <mxPoint x="603.75" y="682.5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-native-open" parent="pvm-userspace" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="POSIX mqueue" vertex="1">
+          <mxGeometry height="42" width="178.5" x="192.5" y="547.75" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-open" edge="1" parent="pvm-userspace" source="hyp-be" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vidc-server">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1338.75" y="724.5" />
+              <mxPoint x="1146.25" y="724.5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-backend-open" parent="pvm-userspace" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="POSIX mqueue" vertex="1">
+          <mxGeometry height="42" width="178.5" x="1023.75" y="658" as="geometry" />
+        </mxCell>
+        <mxCell id="pvm-kernel" parent="pvm" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#fafbfd;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Linux Kernel&lt;/div&gt;" vertex="1">
+          <mxGeometry height="700" width="1750" x="35" y="2992.5" as="geometry" />
+        </mxCell>
+        <mxCell id="vfio" parent="pvm-kernel" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto Mono, Liberation Mono;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;/dev/vfio/vfio · vfio&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;aa00000.vfio_vidc / MMIO, IRQ and IOVA&lt;/div&gt;" vertex="1">
+          <mxGeometry height="192.5" width="735" x="70" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="kiumd" parent="pvm-kernel" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto Mono, Liberation Mono;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;/dev/kiumd · kiumd&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;DMA-BUF / SMMU mapping ioctls&lt;/div&gt;" vertex="1">
+          <mxGeometry height="192.5" width="752.5" x="962.5" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="os-vfio" edge="1" parent="pvm" source="vidc-os" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.3387096774193548;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vfio">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="735" y="2835" />
+              <mxPoint x="472.5" y="2835" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="os-kiumd" edge="1" parent="pvm" source="vidc-os" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.6612903225806451;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="kiumd">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1085" y="2870" />
+              <mxPoint x="1373.75" y="2870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gvm" parent="soc" style="rounded=1;absoluteArcSize=1;arcSize=24;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#f5f7f9;strokeColor=#c8d0d9;strokeWidth=2.1;fontFamily=Roboto;fontSize=36;" value="&lt;div style=&quot;font-family:Roboto;font-size:36px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Android GVM&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:left;color:#52606d&quot;&gt;Android 16&lt;/div&gt;" vertex="1">
+          <mxGeometry height="3727.5" width="2205" x="2310" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-native" parent="gvm" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=1;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#fafbfd;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Native&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:left;color:#52606d&quot;&gt;Client libraries execute in the app process&lt;/div&gt;" vertex="1">
+          <mxGeometry height="980" width="2135" x="35" y="840" as="geometry" />
+        </mxCell>
+        <mxCell id="mediacodec" parent="gvm-native" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;MediaCodec&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;libstagefright.so / codec controller&lt;/div&gt;" vertex="1">
+          <mxGeometry height="133" width="542.5" x="192.5" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="ccodec" parent="gvm-native" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;CCodec&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;libsfplugin_ccodec.so&lt;/div&gt;" vertex="1">
+          <mxGeometry height="133" width="542.5" x="192.5" y="551.25" as="geometry" />
+        </mxCell>
+        <mxCell id="codec2client" parent="gvm-native" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;Codec2Client&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;libcodec2_client.so&lt;/div&gt;" vertex="1">
+          <mxGeometry height="133" width="542.5" x="192.5" y="752.5" as="geometry" />
+        </mxCell>
+        <mxCell id="codec-ccodec" edge="1" parent="gvm-native" source="mediacodec" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="ccodec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ccodec-client" edge="1" parent="gvm-native" source="ccodec" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="codec2client">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="jni-codec" parent="gvm-native" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto Mono, Liberation Mono;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;libmedia_jni.so&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;JMediaCodec / JNI&lt;/div&gt;" vertex="1">
+          <mxGeometry height="133" width="595" x="1155" y="148.75" as="geometry" />
+        </mxCell>
+        <mxCell id="jni-native" edge="1" parent="gvm-native" source="jni-codec" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="mediacodec">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1452.5" y="416.5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pag" parent="gvm-native" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto Mono, Liberation Mono;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;libpag.so&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;PAG hardware decoder&lt;/div&gt;" vertex="1">
+          <mxGeometry height="133" width="542.5" x="192.5" y="148.75" as="geometry" />
+        </mxCell>
+        <mxCell id="pag-codec" edge="1" parent="gvm-native" source="pag" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="mediacodec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label-pag-codec" parent="gvm-native" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="NDK API" vertex="1">
+          <mxGeometry height="42" width="117.25" x="520.625" y="295.75" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-hal" parent="gvm" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#fafbfd;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Codec2 Services / HAL&lt;/div&gt;" vertex="1">
+          <mxGeometry height="997.5" width="2135" x="35" y="1925" as="geometry" />
+        </mxCell>
+        <mxCell id="qti-c2" parent="gvm-hal" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#ffffff;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" tooltip="Executable: /vendor/bin/hw/vendor.qti.media.c2@1.0-service" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;media.hwcodec&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:left;color:#52606d&quot;&gt;QTI Codec2 / IComponentStore/default&lt;/div&gt;" vertex="1">
+          <mxGeometry height="822.5" width="1400" x="35" y="129.5" as="geometry" />
+        </mxCell>
+        <mxCell id="c2-core" parent="qti-c2" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto Mono, Liberation Mono;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;libqcodec2_core.so&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;Component store / QC2 components&lt;/div&gt;" vertex="1">
+          <mxGeometry height="140" width="612.5" x="752.5" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="c2-v4l2" parent="qti-c2" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto Mono, Liberation Mono;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;libqcodec2_v4l2codec.so&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;QC2 V4L2 codec, driver and poll thread&lt;/div&gt;" vertex="1">
+          <mxGeometry height="157.5" width="612.5" x="752.5" y="553" as="geometry" />
+        </mxCell>
+        <mxCell id="c2-aidl" parent="qti-c2" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto Mono, Liberation Mono;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;libcodec2_aidl.so&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;AIDL component-store adapter&lt;/div&gt;" vertex="1">
+          <mxGeometry height="140" width="577.5" x="35" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="core-plugin" edge="1" parent="qti-c2" source="c2-core" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#5f6368;strokeWidth=2.25;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="c2-v4l2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="aidl-core" edge="1" parent="qti-c2" source="c2-aidl" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#5f6368;strokeWidth=2.25;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="c2-core">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="swcodec" parent="gvm-hal" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" tooltip="Executable: /apex/com.android.media.swcodec/bin/mediaswcodec" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;media.swcodec&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;AOSP software codecs&lt;br&gt;IComponentStore/software&lt;/div&gt;" vertex="1">
+          <mxGeometry height="203" width="560" x="1540" y="297.5" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-kernel" parent="gvm" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#fafbfd;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Linux Kernel&lt;/div&gt;" vertex="1">
+          <mxGeometry height="700" width="2135" x="35" y="2992.5" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-video" parent="gvm-kernel" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto Mono, Liberation Mono;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;/dev/video32 · msm_video&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;Decoder / encoder: /dev/video32 and /dev/video33&lt;/div&gt;" vertex="1">
+          <mxGeometry height="150.5" width="770" x="708.75" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-virtio" parent="gvm-kernel" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;msm_virtio_video&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;HAB commandq / eventq&lt;/div&gt;" vertex="1">
+          <mxGeometry height="192.5" width="647.5" x="341.25" y="437.5" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-hfi" parent="gvm-kernel" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;venus_hfi&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;Within msm_video.ko / steady-state HFI&lt;/div&gt;" vertex="1">
+          <mxGeometry height="192.5" width="647.5" x="1128.75" y="437.5" as="geometry" />
+        </mxCell>
+        <mxCell id="guest-management" edge="1" parent="gvm-kernel" source="gvm-video" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.2727272727272727;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="gvm-virtio">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="918.75" y="350" />
+              <mxPoint x="665" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-guest-management" parent="gvm-kernel" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="Session / PM control" vertex="1">
+          <mxGeometry height="42" width="276.5" x="406" y="290.5" as="geometry" />
+        </mxCell>
+        <mxCell id="guest-hfi" edge="1" parent="gvm-kernel" source="gvm-video" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.7272727272727273;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="gvm-hfi">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1268.75" y="350" />
+              <mxPoint x="1452.5" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="guest-ssr-dispatch" edge="1" parent="gvm-kernel" source="gvm-virtio" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;dashed=1;dashPattern=4.5 7.5;exitX=0.5810810810810811;exitY=0;exitDx=0;exitDy=0;entryX=0.36363636363636365;entryY=1;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="gvm-video">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="717.5" y="392" />
+              <mxPoint x="988.75" y="392" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gvm-java" parent="gvm" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#fafbfd;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Java API Framework&lt;/div&gt;" vertex="1">
+          <mxGeometry height="227.5" width="2135" x="35" y="581" as="geometry" />
+        </mxCell>
+        <mxCell id="java-codec" parent="gvm-java" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;android.media.MediaCodec&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;Java API / app process&lt;/div&gt;" vertex="1">
+          <mxGeometry height="108.5" width="682.5" x="770" y="84" as="geometry" />
+        </mxCell>
+        <mxCell id="label-PDaeF83Kjqx2HLJFNQbd-1" parent="gvm-java" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="PAG API" vertex="1">
+          <mxGeometry height="42" width="117.25" x="518" y="171.5" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-applications" parent="gvm" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#fafbfd;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Application&lt;/div&gt;" vertex="1">
+          <mxGeometry height="357" width="2135" x="35" y="192.5" as="geometry" />
+        </mxCell>
+        <mxCell id="media-app" parent="gvm-applications" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;MediaCode App&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;PAG entry / Java MediaCodec entry&lt;/div&gt;" vertex="1">
+          <mxGeometry height="227.5" width="945" x="437.5" y="75.25" as="geometry" />
+        </mxCell>
+        <mxCell id="label-binder" parent="gvm" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="AIDL / hardware codec" vertex="1">
+          <mxGeometry height="42" width="288.75" x="731.5" y="1991.5" as="geometry" />
+        </mxCell>
+        <mxCell id="v4l2" edge="1" parent="gvm" source="c2-v4l2" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="gvm-video">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1128.75" y="2940" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-v4l2" parent="gvm" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="V4L2 ioctl / poll" vertex="1">
+          <mxGeometry height="42" width="239.75" x="1130.5" y="2940" as="geometry" />
+        </mxCell>
+        <mxCell id="app-java" edge="1" parent="gvm" source="media-app" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.712962962962963;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="java-codec">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1146.25" y="609" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="java-jni" edge="1" parent="gvm" source="java-codec" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="jni-codec">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1146.25" y="824.25" />
+              <mxPoint x="1487.5" y="824.25" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-app-java" parent="gvm" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="Java API" vertex="1">
+          <mxGeometry height="42" width="129.5" x="1214.5" y="586.25" as="geometry" />
+        </mxCell>
+        <mxCell id="label-java-jni" parent="gvm" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="JNI" vertex="1">
+          <mxGeometry height="42" width="113.75" x="1528.625" y="864.5" as="geometry" />
+        </mxCell>
+        <mxCell id="binder-software" edge="1" parent="gvm" source="codec2client" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="swcodec">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1855" y="1659" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-binder-software" parent="gvm" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="AIDL / software codec" vertex="1">
+          <mxGeometry height="42" width="288.75" x="1231.125" y="1594.25" as="geometry" />
+        </mxCell>
+        <mxCell id="ZilKRJJLaaEEm8xNY-9a-1" edge="1" parent="gvm" source="codec2client" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#356dc9;strokeWidth=2.7;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=24;fontColor=default;labelBackgroundColor=default;jumpStyle=arc;jumpSize=17.5;endArrow=block;endFill=1;endSize=12.25;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;" target="c2-aidl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="498.75" y="1872.5" />
+              <mxPoint x="708.75" y="1872.5" />
+              <mxPoint x="708.75" y="2177" />
+              <mxPoint x="393.75" y="2177" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZilKRJJLaaEEm8xNY-9a-2" edge="1" parent="gvm" source="media-app" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#356dc9;strokeWidth=2.7;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=24;fontColor=default;labelBackgroundColor=default;jumpStyle=arc;jumpSize=17.5;endArrow=block;endFill=1;endSize=12.25;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;exitPerimeter=0;entryPerimeter=0;" target="pag">
+          <mxGeometry relative="1" x="-0.0114" as="geometry">
+            <Array as="points">
+              <mxPoint x="708.75" y="960.75" />
+              <mxPoint x="498.75" y="960.75" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hypervisor" parent="soc" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#fafbfd;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Gunyah Hypervisor&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:left;color:#52606d&quot;&gt;PVM and GVM virtualization substrate&lt;/div&gt;" vertex="1">
+          <mxGeometry height="175" width="4480" x="35" y="3965.5" as="geometry" />
+        </mxCell>
+        <mxCell id="hardware" parent="soc" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;connectable=0;align=left;verticalAlign=top;spacingLeft=28;spacingRight=28;spacingTop=24.5;fillColor=#fafbfd;strokeColor=#c8d0d9;strokeWidth=1.8;fontFamily=Roboto;fontSize=32;" value="&lt;div style=&quot;font-family:Roboto;font-size:32px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;Codec Hardware &amp;amp; Memory&lt;/div&gt;" vertex="1">
+          <mxGeometry height="955.5" width="4480" x="35" y="4210.5" as="geometry" />
+        </mxCell>
+        <mxCell id="pvm-queues-stack-2" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;connectable=0;fillColor=#eef1f3;strokeColor=#aab4bd;strokeWidth=1.8;" value="" vertex="1">
+          <mxGeometry height="192.5" width="1050" x="119" y="126" as="geometry" />
+        </mxCell>
+        <mxCell id="pvm-queues-stack-1" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;connectable=0;fillColor=#eef1f3;strokeColor=#aab4bd;strokeWidth=1.8;" value="" vertex="1">
+          <mxGeometry height="192.5" width="1050" x="112" y="133" as="geometry" />
+        </mxCell>
+        <mxCell id="pvm-queues" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#eef1f3;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;strokeColor=#aab4bd;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;PVM HFI Queues (VM0)&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;Command / message / debug queues&lt;/div&gt;" vertex="1">
+          <mxGeometry height="192.5" width="1050" x="105" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-queues-stack-2" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;connectable=0;fillColor=#eef1f3;strokeColor=#aab4bd;strokeWidth=1.8;" value="" vertex="1">
+          <mxGeometry height="192.5" width="1050" x="3374" y="126" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-queues-stack-1" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;connectable=0;fillColor=#eef1f3;strokeColor=#aab4bd;strokeWidth=1.8;" value="" vertex="1">
+          <mxGeometry height="192.5" width="1050" x="3367" y="133" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-queues" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#eef1f3;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;strokeColor=#aab4bd;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;GVM HFI Queues (VM1)&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;Command / message / debug queues&lt;/div&gt;" vertex="1">
+          <mxGeometry height="192.5" width="1050" x="3360" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="firmware" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#edf4fa;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;VPU Firmware&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;HFI / hardware-virtualized VM queues&lt;/div&gt;" vertex="1">
+          <mxGeometry height="157.5" width="1120" x="1312.5" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="vpu" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#eef1f3;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;Iris36 VPU&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;Video encode / decode hardware&lt;/div&gt;" vertex="1">
+          <mxGeometry height="157.5" width="1050" x="3360" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="buffers-stack-2" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;connectable=0;fillColor=#eef1f3;strokeColor=#aab4bd;strokeWidth=1.8;" value="" vertex="1">
+          <mxGeometry height="150.5" width="1050" x="3374" y="756" as="geometry" />
+        </mxCell>
+        <mxCell id="buffers-stack-1" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;connectable=0;fillColor=#eef1f3;strokeColor=#aab4bd;strokeWidth=1.8;" value="" vertex="1">
+          <mxGeometry height="150.5" width="1050" x="3367" y="763" as="geometry" />
+        </mxCell>
+        <mxCell id="buffers" parent="hardware" style="rounded=1;absoluteArcSize=1;arcSize=16;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;spacing=14;fillColor=#eef1f3;strokeColor=#8faeca;strokeWidth=1.95;fontFamily=Roboto;fontSize=28;strokeColor=#aab4bd;" value="&lt;div style=&quot;font-family:Roboto;font-size:28px;font-weight:700;line-height:1.25;text-align:center&quot;&gt;Codec DMA-BUF Pools&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:center;color:#52606d&quot;&gt;PVM / GVM pool collection; bitstream and images&lt;/div&gt;" vertex="1">
+          <mxGeometry height="150.5" width="1050" x="3360" y="770" as="geometry" />
+        </mxCell>
+        <mxCell id="pvm-fw-read" edge="1" parent="hardware" source="pvm-queues" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#237a44;strokeWidth=3.9;exitX=0.55;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.2777777777777778;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="firmware">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="682.5" y="385" />
+              <mxPoint x="1225" y="385" />
+              <mxPoint x="1225" y="533.75" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gvm-fw-read" edge="1" parent="hardware" source="gvm-queues" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#237a44;strokeWidth=3.9;exitX=0.45;exitY=1;exitDx=0;exitDy=0;entryX=0.453125;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="firmware">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="3832.5" y="385" />
+              <mxPoint x="1820" y="385" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="firmware-run" edge="1" parent="hardware" source="firmware" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#5f6368;strokeWidth=2.25;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vpu">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="dma-read" edge="1" parent="hardware" source="buffers" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#237a44;strokeWidth=3.9;exitX=0.45;exitY=0;exitDx=0;exitDy=0;entryX=0.45;entryY=1;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vpu">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label-dma-read" parent="hardware" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#237a44;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="DMA read" vertex="1">
+          <mxGeometry height="42" width="129.5" x="3603.25" y="687.75" as="geometry" />
+        </mxCell>
+        <mxCell id="dma-write" edge="1" parent="hardware" source="vpu" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#237a44;strokeWidth=3.9;exitX=0.55;exitY=1;exitDx=0;exitDy=0;entryX=0.55;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="buffers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label-dma-write" parent="hardware" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#237a44;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="DMA write" vertex="1">
+          <mxGeometry height="42" width="141.75" x="4087.125" y="687.75" as="geometry" />
+        </mxCell>
+        <mxCell id="fw-pvm-write" edge="1" parent="hardware" source="firmware" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#237a44;strokeWidth=3.9;exitX=0;exitY=0.7222222222222222;exitDx=0;exitDy=0;entryX=0.45;entryY=1;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="pvm-queues">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1183" y="603.75" />
+              <mxPoint x="1183" y="427" />
+              <mxPoint x="577.5" y="427" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fw-gvm-write" edge="1" parent="hardware" source="firmware" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#237a44;strokeWidth=3.9;exitX=0.546875;exitY=0;exitDx=0;exitDy=0;entryX=0.55;entryY=1;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="gvm-queues">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1925" y="427" />
+              <mxPoint x="3937.5" y="427" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hab-control" edge="1" parent="soc" source="gvm-virtio" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=0;exitY=0.6818181818181819;exitDx=0;exitDy=0;entryX=1;entryY=0.7;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="hyp-be">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1995" y="3729.25" />
+              <mxPoint x="1995" y="780.5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-hab-control" parent="soc" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="virtio-video over HAB" vertex="1">
+          <mxGeometry height="42" width="288.75" x="2036.125" y="3760.75" as="geometry" />
+        </mxCell>
+        <mxCell id="hab-ssr" edge="1" parent="soc" source="hyp-be" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;dashed=1;dashPattern=4.5 7.5;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3181818181818182;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="gvm-virtio">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2047.5" y="710.5" />
+              <mxPoint x="2047.5" y="3659.25" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-hab-ssr" parent="soc" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="SSR / fatal events" vertex="1">
+          <mxGeometry height="42" width="252" x="2054.5" y="3585.75" as="geometry" />
+        </mxCell>
+        <mxCell id="pvm-queue-write" edge="1" parent="soc" source="vidc-hfi" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#237a44;strokeWidth=3.9;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=0.55;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="pvm-queues">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="350" y="2600.5" />
+              <mxPoint x="350" y="3111.5" />
+              <mxPoint x="945" y="3111.5" />
+              <mxPoint x="945" y="4168.5" />
+              <mxPoint x="717.5" y="4168.5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-pvm-queue-write" parent="soc" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#237a44;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="CMDQ" vertex="1">
+          <mxGeometry height="42" width="105" x="999.25" y="3962" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-queue-write" edge="1" parent="soc" source="gvm-hfi" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#237a44;strokeWidth=3.9;exitX=0.44594594594594594;exitY=1;exitDx=0;exitDy=0;entryX=0.45;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="gvm-queues">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="3762.5" y="4256" />
+              <mxPoint x="3867.5" y="4256" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-gvm-queue-write" parent="soc" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#237a44;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="CMDQ / buffer IOVA" vertex="1">
+          <mxGeometry height="42" width="252" x="3454.5" y="4084.5" as="geometry" />
+        </mxCell>
+        <mxCell id="pvm-queue-read" edge="1" parent="soc" source="pvm-queues" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#237a44;strokeWidth=3.9;exitX=0.45;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vidc-hfi">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="612.5" y="4098.5" />
+              <mxPoint x="903" y="4098.5" />
+              <mxPoint x="903" y="3132.5" />
+              <mxPoint x="273" y="3132.5" />
+              <mxPoint x="273" y="2530.5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-pvm-queue-read" parent="soc" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#237a44;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="MSGQ / DBGQ" vertex="1">
+          <mxGeometry height="42" width="166.25" x="685.125" y="4028.5" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-queue-read" edge="1" parent="soc" source="gvm-queues" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#237a44;strokeWidth=3.9;exitX=0.55;exitY=0;exitDx=0;exitDy=0;entryX=0.5540540540540541;entryY=1;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="gvm-hfi">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="3972.5" y="4214" />
+              <mxPoint x="3832.5" y="4214" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-gvm-queue-read" parent="soc" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#237a44;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="MSGQ / DBGQ" vertex="1">
+          <mxGeometry height="42" width="166.25" x="3899.875" y="4154.5" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-doorbell" edge="1" parent="soc" source="gvm-hfi" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;exitX=1;exitY=0.6818181818181819;exitDx=0;exitDy=0;entryX=1;entryY=0.2777777777777778;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vpu">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="4497.5" y="3729.25" />
+              <mxPoint x="4497.5" y="4744.25" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-gvm-doorbell" parent="soc" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="MMIO doorbell" vertex="1">
+          <mxGeometry height="42" width="190.75" x="4237.625" y="3944.5" as="geometry" />
+        </mxCell>
+        <mxCell id="gvm-irq" edge="1" parent="soc" source="vpu" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#356dc9;strokeWidth=2.7;dashed=1;dashPattern=4.5 7.5;exitX=1;exitY=0.7222222222222222;exitDx=0;exitDy=0;entryX=1;entryY=0.3181818181818182;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="gvm-hfi">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="4532.5" y="4814.25" />
+              <mxPoint x="4532.5" y="3659.25" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-gvm-irq" parent="soc" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;absoluteArcSize=1;arcSize=8;fillColor=#ffffff;strokeColor=none;fontColor=#356dc9;fontFamily=Roboto;fontSize=24;spacing=3.5;" value="IRQ" vertex="1">
+          <mxGeometry height="42" width="105" x="4368" y="4014.5" as="geometry" />
+        </mxCell>
+        <mxCell id="vfio-access" edge="1" parent="soc" source="vfio" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;endSize=12.25;strokeColor=#5f6368;strokeWidth=2.25;dashed=1;dashPattern=9 7.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;jumpStyle=arc;jumpSize=17.5;" target="vpu">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="507.5" y="3930.5" />
+              <mxPoint x="1295" y="3930.5" />
+              <mxPoint x="1295" y="4665.5" />
+              <mxPoint x="3920" y="4665.5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=top;strokeColor=none;fillColor=none;" value="&lt;div style=&quot;font-family:Roboto;font-size:44px;font-weight:700;line-height:1.25;text-align:left&quot;&gt;VideoCore Software Architecture&lt;/div&gt;&lt;div style=&quot;font-family:Roboto;font-size:24px;font-weight:400;line-height:1.3;margin-top:8.75px;text-align:left;color:#52606d&quot;&gt;SA8397 / Linux PVM and Android GVM&lt;/div&gt;" vertex="1">
+          <mxGeometry height="108.5" width="2100" x="42" y="26.25" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-line-0" edge="1" parent="1" style="endArrow=none;strokeColor=#5f6368;strokeWidth=2.25;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="77" y="5433.75" as="sourcePoint" />
+            <mxPoint x="140" y="5433.75" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-text-0" parent="1" style="text;html=1;align=left;fontFamily=Roboto;fontSize=24;strokeColor=none;fillColor=none;" value="Dependency" vertex="1">
+          <mxGeometry height="42" width="253.75" x="152.25" y="5411" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-line-1" edge="1" parent="1" style="endArrow=none;strokeColor=#356dc9;strokeWidth=2.7;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="435.75" y="5433.75" as="sourcePoint" />
+            <mxPoint x="498.75" y="5433.75" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-text-1" parent="1" style="text;html=1;align=left;fontFamily=Roboto;fontSize=24;strokeColor=none;fillColor=none;" value="Call / IPC" vertex="1">
+          <mxGeometry height="42" width="253.75" x="511" y="5411" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-line-2" edge="1" parent="1" style="endArrow=none;strokeColor=#237a44;strokeWidth=3.9;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="794.5" y="5433.75" as="sourcePoint" />
+            <mxPoint x="857.5" y="5433.75" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-text-2" parent="1" style="text;html=1;align=left;fontFamily=Roboto;fontSize=24;strokeColor=none;fillColor=none;" value="Data" vertex="1">
+          <mxGeometry height="42" width="253.75" x="869.75" y="5411" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-line-3" edge="1" parent="1" style="endArrow=none;strokeColor=#356dc9;strokeWidth=2.7;dashed=1;dashPattern=4.5 7.5;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1153.25" y="5433.75" as="sourcePoint" />
+            <mxPoint x="1216.25" y="5433.75" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-text-3" parent="1" style="text;html=1;align=left;fontFamily=Roboto;fontSize=24;strokeColor=none;fillColor=none;" value="Notification / IRQ" vertex="1">
+          <mxGeometry height="42" width="253.75" x="1228.5" y="5411" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-line-4" edge="1" parent="1" style="endArrow=none;strokeColor=#5f6368;strokeWidth=2.25;dashed=1;dashPattern=9 7.5;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1512" y="5433.75" as="sourcePoint" />
+            <mxPoint x="1575" y="5433.75" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-text-4" parent="1" style="text;html=1;align=left;fontFamily=Roboto;fontSize=24;strokeColor=none;fillColor=none;" value="Configuration" vertex="1">
+          <mxGeometry height="42" width="253.75" x="1587.25" y="5411" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
