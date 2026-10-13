@@ -13,7 +13,7 @@ Qualcomm SA8397 平台的 VIDC 子系统采用硬件虚拟化编解码架构：L
 
 ## 架构总览
 
-![](../../static/diagrams/gunyah-vidc-architecture.png) · [下载可编辑 draw.io 源文件](../../static/diagrams/gunyah-vidc-architecture.drawio)
+![](../../static/diagrams/gunyah-vidc-architecture.png)
 
 
 图中 Application、Java API Framework 和 Native 表示 Android 逻辑分层；其中的客户端库均可运行在同一个应用进程内。`media.hwcodec`、`media.swcodec`、PVM `videoCore` 和 `hyp_video_be` 分别具有独立的进程边界。`MediaCode App` 是应用的匿名示例，`libpag.so` 表示其 Native 解码入口。
