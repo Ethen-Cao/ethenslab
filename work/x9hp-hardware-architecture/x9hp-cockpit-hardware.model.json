@@ -1,0 +1,2853 @@
+{
+  "schema": "cockpit-hardware-view-1",
+  "title": "X9HP Cockpit Hardware Architecture",
+  "canvas": {
+    "width": 3100,
+    "height": 2850
+  },
+  "evidence": {
+    "sourceImage": "source-reference.png",
+    "userConfirmations": [
+      "Compute Board and Interface & Audio Board are distinct physical boards connected through B2B.",
+      "CAN2 and Switch/ADC are reserved.",
+      "GNSS and SMI230 are separate; omit the unconfirmed connection."
+    ],
+    "scope": "Hardware connectivity, not a software or virtualization deployment view"
+  },
+  "notes": [
+    "J1 is one physical connector. Its source parts 1 and 2 are represented by distinct terminals of the same native container.",
+    "J4 GNSS is retained without an inferred receiver. No GNSS-to-SMI230 connection is drawn.",
+    "The rear-camera AHD/LVDS and LIN references have no established receiver/implementation in the source and remain unrouted.",
+    "Source part spellings are retained, including JA1043T, LP87565VRNFRQ1 and the alternative amplifier parts. No BOM validation is claimed.",
+    "Source rates: MAX9286 GMSL channels <1.5 Gb/s; CSI-2 D-PHY links <2.5G as written. Exact lane/rate interpretation is not independently established.",
+    "The SMI230 source link lists I2C/SPI/UART together. I2C/SPI is retained; UART endpoint remains unassigned after separating GNSS.",
+    "The source USB charger block lies on the depicted media USB route; exact switch/power-path implementation is not expanded.",
+    "VBAT 12 V is retained as a local rail without inventing its upstream conversion path from the 6–16 V vehicle supply.",
+    "Power/sense connectivity is retained, without inventing individual supply rails or regulator-to-load connections.",
+    "Main video arrows indicate the primary video direction; reverse control channels are not expanded into extra physical cables.",
+    "Connector artwork is symbolic, not a mechanical drawing or pin-count specification. USB connector form factors are not inferred from the source."
+  ],
+  "objects": [
+    {
+      "id": "ecu",
+      "x": 410,
+      "y": 188,
+      "w": 2200,
+      "h": 2424,
+      "parent": "1",
+      "kind": "enclosure",
+      "title": "Cockpit ECU",
+      "evidence": "source-image"
+    },
+    {
+      "id": "compute",
+      "x": 440,
+      "y": 260,
+      "w": 2140,
+      "h": 1050,
+      "parent": "ecu",
+      "kind": "board",
+      "title": "Compute Board",
+      "evidence": "user-board-confirmation"
+    },
+    {
+      "id": "interface",
+      "x": 440,
+      "y": 1510,
+      "w": 2140,
+      "h": 1080,
+      "parent": "ecu",
+      "kind": "board",
+      "title": "Interface & Audio Board",
+      "evidence": "user-board-confirmation"
+    },
+    {
+      "id": "bt-ant",
+      "x": 40,
+      "y": 290,
+      "w": 260,
+      "h": 116,
+      "parent": "1",
+      "kind": "component",
+      "type": "antenna",
+      "title": "BT Antenna",
+      "subtitle": "",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "wifi-ant",
+      "x": 40,
+      "y": 430,
+      "w": 260,
+      "h": 116,
+      "parent": "1",
+      "kind": "component",
+      "type": "antenna",
+      "title": "Wi-Fi Antenna",
+      "subtitle": "2.4 / 5 GHz",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "wifi",
+      "x": 580,
+      "y": 330,
+      "w": 300,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "rfmodule",
+      "title": "NF3205PQ",
+      "subtitle": "Wi-Fi / Bluetooth · nFore",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "emmc",
+      "x": 945,
+      "y": 330,
+      "w": 290,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "flash",
+      "title": "eMMC · 64 GB",
+      "subtitle": "MTFC64GAZAQHD-AAT",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "dram",
+      "x": 1285,
+      "y": 330,
+      "w": 340,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "dram",
+      "title": "LPDDR · 8 GB",
+      "subtitle": "MT53E2G32D4DT-046 AAT",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "mfi",
+      "x": 1720,
+      "y": 330,
+      "w": 270,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "ic",
+      "title": "Apple MFi",
+      "subtitle": "mfi343s00177",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "soc",
+      "x": 1120,
+      "y": 540,
+      "w": 340,
+      "h": 610,
+      "parent": "compute",
+      "kind": "component",
+      "type": "soc",
+      "title": "X9HP",
+      "subtitle": "Cockpit SoC",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "avm",
+      "x": 40,
+      "y": 600,
+      "w": 285,
+      "h": 132,
+      "parent": "1",
+      "kind": "component",
+      "type": "camera",
+      "title": "AVM Cameras ×4",
+      "subtitle": "360° / 540° surround view",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "j11",
+      "x": 455,
+      "y": 616,
+      "w": 150,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "coax-connector",
+      "title": "J11",
+      "subtitle": "FAKRA ×4",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "des-avm",
+      "x": 680,
+      "y": 608,
+      "w": 220,
+      "h": 132,
+      "parent": "compute",
+      "kind": "component",
+      "type": "serdes",
+      "title": "MAX9286",
+      "subtitle": "GMSL deserializer · 4 inputs",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "des-cabin",
+      "x": 680,
+      "y": 760,
+      "w": 220,
+      "h": 502,
+      "parent": "compute",
+      "kind": "component",
+      "type": "serdes",
+      "title": "MAX96722",
+      "subtitle": "GMSL deserializer<br>4 camera inputs",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "apa",
+      "x": 40,
+      "y": 759,
+      "w": 285,
+      "h": 110,
+      "parent": "1",
+      "kind": "component",
+      "type": "camera",
+      "title": "APA Camera",
+      "subtitle": "",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "conn-apa",
+      "x": 455,
+      "y": 756,
+      "w": 150,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "coax-connector",
+      "title": "Coax",
+      "subtitle": "Connector",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "dms",
+      "x": 40,
+      "y": 897,
+      "w": 285,
+      "h": 110,
+      "parent": "1",
+      "kind": "component",
+      "type": "camera",
+      "title": "DMS Camera",
+      "subtitle": "",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "conn-dms",
+      "x": 455,
+      "y": 894,
+      "w": 150,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "coax-connector",
+      "title": "Coax",
+      "subtitle": "Connector",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "oms",
+      "x": 40,
+      "y": 1035,
+      "w": 285,
+      "h": 110,
+      "parent": "1",
+      "kind": "component",
+      "type": "camera",
+      "title": "OMS Camera",
+      "subtitle": "",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "conn-oms",
+      "x": 455,
+      "y": 1032,
+      "w": 150,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "coax-connector",
+      "title": "Coax",
+      "subtitle": "Connector",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "dvr",
+      "x": 40,
+      "y": 1173,
+      "w": 285,
+      "h": 110,
+      "parent": "1",
+      "kind": "component",
+      "type": "camera",
+      "title": "DVR Camera",
+      "subtitle": "",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "conn-dvr",
+      "x": 455,
+      "y": 1170,
+      "w": 150,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "coax-connector",
+      "title": "Coax",
+      "subtitle": "Connector",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "ser-cluster",
+      "x": 1740,
+      "y": 575,
+      "w": 310,
+      "h": 132,
+      "parent": "compute",
+      "kind": "component",
+      "type": "serdes",
+      "title": "DS90UB947",
+      "subtitle": "Serializer · 2 lanes",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "ser-center",
+      "x": 1740,
+      "y": 795,
+      "w": 310,
+      "h": 132,
+      "parent": "compute",
+      "kind": "component",
+      "type": "serdes",
+      "title": "DS90UB947",
+      "subtitle": "Serializer · 2 lanes",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "j8",
+      "x": 2400,
+      "y": 583,
+      "w": 150,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "shielded-connector",
+      "title": "J8",
+      "subtitle": "Display connector",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "j9",
+      "x": 2400,
+      "y": 803,
+      "w": 150,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "shielded-connector",
+      "title": "J9",
+      "subtitle": "Display connector",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "cluster",
+      "x": 2730,
+      "y": 575,
+      "w": 310,
+      "h": 132,
+      "parent": "1",
+      "kind": "component",
+      "type": "display",
+      "title": "Cluster Display",
+      "subtitle": "1920 × 384 @ 60 Hz",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "center",
+      "x": 2730,
+      "y": 795,
+      "w": 310,
+      "h": 132,
+      "parent": "1",
+      "kind": "component",
+      "type": "display",
+      "title": "Center Display",
+      "subtitle": "1920 × 1080 @ 60 Hz",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "pmic",
+      "x": 1740,
+      "y": 990,
+      "w": 300,
+      "h": 120,
+      "parent": "compute",
+      "kind": "component",
+      "type": "power",
+      "title": "LP87565VRNFRQ1",
+      "subtitle": "PMIC",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "usb-charger",
+      "x": 2020,
+      "y": 1160,
+      "w": 285,
+      "h": 118,
+      "parent": "compute",
+      "kind": "component",
+      "type": "power",
+      "title": "USB Charger",
+      "subtitle": "CDP · 5 V / 1.5 A",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "j15",
+      "x": 2400,
+      "y": 1160,
+      "w": 150,
+      "h": 118,
+      "parent": "compute",
+      "kind": "component",
+      "type": "connector",
+      "title": "J15",
+      "subtitle": "Media USB",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "usb-media",
+      "x": 2730,
+      "y": 1160,
+      "w": 310,
+      "h": 118,
+      "parent": "1",
+      "kind": "component",
+      "type": "ic",
+      "title": "Media / USB DVR",
+      "subtitle": "USB 2.0 host port",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "vbat-12",
+      "x": 2110,
+      "y": 1010,
+      "w": 220,
+      "h": 116,
+      "parent": "compute",
+      "kind": "component",
+      "type": "power",
+      "title": "VBAT",
+      "subtitle": "12 V",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "b2b",
+      "x": 440,
+      "y": 1370,
+      "w": 2140,
+      "h": 112,
+      "parent": "ecu",
+      "kind": "connector",
+      "title": "B2B Connector",
+      "subtitle": "SnP > 5 GHz",
+      "evidence": "source-image"
+    },
+    {
+      "id": "b2b-usb",
+      "x": 855,
+      "y": 1402,
+      "w": 120,
+      "h": 48,
+      "parent": "b2b",
+      "kind": "port",
+      "title": "USB 2.0",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "b2b-vbus",
+      "x": 995,
+      "y": 1402,
+      "w": 120,
+      "h": 48,
+      "parent": "b2b",
+      "kind": "port",
+      "title": "VBUS",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "b2b-esai",
+      "x": 1135,
+      "y": 1402,
+      "w": 120,
+      "h": 48,
+      "parent": "b2b",
+      "kind": "port",
+      "title": "ESAI",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "b2b-i2c",
+      "x": 1275,
+      "y": 1402,
+      "w": 120,
+      "h": 48,
+      "parent": "b2b",
+      "kind": "port",
+      "title": "I2C",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "b2b-ctrl",
+      "x": 1445,
+      "y": 1402,
+      "w": 120,
+      "h": 48,
+      "parent": "b2b",
+      "kind": "port",
+      "title": "SPI / UART",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "b2b-reset",
+      "x": 1612,
+      "y": 1402,
+      "w": 156,
+      "h": 48,
+      "parent": "b2b",
+      "kind": "port",
+      "title": "Reset / Power-on",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "b2b-power",
+      "x": 1830,
+      "y": 1402,
+      "w": 120,
+      "h": 48,
+      "parent": "b2b",
+      "kind": "port",
+      "title": "Power / Sense",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "mcu",
+      "x": 1360,
+      "y": 1650,
+      "w": 250,
+      "h": 770,
+      "parent": "interface",
+      "kind": "component",
+      "type": "mcu",
+      "title": "CYT2B",
+      "subtitle": "Vehicle MCU",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "usb-protection",
+      "x": 710,
+      "y": 1640,
+      "w": 270,
+      "h": 128,
+      "parent": "interface",
+      "kind": "component",
+      "type": "ic",
+      "title": "TPD2S701-Q1",
+      "subtitle": "USB protection",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "tbox-connector",
+      "x": 455,
+      "y": 1646,
+      "w": 150,
+      "h": 116,
+      "parent": "interface",
+      "kind": "component",
+      "type": "connector",
+      "title": "TBox",
+      "subtitle": "Connector",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "tbox",
+      "x": 40,
+      "y": 1646,
+      "w": 285,
+      "h": 116,
+      "parent": "1",
+      "kind": "component",
+      "type": "ic",
+      "title": "TBox",
+      "subtitle": "USB 2.0 host",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "j4",
+      "x": 455,
+      "y": 1830,
+      "w": 200,
+      "h": 140,
+      "parent": "interface",
+      "kind": "component",
+      "type": "coax-connector",
+      "title": "J4 · GNSS",
+      "subtitle": "FAKRA",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "gyro",
+      "x": 1050,
+      "y": 1850,
+      "w": 220,
+      "h": 120,
+      "parent": "interface",
+      "kind": "component",
+      "type": "ic",
+      "title": "SMI230",
+      "subtitle": "Gyroscope",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "radio-ant",
+      "x": 40,
+      "y": 2080,
+      "w": 285,
+      "h": 132,
+      "parent": "1",
+      "kind": "component",
+      "type": "antenna",
+      "title": "AM / FM Antenna",
+      "subtitle": "PoC supply",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "j6",
+      "x": 455,
+      "y": 2088,
+      "w": 150,
+      "h": 116,
+      "parent": "interface",
+      "kind": "component",
+      "type": "coax-connector",
+      "title": "J6",
+      "subtitle": "FAKRA",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "dsp",
+      "x": 750,
+      "y": 2060,
+      "w": 250,
+      "h": 162,
+      "parent": "interface",
+      "kind": "component",
+      "type": "dsp",
+      "title": "SAF775D",
+      "subtitle": "Audio DSP / tuner",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "amp",
+      "x": 750,
+      "y": 2270,
+      "w": 300,
+      "h": 134,
+      "parent": "interface",
+      "kind": "component",
+      "type": "amp",
+      "title": "TDF8532 /<br>TAS6424L-Q1",
+      "subtitle": "Amplifier · 4 channels",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "eeprom",
+      "x": 1050,
+      "y": 2120,
+      "w": 220,
+      "h": 132,
+      "parent": "interface",
+      "kind": "component",
+      "type": "flash",
+      "title": "CAT24C16WI-GT3",
+      "subtitle": "EEPROM",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "watchdog",
+      "x": 1080,
+      "y": 2300,
+      "w": 210,
+      "h": 114,
+      "parent": "interface",
+      "kind": "component",
+      "type": "ic",
+      "title": "TPS3828-Q1",
+      "subtitle": "Watchdog",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "power-sense",
+      "x": 1740,
+      "y": 1660,
+      "w": 300,
+      "h": 128,
+      "parent": "interface",
+      "kind": "component",
+      "type": "power",
+      "title": "Power Sense",
+      "subtitle": "Vehicle power interface",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "can1",
+      "x": 1740,
+      "y": 1840,
+      "w": 300,
+      "h": 120,
+      "parent": "interface",
+      "kind": "component",
+      "type": "can",
+      "title": "JA1043T",
+      "subtitle": "CAN FD · channel 1",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "can2",
+      "x": 1740,
+      "y": 2010,
+      "w": 300,
+      "h": 120,
+      "parent": "interface",
+      "kind": "component",
+      "type": "can",
+      "title": "JA1043T",
+      "subtitle": "CAN FD · channel 2 · Reserved",
+      "status": "reserved",
+      "evidence": "source-image"
+    },
+    {
+      "id": "control-io",
+      "x": 1740,
+      "y": 2180,
+      "w": 300,
+      "h": 112,
+      "parent": "interface",
+      "kind": "component",
+      "type": "ic",
+      "title": "Control I/O",
+      "subtitle": "ACC / IGN / CRANK",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "switch-adc",
+      "x": 1740,
+      "y": 2340,
+      "w": 300,
+      "h": 116,
+      "parent": "interface",
+      "kind": "component",
+      "type": "ic",
+      "title": "Switch / ADC",
+      "subtitle": "Switch[0:4] · ADC[0:3]<br>Reserved",
+      "status": "reserved",
+      "evidence": "source-image"
+    },
+    {
+      "id": "j1",
+      "x": 455,
+      "y": 2480,
+      "w": 2100,
+      "h": 100,
+      "parent": "interface",
+      "kind": "connector",
+      "title": "J1 · Main Connector",
+      "subtitle": "Audio / vehicle harness",
+      "evidence": "source-image"
+    },
+    {
+      "id": "j1-mic",
+      "x": 785,
+      "y": 2506,
+      "w": 130,
+      "h": 48,
+      "parent": "j1",
+      "kind": "port",
+      "title": "MIC ×2",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "j1-speaker",
+      "x": 1065,
+      "y": 2506,
+      "w": 130,
+      "h": 48,
+      "parent": "j1",
+      "kind": "port",
+      "title": "Speaker ×4",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "j1-switch",
+      "x": 1735,
+      "y": 2506,
+      "w": 130,
+      "h": 48,
+      "parent": "j1",
+      "kind": "port",
+      "title": "Switch / ADC",
+      "reserved": true,
+      "evidence": "source-image"
+    },
+    {
+      "id": "j1-control",
+      "x": 1915,
+      "y": 2506,
+      "w": 130,
+      "h": 48,
+      "parent": "j1",
+      "kind": "port",
+      "title": "Discrete I/O",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "j1-can2",
+      "x": 2095,
+      "y": 2506,
+      "w": 130,
+      "h": 48,
+      "parent": "j1",
+      "kind": "port",
+      "title": "CAN2",
+      "reserved": true,
+      "evidence": "source-image"
+    },
+    {
+      "id": "j1-can1",
+      "x": 2275,
+      "y": 2506,
+      "w": 130,
+      "h": 48,
+      "parent": "j1",
+      "kind": "port",
+      "title": "CAN1",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "j1-power",
+      "x": 2445,
+      "y": 2506,
+      "w": 90,
+      "h": 48,
+      "parent": "j1",
+      "kind": "port",
+      "title": "Power",
+      "reserved": false,
+      "evidence": "source-image"
+    },
+    {
+      "id": "microphones",
+      "x": 700,
+      "y": 2660,
+      "w": 300,
+      "h": 128,
+      "parent": "1",
+      "kind": "component",
+      "type": "mic",
+      "title": "Microphones ×2",
+      "subtitle": "Powered microphone inputs",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "speakers",
+      "x": 1050,
+      "y": 2660,
+      "w": 320,
+      "h": 128,
+      "parent": "1",
+      "kind": "component",
+      "type": "speaker",
+      "title": "Speakers ×4",
+      "subtitle": "20 W ×4 · max. 25 W ×4",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "vehicle-switch",
+      "x": 1530,
+      "y": 2660,
+      "w": 330,
+      "h": 128,
+      "parent": "1",
+      "kind": "component",
+      "type": "ic",
+      "title": "Vehicle Inputs",
+      "subtitle": "Brake fluid / parking brake",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "vehicle-control",
+      "x": 1870,
+      "y": 2660,
+      "w": 310,
+      "h": 128,
+      "parent": "1",
+      "kind": "component",
+      "type": "ic",
+      "title": "Vehicle Control",
+      "subtitle": "ACC / IGN ON / CRANK",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "vehicle-can",
+      "x": 2210,
+      "y": 2660,
+      "w": 310,
+      "h": 128,
+      "parent": "1",
+      "kind": "component",
+      "type": "can",
+      "title": "Vehicle CAN",
+      "subtitle": "CAN1 / CAN2 provision",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "vehicle-power",
+      "x": 2670,
+      "y": 2660,
+      "w": 300,
+      "h": 128,
+      "parent": "1",
+      "kind": "component",
+      "type": "power",
+      "title": "Vehicle Power",
+      "subtitle": "6–16 V",
+      "status": "included",
+      "evidence": "source-image"
+    },
+    {
+      "id": "rear-camera",
+      "x": 2730,
+      "y": 1700,
+      "w": 310,
+      "h": 128,
+      "parent": "1",
+      "kind": "component",
+      "type": "camera",
+      "title": "Rear Camera",
+      "subtitle": "AHD / LVDS",
+      "status": "included",
+      "evidence": "source-image"
+    }
+  ],
+  "relations": [
+    {
+      "id": "bt-feed",
+      "from": "bt-ant",
+      "to": "wifi",
+      "parent": "1",
+      "family": "rf",
+      "label": "",
+      "both": false,
+      "arrow": false,
+      "reserved": false,
+      "route": [
+        [
+          300,
+          348
+        ],
+        [
+          500,
+          348
+        ],
+        [
+          500,
+          360
+        ],
+        [
+          580,
+          360
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "wifi-feed",
+      "from": "wifi-ant",
+      "to": "wifi",
+      "parent": "1",
+      "family": "rf",
+      "label": "",
+      "both": false,
+      "arrow": false,
+      "reserved": false,
+      "route": [
+        [
+          300,
+          488
+        ],
+        [
+          520,
+          488
+        ],
+        [
+          520,
+          412
+        ],
+        [
+          580,
+          412
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "wifi-control",
+      "from": "wifi",
+      "to": "soc",
+      "parent": "compute",
+      "family": "comm",
+      "label": "SDIO / UART",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          850,
+          446
+        ],
+        [
+          850,
+          470
+        ],
+        [
+          1040,
+          470
+        ],
+        [
+          1040,
+          567
+        ],
+        [
+          1120,
+          567
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "wifi-audio",
+      "from": "wifi",
+      "to": "soc",
+      "parent": "compute",
+      "family": "audio",
+      "label": "I2S",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          800,
+          446
+        ],
+        [
+          800,
+          500
+        ],
+        [
+          1015,
+          500
+        ],
+        [
+          1015,
+          598
+        ],
+        [
+          1120,
+          598
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "emmc-bus",
+      "from": "emmc",
+      "to": "soc",
+      "parent": "compute",
+      "family": "comm",
+      "label": "SDIO1",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1090,
+          446
+        ],
+        [
+          1090,
+          486
+        ],
+        [
+          1200,
+          486
+        ],
+        [
+          1200,
+          540
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "dram-bus",
+      "from": "dram",
+      "to": "soc",
+      "parent": "compute",
+      "family": "comm",
+      "label": "D / A",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1370,
+          446
+        ],
+        [
+          1370,
+          540
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "mfi-link",
+      "from": "mfi",
+      "to": "soc",
+      "parent": "compute",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1855,
+          446
+        ],
+        [
+          1855,
+          494
+        ],
+        [
+          1425,
+          494
+        ],
+        [
+          1425,
+          540
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "avm-j11",
+      "from": "avm",
+      "to": "j11",
+      "parent": "1",
+      "family": "video",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          325,
+          666
+        ],
+        [
+          380,
+          666
+        ],
+        [
+          380,
+          674
+        ],
+        [
+          455,
+          674
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "j11-des",
+      "from": "j11",
+      "to": "des-avm",
+      "parent": "compute",
+      "family": "video",
+      "label": "GMSL ×4",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          605,
+          674
+        ],
+        [
+          680,
+          674
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "avm-csi",
+      "from": "des-avm",
+      "to": "soc",
+      "parent": "compute",
+      "family": "video",
+      "label": "CSI-2",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          900,
+          674
+        ],
+        [
+          1120,
+          674
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "apa-coax",
+      "from": "apa",
+      "to": "conn-apa",
+      "parent": "1",
+      "family": "video",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          325,
+          814
+        ],
+        [
+          455,
+          814
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "apa-gmsl",
+      "from": "conn-apa",
+      "to": "des-cabin",
+      "parent": "compute",
+      "family": "video",
+      "label": "GMSL",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          605,
+          814
+        ],
+        [
+          680,
+          814
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "dms-coax",
+      "from": "dms",
+      "to": "conn-dms",
+      "parent": "1",
+      "family": "video",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          325,
+          952
+        ],
+        [
+          455,
+          952
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "dms-gmsl",
+      "from": "conn-dms",
+      "to": "des-cabin",
+      "parent": "compute",
+      "family": "video",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          605,
+          952
+        ],
+        [
+          680,
+          952
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "oms-coax",
+      "from": "oms",
+      "to": "conn-oms",
+      "parent": "1",
+      "family": "video",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          325,
+          1090
+        ],
+        [
+          455,
+          1090
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "oms-gmsl",
+      "from": "conn-oms",
+      "to": "des-cabin",
+      "parent": "compute",
+      "family": "video",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          605,
+          1090
+        ],
+        [
+          680,
+          1090
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "dvr-coax",
+      "from": "dvr",
+      "to": "conn-dvr",
+      "parent": "1",
+      "family": "video",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          325,
+          1228
+        ],
+        [
+          455,
+          1228
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "dvr-gmsl",
+      "from": "conn-dvr",
+      "to": "des-cabin",
+      "parent": "compute",
+      "family": "video",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          605,
+          1228
+        ],
+        [
+          680,
+          1228
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "cabin-csi",
+      "from": "des-cabin",
+      "to": "soc",
+      "parent": "compute",
+      "family": "video",
+      "label": "CSI-2",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          900,
+          1011
+        ],
+        [
+          1120,
+          1011
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "soc-cluster",
+      "from": "soc",
+      "to": "ser-cluster",
+      "parent": "compute",
+      "family": "video",
+      "label": "LVDS12 · 2.62 Gb/s",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1460,
+          641
+        ],
+        [
+          1740,
+          641
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "soc-center",
+      "from": "soc",
+      "to": "ser-center",
+      "parent": "compute",
+      "family": "video",
+      "label": "LVDS34 · 3.9 Gb/s",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1460,
+          861
+        ],
+        [
+          1740,
+          861
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "cluster-fpd",
+      "from": "ser-cluster",
+      "to": "j8",
+      "parent": "compute",
+      "family": "video",
+      "label": "FPD-Link · 2 lanes · <3 Gb/s/lane",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2050,
+          641
+        ],
+        [
+          2400,
+          641
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "center-fpd",
+      "from": "ser-center",
+      "to": "j9",
+      "parent": "compute",
+      "family": "video",
+      "label": "FPD-Link · 2 lanes · <3 Gb/s/lane",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2050,
+          861
+        ],
+        [
+          2400,
+          861
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "j8-panel",
+      "from": "j8",
+      "to": "cluster",
+      "parent": "1",
+      "family": "video",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2550,
+          641
+        ],
+        [
+          2730,
+          641
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "j9-panel",
+      "from": "j9",
+      "to": "center",
+      "parent": "1",
+      "family": "video",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2550,
+          861
+        ],
+        [
+          2730,
+          861
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "soc-pmic",
+      "from": "soc",
+      "to": "pmic",
+      "parent": "compute",
+      "family": "comm",
+      "label": "I2C",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1460,
+          1050
+        ],
+        [
+          1740,
+          1050
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "soc-media-usb",
+      "from": "soc",
+      "to": "usb-charger",
+      "parent": "compute",
+      "family": "comm",
+      "label": "USB 2.0 · D+ / D−",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1460,
+          1120
+        ],
+        [
+          1660,
+          1120
+        ],
+        [
+          1660,
+          1219
+        ],
+        [
+          2020,
+          1219
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "vbat-charger",
+      "from": "vbat-12",
+      "to": "usb-charger",
+      "parent": "compute",
+      "family": "power",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2220,
+          1126
+        ],
+        [
+          2220,
+          1160
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "charger-j15",
+      "from": "usb-charger",
+      "to": "j15",
+      "parent": "compute",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2305,
+          1219
+        ],
+        [
+          2400,
+          1219
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "j15-media",
+      "from": "j15",
+      "to": "usb-media",
+      "parent": "1",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2550,
+          1219
+        ],
+        [
+          2730,
+          1219
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "soc-b2b-usb",
+      "from": "soc",
+      "to": "b2b-usb",
+      "parent": "ecu",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1150,
+          1150
+        ],
+        [
+          1150,
+          1186
+        ],
+        [
+          915,
+          1186
+        ],
+        [
+          915,
+          1402
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "soc-b2b-vbus",
+      "from": "soc",
+      "to": "b2b-vbus",
+      "parent": "ecu",
+      "family": "power",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1200,
+          1150
+        ],
+        [
+          1200,
+          1210
+        ],
+        [
+          1055,
+          1210
+        ],
+        [
+          1055,
+          1402
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "soc-b2b-esai",
+      "from": "soc",
+      "to": "b2b-esai",
+      "parent": "ecu",
+      "family": "audio",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1250,
+          1150
+        ],
+        [
+          1250,
+          1234
+        ],
+        [
+          1195,
+          1234
+        ],
+        [
+          1195,
+          1402
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "soc-b2b-i2c",
+      "from": "soc",
+      "to": "b2b-i2c",
+      "parent": "ecu",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1310,
+          1150
+        ],
+        [
+          1310,
+          1258
+        ],
+        [
+          1335,
+          1258
+        ],
+        [
+          1335,
+          1402
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "soc-b2b-ctrl",
+      "from": "soc",
+      "to": "b2b-ctrl",
+      "parent": "ecu",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1370,
+          1150
+        ],
+        [
+          1370,
+          1306
+        ],
+        [
+          1505,
+          1306
+        ],
+        [
+          1505,
+          1402
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "soc-b2b-reset",
+      "from": "soc",
+      "to": "b2b-reset",
+      "parent": "ecu",
+      "family": "control",
+      "label": "",
+      "both": false,
+      "arrow": false,
+      "reserved": false,
+      "route": [
+        [
+          1425,
+          1150
+        ],
+        [
+          1425,
+          1282
+        ],
+        [
+          1690,
+          1282
+        ],
+        [
+          1690,
+          1402
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "b2b-pmic",
+      "from": "b2b-power",
+      "to": "pmic",
+      "parent": "ecu",
+      "family": "power",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1890,
+          1402
+        ],
+        [
+          1890,
+          1110
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "b2b-usb-protection",
+      "from": "b2b-usb",
+      "to": "usb-protection",
+      "parent": "ecu",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          915,
+          1450
+        ],
+        [
+          915,
+          1570
+        ],
+        [
+          820,
+          1570
+        ],
+        [
+          820,
+          1640
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "b2b-vbus-protection",
+      "from": "b2b-vbus",
+      "to": "usb-protection",
+      "parent": "ecu",
+      "family": "power",
+      "label": "5 V / 10 mA",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1055,
+          1450
+        ],
+        [
+          1055,
+          1738
+        ],
+        [
+          980,
+          1738
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "protection-tbox-data",
+      "from": "usb-protection",
+      "to": "tbox-connector",
+      "parent": "interface",
+      "family": "comm",
+      "label": "D+ / D−",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          710,
+          1677
+        ],
+        [
+          605,
+          1677
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "protection-tbox-vbus",
+      "from": "usb-protection",
+      "to": "tbox-connector",
+      "parent": "interface",
+      "family": "power",
+      "label": "VBUS",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          710,
+          1737
+        ],
+        [
+          605,
+          1737
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "tbox-connector-host",
+      "from": "tbox-connector",
+      "to": "tbox",
+      "parent": "1",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          455,
+          1704
+        ],
+        [
+          325,
+          1704
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "b2b-mcu-serial",
+      "from": "b2b-ctrl",
+      "to": "mcu",
+      "parent": "ecu",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1505,
+          1450
+        ],
+        [
+          1505,
+          1650
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "b2b-mcu-discrete",
+      "from": "b2b-reset",
+      "to": "mcu",
+      "parent": "ecu",
+      "family": "control",
+      "label": "",
+      "both": false,
+      "arrow": false,
+      "reserved": false,
+      "route": [
+        [
+          1690,
+          1450
+        ],
+        [
+          1690,
+          1590
+        ],
+        [
+          1570,
+          1590
+        ],
+        [
+          1570,
+          1650
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "gyro-mcu",
+      "from": "gyro",
+      "to": "mcu",
+      "parent": "interface",
+      "family": "comm",
+      "label": "I2C / SPI",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1270,
+          1910
+        ],
+        [
+          1360,
+          1910
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "radio-j6",
+      "from": "radio-ant",
+      "to": "j6",
+      "parent": "1",
+      "family": "rf",
+      "label": "",
+      "both": false,
+      "arrow": false,
+      "reserved": false,
+      "route": [
+        [
+          325,
+          2146
+        ],
+        [
+          455,
+          2146
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "j6-dsp",
+      "from": "j6",
+      "to": "dsp",
+      "parent": "interface",
+      "family": "rf",
+      "label": "AM / FM",
+      "both": false,
+      "arrow": false,
+      "reserved": false,
+      "route": [
+        [
+          605,
+          2146
+        ],
+        [
+          750,
+          2146
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "b2b-esai-dsp",
+      "from": "b2b-esai",
+      "to": "dsp",
+      "parent": "ecu",
+      "family": "audio",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1195,
+          1450
+        ],
+        [
+          1195,
+          1792
+        ],
+        [
+          1006,
+          1792
+        ],
+        [
+          1006,
+          2008
+        ],
+        [
+          835,
+          2008
+        ],
+        [
+          835,
+          2060
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "b2b-i2c-dsp",
+      "from": "b2b-i2c",
+      "to": "dsp",
+      "parent": "ecu",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1335,
+          1450
+        ],
+        [
+          1335,
+          1816
+        ],
+        [
+          1030,
+          1816
+        ],
+        [
+          1030,
+          2032
+        ],
+        [
+          935,
+          2032
+        ],
+        [
+          935,
+          2060
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "dsp-amp",
+      "from": "dsp",
+      "to": "amp",
+      "parent": "interface",
+      "family": "audio",
+      "label": "I2S",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          875,
+          2222
+        ],
+        [
+          875,
+          2270
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "mcu-eeprom-gpio",
+      "from": "mcu",
+      "to": "eeprom",
+      "parent": "interface",
+      "family": "control",
+      "label": "GPIO",
+      "both": false,
+      "arrow": false,
+      "reserved": false,
+      "route": [
+        [
+          1360,
+          2152
+        ],
+        [
+          1270,
+          2152
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "mcu-eeprom-i2c",
+      "from": "mcu",
+      "to": "eeprom",
+      "parent": "interface",
+      "family": "comm",
+      "label": "I2C",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1360,
+          2210
+        ],
+        [
+          1270,
+          2210
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "mcu-watchdog",
+      "from": "mcu",
+      "to": "watchdog",
+      "parent": "interface",
+      "family": "control",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1360,
+          2357
+        ],
+        [
+          1290,
+          2357
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "power-sense-mcu",
+      "from": "power-sense",
+      "to": "mcu",
+      "parent": "interface",
+      "family": "control",
+      "label": "",
+      "both": false,
+      "arrow": false,
+      "reserved": false,
+      "route": [
+        [
+          1740,
+          1724
+        ],
+        [
+          1610,
+          1724
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "sense-b2b",
+      "from": "power-sense",
+      "to": "b2b-power",
+      "parent": "ecu",
+      "family": "power",
+      "label": "",
+      "both": false,
+      "arrow": false,
+      "reserved": false,
+      "route": [
+        [
+          1890,
+          1660
+        ],
+        [
+          1890,
+          1450
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "mcu-can1",
+      "from": "mcu",
+      "to": "can1",
+      "parent": "interface",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1610,
+          1900
+        ],
+        [
+          1740,
+          1900
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "mcu-can2",
+      "from": "mcu",
+      "to": "can2",
+      "parent": "interface",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": true,
+      "route": [
+        [
+          1610,
+          2070
+        ],
+        [
+          1740,
+          2070
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "mcu-control",
+      "from": "mcu",
+      "to": "control-io",
+      "parent": "interface",
+      "family": "control",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1610,
+          2236
+        ],
+        [
+          1740,
+          2236
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "mcu-switch-adc",
+      "from": "mcu",
+      "to": "switch-adc",
+      "parent": "interface",
+      "family": "control",
+      "label": "",
+      "both": false,
+      "arrow": false,
+      "reserved": true,
+      "route": [
+        [
+          1610,
+          2398
+        ],
+        [
+          1740,
+          2398
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "j1-mic-dsp",
+      "from": "j1-mic",
+      "to": "dsp",
+      "parent": "interface",
+      "family": "audio",
+      "label": "External MIC IN ×2",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          850,
+          2506
+        ],
+        [
+          850,
+          2440
+        ],
+        [
+          680,
+          2440
+        ],
+        [
+          680,
+          2190
+        ],
+        [
+          750,
+          2190
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "amp-j1",
+      "from": "amp",
+      "to": "j1-speaker",
+      "parent": "interface",
+      "family": "audio",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          900,
+          2404
+        ],
+        [
+          900,
+          2432
+        ],
+        [
+          1130,
+          2432
+        ],
+        [
+          1130,
+          2506
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "j1-power-sense",
+      "from": "j1-power",
+      "to": "power-sense",
+      "parent": "interface",
+      "family": "power",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2490,
+          2506
+        ],
+        [
+          2490,
+          1724
+        ],
+        [
+          2040,
+          1724
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "can1-j1",
+      "from": "can1",
+      "to": "j1-can1",
+      "parent": "interface",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2040,
+          1900
+        ],
+        [
+          2340,
+          1900
+        ],
+        [
+          2340,
+          2506
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "can2-j1",
+      "from": "can2",
+      "to": "j1-can2",
+      "parent": "interface",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": true,
+      "route": [
+        [
+          2040,
+          2070
+        ],
+        [
+          2160,
+          2070
+        ],
+        [
+          2160,
+          2506
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "control-j1",
+      "from": "control-io",
+      "to": "j1-control",
+      "parent": "interface",
+      "family": "control",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2040,
+          2236
+        ],
+        [
+          2090,
+          2236
+        ],
+        [
+          2090,
+          2472
+        ],
+        [
+          1980,
+          2472
+        ],
+        [
+          1980,
+          2506
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "switch-j1",
+      "from": "switch-adc",
+      "to": "j1-switch",
+      "parent": "interface",
+      "family": "control",
+      "label": "",
+      "both": false,
+      "arrow": false,
+      "reserved": true,
+      "route": [
+        [
+          1800,
+          2456
+        ],
+        [
+          1800,
+          2506
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "mic-j1",
+      "from": "microphones",
+      "to": "j1-mic",
+      "parent": "1",
+      "family": "audio",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          850,
+          2660
+        ],
+        [
+          850,
+          2554
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "j1-speakers",
+      "from": "j1-speaker",
+      "to": "speakers",
+      "parent": "1",
+      "family": "audio",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1130,
+          2554
+        ],
+        [
+          1130,
+          2660
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "vehicle-switch-j1",
+      "from": "vehicle-switch",
+      "to": "j1-switch",
+      "parent": "1",
+      "family": "control",
+      "label": "",
+      "both": false,
+      "arrow": false,
+      "reserved": true,
+      "route": [
+        [
+          1800,
+          2660
+        ],
+        [
+          1800,
+          2554
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "vehicle-control-j1",
+      "from": "vehicle-control",
+      "to": "j1-control",
+      "parent": "1",
+      "family": "control",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          1980,
+          2660
+        ],
+        [
+          1980,
+          2554
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "vehicle-can1-j1",
+      "from": "vehicle-can",
+      "to": "j1-can1",
+      "parent": "1",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2340,
+          2660
+        ],
+        [
+          2340,
+          2554
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "vehicle-can2-j1",
+      "from": "vehicle-can",
+      "to": "j1-can2",
+      "parent": "1",
+      "family": "comm",
+      "label": "",
+      "both": true,
+      "arrow": true,
+      "reserved": true,
+      "route": [
+        [
+          2270,
+          2660
+        ],
+        [
+          2270,
+          2600
+        ],
+        [
+          2160,
+          2600
+        ],
+        [
+          2160,
+          2554
+        ]
+      ],
+      "source": "source-image"
+    },
+    {
+      "id": "vehicle-power-j1",
+      "from": "vehicle-power",
+      "to": "j1-power",
+      "parent": "1",
+      "family": "power",
+      "label": "",
+      "both": false,
+      "arrow": true,
+      "reserved": false,
+      "route": [
+        [
+          2820,
+          2660
+        ],
+        [
+          2820,
+          2618
+        ],
+        [
+          2490,
+          2618
+        ],
+        [
+          2490,
+          2554
+        ]
+      ],
+      "source": "source-image"
+    }
+  ]
+}
