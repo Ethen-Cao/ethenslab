@@ -62,7 +62,7 @@ GVM 内核
   /dev/video32 或 /dev/video33 → msm_vidc / msm_video.ko
 ```
 
-台架上的 QTI 硬件服务运行名为 `media.hwcodec`，启动文件为 `vendor.qti.media.c2@1.0-service`，VINTF 声明的 AIDL 实例为 `android.hardware.media.c2.IComponentStore/default`。旧版 OMX 的 `media.codec` 不是此 Codec2 硬件路径的中转服务；`mediaserver` 也不承担应用到该 HAL 的必经转发。编解码器列表查询与组件控制属于不同操作，不能依据列表查询过程判断组件调用的进程归属。
+QTI 硬件服务运行名为 `media.hwcodec`，启动文件为 `vendor.qti.media.c2@1.0-service`，VINTF 声明的 AIDL 实例为 `android.hardware.media.c2.IComponentStore/default`。
 
 硬件组件与软件组件分别由不同服务承载：
 
