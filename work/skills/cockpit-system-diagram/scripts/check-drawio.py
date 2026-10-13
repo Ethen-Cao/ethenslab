@@ -25,7 +25,8 @@ import zlib
 EPSILON = 0.01
 SCOPE = (
     "Native XML identity, nesting, bound endpoints, normalized ports, editable "
-    "primitives, and compact-card geometry/declared typography. Does not measure "
+    "primitives, page-wide icons/plain style, compact-card geometry/declared typography, "
+    "and native legend samples/coverage. Does not measure "
     "rendered text, detect routed crossings, verify electrical semantics, or "
     "replace draw.io render/save/move review."
 )
@@ -33,6 +34,21 @@ EXPECTED = {
     "node": ("height", "paddingX", "paddingY", "iconSlot", "iconMax", "iconGap",
              "nameFont", "nameLineHeight", "descriptionFont", "descriptionLineHeight", "textGap"),
     "connector": ("height", "paddingX", "iconSlot", "iconMax", "iconGap", "font", "minFont", "lineHeight"),
+}
+PLAIN_EXPECTED = {
+    "node": ("height", "paddingX", "paddingY", "nameFont", "nameLineHeight",
+             "descriptionFont", "descriptionLineHeight", "textGap"),
+    "connector": ("height", "paddingX", "font", "minFont", "lineHeight"),
+}
+NODE_STYLES = {"icons", "plain"}
+SIGNAL_COLORS = {
+    "video": "#356dc9", "audio": "#8055b5", "communication": "#087f83",
+    "control": "#5f6368", "power": "#be532e", "rf": "#846342",
+}
+NATIVE_ARROWS = {
+    "none", "classic", "classicThin", "block", "blockThin", "open", "openThin",
+    "diamond", "diamondThin", "oval", "baseDash", "doubleBlock", "doubleBlockThin",
+    "async", "cross",
 }
 
 
@@ -65,6 +81,7 @@ class Label(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.parts = []
         self.fonts = []
+        self.alignments = []
         self.feed(value)
         self.close()
         self.text = "".join(self.parts).strip()
@@ -80,6 +97,7 @@ class Label(HTMLParser):
         inline = dict(attributes).get("style", "")
         for match in re.finditer(r"(?:^|;)\s*font-size\s*:\s*([\d.]+)\s*(px|pt)\b", inline, re.I):
             self.fonts.append(float(match.group(1)) * (4 / 3 if match.group(2).lower() == "pt" else 1))
+        self.alignments.extend(match.group(1).lower() for match in re.finditer(r"(?:^|;)\s*text-align\s*:\s*(left|center|right|justify)\b", inline, re.I))
 
     def handle_endtag(self, tag):
         if tag in {"div", "p", "li"}:
@@ -130,16 +148,30 @@ def read_pages(path):
 
 def read_tokens(path):
     result = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(result, dict):
+        raise ValueError("tokens must be an object")
     if result.get("version") != 1:
         raise ValueError("tokens.version must be 1")
     if number(result.get("grid")) <= 0:
         raise ValueError("tokens.grid must be positive")
-    for section, keys in EXPECTED.items():
-        for key in keys:
-            if number(result.get(section, {}).get(key)) <= 0:
-                raise ValueError(f"tokens.{section}.{key} must be positive")
-    if result["connector"]["minFont"] > result["connector"]["font"]:
-        raise ValueError("connector minFont must not exceed font")
+    families = []
+    if "node" in result or "connector" in result:
+        families.append((result, EXPECTED, "tokens"))
+    if "plain" in result:
+        families.append((result["plain"], PLAIN_EXPECTED, "tokens.plain"))
+    if not families:
+        raise ValueError("tokens need an icons or plain card family")
+    for family, contract, prefix in families:
+        if not isinstance(family, dict):
+            raise ValueError(f"{prefix} must be an object")
+        for section, keys in contract.items():
+            if not isinstance(family.get(section), dict):
+                raise ValueError(f"{prefix}.{section} must be an object")
+            for key in keys:
+                if number(family[section].get(key)) <= 0:
+                    raise ValueError(f"{prefix}.{section}.{key} must be positive")
+        if family["connector"]["minFont"] > family["connector"]["font"]:
+            raise ValueError(f"{prefix}.connector minFont must not exceed font")
     return result
 
 
@@ -176,7 +208,11 @@ class Cell:
 class Graph:
     def __init__(self, name, model, compressed, tokens, report):
         self.name, self.compressed, self.tokens, self.report = name, compressed, tokens, report
+        declared_node_style = model.get("nodeStyle")
+        self.node_style = model.get("nodeStyle", "icons")
         self.cells = {}
+        if self.node_style not in NODE_STYLES:
+            self.issue("node-style", f"unknown page nodeStyle: {self.node_style!r}")
         root = model.find("root")
         if root is None:
             self.issue("missing-root", "mxGraphModel has no root")
@@ -205,6 +241,21 @@ class Graph:
             if len(geometries) > 1:
                 self.issue("geometry-count", "cell has multiple geometries", identity)
             self.cells[identity] = Cell(identity, xml, metadata, styles(xml.get("style", "")), geometries[0] if geometries else None)
+        # draw.io may drop custom mxGraphModel attributes on the active page
+        # during save. A native page-title object preserves the same contract.
+        # Do not infer the page mode from arbitrary cards or silently resolve
+        # conflicting/duplicate declarations.
+        markers = [cell for cell in self.cells.values() if cell.metadata.get("kind") == "page-contract"]
+        if len(markers) > 1:
+            self.issue("page-contract-count", "page must have at most one native page-contract marker")
+        for marker in markers:
+            marker_style = marker.metadata.get("nodeStyle")
+            if marker_style not in NODE_STYLES:
+                self.issue("node-style", f"unknown or missing page-contract nodeStyle: {marker_style!r}", marker.id)
+            if declared_node_style is not None and marker_style != declared_node_style:
+                self.issue("node-style-conflict", "graph and page-contract marker declare different nodeStyle values", marker.id)
+        if declared_node_style is None and len(markers) == 1 and markers[0].metadata.get("nodeStyle") in NODE_STYLES:
+            self.node_style = markers[0].metadata["nodeStyle"]
 
     def issue(self, code, message, identity=None, warning=False):
         item = {"page": self.name, "code": code, "message": message}
@@ -230,16 +281,17 @@ class Graph:
             return None
         return child
 
-    def check_font(self, cell, minimum, maximum):
+    def check_font(self, cell, minimum, maximum, alignment="left"):
         declared = number(cell.style.get("fontSize"))
-        fonts = [declared, *Label(cell.value).fonts]
+        label = Label(cell.value)
+        fonts = [declared, *label.fonts]
         if any(font < minimum - EPSILON or font > maximum + EPSILON for font in fonts):
             self.issue("card-font", f"font must be {minimum:g}–{maximum:g}px, including inline CSS", cell.id)
-        if cell.style.get("align") != "left":
-            self.issue("card-text-align", "card labels must be left-aligned", cell.id)
+        if cell.style.get("align") != alignment or any(value != alignment for value in label.alignments):
+            self.issue("card-text-align", f"card labels must be {alignment}-aligned", cell.id)
         if cell.style.get("verticalAlign", "middle") != "middle":
             self.issue("card-text-align", "text boxes must use middle vertical alignment", cell.id)
-        return Label(cell.value)
+        return label
 
     def check_icon(self, icon, card, cfg):
         x, y, width, height = icon.rect()
@@ -289,6 +341,14 @@ class Graph:
         if right - left > cfg["iconMax"] + EPSILON or bottom - top > cfg["iconMax"] + EPSILON:
             self.issue("icon-size", f"glyph geometry must fit {cfg['iconMax']}×{cfg['iconMax']}", icon.id)
 
+    def check_plain_icon_absence(self, card):
+        for child in self.cells.values():
+            chain = self.ancestors(child.id)
+            if not chain or card.id not in chain:
+                continue
+            if child.id == card.id + "-icon" or child.metadata.get("kind") in {"icon-group", "icon-stroke"}:
+                self.issue("plain-icon", "plain cards must not contain icon groups or icon strokes", child.id)
+
     def check_card(self, cell):
         kind = cell.metadata.get("layoutClass")
         if kind not in {"device", "connector", "processor", "port-strip"}:
@@ -303,27 +363,45 @@ class Graph:
         if not cell.vertex:
             self.issue("card-role", "classified hardware object must be a vertex", cell.id)
             return True
+        node_style = cell.metadata.get("nodeStyle", "icons")
+        if node_style not in NODE_STYLES:
+            self.issue("node-style", f"unknown card nodeStyle: {node_style!r}", cell.id)
+            return True
+        if node_style != self.node_style:
+            self.issue("node-style-mismatch", f"card nodeStyle {node_style!r} differs from page {self.node_style!r}; plain pages require explicit plain card metadata", cell.id)
+        plain = node_style == "plain"
+        if plain:
+            self.check_plain_icon_absence(cell)
         if kind == "processor":
             if cell.metadata.get("symbolType", "").lower() not in {"soc", "mcu"}:
                 self.issue("processor-exception", "only SoC/MCU may use processor height exception", cell.id)
-            return True
+            if not plain:
+                return True
         if kind == "port-strip":
             if cell.metadata.get("symbolType") not in {"connector", "port-strip", "connector-strip"}:
                 self.issue("port-strip-type", "port-strip is only for explicitly expanded connector terminals", cell.id)
             return True
-        cfg = self.tokens["node" if kind == "device" else "connector"]
+        family = self.tokens.get("plain", {}) if plain else self.tokens
+        section = "connector" if kind == "connector" else "node"
+        contract = PLAIN_EXPECTED if plain else EXPECTED
+        if not isinstance(family, dict) or not isinstance(family.get(section), dict) or any(key not in family[section] for key in contract[section]):
+            self.issue("missing-style-tokens", f"tokens do not define the {node_style} {section} contract", cell.id)
+            return True
+        cfg = family[section]
         _, _, width, height = cell.rect()
-        if not near(height, cfg["height"]):
+        if kind != "processor" and not near(height, cfg["height"]):
             self.issue("card-height", f"{kind} height must be {cfg['height']}", cell.id)
-        icon, name = self.child(cell, "-icon"), self.child(cell, "-name")
+        icon = None if plain else self.child(cell, "-icon")
+        name = self.child(cell, "-name")
         description = self.cells.get(cell.id + "-description")
         if icon:
             self.check_icon(icon, cell, cfg)
         if not name:
             return True
+        alignment = "center" if plain else "left"
         desc_height = 0
         if kind == "connector":
-            label = self.check_font(name, cfg["minFont"], cfg["font"])
+            label = self.check_font(name, cfg["minFont"], cfg["font"], alignment)
             expected_name_height = cfg["lineHeight"]
             if len(label.lines) != 1:
                 self.issue("connector-line", "connector label must have exactly one explicit line", name.id)
@@ -331,7 +409,7 @@ class Graph:
                 self.issue("connector-description", "compact connector has a single label, not a subtitle", description.id)
             gap = 0
         else:
-            label = self.check_font(name, cfg["nameFont"], cfg["nameFont"])
+            label = self.check_font(name, cfg["nameFont"], cfg["nameFont"], alignment)
             if not 1 <= len(label.lines) <= 2:
                 self.issue("name-lines", "device name must contain 1–2 explicit lines", name.id)
             expected_name_height = max(1, len(label.lines)) * cfg["nameLineHeight"]
@@ -339,20 +417,20 @@ class Graph:
             if description:
                 if not description.vertex or description.parent != cell.id:
                     self.issue("card-child", "description must be a direct native card child", description.id)
-                desc_label = self.check_font(description, cfg["descriptionFont"], cfg["descriptionFont"])
+                desc_label = self.check_font(description, cfg["descriptionFont"], cfg["descriptionFont"], alignment)
                 if len(desc_label.lines) != 1:
                     self.issue("description-lines", "description must have one explicit line; omit empty subtitle cells", description.id)
                 desc_height, gap = cfg["descriptionLineHeight"], cfg["textGap"]
-        expected_x = cfg["paddingX"] + cfg["iconSlot"] + cfg["iconGap"]
+        expected_x = cfg["paddingX"] if plain else cfg["paddingX"] + cfg["iconSlot"] + cfg["iconGap"]
         expected_width = width - expected_x - cfg["paddingX"]
         if expected_width <= 0:
-            self.issue("card-width", "card is too narrow for its icon, gap, and text", cell.id)
+            self.issue("card-width", "card is too narrow for its selected layout and text", cell.id)
         total = expected_name_height + gap + desc_height
         expected_y = (height - total) / 2
-        if kind == "device" and expected_y < cfg["paddingY"] - EPSILON:
+        if kind != "connector" and expected_y < cfg["paddingY"] - EPSILON:
             self.issue("text-padding", "text group violates vertical safe padding", cell.id)
         expected = [(name, expected_y, expected_name_height)]
-        if kind == "device" and description:
+        if kind != "connector" and description:
             expected.append((description, expected_y + expected_name_height + gap, desc_height))
         for text, y, h in expected:
             actual = text.rect()
@@ -362,9 +440,12 @@ class Graph:
 
     def check_edge(self, cell):
         source, target = cell.xml.get("source"), cell.xml.get("target")
-        decoration = cell.id.startswith("legend-") or cell.metadata.get("kind") in {"decoration", "legend", "icon-stroke"}
+        if self.is_decoration(cell):
+            return False
         if not source and not target:
-            if not decoration:
+            # Older icon primitives used this prefix without kind metadata.
+            # A bound relationship does not become decoration because of its ID.
+            if not cell.id.startswith("legend-"):
                 self.issue("unbound-edge", "relationship needs source and target; only explicit legend/decoration may be free-ended", cell.id)
             return False
         ends = [self.cells.get(source), self.cells.get(target)]
@@ -386,11 +467,144 @@ class Graph:
                 self.issue("edge-port", f"fixed ports require {prefix}Perimeter=0", cell.id)
         return True
 
+    def is_decoration(self, cell):
+        if cell.metadata.get("kind") in {"decoration", "legend", "icon-stroke", "legend-sample"}:
+            return True
+        return any(self.cells[identity].metadata.get("kind") == "legend-entry"
+                   for identity in self.ancestors(cell.id) or [] if identity in self.cells)
+
+    def visible(self, cell, text=False):
+        for item in [cell, *(self.cells[identity] for identity in self.ancestors(cell.id) or []
+                             if identity in self.cells)]:
+            if any(attributes.get("visible") == "0" for attributes in (item.xml.attrib, item.metadata, item.style)):
+                return False
+            if number(item.style.get("opacity"), 100) <= 0:
+                return False
+            if item is not cell and item.xml.get("collapsed") == "1":
+                return False
+        opacity_key = "textOpacity" if text else "strokeOpacity"
+        color_key = "fontColor" if text else "strokeColor"
+        if number(cell.style.get(opacity_key), 100) <= 0:
+            return False
+        if cell.style.get(color_key, "").strip().lower() in {"none", "transparent"}:
+            return False
+        if text and re.search(r"(?:display\s*:\s*none|visibility\s*:\s*hidden|(?:^|[;\"'])\s*opacity\s*:\s*0(?:\D|$)|color\s*:\s*transparent)", cell.value, re.I):
+            return False
+        return True
+
+    @staticmethod
+    def direction(cell):
+        # Samples require explicit arrow styles below. Legacy body edges without
+        # arrow metadata are treated as physical links only on a legend-aware page.
+        arrows = sum(cell.style.get(key, "none") not in {"", "none"}
+                     for key in ("startArrow", "endArrow"))
+        return ("physical", "single", "bidirectional")[arrows]
+
+    def check_legend_entry(self, entry, colors, used_signals):
+        if not entry.vertex or not (entry.style.get("group") == "1" or entry.style.get("shape") == "group"):
+            self.issue("legend-entry", "legend-entry must be a native group vertex", entry.id)
+        kind = entry.metadata.get("legendType")
+        value = entry.metadata.get("signalClass") if kind == "signal" else entry.metadata.get("legendValue")
+        allowed = {"signal": set(colors), "direction": {"single", "bidirectional", "physical"}, "linestyle": {"dashed"}}
+        if kind not in allowed or value not in allowed[kind]:
+            self.issue("legend-metadata", "legend needs a supported legendType and signalClass/legendValue", entry.id)
+            return None
+        label = self.cells.get(entry.id + "-label")
+        if label is None or not label.vertex or label.parent != entry.id:
+            self.issue("legend-label", "legend needs a direct native text child <entry>-label", entry.id)
+        elif (not (label.style.get("text") == "1" or label.style.get("shape") == "text")
+              or not any(char.isalnum() for char in Label(label.value).text)
+              or any(size <= 0 for size in [number(label.style.get("fontSize"), 11), *Label(label.value).fonts])
+              or not self.visible(label, text=True)):
+            self.issue("legend-label", "legend label must contain visible text", label.id)
+        sample = self.cells.get(entry.id + "-sample")
+        if (sample is None or not sample.edge or sample.parent != entry.id
+                or sample.metadata.get("kind") != "legend-sample"):
+            self.issue("legend-sample", "legend needs a direct native edge child <entry>-sample with kind=legend-sample", entry.id)
+            return kind, value
+        if sample.xml.get("source") or sample.xml.get("target"):
+            self.issue("legend-sample", "legend sample must be free-ended, independent of body relationships", sample.id)
+        if (sample.style.get("shape", "connector") not in {"connector", "line"}
+                or sample.style.get("text") == "1" or sample.style.get("group") == "1"):
+            self.issue("legend-sample", "legend sample must render as a native line, not a text/group shape", sample.id)
+        points = {} if sample.geometry is None else {
+            role: sample.geometry.findall(f"mxPoint[@as='{role}']")
+            for role in ("sourcePoint", "targetPoint")}
+        if not points or any(len(items) != 1 for items in points.values()):
+            self.issue("legend-sample-geometry", "legend sample needs explicit sourcePoint and targetPoint", sample.id)
+        else:
+            ends = [tuple(number(point.get(axis), 0) for axis in ("x", "y"))
+                    for items in points.values() for point in items]
+            if all(near(a, b) for a, b in zip(*ends)):
+                self.issue("legend-sample-geometry", "legend sample must have nonzero length", sample.id)
+        width = number(sample.style.get("strokeWidth"), 1)
+        if width <= 0 or not self.visible(sample) or not sample.style.get("strokeColor", "").strip():
+            self.issue("legend-sample-visible", "legend sample needs a visible native stroke of positive width", sample.id)
+        if any(sample.style.get(key) not in NATIVE_ARROWS for key in ("startArrow", "endArrow")):
+            self.issue("legend-sample-arrow", "legend samples must explicitly declare native startArrow and endArrow styles", sample.id)
+        dashed = sample.style.get("dashed", "0") == "1"
+        if kind == "signal":
+            if sample.style.get("strokeColor", "").strip().lower() != colors[value]:
+                self.issue("legend-signal-color", f"{value} sample must use {colors[value]}", sample.id)
+            widths = [number(edge.style.get("strokeWidth"), 1) for edge in used_signals.get(value, [])]
+            if widths and not any(near(width, actual) for actual in widths):
+                self.issue("legend-signal-width", "signal sample width must match a body edge in its signal family", sample.id)
+            if dashed or self.direction(sample) != "physical":
+                self.issue("legend-signal-style", "signal-family samples must be solid and arrowless; explain direction/style separately", sample.id)
+        elif kind == "direction":
+            if self.direction(sample) != value or dashed:
+                self.issue("legend-direction-style", f"direction sample must show a solid {value} connection", sample.id)
+        elif not dashed or self.direction(sample) != "physical":
+            self.issue("legend-linestyle-style", "dashed-style sample must be dashed and arrowless", sample.id)
+        return kind, value
+
+    def check_legends(self, relationships):
+        colors = {key: str(self.tokens.get("signalColors", {}).get(key, value)).strip().lower()
+                  for key, value in SIGNAL_COLORS.items()}
+        used_signals = {}
+        for edge in relationships:
+            family = edge.metadata.get("signalClass")
+            if family not in colors:
+                family = next((key for key, color in colors.items()
+                               if edge.style.get("strokeColor", "").strip().lower() == color), None)
+            if family:
+                used_signals.setdefault(family, []).append(edge)
+        entries = [cell for cell in self.cells.values() if cell.metadata.get("kind") == "legend-entry"]
+        for sample in self.cells.values():
+            if sample.metadata.get("kind") != "legend-sample":
+                continue
+            owner = self.cells.get(sample.parent)
+            if owner is None or owner.metadata.get("kind") != "legend-entry" or sample.id != owner.id + "-sample":
+                self.issue("legend-sample-parent", "legend-sample must be the named direct child of a legend-entry", sample.id)
+        coverage = set()
+        for entry in entries:
+            try:
+                result = self.check_legend_entry(entry, colors, used_signals)
+                if result:
+                    coverage.add(result)
+            except (ValueError, TypeError, OverflowError) as error:
+                self.issue("legend-value", str(error), entry.id)
+        for family in used_signals:
+            if ("signal", family) not in coverage:
+                self.issue("legend-signal-missing", f"used signal family {family!r} needs a native line sample and label")
+        # Old uncolored fixtures predate the legend contract. Recognized palette,
+        # typed entries, or explicit line semantics opt a page into coverage.
+        legend_aware = used_signals or entries or any(
+            "startArrow" in edge.style or "endArrow" in edge.style or edge.style.get("dashed") == "1"
+            for edge in relationships)
+        if legend_aware:
+            for value in sorted({self.direction(edge) for edge in relationships}):
+                if ("direction", value) not in coverage:
+                    self.issue("legend-direction-missing", f"used {value} direction needs a native sample and label")
+            if any(edge.style.get("dashed") == "1" for edge in relationships) and ("linestyle", "dashed") not in coverage:
+                self.issue("legend-linestyle-missing", "used dashed line style needs a native sample and label")
+
     def validate(self):
         roots = [cell for cell in self.cells.values() if not cell.parent]
         if len(roots) != 1 or roots[0].vertex or roots[0].edge:
             self.issue("graph-root", "graph needs one non-drawable parentless root")
         components, connections = 0, 0
+        relationships = []
         for cell in self.cells.values():
             if cell.parent and cell.parent not in self.cells:
                 self.issue("missing-parent", f"parent {cell.parent!r} does not exist", cell.id)
@@ -430,14 +644,17 @@ class Graph:
                 if cell.edge:
                     if cell.geometry.get("relative") != "1":
                         self.issue("edge-geometry", "edge geometry must be relative", cell.id)
-                    connections += int(self.check_edge(cell))
+                    if self.check_edge(cell):
+                        connections += 1
+                        relationships.append(cell)
                 else:
                     components += int(self.check_card(cell))
             except (ValueError, TypeError, OverflowError) as error:
                 self.issue("contract-value", str(error), cell.id)
+        self.check_legends(relationships)
         if components == 0:
             self.issue("no-classified-cards", "page has no classified hardware cards; inspect whether it is a legend-only page", warning=True)
-        return {"name": self.name, "compressed": self.compressed, "cells": len(self.cells),
+        return {"name": self.name, "compressed": self.compressed, "nodeStyle": self.node_style, "cells": len(self.cells),
                 "classifiedCards": components, "boundEdges": connections}
 
 

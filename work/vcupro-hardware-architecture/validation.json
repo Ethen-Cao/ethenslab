@@ -1,0 +1,44 @@
+{
+  "source": "VCUpro--sysAD--overview (-S-N--A1--v1.4).pdf",
+  "sourcePage": 4,
+  "view": "Hardware connectivity",
+  "nodeStyle": "icons",
+  "skill": "cockpit-system-diagram",
+  "checks": {
+    "nativeStructure": "Passed: 81 classified cards and 92 bound edges; no errors or warnings",
+    "visualReview": "Full preview and native-size crops reviewed; title, label, RF and camera-route overlaps corrected",
+    "drawioSaveRoundtrip": "Passed: local draw.io uncompressed XML export retained editable structure and passed the checker",
+    "movement": "Temporary copy: moved MCU (+24,-16) and tuner sub-board (+16,+16). Endpoints remain bound; fixed MCU control-route waypoints require manual adjustment after movement",
+    "sourceReview": "Independent page-4 comparison completed; corrections included SAIL ownership, signal directions, radio boundary mapping and USB usage",
+    "electricalValidation": "Not performed; this is a source-based architecture reconstruction, not a schematic or pinout"
+  },
+  "sourceHandling": {
+    "removed": "Excluded from active connectivity and listed in configuration notes",
+    "reserved": "Labeled Reserved; source paths retained with dashed styling",
+    "variants": "ROW/N tuner BOMs and display alternatives explicitly labeled",
+    "tbd": "GNSS/Game/Roof exclusivity and USB2 usage remain unresolved as in the source",
+    "unknown": "No inferred connector housing, LIN2 endpoint, TCP link, GYRO-to-GNSS protocol or FCC reservation state",
+    "connectorReferences": "Repeated J identifiers are link references, not duplicate connector entities"
+  },
+  "legendRepair": {
+    "signalSamples": 5,
+    "directionSamples": 3,
+    "dashedSamples": 1,
+    "unchangedNonLegendCells": 1398,
+    "nativeValidation": "Passed for the corrected diagram and both icons/plain templates; no errors or warnings",
+    "regressionTests": "88 passed; the original text-only legend fails the new coverage checks",
+    "drawioSaveRoundtrip": "Passed: 1426 cells, 81 classified cards and 92 bound architecture edges retained; legend samples and metadata pass validation after local draw.io XML export",
+    "visualReview": "Rendered signal and arrow/dashed legend crops reviewed; updated icons/plain template connection and audio-example pages reviewed"
+  },
+  "paletteUpdate": {
+    "scheme": "Neutral containers, mist-blue hardware cards, unchanged signal-family lines",
+    "cardPaletteValidation": "All 81 cards match tokens before and after local draw.io save roundtrip",
+    "preservation": "Only fillColor, strokeColor, strokeWidth and secondary fontColor changed; IDs, geometry, labels, metadata and all 749 native edges are unchanged",
+    "templates": "Both icons/plain templates and all eight page previews updated; their geometry and architecture relationships are unchanged",
+    "visualReview": "Full architecture preview and all template pages reviewed",
+    "regressionTests": "88 passed; skill validator and diagram structure checks passed",
+    "movement": "Not repeated for this palette-only change; geometry, parent links and edge bindings are unchanged from the previously movement-tested artifact"
+  },
+  "originalPdfModified": false,
+  "remoteUpload": false
+}
