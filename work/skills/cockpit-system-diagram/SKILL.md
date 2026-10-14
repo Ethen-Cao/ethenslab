@@ -36,8 +36,11 @@ description: 使用原生可编辑 draw.io 绘制、重构智能座舱系统上�
 - **唯一尺寸与样式参数**：[tokens.json](assets/tokens.json)。使用模板内嵌的离线字体；不下载字体、不新增网络依赖。
 - **预览**：[器件](assets/previews/01-symbols.png)、[连接](assets/previews/02-connections.png)、[音频](assets/previews/03-audio-example.png)、[接插件](assets/previews/04-connector-symbols.png)。只看本次需要的页面；预览不是编辑源。
 - **无图标预览**：[器件](assets/previews/plain/01-symbols.png)、[连接](assets/previews/plain/02-connections.png)、[音频](assets/previews/plain/03-audio-example.png)、[接插件](assets/previews/plain/04-connector-symbols.png)。
+- **完整硬件系统图参考（用户认可）**：[vcupro-system-architecture.drawio](assets/vcupro-system-architecture.drawio)。绘制包含多条音视频、通信及车辆控制链路的图标版整图时，参考其处理核心、物理边界与功能分组的组织，以及图标文字组合、信号走线和图例表达；它补充上述符号模板，不替代模板与 tokens。
 
 模板来自已审阅的 `cockpit-symbol-library-review/cockpit-hardware-symbols.drawio`，在本目录内落实紧凑尺寸规则。旧审阅图的高卡片不再作为尺寸依据；模板中的拓扑只演示表达方法，不证明目标系统具有该硬件。
+
+VCUpro 参考保留用户保存的原图，不作为生成器批量重建或样式迁移的对象。借鉴其布局方法，不照搬型号、端口、板卡归属、连接与 Reserved / TBD 配置，也不把其画布尺寸或字号作为所有图的固定规格；目标图仍须按当前规则与实际阅读尺寸验收。软件分层或 VM 部署图不套用此硬件布局。
 
 ## 必须保持的约束
 
