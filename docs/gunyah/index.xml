@@ -84,10 +84,7 @@
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; └─ ONNX Runtime → CPU（或其他 ORT EP）
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ↓ tensor / InferenceChunk / score
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;上层解码器、唤醒状态机或对话业务
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;下图把“算法封装库”和“运行时 &lt;code&gt;.so&lt;/code&gt;”分开。实线表示主要数据流，虚线表示动态加载或控制关系。&lt;/p&gt;</description></item><item><title>AI Stack 架构解析（SA8397 双虚拟机平台实测）</title><link>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</link><pubDate>Tue, 18 Aug 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</guid><description>&lt;blockquote&gt;
-&lt;p&gt;本文所有内容来自真机实测：Android GVM（&lt;code&gt;adb -s d7df5883 shell&lt;/code&gt;，&lt;code&gt;SA8397 Cockpit&lt;/code&gt;）与 Linux PVM（&lt;code&gt;adb -s e66b06ea shell&lt;/code&gt;，&lt;code&gt;Linux sa8797 6.6.110-rt61-debug PREEMPT_RT&lt;/code&gt;）。组件名、路径、进程参数均为实采值；涉及 OEM 的组件名已脱敏。&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h2 id="1-软件架构总图"&gt;1. 软件架构总图&lt;/h2&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;下图把“算法封装库”和“运行时 &lt;code&gt;.so&lt;/code&gt;”分开。实线表示主要数据流，虚线表示动态加载或控制关系。&lt;/p&gt;</description></item><item><title>SA8397 AI Stack 架构解析</title><link>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</link><pubDate>Tue, 18 Aug 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</guid><description>&lt;h2 id="1-软件架构总图"&gt;1. 软件架构总图&lt;/h2&gt;
 &lt;p&gt;图中实线箭头为&lt;strong&gt;请求数据流&lt;/strong&gt;（自上而下），虚线箭头为&lt;strong&gt;应答/控制流&lt;/strong&gt;（自下而上）。&lt;/p&gt;
 &lt;div style="max-width:100%;overflow-x:auto;"&gt;
 &lt;svg viewBox="0 0 1240 940" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="aistack-architecture-title" style="display:block;width:100%;height:auto;min-width:900px;font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;"&gt;
@@ -212,7 +209,7 @@
 &lt;/svg&gt;
 &lt;/div&gt;
 &lt;h2 id="2-数据流总览"&gt;2. 数据流总览&lt;/h2&gt;
-&lt;p&gt;&lt;strong&gt;一次 NPU 推理的完整往返&lt;/strong&gt;（按真机组件、设备节点和进程边界整理）：&lt;/p&gt;</description></item><item><title>智能座舱中的 SOME/IP：协议、VLAN 与部署实践</title><link>https://ethen-cao.github.io/ethenslab/gunyah/someip-deployment-in-smart-cockpit/</link><pubDate>Tue, 04 Aug 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/someip-deployment-in-smart-cockpit/</guid><description>&lt;h2 id="1-为什么用一个实际座舱来讲-someip"&gt;1. 为什么用一个实际座舱来讲 SOME/IP&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;一次 NPU 推理的完整往返&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>智能座舱中的 SOME/IP：协议、VLAN 与部署实践</title><link>https://ethen-cao.github.io/ethenslab/gunyah/someip-deployment-in-smart-cockpit/</link><pubDate>Tue, 04 Aug 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/someip-deployment-in-smart-cockpit/</guid><description>&lt;h2 id="1-为什么用一个实际座舱来讲-someip"&gt;1. 为什么用一个实际座舱来讲 SOME/IP&lt;/h2&gt;
 &lt;p&gt;SOME/IP 经常被概括成“跑在以太网上的汽车中间件协议”。这个说法没有错，但只记住这句话，仍然很难回答工程里的几个核心问题：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;一个车速服务到底由谁提供、由谁消费？&lt;/li&gt;

@@ -12,10 +12,7 @@
 &lt;li&gt;保持 GVM 上层符合 Android Car EVS 的标准分层和接口模型。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id="12-设计范围"&gt;1.2 设计范围&lt;/h3&gt;
-&lt;p&gt;本文覆盖前、后、左、右四路 Camera 从物理采集、PVM 四路聚合、HAB 跨 VM 共享、GVM V4L2/EVS 消费到 Android 客户端的完整架构。&lt;/p&gt;</description></item><item><title>SA8797 Gunyah PVM 高温自动关机原理与实现</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-pvm-thermal-emergency-shutdown/</link><pubDate>Thu, 20 Aug 2026 12:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-pvm-thermal-emergency-shutdown/</guid><description>SA8797 PVM 从 TSENS 温度采集、thermal trip 分级处理到 Linux 保护性关机的实现</description></item><item><title>AI Stack 架构解析（SA8397 双虚拟机平台实测）</title><link>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</link><pubDate>Tue, 18 Aug 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</guid><description>&lt;blockquote&gt;
-&lt;p&gt;本文所有内容来自真机实测：Android GVM（&lt;code&gt;adb -s d7df5883 shell&lt;/code&gt;，&lt;code&gt;SA8397 Cockpit&lt;/code&gt;）与 Linux PVM（&lt;code&gt;adb -s e66b06ea shell&lt;/code&gt;，&lt;code&gt;Linux sa8797 6.6.110-rt61-debug PREEMPT_RT&lt;/code&gt;）。组件名、路径、进程参数均为实采值；涉及 OEM 的组件名已脱敏。&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;h2 id="1-软件架构总图"&gt;1. 软件架构总图&lt;/h2&gt;
+&lt;p&gt;本文覆盖前、后、左、右四路 Camera 从物理采集、PVM 四路聚合、HAB 跨 VM 共享、GVM V4L2/EVS 消费到 Android 客户端的完整架构。&lt;/p&gt;</description></item><item><title>SA8797 Gunyah PVM 高温自动关机原理与实现</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-pvm-thermal-emergency-shutdown/</link><pubDate>Thu, 20 Aug 2026 12:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-pvm-thermal-emergency-shutdown/</guid><description>SA8797 PVM 从 TSENS 温度采集、thermal trip 分级处理到 Linux 保护性关机的实现</description></item><item><title>SA8397 AI Stack 架构解析</title><link>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</link><pubDate>Tue, 18 Aug 2026 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/aistack-architecture/</guid><description>&lt;h2 id="1-软件架构总图"&gt;1. 软件架构总图&lt;/h2&gt;
 &lt;p&gt;图中实线箭头为&lt;strong&gt;请求数据流&lt;/strong&gt;（自上而下），虚线箭头为&lt;strong&gt;应答/控制流&lt;/strong&gt;（自下而上）。&lt;/p&gt;
 &lt;div style="max-width:100%;overflow-x:auto;"&gt;
 &lt;svg viewBox="0 0 1240 940" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="aistack-architecture-title" style="display:block;width:100%;height:auto;min-width:900px;font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;"&gt;
@@ -140,7 +137,7 @@
 &lt;/svg&gt;
 &lt;/div&gt;
 &lt;h2 id="2-数据流总览"&gt;2. 数据流总览&lt;/h2&gt;
-&lt;p&gt;&lt;strong&gt;一次 NPU 推理的完整往返&lt;/strong&gt;（按真机组件、设备节点和进程边界整理）：&lt;/p&gt;</description></item><item><title>PVM 图形栈架构（SA8797 / Gunyah）</title><link>https://ethen-cao.github.io/ethenslab/gunyah/pvm-graphics-stack/</link><pubDate>Wed, 29 Jul 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/pvm-graphics-stack/</guid><description>&lt;p&gt;本文描述 SA8797 座舱平台 Primary VM（PVM）的显示架构、OpenWFD 资源划分、LA-GVM（Android Guest）显示通路以及抓帧边界。结论由 PVM 源码、镜像配置与台架运行态交叉验证。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;一次 NPU 推理的完整往返&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>PVM 图形栈架构（SA8797 / Gunyah）</title><link>https://ethen-cao.github.io/ethenslab/gunyah/pvm-graphics-stack/</link><pubDate>Wed, 29 Jul 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/pvm-graphics-stack/</guid><description>&lt;p&gt;本文描述 SA8797 座舱平台 Primary VM（PVM）的显示架构、OpenWFD 资源划分、LA-GVM（Android Guest）显示通路以及抓帧边界。结论由 PVM 源码、镜像配置与台架运行态交叉验证。&lt;/p&gt;
 &lt;blockquote&gt;
 &lt;p&gt;核验基线：设备 &lt;code&gt;e8cc24da&lt;/code&gt;，&lt;code&gt;auto-oem_a 202607262327&lt;/code&gt;，Linux &lt;code&gt;6.6.110-rt61-debug&lt;/code&gt;（PREEMPT_RT，aarch64），Weston &lt;code&gt;13.0.1&lt;/code&gt;。&lt;br&gt;
 运行态采集日期：2026-07-29。VFIO group 编号、PID 等动态标识不作为固定接口。&lt;/p&gt;

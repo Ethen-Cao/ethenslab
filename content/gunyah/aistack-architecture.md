@@ -1,12 +1,10 @@
 +++
 date = '2026-08-18T10:00:00+08:00'
 draft = false
-title = 'AI Stack 架构解析（SA8397 双虚拟机平台实测）'
+title = 'SA8397 AI Stack 架构解析'
 categories = ['Qualcomm', 'AI', 'QNN', 'FastRPC', '虚拟化']
 tags = ['SA8397', 'ONNX Runtime', 'QNN EP', 'QNN', 'FastRPC', 'HTP', 'NPU', 'qcrosvm', 'GVM', 'PVM', 'debug']
 +++
-
-> 本文所有内容来自真机实测：Android GVM（`adb -s d7df5883 shell`，`SA8397 Cockpit`）与 Linux PVM（`adb -s e66b06ea shell`，`Linux sa8797 6.6.110-rt61-debug PREEMPT_RT`）。组件名、路径、进程参数均为实采值；涉及 OEM 的组件名已脱敏。
 
 ## 1. 软件架构总图
 
@@ -137,7 +135,7 @@ tags = ['SA8397', 'ONNX Runtime', 'QNN EP', 'QNN', 'FastRPC', 'HTP', 'NPU', 'qcr
 
 ## 2. 数据流总览
 
-**一次 NPU 推理的完整往返**（按真机组件、设备节点和进程边界整理）：
+**一次 NPU 推理的完整往返**：
 
 ```text
 [请求] GVM 应用 → libQnnHtp.so → libQnnHtpV81Stub.so → libcdsprpc.so
@@ -208,9 +206,9 @@ SA8397 提供四个 HTP/NSP 计算实例。GVM 将它们暴露为四个独立的
 
 ### 3.7 PVM 本地 AI 服务
 
-- **qcxserver（相机服务）**：进程 fd 实测持有 `/dev/shm/lrmc_rq_*`/`lrmc_sq_*` 消息队列与 `/dev/kiumd`，maps 中加载 `libarcsoft_qnnhtp.so`——相机管线中的 AI 推理（如人脸/场景识别）走 PVM 本地的 QNN→FastRPC→GLink 路径，不经 GVM。
-- **oms_main**：乘员监控服务，日志高频输出 ArcSoft 驾驶 AI SDK 推理结果。
-- **AIService**（名称已脱敏）：PVM 侧 AI 服务进程。
+- **qcxserver（相机服务）**：进程 fd 实测持有 `/dev/shm/lrmc_rq_*`/`lrmc_sq_*` 消息队列与 `/dev/kiumd`， 加载相机管线中的 AI 推理（如人脸/场景识别）走 PVM 本地的 QNN→FastRPC→GLink 路径，不经 GVM。
+- **oms_main**：乘员监控服务
+- **AIService**：PVM 侧 AI 服务进程。
 - **nspconfig_service / nsp_drv**：NPU 配置服务与驱动工具（`nsp_drv` 是唯一持有 `/dev/umd_nsp_drv` 的进程）。
 
 ### 3.8 NPU 的电源与配置管理（PVM 内核）
