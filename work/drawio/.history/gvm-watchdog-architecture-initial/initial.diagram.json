@@ -1,0 +1,708 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "gvm-watchdog-architecture",
+    "title": "GVM Watchdog Architecture",
+    "subtitle": "Kernel petting, virtual bark / bite and managed GVM restart",
+    "description": "The QNX host executes qvm, vmm_service and vmm_lifecycle. Android kernel modules pet a trapped watchdog register. qvm loads vdev-msm.so, emulates the guest watchdog with guest_timer, injects bark, handles bite and reports event 3 through /dev/vmm. In the configured manual mode, vmm_service performs ordered client cleanup, waits for qvm termination and sends GVM_EVENT_DOWN to vmm_lifecycle. vmm_lifecycle requests START, and vmm_service spawns qvm. QNX is the host OS, not a Gunyah guest; the Hypervisor band spans only the Android guest. The independent physical APSS watchdog and debug host-ramdump override are outside this focused diagram. Kernel build configuration declares pet 6000 ms, bark 30000 ms and bite bark plus 3000 ms; these are not measurements of the supplied runtime log.",
+    "scope": "subsystem",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 2260,
+    "height": 1700
+  },
+  "sources": [
+    {
+      "id": "deployment",
+      "title": "Host PVM and LA GVM identities",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/services/applications/vmm_lifecycle/vmm_lifecycle.c:65-68"
+    },
+    {
+      "id": "host-build",
+      "title": "QNX host procnto with QVM kernel module",
+      "locator": "bsp/apps/qnx_ap/target/hypervisor/host/out_8540/mifs_la_qcc6.build:32"
+    },
+    {
+      "id": "host-images",
+      "title": "QVM_LOAD and host image construction",
+      "locator": "bsp/apps/qnx_ap/target/hypervisor/host/create_images.sh:60-63,157,198-201"
+    },
+    {
+      "id": "host-timer",
+      "title": "Armv8 Generic Timer callouts and GIC timer interrupt",
+      "locator": "bsp/apps/qnx_ap/src/hardware/startup/boards/sdx/aarch64/init_qtime.c:27-62"
+    },
+    {
+      "id": "host-start",
+      "title": "Launch vmm_service and vmm_lifecycle",
+      "locator": "bsp/apps/qnx_ap/target/hypervisor/host/startup.qvmhost.tmpl:1309-1312"
+    },
+    {
+      "id": "manual-mode",
+      "title": "Manual restart mode for the LA GVM",
+      "locator": "bsp/apps/qnx_ap/target/hypervisor/host/fdt_config/dtb/sdm-host_la.dts:257-259"
+    },
+    {
+      "id": "vm-config",
+      "title": "Virtual watchdog mapping and dump configuration",
+      "locator": "bsp/apps/qnx_ap/target/hypervisor/gvm/ivi/la/linux-la.config:60-64"
+    },
+    {
+      "id": "guest-build",
+      "title": "Project uses the autogvm GKI build",
+      "locator": "build/scripts/build_kernel.sh:17"
+    },
+    {
+      "id": "guest-config",
+      "title": "Watchdog module and timeout build settings",
+      "locator": "android/android/kernel_platform/msm-kernel/arch/arm64/configs/vendor/autogvm_GKI.config:110-114"
+    },
+    {
+      "id": "guest-modules",
+      "title": "Watchdog kernel module identities",
+      "locator": "android/android/kernel_platform/msm-kernel/drivers/soc/qcom/Makefile:46-47"
+    },
+    {
+      "id": "guest-pet",
+      "title": "pet_timer, IPI checks and msm-watchdog thread",
+      "locator": "android/android/kernel_platform/msm-kernel/drivers/soc/qcom/qcom_wdt_core.c:656-738,922-936,1033-1034"
+    },
+    {
+      "id": "guest-bark",
+      "title": "Bark handler programs an immediate bite",
+      "locator": "android/android/kernel_platform/msm-kernel/drivers/soc/qcom/qcom_wdt_core.c:805-850"
+    },
+    {
+      "id": "guest-mmio",
+      "title": "Register offsets, MMIO reset and probe",
+      "locator": "android/android/kernel_platform/msm-kernel/drivers/soc/qcom/qcom_soc_wdt.c:15-20,42-47,94-106"
+    },
+    {
+      "id": "guest-dt",
+      "title": "Guest watchdog MMIO and interrupt identity",
+      "locator": "android/android/kernel_platform/qcom/proprietary/devicetree/qcom/quin-vm-common.dtsi:105-110"
+    },
+    {
+      "id": "vdev-timer",
+      "title": "QVM guest timer setup and timer callback",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/vdev/vdev-msm/vdev-msm.c:317-336,520-571,1413-1416"
+    },
+    {
+      "id": "vdev-pet",
+      "title": "MMIO writes and watchdog reset",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/vdev/vdev-msm/vdev-msm.c:622-758"
+    },
+    {
+      "id": "vdev-trap",
+      "title": "Register trap regions and callbacks",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/vdev/vdev-msm/vdev-msm.c:203-215,1567-1573,1772-1790"
+    },
+    {
+      "id": "vdev-dump",
+      "title": "Dump policy, guest minidump and qvm exit",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/vdev/vdev-msm/vdev-msm.c:339-501"
+    },
+    {
+      "id": "vdev-terminate",
+      "title": "VDEV_CTRL_TERMINATE and event 3 write",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/vdev/vdev-msm/vdev-msm.c:1711-1753"
+    },
+    {
+      "id": "vmm-event",
+      "title": "VM_EVENT_WDOG_BITE is event 3",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/resources/vmm_drv/protected/vdev_events.h:16"
+    },
+    {
+      "id": "client-event",
+      "title": "GVM_WDOG_BITE notification is event 1",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/qal/vm/clients/vmm_client/protected/vmm_events.h:20"
+    },
+    {
+      "id": "vmm-fsm",
+      "title": "Ordered cleanup and manual-mode stop",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/resources/vmm_drv/src/vmm_fsm.c:100-199,265-301,369-403"
+    },
+    {
+      "id": "vmm-down",
+      "title": "Wait for qvm termination, then notify lifecycle manager",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/resources/vmm_drv/src/vmm_fsm.c:634-673,1355-1383"
+    },
+    {
+      "id": "vmm-spawn",
+      "title": "Launch qvm using posix_spawnp",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/resources/vmm_drv/src/vmm_fsm.c:682-876"
+    },
+    {
+      "id": "lifecycle",
+      "title": "GVM_EVENT_DOWN triggers START_GUEST in manual mode",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/services/applications/vmm_lifecycle/vmm_lifecycle.c:135-147,268-306,353-360"
+    },
+    {
+      "id": "log-collector",
+      "title": "Guest minidump Resource Manager device",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/services/daemons/log_collector/public/amss/core/log_collect_rmgr.h:59"
+    },
+    {
+      "id": "physical-watchdog",
+      "title": "Independent host APSS hardware watchdog",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/services/daemons/watchdog/src/watchdog.c:6-14,183-208"
+    }
+  ],
+  "containers": [
+    {
+      "id": "soc",
+      "kind": "domain",
+      "title": "Application SoC",
+      "x": 32,
+      "y": 32,
+      "w": 2196,
+      "h": 1616,
+      "domainType": "soc",
+      "evidence": [
+        "deployment",
+        "host-build"
+      ]
+    },
+    {
+      "id": "pvm",
+      "kind": "domain",
+      "title": "PVM · QNX Host",
+      "parent": "soc",
+      "x": 64,
+      "y": 140,
+      "w": 1340,
+      "h": 1240,
+      "domainType": "os",
+      "platform": "qnx",
+      "evidence": [
+        "deployment",
+        "host-build"
+      ]
+    },
+    {
+      "id": "pvm-services",
+      "kind": "layer",
+      "title": "Services & Resource Managers",
+      "parent": "pvm",
+      "x": 88,
+      "y": 240,
+      "w": 1292,
+      "h": 880,
+      "order": 0,
+      "role": "services"
+    },
+    {
+      "id": "pvm-kernel",
+      "kind": "layer",
+      "title": "Microkernel & Process Manager",
+      "parent": "pvm",
+      "x": 88,
+      "y": 1160,
+      "w": 1292,
+      "h": 196,
+      "order": 1,
+      "role": "kernel"
+    },
+    {
+      "id": "gvm",
+      "kind": "domain",
+      "title": "GVM · Android",
+      "parent": "soc",
+      "x": 1484,
+      "y": 140,
+      "w": 712,
+      "h": 952,
+      "domainType": "vm",
+      "platform": "android",
+      "evidence": [
+        "deployment",
+        "guest-build",
+        "guest-dt"
+      ]
+    },
+    {
+      "id": "gvm-kernel",
+      "kind": "layer",
+      "title": "Linux Kernel",
+      "parent": "gvm",
+      "x": 1508,
+      "y": 240,
+      "w": 664,
+      "h": 828,
+      "order": 0,
+      "role": "kernel"
+    },
+    {
+      "id": "hypervisor",
+      "kind": "hypervisor",
+      "title": "QNX Hypervisor",
+      "parent": "soc",
+      "x": 1484,
+      "y": 1132,
+      "w": 712,
+      "h": 248,
+      "hosts": [
+        "gvm"
+      ],
+      "subtitle": "QVM kernel module",
+      "evidence": [
+        "host-build",
+        "host-images"
+      ]
+    },
+    {
+      "id": "hardware",
+      "kind": "hardware-region",
+      "title": "SoC Hardware",
+      "parent": "soc",
+      "x": 64,
+      "y": 1420,
+      "w": 2132,
+      "h": 196,
+      "evidence": [
+        "host-build",
+        "guest-dt"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "lifecycle",
+      "entityType": "process",
+      "canonicalName": "vmm_lifecycle",
+      "parent": "pvm-services",
+      "x": 236,
+      "y": 348,
+      "w": 480,
+      "h": 104,
+      "description": "GVM restart policy · manual mode",
+      "evidence": [
+        "lifecycle",
+        "manual-mode",
+        "host-start"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "vmm",
+      "entityType": "process",
+      "canonicalName": "vmm_service",
+      "parent": "pvm-services",
+      "x": 236,
+      "y": 692,
+      "w": 480,
+      "h": 144,
+      "description": "/dev/vmm · lifecycle FSM · ordered cleanup · waitpid · spawn qvm",
+      "evidence": [
+        "vmm-fsm",
+        "vmm-down",
+        "vmm-spawn"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "qvm",
+      "entityType": "process",
+      "canonicalName": "qvm",
+      "parent": "pvm-services",
+      "x": 816,
+      "y": 660,
+      "w": 504,
+      "h": 208,
+      "description": "vdev-msm.so · virtual WDT · guest_timer · MMIO reset · bark / bite · dump / terminate",
+      "evidence": [
+        "vm-config",
+        "vdev-pet",
+        "vdev-timer",
+        "vdev-trap",
+        "vdev-terminate"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "log",
+      "entityType": "process",
+      "canonicalName": "log_collector",
+      "parent": "pvm-services",
+      "x": 816,
+      "y": 988,
+      "w": 504,
+      "h": 96,
+      "description": "Guest minidump collection",
+      "evidence": [
+        "vdev-dump",
+        "log-collector"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "procnto",
+      "entityType": "process",
+      "canonicalName": "procnto-smp-instr",
+      "parent": "pvm-kernel",
+      "x": 476,
+      "y": 1252,
+      "w": 640,
+      "h": 80,
+      "description": "QNX host execution and system services",
+      "evidence": [
+        "host-build",
+        "host-images"
+      ],
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "wdt-core",
+      "entityType": "driver",
+      "canonicalName": "qcom_wdt_core.ko",
+      "parent": "gvm-kernel",
+      "x": 1572,
+      "y": 352,
+      "w": 536,
+      "h": 144,
+      "description": "msm-watchdog kernel thread · pet_timer · CPU IPI checks · bark handler",
+      "evidence": [
+        "guest-modules",
+        "guest-pet",
+        "guest-bark",
+        "guest-config"
+      ],
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "wdt-soc",
+      "entityType": "driver",
+      "canonicalName": "qcom_soc_wdt.ko",
+      "parent": "gvm-kernel",
+      "x": 1572,
+      "y": 704,
+      "w": 536,
+      "h": 136,
+      "description": "reset_wdt() · watchdog register operations · MMIO base 0x17C10000",
+      "evidence": [
+        "guest-modules",
+        "guest-mmio",
+        "guest-dt"
+      ],
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "qvm-module",
+      "entityType": "driver",
+      "canonicalName": "qvm",
+      "parent": "hypervisor",
+      "x": 1556,
+      "y": 1252,
+      "w": 568,
+      "h": 96,
+      "description": "Host kernel extension · guest execution",
+      "evidence": [
+        "host-build",
+        "host-images"
+      ],
+      "executionContext": "hypervisor"
+    },
+    {
+      "id": "timer",
+      "entityType": "hardware",
+      "canonicalName": "Arm Generic Timer",
+      "parent": "hardware",
+      "x": 476,
+      "y": 1516,
+      "w": 640,
+      "h": 72,
+      "evidence": [
+        "host-timer",
+        "vdev-timer"
+      ]
+    },
+    {
+      "id": "gic",
+      "entityType": "hardware",
+      "canonicalName": "GIC",
+      "parent": "hardware",
+      "x": 1556,
+      "y": 1516,
+      "w": 568,
+      "h": 72,
+      "evidence": [
+        "guest-dt",
+        "vm-config"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "down-notify",
+      "from": "vmm",
+      "to": "lifecycle",
+      "relation": "ipc",
+      "evidence": [
+        "vmm-down",
+        "lifecycle"
+      ],
+      "mechanism": "QNX MsgSend",
+      "label": "GVM_EVENT_DOWN",
+      "fromSide": "top",
+      "fromOffset": -116,
+      "toSide": "bottom",
+      "toOffset": -116,
+      "labelPosition": {
+        "x": 222,
+        "y": 570
+      }
+    },
+    {
+      "id": "restart-request",
+      "from": "lifecycle",
+      "to": "vmm",
+      "relation": "ipc",
+      "evidence": [
+        "lifecycle",
+        "manual-mode"
+      ],
+      "mechanism": "QNX write /dev/vmm",
+      "label": "control 1 2 · /dev/vmm",
+      "fromSide": "bottom",
+      "fromOffset": 116,
+      "toSide": "top",
+      "toOffset": 116,
+      "labelPosition": {
+        "x": 732,
+        "y": 570
+      }
+    },
+    {
+      "id": "spawn-qvm",
+      "from": "vmm",
+      "to": "qvm",
+      "relation": "call",
+      "evidence": [
+        "vmm-spawn",
+        "vmm-fsm"
+      ],
+      "fromSide": "right",
+      "toSide": "top",
+      "label": "posix_spawnp(qvm)",
+      "via": [
+        {
+          "x": 740
+        },
+        {
+          "y": 592
+        },
+        {
+          "x": 1068
+        }
+      ],
+      "labelPosition": {
+        "x": 1030,
+        "y": 564
+      }
+    },
+    {
+      "id": "bite-event",
+      "from": "qvm",
+      "to": "vmm",
+      "relation": "ipc",
+      "evidence": [
+        "vdev-terminate",
+        "vmm-event"
+      ],
+      "mechanism": "QNX write /dev/vmm",
+      "fromSide": "left",
+      "toSide": "bottom",
+      "label": "event 3 · /dev/vmm",
+      "labelPosition": {
+        "x": 584,
+        "y": 948
+      },
+      "via": [
+        {
+          "x": 760
+        },
+        {
+          "y": 916
+        },
+        {
+          "x": 476
+        }
+      ]
+    },
+    {
+      "id": "dump-request",
+      "from": "qvm",
+      "to": "log",
+      "relation": "ipc",
+      "evidence": [
+        "vdev-dump",
+        "log-collector"
+      ],
+      "mechanism": "QNX devctl",
+      "label": "Guest minidump · devctl",
+      "labelPosition": {
+        "x": 1200,
+        "y": 928
+      }
+    },
+    {
+      "id": "host-system",
+      "from": "qvm",
+      "to": "procnto",
+      "relation": "dependency",
+      "evidence": [
+        "host-build",
+        "host-images"
+      ],
+      "fromSide": "bottom",
+      "fromOffset": -180,
+      "toSide": "top",
+      "via": [
+        {
+          "y": 900
+        },
+        {
+          "x": 796
+        }
+      ],
+      "label": "Host services",
+      "labelPosition": {
+        "x": 700,
+        "y": 1134
+      }
+    },
+    {
+      "id": "timer-source",
+      "from": "procnto",
+      "to": "timer",
+      "relation": "dependency",
+      "evidence": [
+        "host-timer",
+        "vdev-timer"
+      ]
+    },
+    {
+      "id": "kernel-virtualization",
+      "from": "procnto",
+      "to": "qvm-module",
+      "relation": "dependency",
+      "evidence": [
+        "host-build",
+        "host-images"
+      ],
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "module=qvm",
+      "labelPosition": {
+        "x": 1320,
+        "y": 1262
+      }
+    },
+    {
+      "id": "gic-delivery",
+      "from": "qvm-module",
+      "to": "gic",
+      "relation": "dependency",
+      "evidence": [
+        "vm-config",
+        "guest-dt"
+      ]
+    },
+    {
+      "id": "ops-reset",
+      "from": "wdt-core",
+      "to": "wdt-soc",
+      "relation": "call",
+      "evidence": [
+        "guest-pet",
+        "guest-mmio",
+        "guest-bark"
+      ],
+      "label": "ops->reset_wdt()",
+      "labelPosition": {
+        "x": 1970,
+        "y": 592
+      }
+    },
+    {
+      "id": "guest-pet",
+      "from": "wdt-soc",
+      "to": "qvm",
+      "relation": "ipc",
+      "evidence": [
+        "guest-mmio",
+        "vdev-pet",
+        "vdev-trap"
+      ],
+      "mechanism": "Trapped MMIO",
+      "label": "MMIO · WDOG_RESET +0x04 = 1",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "labelPosition": {
+        "x": 1784,
+        "y": 950
+      },
+      "via": [
+        {
+          "y": 920
+        },
+        {
+          "x": 1448
+        },
+        {
+          "y": 764
+        }
+      ]
+    },
+    {
+      "id": "bark-irq",
+      "from": "qvm",
+      "to": "wdt-core",
+      "relation": "notification",
+      "evidence": [
+        "vdev-timer",
+        "vm-config",
+        "guest-dt",
+        "guest-bark"
+      ],
+      "fromSide": "top",
+      "fromOffset": 100,
+      "toSide": "left",
+      "label": "Virtual bark IRQ · GIC SPI 0 (32)",
+      "via": [
+        {
+          "y": 528
+        },
+        {
+          "x": 1448
+        },
+        {
+          "y": 424
+        }
+      ],
+      "labelPosition": {
+        "x": 1260,
+        "y": 484
+      }
+    }
+  ],
+  "deployment": {
+    "profile": "virtualized-soc",
+    "soc": "soc",
+    "vms": [
+      "gvm"
+    ],
+    "hypervisor": "hypervisor",
+    "hardware": "hardware",
+    "evidence": [
+      "deployment",
+      "host-build",
+      "vm-config"
+    ]
+  }
+}

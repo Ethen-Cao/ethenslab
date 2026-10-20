@@ -429,7 +429,45 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Android Perfetto "飞行记录仪" (Flight Recorder) 实施方案</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</guid><description>&lt;h2 id="1-需求概述"&gt;1. 需求概述&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;AMS 通过 &lt;code&gt;BinderInternal.setBinderProxyCountCallback(listener)&lt;/code&gt; 注册回调。&lt;/li&gt;
+&lt;li&gt;回调实现由 &lt;code&gt;BinderProxyLimitListenerDelegate&lt;/code&gt; 代理。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;JNI 层交互&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Java 调用会映射到 JNI：
+&lt;code&gt;android_os_BinderInternal_setBinderProxyCountEnabled&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;Native 创建回调代理：
+&lt;code&gt;android_os_BinderInternal_proxyLimitcallback&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Native 层计数逻辑&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;BpBinder::create&lt;/code&gt; 在生成新 Binder Proxy 时增加计数。&lt;/li&gt;
+&lt;li&gt;若达到阈值，触发回调 &lt;code&gt;binderProxyLimitCallbackFromNative&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Java 层通知&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;回调委派给 &lt;code&gt;BinderProxyLimitListenerDelegate&lt;/code&gt;，最终执行
+&lt;code&gt;BinderProxyLimitListener.onLimitReached(uid)&lt;/code&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;ActivityManagerService&lt;/code&gt; 根据 UID 采取措施：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;如果是 &lt;code&gt;SYSTEM_UID&lt;/code&gt; → 跳过杀进程。&lt;/li&gt;
+&lt;li&gt;否则 → 调用 &lt;code&gt;killUid()&lt;/code&gt; 并触发 &lt;code&gt;VMRuntime.requestConcurrentGC()&lt;/code&gt; 进行清理。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;</description></item><item><title>Android Perfetto "飞行记录仪" (Flight Recorder) 实施方案</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</guid><description>&lt;h2 id="1-需求概述"&gt;1. 需求概述&lt;/h2&gt;
 &lt;p&gt;本方案旨在实现一套基于 Android Perfetto 的系统级自动追踪机制，模拟飞机的“黑匣子”功能：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;开机自启&lt;/strong&gt;：系统启动后，自动启动 Perfetto 追踪服务。&lt;/li&gt;
@@ -630,7 +668,71 @@ HISTOGRAM: ... 14ms=9672 15ms=10787 16ms=3795 17ms=1125 18ms=560 ...
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;用户空间日志打印点 (IPCThreadState.cpp)&lt;/strong&gt;
-在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;</description></item><item><title>Android Native Crash 处理机制深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/</guid><description>&lt;p&gt;在 Android 系统中，Native Crash 的处理是一个高度解耦且极其鲁棒的多进程协作闭环。其核心哲学是：&lt;strong&gt;在损坏的现场外（Out-of-Process）进行安全重建&lt;/strong&gt;。&lt;/p&gt;
+在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// IPCThreadState.cpp
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;status_t IPCThreadState&lt;span style="color:#f92672"&gt;::&lt;/span&gt;waitForResponse(Parcel &lt;span style="color:#f92672"&gt;*&lt;/span&gt;reply, status_t &lt;span style="color:#f92672"&gt;*&lt;/span&gt;acquireResult)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;while&lt;/span&gt; (&lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; cmd &lt;span style="color:#f92672"&gt;=&lt;/span&gt; (&lt;span style="color:#66d9ef"&gt;uint32_t&lt;/span&gt;)mIn.readInt32();
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;switch&lt;/span&gt; (cmd) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;case&lt;/span&gt; BR_ONEWAY_SPAM_SUSPECT:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ALOGE(&lt;span style="color:#e6db74"&gt;&amp;#34;Process seems to be sending too many oneway calls.&amp;#34;&lt;/span&gt;); &lt;span style="color:#75715e"&gt;// &amp;lt;-- 日志打印点
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; CallStack&lt;span style="color:#f92672"&gt;::&lt;/span&gt;logStack(&lt;span style="color:#e6db74"&gt;&amp;#34;oneway spamming&amp;#34;&lt;/span&gt;, &lt;span style="color:#66d9ef"&gt;nullptr&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ANDROID_LOG_ERROR);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6e22e"&gt;[[fallthrough]]&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;case&lt;/span&gt; BR_TRANSACTION_COMPLETE:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (&lt;span style="color:#f92672"&gt;!&lt;/span&gt;reply &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span style="color:#f92672"&gt;!&lt;/span&gt;acquireResult) &lt;span style="color:#66d9ef"&gt;goto&lt;/span&gt; finish;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;break&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;内核空间检测逻辑 (binder_alloc.c)&lt;/strong&gt;
+内核中的 &lt;code&gt;binder_alloc_new_buf_locked&lt;/code&gt; 函数在为 oneway 事务分配缓冲区时，会调用 &lt;code&gt;debug_low_async_space_locked&lt;/code&gt; 进行检测。&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-c" data-lang="c"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// binder_alloc.c
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;static&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;struct&lt;/span&gt; binder_buffer &lt;span style="color:#f92672"&gt;*&lt;/span&gt;&lt;span style="color:#a6e22e"&gt;binder_alloc_new_buf_locked&lt;/span&gt;(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ..., &lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; is_async)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (is_async) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;free_async_space &lt;span style="color:#f92672"&gt;-=&lt;/span&gt; size; &lt;span style="color:#75715e"&gt;// 减少可用的异步空间
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (&lt;span style="color:#a6e22e"&gt;debug_low_async_space_locked&lt;/span&gt;(alloc))
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; buffer&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;oneway_spam_suspect &lt;span style="color:#f92672"&gt;=&lt;/span&gt; true; &lt;span style="color:#75715e"&gt;// &amp;lt;-- 如果检测为 spam，设置标记
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; buffer;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;static&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;bool&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;debug_low_async_space_locked&lt;/span&gt;(&lt;span style="color:#66d9ef"&gt;struct&lt;/span&gt; binder_alloc &lt;span style="color:#f92672"&gt;*&lt;/span&gt;alloc)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 阈值1：只有当可用异步空间低于总空间的10%时，才开始检测
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;free_async_space &lt;span style="color:#f92672"&gt;&amp;gt;=&lt;/span&gt; alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;buffer_size &lt;span style="color:#f92672"&gt;/&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;10&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;oneway_spam_detected &lt;span style="color:#f92672"&gt;=&lt;/span&gt; false;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; false;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ... 计算当前进程已分配的 oneway 缓冲区数量和总大小
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 阈值2：如果进程的 oneway 缓冲区超过50个或总大小超过总空间的25%
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (num_buffers &lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;50&lt;/span&gt; &lt;span style="color:#f92672"&gt;||&lt;/span&gt; total_alloc_size &lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;buffer_size &lt;span style="color:#f92672"&gt;/&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;4&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (&lt;span style="color:#f92672"&gt;!&lt;/span&gt;alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;oneway_spam_detected) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;oneway_spam_detected &lt;span style="color:#f92672"&gt;=&lt;/span&gt; true;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; true; &lt;span style="color:#75715e"&gt;// &amp;lt;-- 返回 true，表示检测到 spam
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; false;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>Android Native Crash 处理机制深度解析</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/</link><pubDate>Mon, 29 Jul 2024 10:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/native_crash_process/</guid><description>&lt;p&gt;在 Android 系统中，Native Crash 的处理是一个高度解耦且极其鲁棒的多进程协作闭环。其核心哲学是：&lt;strong&gt;在损坏的现场外（Out-of-Process）进行安全重建&lt;/strong&gt;。&lt;/p&gt;
 &lt;h2 id="1-系统组件架构-architectural-overview"&gt;1. 系统组件架构 (Architectural Overview)&lt;/h2&gt;
 &lt;p&gt;下图展示了参与 Crash 处理的关键组件及其静态拓扑关系：&lt;/p&gt;
 &lt;div class="mermaid"&gt;graph LR

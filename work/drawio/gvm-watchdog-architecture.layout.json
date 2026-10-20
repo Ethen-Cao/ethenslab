@@ -1,0 +1,1070 @@
+{
+  "format": "drawio-native-layout-v1",
+  "editableMaster": "work/drawio/gvm-watchdog-architecture.drawio",
+  "meta": {
+    "id": "gvm-watchdog-architecture",
+    "title": "GVM Watchdog Architecture",
+    "subtitle": "Kernel petting, virtual bark / bite and managed GVM restart",
+    "description": "The QNX primary host context and Android guest are shown above the common QNX Hypervisor band. qvm is a QNX host process, with vdev-msm.so as its real watchdog implementation. Guest MMIO, virtual bark IRQ, event 3, lifecycle restart policy, process spawning and guest-minidump collection are distinct relations. Physical host watchdog and debug host-ramdump override are omitted.",
+    "scope": "subsystem",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "sources": [
+    {
+      "id": "deployment",
+      "title": "Host PVM and LA GVM identities",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/services/applications/vmm_lifecycle/vmm_lifecycle.c:65-68"
+    },
+    {
+      "id": "host-build",
+      "title": "QNX host procnto with QVM kernel module",
+      "locator": "bsp/apps/qnx_ap/target/hypervisor/host/out_8540/mifs_la_qcc6.build:32"
+    },
+    {
+      "id": "host-images",
+      "title": "QVM_LOAD and host image construction",
+      "locator": "bsp/apps/qnx_ap/target/hypervisor/host/create_images.sh:60-63,157,198-201"
+    },
+    {
+      "id": "host-timer",
+      "title": "Armv8 Generic Timer callouts and GIC timer interrupt",
+      "locator": "bsp/apps/qnx_ap/src/hardware/startup/boards/sdx/aarch64/init_qtime.c:27-62"
+    },
+    {
+      "id": "host-start",
+      "title": "Launch vmm_service and vmm_lifecycle",
+      "locator": "bsp/apps/qnx_ap/target/hypervisor/host/startup.qvmhost.tmpl:1309-1312"
+    },
+    {
+      "id": "manual-mode",
+      "title": "Manual restart mode for the LA GVM",
+      "locator": "bsp/apps/qnx_ap/target/hypervisor/host/fdt_config/dtb/sdm-host_la.dts:257-259"
+    },
+    {
+      "id": "vm-config",
+      "title": "Virtual watchdog mapping and dump configuration",
+      "locator": "bsp/apps/qnx_ap/target/hypervisor/gvm/ivi/la/linux-la.config:60-64"
+    },
+    {
+      "id": "guest-build",
+      "title": "Project uses the autogvm GKI build",
+      "locator": "build/scripts/build_kernel.sh:17"
+    },
+    {
+      "id": "guest-config",
+      "title": "Watchdog module and timeout build settings",
+      "locator": "android/android/kernel_platform/msm-kernel/arch/arm64/configs/vendor/autogvm_GKI.config:110-114"
+    },
+    {
+      "id": "guest-modules",
+      "title": "Watchdog kernel module identities",
+      "locator": "android/android/kernel_platform/msm-kernel/drivers/soc/qcom/Makefile:46-47"
+    },
+    {
+      "id": "guest-pet",
+      "title": "pet_timer, IPI checks and msm-watchdog thread",
+      "locator": "android/android/kernel_platform/msm-kernel/drivers/soc/qcom/qcom_wdt_core.c:656-738,922-936,1033-1034"
+    },
+    {
+      "id": "guest-bark",
+      "title": "Bark handler programs an immediate bite",
+      "locator": "android/android/kernel_platform/msm-kernel/drivers/soc/qcom/qcom_wdt_core.c:805-850"
+    },
+    {
+      "id": "guest-mmio",
+      "title": "Register offsets, MMIO reset and probe",
+      "locator": "android/android/kernel_platform/msm-kernel/drivers/soc/qcom/qcom_soc_wdt.c:15-20,42-47,94-106"
+    },
+    {
+      "id": "guest-dt",
+      "title": "Guest watchdog MMIO and interrupt identity",
+      "locator": "android/android/kernel_platform/qcom/proprietary/devicetree/qcom/quin-vm-common.dtsi:105-110"
+    },
+    {
+      "id": "vdev-timer",
+      "title": "QVM guest timer setup and timer callback",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/vdev/vdev-msm/vdev-msm.c:317-336,520-571,1413-1416"
+    },
+    {
+      "id": "vdev-pet",
+      "title": "MMIO writes and watchdog reset",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/vdev/vdev-msm/vdev-msm.c:622-758"
+    },
+    {
+      "id": "vdev-trap",
+      "title": "Register trap regions and callbacks",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/vdev/vdev-msm/vdev-msm.c:203-215,1567-1573,1772-1790"
+    },
+    {
+      "id": "vdev-dump",
+      "title": "Dump policy, guest minidump and qvm exit",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/vdev/vdev-msm/vdev-msm.c:339-501"
+    },
+    {
+      "id": "vdev-terminate",
+      "title": "VDEV_CTRL_TERMINATE and event 3 write",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/vdev/vdev-msm/vdev-msm.c:1711-1753"
+    },
+    {
+      "id": "vmm-event",
+      "title": "VM_EVENT_WDOG_BITE is event 3",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/resources/vmm_drv/protected/vdev_events.h:16"
+    },
+    {
+      "id": "client-event",
+      "title": "GVM_WDOG_BITE notification is event 1",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/qal/vm/clients/vmm_client/protected/vmm_events.h:20"
+    },
+    {
+      "id": "vmm-fsm",
+      "title": "Ordered cleanup and manual-mode stop",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/resources/vmm_drv/src/vmm_fsm.c:100-199,265-301,369-403"
+    },
+    {
+      "id": "vmm-down",
+      "title": "Wait for qvm termination, then notify lifecycle manager",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/resources/vmm_drv/src/vmm_fsm.c:634-673,1355-1383"
+    },
+    {
+      "id": "vmm-spawn",
+      "title": "Launch qvm using posix_spawnp",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/vm/resources/vmm_drv/src/vmm_fsm.c:682-876"
+    },
+    {
+      "id": "lifecycle",
+      "title": "GVM_EVENT_DOWN triggers START_GUEST in manual mode",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/services/applications/vmm_lifecycle/vmm_lifecycle.c:135-147,268-306,353-360"
+    },
+    {
+      "id": "log-collector",
+      "title": "Guest minidump Resource Manager device",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/services/daemons/log_collector/public/amss/core/log_collect_rmgr.h:59"
+    },
+    {
+      "id": "physical-watchdog",
+      "title": "Independent host APSS hardware watchdog",
+      "locator": "bsp/apps/qnx_ap/AMSS/platform/services/daemons/watchdog/src/watchdog.c:6-14,183-208"
+    }
+  ],
+  "deployment": {
+    "profile": "virtualized-soc",
+    "soc": "soc",
+    "vms": [
+      "pvm",
+      "gvm"
+    ],
+    "hypervisor": "hypervisor",
+    "hardware": "hardware",
+    "evidence": [
+      "deployment",
+      "host-build",
+      "vm-config"
+    ]
+  },
+  "canvas": {
+    "width": 2096,
+    "height": 1560
+  },
+  "vertices": [
+    {
+      "id": "container-soc",
+      "parent": "architecture-canvas",
+      "absoluteBounds": {
+        "x": 24.0,
+        "y": 24.0,
+        "w": 2048.0,
+        "h": 1504.0
+      },
+      "metadata": {
+        "modelId": "soc",
+        "kind": "domain",
+        "domainType": "soc",
+        "evidence": "deployment,host-build",
+        "id": "container-soc"
+      }
+    },
+    {
+      "id": "container-pvm",
+      "parent": "container-soc",
+      "absoluteBounds": {
+        "x": 48.0,
+        "y": 124.0,
+        "w": 1200.0,
+        "h": 924.0
+      },
+      "metadata": {
+        "modelId": "pvm",
+        "kind": "domain",
+        "domainType": "vm",
+        "platform": "qnx",
+        "evidence": "deployment,host-build",
+        "id": "container-pvm"
+      }
+    },
+    {
+      "id": "container-pvm-services",
+      "parent": "container-pvm",
+      "absoluteBounds": {
+        "x": 72.0,
+        "y": 224.0,
+        "w": 1152.0,
+        "h": 560.0
+      },
+      "metadata": {
+        "modelId": "pvm-services",
+        "kind": "layer",
+        "role": "services",
+        "id": "container-pvm-services"
+      }
+    },
+    {
+      "id": "node-lifecycle",
+      "parent": "container-pvm-services",
+      "absoluteBounds": {
+        "x": 128.0,
+        "y": 320.0,
+        "w": 400.0,
+        "h": 88.0
+      },
+      "metadata": {
+        "modelId": "lifecycle",
+        "entityType": "process",
+        "canonicalName": "vmm_lifecycle",
+        "layerRole": "services",
+        "evidence": "lifecycle,manual-mode,host-start",
+        "id": "node-lifecycle"
+      }
+    },
+    {
+      "id": "node-vmm",
+      "parent": "container-pvm-services",
+      "absoluteBounds": {
+        "x": 128.0,
+        "y": 452.0,
+        "w": 400.0,
+        "h": 112.0
+      },
+      "metadata": {
+        "modelId": "vmm",
+        "entityType": "process",
+        "canonicalName": "vmm_service",
+        "layerRole": "services",
+        "evidence": "vmm-fsm,vmm-down,vmm-spawn",
+        "id": "node-vmm"
+      }
+    },
+    {
+      "id": "node-qvm",
+      "parent": "container-pvm-services",
+      "absoluteBounds": {
+        "x": 648.0,
+        "y": 344.0,
+        "w": 544.0,
+        "h": 252.0
+      },
+      "metadata": {
+        "modelId": "qvm",
+        "entityType": "process",
+        "canonicalName": "qvm",
+        "layerRole": "services",
+        "evidence": "vm-config,vdev-pet,vdev-timer,vdev-trap,vdev-terminate",
+        "sourceLocator": "bsp/apps/qnx_ap/target/hypervisor/gvm/ivi/la/linux-la.config:220",
+        "kind": "process",
+        "id": "node-qvm"
+      }
+    },
+    {
+      "id": "node-vdev-msm",
+      "parent": "node-qvm",
+      "absoluteBounds": {
+        "x": 688.0,
+        "y": 452.0,
+        "w": 464.0,
+        "h": 112.0
+      },
+      "metadata": {
+        "modelId": "vdev-msm",
+        "entityType": "library",
+        "canonicalName": "vdev-msm.so",
+        "layerRole": "services",
+        "executionContext": "userspace",
+        "evidence": "vm-config,vdev-pet,vdev-timer,vdev-trap,vdev-terminate",
+        "id": "node-vdev-msm"
+      }
+    },
+    {
+      "id": "node-log",
+      "parent": "container-pvm-services",
+      "absoluteBounds": {
+        "x": 688.0,
+        "y": 680.0,
+        "w": 464.0,
+        "h": 88.0
+      },
+      "metadata": {
+        "modelId": "log",
+        "entityType": "process",
+        "canonicalName": "log_collector",
+        "layerRole": "services",
+        "evidence": "vdev-dump,log-collector",
+        "id": "node-log"
+      }
+    },
+    {
+      "id": "container-pvm-kernel",
+      "parent": "container-pvm",
+      "absoluteBounds": {
+        "x": 72.0,
+        "y": 816.0,
+        "w": 1152.0,
+        "h": 208.0
+      },
+      "metadata": {
+        "modelId": "pvm-kernel",
+        "kind": "layer",
+        "role": "kernel",
+        "id": "container-pvm-kernel"
+      }
+    },
+    {
+      "id": "node-procnto",
+      "parent": "container-pvm-kernel",
+      "absoluteBounds": {
+        "x": 376.0,
+        "y": 912.0,
+        "w": 560.0,
+        "h": 88.0
+      },
+      "metadata": {
+        "modelId": "procnto",
+        "entityType": "process",
+        "canonicalName": "procnto-smp-instr",
+        "layerRole": "kernel",
+        "executionContext": "kernel",
+        "evidence": "host-build,host-images",
+        "id": "node-procnto"
+      }
+    },
+    {
+      "id": "container-gvm",
+      "parent": "container-soc",
+      "absoluteBounds": {
+        "x": 1392.0,
+        "y": 124.0,
+        "w": 656.0,
+        "h": 924.0
+      },
+      "metadata": {
+        "modelId": "gvm",
+        "kind": "domain",
+        "domainType": "vm",
+        "platform": "android",
+        "evidence": "deployment,guest-build,guest-dt",
+        "id": "container-gvm"
+      }
+    },
+    {
+      "id": "container-gvm-kernel",
+      "parent": "container-gvm",
+      "absoluteBounds": {
+        "x": 1416.0,
+        "y": 224.0,
+        "w": 608.0,
+        "h": 800.0
+      },
+      "metadata": {
+        "modelId": "gvm-kernel",
+        "kind": "layer",
+        "role": "kernel",
+        "id": "container-gvm-kernel"
+      }
+    },
+    {
+      "id": "node-wdt-core",
+      "parent": "container-gvm-kernel",
+      "absoluteBounds": {
+        "x": 1448.0,
+        "y": 320.0,
+        "w": 528.0,
+        "h": 120.0
+      },
+      "metadata": {
+        "modelId": "wdt-core",
+        "entityType": "driver",
+        "canonicalName": "qcom_wdt_core.ko",
+        "layerRole": "kernel",
+        "executionContext": "kernel",
+        "evidence": "guest-modules,guest-pet,guest-bark,guest-config",
+        "id": "node-wdt-core"
+      }
+    },
+    {
+      "id": "node-wdt-soc",
+      "parent": "container-gvm-kernel",
+      "absoluteBounds": {
+        "x": 1448.0,
+        "y": 492.0,
+        "w": 528.0,
+        "h": 112.0
+      },
+      "metadata": {
+        "modelId": "wdt-soc",
+        "entityType": "driver",
+        "canonicalName": "qcom_soc_wdt.ko",
+        "layerRole": "kernel",
+        "executionContext": "kernel",
+        "evidence": "guest-modules,guest-mmio,guest-dt",
+        "id": "node-wdt-soc"
+      }
+    },
+    {
+      "id": "container-hypervisor",
+      "parent": "container-soc",
+      "absoluteBounds": {
+        "x": 48.0,
+        "y": 1080.0,
+        "w": 2000.0,
+        "h": 208.0
+      },
+      "metadata": {
+        "modelId": "hypervisor",
+        "kind": "hypervisor",
+        "hosts": "pvm,gvm",
+        "evidence": "host-build,host-images",
+        "id": "container-hypervisor"
+      }
+    },
+    {
+      "id": "node-qvm-module",
+      "parent": "container-hypervisor",
+      "absoluteBounds": {
+        "x": 376.0,
+        "y": 1180.0,
+        "w": 1600.0,
+        "h": 88.0
+      },
+      "metadata": {
+        "modelId": "qvm-module",
+        "entityType": "library",
+        "canonicalName": "libmod_qvm.a",
+        "executionContext": "hypervisor",
+        "evidence": "host-build,host-images",
+        "id": "node-qvm-module"
+      }
+    },
+    {
+      "id": "container-hardware",
+      "parent": "container-soc",
+      "absoluteBounds": {
+        "x": 48.0,
+        "y": 1320.0,
+        "w": 2000.0,
+        "h": 176.0
+      },
+      "metadata": {
+        "modelId": "hardware",
+        "kind": "hardware-region",
+        "evidence": "host-build,guest-dt",
+        "id": "container-hardware"
+      }
+    },
+    {
+      "id": "node-timer",
+      "parent": "container-hardware",
+      "absoluteBounds": {
+        "x": 384.0,
+        "y": 1416.0,
+        "w": 560.0,
+        "h": 64.0
+      },
+      "metadata": {
+        "modelId": "timer",
+        "entityType": "hardware",
+        "canonicalName": "Arm Generic Timer",
+        "evidence": "host-timer,vdev-timer",
+        "id": "node-timer"
+      }
+    },
+    {
+      "id": "node-gic",
+      "parent": "container-hardware",
+      "absoluteBounds": {
+        "x": 1608.0,
+        "y": 1416.0,
+        "w": 368.0,
+        "h": 64.0
+      },
+      "metadata": {
+        "modelId": "gic",
+        "entityType": "hardware",
+        "canonicalName": "GIC",
+        "evidence": "guest-dt,vm-config",
+        "id": "node-gic"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-down-notify",
+      "parent": "container-pvm-services",
+      "source": "node-vmm",
+      "target": "node-lifecycle",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#356dc9",
+        "strokeWidth": "1.8",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0.3",
+        "exitY": "0",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0.3",
+        "entryY": "1",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#356dc9",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "32"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "edge-restart-request",
+      "parent": "container-pvm-services",
+      "source": "node-lifecycle",
+      "target": "node-vmm",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#356dc9",
+        "strokeWidth": "1.8",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0.7",
+        "exitY": "1",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0.7",
+        "entryY": "0",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#356dc9",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "32"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "edge-spawn-qvm",
+      "parent": "container-pvm-services",
+      "source": "node-vmm",
+      "target": "node-qvm",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#356dc9",
+        "strokeWidth": "1.8",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "1",
+        "exitY": "0.2857142857142857",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0.5",
+        "entryY": "0",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#356dc9",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "64"
+      },
+      "waypoints": [
+        {
+          "x": "520",
+          "y": "260"
+        },
+        {
+          "x": "520",
+          "y": "56"
+        },
+        {
+          "x": "848",
+          "y": "56"
+        }
+      ]
+    },
+    {
+      "id": "edge-bite-event",
+      "parent": "container-pvm-services",
+      "source": "node-vdev-msm",
+      "target": "node-vmm",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#356dc9",
+        "strokeWidth": "1.8",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0",
+        "exitY": "0.5",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "1",
+        "entryY": "0.5",
+        "entryDx": "0",
+        "entryDy": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#356dc9",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "32"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "edge-dump-request",
+      "parent": "container-pvm-services",
+      "source": "node-vdev-msm",
+      "target": "node-log",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#356dc9",
+        "strokeWidth": "1.8",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0.5",
+        "exitY": "1",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0.5",
+        "entryY": "0",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#356dc9",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "32"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "edge-host-system",
+      "parent": "container-pvm",
+      "source": "node-vdev-msm",
+      "target": "node-procnto",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#5f6368",
+        "strokeWidth": "1.5",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0",
+        "exitY": "0.75",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0.5",
+        "entryY": "0",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#5f6368",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "32"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "edge-ops-reset",
+      "parent": "container-gvm-kernel",
+      "source": "node-wdt-core",
+      "target": "node-wdt-soc",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#356dc9",
+        "strokeWidth": "1.8",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0.5",
+        "exitY": "1",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0.5",
+        "entryY": "0",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#356dc9",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "32"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "edge-timer-source",
+      "parent": "container-soc",
+      "source": "node-procnto",
+      "target": "node-timer",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#5f6368",
+        "strokeWidth": "1.5",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0",
+        "exitY": "0.5",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0",
+        "entryY": "0.5",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#5f6368",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "32"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "edge-kernel-virtualization",
+      "parent": "container-soc",
+      "source": "node-procnto",
+      "target": "node-qvm-module",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#5f6368",
+        "strokeWidth": "1.5",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0.5",
+        "exitY": "1",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0.175",
+        "entryY": "0",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#5f6368",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "32"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "edge-gic-delivery",
+      "parent": "container-soc",
+      "source": "node-qvm-module",
+      "target": "node-gic",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#5f6368",
+        "strokeWidth": "1.5",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0.885",
+        "exitY": "1",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0.5",
+        "entryY": "0",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#5f6368",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "32"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "edge-guest-pet",
+      "parent": "container-soc",
+      "source": "node-wdt-soc",
+      "target": "node-qvm-module",
+      "style": {
+        "edgeStyle": "orthogonalEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#356dc9",
+        "strokeWidth": "1.8",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0.5",
+        "exitY": "1",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0.835",
+        "entryY": "0",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#356dc9",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "orthogonalLoop": "1",
+        "jettySize": "32"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "edge-trap-dispatch",
+      "parent": "container-soc",
+      "source": "node-qvm-module",
+      "target": "node-vdev-msm",
+      "style": {
+        "edgeStyle": "segmentEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#356dc9",
+        "strokeWidth": "1.8",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "0.56",
+        "exitY": "0",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "1",
+        "entryY": "0.75",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#356dc9",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3"
+      },
+      "waypoints": [
+        {
+          "x": "1248",
+          "y": "512"
+        }
+      ]
+    },
+    {
+      "id": "edge-bark-signal",
+      "parent": "container-soc",
+      "source": "node-vdev-msm",
+      "target": "node-qvm-module",
+      "style": {
+        "edgeStyle": "segmentEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#356dc9",
+        "strokeWidth": "1.8",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "1",
+        "exitY": "0.25",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "0.605",
+        "entryY": "0",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#356dc9",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "dashed": "1",
+        "dashPattern": "3 5"
+      },
+      "waypoints": [
+        {
+          "x": "1320",
+          "y": "456"
+        }
+      ]
+    },
+    {
+      "id": "edge-bark-irq",
+      "parent": "container-soc",
+      "source": "node-qvm-module",
+      "target": "node-wdt-core",
+      "style": {
+        "edgeStyle": "segmentEdgeStyle",
+        "rounded": "0",
+        "curved": "0",
+        "html": "1",
+        "jumpStyle": "arc",
+        "jumpSize": "10",
+        "strokeColor": "#356dc9",
+        "strokeWidth": "1.8",
+        "startArrow": "none",
+        "endArrow": "open",
+        "endFill": "0",
+        "endSize": "8",
+        "exitX": "1",
+        "exitY": "0.5",
+        "exitDx": "0",
+        "exitDy": "0",
+        "exitPerimeter": "0",
+        "entryX": "1",
+        "entryY": "0.5",
+        "entryDx": "0",
+        "entryDy": "0",
+        "entryPerimeter": "0",
+        "fontFamily": "Roboto,Arial,sans-serif",
+        "fontSize": "19.5",
+        "fontColor": "#356dc9",
+        "labelBackgroundColor": "#ffffff",
+        "spacing": "3",
+        "dashed": "1",
+        "dashPattern": "3 5"
+      },
+      "waypoints": [
+        {
+          "x": "1984",
+          "y": "1200"
+        },
+        {
+          "x": "1984",
+          "y": "356"
+        }
+      ]
+    }
+  ]
+}

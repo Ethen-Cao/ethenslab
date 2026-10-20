@@ -117,7 +117,32 @@ component WindowManager
 &lt;h3 id="2-component"&gt;2️⃣ component&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;语义&lt;/strong&gt;：软件的可独立模块，提供接口，可替换。&lt;/p&gt;</description></item><item><title>智能座舱软件开发 CI/CD 流程技术说明文档</title><link>https://ethen-cao.github.io/ethenslab/others/ci-cd/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/ci-cd/</guid><description>&lt;h2 id="1-概述"&gt;&lt;strong&gt;1. 概述&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;语义&lt;/strong&gt;：软件的可独立模块，提供接口，可替换。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;场景&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Android Service（AudioService、SurfaceFlinger）&lt;/li&gt;
+&lt;li&gt;HAL 模块（Camera HAL、Audio HAL）&lt;/li&gt;
+&lt;li&gt;微服务 / 独立可部署模块&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;特点&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;可以显示提供 / 使用接口&lt;/li&gt;
+&lt;li&gt;可独立替换或部署&lt;/li&gt;
+&lt;li&gt;可以嵌套在 package 内&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;PlantUML 使用&lt;/strong&gt;：&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;package &amp;#34;Native HAL&amp;#34; {
+component &amp;#34;Audio HAL&amp;#34;
+component &amp;#34;Camera HAL&amp;#34;
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>智能座舱软件开发 CI/CD 流程技术说明文档</title><link>https://ethen-cao.github.io/ethenslab/others/ci-cd/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/ci-cd/</guid><description>&lt;h2 id="1-概述"&gt;&lt;strong&gt;1. 概述&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;本文档旨在详细阐述智能座舱软件开发从代码下载到最终OTA（Over-the-Air）发布的端到端自动化流程。该流程基于行业主流的 DevOps 和 CI/CD 实践，旨在通过高度自动化、严格的质量门禁和清晰的发布路径，确保软件开发的敏捷性、高质量和可追溯性。&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;核心组件:&lt;/strong&gt;&lt;/p&gt;
 &lt;ul&gt;

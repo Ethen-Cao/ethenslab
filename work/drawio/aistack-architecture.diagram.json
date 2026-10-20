@@ -1,0 +1,1233 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "aistack-architecture",
+    "title": "SA8397 AI Software Architecture",
+    "subtitle": "Local inference, Hybrid FastRPC and shared tensor memory",
+    "description": "Linux PVM and Android GVM on Gunyah. Hybrid FastRPC uses separate VirtIO lifecycle and RPMsg/GLink CMA invocation paths. qcrosvm configures vhost-user backends; it is not the Hypervisor. User-space QNN components follow the article; transport and deployment follow the local source and prebuilt integration evidence.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 2200,
+    "height": 2352
+  },
+  "sources": [
+    {
+      "id": "article",
+      "title": "QNN / ORT and local inference description",
+      "locator": "/home/ethen/workspace/github/ethenslab/content/gunyah/aistack-architecture.md:156-229,334-385"
+    },
+    {
+      "id": "platform",
+      "title": "SA8397 PVM / GVM integration",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/AGENTS.md:7-22"
+    },
+    {
+      "id": "qcrosvm",
+      "title": "PVM VMM process, vhost-user devices and Gunyah",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/crosvm-gunyah/qcrosvm_sa8797.service:29-85"
+    },
+    {
+      "id": "vhost-setup",
+      "title": "VMM socket negotiation and vring setup",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/external/crosvm/devices/src/virtio/vhost/user/vmm/handler.rs:166-235"
+    },
+    {
+      "id": "vhost-frpc",
+      "title": "FastRPC backend process and ELF imports",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/prebuilt_HY11/sa8797/vhost-user-frpc/usr/lib/systemd/system/vhost-user-frpc.service:6-15"
+    },
+    {
+      "id": "rm",
+      "title": "FastRPC resource manager process and public commands",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/prebuilt_HY11/sa8797/fastrpc-rm/usr/include/fastrpc_rm_cmd.h:59-78"
+    },
+    {
+      "id": "local-frpc",
+      "title": "ELF imports lrmc_connect/lrmc_send_sync and /fastrpc-rm endpoint",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/prebuilt_HY11/sa8797/fastrpc/usr/lib/libcdsprpc.so"
+    },
+    {
+      "id": "rm-glink",
+      "title": "ELF imports glink_open/glink_tx; libglink_client LRM endpoints",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/prebuilt_HY11/sa8797/fastrpc-rm/usr/bin/fastrpc-rm"
+    },
+    {
+      "id": "glink",
+      "title": "GLink service integration and libglink-core/libkiumd dependencies",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/prebuilt_HY11/sa8797/glink-service-lrm/usr/lib/systemd/system/glink-service-lrm.service:14"
+    },
+    {
+      "id": "gp",
+      "title": "GVM CMA setup backend",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/layers/meta-qti-automotive-prop/recipes-virt/vhost-user-glink-passthrough/vhost-user-glink-passthrough_git.bb:1-7"
+    },
+    {
+      "id": "gp-service",
+      "title": "DSP CMA setup service and FIFO protocol",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/prebuilt_HY11/sa8797/glink-passthrough-service/usr/include/glink_passthrough_service.h:12-84"
+    },
+    {
+      "id": "vdev",
+      "title": "Device-name based /dev registration",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/safelinux-cfg-modules/safelinux-modules/drivers/qcom_vdev.c:537-573"
+    },
+    {
+      "id": "pvm-dt",
+      "title": "umd_glink / umd_nsp_drv qcom,vdev-device resources",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/base-devicetree/arch/arm64/boot/dts/qcom/sa8797p-vfio.dtsi:47-87"
+    },
+    {
+      "id": "kiumd",
+      "title": "DMA-BUF and memory interface",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/safelinux-cfg-modules/safelinux-modules/drivers/kiumd.c:2174-2242"
+    },
+    {
+      "id": "invoke",
+      "title": "FastRPC invoke control message and transport send",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/platform-kernel/drivers/virtual_fastrpc/dsp/fastrpc_core.c:1609-1631"
+    },
+    {
+      "id": "rpmsg",
+      "title": "RPMsg request / response path",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/platform-kernel/drivers/virtual_fastrpc/dsp/fastrpc_rpmsg.c:271-311"
+    },
+    {
+      "id": "lifecycle",
+      "title": "Hybrid FastRPC lifecycle via VirtIO",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/platform-kernel/drivers/virtual_fastrpc/dsp/fastrpc_core.c:858,1082,2534,3372"
+    },
+    {
+      "id": "domains",
+      "title": "NSP device names and compatibility aliases",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/platform-kernel/drivers/virtual_fastrpc/dsp/hybrid_fastrpc_vdev.c:195-235"
+    },
+    {
+      "id": "device-nodes",
+      "title": "/dev/fastrpc-domain misc device registration",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/platform-kernel/drivers/virtual_fastrpc/dsp/fastrpc_core.c:3468-3494"
+    },
+    {
+      "id": "mem",
+      "title": "DMA-BUF mapping and virtio SMMU map",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/platform-kernel/drivers/virtual_fastrpc/dsp/fastrpc_mem.c:131-234,390-417"
+    },
+    {
+      "id": "cma-setup",
+      "title": "SETUP maps CMA area and registers GLink",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/rpmsg/virtio_glink_cma.c:62-69,314-342"
+    },
+    {
+      "id": "cma-msg",
+      "title": "Shared FIFO write and mailbox kick",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/rpmsg/qcom_glink_cma_core.c:183-235"
+    },
+    {
+      "id": "glink-native",
+      "title": "RPMsg send and GLink native TX path",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/rpmsg/qcom_glink_native.c:434-439,1980-2057,2179"
+    },
+    {
+      "id": "ipcc",
+      "title": "IPCC mailbox SEND_ID register",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/mailbox/qcom-ipcc.c:172-179"
+    },
+    {
+      "id": "guest-dt",
+      "title": "Four CDSP / NSP GLink CMA edges",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/qcom/opensource/devicetree/qcom/sa8797p-gunyah-vm.dtsi:1823-1855,2130"
+    },
+    {
+      "id": "glink-elf",
+      "title": "ELF DT_NEEDED libglink-core.so, liblrms.so and libkiumd.so",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/prebuilt_HY11/sa8797/glink-service-lrm/usr/bin/glink_service_lrm"
+    },
+    {
+      "id": "backend-elf",
+      "title": "ELF libfastrpc.so/liblrmc.so dependencies and lifecycle imports",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/prebuilt_HY11/sa8797/vhost-user-frpc/usr/bin/vhost-user-frpc"
+    },
+    {
+      "id": "gunyah-api",
+      "title": "qcrosvm opens the Gunyah kernel device",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/crosvm-gunyah/src/main.rs:192,3141-3167"
+    }
+  ],
+  "containers": [
+    {
+      "id": "soc",
+      "kind": "domain",
+      "title": "Qualcomm SA8397 / sa8797",
+      "x": 24,
+      "y": 24,
+      "w": 2152,
+      "h": 2304,
+      "domainType": "soc",
+      "evidence": [
+        "platform"
+      ]
+    },
+    {
+      "id": "pvm",
+      "kind": "domain",
+      "title": "PVM · Linux",
+      "parent": "soc",
+      "x": 56,
+      "y": 124,
+      "w": 1176,
+      "h": 1508,
+      "domainType": "vm",
+      "platform": "linux"
+    },
+    {
+      "id": "gvm",
+      "kind": "domain",
+      "title": "GVM · Android",
+      "parent": "soc",
+      "x": 1304,
+      "y": 124,
+      "w": 800,
+      "h": 1508,
+      "domainType": "vm",
+      "platform": "android"
+    },
+    {
+      "id": "pvm-services",
+      "kind": "layer",
+      "title": "Native Services & Libraries",
+      "parent": "pvm",
+      "x": 80,
+      "y": 220,
+      "w": 1128,
+      "h": 1064,
+      "role": "services",
+      "order": 0
+    },
+    {
+      "id": "pvm-kernel",
+      "kind": "layer",
+      "title": "Linux Kernel",
+      "parent": "pvm",
+      "x": 80,
+      "y": 1328,
+      "w": 1128,
+      "h": 268,
+      "role": "kernel",
+      "order": 1
+    },
+    {
+      "id": "apps",
+      "kind": "layer",
+      "title": "Applications",
+      "parent": "gvm",
+      "x": 1328,
+      "y": 220,
+      "w": 752,
+      "h": 204,
+      "role": "applications",
+      "order": 0
+    },
+    {
+      "id": "native",
+      "kind": "layer",
+      "title": "Native C/C++ Libraries",
+      "parent": "gvm",
+      "x": 1328,
+      "y": 452,
+      "w": 752,
+      "h": 604,
+      "role": "native-libraries",
+      "order": 1
+    },
+    {
+      "id": "gvm-kernel",
+      "kind": "layer",
+      "title": "Linux Kernel",
+      "parent": "gvm",
+      "x": 1328,
+      "y": 1092,
+      "w": 752,
+      "h": 504,
+      "role": "kernel",
+      "order": 2
+    },
+    {
+      "id": "hyp",
+      "kind": "hypervisor",
+      "title": "Gunyah Hypervisor",
+      "parent": "soc",
+      "x": 56,
+      "y": 1680,
+      "w": 2048,
+      "h": 96,
+      "hosts": [
+        "pvm",
+        "gvm"
+      ],
+      "evidence": [
+        "platform",
+        "qcrosvm",
+        "gunyah-api"
+      ]
+    },
+    {
+      "id": "dsp-fw",
+      "kind": "layer",
+      "title": "DSP Firmware",
+      "parent": "soc",
+      "x": 56,
+      "y": 1820,
+      "w": 2048,
+      "h": 216,
+      "role": "firmware",
+      "order": 0
+    },
+    {
+      "id": "hw",
+      "kind": "hardware-region",
+      "title": "HTP Hardware & Shared Memory",
+      "parent": "soc",
+      "x": 56,
+      "y": 2076,
+      "w": 2048,
+      "h": 220
+    }
+  ],
+  "nodes": [
+    {
+      "id": "qcx",
+      "entityType": "process",
+      "canonicalName": "qcxserver",
+      "parent": "pvm-services",
+      "x": 112,
+      "y": 328,
+      "w": 200,
+      "h": 88,
+      "description": "Local inference",
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "oms",
+      "entityType": "process",
+      "canonicalName": "oms_main",
+      "parent": "pvm-services",
+      "x": 344,
+      "y": 328,
+      "w": 200,
+      "h": 88,
+      "description": "Occupant monitoring",
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "ais",
+      "entityType": "process",
+      "canonicalName": "AIService",
+      "parent": "pvm-services",
+      "x": 576,
+      "y": 328,
+      "w": 200,
+      "h": 88,
+      "description": "AI service",
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "pqnn",
+      "entityType": "library",
+      "canonicalName": "libQnnHtp.so",
+      "parent": "pvm-services",
+      "x": 232,
+      "y": 508,
+      "w": 424,
+      "h": 88,
+      "description": "Backend · per-client instance",
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "pfrpc",
+      "entityType": "library",
+      "canonicalName": "libcdsprpc.so",
+      "parent": "pvm-services",
+      "x": 232,
+      "y": 684,
+      "w": 424,
+      "h": 88,
+      "description": "FastRPC client",
+      "evidence": [
+        "article",
+        "local-frpc"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "vmm",
+      "entityType": "process",
+      "canonicalName": "qcrosvm",
+      "parent": "pvm-services",
+      "x": 816,
+      "y": 328,
+      "w": 352,
+      "h": 88,
+      "description": "GVM device configuration",
+      "evidence": [
+        "qcrosvm",
+        "vhost-setup"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "vhost",
+      "entityType": "process",
+      "canonicalName": "vhost-user-frpc",
+      "parent": "pvm-services",
+      "x": 816,
+      "y": 548,
+      "w": 352,
+      "h": 100,
+      "description": "PD / context / SMMU requests",
+      "evidence": [
+        "vhost-frpc",
+        "rm",
+        "lifecycle",
+        "backend-elf"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "rm",
+      "entityType": "process",
+      "canonicalName": "fastrpc-rm",
+      "parent": "pvm-services",
+      "x": 232,
+      "y": 888,
+      "w": 424,
+      "h": 88,
+      "description": "Resource management and local RPC",
+      "evidence": [
+        "rm",
+        "local-frpc",
+        "rm-glink"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "glink-service",
+      "entityType": "process",
+      "canonicalName": "glink_service_lrm",
+      "parent": "pvm-services",
+      "x": 232,
+      "y": 1120,
+      "w": 424,
+      "h": 88,
+      "description": "libglink-core.so · libkiumd.so",
+      "evidence": [
+        "glink",
+        "glink-elf"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "gp",
+      "entityType": "process",
+      "canonicalName": "vhost-user-glinkpassthrough",
+      "parent": "pvm-services",
+      "x": 816,
+      "y": 800,
+      "w": 352,
+      "h": 112,
+      "description": "CMA setup for GVM",
+      "evidence": [
+        "gp",
+        "gp-service"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "gp-service",
+      "entityType": "process",
+      "canonicalName": "glink-passthrough-service",
+      "parent": "pvm-services",
+      "x": 816,
+      "y": 1096,
+      "w": 352,
+      "h": 112,
+      "description": "CMA setup for DSP",
+      "evidence": [
+        "gp-service"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "umd",
+      "entityType": "kernel-interface",
+      "canonicalName": "/dev/umd_glink · qcom_vdev",
+      "parent": "pvm-kernel",
+      "x": 176,
+      "y": 1432,
+      "w": 504,
+      "h": 116,
+      "description": "Mapped GLink registers and IRQ",
+      "evidence": [
+        "vdev",
+        "pvm-dt",
+        "glink"
+      ],
+      "layerRole": "kernel",
+      "interfacePath": "/dev/umd_glink",
+      "moduleName": "qcom_vdev"
+    },
+    {
+      "id": "kiumd",
+      "entityType": "kernel-interface",
+      "canonicalName": "/dev/kiumd · kiumd",
+      "parent": "pvm-kernel",
+      "x": 800,
+      "y": 1432,
+      "w": 368,
+      "h": 116,
+      "description": "DMA-BUF / memory services",
+      "evidence": [
+        "kiumd",
+        "rm"
+      ],
+      "layerRole": "kernel",
+      "interfacePath": "/dev/kiumd",
+      "moduleName": "kiumd"
+    },
+    {
+      "id": "app",
+      "entityType": "subsystem",
+      "canonicalName": "AI Application",
+      "parent": "apps",
+      "x": 1472,
+      "y": 316,
+      "w": 448,
+      "h": 88,
+      "description": "Model and input / output tensors",
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "applications"
+    },
+    {
+      "id": "ort",
+      "entityType": "runtime",
+      "canonicalName": "ONNX Runtime",
+      "parent": "native",
+      "x": 1472,
+      "y": 548,
+      "w": 448,
+      "h": 88,
+      "description": "QNN Execution Provider",
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "qnn",
+      "entityType": "library",
+      "canonicalName": "libQnnHtp.so",
+      "parent": "native",
+      "x": 1472,
+      "y": 680,
+      "w": 448,
+      "h": 88,
+      "description": "HTP backend",
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "stub",
+      "entityType": "library",
+      "canonicalName": "libQnnHtpV81Stub.so",
+      "parent": "native",
+      "x": 1472,
+      "y": 812,
+      "w": 448,
+      "h": 88,
+      "description": "CPU-side RPC stub",
+      "evidence": [
+        "article"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "gfrpc",
+      "entityType": "library",
+      "canonicalName": "libcdsprpc.so",
+      "parent": "native",
+      "x": 1472,
+      "y": 944,
+      "w": 448,
+      "h": 88,
+      "description": "Invoke / listener / notifications",
+      "evidence": [
+        "article",
+        "invoke"
+      ],
+      "layerRole": "native-libraries"
+    },
+    {
+      "id": "hfrpc",
+      "entityType": "kernel-interface",
+      "canonicalName": "/dev/fastrpc-nsp100[0-3] · hfastrpc",
+      "parent": "gvm-kernel",
+      "x": 1384,
+      "y": 1188,
+      "w": 640,
+      "h": 116,
+      "description": "Hybrid FastRPC · four NSP domains",
+      "evidence": [
+        "device-nodes",
+        "domains",
+        "guest-dt",
+        "invoke",
+        "lifecycle"
+      ],
+      "layerRole": "kernel",
+      "interfacePath": "/dev/fastrpc-nsp100[0-3]",
+      "moduleName": "hfastrpc"
+    },
+    {
+      "id": "cma-setup",
+      "entityType": "driver",
+      "canonicalName": "virtio_glink_cma",
+      "parent": "gvm-kernel",
+      "x": 1384,
+      "y": 1348,
+      "w": 640,
+      "h": 88,
+      "description": "CMA mapping / channel setup / SSR",
+      "evidence": [
+        "cma-setup"
+      ],
+      "layerRole": "kernel"
+    },
+    {
+      "id": "glink-native",
+      "entityType": "driver",
+      "canonicalName": "qcom_glink_native",
+      "parent": "gvm-kernel",
+      "x": 1384,
+      "y": 1492,
+      "w": 640,
+      "h": 88,
+      "description": "qcom_glink_cma_core · FIFO + IPCC",
+      "evidence": [
+        "glink-native",
+        "cma-msg",
+        "ipcc"
+      ],
+      "layerRole": "kernel"
+    },
+    {
+      "id": "dsp",
+      "entityType": "runtime",
+      "canonicalName": "QuRT",
+      "parent": "dsp-fw",
+      "x": 824,
+      "y": 1924,
+      "w": 576,
+      "h": 88,
+      "description": "FastRPC PD · HTP Skel",
+      "evidence": [
+        "article"
+      ],
+      "executionContext": "firmware",
+      "layerRole": "firmware"
+    },
+    {
+      "id": "nsp",
+      "entityType": "hardware",
+      "canonicalName": "NSP0–NSP3 · HTP",
+      "parent": "hw",
+      "x": 824,
+      "y": 2180,
+      "w": 576,
+      "h": 88,
+      "evidence": [
+        "article",
+        "guest-dt"
+      ]
+    },
+    {
+      "id": "tensors",
+      "entityType": "memory",
+      "canonicalName": "Shared Tensor Buffers",
+      "parent": "hw",
+      "x": 1512,
+      "y": 2172,
+      "w": 528,
+      "h": 104,
+      "description": "Registered DMA-BUFs",
+      "evidence": [
+        "article",
+        "mem"
+      ],
+      "resourceId": "registered-tensor-storage"
+    }
+  ],
+  "edges": [
+    {
+      "id": "qcx-qnn",
+      "from": "qcx",
+      "to": "pqnn",
+      "relation": "call",
+      "evidence": [
+        "article"
+      ],
+      "toOffset": -128,
+      "via": [
+        {
+          "y": 456
+        },
+        {
+          "x": 316
+        }
+      ]
+    },
+    {
+      "id": "oms-qnn",
+      "from": "oms",
+      "to": "pqnn",
+      "relation": "call",
+      "evidence": [
+        "article"
+      ]
+    },
+    {
+      "id": "ais-qnn",
+      "from": "ais",
+      "to": "pqnn",
+      "relation": "call",
+      "evidence": [
+        "article"
+      ],
+      "toOffset": 128,
+      "via": [
+        {
+          "y": 456
+        },
+        {
+          "x": 572
+        }
+      ]
+    },
+    {
+      "id": "local-qnn-frpc",
+      "from": "pqnn",
+      "to": "pfrpc",
+      "relation": "call",
+      "evidence": [
+        "article"
+      ]
+    },
+    {
+      "id": "local-rm",
+      "from": "pfrpc",
+      "to": "rm",
+      "relation": "ipc",
+      "evidence": [
+        "local-frpc"
+      ],
+      "mechanism": "LRM IPC",
+      "labelPosition": {
+        "x": 532,
+        "y": 828
+      }
+    },
+    {
+      "id": "rm-glink",
+      "from": "rm",
+      "to": "glink-service",
+      "relation": "ipc",
+      "evidence": [
+        "rm-glink"
+      ],
+      "mechanism": "LRM IPC",
+      "labelPosition": {
+        "x": 532,
+        "y": 1052
+      }
+    },
+    {
+      "id": "glink-device",
+      "from": "glink-service",
+      "to": "umd",
+      "relation": "call",
+      "evidence": [
+        "glink"
+      ],
+      "label": "libkiumd.so",
+      "labelPosition": {
+        "x": 544,
+        "y": 1298
+      },
+      "via": [
+        {
+          "y": 1310
+        }
+      ]
+    },
+    {
+      "id": "rm-memory",
+      "from": "rm",
+      "to": "kiumd",
+      "relation": "configuration",
+      "evidence": [
+        "rm",
+        "kiumd"
+      ],
+      "fromSide": "right",
+      "via": [
+        {
+          "x": 744
+        },
+        {
+          "y": 1368
+        },
+        {
+          "x": 984
+        }
+      ],
+      "label": "DMA-BUF mapping",
+      "labelPosition": {
+        "x": 952,
+        "y": 1344
+      },
+      "fromOffset": 20
+    },
+    {
+      "id": "vmm-frpc",
+      "from": "vmm",
+      "to": "vhost",
+      "relation": "configuration",
+      "evidence": [
+        "qcrosvm",
+        "vhost-setup"
+      ],
+      "label": "/tmp/sock_file_frpc",
+      "labelPosition": {
+        "x": 964,
+        "y": 480,
+        "anchor": "end"
+      }
+    },
+    {
+      "id": "vmm-gp",
+      "from": "vmm",
+      "to": "gp",
+      "relation": "configuration",
+      "evidence": [
+        "qcrosvm",
+        "gp"
+      ],
+      "fromSide": "right",
+      "toSide": "right",
+      "fromOffset": 0,
+      "toOffset": -24,
+      "via": [
+        {
+          "x": 1188
+        },
+        {
+          "y": 832
+        }
+      ],
+      "label": "/tmp/gp_hello",
+      "labelPosition": {
+        "x": 1096,
+        "y": 754
+      }
+    },
+    {
+      "id": "vhost-rm",
+      "from": "vhost",
+      "to": "rm",
+      "relation": "ipc",
+      "evidence": [
+        "vhost-frpc",
+        "rm",
+        "local-frpc",
+        "backend-elf"
+      ],
+      "mechanism": "LRM IPC",
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        {
+          "x": 720
+        },
+        {
+          "y": 912
+        }
+      ],
+      "labelPosition": {
+        "x": 784,
+        "y": 776
+      },
+      "toOffset": -20
+    },
+    {
+      "id": "gp-handshake",
+      "from": "gp",
+      "to": "gp-service",
+      "relation": "ipc",
+      "evidence": [
+        "gp-service"
+      ],
+      "mechanism": "FIFO + semaphore",
+      "labelPosition": {
+        "x": 964,
+        "y": 1020,
+        "anchor": "end"
+      }
+    },
+    {
+      "id": "gp-dsp-setup",
+      "from": "gp-service",
+      "to": "glink-service",
+      "relation": "configuration",
+      "evidence": [
+        "gp-service",
+        "rm-glink"
+      ],
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        {
+          "x": 716
+        },
+        {
+          "y": 1164
+        }
+      ],
+      "mechanism": "LRM IPC"
+    },
+    {
+      "id": "app-ort",
+      "from": "app",
+      "to": "ort",
+      "relation": "call",
+      "evidence": [
+        "article"
+      ]
+    },
+    {
+      "id": "ort-qnn",
+      "from": "ort",
+      "to": "qnn",
+      "relation": "call",
+      "evidence": [
+        "article"
+      ]
+    },
+    {
+      "id": "qnn-stub",
+      "from": "qnn",
+      "to": "stub",
+      "relation": "call",
+      "evidence": [
+        "article"
+      ]
+    },
+    {
+      "id": "stub-frpc",
+      "from": "stub",
+      "to": "gfrpc",
+      "relation": "call",
+      "evidence": [
+        "article"
+      ]
+    },
+    {
+      "id": "frpc-ioctl",
+      "from": "gfrpc",
+      "to": "hfrpc",
+      "relation": "call",
+      "evidence": [
+        "invoke"
+      ],
+      "label": "ioctl()",
+      "labelPosition": {
+        "x": 1790,
+        "y": 1080
+      }
+    },
+    {
+      "id": "lifecycle-vq",
+      "from": "hfrpc",
+      "to": "vhost",
+      "relation": "ipc",
+      "evidence": [
+        "lifecycle",
+        "vhost-setup",
+        "vhost-frpc"
+      ],
+      "mechanism": "VirtIO FastRPC",
+      "label": "VirtIO FastRPC",
+      "fromSide": "left",
+      "toSide": "bottom",
+      "via": [
+        {
+          "x": 1280
+        },
+        {
+          "y": 704
+        },
+        {
+          "x": 992
+        }
+      ],
+      "labelPosition": {
+        "x": 1080,
+        "y": 674
+      }
+    },
+    {
+      "id": "gp-cma-setup",
+      "from": "gp",
+      "to": "cma-setup",
+      "relation": "configuration",
+      "evidence": [
+        "gp",
+        "cma-setup"
+      ],
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        {
+          "x": 1252
+        },
+        {
+          "y": 1392
+        }
+      ],
+      "label": "VirtIO setup",
+      "labelPosition": {
+        "x": 1148,
+        "y": 1304
+      },
+      "fromOffset": 24
+    },
+    {
+      "id": "cma-register",
+      "from": "cma-setup",
+      "to": "glink-native",
+      "relation": "configuration",
+      "evidence": [
+        "cma-setup"
+      ],
+      "label": "Map / register",
+      "labelPosition": {
+        "x": 1830,
+        "y": 1464
+      }
+    },
+    {
+      "id": "invoke-rpmsg",
+      "from": "hfrpc",
+      "to": "glink-native",
+      "relation": "call",
+      "evidence": [
+        "rpmsg"
+      ],
+      "fromSide": "right",
+      "toSide": "right",
+      "fromOffset": 0,
+      "toOffset": 0,
+      "via": [
+        {
+          "x": 2052
+        },
+        {
+          "y": 1532
+        }
+      ],
+      "label": "RPMsg",
+      "labelPosition": {
+        "x": 1984,
+        "y": 1464
+      }
+    },
+    {
+      "id": "pvm-dsp",
+      "from": "umd",
+      "to": "dsp",
+      "relation": "call",
+      "evidence": [
+        "glink"
+      ],
+      "toOffset": -144,
+      "via": [
+        {
+          "y": 1832
+        },
+        {
+          "x": 968
+        }
+      ],
+      "label": "GLink / SMEM",
+      "labelPosition": {
+        "x": 612,
+        "y": 1802
+      }
+    },
+    {
+      "id": "gvm-dsp",
+      "from": "glink-native",
+      "to": "dsp",
+      "relation": "call",
+      "evidence": [
+        "cma-msg"
+      ],
+      "toOffset": 144,
+      "via": [
+        {
+          "y": 1832
+        },
+        {
+          "x": 1256
+        }
+      ],
+      "label": "GLink CMA FIFO + IPCC",
+      "labelPosition": {
+        "x": 1472,
+        "y": 1802
+      }
+    },
+    {
+      "id": "skel-execute",
+      "from": "dsp",
+      "to": "nsp",
+      "relation": "call",
+      "evidence": [
+        "article"
+      ],
+      "label": "Graph execution",
+      "labelPosition": {
+        "x": 1256,
+        "y": 2052
+      }
+    },
+    {
+      "id": "app-input",
+      "from": "app",
+      "to": "tensors",
+      "relation": "write",
+      "evidence": [
+        "article",
+        "mem"
+      ],
+      "fromSide": "right",
+      "fromOffset": -16,
+      "toSide": "top",
+      "toOffset": 96,
+      "via": [
+        {
+          "x": 2150
+        },
+        {
+          "y": 2140
+        },
+        {
+          "x": 1872
+        }
+      ],
+      "label": "Input tensors",
+      "labelPosition": {
+        "x": 1956,
+        "y": 2116
+      }
+    },
+    {
+      "id": "app-output",
+      "from": "tensors",
+      "to": "app",
+      "relation": "read",
+      "evidence": [
+        "article",
+        "mem"
+      ],
+      "fromSide": "top",
+      "fromOffset": -96,
+      "toSide": "right",
+      "toOffset": 16,
+      "via": [
+        {
+          "y": 2060
+        },
+        {
+          "x": 2124
+        },
+        {
+          "y": 376
+        }
+      ],
+      "label": "Output tensors",
+      "labelPosition": {
+        "x": 1776,
+        "y": 2038
+      }
+    },
+    {
+      "id": "tensor-input",
+      "from": "tensors",
+      "to": "nsp",
+      "relation": "read",
+      "evidence": [
+        "article",
+        "mem"
+      ],
+      "fromSide": "left",
+      "fromOffset": -12,
+      "toSide": "right",
+      "toOffset": -12
+    },
+    {
+      "id": "tensor-output",
+      "from": "nsp",
+      "to": "tensors",
+      "relation": "write",
+      "evidence": [
+        "article",
+        "mem"
+      ],
+      "fromSide": "right",
+      "fromOffset": 12,
+      "toSide": "left",
+      "toOffset": 12
+    }
+  ],
+  "deployment": {
+    "profile": "virtualized-soc",
+    "soc": "soc",
+    "vms": [
+      "pvm",
+      "gvm"
+    ],
+    "hypervisor": "hyp",
+    "hardware": "hw",
+    "evidence": [
+      "platform",
+      "qcrosvm",
+      "gunyah-api"
+    ]
+  }
+}

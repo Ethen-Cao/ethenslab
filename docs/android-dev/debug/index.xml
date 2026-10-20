@@ -51,7 +51,45 @@
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;编译时转换 (关键步骤)&lt;br&gt;
-当编译器（Javac）处理这段代码时，ProtoLog 的编译器插件会执行以下操作：&lt;/p&gt;</description></item><item><title>Android log机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-eventlog.png" alt="" /&gt;&lt;/p&gt;
+当编译器（Javac）处理这段代码时，ProtoLog 的编译器插件会执行以下操作：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;提取格式化字符串&lt;/strong&gt;：插件找到 &amp;ldquo;Setting orientation to %d&amp;rdquo; 这个字符串。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;生成唯一哈希 ID&lt;/strong&gt;：为这个字符串计算一个稳定且唯一的哈希值（例如 0x1A2B3C4D）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;代码替换&lt;/strong&gt;：插件将原始的 ProtoLog.v(&amp;hellip;) 调用替换为一个高度优化的内部调用。替换后的代码大致等效于：&lt;br&gt;
+// 伪代码，实际实现更复杂&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-java" data-lang="java"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (ProtoLogImpl.&lt;span style="color:#a6e22e"&gt;isEnabled&lt;/span&gt;(ProtoLogGroup.&lt;span style="color:#a6e22e"&gt;WM_DEBUG_ORIENTATION&lt;/span&gt;)) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ProtoLogImpl.&lt;span style="color:#a6e22e"&gt;log&lt;/span&gt;(LogLevel.&lt;span style="color:#a6e22e"&gt;VERBOSE&lt;/span&gt;, 0x1A2B3C4D, newOrientation);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;注意，原始的字符串已经消失了，只剩下&lt;strong&gt;哈希 ID&lt;/strong&gt; 和&lt;strong&gt;参数&lt;/strong&gt; (newOrientation)。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;生成 Viewer 映射文件&lt;br&gt;
+在编译过程中，插件还会将所有提取出的 “哈希 ID -&amp;gt; 格式化字符串” 的映射关系记录到一个 JSON 格式的配置文件中。这个文件是后续解码日志的关键。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;设备上运行&lt;br&gt;
+当设备上的代码执行到被替换后的日志点时：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;它首先检查 &lt;strong&gt;WM_DEBUG_ORIENTATION&lt;/strong&gt; 这个日志组是否被启用。&lt;/li&gt;
+&lt;li&gt;如果已启用，它会将日志级别、哈希 ID (0x1A2B3C4D) 和参数 (newOrientation 的值) 以紧凑的二进制格式写入专用的 protolog 日志缓冲区。整个过程不涉及任何字符串操作。&lt;/li&gt;
+&lt;li&gt;如果未启用，这个 if 判断会直接跳过，几乎没有性能开销。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;日志解码与查看&lt;br&gt;
+当开发者抓取日志时，看到的是二进制原始数据，无法直接阅读。此时，需要使用专门的工具（如 AOSP 中的 protologtool 脚本），并提供第 3 步生成的映射文件，才能将二进制日志解码成可读的文本：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-txt" data-lang="txt"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;# 二进制流中的片段: [VERBOSE, 0x1A2B3C4D, 1]
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;# 解码工具 + 映射文件 -&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;# 输出: V WM_DEBUG_ORIENTATION: Setting orientation to 1
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;/ol&gt;</description></item><item><title>Android log机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/log/</guid><description>&lt;p&gt;&lt;img src="https://ethen-cao.github.io/ethenslab/images/android-eventlog.png" alt="" /&gt;&lt;/p&gt;
 &lt;h3 id="架構圖詳解"&gt;架構圖詳解&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;

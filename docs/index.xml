@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/</link><description>Recent content on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Tue, 13 Oct 2026 00:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml"/><item><title>Gunyah 下 VIDC 架构与实现原理</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-vidc-architecture/</link><pubDate>Tue, 13 Oct 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-vidc-architecture/</guid><description>解析 SA8397 平台 Android GVM 与 Linux PVM 的 VIDC 软件架构、Codec2 调用链、跨虚拟机会话管理、HFI 队列及缓冲区机制。</description></item><item><title>Android 显示架构深度剖析：HDCP 级别获取机制与 DSI / DP 显示接口核心差异</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hdcp-level-and-display-interfaces/</link><pubDate>Mon, 12 Oct 2026 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hdcp-level-and-display-interfaces/</guid><description>&lt;h1 id="android-显示架构深度剖析hdcp-级别获取机制与-dsi--dp-显示接口核心差异"&gt;Android 显示架构深度剖析：HDCP 级别获取机制与 DSI / DP 显示接口核心差异&lt;/h1&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/</link><description>Recent content on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Tue, 20 Oct 2026 00:00:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/index.xml" rel="self" type="application/rss+xml"/><item><title>GVM Watchdog 实现机制</title><link>https://ethen-cao.github.io/ethenslab/qnx/gvm-watchdog-implementation/</link><pubDate>Tue, 20 Oct 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/gvm-watchdog-implementation/</guid><description>解析 Android GVM 的内核喂狗、QNX 虚拟 watchdog、故障转储与生命周期恢复链路。</description></item><item><title>PVM STR 唤醒后 epoll 与 CFS 配额循环等待的根因分析</title><link>https://ethen-cao.github.io/ethenslab/gunyah/pvm-str-epoll-cfs-quota-deadlock/</link><pubDate>Wed, 14 Oct 2026 12:10:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/pvm-str-epoll-cfs-quota-deadlock/</guid><description>基于 1009daily341 FULLDUMP，分析 epoll 与 CFS 配额循环等待，对照 Linux 上游已知问题和 6.6.114 修复，并给出 BSP 回移及 STR 验证计划。</description></item><item><title>Linux socket 与 epoll 回调和 PREEMPT_RT 锁的实现原理</title><link>https://ethen-cao.github.io/ethenslab/gunyah/linux-socket-epoll-preempt-rt-locking/</link><pubDate>Wed, 14 Oct 2026 12:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/linux-socket-epoll-preempt-rt-locking/</guid><description>解释 Unix socket 和 timerfd 的 epoll 通知路径、RT 读写锁与 CPU 配额依赖，并分析正式修复将 rwlock 改为 spinlock 后如何恢复优先级继承。</description></item><item><title>Gunyah 下 VIDC 架构与实现原理</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-vidc-architecture/</link><pubDate>Tue, 13 Oct 2026 00:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah-vidc-architecture/</guid><description>解析 SA8397 平台 Android GVM 与 Linux PVM 的 VIDC 软件架构、Codec2 调用链、跨虚拟机会话管理、HFI 队列及缓冲区机制。</description></item><item><title>Android 显示架构深度剖析：HDCP 级别获取机制与 DSI / DP 显示接口核心差异</title><link>https://ethen-cao.github.io/ethenslab/android-dev/display/hdcp-level-and-display-interfaces/</link><pubDate>Mon, 12 Oct 2026 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/display/hdcp-level-and-display-interfaces/</guid><description>&lt;h1 id="android-显示架构深度剖析hdcp-级别获取机制与-dsi--dp-显示接口核心差异"&gt;Android 显示架构深度剖析：HDCP 级别获取机制与 DSI / DP 显示接口核心差异&lt;/h1&gt;
 &lt;blockquote&gt;
 &lt;p&gt;&lt;strong&gt;文档版本&lt;/strong&gt;: 1.0.0 (Comprehensive Edition)&lt;br&gt;
 &lt;strong&gt;适用平台&lt;/strong&gt;: Android 10 ~ Android 15 (AOSP 手机/平板、Android Automotive OS 车载中控及多屏系统、高通 SA8155/SA8295 智能座舱虚拟机 GVM 架构)&lt;br&gt;
@@ -510,7 +510,65 @@ L --&gt; M[HWC / Display]
 &lt;li&gt;PVM 原生应用通过 Wayland 向 Weston 提交 surface。Weston 使用 SDM 选择 GPU 合成或 overlay，再经 DRM Front End（DRM-FE）和 OpenWFD 客户端协议提交。&lt;/li&gt;
 &lt;li&gt;LA-GVM 的显示帧经 VirtIO/HAB 到达 &lt;code&gt;VirtIOGPU2DBackendService&lt;/code&gt;，由该进程以独立 OpenWFD 客户端身份提交，不进入 Weston 的 scene graph。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;两条路径最终由 &lt;code&gt;openwfd_server -i 0/1&lt;/code&gt; 按静态配置的 Port、Pipeline 和 z-order 汇合。OpenWFD Server 直接持有 KIUMD、VFIO 与 SCMI MDSS 设备，是 PVM 中面向 DPU 硬件的服务端。&lt;/p&gt;</description></item><item><title>Android Winscope：工作原理、编译、运行与部署</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/</link><pubDate>Mon, 13 Jul 2026 09:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/</guid><description>&lt;p&gt;Winscope 是 Android 平台用于分析窗口、SurfaceFlinger Layer、窗口动画、输入法和系统界面状态的可视化工具。它尤其适合排查闪屏、黑屏、花屏、窗口层级错误、启动动画异常、画中画和多窗口切换异常等问题。&lt;/p&gt;
+&lt;p&gt;两条路径最终由 &lt;code&gt;openwfd_server -i 0/1&lt;/code&gt; 按静态配置的 Port、Pipeline 和 z-order 汇合。OpenWFD Server 直接持有 KIUMD、VFIO 与 SCMI MDSS 设备，是 PVM 中面向 DPU 硬件的服务端。&lt;/p&gt;</description></item><item><title>从 DrawFrames 到屏幕显示：用一条 Perfetto Trace 看懂 Android CPU、GPU 与 BufferQueue</title><link>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drawframes-bufferqueue-gpu-rendering/</link><pubDate>Fri, 17 Jul 2026 16:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/media/android-drawframes-bufferqueue-gpu-rendering/</guid><description>&lt;p&gt;本文用一条真实的 Perfetto Trace，解释 Android 应用的一帧是怎样从 &lt;code&gt;DrawFrames&lt;/code&gt; 变成屏幕上的像素的。文章面向刚接触 Android 图形系统的读者，重点回答以下问题：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;DrawFrames&lt;/code&gt; 里的方法分别在做什么？&lt;/li&gt;
+&lt;li&gt;哪些代码运行在 CPU 上，哪些工作交给 GPU？&lt;/li&gt;
+&lt;li&gt;App、SurfaceFlinger、HWC 和显示硬件之间是什么关系？&lt;/li&gt;
+&lt;li&gt;为什么一个 11.115 ms 的 &lt;code&gt;DrawFrames&lt;/code&gt;，真正占用 CPU 的时间只有约 1.842 ms？&lt;/li&gt;
+&lt;li&gt;为什么 &lt;code&gt;dequeueBuffer&lt;/code&gt; 很慢，却不一定代表 App 绘制很慢？&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id="1-本文分析的真实帧"&gt;1. 本文分析的真实帧&lt;/h2&gt;
+&lt;p&gt;数据来自 &lt;code&gt;20260717_094759_trace_1.perfetto&lt;/code&gt; 中的：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;DrawFrames 20205096
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;目标帧的基本信息如下：&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;项目&lt;/th&gt;
+&lt;th&gt;值&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;App 进程&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;com.voyah.cockpit.vehiclesettings&lt;/code&gt;，PID 4270&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;执行线程&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;RenderThread&lt;/code&gt;，TID 11120&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Vsync ID&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;20205096&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Frame Number&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;3794&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;绘制区域&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;3190 × 1626&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;DrawFrames&lt;/code&gt; 墙钟耗时&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;11.115313 ms&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;CPU 实际运行时间&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;1.842084 ms&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;睡眠等待时间&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;9.164322 ms&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Runnable 等待调度时间&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;0.108907 ms&lt;/strong&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;先给出结论：&lt;/p&gt;</description></item><item><title>Android Winscope：工作原理、编译、运行与部署</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/</link><pubDate>Mon, 13 Jul 2026 09:00:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/winscope/</guid><description>&lt;p&gt;Winscope 是 Android 平台用于分析窗口、SurfaceFlinger Layer、窗口动画、输入法和系统界面状态的可视化工具。它尤其适合排查闪屏、黑屏、花屏、窗口层级错误、启动动画异常、画中画和多窗口切换异常等问题。&lt;/p&gt;
 &lt;p&gt;Winscope 不是单一的 trace recorder。更准确地说，它由以下几部分组成：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;运行在浏览器中的 Winscope Web 前端。&lt;/li&gt;
@@ -681,7 +739,8 @@ N --&gt; O
 &lt;/code&gt;&lt;/pre&gt;
 &lt;blockquote&gt;
 &lt;p&gt;下面是同一条链路的&lt;strong&gt;交互式动画版&lt;/strong&gt;（分层 App → HAL，动画粒子表示流动的 PCM 数据）。若未显示，请直接打开 &lt;a href="https://ethen-cao.github.io/ethenslab/diagrams/audioflinger-playback-capture-arch.html"&gt;架构图&lt;/a&gt;
-。&lt;/p&gt;</description></item><item><title>Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</link><pubDate>Sun, 07 Jun 2026 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
+。&lt;/p&gt;
+&lt;/blockquote&gt;</description></item><item><title>Android 13 WindowInfos Update Flow — 架构、Bug 分析与 Backpressure 修复</title><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</link><pubDate>Sun, 07 Jun 2026 10:22:54 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/windowinfo-update-flow/</guid><description>&lt;h2 id="1-概述"&gt;1. 概述&lt;/h2&gt;
 &lt;p&gt;WindowInfos Update Flow 是 Android 图形与输入系统协同工作的核心机制。SurfaceFlinger (SF) 每帧合成后将最新窗口属性（&lt;code&gt;WindowInfo&lt;/code&gt;：几何位置、Z-Order、触摸区域、输入标志、变换矩阵）通过 oneway Binder 实时同步给消费者进程。&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;主要消费者&lt;/strong&gt;：&lt;/p&gt;
 &lt;ul&gt;
@@ -1215,7 +1274,45 @@ Binder 内核通信库，负责 Binder 代理对象的创建与管理。
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Android Perfetto "飞行记录仪" (Flight Recorder) 实施方案</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</guid><description>&lt;h2 id="1-需求概述"&gt;1. 需求概述&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;设置回调&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;AMS 通过 &lt;code&gt;BinderInternal.setBinderProxyCountCallback(listener)&lt;/code&gt; 注册回调。&lt;/li&gt;
+&lt;li&gt;回调实现由 &lt;code&gt;BinderProxyLimitListenerDelegate&lt;/code&gt; 代理。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;JNI 层交互&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Java 调用会映射到 JNI：
+&lt;code&gt;android_os_BinderInternal_setBinderProxyCountEnabled&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;Native 创建回调代理：
+&lt;code&gt;android_os_BinderInternal_proxyLimitcallback&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Native 层计数逻辑&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;BpBinder::create&lt;/code&gt; 在生成新 Binder Proxy 时增加计数。&lt;/li&gt;
+&lt;li&gt;若达到阈值，触发回调 &lt;code&gt;binderProxyLimitCallbackFromNative&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Java 层通知&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;回调委派给 &lt;code&gt;BinderProxyLimitListenerDelegate&lt;/code&gt;，最终执行
+&lt;code&gt;BinderProxyLimitListener.onLimitReached(uid)&lt;/code&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;ActivityManagerService&lt;/code&gt; 根据 UID 采取措施：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;如果是 &lt;code&gt;SYSTEM_UID&lt;/code&gt; → 跳过杀进程。&lt;/li&gt;
+&lt;li&gt;否则 → 调用 &lt;code&gt;killUid()&lt;/code&gt; 并触发 &lt;code&gt;VMRuntime.requestConcurrentGC()&lt;/code&gt; 进行清理。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;</description></item><item><title>Android Perfetto "飞行记录仪" (Flight Recorder) 实施方案</title><link>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</link><pubDate>Mon, 29 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/perf-stab/perfetto/</guid><description>&lt;h2 id="1-需求概述"&gt;1. 需求概述&lt;/h2&gt;
 &lt;p&gt;本方案旨在实现一套基于 Android Perfetto 的系统级自动追踪机制，模拟飞机的“黑匣子”功能：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;开机自启&lt;/strong&gt;：系统启动后，自动启动 Perfetto 追踪服务。&lt;/li&gt;
@@ -1996,7 +2093,71 @@ IMS -left-&amp;gt; RIC : **IInputContext**\n真实文本编辑命令
 &lt;ul&gt;
 &lt;li&gt;
 &lt;p&gt;&lt;strong&gt;用户空间日志打印点 (IPCThreadState.cpp)&lt;/strong&gt;
-在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;</description></item><item><title>OTA 后系统应用 sharedUserId 变更，/data 数据是否保留？</title><link>https://ethen-cao.github.io/ethenslab/android-dev/pms/ota-shared-uid-change-data-survival/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/pms/ota-shared-uid-change-data-survival/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
+在 &lt;code&gt;IPCThreadState::waitForResponse&lt;/code&gt; 函数中，它处理从 Binder 驱动返回的各种指令 (&lt;code&gt;BR_*&lt;/code&gt;)。其中就包括 &lt;code&gt;BR_ONEWAY_SPAM_SUSPECT&lt;/code&gt;。&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-cpp" data-lang="cpp"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// IPCThreadState.cpp
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;status_t IPCThreadState&lt;span style="color:#f92672"&gt;::&lt;/span&gt;waitForResponse(Parcel &lt;span style="color:#f92672"&gt;*&lt;/span&gt;reply, status_t &lt;span style="color:#f92672"&gt;*&lt;/span&gt;acquireResult)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;while&lt;/span&gt; (&lt;span style="color:#ae81ff"&gt;1&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; cmd &lt;span style="color:#f92672"&gt;=&lt;/span&gt; (&lt;span style="color:#66d9ef"&gt;uint32_t&lt;/span&gt;)mIn.readInt32();
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;switch&lt;/span&gt; (cmd) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;case&lt;/span&gt; BR_ONEWAY_SPAM_SUSPECT:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ALOGE(&lt;span style="color:#e6db74"&gt;&amp;#34;Process seems to be sending too many oneway calls.&amp;#34;&lt;/span&gt;); &lt;span style="color:#75715e"&gt;// &amp;lt;-- 日志打印点
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; CallStack&lt;span style="color:#f92672"&gt;::&lt;/span&gt;logStack(&lt;span style="color:#e6db74"&gt;&amp;#34;oneway spamming&amp;#34;&lt;/span&gt;, &lt;span style="color:#66d9ef"&gt;nullptr&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ANDROID_LOG_ERROR);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#a6e22e"&gt;[[fallthrough]]&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;case&lt;/span&gt; BR_TRANSACTION_COMPLETE:
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (&lt;span style="color:#f92672"&gt;!&lt;/span&gt;reply &lt;span style="color:#f92672"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span style="color:#f92672"&gt;!&lt;/span&gt;acquireResult) &lt;span style="color:#66d9ef"&gt;goto&lt;/span&gt; finish;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;break&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;内核空间检测逻辑 (binder_alloc.c)&lt;/strong&gt;
+内核中的 &lt;code&gt;binder_alloc_new_buf_locked&lt;/code&gt; 函数在为 oneway 事务分配缓冲区时，会调用 &lt;code&gt;debug_low_async_space_locked&lt;/code&gt; 进行检测。&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-c" data-lang="c"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#75715e"&gt;// binder_alloc.c
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;static&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;struct&lt;/span&gt; binder_buffer &lt;span style="color:#f92672"&gt;*&lt;/span&gt;&lt;span style="color:#a6e22e"&gt;binder_alloc_new_buf_locked&lt;/span&gt;(
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ..., &lt;span style="color:#66d9ef"&gt;int&lt;/span&gt; is_async)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (is_async) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;free_async_space &lt;span style="color:#f92672"&gt;-=&lt;/span&gt; size; &lt;span style="color:#75715e"&gt;// 减少可用的异步空间
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (&lt;span style="color:#a6e22e"&gt;debug_low_async_space_locked&lt;/span&gt;(alloc))
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; buffer&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;oneway_spam_suspect &lt;span style="color:#f92672"&gt;=&lt;/span&gt; true; &lt;span style="color:#75715e"&gt;// &amp;lt;-- 如果检测为 spam，设置标记
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; buffer;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;static&lt;/span&gt; &lt;span style="color:#66d9ef"&gt;bool&lt;/span&gt; &lt;span style="color:#a6e22e"&gt;debug_low_async_space_locked&lt;/span&gt;(&lt;span style="color:#66d9ef"&gt;struct&lt;/span&gt; binder_alloc &lt;span style="color:#f92672"&gt;*&lt;/span&gt;alloc)
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 阈值1：只有当可用异步空间低于总空间的10%时，才开始检测
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;free_async_space &lt;span style="color:#f92672"&gt;&amp;gt;=&lt;/span&gt; alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;buffer_size &lt;span style="color:#f92672"&gt;/&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;10&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;oneway_spam_detected &lt;span style="color:#f92672"&gt;=&lt;/span&gt; false;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; false;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ... 计算当前进程已分配的 oneway 缓冲区数量和总大小
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// 阈值2：如果进程的 oneway 缓冲区超过50个或总大小超过总空间的25%
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (num_buffers &lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;50&lt;/span&gt; &lt;span style="color:#f92672"&gt;||&lt;/span&gt; total_alloc_size &lt;span style="color:#f92672"&gt;&amp;gt;&lt;/span&gt; alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;buffer_size &lt;span style="color:#f92672"&gt;/&lt;/span&gt; &lt;span style="color:#ae81ff"&gt;4&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#75715e"&gt;// ...
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (&lt;span style="color:#f92672"&gt;!&lt;/span&gt;alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;oneway_spam_detected) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; alloc&lt;span style="color:#f92672"&gt;-&amp;gt;&lt;/span&gt;oneway_spam_detected &lt;span style="color:#f92672"&gt;=&lt;/span&gt; true;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; true; &lt;span style="color:#75715e"&gt;// &amp;lt;-- 返回 true，表示检测到 spam
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; &lt;span style="color:#66d9ef"&gt;return&lt;/span&gt; false;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>OTA 后系统应用 sharedUserId 变更，/data 数据是否保留？</title><link>https://ethen-cao.github.io/ethenslab/android-dev/pms/ota-shared-uid-change-data-survival/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/pms/ota-shared-uid-change-data-survival/</guid><description>&lt;h2 id="背景"&gt;背景&lt;/h2&gt;
 &lt;p&gt;在 Android 系统 OTA 升级场景中，存在这样一种情况：&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;OTA 前&lt;/strong&gt;：应用 A 是系统应用，在 &lt;code&gt;AndroidManifest.xml&lt;/code&gt; 中声明了 &lt;code&gt;android:sharedUserId=&amp;quot;android.uid.system&amp;quot;&lt;/code&gt;，因此运行在 system UID（1000）下。&lt;/li&gt;
@@ -2008,7 +2169,8 @@ IMS -left-&amp;gt; RIC : **IInputContext**\n真实文本编辑命令
 &lt;p&gt;&lt;strong&gt;重要结论（先说答案）&lt;/strong&gt;：&lt;strong&gt;数据目录实际会丢失&lt;/strong&gt;。虽然 PMS 在扫描阶段会保留新的 PackageSetting（包名仍然注册），但由于 Google 通过 &lt;code&gt;ScanResult.java:75&lt;/code&gt; 与 &lt;code&gt;Installer.java:275&lt;/code&gt; 硬编码 &lt;code&gt;previousAppId = INVALID_UID / 0&lt;/code&gt;（见 bug &lt;code&gt;b/221088088&lt;/code&gt;），&lt;code&gt;installd&lt;/code&gt; 无法得知&amp;quot;旧 UID&amp;quot;，无法对已有目录执行 chown，最终触发 &lt;code&gt;prepareAppDataLeaf&lt;/code&gt; 的错误恢复分支：&lt;strong&gt;先 destroy 旧数据，再建空目录&lt;/strong&gt;。&lt;/p&gt;
 &lt;/blockquote&gt;
 &lt;blockquote&gt;
-&lt;p&gt;&lt;strong&gt;另一常见误区&lt;/strong&gt;：网络上的说法（也常由 LLM 生成）称 PMS 会抛 &lt;code&gt;INSTALL_FAILED_UID_CHANGED&lt;/code&gt; 异常，在 catch 中 &lt;code&gt;removePackageLPw&lt;/code&gt; → &lt;code&gt;destroyAppDataLIF&lt;/code&gt; → 二次扫描。&lt;strong&gt;这与源码不符&lt;/strong&gt;。实际逻辑是&amp;quot;静默替换&amp;quot;，见 &lt;code&gt;ScanPackageUtils.java:168-177&lt;/code&gt;。&lt;/p&gt;</description></item><item><title>PackageManagerService 快速上手：从源码结构到客制化调试</title><link>https://ethen-cao.github.io/ethenslab/android-dev/pms/packagemanagerservice-quickstart/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/pms/packagemanagerservice-quickstart/</guid><description>&lt;h1 id="packagemanagerservice-快速上手"&gt;PackageManagerService 快速上手&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;另一常见误区&lt;/strong&gt;：网络上的说法（也常由 LLM 生成）称 PMS 会抛 &lt;code&gt;INSTALL_FAILED_UID_CHANGED&lt;/code&gt; 异常，在 catch 中 &lt;code&gt;removePackageLPw&lt;/code&gt; → &lt;code&gt;destroyAppDataLIF&lt;/code&gt; → 二次扫描。&lt;strong&gt;这与源码不符&lt;/strong&gt;。实际逻辑是&amp;quot;静默替换&amp;quot;，见 &lt;code&gt;ScanPackageUtils.java:168-177&lt;/code&gt;。&lt;/p&gt;
+&lt;/blockquote&gt;</description></item><item><title>PackageManagerService 快速上手：从源码结构到客制化调试</title><link>https://ethen-cao.github.io/ethenslab/android-dev/pms/packagemanagerservice-quickstart/</link><pubDate>Sun, 28 Sep 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/pms/packagemanagerservice-quickstart/</guid><description>&lt;h1 id="packagemanagerservice-快速上手"&gt;PackageManagerService 快速上手&lt;/h1&gt;
 &lt;blockquote&gt;
 &lt;p&gt;面向懂 Java、熟悉 AOSP 大致结构、但还没深入 PMS 的开发者。
 读完本文，你应当能：&lt;/p&gt;
@@ -2266,7 +2428,45 @@ SysCfg --&gt; Disk
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;li&gt;
 &lt;p&gt;编译时转换 (关键步骤)&lt;br&gt;
-当编译器（Javac）处理这段代码时，ProtoLog 的编译器插件会执行以下操作：&lt;/p&gt;</description></item><item><title>QNX/Android Rawdump 机制完全原理解析</title><link>https://ethen-cao.github.io/ethenslab/qnx/log_collector/</link><pubDate>Thu, 28 Aug 2025 16:25:03 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/log_collector/</guid><description>&lt;p&gt;本文档基于系统源码（QNX/Android/Bootloader）及实际配置分析，详细阐述了智能座舱系统中的内存转储（Crash Dump）机制。&lt;/p&gt;
+当编译器（Javac）处理这段代码时，ProtoLog 的编译器插件会执行以下操作：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;提取格式化字符串&lt;/strong&gt;：插件找到 &amp;ldquo;Setting orientation to %d&amp;rdquo; 这个字符串。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;生成唯一哈希 ID&lt;/strong&gt;：为这个字符串计算一个稳定且唯一的哈希值（例如 0x1A2B3C4D）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;代码替换&lt;/strong&gt;：插件将原始的 ProtoLog.v(&amp;hellip;) 调用替换为一个高度优化的内部调用。替换后的代码大致等效于：&lt;br&gt;
+// 伪代码，实际实现更复杂&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-java" data-lang="java"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;&lt;span style="color:#66d9ef"&gt;if&lt;/span&gt; (ProtoLogImpl.&lt;span style="color:#a6e22e"&gt;isEnabled&lt;/span&gt;(ProtoLogGroup.&lt;span style="color:#a6e22e"&gt;WM_DEBUG_ORIENTATION&lt;/span&gt;)) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt; ProtoLogImpl.&lt;span style="color:#a6e22e"&gt;log&lt;/span&gt;(LogLevel.&lt;span style="color:#a6e22e"&gt;VERBOSE&lt;/span&gt;, 0x1A2B3C4D, newOrientation);
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;注意，原始的字符串已经消失了，只剩下&lt;strong&gt;哈希 ID&lt;/strong&gt; 和&lt;strong&gt;参数&lt;/strong&gt; (newOrientation)。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;生成 Viewer 映射文件&lt;br&gt;
+在编译过程中，插件还会将所有提取出的 “哈希 ID -&amp;gt; 格式化字符串” 的映射关系记录到一个 JSON 格式的配置文件中。这个文件是后续解码日志的关键。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;设备上运行&lt;br&gt;
+当设备上的代码执行到被替换后的日志点时：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;它首先检查 &lt;strong&gt;WM_DEBUG_ORIENTATION&lt;/strong&gt; 这个日志组是否被启用。&lt;/li&gt;
+&lt;li&gt;如果已启用，它会将日志级别、哈希 ID (0x1A2B3C4D) 和参数 (newOrientation 的值) 以紧凑的二进制格式写入专用的 protolog 日志缓冲区。整个过程不涉及任何字符串操作。&lt;/li&gt;
+&lt;li&gt;如果未启用，这个 if 判断会直接跳过，几乎没有性能开销。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;日志解码与查看&lt;br&gt;
+当开发者抓取日志时，看到的是二进制原始数据，无法直接阅读。此时，需要使用专门的工具（如 AOSP 中的 protologtool 脚本），并提供第 3 步生成的映射文件，才能将二进制日志解码成可读的文本：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"&gt;&lt;code class="language-txt" data-lang="txt"&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;# 二进制流中的片段: [VERBOSE, 0x1A2B3C4D, 1]
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;# 解码工具 + 映射文件 -&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;# 输出: V WM_DEBUG_ORIENTATION: Setting orientation to 1
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;/ol&gt;</description></item><item><title>QNX/Android Rawdump 机制完全原理解析</title><link>https://ethen-cao.github.io/ethenslab/qnx/log_collector/</link><pubDate>Thu, 28 Aug 2025 16:25:03 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/log_collector/</guid><description>&lt;p&gt;本文档基于系统源码（QNX/Android/Bootloader）及实际配置分析，详细阐述了智能座舱系统中的内存转储（Crash Dump）机制。&lt;/p&gt;
 &lt;h2 id="1-全系统生命周期与时序总览"&gt;1. 全系统生命周期与时序总览&lt;/h2&gt;
 &lt;p&gt;此图描述了从系统启动注册、模式配置，到发生崩溃（分两种场景），最后到重启提取的完整闭环流程。&lt;/p&gt;
 &lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;@startuml
@@ -2618,7 +2818,21 @@ SkelRun -[#008000]down-&amp;gt; HTP_HW : 17. Compute
 &lt;h3 id="24-优缺点分析"&gt;2.4 优缺点分析&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;优点&lt;/strong&gt;：&lt;/p&gt;</description></item><item><title>UML中package和component对比</title><link>https://ethen-cao.github.io/ethenslab/others/package-component-comparison/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/package-component-comparison/</guid><description>&lt;h2 id="一概念本质对比"&gt;一、概念本质对比&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;优点&lt;/strong&gt;：&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;开发门槛低，无需掌握汇编或嵌入式编程。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;模型迭代快，直接替换模型文件即可。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;缺点&lt;/strong&gt;：&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;灵活性受限&lt;/strong&gt;：无法处理非神经网络逻辑（如复杂的 &lt;code&gt;if-else&lt;/code&gt; 逻辑、传统图像算法）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>UML中package和component对比</title><link>https://ethen-cao.github.io/ethenslab/others/package-component-comparison/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/package-component-comparison/</guid><description>&lt;h2 id="一概念本质对比"&gt;一、概念本质对比&lt;/h2&gt;
 &lt;table&gt;
 &lt;thead&gt;
 &lt;tr&gt;
@@ -2711,7 +2925,32 @@ component WindowManager
 &lt;h3 id="2-component"&gt;2️⃣ component&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;语义&lt;/strong&gt;：软件的可独立模块，提供接口，可替换。&lt;/p&gt;</description></item><item><title>中国车企出海的智能座舱生态挑战</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</guid><description>&lt;h2 id="执行摘要"&gt;&lt;strong&gt;执行摘要&lt;/strong&gt;&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;语义&lt;/strong&gt;：软件的可独立模块，提供接口，可替换。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;场景&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Android Service（AudioService、SurfaceFlinger）&lt;/li&gt;
+&lt;li&gt;HAL 模块（Camera HAL、Audio HAL）&lt;/li&gt;
+&lt;li&gt;微服务 / 独立可部署模块&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;特点&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;可以显示提供 / 使用接口&lt;/li&gt;
+&lt;li&gt;可独立替换或部署&lt;/li&gt;
+&lt;li&gt;可以嵌套在 package 内&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;PlantUML 使用&lt;/strong&gt;：&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code class="language-plantuml" data-lang="plantuml"&gt;package &amp;#34;Native HAL&amp;#34; {
+component &amp;#34;Audio HAL&amp;#34;
+component &amp;#34;Camera HAL&amp;#34;
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>中国车企出海的智能座舱生态挑战</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/%E4%B8%AD%E5%9B%BD%E8%BD%A6%E4%BC%81%E5%87%BA%E6%B5%B7%E6%8C%91%E6%88%98/</guid><description>&lt;h2 id="执行摘要"&gt;&lt;strong&gt;执行摘要&lt;/strong&gt;&lt;/h2&gt;
 &lt;p&gt;本报告旨在深入剖析中国汽车制造商在全球化进程中面临的核心战略困境：其在国内市场赖以成功的核心竞争力——一个高度集成、功能丰富的智能座舱生态系统——在国际市场上正转变为一项重大的挑战和复杂的难题。中国车企在国内通过将先进硬件与本土互联网巨头的服务深度捆绑，创造了“第三生活空间”的极致用户体验。然而，这种成功的模式具有高度的地域特殊性，其服务根基、技术平台和数据范式均难以直接移植到海外市场。&lt;/p&gt;
 &lt;p&gt;报告的核心发现可归结为三大挑战：&lt;/p&gt;
 &lt;ol&gt;
@@ -2801,7 +3040,13 @@ component WindowManager
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;工程实践 (Best Practice):&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>车载系统发展历史</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/%E8%BD%A6%E8%BD%BD%E7%B3%BB%E7%BB%9F%E6%BC%94%E8%BF%9B%E6%96%B9%E5%90%91%E6%8E%A2%E7%B4%A2/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/%E8%BD%A6%E8%BD%BD%E7%B3%BB%E7%BB%9F%E6%BC%94%E8%BF%9B%E6%96%B9%E5%90%91%E6%8E%A2%E7%B4%A2/</guid><description>&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;工程实践 (Best Practice):&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;做法：&lt;/strong&gt; 为了稳妥，OEM 通常选择在 MSD 期间静音所有可控音源（包括仪表）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;理由：&lt;/strong&gt; 降低任何潜在的声学干扰风险，简化测试验证逻辑。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>车载系统发展历史</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/%E8%BD%A6%E8%BD%BD%E7%B3%BB%E7%BB%9F%E6%BC%94%E8%BF%9B%E6%96%B9%E5%90%91%E6%8E%A2%E7%B4%A2/</link><pubDate>Wed, 27 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/%E8%BD%A6%E8%BD%BD%E7%B3%BB%E7%BB%9F%E6%BC%94%E8%BF%9B%E6%96%B9%E5%90%91%E6%8E%A2%E7%B4%A2/</guid><description>&lt;blockquote&gt;
 &lt;p&gt;&lt;strong&gt;注：本表按“用户体验成为主流/标配的普及节点”分代，不等同于单项技术的首次出现时间。&lt;/strong&gt;&lt;/p&gt;
 &lt;/blockquote&gt;
 &lt;table&gt;
@@ -2884,7 +3129,15 @@ component WindowManager
 &lt;h3 id="1-构建统一的全域感知数据底座为大模型提供可持续进化的输入能力"&gt;1. 构建统一的全域感知数据底座：&lt;strong&gt;为大模型提供“可持续进化”的输入能力&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;打破数据割裂，形成统一视图&lt;/strong&gt;：将操作系统状态、车辆运行数据、用户行为及应用生态等多源感知数据进行统一建模与归一化处理，消除系统与业务之间的数据孤岛。&lt;/p&gt;</description></item><item><title>Android 13 TaskView 实现机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/taskview/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/taskview/</guid><description>&lt;p&gt;&lt;code&gt;TaskView&lt;/code&gt; 是 WM Shell 提供的通用嵌入式任务容器，定义在 &lt;code&gt;frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/TaskView.java&lt;/code&gt;。它继承自 &lt;code&gt;SurfaceView&lt;/code&gt;，核心能力是把一个独立的 Task（及其内部的 Activity）嵌入到宿主应用的 View 树中显示。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;打破数据割裂，形成统一视图&lt;/strong&gt;：将操作系统状态、车辆运行数据、用户行为及应用生态等多源感知数据进行统一建模与归一化处理，消除系统与业务之间的数据孤岛。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;从“数据堆积”升级为“能力输出”&lt;/strong&gt;：将分散、异构的数据沉淀为标准化的多模态感知服务，为大模型持续提供高质量、可复用的上下文感知输入，而非一次性对接。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;长期价值&lt;/strong&gt;：数据能力与具体模型解耦，&lt;strong&gt;模型可替换、能力不重建&lt;/strong&gt;，为后续模型升级和厂商切换保留主动权。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>Android 13 TaskView 实现机制</title><link>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/taskview/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/activitymanager/taskview/</guid><description>&lt;p&gt;&lt;code&gt;TaskView&lt;/code&gt; 是 WM Shell 提供的通用嵌入式任务容器，定义在 &lt;code&gt;frameworks/base/libs/WindowManager/Shell/src/com/android/wm/shell/TaskView.java&lt;/code&gt;。它继承自 &lt;code&gt;SurfaceView&lt;/code&gt;，核心能力是把一个独立的 Task（及其内部的 Activity）嵌入到宿主应用的 View 树中显示。&lt;/p&gt;
 &lt;p&gt;本文从两个维度展开：&lt;/p&gt;
 &lt;ol&gt;
 &lt;li&gt;&lt;strong&gt;框架层&lt;/strong&gt;：&lt;code&gt;TaskView&lt;/code&gt; 本身如何加入 &lt;code&gt;ViewRootImpl&lt;/code&gt; 的 View 树、如何分配 Surface、Activity 如何被启动并嵌入到 &lt;code&gt;TaskView&lt;/code&gt; 中&lt;/li&gt;
@@ -3040,7 +3293,8 @@ deactivate Starter
 &lt;/table&gt;
 &lt;blockquote&gt;
 &lt;p&gt;&lt;strong&gt;什么是 Extended attributes (xattr)?&lt;/strong&gt;
-扩展属性是永久关联到文件和目录的 name:value 对，常见于 ext4、f2fs 等现代文件系统。&lt;/p&gt;</description></item><item><title>Protocol Buffers (Protobuf) 技术指南</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
+扩展属性是永久关联到文件和目录的 name:value 对，常见于 ext4、f2fs 等现代文件系统。&lt;/p&gt;
+&lt;/blockquote&gt;</description></item><item><title>Protocol Buffers (Protobuf) 技术指南</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
 &lt;p&gt;&lt;strong&gt;Protocol Buffers&lt;/strong&gt; (简称 Protobuf) 是 Google 开发的一种语言无关、平台无关、可扩展的&lt;strong&gt;序列化结构数据&lt;/strong&gt;的机制。&lt;/p&gt;
 &lt;p&gt;相比于 XML 和 JSON，Protobuf 的主要特点是：&lt;/p&gt;
 &lt;ul&gt;
@@ -3122,7 +3376,11 @@ deactivate Starter
 &lt;p&gt;在 Android 端的 Chromium (或 WebView) 中播放受 Widevine 保护的加密视频，涉及到网页前端 (JavaScript EME API)、浏览器内核 (Chromium Media)、Android 原生媒体框架 (MediaDrm / MediaCodec) 以及底层安全环境 (TEE) 的多方协同。&lt;/p&gt;
 &lt;p&gt;本文档梳理了 Chromium 在 Android 上处理 Widevine DRM 的核心交互流程，重点解析 &lt;strong&gt;L1/L3 安全等级的协商机制&lt;/strong&gt;、&lt;strong&gt;会话生命周期&lt;/strong&gt; 以及 &lt;strong&gt;排错指南&lt;/strong&gt;。&lt;/p&gt;
 &lt;div class="github-alert github-alert-note"&gt;
-&lt;p class="github-alert-title"&gt;&lt;svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-info"&gt;&lt;path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"&gt;&lt;/path&gt;&lt;/svg&gt; Note&lt;/p&gt;</description></item><item><title>OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</link><pubDate>Fri, 08 Aug 2025 19:49:26 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</guid><description>&lt;h1 id="oem-多品牌多使用者動態主題引擎技術方案"&gt;OEM 多品牌多使用者動態主題引擎技術方案&lt;/h1&gt;
+&lt;p class="github-alert-title"&gt;&lt;svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-info"&gt;&lt;path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"&gt;&lt;/path&gt;&lt;/svg&gt; Note&lt;/p&gt;
+&lt;div class="github-alert-content"&gt;
+&lt;p&gt;设备硬件支持 Widevine L1，并不意味着每次网页播放都会自动启用 L1。实际使用的安全等级由&lt;strong&gt;网页播放器提出的候选配置&lt;/strong&gt;、&lt;strong&gt;Chromium 的安全策略约束&lt;/strong&gt; 以及 &lt;strong&gt;Android 框架能力&lt;/strong&gt; 共同协商决定。&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;</description></item><item><title>OEM Dynamic Theme Engine: A Multi-brand, Multi-user Technical Solution</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</link><pubDate>Fri, 08 Aug 2025 19:49:26 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine/</guid><description>&lt;h1 id="oem-多品牌多使用者動態主題引擎技術方案"&gt;OEM 多品牌多使用者動態主題引擎技術方案&lt;/h1&gt;
 &lt;table&gt;
 &lt;thead&gt;
 &lt;tr&gt;
@@ -3479,7 +3737,11 @@ Splitter -up--&amp;gt; Secondary : 分发 Buffer 句柄
 &lt;/span&gt;&lt;/span&gt;&lt;span style="display:flex;"&gt;&lt;span&gt;}
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
 &lt;div class="github-alert github-alert-tip"&gt;
-&lt;p class="github-alert-title"&gt;&lt;svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-light-bulb"&gt;&lt;path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"&gt;&lt;/path&gt;&lt;/svg&gt; Tip&lt;/p&gt;</description></item><item><title>使用AndroidStudio调试AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid><description>&lt;h2 id="调试java进程"&gt;调试Java进程&lt;/h2&gt;
+&lt;p class="github-alert-title"&gt;&lt;svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-light-bulb"&gt;&lt;path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"&gt;&lt;/path&gt;&lt;/svg&gt; Tip&lt;/p&gt;
+&lt;div class="github-alert-content"&gt;
+&lt;p&gt;&lt;strong&gt;无侵入替换方案&lt;/strong&gt;：得益于双分区机制，定制开发时无需修改框架源码。只需在 &lt;code&gt;device.mk&lt;/code&gt; 中通过 &lt;code&gt;PRODUCT_COPY_FILES&lt;/code&gt; 将自定义音频文件拷贝至 &lt;code&gt;product&lt;/code&gt; 分区目录（&lt;code&gt;/product/media/audio/ui/camera_click.ogg&lt;/code&gt;），即可实现拦截覆盖。&lt;/p&gt;
+&lt;/div&gt;
+&lt;/div&gt;</description></item><item><title>使用AndroidStudio调试AOSP</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</link><pubDate>Fri, 08 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/using-androidstudio-to-debug-aosp/</guid><description>&lt;h2 id="调试java进程"&gt;调试Java进程&lt;/h2&gt;
 &lt;p&gt;本文介绍如何在 Android Studio 中调试 AOSP (Android Open Source Project) 进程，尤其是像 system_server 这样的系统进程。调试 AOSP 与普通应用调试有所不同，需要借助 JDWP 协议和 adb 端口转发。&lt;/p&gt;
 &lt;h3 id="前置条件"&gt;前置条件&lt;/h3&gt;
 &lt;p&gt;环境准备：&lt;/p&gt;
@@ -3699,7 +3961,45 @@ HBLK --&amp;gt; DISK
 &lt;/code&gt;&lt;/pre&gt;&lt;h4 id="2-核心组件与角色"&gt;2. 核心组件与角色&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;Guest (Android VM):&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Guest (Android VM):&lt;/strong&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Virtio-blk Frontend:&lt;/strong&gt; 运行在 Android 内核中的驱动程序。它不进行实际的数据拷贝，而是负责将上层文件系统（App/VFS）的读写请求封装成 Virtio 格式的描述符。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Block Layer:&lt;/strong&gt; 生成标准的块 I/O 请求。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Shared Memory (数据平面):&lt;/strong&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;这是 Guest 的部分 RAM，被 Hypervisor 映射给 Host 侧的 &lt;code&gt;qcrosvm&lt;/code&gt; 访问。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Virtqueue (VQ):&lt;/strong&gt; 核心数据结构，包含描述符表（Descriptors）、可用环（Avail Ring）和已用环（Used Ring）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Data Buffers:&lt;/strong&gt; 实际存放读写数据的内存区域。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;机制:&lt;/strong&gt; 前后端通过共享内存直接读写数据，实现了 &lt;strong&gt;Zero-Copy（零拷贝）&lt;/strong&gt; 的高效数据传输。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Host (Linux &amp;amp; qcrosvm):&lt;/strong&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;qcrosvm (VMM + Backend):&lt;/strong&gt; 这是宿主机上的虚拟机管理进程。它内部集成了 virtio-blk 的后端逻辑，负责从共享内存中取出请求，并将其转化为宿主机的文件读写操作。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Host Block Layer:&lt;/strong&gt; Linux 内核的通用块设备层，负责最终驱动物理硬件。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;Hypervisor (Gunyah):&lt;/strong&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;负责特权级切换、内存映射管理、以及中断和通知（Kick）的路由（通过 &lt;code&gt;eventfd&lt;/code&gt; 和 &lt;code&gt;irqfd&lt;/code&gt;）。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>高通 Gunyah 虚拟化平台设备树 (Device Tree) 全解：从源码到 Boot Image</title><link>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</link><pubDate>Mon, 04 Aug 2025 09:49:58 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/gunyah/gunyah_devicetree/</guid><description>&lt;p&gt;在基于 Gunyah Hypervisor 的高通汽车平台（如 SA8797P）中，设备树（Device Tree）扮演着双重角色：它不仅描述了 Linux Host 的物理硬件，还充当了 Hypervisor 的“资源授权合约”，定义了虚拟机（VM）可以访问哪些内存和虚拟设备。&lt;/p&gt;
 &lt;p&gt;本文将深入解析其文件结构、编译配置、构建流程以及打包机制。&lt;/p&gt;
 &lt;h2 id="1-源码结构与文件路径"&gt;1. 源码结构与文件路径&lt;/h2&gt;
 &lt;p&gt;在 Yocto 项目中，设备树源码通常独立于内核源码管理，位于 &lt;code&gt;vendor/qcom/opensource/base-devicetree&lt;/code&gt; 目录下。&lt;/p&gt;
@@ -3793,7 +4093,18 @@ HBLK --&amp;gt; DISK
 &lt;/ol&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;利益相关者需求规格书 (STKRS / L1需求):即在 SYS.1 阶段的输出。包含了客户的原始期望、用户场景、业务目标等。它回答了“客户想要什么？”。&lt;/p&gt;</description></item><item><title>Gradle Asm Bytecode Transformation Plugin Principles Explained</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</guid><description>&lt;h1 id="gradle-asm-字节码转换插件原理解析"&gt;Gradle ASM 字节码转换插件原理解析&lt;/h1&gt;
+&lt;p&gt;利益相关者需求规格书 (STKRS / L1需求):即在 SYS.1 阶段的输出。包含了客户的原始期望、用户场景、业务目标等。它回答了“客户想要什么？”。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;系统/技术需求规格书 (SyRS / L2需求):即在 SYS.2 阶段的输出。它将客户需求转化为具体、可测量的技术指标和功能要求。它回答了“系统必须做什么？”。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;法律法规与行业标准: 例如 ISO 26262 (功能安全)、ISO/SAE 21434 (网络安全) 等相关标准的要求。这些是设计必须遵守的强制性约束。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;客户特定要求 (Customer Specific Requirements - CSR):除了通用的技术规格外，特定客户可能会有自己独特的要求，这些也必须作为输入。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>Gradle Asm Bytecode Transformation Plugin Principles Explained</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/gradle-asm-bytecode-transformation-plugin-principles-explained/</guid><description>&lt;h1 id="gradle-asm-字节码转换插件原理解析"&gt;Gradle ASM 字节码转换插件原理解析&lt;/h1&gt;
 &lt;h2 id="引言问题与解决方案"&gt;引言：问题与解决方案&lt;/h2&gt;
 &lt;p&gt;问题：在软件开发中，我们经常会使用一些在高版本 API 中才出现的新方法。例如，java.io.InputStream.readAllBytes() 方法是在 Java 9 中引入的，对应到 Android 平台则是在 API Level 33 (Android 13) 中才可用。当一个应用设置的 minSdk 低于 33 时，如果在代码中直接调用此方法，应用在低版本 Android 设备上运行时会因为找不到该方法而抛出 NoSuchMethodError 异常，导致程序崩溃。&lt;/p&gt;
 &lt;p&gt;解决方案：为了解决这个问题，我们需要一种机制，在应用打包之前，自动将这些新 API 的调用替换为我们自己编写的、能在所有版本上运行的兼容性代码。这个过程通常被称为“API 脱糖 (API Desugaring)”。虽然 Android 的构建工具链内置了部分脱糖功能，但它并不涵盖所有情况。&lt;/p&gt;
@@ -3805,7 +4116,12 @@ HBLK --&amp;gt; DISK
 &lt;p&gt;Java 字节码 (.class 文件)：Java 编译器 (javac) 并不直接生成机器码，而是将 .java 源代码编译成一种平台无关的中间指令集，即 Java 字节码，并保存在 .class 文件中。&lt;/p&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。&lt;/p&gt;</description></item><item><title>OEM 多品牌多用户动态主题引擎 — 软件架构设计文档</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</guid><description>&lt;h1 id="版本历史"&gt;版本历史&lt;/h1&gt;
+&lt;p&gt;Android 运行时 (ART)：Android 设备不直接运行 Java 字节码，而是运行经过优化的 DEX (Dalvik Executable) 格式的字节码。在构建过程中，有一个名为 D8 的工具会将所有的 .class 文件和依赖库转换并合并成一个或多个 classes.dex 文件。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;ASM 框架：这是一个非常强大且高性能的 Java 字节码操作和分析框架。它允许我们以编程方式读取 .class 文件的内容，分析其结构（如类、方法、指令），甚至直接修改这些内容，然后再写回文件。这是我们实现字节码替换的核心工具。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title>OEM 多品牌多用户动态主题引擎 — 软件架构设计文档</title><link>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</link><pubDate>Sun, 03 Aug 2025 17:17:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/explore-ai/oem-dynamic-theme-engine-sw-architecture-design-doc/</guid><description>&lt;h1 id="版本历史"&gt;版本历史&lt;/h1&gt;
 &lt;p&gt;&lt;strong&gt;版本&lt;/strong&gt;：1.0
 &lt;strong&gt;日期&lt;/strong&gt;：2025-08-08
 &lt;strong&gt;作者&lt;/strong&gt;：Assistant (基于您提供的需求与设计稿)&lt;/p&gt;
@@ -4375,7 +4691,28 @@ class AccService service;
 &lt;/div&gt;&lt;h3 id="架构域功能解析"&gt;架构域功能解析&lt;/h3&gt;
 &lt;ol&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;target应用 (被操作的目标 App)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell-%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90-wiki/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell-%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90-wiki/</guid><description>&lt;h1 id="wmshell-架构与源码解析-wiki"&gt;WMShell 架构与源码解析 Wiki&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;target应用 (被操作的目标 App)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;目标应用在它的 UI 挂载（&lt;code&gt;ViewRootImpl&lt;/code&gt; 创建）时，会主动向系统注册一个 &lt;code&gt;AccessibilityInteractionConnection&lt;/code&gt;（AIDL 的 Binder 对象）。&lt;/li&gt;
+&lt;li&gt;它的职责是被动的：只有当收到系统转发来的查询指令时，它才会在自己的主线程或专用线程中遍历 &lt;code&gt;View Tree&lt;/code&gt;，将真实的 View 转换为跨进程安全的扁平结构 &lt;code&gt;AccessibilityNodeInfo&lt;/code&gt;，然后打包返回。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;SystemServer (安全与路由中枢)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;底层的事件拦截&lt;/strong&gt;：&lt;code&gt;InputDispatcher&lt;/code&gt; 将硬件事件拦截，并交给 &lt;code&gt;AccessibilityInputFilter&lt;/code&gt; 进行分析（例如区分普通点击和双指滑动探索手势）。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;AccessibilityManagerService&lt;/code&gt; (AMS)&lt;/strong&gt;：它是整个架构的大脑。它负责启动和绑定无障碍服务、校验所有请求的权限。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;AccessibilityWindowManager&lt;/code&gt; (AWM)&lt;/strong&gt;：掌管着全系统所有目标应用的 Window 映射表。它是实现“隔山打牛”的关键，能够精确地将 &lt;code&gt;AccessibilityService&lt;/code&gt; 发出的请求路由到具体的 &lt;code&gt;target应用&lt;/code&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;AccessibilityService (无障碍服务提供方)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;下行通道接受者 (&lt;code&gt;IAccessibilityServiceClientWrapper&lt;/code&gt;)&lt;/strong&gt;：它是一个被动接收器，用于接收 AMS 推送过来的屏幕焦点变化、窗口状态改变或用户手势等事件。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;上行查询代理 (&lt;code&gt;AccessibilityInteractionClient&lt;/code&gt;)&lt;/strong&gt;：当开发者在代码中调用 &lt;code&gt;getRootInActiveWindow()&lt;/code&gt; 时，实际上是通过这个类代理发起跨进程的 IPC 请求。它内部自带了节点缓存池（Node Cache），并在缓存未命中时向 AMS 发出查询指令。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell-%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90-wiki/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/windowmanager/wmshell-%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90-wiki/</guid><description>&lt;h1 id="wmshell-架构与源码解析-wiki"&gt;WMShell 架构与源码解析 Wiki&lt;/h1&gt;
 &lt;p&gt;本文档库旨在深入剖析 Android WMShell 的系统架构、核心机制与关键业务源码。内容编排由浅入深，涵盖基础架构、跨进程渲染同步机制以及车载环境下的定制化扩展。&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id="目录结构"&gt;目录结构&lt;/h2&gt;
