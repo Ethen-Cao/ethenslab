@@ -7,40 +7,32 @@ title = 'SA8x97P（SA8397P/SA8797P）GPU 虚拟化工作原理与代码框架'
 tags = ["Qualcomm", "SA8397P", "SA8797P", "Adreno", "GPU", "Gunyah", "HGSL", "RGS"]
 +++
 
-## 1. 文档定位
+## 1. 概述
 
-本文描述 Qualcomm Gen5/SA8x97P BSP 中，SA8397P 与 SA8797P 平台的 GPU 虚拟化工作原理、核心对象、命令提交链、完成同步链，以及源码和二进制组件之间的边界。
-
-这是一篇架构文档，不是故障分析记录。文中不收录具体问题时间线、进程号、现场日志、Profiler CSV、某次实验的 timeout 数值或个案结论。性能计数器和现场故障应分别放在独立专题中。
+本文介绍 Qualcomm Gen5/SA8x97P BSP 中 SA8397P 与 SA8797P 平台的 GPU 虚拟化架构，涵盖软件分层、核心对象、命令提交、完成同步、故障恢复及相关源码与构建产物。
 
 ### 1.1 适用范围
 
-当前代码树提供了以下事实：
+本文适用于启用 Gunyah GPU 虚拟化的 Gen5 配置。该配置支持 `qti-vmm`；factory/test 等镜像变体可移除此特性。
 
-- SA8397P 与 SA8797P 属于同一个 Gen5/SA8x97P 构建族，共享 `sa8x97p.dtsi`、HGSL 接口框架和 Gen5 Adreno 用户态软件包。
-- 两个平台具有不同的 SoC `compatible` 和 `msm-id`，并通过各自的 SoC、板级 DTS/DTBO 叠加差异，因此不能把二者描述成完全相同的硬件。
-- 当前树中的双 GPU VFIO 资源定义只有 SA8797P 版本得到明确核验。GPU 数量、实例编号、IRQ、SMMU SID、SCMI power domain 等信息不能无条件外推到 SA8397P。
-- `/usr/bin/kgsl`、`libGSLKernel.so` 等 PVM RGS 组件是闭源、剥离符号或部分符号可见的二进制。其外部接口和大体职责可以由服务定义、动态加载关系及字符串交叉验证，但内部线程模型、调度算法和恢复状态机不能假装已有完整源码。
-- Gen5 配置支持 `qti-vmm`，但 factory/test 等镜像变体可以移除该 feature。本文描述的是启用 Gunyah GPU 虚拟化后的路径，不代表所有 Gen5 镜像都采用相同部署。
-- 本文的 **Gen5** 指 automotive BSP/build family；`graphics-kernel` 中的 **Gen7** 指 Adreno 驱动与 HFI/硬件协议代际。两者不是同一个编号维度。
-- BSP/DTS 使用 SA8397P、SA8797P 命名；Qualcomm 公开产品页使用 QAM8397P、QAM8797P 命名。本文按源码使用 SA 名称，不据此推导未公开的软 SKU 或硬件资源关系。
+- **软件共性**：SA8397P 与 SA8797P 同属 Gen5/SA8x97P 构建族，共享 `sa8x97p.dtsi`、HGSL 接口框架和 Gen5 Adreno 用户态软件包。
+- **平台差异**：两者的 SoC `compatible`、`msm-id` 及 SoC/板级 DTS/DTBO 配置不同。当前已核验的双 GPU VFIO 资源定义来自 SA8797P，其 GPU 数量、实例编号、IRQ、SMMU SID 和 SCMI power domain 不作为 SA8397P 的资源配置依据。
+- **闭源组件**：PVM 的 `/usr/bin/kgsl`、`libGSLKernel.so` 以二进制形式提供，符号已剥离或仅部分可见。本文依据服务定义、动态加载关系、符号与字符串分析其外部接口和职责；内部线程模型、调度算法及恢复状态机尚无源码验证。
 
-因此，本文把内容分成三类：
+**Gen5** 表示 automotive BSP 构建族；`graphics-kernel` 中的 **Gen7** 表示 Adreno 驱动及 HFI/硬件协议代际。本文沿用 BSP/DTS 中的 SA8397P、SA8797P 命名；公开产品资料采用 QAM8397P、QAM8797P 命名，具体软 SKU 与硬件资源对应关系不在本文确认范围内。
+
+技术结论按证据类型区分如下：
 
 | 标记 | 含义 |
 |---|---|
-| **源码可见** | 可以在当前源码树中直接核对数据结构、函数和控制流 |
-| **产物可证** | 可以由 systemd unit、recipe、ELF 依赖、导出符号或镜像内容确认 |
-| **实现推断** | 闭源组件的职责可由接口和二进制证据合理推断，但内部实现不可下定论 |
+| **源码可见** | 数据结构、函数和控制流可由当前源码直接确认 |
+| **产物可证** | 组件关系可由 systemd unit、recipe、ELF 依赖、导出符号或镜像内容确认 |
+| **实现推断** | 依据接口和二进制证据推断职责或行为，尚缺少内部实现的直接证据 |
 
-本文以 `<CODE_ROOT>` 代称目标 BSP checkout 的源码根目录，后续路径均相对该根目录书写。
+### 1.2 架构职责与通信边界
 
-目录名中的 `8397` 只是工程工作区名称；同一树中同时存在 `sa8797-oe-linux` 构建产物。判断实际运行平台必须以选中的 DT、SoC ID、镜像和启动日志为准。
-
-### 1.2 两条最重要的边界
-
-1. **GPU 渲染与显示扫描输出不是同一条硬件链。** Adreno GPU 负责渲染，DPU 负责最终合成和 scanout；GPU retire、SurfaceFlinger latch、HWC present 和屏幕真正显示是四个不同完成点。
-2. **控制面与高频提交面不是同一条通信链。** context、内存和 DBCQ 的建立主要经过 HAB；建立完成后，高频 IB 提交通常走共享 DBCQ 加 doorbell，不要求每帧都经过 `gsl_hab_server` 用户态 RPC。
+1. **渲染与显示输出**：Adreno GPU 负责渲染，DPU 负责显示合成与扫描输出（scanout）。GPU retire、SurfaceFlinger latch、HWC present 和面板显示分别对应不同阶段的完成状态。
+2. **控制与命令提交**：context、内存和 DBCQ 的建立主要通过 HAB 完成；DBCQ 可用时，常规 IB 提交通过共享队列与 doorbell 通知机制完成，无需逐次经过 `gsl_hab_server` 用户态 RPC。
 
 ## 2. 总体架构
 
@@ -51,24 +43,24 @@ tags = ["Qualcomm", "SA8397P", "SA8797P", "Adreno", "GPU", "Gunyah", "HGSL", "RG
 图中按 **PVM / GVM → Gunyah Hypervisor → 共享内存与 GPU** 展开部署关系，并区分三条路径：
 
 - **控制 RPC**：Guest HGSL 经 HAB / VirtIO 到达 PVM 的 `gsl_hab_server`，由 `libuhab.so` 接收请求，再通过 `libgsl.so` 连接 `kgsl` 进程中的 `libGSLKernel.so`。后者依赖 `libkiumd.so` 访问内核提供的 GPU 资源。
-- **DBCQ 快速提交**：HGSL 写入共享队列中的 HFI 描述符，然后通过映射的 doorbell 寄存器通知 GMU；这条路径不要求每次提交都经过 PVM 用户态 RPC。
-- **IB 读取与执行**：Adreno UMD 生成 IB，GMU 调度后由 CP/SQE 按 GPU VA 读取并执行。DBCQ 与 IB 内存分别绘制，避免混淆提交描述符与命令本体。
+- **DBCQ 快速提交**：HGSL 向共享队列写入 HFI 描述符，再通过映射的 doorbell 寄存器通知 GMU。该路径无需逐次经过 PVM 用户态 RPC。
+- **IB 读取与执行**：Adreno UMD 生成 IB，GMU 调度后由 CP/SQE 按 GPU VA 读取并执行。DBCQ 存储提交描述符，IB 内存存储命令本体。
 
-主图展开 DBCQ 快路径；DBQ / HAB 回退与 retire 同步在后文说明。
+总体架构图展示 DBCQ 快速提交路径；DBQ / HAB 回退机制和 retire 同步分别见第 7、9 节。
 
-### 2.1 一次渲染提交的本质
+### 2.1 GPU 提交处理流程
 
-从软件到硬件，一次 GPU 提交可概括为：
+一次 GPU 提交的主要处理阶段如下：
 
-1. UMD 把 OpenGL ES/Vulkan/Skia 工作翻译成 Adreno 命令，并写入 GPU 可访问内存中的一个或多个 **IB**。
+1. UMD 将 OpenGL ES/Vulkan 请求转换为 Adreno 命令，并写入 GPU 可访问内存中的一个或多个 IB；Skia 等渲染框架的 GPU 后端通过相应图形 API 提交渲染请求。
 2. Guest `libgsl` 通过 `/dev/hgsl` 提交 IB 的 GPU 地址和长度。
 3. HGSL 为 context 分配 timestamp，构造 HFI `ISSUE_CMD`，其中包含 context、timestamp、flags 和 IB descriptor。
-4. 优先把 HFI 消息写入该 context 的 DBCQ，更新写指针并敲 doorbell。
+4. 优先将 HFI 消息写入该 context 的 DBCQ，更新写指针并触发 doorbell。
 5. GMU 接收通知并进行调度；CP/SQE 按 descriptor 中的 GPU 地址读取 IB。
 6. GPU 执行单元完成 shader、纹理、光栅化、混合和内存访问。
-7. 完成点写入 shadow timestamp，并通过 retire 通知唤醒等待者、推进 fence timeline。
+7. 完成状态通过 shadow timestamp 更新，并由 retire 通知唤醒等待者、推进 fence timeline。
 
-**DBCQ 通常承载提交描述信息，不承载完整渲染资源，也不等同于 IB 本体。**
+DBCQ 主要承载提交描述信息；IB 命令流和渲染资源存放于独立的 GPU 可访问内存中。
 
 ## 3. 软件分层与组件职责
 
@@ -83,22 +75,22 @@ tags = ["Qualcomm", "SA8397P", "SA8797P", "Adreno", "GPU", "Gunyah", "HGSL", "RG
 | Guest 内核前端 | `qcom_hgsl.ko`、`/dev/hgsl` | 管理 Guest 侧对象、HAB RPC、DBCQ/DBQ、timestamp 和 dma_fence |
 | Guest 内存子系统 | dma-buf、IOMMU/SMMU、HGSL MMU | 建立 CPU、Guest、PVM 和 GPU 所需的地址映射 |
 
-GSL/HGSL 是驱动服务层，不是 renderer。真正把 API 工作翻译成 GPU 命令的是 UMD，真正执行命令的是 GPU。
+GSL/HGSL 负责驱动请求、资源管理与命令提交。UMD 将图形 API 请求转换为 GPU 命令，由 GPU 硬件执行。
 
 ### 3.2 跨 VM 传输
 
-| 组件 | 职责 | 不负责什么 |
+| 组件 | 职责 | 职责边界 |
 |---|---|---|
-| HAB `MM_GFX` | 建立 Guest 与 PVM 图形后端的逻辑通道；传递控制 RPC、资源句柄和回退请求 | 不解释 Adreno shader 或 IB |
-| `vhost-user-qti` / `/dev/vhost-ogles` | 用户态进程配置 memory/vring/eventfd 并把通道接到 kernel vhost；稳态 HAB payload 由内核数据路径搬运 | 不是 virtio-gpu renderer，也不做 GPU 调度 |
-| DBCQ | 每 context 的共享提交环，传递 HFI `ISSUE_CMD` 和 IB descriptors | 不是 Android BufferQueue，不是 framebuffer |
-| Doorbell | 在共享内存写完后通知 GMU/后端有新工作 | 不承载 IB payload |
+| HAB `MM_GFX` | 建立 Guest 与 PVM 图形后端的逻辑通道；传递控制 RPC、资源句柄和回退请求 | 不参与 Adreno shader 或 IB 的解释执行 |
+| `vhost-user-qti` / `/dev/vhost-ogles` | 用户态进程配置 memory/vring/eventfd，将通道连接至 kernel vhost；稳态 HAB 载荷由内核数据路径传输 | 提供传输配置与数据通道，不承担 virtio-gpu 渲染或 GPU 调度 |
+| DBCQ | 每 context 的共享提交环，传递 HFI `ISSUE_CMD` 和 IB descriptors | 面向 GPU 命令提交，区别于 Android BufferQueue 和 framebuffer |
+| Doorbell | 在共享内存写入完成后，通知 GMU/后端处理新提交 | 仅提供通知，不承载 IB 载荷 |
 
-HAB 的 graphics MMID 在当前实现中对应 `MM_GFX`。Guest `hgsl_hyp_socket.c` 通过 HAB socket 封装 send/recv/export/import；HAB 的 virtio/vhost 层只负责跨 VM transport。
+当前实现使用 `MM_GFX` 标识 HAB 图形通道。Guest `hgsl_hyp_socket.c` 封装 HAB socket 的 send/recv/export/import 操作，virtio/vhost 层负责跨 VM 传输。
 
 ### 3.3 PVM GPU 后端
 
-Gen5 recipe 和镜像中可确认以下服务关系：
+Gen5 recipe 与镜像中的服务定义如下：
 
 ```text
 kgsl@0.service  -> /usr/bin/kgsl -p 0
@@ -110,12 +102,12 @@ gsl_hab_server.service
   ExecStart: /usr/bin/gsl_hab_server
 ```
 
-- `/usr/bin/kgsl` 是服务进程入口。ELF 字符串表显示它通过 `dlopen()` 加载 `libGSLKernel.so`，再解析 `kgsl_init` 等入口。
-- `libGSLKernel.so` 承担 RGS 后端、GMU/HFI、物理 GPU 资源、fault/recovery 和 snapshot 等职责。这里的结论来自产物和符号证据；内部源码不在当前树中。
-- `gsl_hab_server` 直接依赖 `libgsl.so` 与 `libuhab.so`，作为 GFX HAB backend 接收 Guest 控制请求并连接 RGS。
-- `kgsl@0/@1` 表示镜像支持实例化服务，不代表所有 SKU、所有镜像都一定启用两个物理 GPU。
+- `/usr/bin/kgsl` 是服务进程入口。ELF 字符串证据表明，该进程通过 `dlopen()` 加载 `libGSLKernel.so`，并解析 `kgsl_init` 等入口。
+- 根据产物与符号分析，`libGSLKernel.so` 承担 RGS 后端、GMU/HFI、物理 GPU 资源、fault/recovery 和 snapshot 等职责。
+- `gsl_hab_server` 直接依赖 `libgsl.so` 与 `libuhab.so`，作为 GFX HAB 后端接收 Guest 控制请求并连接 RGS。
+- `kgsl@0/@1` 是实例化服务配置；实际启用的服务实例与物理 GPU 数量由平台配置决定。
 
-当前源码没有给出 RGS 缩写的权威展开，本文保留 `RGS` 原名，专指 PVM 中的 GPU 服务端。它不等于 Android 非虚拟化路径中的 `msm_kgsl.ko`。
+本文使用 `RGS` 指代 PVM GPU 服务端；当前源码未提供该缩写的完整名称。RGS 与 Android 非虚拟化路径中的内核驱动 `msm_kgsl.ko` 是不同实现。
 
 ### 3.4 GMU、CP/SQE 与执行单元
 
@@ -130,22 +122,22 @@ gsl_hab_server.service
 | RB | color/depth/stencil 后端、混合和写回 |
 | GBIF/系统总线接口 | 连接 GPU 与系统内存 |
 
-这些名称描述 Adreno 的概念性流水线。具体 block 数量、缓存大小、并行宽度和 GPU marketing ID 依 SKU 与固件而定。
+上述模块构成 Adreno 的概念性执行流水线。模块数量、缓存容量、并行宽度及产品型号由具体 SKU 与固件配置确定。
 
 ## 4. 核心对象
 
 ### 4.1 Client、device 与 context
 
 - **Client**：通常对应打开 `/dev/hgsl` 的进程。`hgsl_open()` 为进程创建 `hgsl_priv`，保存 PID、内存树、HAB channel pool 和已激活的 device handle。
-- **Device handle**：后端返回的逻辑 GPU 设备标识。源码支持 `DEV0/DEV1`，但逻辑 handle、systemd 实例、Profiler 的 `GPU 1/GPU 2` 和物理 GPU 编号不能只按数字直接互相映射。
+- **Device handle**：后端返回的逻辑 GPU 设备标识。源码支持 `DEV0/DEV1`；其与 systemd 实例、Profiler 的 `GPU 1/GPU 2` 标签及物理 GPU 编号的对应关系需由平台配置确认。
 - **Context**：GPU 调度、timestamp、队列和同步的核心边界。不同 context 可以具有不同优先级、队列和 fence timeline；GPU VA/page table 是独立对象，通常归属于 client/process，多个 context 可以共享同一地址空间。
 - **Address space/page table**：定义 GPU VA 如何映射到物理页或共享内存。是否由 Guest 本地 SMMU 路径完成，取决于 full virtualization 和当前配置。
 
-context 不是进程。一个进程可拥有多个 context；同一帧也可能跨多个 context 或多个 submission。
+一个进程可创建多个 context；同一帧的渲染可包含多个 context 或多个 submission。
 
 ### 4.2 IB 与 IB descriptor
 
-IB 是 **Indirect Buffer**，即 GPU 命令缓冲区。HGSL UAPI 中最小描述符为：
+IB（Indirect Buffer）是 GPU 命令缓冲区。HGSL UAPI 中的基本描述符定义如下：
 
 ```c
 struct hgsl_ibdesc {
@@ -154,23 +146,22 @@ struct hgsl_ibdesc {
 };
 ```
 
-概念上：
+描述符与命令本体的关系如下：
 
 ```text
 IB descriptor = {IB 的 GPU 虚拟地址, IB 长度}
 IB body       = 位于 GPU 可访问内存中的 Adreno 命令流
 ```
 
-UAPI 的 `sizedwords` 以 32-bit dword 为单位；HGSL 组装 firmware descriptor 时通过 `sizedwords << 2` 转换成 byte size。后文 HFI 表中的长度采用转换后的 byte 单位。
+UAPI 字段 `sizedwords` 以 32 位 dword 为单位。HGSL 组装固件描述符时，通过 `sizedwords << 2` 将长度转换为字节；后文 HFI 字段表采用字节单位。
 
-需要避免四个常见混淆：
+IB 与其他图形对象及执行粒度的关系如下：
 
-- IB 不是图像 buffer；
-- IB 不是 shader 源码；
-- IB 长度不等于 GPU 执行时长；
-- 一个 API draw/dispatch、一个 IB、一次 submission 和一帧画面之间都不保证一一对应。
+- IB 存储 Adreno 命令流，区别于存储像素的图像 buffer 和 shader 源码。
+- IB 长度表示命令流规模，不能直接反映 GPU 执行时长。
+- API draw/dispatch、IB、submission 与帧之间不存在固定的一一对应关系。
 
-当 descriptor 太多而无法内联进 HFI 消息时，HGSL 会使用 DBCQ 的 indirect descriptor 区存放 descriptor 列表。这里的 “indirect” 主要表示 HFI 间接引用描述符区，不是把完整 IB 复制到 DBCQ。
+当 descriptor 列表超过 HFI 消息的内联容量时，HGSL 使用 DBCQ 的 indirect descriptor 区保存列表，并由 HFI 消息间接引用。该区域存储描述符，IB 命令本体仍保留在原内存中。
 
 ### 4.3 DBCQ、DBQ 与 IPCQ
 
@@ -178,36 +169,36 @@ UAPI 的 `sizedwords` 以 32-bit dword 为单位；HGSL 组装 firmware descript
 |---|---|---|
 | DBCQ | per-context | 新版优先使用的 context 提交环 |
 | DBQ | 可被多个 context 关联的兼容队列 | DBCQ 不可用时的 doorbell queue 兼容路径 |
-| IPCQ | per-device/后端功能队列族 | HGSL、RGS、PKMD 等控制或固件协作消息；不是 context IB 提交环 |
+| IPCQ | per-device/后端功能队列族 | 传递 HGSL、RGS、PKMD 等组件的控制或固件协作消息，区别于 context IB 提交环 |
 
-源码中的类型名是 `doorbell_context_queue`，因此本文把 DBCQ 称为“每 context 的 Doorbell Context Queue”。它与 Android `BufferQueue` 完全无关。
+DBCQ 对应源码类型 `doorbell_context_queue`，即每 context 的 Doorbell Context Queue。其用途是 GPU 命令提交，与 Android 图像生产/消费机制中的 `BufferQueue` 不同。
 
 ### 4.4 Timestamp 与 fence
 
-一个 context 中至少要区分：
+context 的提交进度由以下状态表示：
 
 | 状态 | HGSL 表示 | 含义 |
 |---|---|---|
 | queued | `queued_ts` | 提交已被驱动接受并排队 |
-| consumed | shadow `sop` | 前端/硬件已经消费到该提交的开始点；不等同于某个 shader 首条指令开始 |
+| consumed | shadow `sop` | 表示前端/硬件已消费至该提交的起始点，而非 shader 首条指令的执行起点 |
 | retired | shadow `eop` | 该 context 中直到此 timestamp 的工作已到达完成点 |
 
-timestamp 是 context 内的有序序号，不是墙钟时间。`ISSUE_IB` ioctl 返回成功，只说明提交动作成功，不说明 GPU 已 retire。
+timestamp 是 context 内的有序序号，不表示墙钟时间。`ISSUE_IB` ioctl 成功表示提交已被接受；GPU 完成状态由 retire 进度确认。
 
-`dma_fence`/`sync_file` 把 timestamp 完成点导出给 Android 图形栈。fence 表示依赖是否满足；它不是命令队列，也不是像素数据。
+`dma_fence`/`sync_file` 将 timestamp 完成状态导出至 Android 图形栈。fence 是依赖同步对象，用于表示相关工作是否完成。
 
 ## 5. 启动、初始化与资源建立
 
 ### 5.1 PVM 服务启动
 
-PVM 侧的启动依赖是：
+PVM 服务的启动依赖如下：
 
-- VFIO device probe、resource manager 等前置服务先为 `kgsl@N` 准备物理 GPU 资源；
-- `kgsl@N.service` 启动 `/usr/bin/kgsl -p N`，后者动态加载 `libGSLKernel.so` 并初始化相应 RGS/GPU 实例；
-- `vhost-user-gpu.service` 独立准备 HAB 的 vhost-user transport；现有 unit 没有证明它与 `kgsl@N` 之间存在严格先后关系；
+- VFIO device probe、resource manager 等前置服务为 `kgsl@N` 准备物理 GPU 资源。
+- `kgsl@N.service` 启动 `/usr/bin/kgsl -p N`，动态加载 `libGSLKernel.so` 并初始化相应 RGS/GPU 实例。
+- `vhost-user-gpu.service` 独立初始化 HAB 的 vhost-user 传输通道；现有 unit 未声明其与 `kgsl@N` 的严格启动顺序。
 - `gsl_hab_server.service` 声明在 `kgsl@0/@1` 和 `vhost-user-gpu` 之后启动，随后接收 Guest GFX RPC。
 
-这表示 PVM 服务具有清晰的职责分层：
+各组件职责如下：
 
 ```text
 vhost-user-gpu    = HAB transport
@@ -218,7 +209,7 @@ libGSLKernel.so   = RGS/GMU/物理 GPU 核心实现
 
 ### 5.2 Guest HGSL probe
 
-`qcom_hgsl_probe()` 的主要动作包括：
+`qcom_hgsl_probe()` 执行以下初始化操作：
 
 1. 注册 `/dev/hgsl` 字符设备与 ioctl 表；
 2. 初始化 context、event、dispatch、debugfs/sysfs 等 Guest 数据结构；
@@ -228,7 +219,7 @@ libGSLKernel.so   = RGS/GMU/物理 GPU 核心实现
 6. 初始化 GMUGOS/TCSR doorbell 与 retire 通知；
 7. 在 full virtualization 模式下绑定 HGSL SMMU component。
 
-某个 feature 在源码中存在，不等于当前镜像一定启用。最终状态要同时看 DT、后端协商结果与启动日志。
+上述可选特性的启用状态由 DT、后端协商结果及镜像配置共同决定，可通过启动日志核验。
 
 ### 5.3 进程与 context 建立
 
@@ -253,24 +244,24 @@ sequenceDiagram
     HGSL->>HGSL: 分配并映射 DBCQ dma-buf
     HGSL->>BE: HAB export + RPC_CONTEXT_REGISTER_DBCQ
     BE->>BE: 处理 DBCQ 注册
-    Note over BE,GMU: 后端如何把队列状态同步到 GMU 属闭源实现
+    Note over BE,GMU: 队列状态与 GMU 的同步由闭源后端实现
 ```
 
-当前 HGSL 的 context 创建具有兼容协商：
+HGSL 在 context 创建及队列初始化过程中执行版本与能力协商：
 
-1. 尝试新版 context create；
-2. 必要时退回旧版本或 legacy RPC；
-3. 优先 `RPC_CONTEXT_QUERY_DBCQ`；
-4. 不支持 DBCQ 时尝试旧 DBQ；
-5. doorbell queue 也不可用时，提交可退回 HAB `RPC_COMMAND_ISSUEIB`。
+1. 优先使用新版 context create 接口。
+2. 必要时回退至旧版本或 legacy RPC。
+3. 优先通过 `RPC_CONTEXT_QUERY_DBCQ` 查询 DBCQ 能力。
+4. 后端不支持 DBCQ 时，尝试兼容 DBQ 路径。
+5. 无可用 doorbell queue 时，提交可回退至 HAB `RPC_COMMAND_ISSUEIB`。
 
-兼容路径存在的原因是 Guest driver、PVM RGS、GMU firmware 和 HFI protocol 可能来自不同 BSP 版本。
+该协商机制用于兼容不同 BSP 版本的 Guest driver、PVM RGS、GMU firmware 与 HFI 协议。
 
 ## 6. GPU 内存与地址空间
 
-### 6.1 为什么跨 VM 不需要每帧复制所有数据
+### 6.1 共享内存与跨 VM 数据访问
 
-命令、纹理、vertex/index buffer、render target 等对象位于可共享或可映射的内存中。系统通过 dma-buf、HAB export/import、VFIO 与 SMMU/IOMMU 建立多方映射：
+命令、纹理、vertex/index buffer 和 render target 等对象存储于可共享或可映射的内存中。系统通过 dma-buf、HAB export/import、VFIO 与 SMMU/IOMMU 建立 CPU、Guest、PVM 和 GPU 所需的映射：
 
 ```text
 Guest CPU VA
@@ -284,20 +275,20 @@ Guest-visible memory object
 GPU VA  --------------------> physical/shared pages
 ```
 
-提交时传递的是 GPU VA、长度、context、timestamp 和 flags。GPU 再通过地址翻译读取 IB 与资源。因此不能把 HAB/DBCQ 理解为逐帧搬运全部像素的管道。
+提交请求传递 GPU VA、长度、context、timestamp 和 flags，GPU 通过地址翻译访问 IB 与资源。HAB/DBCQ 传输提交与控制信息，无需在每次提交时复制完整的渲染资源或像素数据。
 
 ### 6.2 两种映射模式
 
-HGSL 代码中可以看到两类路径：
+HGSL 支持以下两类映射路径：
 
 - **后端映射路径**：Guest 通过 HAB 导出 dma-buf，RGS/后端执行 GPU SMMU 映射并返回 GPU VA 等信息。
 - **Full virtualization 路径**：满足 feature、保护属性和 MMU 条件时，Guest HGSL 可自行选择 GPU VA 并在本地 HGSL SMMU context bank 建立映射。
 
-哪条路径生效由 `fv_on`、后端 feature mask、内存 flags、DT 和镜像配置共同决定。
+映射路径由 `fv_on`、后端 feature mask、内存 flags、DT 和镜像配置共同选择。
 
-### 6.3 顺序与可见性
+### 6.3 共享队列的写入顺序与可见性
 
-共享队列正确工作的关键不是“写了数据”，而是“写入顺序对另一端可见”。`dbcq_send_msg()` 的顺序为：
+共享队列要求消息内容、写指针及 doorbell 通知按规定顺序对消费端可见。`dbcq_send_msg()` 的操作顺序如下：
 
 1. 等待 ring 中有足够空间；
 2. 处理环回并复制 HFI message；
@@ -306,7 +297,7 @@ HGSL 代码中可以看到两类路径：
 5. `wmb()`，保证写指针先于 doorbell；
 6. 触发 GMUGOS、global TCSR 或 local GMU doorbell。
 
-如果 UMD 写入的是非一致性缓存内存，还需要在提交前按内存属性完成相应 cache maintenance。doorbell 只是一声“有新工作”的通知，不能替代内存屏障。
+对于非一致性缓存内存，UMD 还需在提交前按内存属性完成相应缓存维护。doorbell 仅提供通知；写入顺序与内存可见性由内存屏障及缓存维护机制保证。
 
 ## 7. GPU 命令提交
 
@@ -326,11 +317,11 @@ HGSL_IOCTL_ISSUE_IB
     hgsl_hyp_issueib()              # HAB RPC 最终回退
 ```
 
-新的 command/drawobj 接口还会构造 command object 与 sync object，再由 Guest dispatch 路径提交；底层仍围绕 context、IB descriptor、timestamp 和完成同步组织。
+新版 command/drawobj 接口构造 command object 与 sync object，再经 Guest dispatch 路径提交；底层提交模型仍由 context、IB descriptor、timestamp 和完成同步组成。
 
 ### 7.2 HFI `ISSUE_CMD`
 
-HGSL 与开源 KGSL/HFI 参考代码都把 `ISSUE_CMD` 定义为 message id `130`。当前 HGSL 构造的消息概念上包含：
+HGSL 与开源 KGSL/HFI 参考代码均将 `ISSUE_CMD` 定义为 message id `130`。HGSL 构造的消息包含以下主要字段：
 
 | 字段 | 作用 |
 |---|---|
@@ -342,9 +333,9 @@ HGSL 与开源 KGSL/HFI 参考代码都把 `ISSUE_CMD` 定义为 message id `130
 | user profile GPU VA | 可选的 profiling buffer |
 | IB descriptors | 内联的 `{GPU VA, byte size}`，或指向共享 descriptor 区 |
 
-HFI 是 Host/Firmware Interface，不是图形 API。它承载 UMD 已经生成好的低层工作描述。
+HFI（Host/Firmware Interface）是主机驱动与固件之间的消息接口。HGSL 通过 HFI 描述待执行的 UMD 命令流，包括 context、timestamp 和 IB descriptor 等信息。
 
-### 7.3 DBCQ 快路径
+### 7.3 DBCQ 快速提交路径
 
 ```mermaid
 sequenceDiagram
@@ -368,24 +359,24 @@ sequenceDiagram
     CP->>GPU: 发出 shader/texture/raster/memory 工作
 ```
 
-DBCQ 快路径减少了每次 submission 的跨 VM RPC 和用户态切换，但并不绕过 RGS 对设备、context、内存、策略和恢复的整体管理。
+DBCQ 快速提交路径减少逐次提交的跨 VM RPC 与用户态切换开销。设备、context、内存、策略及恢复仍由 RGS 统一管理。
 
 ### 7.4 HAB 回退路径
 
-当以下条件之一成立时，提交可能走 `hgsl_hyp_issueib()`：
+出现以下情况时，提交可能通过 `hgsl_hyp_issueib()` 回退至 HAB：
 
 - 后端不支持当前 DBCQ/DBQ 协议；
 - context 没有可用 doorbell queue；
 - 使用了显式 remote channel；
 - 新接口因兼容性退回 legacy remote issue。
 
-回退路径会把 request 和 IB descriptors 封装为 `RPC_COMMAND_ISSUEIB`，经 HAB 到 `gsl_hab_server`/RGS，再由后端提交。它保证兼容性，但 CPU、RPC 和调度开销通常高于共享队列快路径。
+回退路径将请求和 IB descriptors 封装为 `RPC_COMMAND_ISSUEIB`，经 HAB 发送至 `gsl_hab_server`/RGS，由后端完成提交。该路径用于协议兼容，其 CPU、RPC 与调度开销通常高于共享队列提交路径。
 
 ## 8. GMU 调度与 GPU 执行
 
-### 8.1 GMU 调度什么
+### 8.1 GMU 调度职责
 
-GMU 看到的基本工作单位是带有 context、timestamp、flags 和 IB descriptors 的 submission。它需要协调：
+GMU 以携带 context、timestamp、flags 和 IB descriptors 的 submission 为调度单位，协调以下状态：
 
 - context 优先级和可运行状态；
 - 当前 GPU power state 与频点；
@@ -393,11 +384,11 @@ GMU 看到的基本工作单位是带有 context、timestamp、flags 和 IB desc
 - ring/context queue 的前后关系；
 - fault、timeout 和恢复状态。
 
-Guest dispatch 会在进入 DBCQ 前处理 sync object；未满足时不会发送 HFI `ISSUE_CMD`。“提交已进入 DBCQ”只表示工作可被 GMU 看到，不表示它已开始执行，后面仍可能受其他 context、队列顺序、抢占/切换或电源状态影响。
+Guest dispatch 在写入 DBCQ 前处理 sync object；同步条件未满足时，不发送 HFI `ISSUE_CMD`。提交进入 DBCQ 后处于 GMU 可消费状态，实际执行时机仍受其他 context、队列顺序、抢占、切换及电源状态约束。
 
-### 8.2 CP/SQE 执行什么
+### 8.2 CP/SQE 命令处理
 
-GMU 选择工作后，CP/SQE 根据 IB descriptor 读取命令流。IB 中可能包含：
+GMU 完成调度后，CP/SQE 根据 IB descriptor 读取命令流。IB 可包含以下内容：
 
 - 寄存器和状态设置；
 - shader program 与常量绑定；
@@ -406,11 +397,11 @@ GMU 选择工作后，CP/SQE 根据 IB descriptor 读取命令流。IB 中可能
 - 嵌套的 indirect buffer；
 - timestamp/event write。
 
-CP/SQE 负责解释命令，不负责执行 shader 算术。shader、纹理、光栅化和写回工作由后续硬件单元完成。
+CP/SQE 负责命令解析与分发；shader 运算、纹理采样、光栅化和写回由相应 GPU 执行单元完成。
 
-### 8.3 一个“长 IB”真正表示什么
+### 8.3 Long IB 故障语义
 
-在 fault 语义中，Long IB 表示某次 submission 长时间没有到达期望 retire 点，不表示 IB 文件或 descriptor 的字节数很大。持续时间可能来自：
+在故障语义中，Long IB 表示 submission 未在预期时间内到达 retire 点，描述的是完成时延而非 IB 或 descriptor 的字节长度。可能的影响因素包括：
 
 - shader/dispatch 本身工作量大；
 - 资源访问延迟或缓存命中率低；
@@ -418,7 +409,7 @@ CP/SQE 负责解释命令，不负责执行 shader 算术。shader、纹理、�
 - context 被延迟调度或抢占异常；
 - GPU、GMU、总线、SMMU 或固件发生 fault。
 
-所以不能仅凭 “Long IB” 字样断言根因。timeout 值属于 BSP/固件/策略配置，也不应写成跨版本常量。
+Long IB 是超时状态标识，不能单独确定故障原因。超时阈值由 BSP、固件和策略配置决定。
 
 ## 9. Retire、timestamp 与 fence
 
@@ -438,20 +429,20 @@ stateDiagram-v2
     FenceSignaled --> [*]
 ```
 
-当前 HGSL 可以从共享 shadow timestamp 读取 `sop/eop`。retire doorbell/IRQ 到达后：
+HGSL 从共享 shadow timestamp 读取 `sop/eop`。retire doorbell/IRQ 到达后的处理流程如下：
 
-1. ISR 把处理放到 workqueue；
+1. ISR 将后续处理调度至 workqueue；
 2. `hgsl_retire_common()` 检查 active wait；
 3. 等待指定 timestamp 的线程被唤醒；
 4. context event group 处理已满足的事件；
 5. `hgsl_sync.c` 推进 hsync timeline 并 signal `dma_fence`；
-6. Guest dispatch 回收已退休 drawobj，继续提交后续工作。
+6. Guest dispatch 回收已完成的 drawobj，并继续处理后续提交。
 
-若 shadow timestamp 或 doorbell retire 通知不可用，读取和等待操作可以退回 HAB RPC。
+若 shadow timestamp 或 retire doorbell 通知不可用，读取与等待操作可回退至 HAB RPC。
 
-### 9.2 为什么 fence 可能在多层传播
+### 9.2 Fence 传播与显示同步
 
-GPU fence 只表示 GPU 工作完成，但 producer 不必等 fence signal 后才调用 `queueBuffer()`。典型异步关系是：
+GPU fence 表示相关 GPU 工作的完成状态。producer 可在 fence 尚未 signal 时调用 `queueBuffer()`，将 buffer 与依赖 fence 一并提交。典型异步流程如下：
 
 ```text
 producer 提交 GPU render
@@ -463,19 +454,19 @@ producer 提交 GPU render
   -> panel refresh
 ```
 
-这些阶段可以流水重叠，client composition 还会引入新的 GPU submission/fence。因此看到 GPU 已 retire，不能推出画面已经显示；看到 present fence 延迟，也不能立即推出 GPU 必然 hang。分析时必须先明确正在观察哪个完成点。
+上述阶段可流水重叠，client composition 还会产生新的 GPU submission 与 fence。GPU retire 与面板显示属于不同完成阶段；present fence 的延迟也可能来自 GPU 之外的显示链路，不能单独作为 GPU hang 的判据。
 
 ## 10. GPU 与显示链的接口
 
-GPU 常把结果写入 gralloc/GraphicBuffer 分配的 render target。该 buffer 及其 fence 随后交给 SurfaceFlinger/HWC：
+GPU 通常将渲染结果写入由 gralloc 分配、通过 GraphicBuffer 管理的 render target。该 buffer 及其 fence 随后传递至 SurfaceFlinger/HWC：
 
 - **Client composition**：SurfaceFlinger 可能再次使用 GPU 合成多个 layer；
 - **Device composition**：HWC/DPU 直接读取 layer buffer 完成硬件合成；
 - **Mixed composition**：部分 layer 由 GPU 预合成，部分由 DPU overlay。
 
-像素 buffer 通常通过共享内存和句柄在组件间传递，而不是塞进 DBCQ。DBCQ 只服务 GPU 命令提交；DPU scanout 走显示驱动和显示虚拟化链。
+像素 buffer 通过共享内存及其句柄在组件间共享；DBCQ 传递 GPU 提交描述符。DPU scanout 由显示驱动和显示虚拟化链路处理。
 
-显示专题参见：
+相关显示架构与通信机制参见：
 
 - [Android 图形渲染架构详解]({{< relref "gunyah/graphics.md" >}})
 - [Android Guest 显示数据通道深度解析]({{< relref "gunyah/display-virtio-hab-datapath.md" >}})
@@ -501,11 +492,11 @@ GPU 常把结果写入 gralloc/GraphicBuffer 分配的 render target。该 buffe
 | 608 | CP hardware fault |
 | 609 | GPC error |
 
-这些编号适合用于解释日志协议，但 PVM 的实际 fault policy、阈值、过滤和恢复实现位于闭源 RGS/firmware 中，必须按当前版本验证。
+上述编号用于解释 HFI 错误码。PVM 的故障策略、阈值、过滤与恢复实现位于闭源 RGS/firmware 中，其行为取决于目标版本。
 
-### 11.2 通用恢复状态机
+### 11.2 概念性恢复流程
 
-下图是依据可见接口和同代开源 KGSL 参考代码抽象出的**概念性恢复策略**，不是已经核验的 PVM RGS 内部状态机。具体阶段、线程、reset 粒度和 replay 策略以当前 `libGSLKernel.so` 与 GMU firmware 为准。
+下图依据可见接口与同代开源 KGSL 代码归纳恢复流程，用于说明故障处理阶段及其依赖关系。PVM RGS 的内部状态机尚未获得源码验证；具体阶段、线程、reset 粒度和 replay 策略由目标版本的 `libGSLKernel.so` 与 GMU firmware 实现。
 
 ```mermaid
 flowchart LR
@@ -522,223 +513,24 @@ flowchart LR
     J --> K
 ```
 
-恢复设计需要同时解决三个问题：
+恢复过程包含以下关键要求：
 
-1. **保存证据**：reset 前采集 snapshot，否则关键寄存器和 ring 状态会丢失；
-2. **终止依赖**：受影响 submission 的 timestamp/fence 必须完成为成功、取消或错误，不能让上层无限等待；
-3. **重建设备状态**：GMU/HFI、context queue、页表和功耗状态需要按恢复级别重新建立。
+1. **保存故障状态**：在 reset 前采集 snapshot，保留关键寄存器与 ring 状态。
+2. **结束受影响依赖**：按处理结果完成或终止相关 submission 的 timestamp/fence，向上层传递成功、取消或错误状态，避免无限等待。
+3. **重建设备状态**：按恢复级别重新建立 GMU/HFI、context queue、页表及功耗状态。
 
-开源 `graphics-kernel` 中的 `adreno_hwsched.c`、`adreno_gen7_hwsched*.c`、`kgsl_snapshot.c` 和 `adreno_snapshot.c` 可以作为 Gen7 HFI、snapshot、reset/replay 的参考实现。它们不是 PVM `libGSLKernel.so` 的源码，函数名和具体控制流不能直接套用到 RGS。
+开源 `graphics-kernel` 中的 `adreno_hwsched.c`、`adreno_gen7_hwsched*.c`、`kgsl_snapshot.c` 和 `adreno_snapshot.c` 提供 Gen7 HFI、snapshot、reset/replay 的参考实现。这些文件属于开源 KGSL，与 PVM `libGSLKernel.so` 的内部实现不具有已确认的函数或控制流对应关系。
 
-## 12. SA8397P 与 SA8797P 的平台边界
-
-### 12.1 已确认的共同框架
-
-| 项目 | 共同点 |
-|---|---|
-| 构建族 | 同属 Gen5/SA8x97P 构建族 |
-| 基础 DT | 板级 DTS 均继承 `sa8x97p.dtsi`，再叠加各自 SoC/板级差异 |
-| Guest 接口 | 共用 `qcom_hgsl.ko`、HAB、HGSL UAPI 和 DBCQ/DBQ 协商框架 |
-| PVM 软件包 | 共用 Gen5 Adreno recipe/package family；具体 A7X/A8X binary 与 soft-SKU 以产物为准 |
-| 服务模板 | 支持 `kgsl@.service`、`gsl_hab_server` 和 `vhost-user-gpu` |
-| 提交模型 | context、GPU VA、IB descriptor、HFI、doorbell、timestamp/fence |
-
-### 12.2 不能直接互相外推的内容
-
-| 项目 | 原因 | 正确验证方式 |
-|---|---|---|
-| 精确 Adreno 型号/revision | 当前源码没有可靠绑定 marketing ID | 读取 chip ID、RGS/GMU 启动日志和固件选择 |
-| GPU 实例数量 | service 模板支持双实例不等于运行时双 GPU | 检查最终 DT、VFIO device、systemd active state |
-| GPU0/GPU1 物理映射 | 逻辑 handle、服务实例、Profiler 标签可能不同 | 联合 DT resource、RGS instance、负载注入验证 |
-| 寄存器、IRQ、SMMU SID | 当前明确的双 GPU VFIO overlay 属于 SA8797P | 读取对应 SoC/板级 DTBO 与 `/proc/device-tree` |
-| DBCQ doorbell 类型 | 可为 GMUGOS、global TCSR 或 local GMU | 查看协商返回值和 HGSL 启动日志 |
-| HFI/GMU firmware | 受软 SKU、固件包和 BSP 版本影响 | 记录 firmware 文件、版本和 HFI feature |
-| timeout 与恢复策略 | 位于 RGS/firmware 配置 | 读取当前启动配置，不使用历史常量 |
-| 频点、带宽与 counters | 受 SKU、power table、counter 暴露影响 | 读取当前 devfreq/SCMI/Profiler capability |
-| VM ownership | 可由镜像 feature、resource manager、DT 改变 | 核对最终镜像和 VM resource assignment |
-
-当前 `sa8397p.dtsi` 与 `sa8797p.dtsi` 使用不同 `compatible` 和 `msm-id`。文档可以说二者共享软件框架，但不能仅凭同一构建树或外部市场资料宣称“完全相同的 die/资源配置”。
-
-### 12.3 当前 SA8797P 双 GPU overlay 只能作为示例
-
-当前树中 `sa8797p-gpu-vfio.dtsi` 给出了两个 GPU VFIO 资源节点及各自 IRQ、SMMU 和 power domain 配置，这证明该 SA8797P BSP 变体支持双 GPU 资源模型。
-
-由于没有找到等价的 `sa8397p-gpu-vfio.dtsi`，下列说法都不成立：
-
-- “SA8397P 一定有相同的两个 GPU 实例”；
-- “SA8397P GPU1/GPU2 的核型与 SA8797P 相同”；
-- “Profiler 的 GPU 1/2 可直接对应 `kgsl@0/@1`”。
-
-这些关系必须在目标板上验证。
-
-## 13. 代码框架与阅读地图
-
-### 13.1 Guest HGSL
-
-根目录：
-
-```text
-<CODE_ROOT>/vendor/vendor/qcom/opensource/graphics-hgsl/
-```
-
-| 文件 | 重点 |
-|---|---|
-| `include/uapi/linux/hgsl.h` | ioctl、IB descriptor、context、memory、sync UAPI |
-| `hgsl.c` | probe/open、context、DBCQ/DBQ、issueib、timestamp、retire IRQ |
-| `hgsl.h` | client/context、shadow timestamp、DBQ/DBCQ 核心结构 |
-| `hgsl_hyp.c` | device/context/memory/DBCQ/issueib HAB RPC |
-| `hgsl_hyp.h` | FE/BE RPC opcode 与 wire-level 数据结构 |
-| `hgsl_hyp_socket.c` | `MM_GFX` HAB socket send/recv/export/import |
-| `hgsl_memory.c` | dma-buf 分配、导入、cache operation |
-| `hgsl_mmu.c` / `hgsl_iommu.c` | GPU VA 与 HGSL SMMU context bank |
-| `hgsl_sync.c` | hsync/isync timeline、`dma_fence` |
-| `hgsl_events.c` | timestamp event group |
-| `hgsl_drawobj.c` / `hgsl_dispatch.c` | command/sync drawobj 与 Guest dispatch |
-| `hgsl_gmugos.c` / `hgsl_tcsr.c` | doorbell 与 retire interrupt |
-| `hgsl_trace.h` / `hgsl_debugfs.c` | tracepoint 和可观测接口 |
-
-建议按以下函数顺序阅读：
-
-```text
-qcom_hgsl_probe
-  -> hgsl_open
-  -> hgsl_ioctl_ctxt_create
-  -> hgsl_ctxt_create_dbq
-  -> hgsl_hyp_query_dbcq
-  -> hgsl_dbcq_init / hgsl_dbcq_open
-  -> hgsl_ioctl_issueib
-  -> hgsl_db_issue_cmd
-  -> hgsl_dbcq_issue_cmd
-  -> dbcq_send_msg
-  -> hgsl_retire_common
-  -> hgsl_wait_timestamp / hgsl_sync timeline
-```
-
-### 13.2 HAB 与 vhost-user
-
-Guest/PVM 内核 HAB 的一个可见实现位于：
-
-```text
-<CODE_ROOT>/vendor/kernel_platform/soc-repo/drivers/soc/qcom/hab/
-```
-
-其中：
-
-- `hab.c`、`hab_open.c`、`hab_msg.c`、`hab_vchan.c` 管理 HAB channel/message；
-- `hab_virtio.c` 把 `MM_GFX` 映射到 graphics virtio device；
-- `hab_vhost.c` 提供 PVM vhost 侧 graphics class；
-- `hab_mem_linux.c` 等文件处理共享内存 export/import。
-
-PVM apps 源码树中还存在另一套构建形态：
-
-```text
-<CODE_ROOT>/linux/apps/apps_proc/vendor/qcom/opensource/mmhab-drv/
-<CODE_ROOT>/linux/apps/apps_proc/vendor/qcom/opensource/vhost-user/
-```
-
-不同 kernel/PVM build 可能选择不同目录中的 HAB 实现，阅读时要先确认目标镜像实际 recipe。
-
-### 13.3 PVM RGS 产物
-
-Gen5 Adreno recipe：
-
-```text
-<CODE_ROOT>/linux/apps/apps_proc/layers/meta-qti-automotive-prop/
-  recipes-graphics/adreno/adreno_0.1.bb
-  recipes-graphics/adreno/adreno.bb
-```
-
-已核验的 SA8797P prebuilt 示例：
-
-```text
-<CODE_ROOT>/linux/apps/apps_proc/prebuilt_HY11/sa8797/adreno/
-  usr/bin/kgsl
-  usr/bin/gsl_hab_server
-  usr/lib/libGSLKernel.so
-  usr/lib/systemd/system/kgsl@.service
-  usr/lib/systemd/system/gsl_hab_server.service
-```
-
-这部分应按“产物可证/实现推断”阅读，不要虚构 `libGSLKernel.so` 的源码类图。
-
-### 13.4 开源 KGSL/Gen7 HFI 参考
-
-```text
-<CODE_ROOT>/vendor/vendor/qcom/opensource/graphics-kernel/
-```
-
-| 文件 | 可用于理解 |
-|---|---|
-| `adreno_hfi.h` | HFI message id、context-bad 与 fault code |
-| `adreno_gen7_hwsched_hfi.c` | Gen7 context 注册、`ISSUE_CMD`、TS_RETIRE、CONTEXT_BAD |
-| `adreno_hwsched.c` | hwsched、fault 定位、snapshot、reset |
-| `adreno_gen7_hwsched.c` | Gen7 hard stop、GMU reboot、replay 参考 |
-| `kgsl_drawobj.c` | command/sync object 生命周期 |
-| `kgsl_sync.c` | fence 与 timeline |
-| `kgsl_iommu.c` | 非虚拟化 KGSL 的 GPU MMU 参考 |
-| `kgsl_snapshot.c` / `adreno_snapshot.c` | snapshot 基础框架 |
-
-这套代码是理解 Adreno/KGSL/HFI 语义的重要参考，但不是 PVM RGS 的实现源码。
-
-### 13.5 平台构建与 DTS
-
-Gen5 machine 配置：
-
-```text
-<CODE_ROOT>/linux/apps/apps_proc/layers/meta-qti-automotive/conf/machine/
-  sa8797.conf
-  gen5.conf
-  include/gen5.inc
-```
-
-SA8x97P 基础和 SoC DTS：
-
-```text
-<CODE_ROOT>/linux/apps/apps_proc/vendor/qcom/opensource/base-devicetree/
-  arch/arm64/boot/dts/qcom/sa8x97p.dtsi
-  arch/arm64/boot/dts/qcom/sa8397p.dtsi
-  arch/arm64/boot/dts/qcom/sa8797p.dtsi
-  arch/arm64/boot/dts/qcom/sa8397p-adp-star.dts
-  arch/arm64/boot/dts/qcom/sa8797p-adp-star.dts
-```
-
-当前明确可见的 SA8797P GPU VFIO overlay：
-
-```text
-<CODE_ROOT>/linux/apps/apps_proc/vendor/qcom/proprietary/mm-vfio-devicetree/
-  sa8797p-mm-vfio.dtso
-  gpu/sa8797p-gpu-vfio.dtsi
-```
-
-优先阅读 source tree，不要把 `build*/tmp-glibc/work/...` 中复制出来的 recipe sysroot 文件误认为另一份独立实现。
-
-## 14. 架构验证清单
-
-把该架构应用到一块具体 SA8397P/SA8797P 板卡前，至少记录以下基线：
-
-1. 最终加载的 SoC/board DTB、DTBO、`compatible` 和 `msm-id`；
-2. `qcom_hgsl.ko`、Guest `libgsl`/UMD、PVM Adreno package 的 build id；
-3. `kgsl@N`、`gsl_hab_server`、`vhost-user-gpu` 的 active state；
-4. `/dev/hgsl` device handle 与 PVM RGS instance 的对应关系；
-5. DBCQ 是否协商成功，以及 doorbell 使用 GMUGOS、TCSR 还是 local GMU；
-6. full virtualization feature 是否启用，GPU VA 由 Guest 还是 RGS 管理；
-7. GMU firmware、HFI feature/version；
-8. GPU 实例、VFIO resource、SMMU context bank 和 power domain 映射；
-9. timeout、preemption、recovery 和 snapshot 策略；
-10. Profiler 的 GPU label 与物理实例映射。
-
-这些是版本基线，不是故障结论。只有先固定基线，性能数据和现场日志才可比较。
-
-## 15. 术语表
+## 12. 术语表
 
 | 术语 | 含义 |
 |---|---|
 | GVM | Guest VM，本文主要指 Android VM |
 | PVM | Primary VM，拥有或管理物理 GPU 资源的 Linux Host |
-| UMD | User Mode Driver，把图形 API 工作翻译成 GPU 命令 |
-| GSL | Guest/PVM 图形服务接口层；不是 renderer |
+| UMD | User Mode Driver，将图形 API 请求转换为 GPU 命令 |
+| GSL | Guest/PVM 图形服务接口层 |
 | HGSL | Hypervisor Graphics System Layer，Guest 内核 GPU 前端 |
-| RGS | 本文指 PVM GPU 服务端；当前树未提供权威缩写展开 |
+| RGS | 本文指 PVM GPU 服务端；当前源码未提供缩写的完整名称 |
 | HAB | Hypervisor Abstraction，Qualcomm 跨 VM 通信框架 |
 | HFI | Host/Firmware Interface，Host/RGS 与 GMU firmware 的消息协议 |
 | GMU | GPU 管理微控制器，负责调度、电源、抢占和 fault 管理 |
@@ -746,30 +538,23 @@ SA8x97P 基础和 SoC DTS：
 | IB | Indirect Buffer，GPU 命令缓冲区 |
 | DBCQ | per-context Doorbell Context Queue |
 | DBQ | 兼容的 doorbell queue |
-| IPCQ | 设备级后端/固件协作队列族，不等于 DBCQ |
+| IPCQ | 设备级后端/固件协作队列族 |
 | Doorbell | 通知接收端读取共享队列的硬件/虚拟中断信号 |
 | GPU VA | GPU 虚拟地址，经 SMMU/IOMMU 映射到内存页 |
 | Submission | 一次带 context、IB descriptors 和 timestamp 的提交 |
-| Timestamp | context 内有序完成序号，不是墙钟 |
+| Timestamp | context 内有序完成序号 |
 | Retire | submission 到达完成点；不表示相关内存立即释放 |
 | Fence | 对 timestamp/依赖完成状态的可传递同步对象 |
-| Ringbuffer | 环形命令/消息队列，不是 framebuffer |
+| Ringbuffer | 环形命令/消息队列 |
 | Framebuffer | 用于保存像素结果的图像缓冲区 |
-| DPU | Display Processing Unit，负责显示合成和 scanout，不是 GPU |
+| DPU | Display Processing Unit，负责显示合成和 scanout |
 
-## 16. 总结
+## 13. 总结
 
-SA8x97P 的虚拟化 GPU 栈可以用三个面来理解：
+SA8x97P 虚拟化 GPU 栈由控制、提交、完成与恢复机制协同工作：
 
 - **控制面**：Guest HGSL 通过 HAB 与 `gsl_hab_server`/RGS 建立 device、context、内存、shadow timestamp 和 DBCQ；
-- **提交面**：UMD 把 IB 放入 GPU 可访问内存，HGSL 把 HFI `ISSUE_CMD` 写入 DBCQ，更新指针并敲 doorbell，GMU 调度后由 CP/SQE fetch IB；
+- **提交面**：UMD 向 GPU 可访问内存写入 IB，HGSL 向 DBCQ 写入 HFI `ISSUE_CMD`，更新写指针并触发 doorbell；GMU 完成调度后，由 CP/SQE 读取 IB；
 - **完成与恢复面**：shadow timestamp、retire IRQ 和 dma_fence 传播正常完成；GMU/HFI fault 触发 snapshot、context 处置、reset/reinit 和 fence error 传播。
 
-SA8397P 与 SA8797P 共享这套 Gen5/SA8x97P 软件框架，但具体 GPU 数量、资源映射、固件、频点、timeout 和 counter 能力属于平台配置，必须在目标镜像和运行硬件上核验。
-
-## 17. 公开资料
-
-- [Qualcomm QAM8397P / Snapdragon Cockpit Elite](https://www.qualcomm.com/automotive/products/qam8397p)
-- [Qualcomm QAM8797P / Snapdragon Ride Elite](https://www.qualcomm.com/automotive/products/qam8797p)
-
-公开产品页可用于确认产品定位和 Adreno GPU 的存在，但没有公开本文所述 BSP 中 HGSL/RGS/DBCQ 的实现细节；这些细节来自当前源码树与构建产物。
+SA8397P 与 SA8797P 共享 Gen5/SA8x97P 软件框架；GPU 数量、资源映射、固件、频点、超时阈值及计数器能力由目标平台配置决定。
