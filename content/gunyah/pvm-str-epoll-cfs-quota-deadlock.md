@@ -1,7 +1,7 @@
 +++
 title = 'PVM STR 唤醒后 epoll 与 CFS 配额循环等待的根因分析'
 date = '2026-10-14T12:10:00+08:00'
-draft = false
+draft = true
 description = '基于 1009daily341 FULLDUMP，分析 epoll 与 CFS 配额循环等待，对照 Linux 上游已知问题和 6.6.114 修复，并给出 BSP 回移及 STR 验证计划。'
 ShowToc = true
 TocOpen = true

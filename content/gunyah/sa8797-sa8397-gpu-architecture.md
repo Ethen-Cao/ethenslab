@@ -44,55 +44,17 @@ tags = ["Qualcomm", "SA8397P", "SA8797P", "Adreno", "GPU", "Gunyah", "HGSL", "RG
 
 ## 2. 总体架构
 
-```mermaid
-flowchart TB
-    subgraph GVM["Android Guest VM"]
-        APP["App / RenderThread / Native Engine"]
-        API["Skia / OpenGL ES / Vulkan"]
-        UMD["Qualcomm Adreno UMD"]
-        LIBGSL["Guest libgsl"]
-        HGSL["qcom_hgsl.ko<br/>/dev/hgsl"]
+![SA8x97P GPU virtualization architecture](../../static/images/sa8797-sa8397-gpu-architecture.png)
 
-        APP --> API --> UMD --> LIBGSL --> HGSL
-    end
+[查看原尺寸图片](../../images/sa8797-sa8397-gpu-architecture.png) · [下载可编辑 draw.io 文件](../../images/sa8797-sa8397-gpu-architecture.drawio)
 
-    subgraph XVM["跨 VM 资源与通知"]
-        HAB["HAB MM_GFX<br/>控制 RPC / 回退提交"]
-        DBCQ["共享 DBCQ / DBQ<br/>HFI ISSUE_CMD"]
-        DB["GMUGOS / TCSR / local doorbell"]
-        MEM["共享 dma-buf 与 GPU VA"]
-    end
+图中按 **PVM / GVM → Gunyah Hypervisor → 共享内存与 GPU** 展开部署关系，并区分三条路径：
 
-    subgraph PVM["Primary VM / Linux Host"]
-        VHOST["vhost-user-qti + kernel vhost<br/>控制配置与 HAB transport"]
-        HABSRV["gsl_hab_server"]
-        KGSL["kgsl@N<br/>/usr/bin/kgsl"]
-        RGS["libGSLKernel.so<br/>RGS backend"]
-    end
+- **控制 RPC**：Guest HGSL 经 HAB / VirtIO 到达 PVM 的 `gsl_hab_server`，由 `libuhab.so` 接收请求，再通过 `libgsl.so` 连接 `kgsl` 进程中的 `libGSLKernel.so`。后者依赖 `libkiumd.so` 访问内核提供的 GPU 资源。
+- **DBCQ 快速提交**：HGSL 写入共享队列中的 HFI 描述符，然后通过映射的 doorbell 寄存器通知 GMU；这条路径不要求每次提交都经过 PVM 用户态 RPC。
+- **IB 读取与执行**：Adreno UMD 生成 IB，GMU 调度后由 CP/SQE 按 GPU VA 读取并执行。DBCQ 与 IB 内存分别绘制，避免混淆提交描述符与命令本体。
 
-    subgraph HW["GPU 子系统"]
-        GMU["GMU firmware<br/>调度 / 抢占 / 电源 / fault"]
-        CP["CP / SQE<br/>读取并解释 IB"]
-        EXEC["SP / TP / UCHE / Raster / RB / GBIF"]
-    end
-
-    HGSL -->|"device/context/memory RPC"| HAB
-    HAB <--> VHOST
-    VHOST <--> HABSRV
-    HABSRV <--> RGS
-    KGSL -. "dlopen" .-> RGS
-
-    HGSL -->|"写 HFI 描述符"| DBCQ
-    HGSL -->|"ring"| DB
-    DBCQ --> GMU
-    DB --> GMU
-    UMD -->|"IB 与资源位于"| MEM
-    MEM --> CP
-    RGS -->|"初始化 / HFI / 恢复"| GMU
-    GMU --> CP --> EXEC
-```
-
-图中的箭头表达的是职责与数据依赖，而不是所有版本都具有完全相同的线程或物理中断拓扑。
+主图展开 DBCQ 快路径；DBQ / HAB 回退与 retire 同步在后文说明。
 
 ### 2.1 一次渲染提交的本质
 

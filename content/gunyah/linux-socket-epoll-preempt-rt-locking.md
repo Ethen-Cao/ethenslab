@@ -1,7 +1,7 @@
 +++
 title = 'Linux socket 与 epoll 回调和 PREEMPT_RT 锁的实现原理'
 date = '2026-10-14T12:00:00+08:00'
-draft = false
+draft = true
 description = '解释 Unix socket 和 timerfd 的 epoll 通知路径、RT 读写锁与 CPU 配额依赖，并分析正式修复将 rwlock 改为 spinlock 后如何恢复优先级继承。'
 ShowToc = true
 TocOpen = true
