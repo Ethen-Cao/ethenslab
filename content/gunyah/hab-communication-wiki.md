@@ -403,7 +403,38 @@ probe 启动 WAIT_EVENTS 线程；VIRQ 注册成功后，为各 DPU 创建并尝
 
 ## 6. PVM 服务与 GVM 客户端开发
 
-### 6.1 协议与通道规划
+### 6.1 平台通道与 GVM 对象初始化
+
+本章示例复用 `MM_MISC=601` 的平台通道。运行两端程序前，需要完成 MISC 虚拟设备、vhost 后端、GVM pchan 和队列初始化。业务服务与客户端在这些已有资源上建立 vchan。
+
+#### 6.1.1 MISC 虚拟设备配置
+
+当前平台配置包含以下对应关系：
+
+| 配置位置 | MISC 配置 | 作用 |
+|---|---|---|
+| VM 启动配置 `sa8797p-gunyah-vm.dtsi` 的 `virtio-mmio@26` | `label=0x3A`、`vqs-num=2`、`push-compatible="virtio,mmio"` | 定义 Virtio-MMIO 资源，参与 Guest 设备树生成 |
+| PVM `qcrosvm_sa8797.service` | `--vhost-user-hab "/tmp/linux-vm2-misc-skt",label=3A,device-id=90,queue-num=2` | 将设备模型、寄存器配置和通知资源接入对应 label |
+| PVM `vhost-user-misc.service` | `vhost-user-qti -s /tmp/linux-vm2-misc-skt -d /dev/vhost-misc -q 2` | 将同一 socket 连接到内核 MISC vhost 后端 |
+| GVM HAB 配置 `mmidgrp600` | `grp-start-id=600`、`role="fe"`、`remote-vmids=<0>` | 配置 MISC 域面向 PVM 的 pchan |
+
+`qcrosvm` 创建 `VhostUserHab` 和 `MmioDevice`，经 Gunyah 后端按 label 写入设备配置并注册通知 fd。GVM 的 `virtio_mmio` 从已声明的 MMIO 资源读取 Device ID 90，注册 VirtIO 设备并匹配 `hab_virtio`。label `0x3A`、VirtIO Device ID `90`、HAB MMID major `601` 分别用于资源匹配、驱动匹配和业务域选择。
+
+这组配置供 MISC 域内的业务连接共用。新增业务 minor 复用该设备；新增平台通道则需要同步配置两端资源。
+
+#### 6.1.2 hab_device、pchan 与队列的准备
+
+GVM 的 `hab_device` 来自 `hab.c` 中编译进驱动的静态数组 `hab_devices[]`。其中已有 `HAB_DEVICE_CNSTR(DEVICE_MISC_NAME, MM_MISC, 15)`，`hab_driver.devp` 引用该数组。该对象保存 HAB 业务域及其 pchan 列表，与 VirtIO 总线上的 `struct virtio_device` 分属不同层次。
+
+运行期初始化分为三个阶段：
+
+1. **HAB Core 与 pchan 初始化**：首次 HAB VirtIO 设备进入 `virthab_probe()` 时注册 `virtio_ops`，调用 `hab_driver_init()`。后者通过 `do_hab_parse()` 读取 HAB 配置，生成各业务域的 pchan 并挂入对应 `hab_device`。
+2. **VirtIO 队列绑定**：各设备 probe 按 Device ID 选择 MMID 范围。MISC 的 ID 90 对应 major 601 和一对 TX/RX 队列；`virthab_init_vqs_post()` 将队列与已创建的 pchan、传输私有对象关联，随后向 RX virtqueue 提交预先分配的 buffer，并完成就绪检查。
+3. **业务连接建立**：服务与客户端调用 `habmm_socket_open()`，以 major 查找已有 `hab_device`，以 minor 匹配建链请求，创建本次连接的 vchan。
+
+示例程序的接入工作是分配 minor、配置访问权限和实现业务协议。`hab_device`、pchan 及 VirtIO 资源由平台驱动和启动配置准备。
+
+### 6.2 协议与通道规划
 
 PVM 服务和 GVM 客户端均可使用 UHAB。两端链接各自系统的 `libuhab`，以相同 MMID 调用 open，再通过返回的本地句柄收发消息。业务 server/client 与 HAB 的 BE/FE 角色分别定义；后者由平台配置决定。
 
@@ -428,7 +459,7 @@ PVM 服务和 GVM 客户端均可使用 UHAB。两端链接各自系统的 `libu
 
 所有字段显式编码为 32 位大端整数。客户端发送 41，服务返回 42，并携带相同 request ID。长度、版本、类型和编号均在解析时校验。
 
-### 6.2 最小请求与响应
+### 6.3 最小请求与响应
 
 [完整 C 示例](../../examples/hab-rpc-demo/hab_rpc_demo.c) 使用同一源文件生成两端程序，通过 `server/client` 参数选择业务角色。服务端循环处理一条连接，客户端仅保留一个在途请求。连接异常时关闭旧句柄，再重新建链。
 
@@ -464,7 +495,7 @@ return rc != 0 ? rc : close_rc;
 
 服务端按“recv → 校验请求 → 计算结果 → send”处理。每次 recv 前重新将 size 设为 buffer 容量；返回后 size 表示实际长度或溢出所需长度。UHAB 返回 0 或负 errno，连接 handle 仅交给 HAB API 使用。
 
-### 6.3 超时、并发与重连
+### 6.4 超时、并发与重连
 
 完整示例对 send 的 `-EAGAIN` 设置约 2 s 的用户态重试预算，单次 recv 使用 200 ms 窗口，客户端按单调时钟限制一次响应等待约 2 s。非阻塞发送标志控制特定资源等待，单次调用仍可能涉及内核分配和锁等待。服务的空闲接收超时继续等待；协议错误、`-ENODEV` 或其他会话错误结束当前连接。
 
@@ -474,13 +505,13 @@ return rc != 0 ? rc : close_rc;
 
 示例默认运行 30 s，支持 SIGINT/SIGTERM。open 的内部握手等待可能长于传入 timeout，进程使用定时信号打断可中断等待。HAB 调用本身仍受内核调度和具体驱动行为约束。
 
-### 6.4 大数据扩展
+### 6.5 大数据扩展
 
 大数据服务可在初始化阶段建立共享 buffer 池，通过 export/import 创建两端使用关系。运行期消息传递业务资源编号、有效数据范围、generation 和 sequence，完成响应归还 buffer 使用权。
 
 缓冲池容量与在途任务数量需要有界。消费者完成 CPU 或设备访问后才能归还资源；生产者取得归还确认后才能覆写。使用 VIRQ 时，共享队列索引记录任务进度。停机按第 3 章的访问停止、业务额外引用释放、unimport、unexport 顺序回收。
 
-### 6.5 编译、部署与验证
+### 6.6 编译、部署与验证
 
 PVM 使用对应 Yocto/Linux SDK；GVM 使用 Android/Bionic 工具链及本镜像配套的 UHAB 开发文件。两端分别编译、链接目标 ABI 的 `libuhab.so`：
 
