@@ -1,0 +1,11 @@
+sequenceDiagram
+    autonumber
+    participant P as PVM / User Space<br/>VirtIOGPU2DBackendService
+    participant G as GVM / Kernel Space<br/>virtio_hab_send_and_recv()
+    G->>G: Lock command channel
+    G->>P: HAB request via habmm_socket_send()
+    P->>P: Receive and process display request
+    P-->>G: HAB response
+    G->>G: habmm_socket_recv()
+    G->>G: Log response length mismatch after successful receive
+    G->>G: Unlock channel<br/> return rc

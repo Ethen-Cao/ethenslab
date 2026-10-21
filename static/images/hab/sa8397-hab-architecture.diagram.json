@@ -1,0 +1,1070 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "sa8397-hab-architecture",
+    "title": "SA8397 HAB Communication Architecture",
+    "subtitle": "Virtio / vhost transport across Linux PVM and Android GVM",
+    "description": "HAB architecture across the Linux PVM and Android GVM. PVM HAB client APIs and virtual-device configuration services are parallel branches. The user HAB API is shown in the confirmed display backend process. Three GVM drivers call KHAB. A Gunyah Virtio-MMIO virtual-device resource handles queue events and Guest vIRQ assertion. Hypervisor internals are represented at the ABI-backed functional level, not as unverified source modules. Business buffer export/import and standalone HAB VIRQ are outside this view.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 2852,
+    "height": 2610
+  },
+  "sources": [
+    {
+      "id": "hab-core",
+      "title": "HAB channel, session and message management",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/soc/qcom/hab/hab.c:642"
+    },
+    {
+      "id": "khab",
+      "title": "Exported kernel HAB interfaces",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/soc/qcom/hab/khab.c:10"
+    },
+    {
+      "id": "pvm-core",
+      "title": "PVM channel, session and message management",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/mmhab-drv/hab.c:704"
+    },
+    {
+      "id": "pvm-khab",
+      "title": "PVM exported kernel HAB interfaces",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/mmhab-drv/os/linux/khab.c:10"
+    },
+    {
+      "id": "pvm-device",
+      "title": "PVM HAB character-device interface",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/mmhab-drv/hab_linux.c:405"
+    },
+    {
+      "id": "gvm-device",
+      "title": "GVM per-MMID HAB character-device interfaces",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/soc/qcom/hab/hab_linux.c:700"
+    },
+    {
+      "id": "uhab",
+      "title": "User HAB library and ioctl interface",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/proprietary/mm-hab/uhab/uhab.c:1037"
+    },
+    {
+      "id": "pvm-uhab",
+      "title": "PVM user HAB library",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/proprietary/mm-hab/uhab/uhab.c:1033"
+    },
+    {
+      "id": "gvm-transport",
+      "title": "GVM HAB virtio transport and buffer queues",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/soc/qcom/hab/hab_virtio.c:1219"
+    },
+    {
+      "id": "pvm-transport",
+      "title": "PVM HAB vhost workers and shared-buffer access",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/mmhab-drv/hypervisor/virtio/hab_vhost.c:165"
+    },
+    {
+      "id": "device-config",
+      "title": "SA8797 HAB virtual-device deployment",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/crosvm-gunyah/qcrosvm_sa8797.service:73"
+    },
+    {
+      "id": "vmm",
+      "title": "qcrosvm HAB device, ioeventfd and irqfd registration",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/crosvm-gunyah/src/main.rs:285"
+    },
+    {
+      "id": "proxy",
+      "title": "vhost-user-qti memory, queue and event-fd configuration",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/vhost-user/src/vhost_kernel.c:125"
+    },
+    {
+      "id": "proxy-service",
+      "title": "vhost-user-qti process and vhost device configuration",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/vhost-user/vhost-user-misc.service:38"
+    },
+    {
+      "id": "mmio",
+      "title": "Guest virtio-MMIO notification and interrupt handling",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/common/drivers/virtio/virtio_mmio.c:279"
+    },
+    {
+      "id": "gh-backend",
+      "title": "Gunyah virtio backend eventfd and virtual IRQ integration",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/gunyah-drivers/drivers/virt/gunyah/gh_secure_vm_virtio_backend.c:199"
+    },
+    {
+      "id": "deployment",
+      "title": "Confirmed SA8397 PVM, GVM and Gunyah deployment",
+      "locator": "/home/ethen/workspace/github/ethenslab/content/gunyah/hab-communication-mechanism.md"
+    },
+    {
+      "id": "virtio-hcall",
+      "title": "Gunyah Virtio-MMIO backend hypercall ABI",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/gunyah-drivers/drivers/virt/gunyah/hcall_virtio.h:16"
+    },
+    {
+      "id": "virtio-resource",
+      "title": "Gunyah Virtio-MMIO capability, IRQ and register resource",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/gunyah-drivers/drivers/virt/gunyah/gh_rm_drv_private.h:286"
+    },
+    {
+      "id": "virtio-resource-bind",
+      "title": "Binding of the Virtio-MMIO resource to the PVM backend",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/gunyah-drivers/drivers/virt/gunyah/gh_rm_core.c:981"
+    },
+    {
+      "id": "display-client",
+      "title": "GVM display DRM/KMS calls to KHAB",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/display-drivers/msm/hyp/virtio/virtio_kms.c:3179"
+    },
+    {
+      "id": "display-send",
+      "title": "GVM display command send and receive",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/display-drivers/msm/hyp/virtio/virtgpu_vq.c:113"
+    },
+    {
+      "id": "display-module",
+      "title": "Display driver module build membership",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/display-drivers/msm/Kbuild:314"
+    },
+    {
+      "id": "audio-client",
+      "title": "GVM VirtIO Audio calls to KHAB",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/audio-kernel-virtio/virtio_card.c:240"
+    },
+    {
+      "id": "audio-module",
+      "title": "VirtIO Audio module identity",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/audio-kernel-virtio/Kbuild:10"
+    },
+    {
+      "id": "gpu-client",
+      "title": "GVM HGSL calls to KHAB",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/graphics-hgsl/hgsl_hyp_socket.c:19"
+    },
+    {
+      "id": "gpu-module",
+      "title": "HGSL kernel module identity",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/vendor/qcom/opensource/graphics-hgsl/Kbuild:20"
+    },
+    {
+      "id": "display-service",
+      "title": "PVM user HAB client process",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/prebuilt_HY11/sa8797/display-be/usr/lib/systemd/system/display-be.service:20"
+    },
+    {
+      "id": "display-elf",
+      "title": "PVM display backend linkage to libuhab.so",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/prebuilt_HY11/sa8797/display-be/usr/bin/VirtIOGPU2DBackendService"
+    }
+  ],
+  "deployment": {
+    "profile": "virtualized-soc",
+    "soc": "soc",
+    "vms": [
+      "pvm",
+      "gvm"
+    ],
+    "hypervisor": "hypervisor",
+    "hardware": "hardware",
+    "evidence": [
+      "deployment",
+      "device-config",
+      "gh-backend"
+    ]
+  },
+  "containers": [
+    {
+      "id": "soc",
+      "kind": "domain",
+      "title": "SA8397 SoC",
+      "x": 36,
+      "y": 36,
+      "w": 2780,
+      "h": 2534,
+      "domainType": "soc",
+      "evidence": [
+        "deployment"
+      ]
+    },
+    {
+      "id": "pvm",
+      "kind": "domain",
+      "title": "Linux PVM",
+      "x": 66,
+      "y": 150,
+      "w": 1150,
+      "h": 1640,
+      "parent": "soc",
+      "domainType": "vm",
+      "platform": "linux",
+      "evidence": [
+        "deployment"
+      ]
+    },
+    {
+      "id": "pvm-user",
+      "kind": "layer",
+      "title": "User Space / Native Services",
+      "x": 96,
+      "y": 260,
+      "w": 1090,
+      "h": 550,
+      "parent": "pvm",
+      "role": "services",
+      "order": 0,
+      "evidence": [
+        "display-service",
+        "device-config"
+      ]
+    },
+    {
+      "id": "pvm-api",
+      "kind": "group",
+      "title": "HAB Client API",
+      "x": 126,
+      "y": 350,
+      "w": 500,
+      "h": 430,
+      "parent": "pvm-user"
+    },
+    {
+      "id": "pvm-kernel",
+      "kind": "layer",
+      "title": "Linux Kernel",
+      "x": 96,
+      "y": 850,
+      "w": 1090,
+      "h": 910,
+      "parent": "pvm",
+      "subtitle": "Kernel space",
+      "role": "kernel",
+      "order": 1
+    },
+    {
+      "id": "gvm",
+      "kind": "domain",
+      "title": "Android GVM",
+      "x": 1636,
+      "y": 150,
+      "w": 1150,
+      "h": 1640,
+      "parent": "soc",
+      "domainType": "vm",
+      "platform": "android",
+      "evidence": [
+        "deployment"
+      ]
+    },
+    {
+      "id": "gvm-user",
+      "kind": "layer",
+      "title": "User Space / Client APIs",
+      "x": 1666,
+      "y": 260,
+      "w": 1090,
+      "h": 550,
+      "parent": "gvm",
+      "role": "client-api",
+      "order": 0
+    },
+    {
+      "id": "gvm-api",
+      "kind": "group",
+      "title": "HAB Client API",
+      "x": 1696,
+      "y": 350,
+      "w": 1030,
+      "h": 430,
+      "parent": "gvm-user"
+    },
+    {
+      "id": "gvm-kernel",
+      "kind": "layer",
+      "title": "Linux Kernel",
+      "x": 1666,
+      "y": 850,
+      "w": 1090,
+      "h": 910,
+      "parent": "gvm",
+      "subtitle": "Kernel space",
+      "role": "kernel",
+      "order": 1
+    },
+    {
+      "id": "pvm-services",
+      "kind": "group",
+      "title": "VM Device Services",
+      "x": 656,
+      "y": 350,
+      "w": 500,
+      "h": 430,
+      "parent": "pvm-user"
+    },
+    {
+      "id": "hypervisor",
+      "kind": "hypervisor",
+      "title": "Gunyah Hypervisor",
+      "x": 66,
+      "y": 1850,
+      "w": 2720,
+      "h": 440,
+      "parent": "soc",
+      "hosts": [
+        "pvm",
+        "gvm"
+      ],
+      "evidence": [
+        "deployment",
+        "gh-backend"
+      ]
+    },
+    {
+      "id": "hardware",
+      "kind": "hardware-region",
+      "title": "Hardware",
+      "x": 66,
+      "y": 2340,
+      "w": 2720,
+      "h": 190,
+      "parent": "soc",
+      "evidence": [
+        "deployment"
+      ]
+    },
+    {
+      "id": "display-backend",
+      "kind": "process",
+      "title": "VirtIOGPU2DBackendService",
+      "parent": "pvm-api",
+      "x": 146,
+      "y": 440,
+      "w": 460,
+      "h": 300,
+      "evidence": [
+        "display-service",
+        "display-elf"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pvm-uhab",
+      "entityType": "library",
+      "canonicalName": "libuhab.so",
+      "parent": "display-backend",
+      "x": 216,
+      "y": 620,
+      "w": 320,
+      "h": 80,
+      "evidence": [
+        "pvm-uhab",
+        "display-elf"
+      ],
+      "layerRole": "services"
+    },
+    {
+      "id": "gvm-uhab",
+      "entityType": "library",
+      "canonicalName": "libuhab.so",
+      "parent": "gvm-api",
+      "x": 1940,
+      "y": 555,
+      "w": 460,
+      "h": 80,
+      "evidence": [
+        "uhab"
+      ],
+      "layerRole": "client-api"
+    },
+    {
+      "id": "qcrosvm",
+      "entityType": "process",
+      "canonicalName": "qcrosvm",
+      "parent": "pvm-services",
+      "x": 686,
+      "y": 450,
+      "w": 260,
+      "h": 90,
+      "evidence": [
+        "vmm",
+        "device-config"
+      ],
+      "description": "Virtual device setup",
+      "layerRole": "services"
+    },
+    {
+      "id": "vhost-user",
+      "entityType": "process",
+      "canonicalName": "vhost-user-qti",
+      "parent": "pvm-services",
+      "x": 686,
+      "y": 670,
+      "w": 260,
+      "h": 90,
+      "evidence": [
+        "proxy-service",
+        "proxy"
+      ],
+      "description": "Kernel vhost setup",
+      "layerRole": "services"
+    },
+    {
+      "id": "pvm-khab",
+      "entityType": "interface",
+      "canonicalName": "KHAB",
+      "parent": "pvm-kernel",
+      "x": 156,
+      "y": 1180,
+      "w": 280,
+      "h": 110,
+      "evidence": [
+        "pvm-khab"
+      ],
+      "description": "Kernel HAB API",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "pvm-core",
+      "entityType": "subsystem",
+      "canonicalName": "HAB Core",
+      "parent": "pvm-kernel",
+      "x": 626,
+      "y": 1180,
+      "w": 460,
+      "h": 110,
+      "evidence": [
+        "pvm-core"
+      ],
+      "description": "vchan routing and sessions",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "gvm-khab",
+      "entityType": "interface",
+      "canonicalName": "KHAB",
+      "parent": "gvm-kernel",
+      "x": 2336,
+      "y": 1180,
+      "w": 360,
+      "h": 110,
+      "evidence": [
+        "khab"
+      ],
+      "description": "habmm_* kernel APIs",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "gvm-core",
+      "entityType": "subsystem",
+      "canonicalName": "HAB Core",
+      "parent": "gvm-kernel",
+      "x": 1726,
+      "y": 1180,
+      "w": 460,
+      "h": 110,
+      "evidence": [
+        "hab-core"
+      ],
+      "description": "vchan routing and sessions",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "vhost",
+      "entityType": "driver",
+      "canonicalName": "hab_vhost",
+      "parent": "pvm-kernel",
+      "x": 626,
+      "y": 1390,
+      "w": 460,
+      "h": 130,
+      "evidence": [
+        "pvm-transport"
+      ],
+      "description": "HAB vhost transport",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "virtio",
+      "entityType": "driver",
+      "canonicalName": "hab_virtio",
+      "parent": "gvm-kernel",
+      "x": 1726,
+      "y": 1390,
+      "w": 460,
+      "h": 130,
+      "evidence": [
+        "gvm-transport"
+      ],
+      "description": "HAB virtio transport",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "gh-backend",
+      "entityType": "driver",
+      "canonicalName": "gh_secure_vm_virtio_backend",
+      "parent": "pvm-kernel",
+      "x": 626,
+      "y": 1590,
+      "w": 460,
+      "h": 140,
+      "evidence": [
+        "gh-backend"
+      ],
+      "description": "ioeventfd / irqfd",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "virtio-mmio",
+      "entityType": "driver",
+      "canonicalName": "virtio_mmio",
+      "parent": "gvm-kernel",
+      "x": 1726,
+      "y": 1590,
+      "w": 460,
+      "h": 140,
+      "evidence": [
+        "mmio"
+      ],
+      "description": "Queue notify / virtual IRQ",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "queue-memory",
+      "entityType": "memory",
+      "canonicalName": "HAB Queue Memory",
+      "parent": "soc",
+      "x": 1260,
+      "y": 1380,
+      "w": 332,
+      "h": 150,
+      "evidence": [
+        "gvm-transport",
+        "pvm-transport"
+      ],
+      "description": "TX/RX vrings and message buffers",
+      "resourceId": "hab-guest-queue-memory"
+    },
+    {
+      "id": "cpu",
+      "entityType": "hardware",
+      "canonicalName": "CPU Cores",
+      "parent": "hardware",
+      "x": 226,
+      "y": 2435,
+      "w": 540,
+      "h": 65,
+      "evidence": [
+        "deployment"
+      ]
+    },
+    {
+      "id": "ram",
+      "entityType": "hardware",
+      "canonicalName": "System RAM",
+      "parent": "hardware",
+      "x": 1156,
+      "y": 2435,
+      "w": 540,
+      "h": 65,
+      "evidence": [
+        "deployment"
+      ]
+    },
+    {
+      "id": "gic",
+      "entityType": "hardware",
+      "canonicalName": "Interrupt Controller",
+      "parent": "hardware",
+      "x": 2086,
+      "y": 2435,
+      "w": 540,
+      "h": 65,
+      "evidence": [
+        "deployment"
+      ]
+    },
+    {
+      "id": "display-kclient",
+      "entityType": "driver",
+      "canonicalName": "msm_drm",
+      "description": "DRM/KMS HAB client",
+      "parent": "gvm-kernel",
+      "x": 1696,
+      "y": 980,
+      "w": 300,
+      "h": 110,
+      "evidence": [
+        "display-client",
+        "display-send",
+        "display-module"
+      ],
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "audio-kclient",
+      "entityType": "driver",
+      "canonicalName": "msm_virtio_snd",
+      "description": "VirtIO Audio",
+      "parent": "gvm-kernel",
+      "x": 2040,
+      "y": 980,
+      "w": 300,
+      "h": 110,
+      "evidence": [
+        "audio-client",
+        "audio-module"
+      ],
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "gpu-kclient",
+      "entityType": "driver",
+      "canonicalName": "qcom_hgsl",
+      "description": "GPU HGSL",
+      "parent": "gvm-kernel",
+      "x": 2384,
+      "y": 980,
+      "w": 300,
+      "h": 110,
+      "evidence": [
+        "gpu-client",
+        "gpu-module"
+      ],
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "hyp-virtio-device",
+      "entityType": "subsystem",
+      "canonicalName": "Virtio-MMIO Virtual Device",
+      "description": "Queue events / Guest vIRQ assertion",
+      "parent": "hypervisor",
+      "x": 1106,
+      "y": 1950,
+      "w": 640,
+      "h": 260,
+      "evidence": [
+        "virtio-hcall",
+        "virtio-resource",
+        "virtio-resource-bind"
+      ],
+      "executionContext": "hypervisor"
+    }
+  ],
+  "edges": [
+    {
+      "id": "uhab-pvm",
+      "from": "pvm-uhab",
+      "to": "pvm-core",
+      "relation": "call",
+      "evidence": [
+        "pvm-uhab",
+        "pvm-device"
+      ],
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        {
+          "y": 1140
+        }
+      ],
+      "label": "/dev/hab \u00b7 ioctl",
+      "labelPosition": {
+        "x": 506,
+        "y": 940
+      }
+    },
+    {
+      "id": "uhab-gvm",
+      "from": "gvm-uhab",
+      "to": "gvm-core",
+      "relation": "call",
+      "evidence": [
+        "uhab",
+        "gvm-device"
+      ],
+      "via": [
+        {
+          "x": 1648
+        },
+        {
+          "y": 1235
+        }
+      ],
+      "label": "/dev/hab* \u00b7 ioctl",
+      "labelPosition": {
+        "x": 1735,
+        "y": 825
+      },
+      "fromSide": "left",
+      "toSide": "left"
+    },
+    {
+      "id": "khab-pvm",
+      "from": "pvm-khab",
+      "to": "pvm-core",
+      "relation": "call",
+      "evidence": [
+        "pvm-khab"
+      ],
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "khab-gvm",
+      "from": "gvm-khab",
+      "to": "gvm-core",
+      "relation": "call",
+      "evidence": [
+        "khab"
+      ],
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "core-vhost",
+      "from": "pvm-core",
+      "to": "vhost",
+      "relation": "dependency",
+      "evidence": [
+        "pvm-core",
+        "pvm-transport"
+      ]
+    },
+    {
+      "id": "core-virtio",
+      "from": "gvm-core",
+      "to": "virtio",
+      "relation": "dependency",
+      "evidence": [
+        "hab-core",
+        "gvm-transport"
+      ]
+    },
+    {
+      "id": "vmm-proxy",
+      "from": "qcrosvm",
+      "to": "vhost-user",
+      "relation": "configuration",
+      "evidence": [
+        "device-config",
+        "proxy"
+      ],
+      "fromSide": "bottom",
+      "toSide": "top",
+      "mechanism": "vhost-user over Unix socket",
+      "label": "vhost-user / Unix socket",
+      "labelPosition": {
+        "x": 977,
+        "y": 605
+      }
+    },
+    {
+      "id": "proxy-vhost",
+      "from": "vhost-user",
+      "to": "vhost",
+      "relation": "configuration",
+      "evidence": [
+        "proxy"
+      ],
+      "via": [
+        {
+          "y": 835
+        },
+        {
+          "x": 1200
+        },
+        {
+          "y": 1335
+        },
+        {
+          "x": 996
+        }
+      ],
+      "toOffset": 140,
+      "label": "VHOST ioctls",
+      "labelPosition": {
+        "x": 1300,
+        "y": 1180
+      }
+    },
+    {
+      "id": "vhost-write",
+      "from": "vhost",
+      "to": "queue-memory",
+      "relation": "write",
+      "evidence": [
+        "pvm-transport"
+      ],
+      "fromSide": "right",
+      "toSide": "left",
+      "fromOffset": -24,
+      "toOffset": -24
+    },
+    {
+      "id": "vhost-read",
+      "from": "queue-memory",
+      "to": "vhost",
+      "relation": "read",
+      "evidence": [
+        "pvm-transport"
+      ],
+      "fromSide": "left",
+      "toSide": "right",
+      "fromOffset": 24,
+      "toOffset": 24
+    },
+    {
+      "id": "virtio-write",
+      "from": "virtio",
+      "to": "queue-memory",
+      "relation": "write",
+      "evidence": [
+        "gvm-transport"
+      ],
+      "fromSide": "left",
+      "toSide": "right",
+      "fromOffset": -24,
+      "toOffset": -24
+    },
+    {
+      "id": "virtio-read",
+      "from": "queue-memory",
+      "to": "virtio",
+      "relation": "read",
+      "evidence": [
+        "gvm-transport"
+      ],
+      "fromSide": "right",
+      "toSide": "left",
+      "fromOffset": 24,
+      "toOffset": 24
+    },
+    {
+      "id": "vhost-call",
+      "from": "vhost",
+      "to": "gh-backend",
+      "relation": "notification",
+      "evidence": [
+        "gh-backend",
+        "pvm-transport"
+      ],
+      "fromOffset": -32,
+      "toOffset": -32,
+      "label": "call fd",
+      "labelPosition": {
+        "x": 740,
+        "y": 1555
+      }
+    },
+    {
+      "id": "vhost-kick",
+      "from": "gh-backend",
+      "to": "vhost",
+      "relation": "notification",
+      "evidence": [
+        "gh-backend",
+        "pvm-transport"
+      ],
+      "fromSide": "top",
+      "toSide": "bottom",
+      "fromOffset": 32,
+      "toOffset": 32,
+      "label": "kick fd",
+      "labelPosition": {
+        "x": 980,
+        "y": 1555
+      }
+    },
+    {
+      "id": "virtio-kick",
+      "from": "virtio",
+      "to": "virtio-mmio",
+      "relation": "call",
+      "evidence": [
+        "mmio",
+        "gvm-transport"
+      ],
+      "fromOffset": -32,
+      "toOffset": -32,
+      "label": "Queue notify",
+      "labelPosition": {
+        "x": 1810,
+        "y": 1555
+      }
+    },
+    {
+      "id": "virtio-irq",
+      "from": "virtio-mmio",
+      "to": "virtio",
+      "relation": "notification",
+      "evidence": [
+        "mmio",
+        "gvm-transport"
+      ],
+      "fromSide": "top",
+      "toSide": "bottom",
+      "fromOffset": 32,
+      "toOffset": 32,
+      "label": "IRQ",
+      "labelPosition": {
+        "x": 2060,
+        "y": 1555
+      }
+    },
+    {
+      "id": "display-kclient-khab",
+      "from": "display-kclient",
+      "to": "gvm-khab",
+      "relation": "call",
+      "via": [
+        {
+          "y": 1150
+        }
+      ],
+      "toOffset": -90,
+      "evidence": [
+        "display-client",
+        "display-send"
+      ]
+    },
+    {
+      "id": "audio-kclient-khab",
+      "from": "audio-kclient",
+      "to": "gvm-khab",
+      "relation": "call",
+      "via": [
+        {
+          "y": 1130
+        }
+      ],
+      "toOffset": 0,
+      "evidence": [
+        "audio-client"
+      ]
+    },
+    {
+      "id": "gpu-kclient-khab",
+      "from": "gpu-kclient",
+      "to": "gvm-khab",
+      "relation": "call",
+      "via": [
+        {
+          "y": 1110
+        }
+      ],
+      "toOffset": 90,
+      "evidence": [
+        "gpu-client"
+      ]
+    },
+    {
+      "id": "queue-notify-hyp",
+      "from": "virtio-mmio",
+      "to": "hyp-virtio-device",
+      "relation": "notification",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "fromOffset": -40,
+      "toOffset": -80,
+      "label": "QUEUE_NOTIFY",
+      "labelPosition": {
+        "x": 1830,
+        "y": 1972
+      },
+      "evidence": [
+        "mmio",
+        "virtio-resource"
+      ]
+    },
+    {
+      "id": "hyp-backend-irq",
+      "from": "hyp-virtio-device",
+      "to": "gh-backend",
+      "relation": "notification",
+      "fromSide": "left",
+      "toSide": "bottom",
+      "fromOffset": -80,
+      "toOffset": 40,
+      "label": "Device IRQ",
+      "labelPosition": {
+        "x": 1000,
+        "y": 1972
+      },
+      "evidence": [
+        "gh-backend",
+        "virtio-resource-bind"
+      ]
+    },
+    {
+      "id": "backend-get-event",
+      "from": "gh-backend",
+      "to": "hyp-virtio-device",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "fromOffset": 0,
+      "toOffset": 0,
+      "label": "GET_EVENT",
+      "labelPosition": {
+        "x": 1000,
+        "y": 2052
+      },
+      "evidence": [
+        "gh-backend",
+        "virtio-hcall"
+      ]
+    },
+    {
+      "id": "backend-assert-virq",
+      "from": "gh-backend",
+      "to": "hyp-virtio-device",
+      "relation": "call",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "fromOffset": -40,
+      "toOffset": 80,
+      "label": "ASSERT_VIRQ",
+      "labelPosition": {
+        "x": 1000,
+        "y": 2132
+      },
+      "evidence": [
+        "gh-backend",
+        "virtio-hcall"
+      ]
+    },
+    {
+      "id": "hyp-guest-virq",
+      "from": "hyp-virtio-device",
+      "to": "virtio-mmio",
+      "relation": "notification",
+      "fromSide": "right",
+      "toSide": "bottom",
+      "fromOffset": 80,
+      "toOffset": 40,
+      "label": "Device vIRQ",
+      "labelPosition": {
+        "x": 1830,
+        "y": 2132
+      },
+      "evidence": [
+        "mmio",
+        "virtio-hcall"
+      ]
+    }
+  ]
+}

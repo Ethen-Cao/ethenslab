@@ -1,0 +1,713 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "sa8397-hab-channel-memory",
+    "title": "HAB Channels and Shared Memory",
+    "subtitle": "Local channel objects, transport queues and business memory",
+    "scope": "system",
+    "view": "dataflow",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 2216,
+    "height": 1700
+  },
+  "sources": [
+    {
+      "id": "objects",
+      "title": "HAB local object definitions",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/soc/qcom/hab/hab.h:206"
+    },
+    {
+      "id": "routing",
+      "title": "VCID and session routing",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/soc/qcom/hab/hab_vchan.c:111"
+    },
+    {
+      "id": "gvm",
+      "title": "GVM HAB virtio transport",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/soc/qcom/hab/hab_virtio.c:1219"
+    },
+    {
+      "id": "pvm",
+      "title": "PVM HAB vhost transport",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/mmhab-drv/hypervisor/virtio/hab_vhost.c:165"
+    },
+    {
+      "id": "memory",
+      "title": "Business memory object and local mappings",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/vendor/kernel_platform/soc-repo/drivers/soc/qcom/hab/hab.h:528"
+    },
+    {
+      "id": "vmm",
+      "title": "qcrosvm HAB device and event registration",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/crosvm-gunyah/src/main.rs:1076"
+    },
+    {
+      "id": "service",
+      "title": "SA8397 HAB deployment configuration",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/crosvm-gunyah/qcrosvm_sa8797.service:73"
+    },
+    {
+      "id": "proxy",
+      "title": "vhost-user-qti kernel configuration",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/vhost-user/src/vhost_kernel.c:125"
+    },
+    {
+      "id": "proxy-service",
+      "title": "MISC proxy process and kernel device",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/vhost-user/vhost-user-misc.service:38"
+    },
+    {
+      "id": "gh",
+      "title": "Gunyah virtio backend",
+      "locator": "/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc/vendor/qcom/opensource/gunyah-drivers/drivers/virt/gunyah/gh_secure_vm_virtio_backend.c:199"
+    }
+  ],
+  "deployment": {
+    "profile": "virtualized-soc",
+    "soc": "soc",
+    "vms": [
+      "pvm",
+      "gvm"
+    ],
+    "hypervisor": "hypervisor",
+    "hardware": "hardware",
+    "evidence": [
+      "service",
+      "gh"
+    ]
+  },
+  "containers": [
+    {
+      "id": "soc",
+      "kind": "domain",
+      "title": "SA8397 SoC",
+      "x": 36,
+      "y": 36,
+      "w": 2144,
+      "h": 1628,
+      "domainType": "soc",
+      "evidence": [
+        "service"
+      ]
+    },
+    {
+      "id": "pvm",
+      "kind": "domain",
+      "title": "Linux PVM",
+      "x": 66,
+      "y": 150,
+      "w": 820,
+      "h": 1120,
+      "parent": "soc",
+      "domainType": "vm",
+      "platform": "linux",
+      "evidence": [
+        "service"
+      ]
+    },
+    {
+      "id": "gvm",
+      "kind": "domain",
+      "title": "Android GVM",
+      "x": 1330,
+      "y": 150,
+      "w": 820,
+      "h": 1120,
+      "parent": "soc",
+      "domainType": "vm",
+      "platform": "android",
+      "evidence": [
+        "service"
+      ]
+    },
+    {
+      "id": "hypervisor",
+      "kind": "hypervisor",
+      "title": "Gunyah Hypervisor",
+      "x": 66,
+      "y": 1310,
+      "w": 2084,
+      "h": 110,
+      "parent": "soc",
+      "hosts": [
+        "pvm",
+        "gvm"
+      ],
+      "evidence": [
+        "gh",
+        "service"
+      ]
+    },
+    {
+      "id": "hardware",
+      "kind": "hardware-region",
+      "title": "Hardware",
+      "x": 66,
+      "y": 1460,
+      "w": 2084,
+      "h": 180,
+      "parent": "soc",
+      "evidence": [
+        "service"
+      ]
+    },
+    {
+      "id": "pvm-kernel",
+      "kind": "layer",
+      "title": "Linux Kernel",
+      "x": 96,
+      "y": 260,
+      "w": 760,
+      "h": 980,
+      "parent": "pvm",
+      "subtitle": "Local objects and transport",
+      "role": "kernel",
+      "order": 0
+    },
+    {
+      "id": "gvm-kernel",
+      "kind": "layer",
+      "title": "Linux Kernel",
+      "x": 1360,
+      "y": 260,
+      "w": 760,
+      "h": 980,
+      "parent": "gvm",
+      "subtitle": "Local objects and transport",
+      "role": "kernel",
+      "order": 0
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ram",
+      "entityType": "hardware",
+      "canonicalName": "System RAM",
+      "parent": "hardware",
+      "x": 770,
+      "y": 1550,
+      "w": 680,
+      "h": 65,
+      "evidence": [
+        "service"
+      ]
+    },
+    {
+      "id": "pvm-device",
+      "entityType": "class",
+      "canonicalName": "hab_device",
+      "parent": "pvm-kernel",
+      "x": 196,
+      "y": 370,
+      "w": 560,
+      "h": 100,
+      "evidence": [
+        "objects"
+      ],
+      "description": "MMID major selects the service domain",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "pvm-pchan",
+      "entityType": "class",
+      "canonicalName": "physical_channel",
+      "parent": "pvm-kernel",
+      "x": 196,
+      "y": 570,
+      "w": 560,
+      "h": 100,
+      "evidence": [
+        "objects"
+      ],
+      "description": "pchan: peer VM and vchan_idr",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "pvm-vchan-a",
+      "entityType": "class",
+      "canonicalName": "virtual_channel",
+      "parent": "pvm-kernel",
+      "x": 121,
+      "y": 780,
+      "w": 300,
+      "h": 110,
+      "evidence": [
+        "objects",
+        "routing"
+      ],
+      "description": "Connection A / local rx_list",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "pvm-vchan-b",
+      "entityType": "class",
+      "canonicalName": "virtual_channel",
+      "parent": "pvm-kernel",
+      "x": 531,
+      "y": 780,
+      "w": 300,
+      "h": 110,
+      "evidence": [
+        "objects",
+        "routing"
+      ],
+      "description": "Connection B / local rx_list",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "pvm-transport",
+      "entityType": "driver",
+      "canonicalName": "hab_vhost",
+      "parent": "pvm-kernel",
+      "x": 196,
+      "y": 980,
+      "w": 560,
+      "h": 100,
+      "evidence": [
+        "pvm"
+      ],
+      "description": "TX/RX virtqueue pair",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "pvm-mapping",
+      "entityType": "class",
+      "canonicalName": "export_desc",
+      "parent": "pvm-kernel",
+      "x": 196,
+      "y": 1130,
+      "w": 560,
+      "h": 90,
+      "evidence": [
+        "memory"
+      ],
+      "description": "Local export/import metadata",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "gvm-device",
+      "entityType": "class",
+      "canonicalName": "hab_device",
+      "parent": "gvm-kernel",
+      "x": 1460,
+      "y": 370,
+      "w": 560,
+      "h": 100,
+      "evidence": [
+        "objects"
+      ],
+      "description": "MMID major selects the service domain",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "gvm-pchan",
+      "entityType": "class",
+      "canonicalName": "physical_channel",
+      "parent": "gvm-kernel",
+      "x": 1460,
+      "y": 570,
+      "w": 560,
+      "h": 100,
+      "evidence": [
+        "objects"
+      ],
+      "description": "pchan: peer VM and vchan_idr",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "gvm-vchan-a",
+      "entityType": "class",
+      "canonicalName": "virtual_channel",
+      "parent": "gvm-kernel",
+      "x": 1795,
+      "y": 780,
+      "w": 300,
+      "h": 110,
+      "evidence": [
+        "objects",
+        "routing"
+      ],
+      "description": "Connection A / local rx_list",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "gvm-vchan-b",
+      "entityType": "class",
+      "canonicalName": "virtual_channel",
+      "parent": "gvm-kernel",
+      "x": 1385,
+      "y": 780,
+      "w": 300,
+      "h": 110,
+      "evidence": [
+        "objects",
+        "routing"
+      ],
+      "description": "Connection B / local rx_list",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "gvm-transport",
+      "entityType": "driver",
+      "canonicalName": "hab_virtio",
+      "parent": "gvm-kernel",
+      "x": 1460,
+      "y": 980,
+      "w": 560,
+      "h": 100,
+      "evidence": [
+        "gvm"
+      ],
+      "description": "TX/RX virtqueue pair",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "gvm-mapping",
+      "entityType": "class",
+      "canonicalName": "export_desc",
+      "parent": "gvm-kernel",
+      "x": 1460,
+      "y": 1130,
+      "w": 560,
+      "h": 90,
+      "evidence": [
+        "memory"
+      ],
+      "description": "Local export/import metadata",
+      "layerRole": "kernel",
+      "executionContext": "kernel"
+    },
+    {
+      "id": "transport-memory",
+      "entityType": "memory",
+      "canonicalName": "Transport Shared Memory",
+      "parent": "soc",
+      "x": 936,
+      "y": 940,
+      "w": 344,
+      "h": 175,
+      "evidence": [
+        "gvm",
+        "pvm"
+      ],
+      "description": "TX/RX vrings and message buffers",
+      "resourceId": "hab-transport-memory"
+    },
+    {
+      "id": "business-memory",
+      "entityType": "memory",
+      "canonicalName": "Business Shared Pages",
+      "parent": "soc",
+      "x": 936,
+      "y": 1140,
+      "w": 344,
+      "h": 110,
+      "evidence": [
+        "memory"
+      ],
+      "description": "Export/import memory object",
+      "resourceId": "hab-business-memory"
+    }
+  ],
+  "edges": [
+    {
+      "id": "pvm-dev-pchan",
+      "from": "pvm-device",
+      "to": "pvm-pchan",
+      "relation": "dependency",
+      "evidence": [
+        "objects"
+      ],
+      "label": "pchannels",
+      "labelPosition": {
+        "x": 631,
+        "y": 520
+      }
+    },
+    {
+      "id": "pvm-pchan-a",
+      "from": "pvm-pchan",
+      "to": "pvm-vchan-a",
+      "relation": "dependency",
+      "evidence": [
+        "objects"
+      ],
+      "fromOffset": -150,
+      "via": [
+        {
+          "y": 730
+        },
+        {
+          "x": 271
+        }
+      ]
+    },
+    {
+      "id": "pvm-pchan-b",
+      "from": "pvm-pchan",
+      "to": "pvm-vchan-b",
+      "relation": "dependency",
+      "evidence": [
+        "objects"
+      ],
+      "fromOffset": 150,
+      "via": [
+        {
+          "y": 730
+        },
+        {
+          "x": 681
+        }
+      ]
+    },
+    {
+      "id": "pvm-pchan-transport",
+      "from": "pvm-pchan",
+      "to": "pvm-transport",
+      "relation": "dependency",
+      "evidence": [
+        "objects",
+        "pvm"
+      ],
+      "fromOffset": 0,
+      "toOffset": 0
+    },
+    {
+      "id": "gvm-dev-pchan",
+      "from": "gvm-device",
+      "to": "gvm-pchan",
+      "relation": "dependency",
+      "evidence": [
+        "objects"
+      ],
+      "label": "pchannels",
+      "labelPosition": {
+        "x": 1895,
+        "y": 520
+      }
+    },
+    {
+      "id": "gvm-pchan-a",
+      "from": "gvm-pchan",
+      "to": "gvm-vchan-a",
+      "relation": "dependency",
+      "evidence": [
+        "objects"
+      ],
+      "fromOffset": 150,
+      "via": [
+        {
+          "y": 730
+        },
+        {
+          "x": 1945
+        }
+      ]
+    },
+    {
+      "id": "gvm-pchan-b",
+      "from": "gvm-pchan",
+      "to": "gvm-vchan-b",
+      "relation": "dependency",
+      "evidence": [
+        "objects"
+      ],
+      "fromOffset": -150,
+      "via": [
+        {
+          "y": 730
+        },
+        {
+          "x": 1535
+        }
+      ]
+    },
+    {
+      "id": "gvm-pchan-transport",
+      "from": "gvm-pchan",
+      "to": "gvm-transport",
+      "relation": "dependency",
+      "evidence": [
+        "objects",
+        "gvm"
+      ],
+      "fromOffset": 0,
+      "toOffset": 0
+    },
+    {
+      "id": "pvm-write",
+      "from": "pvm-transport",
+      "to": "transport-memory",
+      "relation": "write",
+      "evidence": [
+        "pvm"
+      ],
+      "fromSide": "right",
+      "toSide": "left",
+      "fromOffset": -20,
+      "toOffset": -20
+    },
+    {
+      "id": "pvm-read",
+      "from": "transport-memory",
+      "to": "pvm-transport",
+      "relation": "read",
+      "evidence": [
+        "pvm"
+      ],
+      "fromSide": "left",
+      "toSide": "right",
+      "fromOffset": 20,
+      "toOffset": 20
+    },
+    {
+      "id": "pvm-map",
+      "from": "pvm-mapping",
+      "to": "business-memory",
+      "relation": "configuration",
+      "evidence": [
+        "memory"
+      ],
+      "fromSide": "bottom",
+      "toSide": "left",
+      "via": [
+        {
+          "y": 1280
+        },
+        {
+          "x": 866
+        },
+        {
+          "y": 1195
+        }
+      ],
+      "label": "Page description / dma-buf reference",
+      "labelPosition": {
+        "x": 660,
+        "y": 1250
+      }
+    },
+    {
+      "id": "gvm-write",
+      "from": "gvm-transport",
+      "to": "transport-memory",
+      "relation": "write",
+      "evidence": [
+        "gvm"
+      ],
+      "fromSide": "left",
+      "toSide": "right",
+      "fromOffset": -20,
+      "toOffset": -20
+    },
+    {
+      "id": "gvm-read",
+      "from": "transport-memory",
+      "to": "gvm-transport",
+      "relation": "read",
+      "evidence": [
+        "gvm"
+      ],
+      "fromSide": "right",
+      "toSide": "left",
+      "fromOffset": 20,
+      "toOffset": 20
+    },
+    {
+      "id": "gvm-map",
+      "from": "gvm-mapping",
+      "to": "business-memory",
+      "relation": "configuration",
+      "evidence": [
+        "memory"
+      ],
+      "fromSide": "bottom",
+      "toSide": "right",
+      "via": [
+        {
+          "y": 1280
+        },
+        {
+          "x": 1340
+        },
+        {
+          "y": 1195
+        }
+      ],
+      "label": "Page description / dma-buf reference",
+      "labelPosition": {
+        "x": 1540,
+        "y": 1250
+      }
+    },
+    {
+      "id": "pvm-channel-metadata",
+      "from": "pvm-mapping",
+      "to": "pvm-vchan-a",
+      "relation": "dependency",
+      "evidence": [
+        "memory"
+      ],
+      "fromSide": "left",
+      "toSide": "bottom",
+      "via": [
+        {
+          "x": 110
+        },
+        {
+          "y": 930
+        },
+        {
+          "x": 271
+        }
+      ],
+      "label": "vchan association",
+      "labelPosition": {
+        "x": 126,
+        "y": 1106,
+        "anchor": "start"
+      }
+    },
+    {
+      "id": "gvm-channel-metadata",
+      "from": "gvm-mapping",
+      "to": "gvm-vchan-a",
+      "relation": "dependency",
+      "evidence": [
+        "memory"
+      ],
+      "fromSide": "right",
+      "toSide": "bottom",
+      "via": [
+        {
+          "x": 2110
+        },
+        {
+          "y": 930
+        },
+        {
+          "x": 1945
+        }
+      ],
+      "label": "vchan association",
+      "labelPosition": {
+        "x": 1880,
+        "y": 1106,
+        "anchor": "start"
+      }
+    }
+  ]
+}

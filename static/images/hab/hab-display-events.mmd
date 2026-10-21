@@ -1,0 +1,13 @@
+sequenceDiagram
+    autonumber
+    participant P as PVM / Display Backend
+    participant G as GVM / Display Driver
+    G->>G: Allocate coherent event page (4096 B)
+    G->>G: habmm_export()<br/> obtain export_id
+    G->>P: Command: ENABLE_VIRQ(export_id, size, DPU)
+    Note over P,G: Shared event page and notification endpoint are ready
+    P->>P: Write event records<br/> publish wr_idx
+    P-->>G: HAB VIRQ via Gunyah doorbell
+    G->>G: hab_virq_cb() -> msm_hyp_irq()
+    G->>G: Consume records from rd_idx to wr_idx
+    G->>G: Publish updated rd_idx

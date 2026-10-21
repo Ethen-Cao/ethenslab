@@ -1,0 +1,16 @@
+sequenceDiagram
+    autonumber
+    participant P as PVM / BE HAB Core
+    participant G as GVM / FE HAB Core
+    Note over P,G: Both peers call habmm_socket_open(mmid)
+    G->>G: Allocate local VCID and open_id
+    G->>P: INIT(FE VCID, sub_id, open_id, versions)
+    P->>P: Allocate local VCID<br/> save peer VCID and session
+    P-->>G: INIT_ACK(BE VCID, sub_id, open_id, versions)
+    G->>G: Save peer VCID and session
+    G->>P: INIT_DONE(sub_id, open_id)
+    par BE completes after receiving INIT_DONE
+        P->>P: Return PVM handle
+    and FE completes after sending INIT_DONE
+        G->>G: Return GVM handle
+    end

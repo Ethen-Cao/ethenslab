@@ -1,0 +1,21 @@
+sequenceDiagram
+    autonumber
+    participant P as PVM / Consumer
+    participant G as GVM / Producer
+    Note over P,G: HAB memory protocol 1
+    G->>G: Allocate buffer<br/> habmm_export()
+    G->>G: Obtain export_id from local registration
+    G->>P: Business: BUFFER_OFFER(export_id, size, generation)
+    P->>P: habmm_import()
+    P->>G: HAB: IMPORT(export_id, page_count)
+    G->>G: Validate object, page count and vchan
+    G-->>P: HAB: IMPORT_ACK(page descriptors)
+    P->>P: Obtain local import result
+    Note over P: UVA, fd or kernel dma_buf<br/>according to API and flags
+    P-->>G: Business: BUFFER_READY(generation)
+    loop Reuse shared buffer
+        G->>G: Write data<br/> synchronize and publish
+        G->>P: Business: DATA_READY(generation, sequence)
+        P->>P: Consume data<br/> wait for device completion
+        P-->>G: Business: BUFFER_RELEASED(generation, sequence)
+    end
