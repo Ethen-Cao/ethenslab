@@ -1,6 +1,6 @@
 +++
 date = '2026-10-21'
-draft = true
+draft = false
 showToc = true
 title = 'SA8397 HAB 通信机制与服务开发'
 description = 'HAB 通道模型、VirtIO/vhost 传输、内存管理与通信时序，以及显示后端实例和 PVM/GVM 用户态服务开发'
@@ -21,26 +21,49 @@ HAB（Hypervisor Abstraction）为跨 VM 的用户态进程和内核模块提供
 
 消息通道将一次 `send` 的内容作为一条消息交付给 `recv`。业务协议定义消息中的命令、参数和处理结果。共享内存用于保存较大的业务数据，消息传递资源标识和控制信息，通知触发接收侧检查待处理工作。
 
-### 1.2 MMID、pchan 与 vchan
+### 1.2 HAB 的核心抽象
 
-HAB 将业务连接与底层传输资源分开管理。
+HAB 以业务域选择传输资源，以逻辑连接复用底层链路，并通过客户端上下文管理本地连接与共享对象。
 
-| 对象或标识 | 作用 |
-|---|---|
-| MMID major | 选择 HAB 业务域，对应 `hab_device` |
-| MMID minor / `sub_id` | 在域内匹配两端的建链请求 |
-| pchan | 面向对端 VM 的传输通道，管理 vchan 索引和传输私有数据 |
-| vchan | 一次 open 建立的逻辑连接，具有本地接收队列 |
-| VCID | vchan 的本地句柄；两端通过握手交换各自的 VCID |
-| session_id | 标识连接实例，接收时与 VCID 一起校验 |
+#### 1.2.1 MMID：业务寻址与建链匹配
 
-MMID 编码为 `major | (minor << 16)`，major 占低 16 位，minor 占随后 8 位。两端使用相同的业务域和 minor 建链。FE/BE 角色来自平台 pchan 配置，两端都调用 `habmm_socket_open()`。
+MMID 编码为 `major | (minor << 16)`，major 占低 16 位，minor 占随后 8 位。major 选择 `hab_device`，minor 在 open 握手中作为 `sub_id` 匹配业务连接。同一 major 下的不同 minor 可以复用同一 pchan。
 
-每个 vchan 关联一个 pchan，多个 vchan 可以复用同一 pchan。发送时，HAB header 携带对端 VCID 的局部 ID（低 12 位）和 session；接收时，`hab_vchan_get()` 在当前 pchan 的 `vchan_idr` 中查找连接并校验 session，再将消息加入该 vchan 的 `rx_list`。
+两端使用约定的 major 和 minor 调用 `habmm_socket_open()`，FE/BE 角色由平台 pchan 配置决定。这里的 major/minor 是 HAB 的协议字段，与 Linux 字符设备的主次设备号分别管理。
+
+#### 1.2.2 hab_device：业务域的通道集合
+
+`struct hab_device` 表示一个 MMID major 对应的 HAB 业务域。`id` 保存 major，`pchannels` 管理该域面向各对端 VM 的 pchan，`openq_list` 保存待匹配的建链消息。
+
+这是 HAB Core 的通道管理对象，与 Linux 的 `struct device`、字符设备节点及 VirtIO 设备分别建模。例如，显示命令的 major 301 和事件的 major 303 对应不同 `hab_device`，但由同一个 VirtIO HAB 显示设备承载。
+
+#### 1.2.3 pchan：面向对端 VM 的传输链路
+
+`struct physical_channel` 属于一个 `hab_device`，表示该业务域到对端 VM 的底层链路。它记录两端 VM 信息，以 `vchan_idr` 索引连接，以 `expid_idr` 索引导出对象，并通过 `hyp_data` 关联传输实现。
+
+pchan 随平台通道初始化建立，供业务连接复用。SA8397 的 VirtIO/vhost 实现为每个 pchan 配置一对 TX/RX virtqueue；队列容量、消息 buffer 和传输处理时间由其所属 vchan 共享。
+
+#### 1.2.4 vchan：一次 open 建立的逻辑连接
+
+每次成功的 `habmm_socket_open()` 建立一对连接端点，两端分别创建本地 `struct virtual_channel`。一个客户端可以建立多个 vchan，每个 vchan 关联一个 pchan。
+
+vchan 的 `id` 为本地 VCID，`otherend_id` 保存对端 VCID，`session_id` 区分连接实例。`rx_list` 保存已接收、待业务读取的消息，`rx_queue` 用于等待消息到达，关闭状态控制连接退出。
+
+本地 API 使用本端 VCID 操作连接。跨 VM 消息的 header 携带对端 VCID 的局部 ID（低 12 位）和 session；接收端在当前 pchan 的索引中查找 vchan，再校验 session。两端 VCID 独立分配，局部编号复用时由 session 区分新旧连接。
+
+#### 1.2.5 uhab_context：本地资源归属
+
+`struct uhab_context` 管理调用者打开的 vchan、导出仓库 `exp_whse`、导入仓库 `imp_whse` 及待完成的建链请求。vchan 同时关联 context 和 pchan：前者确定本地资源归属，后者确定跨 VM 传输链路。
+
+UHAB 在打开 HAB 设备文件时创建 context，并保存在 `file->private_data`；一个进程可以持有多个 context。当前 Linux KHAB 的调用者共用驱动全局 `hab_driver.kctx`。
+
+#### 1.2.6 export_id 与 VIRQ：共享对象和通知端点
+
+`export_id` 标识已登记的业务共享内存对象，使用时受通道与对象生命周期约束。导入请求还要核验页数及所属 vchan；导入成功后取得本地映射、fd 或内核 dma-buf。业务数据保存在共享页中，连接消息传递其描述和控制信息。
+
+VIRQ 标识独立的通知端点，使用专门的注册上下文和 Gunyah doorbell 资源。事件内容与数量由业务状态或共享记录表达，通知触发接收者检查这些记录。
 
 [通道与共享内存关系图](../../images/hab/sa8397-hab-channel-memory.html)
-
-vchan 独立管理连接和接收消息；共享 pchan 上的队列容量、发送 buffer 和处理时间仍由这些连接共同使用。
 
 ### 1.3 SA8397 软件分层
 
