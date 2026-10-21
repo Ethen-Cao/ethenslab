@@ -63,13 +63,23 @@ UHAB 在打开 HAB 设备文件时创建 context，并保存在 `file->private_d
 
 VIRQ 标识独立的通知端点，使用专门的注册上下文和 Gunyah doorbell 资源。事件内容与数量由业务状态或共享记录表达，通知触发接收者检查这些记录。
 
-[通道与共享内存关系图](../../images/hab/sa8397-hab-channel-memory.html)
+#### 1.2.7 通道与共享内存关系
+
+![HAB channels and shared memory](../../static/images/hab/sa8397-hab-channel-memory.png)
+
+[打开 HTML 图稿](../../images/hab/sa8397-hab-channel-memory.html)
+
+- **本地对象与通道关联**：左右两侧分别维护自己的 `hab_device`、pchan 和 vchan。灰色实线表示对象引用或关联；同一 pchan 下的连接 A、B 共享传输资源，各自保留本地接收队列。
+- **消息传输内存**：绿色实线表示 `hab_vhost`、`hab_virtio` 对同一组 TX/RX vring 和消息 buffer 的读写。两端的通道管理对象各自独立，传输时共同访问中间的共享内存。
+- **业务共享页**：下方 `export_desc` 保存本地导出/导入元数据，灰色虚线表示页描述或 dma-buf 引用。业务数据保存在独立共享页中，其使用关系由 export/import 管理。
 
 ### 1.3 SA8397 软件分层
 
 ![SA8397 HAB communication architecture](../../static/images/hab/sa8397-hab-architecture.png)
 
 [打开 HTML 架构图](../../images/hab/sa8397-hab-architecture.html)
+
+图中蓝色实线表示调用，蓝色点线表示通知，绿色实线表示共享队列读写，灰色虚线表示资源配置。两侧 UHAB、KHAB 汇入各自的 HAB Core；普通消息经 `hab_virtio` 与 `hab_vhost` 交换，队列通知由 Gunyah Virtio-MMIO 资源及两侧驱动衔接。
 
 | 层次 | PVM：Yocto Linux | GVM：Android |
 |---|---|---|
@@ -128,9 +138,11 @@ HAB header 和 payload 位于 descriptor 指向的消息 buffer。队列按“�
 
 `qcrosvm` 创建 HAB 虚拟设备，经 vhost-user Unix socket 向 `vhost-user-qti` 传递内存区域、队列信息和 fd。`vhost-user-qti` 将这些资源配置给内核 vhost：
 
-<iframe id="sa8397-hab-device-configuration" src="../../images/hab/sa8397-hab-device-configuration.html" title="SA8397 HAB Virtual Device Configuration" loading="lazy" style="display:block;box-sizing:border-box;width:100%;height:1100px;border:1px solid #dadce0;border-radius:8px;"></iframe>
+![HAB virtual device configuration](../../static/images/hab/sa8397-hab-device-configuration.png)
 
-[独立打开图稿](../../images/hab/sa8397-hab-device-configuration.html)
+[打开 HTML 图稿](../../images/hab/sa8397-hab-device-configuration.html)
+
+图中以 MISC 通道为例。`vhost-user-qti` 经 `/dev/vhost-misc` 的 VHOST ioctl 配置 `msm_hab` 中的 `hab_vhost`。`VHOST_SET_MEM_TABLE` 块汇总内存表、vring 地址与参数、kick/call fd 等配置接口。右侧虚线表示 `qcrosvm` 经 Gunyah 向 GVM 暴露 HAB 虚拟设备；两侧内核驱动与 Guest Queue Memory 之间的灰色实线表示队列资源关联。
 
 内存表建立后端访问 Guest 内存的范围，vring 配置指定队列位置，kick/call fd 连接本地通知端点。该 socket 传递配置和 fd；HAB 消息通过共享队列读写。
 
@@ -160,11 +172,7 @@ pchan、vchan 和 `rx_list` 属于各 VM 的本地内核内存。两端各自创
 
 传输共享内存保存 vring 和消息 buffer。在 GVM 接收路径中，HAB Core 将消息复制到本地 vchan 接收队列后，传输 buffer 即可回补给 RX virtqueue。业务 `recv()` 的处理速度和传输 buffer 的回收因此分属不同阶段。
 
-<iframe id="sa8397-hab-channel-memory" src="../../images/hab/sa8397-hab-channel-memory.html" title="SA8397 HAB Channels and Shared Memory" loading="lazy" style="display:block;box-sizing:border-box;width:100%;height:1100px;border:1px solid #dadce0;border-radius:8px;"></iframe>
-
-[独立打开图稿](../../images/hab/sa8397-hab-channel-memory.html)
-
-图中的两类共享内存分别承担消息传输和业务数据访问。每个 vchan 通过同一 pchan 的队列发送消息，业务共享页则由 export/import 对象管理。
+传输共享内存承载连接消息，业务共享页承载由 export/import 管理的数据对象。两类内存分别分配和管理，具有不同的回收条件。
 
 ### 3.2 地址空间与映射
 
@@ -506,23 +514,3 @@ PVM 服务可交由 systemd 管理，按所用通道安排 vhost-user 服务依�
 
 进程运行期限到达后的正常退出只表示程序结束；请求/响应记录用于确认业务往返。并发、共享 buffer 和压力验证应分别观测队列积压、在途数量、资源释放及重连结果。
 
-<script>
-(() => {
-  const frames = new Map([
-    'sa8397-hab-device-configuration',
-    'sa8397-hab-channel-memory'
-  ].map(id => [id, document.getElementById(id)]));
-  window.addEventListener('message', event => {
-    for (const [id, frame] of frames) {
-      if (!frame || event.source !== frame.contentWindow) continue;
-      const origin = new URL(frame.src, document.baseURI).origin;
-      if (event.origin !== origin || event.data?.type !== `${id}-height`) return;
-      const height = Number(event.data.height);
-      if (Number.isFinite(height) && height > 0 && height <= 12000) {
-        frame.style.height = `${Math.ceil(height) + 2}px`;
-      }
-      return;
-    }
-  });
-})();
-</script>
