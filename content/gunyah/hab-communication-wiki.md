@@ -152,9 +152,9 @@ HAB header 和 payload 位于 descriptor 指向的消息 buffer。队列按“�
 
 队列状态保存在共享内存，通知使对端开始检查队列。Gunyah 将 Virtio-MMIO 虚拟设备资源交给 PVM 后端，资源包含 capability、IRQ 和寄存器区信息。
 
-**GVM → PVM：**GVM 的 `vm_notify()` 写 `VIRTIO_MMIO_QUEUE_NOTIFY`；Gunyah 产生设备事件并触发 PVM 资源 IRQ。`gh_secure_vm_virtio_backend` 的 `vdev_interrupt()` 调用 `GET_EVENT`，根据 `EVENT_NEW_BUFFER` 的队列位图执行 `eventfd_signal()`，唤醒对应 vhost worker。
+**GVM → PVM：** GVM 的 `vm_notify()` 写 `VIRTIO_MMIO_QUEUE_NOTIFY`；Gunyah 产生设备事件并触发 PVM 资源 IRQ。`gh_secure_vm_virtio_backend` 的 `vdev_interrupt()` 调用 `GET_EVENT`，根据 `EVENT_NEW_BUFFER` 的队列位图执行 `eventfd_signal()`，唤醒对应 vhost worker。
 
-**PVM → GVM：**vhost 更新 used ring 后发出 call 通知，irqfd 回调调用 Gunyah `ASSERT_VIRQ`。GVM 收到设备虚拟中断，`vm_interrupt()` 进入 `vring_interrupt()`，随后执行 HAB 队列回调。
+**PVM → GVM：** vhost 更新 used ring 后发出 call 通知，irqfd 回调调用 Gunyah `ASSERT_VIRQ`。GVM 收到设备虚拟中断，`vm_interrupt()` 进入 `vring_interrupt()`，随后执行 HAB 队列回调。
 
 eventfd 是 PVM 内部的通知对象。跨 VM 的部分由 Virtio-MMIO 虚拟设备事件与 Guest vIRQ 断言完成；`GET_EVENT`、`ASSERT_VIRQ` 的 ABI 定义位于 Gunyah 驱动的 `hcall_virtio.h`。
 
