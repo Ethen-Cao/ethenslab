@@ -51,6 +51,20 @@ vchan 的 `id` 为本地 VCID，`otherend_id` 保存对端 VCID，`session_id` �
 
 本地 API 使用本端 VCID 操作连接。跨 VM 消息的 header 携带对端 VCID 的局部 ID（低 12 位）和 session；接收端在当前 pchan 的索引中查找 vchan，再校验 session。两端 VCID 独立分配，局部编号复用时由 session 区分新旧连接。
 
+**数量上限与容量约束**
+
+单个 pchan 最多同时分配 **4095 个本地 vchan 端点**。`HAB_VCID_ID_MASK=0xFFF` 定义了 12 bit 局部 ID；`hab_vchan.c` 的 `hab_vchan_alloc()` 在该 pchan 的 `vchan_idr` 中按 `[1, 4096)` 分配，0 不使用，因此上限为 `2^12 − 1 = 4095`。消息头中的局部 ID 同样为 12 bit，扩大容量需要同步修改两端协议和实现。
+
+同一 pchan 上的所有业务 minor、context 及 UHAB/KHAB 调用者共享该编号池。连接两端各占用本端一个 ID；两端资源均可用时，最多建立 4095 对连接。minor 用于建链匹配，不单独划分 vchan 编号池。
+
+| 限制因素 | 对容量的影响 |
+|---|---|
+| 对象生命周期 | 握手完成前已分配 vchan；关闭后，ID 到 `hab_vchan_free()` 最终释放对象时才回收。建链中及尚未释放的对象均占用名额。 |
+| 内存资源 | vchan 对象、接收消息及共享内存管理消耗内核资源，可能在 ID 耗尽前分配失败。 |
+| 共享传输资源 | 所有 vchan 共用 pchan 的 TX/RX virtqueue、消息 buffer 和处理路径。队列槽位限制在途消息量；消息积压、锁竞争及对端处理能力影响吞吐和延迟。 |
+
+IDR 耗尽时内部返回 `-ENOSPC`，但 `hab_vchan_alloc()` 将分配失败转换为 NULL，open 路径再返回 `-ENOMEM`。因此，open 返回 `-ENOMEM` 时还需检查内核日志；`idr failed -28` 表示 ID 已耗尽。
+
 #### 1.2.5 uhab_context：本地资源归属
 
 `struct uhab_context` 管理调用者打开的 vchan、导出仓库 `exp_whse`、导入仓库 `imp_whse` 及待完成的建链请求。vchan 同时关联 context 和 pchan：前者确定本地资源归属，后者确定跨 VM 传输链路。
