@@ -6,6 +6,7 @@
 > **源码根**：Android `/home/voyah/workspace/8397/vendor`；Linux PVM `/home/voyah/workspace/8397/linux/apps/apps_proc`
 > **构建基线**：`gen5_gvm`，`ENABLE_HYP := true`，`ro.boot.audio=awe`
 > **日期**：2026-10-23
+> **修订**：2026-10-23 对照源码校正 AWE 控制项覆盖、两套 PCM 编号、`OUT_BUS` PAL 映射和 GVM/PVM 外部音频边界。
 
 ---
 
@@ -13,10 +14,10 @@
 
 H47A 8397 的音频系统不是 Android 直接访问 Codec/DSP 的传统架构，而是**跨 VM 的分层音频通路**：
 
-- **Android GVM** 承载 IVI 音频客户端、Car 音频策略、AudioFlinger、AudioReach AIDL HAL 以及 virtio-snd 前端。GVM 不直接持有物理音频设备。
-- **Linux PVM** 承载音频后端：`AudioDeviceManager`、`csd2_audio_plugin`、`awe_audio_service`、AudioReach SPF 图（运行在 aDSP 上），并最终通过 TDM 连接 A2B 总线、扬声器和麦克风。
-- **Gunyah Hypervisor** 提供 VM 隔离；GVM 与 PVM 之间的 PCM 数据/消息通过 **HAB 虚拟通道**传输（MMID 101–104），而不是 GVM 直接打开 PVM 的 ALSA 设备。
-- **Bus 抽象**是整套设计的关键：Android 侧用 `BUSxx` 虚拟音频设备表达“主舱/前排/后排/输入”等音频路径；DSP 侧用同一 Bus 名称对应的 PCM 通道、AWE 模块和 CSD2 图节点完成路由、音量、静音和混音。
+- **Android GVM** 承载 IVI 音频客户端、Car 音频策略、AudioFlinger、AudioReach AIDL HAL 以及 virtio-snd 前端。GVM 的内置音频不直接持有物理 DSP/A2B 设备；USB、Bluetooth 等外部音频仍由对应 HAL 模块管理。
+- **Linux PVM** 承载内置音频后端：`AudioDeviceManager`、`csd2_audio_plugin`、`awe_audio_service`、AudioReach SPF 图（运行在 aDSP 上），并最终通过 TDM 连接 A2B 总线、扬声器和麦克风。
+- **Gunyah Hypervisor** 提供 VM 隔离；GVM 与 PVM 之间的内置 PCM 数据/消息通过 **HAB 虚拟通道**传输（MMID 101–104），而不是 GVM 直接打开 PVM 的 ALSA 设备。
+- **Bus 抽象**是整套设计的关键：Android 侧用 `BUSxx` 虚拟音频设备表达“主舱/前排/后排/输入”等音频路径；DSP 侧用 Bus 对应的 PCM 通道和 AWE 模块完成路由、音量、静音和混音，有独立 CSD2 条目的 Bus 还使用 CSD2 stream/device PP。
 
 本文覆盖：整体架构、Bus/PCM 映射、播放与捕获全链路、HAB 传输、AWE/CSD2 DSP 图、配置与调试方法。
 
@@ -79,12 +80,12 @@ H47A 8397 的音频系统不是 Android 直接访问 Codec/DSP 的传统架构�
 
 ### 3.1 音频设计要点
 
-1. **GVM 无物理音频设备**：GVM 只看到 `msm_virtio_snd` 注册的虚拟声卡；物理 DSP、TDM、A2B 由 PVM 独占。
-2. **Bus 是一等公民**：Android audio policy 用 `BUSxx` 选择路径；同一个 Bus 名称贯穿 HAL、PAL、HAB、CSD2/AWE 和 DSP 图。
+1. **GVM 的内置音频不直接持有物理设备**：GVM 只看到 `msm_virtio_snd` 注册的虚拟声卡；物理 DSP、TDM、A2B 由 PVM 管理。USB、Bluetooth 等外部音频是例外，由对应 HAL 模块处理。
+2. **Bus 是一等公民**：Android audio policy 用 `BUSxx` 选择路径；HAL/PAL 传递 `bus_addr`，`awe_resource.xml` 将其映射为 PCM `sid`，CSD2 stream metadata 再以 `STREAMRX=BUSxx` 携带 Bus 名称。跨 VM 的 HAB 消息只携带 `sid`，不携带 Bus 字符串。
 3. **PCM 号不是物理设备号**：GVM 的 `pcm-id-rx/tx`（如 51、55、52、156）是 AWE 图和 virtio-snd 的 stream id，不是 Linux card/device 号。
 4. **HAB 按队列分通道，PCM 按 stream_id 复用**：播放共享 `MM_AUD_4`，捕获共享 `MM_AUD_3`；不是每个 PCM 一个 HAB 设备。
-5. **AWE/CSD2 负责 Bus 级控制与图构建**：AWE 提供 `BUSxx_Volume` / `BUSxx_Mute`，CSD2 用 stream/device PP KV 在 aDSP 上建图。
-6. **A2B 是最终后端**：主舱、前排、后排分别走 32 ch / 8 ch / 16 ch 的 TDM-A2B 路径。
+5. **AWE/CSD2 负责 Bus 级控制与图构建**：AWE 提供 `BUSxx_Volume` / `BUSxx_Mute` 等控制，但具体哪些 Bus 有 Volume/Mute 取决于目标 SKU 实际加载的 `awc_index.txt`/`NordyADP_*`；CSD2 用 stream/device PP KV 在 aDSP 上建图。
+6. **A2B 是内置音频的最终后端**：主舱、前排、后排分别走 32 ch / 8 ch / 16 ch 的 TDM-A2B 路径；USB/Bluetooth 不经过这条内置 A2B 路径。
 
 ---
 
@@ -116,14 +117,16 @@ H47A 8397 的音频系统不是 Android 直接访问 Codec/DSP 的传统架构�
 
 | 组件 | 职责 |
 | --- | --- |
-| `AudioDeviceManager` | 打开 HAB MM_AUD_1..4，接收/发送 virtio-snd 消息；加载 CSD2 插件 |
+| `AudioDeviceManager`（`libAudioDeviceManager.so`，由 `audio_service` 托管） | 打开 HAB MM_AUD_1..4，接收/发送 virtio-snd 消息；创建/使用 CSD2 插件 |
 | `CSD2AudioPlugin` | `StreamWrite` / `StreamRead`，调用 `csd2_write` / `csd2_read`，解析 stream metadata KV |
-| `awe_audio_service` | 运行 AWE 图；提供 `BUSxx_Volume` / `BUSxx_Mute` 等控制 |
+| `awe_audio_service` | 按 SKU 加载 `awc_index.txt` 或 `NordyADP_OneDSP/TwoDSPs`，运行 AWE 图；Bus 控制项以实际加载的配置文件为准 |
 | `AudioReach SPF` | 运行在 aDSP 上的音频图，负责混音、路由、PP 处理 |
 | `TDM-LPAIF_*` | DSP 后端 DAI，连接 A2B/Codec |
 | `A2B speaker/mic network` | 最终扬声器/麦克风网络 |
 
-> **注意**：`vhost-user-qti` / `/dev/vhost-aud` 是 PVM 侧的 vhost 音频后端设备，用于 virtio/vhost 管理；GVM 的 PCM 数据路径以 HAB `MM_AUD_1..4` 为准。`vhost-user-qti` 还会通过 `hab_register_to_vmm()` 向 Gunyah VMM 注册，这属于控制面，不是 PCM 数据面。
+> **控制项差异**：`awe_resource.xml` 为 BUS08/BUS16 声明了 Volume/Mute，但 `h66a/awc_index.txt` 中 BUS08 没有 `BUS08_FRONT_PASSENGER_*` 控件，BUS16 只有 `BUS16_REAR_SEAT_Mute`、没有 Volume；`NordyADP_OneDSP/TwoDSPs` 中则包含这些条目。`awe-audio.service` 按 `/tmp/awe_dsp_sku_config` 选择配置，目标 SKU 需以实际加载的 `awc_index`/`NordyADP` 为准。
+
+> **注意**：`vhost-user-qti` / `/dev/vhost-aud` 是 PVM 侧的 vhost 音频后端设备，负责 virtio/vhost 设备管理与 VMM 注册；本音频驱动的 PCM 消息/缓冲区走 HAB `MM_AUD_1..4`，vhost 不是 PCM 消息的传输通道。
 
 ---
 
@@ -138,8 +141,10 @@ H47A 8397 的音频系统不是 Android 直接访问 Codec/DSP 的传统架构�
 | `vendor/voyah/prebuilts/audio/car_audio_configuration.xml` | Car 音频 Zone / Context / Volume group 到 Bus 地址的映射 |
 | `vendor/voyah/prebuilts/audio/audio_arbitration.csv` | 焦点/并发/闪避策略矩阵 |
 | `vendor/voyah/prebuilts/audio/audio_vendor.mk` | 把上述配置复制到 `/vendor/etc/audio_awe/`，并设置 `ro.vendor.audio.*` 属性 |
-| `.../configs/gen5_au/card-defs.xml` | 虚拟声卡定义（card 100、PCM100–125、`libagm_pcm_plugin.so`） |
+| `.../configs/gen5_au/card-defs.xml` | AGM 虚拟声卡定义（card 100、PCM100–125、`libagm_pcm_plugin.so`） |
 | `.../configs/gen5_au/mixer_paths_VIOSND.xml` | VIOSND 混音器路径 |
+
+> **两套 PCM 编号**：`card-defs.xml` 的 PCM100–125 是 AGM 虚拟卡的 PCM 插件配置；`awe_resource.xml` 的 `pcm-id-rx/tx`（51–70、152–169）是 AWE 图的 ALSA-IO 通道号。二者不是同一套编号，不能直接用 `card-defs` 的设备号去解释 AWE PCM 号，反之亦然。
 
 ### 5.2 数量统计
 
@@ -176,14 +181,20 @@ H47A 8397 的音频系统不是 Android 直接访问 Codec/DSP 的传统架构�
 | `BUS02_NAV_GUIDANCE` | `NAV_GUIDANCE_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 57 | `CSD2_STREAM_PCM_PLAYBACK_BUS_NAV` | `DEVICEPP_RX_BUS02_NAV_GUIDANCE` | 同上 | 主舱 |
 | `BUS03_PHONE` | `PHONE_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 58 | `CSD2_STREAM_PCM_PLAYBACK_BUS_PHONE` | `DEVICEPP_RX_BUS03_PHONE` | 同上 | 主舱 |
 | `BUS05_ALERTS` | `ALERTS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 53 | `CSD2_STREAM_PCM_PLAYBACK_BUS_ALERTS` | `DEVICEPP_RX_BUS05_ALERTS` | 同上 | 主舱 |
-| `BUS07_ASSISTANT` | `ASSISTANT_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 63 | AWE 图 `BUS07_ASSISTANT_*` | AWE 图 | 同上 | 主舱 |
-| `BUS10_DOLBY_ATMOS` | `VENDOR_DOLBY_ATMOS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 65 | AWE 图 `BUS10_DOLBY_ATMOS_*` | AWE 图 | 同上 | 主舱 |
-| `BUS11_ADAS_TTS` | `VENDOR_ADAS_TTS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 66 | AWE 图 `BUS11_ADAS_TTS_*` | AWE 图 | 同上 | 主舱 |
-| `BUS2008_VENDOR_CONTEXT3` | `VENDOR_OUTSIDE_CAR_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 64 | AWE 图 `BUS2008_VENDOR_CONTEXT3_*` | AWE 图 | 同上 | 主舱 |
+| `BUS07_ASSISTANT` | `ASSISTANT_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 63 | —（AWE 图） | —（AWE 图控制项） | 同上 | 主舱 |
+| `BUS10_DOLBY_ATMOS` | `VENDOR_DOLBY_ATMOS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 65 | —（AWE 图） | —（AWE 图控制项） | 同上 | 主舱 |
+| `BUS11_ADAS_TTS` | `VENDOR_ADAS_TTS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 66 | —（AWE 图） | —（AWE 图控制项） | 同上 | 主舱 |
+| `BUS2008_VENDOR_CONTEXT3` | `VENDOR_OUTSIDE_CAR_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 64 | —（AWE 图） | —（AWE 图控制项） | 同上 | 主舱 |
 | `BUS08_FRONT_PASSENGER` | `FRONT_PASSANGER_PLAYBACK` | `PAL_DEVICE_OUT_A2B_SPKR` | 55 | `CSD2_STREAM_PCM_PLAYBACK_BUS_FRONT_PASSENGER` | `DEVICEPP_RX_BUS08_FRONT_PASSENGER` | `TDM-LPAIF-RX-PRIMARY`（8 ch） | `speaker` / 前排 |
 | `BUS16_REAR_SEAT` | `REAR_SEAT_PLAYBACK` | `PAL_DEVICE_OUT_A2B2_SPKR` | 52 | `CSD2_STREAM_PCM_PLAYBACK_BUS_REAR_SEAT` | `DEVICEPP_RX_BUS16_REAR_SEAT` | `TDM-LPAIF_VA-RX-PRIMARY`（16 ch） | `a2b2speaker` / 后排 |
 
 > `BUS12_KTV` 出现在 AWE resource（RX 59）和 HAL 的 Bus 映射中，但当前 `audio_module_config_primary.xml` 没有暴露它，因此不在 14 路 Bus 内。
+
+> **PAL device 口径**：表中 `PAL_DEVICE_OUT_SPEAKER` 等来自 `awe_resource.xml` 的 Bus→PAL 映射。HAL 侧 `StreamOutPrimary::updatePalDeviceForBusAddr()` 只显式覆盖 `BUS07/08/10/11/16/2008` 和 `BUS12`；`BUS00/01/02/03/05` 未在该 map 中，实际 PAL device 由 `configureAndFetchPalDevices()` 生成，需以目标构建日志核对。日志出现 `unknown bus address` 不一定代表流失败。
+>
+> **CSD2 条目差异**：`BUS07/10/11/2008` 在 `csd2_platform_info.h` 中没有独立的 `CSD2_STREAM_PCM_PLAYBACK_BUS_*` 条目；表中的“—（AWE 图）”表示由 AWE 图/控制项承接，不能按 CSD2 stream 名检索。
+>
+> **物理位置**：主舱/前排/后排是按 Bus 名称与 `backends.xml` 的 `snd_device_name` 做的分组；具体扬声器位置、A2B 节点级联关系需结合 DTS/原理图确认。
 
 #### 输入 Bus（捕获）
 
@@ -192,6 +203,8 @@ H47A 8397 的音频系统不是 Android 直接访问 Codec/DSP 的传统架构�
 | `BUS04_INPUT` | `PCM_RECORD` / `PAL_STREAM_CAPTURE_BUS` | `PAL_DEVICE_IN_HANDSET_MIC` | 156 | `CSD2_STREAM_BUS04_INPUT` | `DEVICEPP_TX_BUS04_INPUT` | `TDM-LPAIF_RXTX-TX-PRIMARY` | `a2b-mic` / 主输入 |
 | `BUS09_INPUT_FRONT_PASSENGER` | 同上 | `PAL_DEVICE_IN_A2B_MIC` | 155 | `CSD2_STREAM_BUS09_INPUT_FRONT_PASSENGER` | `DEVICEPP_TX_BUS09_INPUT_FRONT_PASSENGER` | 同上 | `a2b-mic` / 前排 |
 | `BUS17_INPUT_REAR_SEAT` | 同上 | `PAL_DEVICE_IN_A2B2_MIC` | 152 | `CSD2_STREAM_BUS17_INPUT_REAR_SEAT` | `DEVICEPP_TX_BUS17_REAR_SEAT` | `TDM-LPAIF_VA-TX-PRIMARY` | `a2b2-mic` / 后排 |
+
+> `BUS04` 与 `BUS09` 的 TDM 后端相同（`TDM-LPAIF_RXTX-TX-PRIMARY` / `a2b-mic`），但 `stream_id`、CSD2 stream 和 device PP 不同；不能只按 TDM 后端区分这两路输入。
 
 #### 其他非 Bus PCM（补充）
 
@@ -209,6 +222,8 @@ H47A 8397 的音频系统不是 Android 直接访问 Codec/DSP 的传统架构�
 | FM RX/TX | RX 61 / TX 161 | FM loopback |
 | Exterior Talk | RX 68 / TX 165 | 车外对讲 |
 | Switch TX | RX 70 / TX 167 | 切换通道 |
+
+> FM 相关 PCM 在 `awe_resource.xml` 中有定义，但当前 `audio_module_config_primary.xml` 的 `fm_tuner` device 和 `mixport_tuner0` route 被注释（自定义 radio 实现）；是否启用需按产品配置确认。
 
 ### 5.4 Car 音频 Zone / Context
 
@@ -259,12 +274,13 @@ AudioTrack
    - `BUS05_ALERTS` → `ALERTS_PLAYBACK`
    - `BUS08_FRONT_PASSENGER` → `FRONT_PASSANGER_PLAYBACK`
    - `BUS16_REAR_SEAT` → `REAR_SEAT_PLAYBACK`
-   - `BUS07_ASSISTANT` / `BUS10_DOLBY_ATMOS` / `BUS11_ADAS_TTS` / `BUS2008_VENDOR_CONTEXT3` → 对应 `VENDOR_*` usecase
+   - `BUS07_ASSISTANT` → `ASSISTANT_PLAYBACK`
+   - `BUS10_DOLBY_ATMOS` / `BUS11_ADAS_TTS` / `BUS2008_VENDOR_CONTEXT3` → 对应 `VENDOR_*` usecase
 6. `StreamOutPrimary::updatePalDeviceForBusAddr()` 对部分 Bus 做 PAL device 覆盖：
    - `BUS08_FRONT_PASSENGER` → `PAL_DEVICE_OUT_A2B_SPKR`
    - `BUS16_REAR_SEAT` → `PAL_DEVICE_OUT_A2B2_SPKR`
    - `BUS07_ASSISTANT` / `BUS11_ADAS_TTS` / `BUS10_DOLBY_ATMOS` / `BUS2008_VENDOR_CONTEXT3` → `PAL_DEVICE_OUT_SPEAKER`
-7. `libsession_awe` 通过 `awe_resource.xml` 的 `devMap.find(bus_addr)` 选择对应虚拟 PCM 设备，并打开 `pcm-id-rx`（如 `BUS00_MEDIA` → 51）。
+7. `SessionAWE` 按 PAL device 名称和 `bus_addr` 在 `deviceInfoMAP` 中查找 `awe_resource.xml` 配置的 PCM 设备，并打开对应的 `pcm-id-rx`（如 `BUS00_MEDIA` → 51）。
 
 ### 6.3 GVM 虚拟声卡与 HAB
 
@@ -274,10 +290,10 @@ AudioTrack
 
 ### 6.4 PVM 与 DSP
 
-11. PVM `AudioDeviceManager` 打开 `MM_AUD_1..4`，接收 HAB 消息；播放方向分发到 `CSD2AudioPlugin::StreamWrite`。
-12. `csd2_audio_plugin` 解析 stream metadata 中的 GKV（如 `STREAMRX=BUS00_MEDIA`、`VMID=LA_GVM_1`），在 `csd2_platform_info.h` 的 `stream_nodes` 中匹配 `CSD2_STREAM_PCM_PLAYBACK_BUS_*`，并选择 `DEVICEPP_RX_BUSxx_*` 设备 PP。
+11. PVM 的 `audio_service`（托管 `AudioDeviceManager`）打开 `MM_AUD_1..4`，接收 HAB 消息；播放方向分发到 `CSD2AudioPlugin::StreamWrite`。
+12. `csd2_audio_plugin` 解析 stream metadata 中的 GKV（如 `STREAMRX=BUS00_MEDIA`、`VMID=LA_GVM_1`），在 `csd2_platform_info.h` 的 `stream_nodes` 中匹配 `CSD2_STREAM_PCM_PLAYBACK_BUS_*`（有独立 CSD2 条目的 Bus），并选择 `DEVICEPP_RX_BUSxx_*` 设备 PP；`BUS07/10/11/2008` 没有独立 CSD2 条目，走 AWE 图/控制项。
 13. `csd2_write()` 把数据写入 CSD2 会话；SPF 在 aDSP 上执行混音、PP 处理和图路由。
-14. `awe_audio_service` 运行 AWE 图，提供 `BUSxx_Volume` / `BUSxx_Mute` 等控制；AWE 图与 CSD2/SPF 使用相同的 Bus 命名空间。
+14. `awe_audio_service` 运行 AWE 图，提供 `BUSxx_Volume` / `BUSxx_Mute` 等控制；AWE 图与 CSD2/SPF 都使用 `BUSxx` 命名，但具体图项/控制项是否一致需按目标 SKU 核对。
 
 ### 6.5 TDM / A2B / Speaker
 
@@ -364,7 +380,7 @@ A2B mic network
 
 - HAB `habmm_socket_recv()` 返回 `-ENODEV` 时，驱动进入重连循环，重新 `habmm_socket_open()`。
 - `MM_AUD_2`（event）连接异常时，驱动会把虚拟声卡标记为 offline/online，通知上层。
-- PVM 侧 `awe_audio_service` / `vhost-user-aud` / `aud-fastrpcd` 重启时，GVM 侧 HAB 会断开并重连；需要检查 systemd 服务状态。
+- PVM 侧 `audio_service`（`audio-umd`）/ `awe_audio_service` / `vhost-user-aud` / `aud-fastrpcd` 重启时，GVM 侧 HAB 可能断开并重连；需要检查 systemd 服务状态和 dmesg。
 - CSD2 插件注册 SSR 回调，DSP 重启后清理并重建会话。
 
 ---
@@ -373,7 +389,7 @@ A2B mic network
 
 ### 9.1 PCM ID 号段
 
-AWE 图 `NordyADP.awj` 中的注释定义了 ALSA-IO PCM ID 号段：
+AWE 图 `NordyADP.awj` 中的图内 legend/annotation 定义了 ALSA-IO PCM ID 号段：
 
 | 号段 | 用途 |
 | --- | --- |
@@ -389,23 +405,22 @@ AWE 图 `NordyADP.awj` 中的注释定义了 ALSA-IO PCM ID 号段：
 
 ### 9.2 AWE 图与 Bus 控制
 
-- `awc_index.txt` 中包含 `BUS00_MEDIA_Volume.gain`、`BUS00_MEDIA_Mute.isMuted`、`BUS01_SYS_NOTIFICATION_Volume` 等模块/控件。
-- `NordyADP.awc` 是 AWE 图配置；`awc_index.txt` 是控件索引。
-- `awe_audio_service` 通过 `awc_index.txt` 启动图，并对外提供 Bus 级音量/静音控制。
-- 修改 Bus、PCM ID 或图结构时，`awe_resource.xml`、`awc_index.txt`、`NordyADP.awc` 必须同步更新。
+- `awc_index.txt` 中包含 `BUS00_MEDIA_Volume.gain`、`BUS00_MEDIA_Mute.isMuted`、`BUS01_SYS_NOTIFICATION_Volume` 等模块/控件；但不是每套 SKU 配置都同时覆盖所有 Bus：`h66a/awc_index.txt` 中 `BUS16_REAR_SEAT` 只有 Mute、`BUS08_FRONT_PASSENGER` 没有条目；`NordyADP_OneDSP.txt`/`NordyADP_TwoDSPs.txt` 中则包含 BUS08 和 BUS16_Volume。服务按 `/tmp/awe_dsp_sku_config` 选择配置，排查时必须确认实际 SKU。
+- `NordyADP.awc` 是 AWE 图配置；`awc_index.txt` 是控件索引。`awe_audio_service` 按 SKU 选择 `awc_index.txt` 或 `NordyADP_OneDSP.txt`/`NordyADP_TwoDSPs.txt` 启动图。
+- 修改 Bus、PCM ID 或图结构时，`awe_resource.xml`、`awc_index.txt`、`NordyADP.awc` 必须同步更新；目标 SKU 若使用 `NordyADP_*` 配置，也要同步核对对应文件。
 
 ### 9.3 CSD2 stream / device PP
 
-- 播放：`CSD2_STREAM_PCM_PLAYBACK_BUS_*` + `DEVICEPP_RX_BUSxx_*`。
+- 播放：有独立 CSD2 条目的 Bus 使用 `CSD2_STREAM_PCM_PLAYBACK_BUS_*` + `DEVICEPP_RX_BUSxx_*`；`BUS07/10/11/2008` 在 `csd2_platform_info.h` 中没有独立 stream/PP，走 AWE 图/控制项。
 - 捕获：`CSD2_STREAM_BUSxx_INPUT` + `DEVICEPP_TX_BUSxx_*`。
 - stream metadata 中的 GKV 例子：`STREAMRX=BUS00_MEDIA`、`VMID=LA_GVM_1`；CSD2 用这些 KV 匹配 `stream_nodes`，找不到会打印 `Couldn't find the correct stream_node_id for the given KVs`。
 - device PP 由 `AnalyzeStrdevMetadata()` 根据 `DEVICEPP_RX/TX` KV 选择。
 
 ### 9.4 `awe_audio_service` 与 `csd2_audio_plugin` 的分工
 
-- `AudioDeviceManager` 的 `main.cpp` 创建 `CSD2AudioPlugin`，PCM 数据实际经 `CSD2AudioPlugin::StreamWrite/StreamRead` → `csd2_write/csd2_read` 进入 CSD2 图。
+- PVM 的 `audio_service`（`audio-umd.service`）链接 `AudioDeviceManager` 库；`AudioDeviceManager` 创建/使用 `CSD2AudioPlugin`，PCM 数据实际经 `CSD2AudioPlugin::StreamWrite/StreamRead` → `csd2_write/csd2_read` 进入 CSD2 图。
 - `awe_audio_service` 负责 AWE 图的运行与 Bus 级控制（Volume/Mute），是图/控制面的服务。
-- 两者共享同一套 Bus 命名和 DSP 图；排查时不要只查其中一个。
+- 两者都使用 `BUSxx` 命名，但**是否共用同一张图、同一组控制项取决于目标 SKU**：需同时核对 `awc_index.txt`/`NordyADP` 与 `csd2_platform_info.h`，不能假设任一侧的条目自动存在于另一侧。
 
 ---
 
@@ -414,14 +429,15 @@ AWE 图 `NordyADP.awj` 中的注释定义了 ALSA-IO PCM ID 号段：
 ### 10.1 Bus 抽象
 
 - Bus 是 Android audio policy 的虚拟端口，用 `address=BUSxx` 表达；不是 Linux `/dev/snd` 节点。
-- 同一个 Bus 名称贯穿：`audio_module_config_primary.xml` → HAL `bus_addr` → `awe_resource.xml` → `csd2_platform_info.h` / `backends.xml`。
+- 同一个 Bus 名称贯穿：`audio_module_config_primary.xml` → HAL `bus_addr` → `awe_resource.xml` → `csd2_platform_info.h`（仅限有独立 CSD2 条目的 Bus）；`backends.xml` 由 PAL device 映射到 TDM/DAI，不再使用 Bus 名称。
+- `awe_resource.xml` 的 AWE PCM 编号（51–70、152–169）与 `card-defs.xml` 的 AGM PCM 编号（100–125）是两套，不要把 51/156 与 PCM100–125 直接对应。
 - 新增 Bus 必须同时修改上述配置，否则会出现 `unknown bus address`、`Unable to find pcm device`、`Couldn't find stream_node_id` 等错误。
 
 ### 10.2 VM 隔离
 
-- GVM 只能看到 `msm_virtio_snd` 虚拟声卡；不能直接访问 aDSP、TDM、A2B。
-- PVM 独占物理音频资源，负责 A2B/Codec 的初始化、SSR 和电源管理。
-- 跨 VM 只通过 HAB 音频通道和 vhost/VMM 控制通道交互。
+- GVM 的内置音频只能看到 `msm_virtio_snd` 虚拟声卡；不能直接访问内置 aDSP、TDM、A2B。USB、Bluetooth 等外部音频由对应 HAL 模块处理。
+- PVM 管理内置物理音频资源，负责 A2B/Codec 的初始化、SSR 和电源管理。
+- 跨 VM 的内置音频只通过 HAB 音频通道和 vhost/VMM 控制通道交互。
 
 ### 10.3 通道容量
 
@@ -443,12 +459,14 @@ AWE 图 `NordyADP.awj` 中的注释定义了 ALSA-IO PCM ID 号段：
 
 ### 10.5 配置一致性
 
-以下四处必须保持一致：
+以下配置必须保持一致：
 
 1. `audio_module_config_primary.xml`：Bus 地址、usecase、mixPort/devicePort。
 2. `awe_resource.xml`：Bus → PAL device、`pcm-id-rx/tx`、Volume/Mute 控件。
 3. `csd2_platform_info.h`：`CSD2_STREAM_*`、`DEVICEPP_*`、`VMID`。
 4. `backends.xml`：PAL device → TDM/DAI → `snd_device_name`。
+5. `card-defs.xml`：AGM 虚拟卡的 PCM 设备和 plugin（与 AWE PCM 号不是同一套编号）。
+6. `awc_index.txt` / `NordyADP_*`：目标 SKU 的 AWE 图与 Bus 控制项；需与 `awe_resource.xml` 的声明对齐。
 
 任何一处不一致，都可能导致“能打开流但没声音”“Bus 音量无效”“路由到错误扬声器”等问题。
 
@@ -467,10 +485,12 @@ dumpsys audio
 dumpsys car_service
 
 # 虚拟声卡与 PCM 设备
+# 先确认实际 card/device：AWE resource 的 51/156 是 PCM 通道号，
+# 不一定等于 card-defs 的 PCM100–125
 cat /proc/asound/cards
 ls -l /dev/snd
 
-# 直接验证某个 PCM（card 100）
+# 确认 card/device 后再执行播放/录音
 tinymix -D 100
 tinyplay /data/test.wav -D 100 -d 51
 tinycap /data/cap.wav -D 100 -d 156
@@ -483,11 +503,13 @@ logcat -b all -s AudioFlinger AudioPolicyManager audio_hw
 
 ```bash
 # 音频后端服务
+systemctl status audio-umd
 systemctl status awe-audio
 systemctl status vhost-user-aud
 systemctl status aud-fastrpcd
 
 # 日志
+journalctl -u audio-umd -f
 journalctl -u awe-audio -f
 journalctl -u vhost-user-aud -f
 
@@ -514,7 +536,7 @@ dmesg | grep -Ei "hab|vsnd|virtio|csd2|awe|adsp"
 
 | 现象 | 可能原因 | 排查 |
 | --- | --- | --- |
-| `unknown bus address` | HAL `updatePalDeviceForBusAddr` 缺少 Bus，或 Bus 拼写不一致 | 检查 `StreamOutPrimary.cpp` / `StreamInPrimary.cpp` 的 map |
+| `unknown bus address` | HAL `updatePalDeviceForBusAddr` 只显式覆盖部分 Bus；BUS00/01/02/03/05 等不在 map 中时可能打印该日志 | 检查 `StreamOutPrimary.cpp`/`StreamInPrimary.cpp` 的 map；确认流是否仍使用默认 PAL device 正常出声 |
 | `Unable to find pcm device for bus address` | `awe_resource.xml` 缺少 Bus，或 `supported-types` 不包含当前 stream 类型 | 检查 `pcm-id-rx/tx` 和 `PAL_STREAM_*` |
 | `Couldn't find the correct stream_node_id` | CSD2 收不到 `STREAMRX=BUSxx` / `VMID` KV，或 `csd2_platform_info.h` 缺少对应 stream | 检查 metadata、`stream_nodes` |
 | 能打开流但无声音 | TDM/A2B 后端未通、A2B 功放未上电、`BUSxx_Mute` 为 true | 检查 `backends.xml`、A2B 硬件、AWE Mute |
@@ -542,6 +564,7 @@ dmesg | grep -Ei "hab|vsnd|virtio|csd2|awe|adsp"
 | AWE Bus/PCM 资源 | `vendor/qcom/proprietary/mm-audio-auto/awe/pal_awe_plugin/configs/gen5/awe_resource.xml` |
 | virtio-snd / HAB | `vendor/qcom/opensource/audio-kernel-virtio/virtio_card.c`、`virtio_pcm.c`、`virtio_pcm_msg.c` |
 | HAB MMID | `kernel_platform/soc-repo/include/uapi/linux/habmmid.h` |
+| PVM audio_service | `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/audio_service/src/main.c`、`coreinit.c` |
 | PVM AudioDeviceManager | `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/virtio_audio_device/audio_device_manager/src/AudioDeviceManager.cpp` |
 | CSD2 插件 | `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/virtio_audio_device/audio_plugin_intf/csd2_audio_plugin/src/csd2_audio_plugin.cpp` |
 | CSD2 stream/PP | `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/audio_driver/csd2/config/csd2_platform_info.h` |
@@ -563,6 +586,9 @@ dmesg | grep -Ei "hab|vsnd|virtio|csd2|awe|adsp"
 6. **Bus 数量差异**：`car_audio_configuration.xml` 直接引用的 Bus 地址与 HAL 的 14 路 Bus 不完全一一对应（部分前排/后排 Bus 可能走动态路由或其他配置），本文以 HAL/`awe_resource.xml` 为准。
 7. **HAB MMID**：101–104 来自内核 UAPI；如目标内核版本不同，需要复核。
 8. **未做运行时 trace 验证**：本文基于静态代码与配置；实际播放/捕获的时序、HAB 延迟、A2B 输出需在目标硬件上复测。
+9. **AWE 控制项覆盖差异**：`h66a/awc_index.txt` 中 BUS08 无控件条目、BUS16 只有 Mute，而 `NordyADP_OneDSP/TwoDSPs` 中包含这些条目；`awe_audio_service` 按 `/tmp/awe_dsp_sku_config` 选择配置，必须按实际 SKU 核对。
+10. **两套 PCM 编号**：`awe_resource.xml` 的 AWE PCM 号（51–70/152–169）与 `card-defs.xml` 的 AGM PCM 号（PCM100–125）不是同一套；调试时必须先确认实际 card/device。
+11. **`OUT_BUS` 的 PAL device 映射**：`PlatformConverter` 当前没有显式的 `OUT_BUS` 条目；`BUS00/01/02/03/05` 的最终 PAL device 由 `configureAndFetchPalDevices()` 生成，需以目标构建日志核对，不能只按 `awe_resource.xml` 推断。
 
 ---
 
