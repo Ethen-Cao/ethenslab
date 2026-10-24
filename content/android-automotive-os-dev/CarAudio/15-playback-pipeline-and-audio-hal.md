@@ -1,0 +1,179 @@
+---
+title: "AAOS Audio设计原理与应用 15 播放管线与Audio HAL"
+description: "沿当前源码中的AudioTrack创建写入输出选择和AIDL流协议解释音频数据如何到达设备。"
+date: 2026-10-23T12:00:00+08:00
+weight: 15
+tags: ["Android", "AAOS", "Audio", "Android 17"]
+ShowToc: true
+TocOpen: true
+draft: false
+isCJKLanguage: true
+---
+
+应用取得音频焦点，播放器进度也在走，但目标座位没有声音。焦点成功只解决播放资格，声音还要经过输出选择、轨道建立、缓冲传输、服务端处理和硬件输出。本篇从普通 AudioTrack 播放路径解释这些步骤，区分控制调用与样本数据，并说明 CarAudio 的路由配置如何在 native 层被使用。压缩卸载、MMAP 等路径具有额外分支，不应把一张普通混音时序图理解成所有声音的唯一道路。
+
+<!-- aaos-architecture -->
+## 普通流式播放的缓冲与控制路径
+
+绿色路径表示 PCM 样本从客户端缓冲到播放线程，再通过 Audio HAL 的队列进入输出流；蓝色路径表示轨道创建与策略控制。它是普通流式播放的补充数据视图，不能外推为 MMAP 或所有 offload 实现的唯一数据路径。
+
+<figure style="width:min(1560px, calc(100vw - 48px));position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;">
+  <iframe src="../../../diagrams/aaos17-audio-playback.html" title="AAOS Audio Playback" width="100%" height="960" loading="lazy" style="display:block;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></iframe>
+  <figcaption style="font-size:0.9rem;margin-top:0.6rem;">可在图内滚动查看完整架构，或<a href="../../../diagrams/aaos17-audio-playback.html" target="_blank" rel="noopener">单独打开架构图</a>。</figcaption>
+</figure>
+
+## 用职责划分理解多个音频服务
+
+AudioService 位于系统服务侧，处理焦点、音量、设备与策略等 Java 层控制接口。AudioPolicyService 对外提供 native 策略接口，AudioPolicyManager 依据属性、配置、连接设备和策略选择输入输出。AudioFlinger 管理实际播放轨道、处理线程、混音和与 HAL 的流交互。它们相互协作，但不是每一帧音频都顺序经过所有服务。
+
+CarAudioService 通过动态音频策略或核心音频配置组织车载路由和音量。应用播放时，native 策略使用已注册的规则选出合适输出；CarAudio 并不承担媒体解码和逐帧拷贝。理解这点可以避免把后排无声问题全部归到 CarService，也避免在应用里绕过系统路由去硬编码设备地址。
+
+应用还可能使用 MediaPlayer 或其他媒体框架。它们包含解码、缓存和状态管理，最终音频输出常连接到系统音频客户端；本篇直接使用 AudioTrack，是为了把样本写入与系统播放链路单独说明。媒体业务层的缓冲不足，与 AudioTrack 下游的 underrun 可能互相影响，但不能看成同一个缓存。
+
+## 当前创建时序先进入AudioFlinger
+
+Java AudioTrack 构造配置属性、格式、缓冲与会话后进入 native setup。native `AudioTrack::createTrack_l()` 获取 AudioFlinger 接口，将属性、格式、flags、所选设备、session 和客户端信息打包成创建请求。当前源码明确在这里调用 `audioFlinger->createTrack()`。[客户端创建请求](https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/media/libaudioclient/AudioTrack.cpp#1816)
+
+AudioFlinger 收到请求后，通过 `AudioSystem::getOutputForAttr()` 向策略侧选择输出，再找到合适的播放线程并创建轨道。也就是说，不能沿用某些旧示意图，把当前实现画成客户端一定先调用 APS 再调用 AF。逻辑依赖是“轨道需要输出策略”，实际调用位置应以当前分支为准。[服务端获取输出](https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audioflinger/AudioFlinger.cpp#1087)
+
+下面时序描述普通创建流程。若需要打开新输出，策略与 AudioFlinger 之间还会协作开流；若合适输出已经存在，则可复用。图中的输出建立步骤是条件分支，而不是每创建一个 track 都新建硬件流。
+
+<div style="overflow-x:auto;margin:1.5rem 0;">
+
+```mermaid
+%%{init: {"sequence": {"useMaxWidth": false}}}%%
+sequenceDiagram
+    participant A as 应用AudioTrack
+    participant N as native AudioTrack
+    participant F as AudioFlinger
+    participant P as AudioPolicyService与Manager
+    participant H as Core Audio HAL
+    A->>N: native_setup
+    N->>F: createTrack
+    F->>P: getOutputForAttr
+    P->>P: 匹配属性设备与输出能力
+    opt 需要打开输出
+        P->>F: 请求打开输出
+        F->>H: openOutputStream
+        H-->>F: 流与实际配置
+    end
+    P-->>F: output与port等选择结果
+    F->>F: 在线程上建立track
+    F-->>N: 轨道句柄与缓冲配置
+    N-->>A: 初始化结果
+```
+
+</div>
+
+返回信息包含服务端接受的配置和标识。客户端请求的采样率、缓冲规模或 flags 不应直接被当成最终事实。尤其快速路径只是偏好，服务端可以拒绝并调整。构造成功之后，应用和诊断工具仍应检查实际参数，而不是只输出构造器入参。
+
+## 属性怎样影响输出选择
+
+AudioPolicyService 将请求转给 AudioPolicyManager。Manager 在 `getOutputForAttrInt()` 中处理音频属性、策略 mix、选定设备和其他输出条件。车载动态路由规则在这个层面参与选择，而不是等样本到达功放之后才判断哪个 App 属于哪个座位。[策略服务转交](https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp#363)；[输出选择实现](https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audiopolicy/managerdefault/AudioPolicyManager.cpp#1392)
+
+相同格式的两个播放器可能因属性、UID 关联或目标设备不同而进入不同输出；相同用途的两个播放器也可能因为 zone 和策略规则不同而分离。排查路由时，格式是必要信息但不够，必须一起记录 usage、用户身份、策略匹配和设备地址。
+
+输出选择还依赖设备当前可用状态。配置文件里声明一个 bus，不表示运行时对应设备已经连接或可打开；策略找到目标，也不保证 HAL 接受所请求的格式和缓冲。若失败发生在输出获取阶段，后续反复写入数据没有意义，应先解决设备声明、连接和能力匹配。
+
+## 一个硬件输出可以承载多个轨道
+
+AudioFlinger 的 output 对应一条服务端输出路径，track 对应某个客户端的播放实例。普通混音场景下，多条 track 可以进入同一 mixer thread，再写往同一个 HAL stream。把每个 App 都想象成独占一条扬声器线路，会误解混音、组音量和设备 ducking 的影响范围。
+
+开流成功后，AudioFlinger 根据实际 flags 选择线程类型：MMAP、bit-perfect、spatializer、compressed offload、direct 或普通 mixer 等分支。这些分支说明系统有多种处理模式，不代表任一设备都支持全部模式。[开流与线程选择](https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audioflinger/AudioFlinger.cpp#3037)
+
+在普通 mixer 路径中，轨道可能需要格式处理、采样率转换和音量处理，再与其他轨道混合。Direct 或 offload 的处理约束不同，不能假设每条输出都会经过同一个软件混音器和效果链。分析延迟、CPU 和音效时，应先确认当前线程类型，再讨论优化。
+
+## Write成功表示数据进入缓冲
+
+native `AudioTrack::write()` 在同步写模式下反复获取可写缓冲、拷贝数据并释放缓冲。阻塞与非阻塞模式决定没有可用空间时如何等待或返回；返回值表示本次实际写入的字节数，不是扬声器已播放的字节数。[同步写入实现](https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/media/libaudioclient/AudioTrack.cpp#2323)
+
+应用必须处理部分写入。一次请求写入完整音频块，接口可能只接受其中一部分；后续应从正确偏移继续，而不是丢弃剩余数据或重复整块。样本格式还决定 frame 大小，字节数、采样点数和音频帧数不能混用。立体声的一帧包含两个声道对应的样本，计算播放时长时尤其要保持单位一致。
+
+写入缓冲与服务端消费异步进行。即使 write 很快返回，下游仍可能有客户端缓冲、混音周期、HAL 缓冲及硬件处理。相反，write 阻塞可能只是缓冲暂时已满，不能直接判断为 Binder 卡死。要定位卡顿，需要同时看写入节奏、可用缓冲、消费进度和错误返回。
+
+应用主动暂停、停止或释放时，还涉及已经排队数据如何处理。业务上希望“立即停止提示音”和“播放完已提交的尾音”是不同需求，应选择相应生命周期操作。不要以为停止给 write 喂数据就一定立即无声，硬件和服务端可能仍在消费已缓冲内容。
+
+## AIDL流用队列承载高频交互
+
+Core Audio HAL 的 `StreamDescriptor` 描述快速消息队列和缓冲，它为流接口提供不同于逐次 Binder 事务的音频数据和命令通道。接口要求 HAL 在专用高优先级线程处理数据与命令，并协调 AIDL 调用和队列命令对流内部状态的访问。[流描述符与处理线程契约](https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl#24)
+
+因此“系统通过 Binder 播放声音”只是过度简化的说法。Binder 负责建立和控制对象，高频数据交换使用专门缓冲及队列。若在性能分析中把每次 write 都画成远程调用携带整块 PCM，就会高估某些通信成本，同时忽略真正的缓冲和线程调度问题。
+
+流协议还区分 standby、idle、active、paused、draining 等状态。对于输出，硬件正在消费但缓冲为空，与硬件暂时不消费且缓冲仍有数据，都可能听到安静，却是不同状态。不能仅靠“听不到声音”推断流已经关闭；需要查看生产者、消费者与缓冲状态。
+
+framework 侧的 `libaudiohal` AIDL 实现负责把旧式内部接口调用转换为对应协议。`StreamOutHalAidl::write()` 进入共同 transfer 路径。遇到 AIDL HAL 交互问题时，这一适配层是连接 AudioFlinger 行为与 HAL 队列状态的重要观察点。[AIDL写入适配](https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/media/libaudiohal/impl/StreamHalAidl.cpp#1138)
+
+## Port配置和Patch描述连接关系
+
+HAL 的 module 暴露端口及其配置，patch 将允许连接的端口配置关联起来。开输出流要求指定已经配置的 mix port；接口允许一些调用顺序，但说明先建立合适连接与缓冲需求的重要性。请求缓冲大小以帧为单位，HAL 可以提供更大缓冲，因此调用者请求值不是最终分配值。[输出流参数契约](https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/audio/aidl/android/hardware/audio/core/IModule.aidl#412)
+
+更新 patch 时，HAL 必须满足接口关于连续流处理的约束；无法避免状态变化或需要重建流时应返回相应错误，由客户端协调重新配置。它不是任意把一条连线改到另一个扬声器就必然无缝的承诺。设备切换可能需要不同格式、缓冲与时间同步，用户体验必须沿完整路径验证。[patch更新与失败条件](https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/audio/aidl/android/hardware/audio/core/IModule.aidl#531)
+
+对车载系统，bus address 是连接上层语义与底层端口的重要标识，但它不是 PCM 文件路径。配置 review 应核对 mix port、device port、route、address 和能力组合，而不是只确认某个名字在两份 XML 中都出现。相同名字但错误连接关系，仍然可能把声音送到错误设备或导致开流失败。
+
+## 用身份链定位无声问题
+
+播放器实例具有 player id，媒体效果关联 session，策略客户端与设备关联 port，服务端输出还有 output handle。这些标识不应混成一个“音频ID”。建立诊断记录时，应从应用开始播放事件收集属性与 UID，再沿创建响应和 dump 关联 session、port、output、thread、HAL device，最后到实际输出通道。
+
+| 观察结果 | 下一步检查 |
+|---|---|
+| 焦点已授予但没有活动track | 应用准备、构造错误与生命周期 |
+| createTrack输出选择失败 | 策略规则、设备连接与能力 |
+| track活动但数据不足 | 应用写入、解码缓存和调度 |
+| 数据持续消费但设备无声 | 路由、有效增益、静音与HAL执行 |
+| 仅某个zone无声 | UID归属、mix匹配与目标地址 |
+| 切换设备后才无声 | port与patch重配、流重建和旧状态 |
+
+排障命令可以从 `dumpsys media.audio_flinger`、`dumpsys media.audio_policy` 和车载音频 dump 获取互补状态，但每份输出都应带同一时间背景。用户在抓取过程中切换音源会改变标识，事后把不同时间的 track 和 output 拼接，容易构造出不存在的因果链。
+
+## 失效与恢复属于播放契约
+
+客户端可能遇到无效对象或服务死亡相关错误。应用不能无限重试同一失效轨道，也不能在错误后只把界面播放按钮改为暂停而保留资源。应按实际返回和生命周期重建必要对象，并重新确认属性、路由、焦点资格和效果绑定。媒体业务的播放进度恢复又是更上层的职责。
+
+系统侧恢复 audioserver 后，策略、设备状态和车载 callback 也需要重建。一个新 AudioTrack 成功创建，不能证明旧的 HAL 控制状态已经恢复；一条外部静音要求仍然可能存在。恢复验证应贯穿资格、轨道、数据、路由和增益，避免只检查服务进程是否存活。
+
+理解播放管线的最终目的，是让每个现象都落到可观察环节。焦点解决允许播放，策略解决送往哪里，轨道和缓冲解决如何提交数据，处理线程决定怎样加工，HAL 与硬件决定怎样输出。把这些职责连接起来，才能从“应用正在播放”走到“目标座位实际听到正确声音”。
+
+## 写入循环要保留单位与错误语义
+
+下面是用于解释部分写入的教学伪代码，不包含线程退出、错误恢复和媒体解码的完整实现。它强调返回正数时只推进实际接受的部分，返回零时按所选写入模式安排后续处理，返回错误时进入明确恢复分支。
+
+```text
+remaining = validBytes
+position = 0
+while remaining > 0 and playbackStillRequested:
+    accepted = write(buffer, position, remaining, chosenWriteMode)
+    if accepted > 0:
+        position += accepted
+        remaining -= accepted
+    else if accepted == 0:
+        waitForNextWritableOpportunity()
+    else:
+        handleTrackError(accepted)
+        break
+```
+
+实际代码还要保证有效数据长度与音频帧大小一致。若把短整型数组元素数当成字节数，或者把双声道样本数当成帧数，可能导致写入长度、进度和延迟统计都出错。错误往往在单声道素材上不明显，切到双声道或不同编码后才暴露，因此格式变化应成为最小回归的一部分。
+
+播放器线程也不能将所有等待混在一起。等待解码数据说明上游暂时没有内容，等待可写空间说明下游缓冲已满，等待轨道恢复则是对象状态变化。为三类等待分别记录持续时间，能够快速判断卡顿来源。若只记录一次 write 总耗时，无法知道调用前已经因网络等待了多久。
+
+## 从两个座位同时播放验证路由
+
+多音区验证可以使用不同、可辨认的测试信号，让主区与后排各自播放。先记录两路客户端属性和身份，再确认策略输出与实际设备，最后只改变其中一路的用户关联或设备选择。这样可以检验路由是否由预期规则决定，而不是两路恰好因为启动顺序落到不同输出。
+
+接着让两路同时暂停、恢复和重建播放器，观察新建轨道是否继续得到正确输出。只测试最初创建，可能漏掉服务恢复或配置切换后重新匹配规则的问题。输出句柄变化本身不一定是错误，重要的是新的句柄仍然连接到正确设备并保持相应控制状态。
+
+当两路最终共享一个硬件输出时，也要明确这是配置允许的混音还是错误合流。共享线程不自动等于音区泄漏，独立线程也不自动证明物理隔离；两者之间还有 patch、HAL 和硬件映射。声学结果与系统对象必须对应验证，不能仅凭线程数量推断座位独立性。
+
+对于只能在真车复现的无声问题，应尽量保留失败时的当前状态，再做恢复动作。重启播放器会销毁原有身份链，虽然可能让声音恢复，却也消除分析所需的 track、port 和输出证据。可以先采集关键 dump 和短时间 trace，再进行恢复，并分别记录恢复前后的对象变化。
+
+对系统开发者，一份有用的故障记录应同时包含用户动作、应用返回值、策略对象和设备结果。每个结论都能落到具体时间点和标识，才可以把不同进程的日志连接起来。这样的记录也能明确恢复动作真正改变了哪一环，而不是仅以“重启后正常”结束分析。
+
+<!-- series-navigation -->
+## 系列导航
+
+[系列目录]({{< relref "_index.md" >}})
+
+[上一篇：AudioControl HAL 的设计与应用]({{< relref "14-audio-control-hal.md" >}})
+
+[下一篇：混音、低延迟、Offload 与音效]({{< relref "16-performance-and-effects.md" >}})

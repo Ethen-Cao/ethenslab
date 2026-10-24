@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ethen 的实验室 · 智能座舱架构知识库</title>
+<style>
+  :root {
+    --bg: #f8f9fa; --panel: #ffffff; --subtle: #f1f3f4;
+    --ink: #202124; --ink-secondary: #5f6368; --ink-muted: #80868b;
+    --line: #dadce0; --line-strong: #bdc1c6;
+    --blue: #1a73e8; --blue-bg: #e8f0fe; --blue-border: #aecbfa;
+    --green: #188038; --green-bg: #ceead6; --green-border: #81c995;
+    --amber: #b06000; --amber-bg: #feefc3; --amber-border: #fde293;
+    --purple: #7627bb; --purple-bg: #f3e8fd; --purple-border: #d7aefb;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #18191b; --panel: #202124; --subtle: #282a2d;
+    --ink: #e8eaed; --ink-secondary: #9aa0a6; --ink-muted: #70757a;
+    --line: #3c4043; --line-strong: #5f6368;
+    --blue: #8ab4f8; --blue-bg: rgba(138,180,248,0.14); --blue-border: rgba(138,180,248,0.35);
+    --green: #81c995; --green-bg: rgba(129,201,149,0.14); --green-border: rgba(129,201,149,0.35);
+    --amber: #fdd663; --amber-bg: rgba(253,214,99,0.14); --amber-border: rgba(253,214,99,0.35);
+    --purple: #c58af9; --purple-bg: rgba(197,138,249,0.14); --purple-border: rgba(197,138,249,0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font: 13.5px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--ink); height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; background: none; border: none; }
+
+  /* L0: Top Header (Fixed 52px) */
+  .topbar {
+    height: 52px; flex-shrink: 0; background: var(--panel); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; padding: 0 20px; gap: 24px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; letter-spacing: -0.2px; }
+  .brand-mark {
+    width: 22px; height: 22px; border-radius: 4px; background: var(--ink); color: var(--panel);
+    display: grid; place-items: center; font: 700 12px var(--mono);
+  }
+  .brand-sub { font-size: 12px; font-weight: 400; color: var(--ink-secondary); border-left: 1px solid var(--line); padding-left: 10px; }
+  .top-nav { display: flex; gap: 4px; }
+  .top-nav button {
+    padding: 6px 12px; border-radius: 5px; font-size: 13px; color: var(--ink-secondary); font-weight: 500;
+  }
+  .top-nav button:hover { background: var(--subtle); color: var(--ink); }
+  .top-nav button.active { background: var(--blue-bg); color: var(--blue); font-weight: 600; }
+  .top-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .search-box {
+    display: flex; align-items: center; gap: 8px; background: var(--subtle);
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; width: 260px;
+  }
+  .search-box input { border: 0; background: none; outline: none; width: 100%; font-size: 12.5px; }
+  .kbd { font: 11px var(--mono); color: var(--ink-muted); background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+  .tool-btn { padding: 5px 10px; border: 1px solid var(--line); border-radius: 5px; font-size: 12px; background: var(--panel); }
+  .tool-btn:hover { border-color: var(--line-strong); background: var(--subtle); }
+
+  /* Main App Shell: 3-Column Strict Grid */
+  .workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 268px minmax(0, 1fr) 260px; }
+
+  /* L1: Left Knowledge Tree Sidebar */
+  .sidebar {
+    background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 14px 12px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .tree-header {
+    font-size: 11px; font-weight: 700; color: var(--ink-muted); letter-spacing: 0.6px;
+    text-transform: uppercase; padding: 0 8px; display: flex; justify-content: space-between;
+  }
+  .tree-group { display: flex; flex-direction: column; gap: 2px; }
+  .tree-domain {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 8px; border-radius: 5px; font-weight: 600; font-size: 13px; color: var(--ink);
+  }
+  .tree-domain:hover { background: var(--subtle); }
+  .tree-domain .badge { font: 11px var(--mono); color: var(--ink-muted); }
+  .tree-children {
+    margin-left: 12px; padding-left: 10px; border-left: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 1px; margin-top: 2px;
+  }
+  .tree-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 8px; border-radius: 4px; font-size: 12.5px; color: var(--ink-secondary); text-align: left;
+  }
+  .tree-item:hover { background: var(--subtle); color: var(--ink); }
+  .tree-item.active { background: var(--blue-bg); color: var(--blue); font-weight: 600; }
+  .tree-item small { font: 10.5px var(--mono); color: var(--ink-muted); }
+
+  /* L2: Center Content Area */
+  .center-stage { overflow-y: auto; padding: 24px 32px; }
+  .stage-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 14px; margin-bottom: 20px; border-bottom: 1px solid var(--line);
+  }
+  .breadcrumb { font-size: 12px; color: var(--ink-secondary); display: flex; align-items: center; gap: 6px; }
+  .breadcrumb b { color: var(--ink); font-weight: 600; }
+  .mode-tabs { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+  .mode-tabs button { padding: 4px 12px; font-size: 12px; color: var(--ink-secondary); border-right: 1px solid var(--line); }
+  .mode-tabs button:last-child { border-right: 0; }
+  .mode-tabs button.active { background: var(--ink); color: var(--panel); font-weight: 600; }
+
+  /* Architecture Layer Stack (Logical Hierarchy) */
+  .arch-stack {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 24px;
+  }
+  .arch-stack-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+  .arch-stack-head h2 { font-size: 14px; font-weight: 700; }
+  .arch-stack-head span { font-size: 12px; color: var(--ink-secondary); }
+  .layer-row {
+    display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: stretch;
+    padding: 8px 0; border-top: 1px solid var(--line);
+  }
+  .layer-label {
+    background: var(--subtle); border-radius: 5px; padding: 8px 10px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .layer-label strong { font-size: 12px; font-weight: 700; }
+  .layer-label small { font: 10.5px var(--mono); color: var(--ink-secondary); }
+  .layer-blocks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .arch-block {
+    border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; text-align: left;
+    background: var(--panel); transition: border-color .12s, background .12s;
+  }
+  .arch-block:hover { border-color: var(--blue); }
+  .arch-block.selected { border: 2px solid var(--blue); background: var(--blue-bg); }
+  .arch-block .domain-tag {
+    display: inline-block; font: 600 10px var(--mono); padding: 1px 5px; border-radius: 3px; margin-bottom: 4px;
+  }
+  .tag-aaos { background: var(--green-bg); color: var(--green); }
+  .tag-qnx { background: var(--blue-bg); color: var(--blue); }
+  .tag-gunyah { background: var(--purple-bg); color: var(--purple); }
+  .tag-soc { background: var(--amber-bg); color: var(--amber); }
+  .arch-block strong { display: block; font-size: 12.5px; color: var(--ink); }
+  .arch-block span { font-size: 11px; color: var(--ink-secondary); }
+
+  /* Structured Document Table */
+  .doc-section-title {
+    font-size: 14px; font-weight: 700; margin: 20px 0 10px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .doc-table {
+    width: 100%; border-collapse: collapse; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 13px;
+  }
+  .doc-table th {
+    text-align: left; background: var(--subtle); color: var(--ink-secondary);
+    font-size: 11.5px; font-weight: 600; padding: 9px 14px; border-bottom: 1px solid var(--line);
+  }
+  .doc-table td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .doc-table tr:last-child td { border-bottom: 0; }
+  .doc-table tbody tr { cursor: pointer; }
+  .doc-table tbody tr:hover { background: var(--subtle); }
+  .doc-id { font: 11.5px var(--mono); color: var(--ink-muted); width: 70px; }
+  .doc-name { font-weight: 600; color: var(--ink); }
+  .doc-sub { font-size: 12px; color: var(--ink-secondary); margin-left: 8px; font-weight: 400; }
+  .diag-pill {
+    font: 600 11px var(--mono); padding: 2px 7px; border-radius: 4px;
+    border: 1px solid var(--blue-border); background: var(--blue-bg); color: var(--blue);
+  }
+
+  /* Reader Mode Article */
+  .reader-sheet {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 28px 36px;
+  }
+  .reader-sheet h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 8px; }
+  .reader-meta {
+    display: flex; gap: 16px; font: 12px var(--mono); color: var(--ink-secondary);
+    padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--line);
+  }
+  .reader-sheet h2 { font-size: 16px; font-weight: 700; margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .reader-sheet p { color: var(--ink-secondary); margin-bottom: 12px; font-size: 13.5px; }
+  .spec-diagram {
+    border: 1px solid var(--line); border-radius: 6px; background: var(--bg); padding: 14px; margin: 16px 0;
+  }
+  .spec-diagram-head {
+    display: flex; justify-content: space-between; font: 11.5px var(--mono); color: var(--ink-secondary);
+    padding-bottom: 10px; margin-bottom: 12px; border-bottom: 1px dashed var(--line);
+  }
+  .code-pre {
+    background: var(--subtle); border: 1px solid var(--line); border-radius: 5px;
+    padding: 12px 14px; font: 12px/1.6 var(--mono); overflow-x: auto; margin: 12px 0;
+  }
+
+  /* L3: Right Context & Inspector Rail */
+  .inspector {
+    background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .insp-card { border: 1px solid var(--line); border-radius: 6px; padding: 12px; background: var(--bg); }
+  .insp-title { font-size: 11px; font-weight: 700; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .insp-list { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+  .insp-list li { display: flex; justify-content: space-between; color: var(--ink-secondary); }
+  .insp-list a { color: var(--blue); text-decoration: none; font-weight: 500; }
+  .toc-list { list-style: none; border-left: 1px solid var(--line); padding-left: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .toc-list li { font-size: 12.5px; color: var(--ink-secondary); cursor: pointer; }
+  .toc-list li.active { color: var(--blue); font-weight: 600; }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- L0: Topbar -->
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">E</span>
+    <span>Ethen 的实验室</span>
+    <span class="brand-sub">智能座舱技术知识库</span>
+  </div>
+  <nav class="top-nav">
+    <button class="active" onclick="filterDomain('all', this)">全栈总览 (126)</button>
+    <button onclick="filterDomain('cockpit', this)">01. 座舱总体方案 (18)</button>
+    <button onclick="filterDomain('aaos', this)">02. AAOS 与 Android 框架 (56)</button>
+    <button onclick="filterDomain('qnx', this)">03. QNX 实时系统 (14)</button>
+    <button onclick="filterDomain('gunyah', this)">04. Gunyah 虚拟化 (33)</button>
+    <button onclick="filterDomain('ai', this)">05. 端侧 AI (5)</button>
+  </nav>
+  <div class="top-right">
+    <div class="search-box">
+      <input type="search" id="q" placeholder="按模块或关键字过滤 (如 HAB, Display)..." oninput="filterTable(this.value)">
+      <span class="kbd">Ctrl+K</span>
+    </div>
+    <button class="tool-btn" onclick="toggleTheme()" id="theme-btn">Dark</button>
+  </div>
+</header>
+
+<!-- Main 3-Column Engineering Shell -->
+<div class="workspace">
+
+  <!-- L1: Left Knowledge Tree (Strict Hierarchy: Domain -> Subsystem -> Topic) -->
+  <aside class="sidebar">
+    <div class="tree-header"><span>知识目录树 (TAXONOMY)</span><span>7 域 / 21 专题</span></div>
+
+    <div class="tree-group">
+      <div class="tree-domain"><span>01. 座舱总体架构与方案</span><span class="badge">18</span></div>
+      <div class="tree-children">
+        <button class="tree-item" onclick="selectSub('cockpit', '整车与座舱系统设计', this)"><span>1.1 整车与座舱系统设计</span><small>5</small></button>
+        <button class="tree-item" onclick="selectSub('cockpit', '跨域 OTA 升级与槽位', this)"><span>1.2 跨域 OTA 升级与槽位</span><small>5</small></button>
+        <button class="tree-item" onclick="selectSub('cockpit', 'Polaris 可观测性与诊断', this)"><span>1.3 Polaris 可观测性与诊断</span><small>8</small></button>
+      </div>
+    </div>
+
+    <div class="tree-group">
+      <div class="tree-domain"><span>02. AAOS 与 Android 系统</span><span class="badge">56</span></div>
+      <div class="tree-children">
+        <button class="tree-item" onclick="selectSub('aaos', 'CarService 与车载服务', this)"><span>2.1 CarService 与车载服务</span><small>4</small></button>
+        <button class="tree-item" onclick="selectSub('aaos', 'WMS / WMShell 窗口分屏', this)"><span>2.2 WMS / WMShell 窗口分屏</span><small>17</small></button>
+        <button class="tree-item" onclick="selectSub('aaos', 'SurfaceFlinger 与图形显示', this)"><span>2.3 SurfaceFlinger 与图形显示</span><small>10</small></button>
+        <button class="tree-item" onclick="selectSub('aaos', 'Media / Audio / Widevine DRM', this)"><span>2.4 Media / Widevine DRM</span><small>11</small></button>
+        <button class="tree-item" onclick="selectSub('aaos', '性能与稳定性 (Perfetto/ANR)', this)"><span>2.5 性能与稳定性专项</span><small>14</small></button>
+      </div>
+    </div>
+
+    <div class="tree-group">
+      <div class="tree-domain"><span>03. QNX 实时系统底座</span><span class="badge">14</span></div>
+      <div class="tree-children">
+        <button class="tree-item" onclick="selectSub('qnx', 'QNX Screen 与 OpenWFD', this)"><span>3.1 QNX Screen 与 OpenWFD</span><small>4</small></button>
+        <button class="tree-item" onclick="selectSub('qnx', 'Hypervisor VM 与网络配置', this)"><span>3.2 Hypervisor VM 与网络配置</span><small>5</small></button>
+        <button class="tree-item" onclick="selectSub('qnx', '加密存储与 Ramdump 诊断', this)"><span>3.3 加密存储与 Ramdump</span><small>5</small></button>
+      </div>
+    </div>
+
+    <div class="tree-group">
+      <div class="tree-domain"><span>04. Gunyah 虚拟化技术</span><span class="badge">33</span></div>
+      <div class="tree-children">
+        <button class="tree-item active" onclick="selectSub('gunyah', 'VMM 生命周期与电源 STR', this)"><span>4.1 VMM 生命周期与电源 STR</span><small>8</small></button>
+        <button class="tree-item" onclick="selectSub('gunyah', 'HAB 跨域通信与 VirtIO', this)"><span>4.2 HAB 跨域通信与 VirtIO</span><small>7</small></button>
+        <button class="tree-item" onclick="selectSub('gunyah', 'Display / GPU / Camera 虚拟化', this)"><span>4.3 Display / GPU 虚拟化</span><small>10</small></button>
+        <button class="tree-item" onclick="selectSub('gunyah', 'Preempt-RT 锁与 Panic 排查', this)"><span>4.4 实时性死锁与 Panic 排查</span><small>8</small></button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- L2: Center Stage -->
+  <main class="center-stage">
+    <div class="stage-bar">
+      <div class="breadcrumb" id="crumb">知识库总览 / <b>自顶向下座舱架构映射与文档索引</b></div>
+      <div class="mode-tabs">
+        <button class="active" id="btn-index" onclick="setMode('index')">架构索引视图 (Matrix)</button>
+        <button id="btn-reader" onclick="setMode('reader')">文档阅读视图 (Reader)</button>
+      </div>
+    </div>
+
+    <!-- MODE A: Architecture Matrix + Structured Document Table -->
+    <div id="pane-index">
+      <section class="arch-stack">
+        <div class="arch-stack-head">
+          <h2>智能座舱系统分层导航图 (System Layer Navigation)</h2>
+          <span>点击任意架构模块，下方表格自动筛选该模块关联的技术文档与架构图</span>
+        </div>
+
+        <!-- Layer 1: App & HMI -->
+        <div class="layer-row">
+          <div class="layer-label"><strong>L1 · 座舱体验与多屏交互</strong><small>HMI / Multi-Display</small></div>
+          <div class="layer-blocks">
+            <button class="arch-block" onclick="filterByBlock('WMShell', this)"><span class="domain-tag tag-aaos">AAOS</span><strong>WMShell & 多屏分屏</strong><span>TaskView · SplitScreen · 焦点</span></button>
+            <button class="arch-block" onclick="filterByBlock('Theme', this)"><span class="domain-tag tag-aaos">AAOS</span><strong>动态主题引擎 & 资源</strong><span>Overlay · RRO · 昼夜切换</span></button>
+            <button class="arch-block" onclick="filterByBlock('Cluster', this)"><span class="domain-tag tag-qnx">QNX</span><strong>仪表 HMI & 电子后视镜</strong><span>Kanzi · CMS · 仪表通信</span></button>
+            <button class="arch-block" onclick="filterByBlock('AI', this)"><span class="domain-tag tag-soc">AI</span><strong>端侧大模型与异构计算</strong><span>QNN · ONNX · Hexagon DSP</span></button>
+          </div>
+        </div>
+
+        <!-- Layer 2: System Services -->
+        <div class="layer-row">
+          <div class="layer-label"><strong>L2 · 核心系统服务层</strong><small>Framework & Multimedia</small></div>
+          <div class="layer-blocks">
+            <button class="arch-block" onclick="filterByBlock('Display', this)"><span class="domain-tag tag-aaos">AAOS/QNX</span><strong>显示合成与图形管线</strong><span>SurfaceFlinger · RenderEngine · Screen</span></button>
+            <button class="arch-block" onclick="filterByBlock('DRM', this)"><span class="domain-tag tag-aaos">Security</span><strong>Widevine L1 & 多媒体</strong><span>AudioFlinger · Camera · HDCP</span></button>
+            <button class="arch-block" onclick="filterByBlock('OTA', this)"><span class="domain-tag tag-soc">System</span><strong>跨域 OTA 与存储分区</strong><span>UpdateEngine · A/B Slot · zstdext</span></button>
+            <button class="arch-block" onclick="filterByBlock('Polaris', this)"><span class="domain-tag tag-soc">Diag</span><strong>Polaris 可观测与稳定性</strong><span>Perfetto · 死锁排查 · Ramdump</span></button>
+          </div>
+        </div>
+
+        <!-- Layer 3: Hypervisor & Cross-VM -->
+        <div class="layer-row">
+          <div class="layer-label"><strong>L3 · 虚拟化与跨域通信</strong><small>Gunyah / QNX Hypervisor</small></div>
+          <div class="layer-blocks">
+            <button class="arch-block" onclick="filterByBlock('VMM', this)"><span class="domain-tag tag-gunyah">Gunyah</span><strong>VMM 生命周期与电源</strong><span>PVM/GVM 启动 · STR 休眠唤醒</span></button>
+            <button class="arch-block" onclick="filterByBlock('HAB', this)"><span class="domain-tag tag-gunyah">IPC</span><strong>HAB & VirtIO 虚拟设备</strong><span>Shmem · Doorbell · VirtIO-Blk</span></button>
+            <button class="arch-block" onclick="filterByBlock('GPU', this)"><span class="domain-tag tag-gunyah">Virt</span><strong>GPU / Display / 视频虚拟化</strong><span>HGSL · VirtIO-HAB · VIDC</span></button>
+            <button class="arch-block" onclick="filterByBlock('SOMEIP', this)"><span class="domain-tag tag-qnx">Net</span><strong>车载网络与 SOME/IP</strong><span>虚拟网卡 · Binder · 跨域 RPC</span></button>
+          </div>
+        </div>
+      </section>
+
+      <div class="doc-section-title">
+        <span id="table-heading">文档与交互架构图清单 (全部 12 篇代表性文档)</span>
+        <button class="tool-btn" onclick="resetFilter()">重置筛选</button>
+      </div>
+
+      <table class="doc-table">
+        <thead>
+          <tr><th>编号</th><th>所属子系统</th><th>文档标题与核心内容</th><th>架构图资产</th><th>耗时</th></tr>
+        </thead>
+        <tbody id="doc-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- MODE B: Clean Engineering Document Reader -->
+    <div id="pane-reader" hidden>
+      <article class="reader-sheet">
+        <h1 id="doc-title">Qualcomm 座舱显示架构与 Display VirtIO-HAB 数据通路</h1>
+        <div class="reader-meta">
+          <span>所属专栏: 04. Gunyah 虚拟化 / 4.3 图形与显示虚拟化</span>
+          <span>关联模块: SurfaceFlinger · OpenWFD · HAB</span>
+          <span>更新: 2026-10-10</span>
+        </div>
+
+        <h2>01. 跨虚拟机显示架构分层职责</h2>
+        <p>在 SA8295 / SA8797 智能座舱平台中，Android Guest (GVM) 负责应用渲染与图层合成规划，而物理显示控制器 (DPU/MDSS) 由 Host 侧 (QNX 或 Linux PVM) 的 OpenWFD Server 独占管理。</p>
+
+        <div class="spec-diagram">
+          <div class="spec-diagram-head">
+            <span>嵌入式交互架构图 · static/diagrams/pvm-graphics-stack-architecture.html</span>
+            <button style="color:var(--blue);font-weight:600;">[在新窗口打开全屏交互图 ↗]</button>
+          </div>
+          <svg viewBox="0 0 760 110" width="100%" height="110" style="display:block;font-family:var(--mono);font-size:11px;">
+            <rect x="10" y="15" width="190" height="80" rx="5" fill="var(--green-bg)" stroke="var(--green-border)"/>
+            <text x="25" y="42" font-weight="700" fill="var(--ink)">Android Guest (GVM)</text>
+            <text x="25" y="62" fill="var(--ink-secondary)">SurfaceFlinger / HWC</text>
+            <text x="25" y="80" fill="var(--ink-secondary)">libwfdclient / khab</text>
+
+            <path d="M200 55 L310 55" stroke="var(--blue)" stroke-width="2" stroke-dasharray="4 3"/>
+            <text x="215" y="45" fill="var(--blue)" font-weight="600">HAB MM_DISP</text>
+            <text x="215" y="72" fill="var(--ink-muted)">Export DMA-BUF ID</text>
+
+            <rect x="310" y="15" width="210" height="80" rx="5" fill="var(--blue-bg)" stroke="var(--blue-border)"/>
+            <text x="325" y="42" font-weight="700" fill="var(--ink)">Host Domain (PVM / QNX)</text>
+            <text x="325" y="62" fill="var(--ink-secondary)">wfd_be → openwfd_server</text>
+            <text x="325" y="80" fill="var(--ink-secondary)">QDI / MDP / DSI-DP PHY</text>
+
+            <path d="M520 55 L580 55" stroke="var(--green)" stroke-width="2.5"/>
+            <rect x="580" y="15" width="165" height="80" rx="5" fill="var(--subtle)" stroke="var(--line-strong)"/>
+            <text x="595" y="45" font-weight="700" fill="var(--ink)">Serializer / Panel</text>
+            <text x="595" y="68" fill="var(--ink-secondary)">中控屏 / 副驾屏 / 仪表</text>
+          </svg>
+        </div>
+
+        <h2>02. 缓冲导出与零拷贝提交流程</h2>
+        <p>Android 侧 Gralloc 分配的受保护或普通图形缓冲不会通过内存拷贝跨 VM 传输，而是通过 HAB 导出物理页表引用（Export ID），Host 侧 `wfd_be` 调用 `habmm_import` 映射至 SMMU 页表后直接交由 DPU 扫描输出：</p>
+        <pre class="code-pre">// Guest 侧导出图形缓冲句柄并提交帧元信息
+habmm_export(hab_handle, dma_buf_fd, size, &export_id, HABMM_EXPIMP_FLAGS_DMABUF);
+wfd_wire_commit_pipeline(dev, pipe, export_id, acquire_fence);</pre>
+
+        <h2>03. 常见显示黑屏与 Fence 超时排查路径</h2>
+        <p>当出现跨屏卡顿或黑屏时，优先核对 `qcdisplaycfg.xml` 管道分配、`hab` 通道状态及 Host 侧 `openwfd_server` 的 VSync 提交计数。</p>
+      </article>
+    </div>
+  </main>
+
+  <!-- L3: Right Context & Inspector Rail -->
+  <aside class="inspector">
+    <div>
+      <div class="insp-title">本页章节大纲 (ON THIS PAGE)</div>
+      <ul class="toc-list">
+        <li class="active">01. 跨虚拟机显示架构分层职责</li>
+        <li>02. 缓冲导出与零拷贝提交流程</li>
+        <li>03. 常见显示黑屏与 Fence 排查</li>
+      </ul>
+    </div>
+
+    <div class="insp-card">
+      <div class="insp-title">同链路上下游关联文档</div>
+      <ul class="insp-list">
+        <li><a href="javascript:void(0)" onclick="setMode('reader')">SurfaceFlinger 合成全流程</a><span>上层</span></li>
+        <li><a href="javascript:void(0)" onclick="setMode('reader')">HAB 跨域通信机制详解</a><span>传输</span></li>
+        <li><a href="javascript:void(0)" onclick="setMode('reader')">QNX Screen 图形子系统</a><span>宿主</span></li>
+        <li><a href="javascript:void(0)" onclick="setMode('reader')">SA8397 GPU 虚拟化架构</a><span>渲染</span></li>
+      </ul>
+    </div>
+
+    <div class="insp-card">
+      <div class="insp-title">关联交互式架构图纸 (STATIC/DIAGRAMS)</div>
+      <ul class="insp-list">
+        <li><a href="static/diagrams/pvm-graphics-stack-architecture.html" target="_blank">PVM 图形栈架构图 ↗</a><span>HTML</span></li>
+        <li><a href="static/diagrams/display-system-architecture.html" target="_blank">Display 系统架构图 ↗</a><span>HTML</span></li>
+        <li><a href="work/ev-high-spec/index.html?tab=software&view=display" target="_blank">8295 Display 全景图 ↗</a><span>SVG</span></li>
+      </ul>
+    </div>
+  </aside>
+
+</div>
+
+<script>
+const DOCS = [
+  {id:'DOC-01', dom:'gunyah', block:'Display', sub:'4.3 Display/GPU 虚拟化', title:'Qualcomm 座舱显示架构与 Display VirtIO-HAB 通路', note:'SurfaceFlinger → HAB → OpenWFD', diag:'PVM 图形栈交互图', time:'18m'},
+  {id:'DOC-02', dom:'gunyah', block:'HAB', sub:'4.2 HAB 与跨域通信', title:'HAB (Hypervisor Abstraction Bus) 通信机制与 Wiki', note:'Physical Channel / Export-Import / Doorbell', diag:'HAB 架构图', time:'15m'},
+  {id:'DOC-03', dom:'gunyah', block:'VMM', sub:'4.1 VMM 生命周期', title:'VMM Service 架构、启动生命周期与 PM-Notify 电源管理', note:'PVM/GVM 协同与 STR 休眠唤醒', diag:'生命周期时序', time:'16m'},
+  {id:'DOC-04', dom:'gunyah', block:'GPU', sub:'4.3 Display/GPU 虚拟化', title:'SA8797 / SA8397 GPU 虚拟化架构与 KGSL/RGS 解析', note:'HGSL · 共享命令队列 · GMU Doorbell', diag:'KGSL-RGS 交互图', time:'20m'},
+  {id:'DOC-05', dom:'aaos', block:'WMShell', sub:'2.2 WMS 与窗口分屏', title:'WMShell 架构与源码解析 Wiki (含高德全屏/分屏无缝切换)', note:'TaskOrganizer · SplitScreen · TaskView', diag:'分屏架构图', time:'22m'},
+  {id:'DOC-06', dom:'aaos', block:'Display', sub:'2.3 SurfaceFlinger', title:'Android 显示子系统 Wiki：SurfaceFlinger 合成与 RenderEngine', note:'BufferQueue · VSync · 圆角抗锯齿', diag:'SF 合成路径图', time:'19m'},
+  {id:'DOC-07', dom:'aaos', block:'DRM', sub:'2.4 Media & DRM', title:'智能座舱 Widevine L1 DRM 安全视频播放与 HDCP 方案', note:'MediaDrm · QSEECom · 安全解码缓冲', diag:'DRM 播放交互图', time:'17m'},
+  {id:'DOC-08', dom:'qnx', block:'Cluster', sub:'3.1 QNX Screen', title:'QNX Screen 图形子系统与 OpenWFD 安全端口分析', note:'graphics.conf · pipeline 提交 · 仪表通信', diag:'QNX Screen 架构图', time:'14m'},
+  {id:'DOC-09', dom:'cockpit', block:'OTA', sub:'1.2 跨域 OTA 升级', title:'智能座舱跨域 OTA 架构、OTA-FSS 与 zstdext 写入优化', note:'AAOS ↔ QNX updater ↔ MCU 刷写与 A/B 槽位', diag:'H56EZ OTA 交互图', time:'21m'},
+  {id:'DOC-10', dom:'cockpit', block:'Polaris', sub:'1.3 可观测性与诊断', title:'Polaris 1.0 端云一体性能与稳定性平台系统架构设计', note:'polarisd · Linux Host SDK · 全局事件注册表', diag:'PlantUML 架构', time:'16m'},
+  {id:'DOC-11', dom:'aaos', block:'Theme', sub:'2.1 车载框架与主题', title:'OEM 车载动态主题引擎软件架构设计文档', note:'ThemeManagerService · RRO · 跨屏同步', diag:'主题时序图', time:'15m'},
+  {id:'DOC-12', dom:'ai', block:'AI', sub:'5.1 端侧 AI 与 DSP', title:'Qualcomm Hexagon DSP 开发指南与 QNN / AIStack 推理架构', note:'NPU/DSP 异构加速 · ONNX Runtime', diag:'AIStack 架构图', time:'18m'}
+];
+
+function renderRows(list) {
+  const tbody = document.getElementById('doc-tbody');
+  tbody.innerHTML = list.map(d => `
+    <tr onclick="openDoc('${d.title}', '${d.sub}')">
+      <td class="doc-id">${d.id}</td>
+      <td><span class="badge">${d.sub}</span></td>
+      <td><span class="doc-name">${d.title}</span><span class="doc-sub">${d.note}</span></td>
+      <td><span class="diag-pill">${d.diag}</span></td>
+      <td class="doc-id">${d.time}</td>
+    </tr>
+  `).join('');
+  document.getElementById('table-heading').textContent = `文档与交互架构图清单 (当前匹配 ${list.length} 篇)`;
+}
+
+function filterDomain(dom, btn) {
+  document.querySelectorAll('.top-nav button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.arch-block').forEach(b => b.classList.remove('selected'));
+  setMode('index');
+  renderRows(dom === 'all' ? DOCS : DOCS.filter(d => d.dom === dom));
+}
+
+function selectSub(dom, name, btn) {
+  document.querySelectorAll('.tree-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('crumb').innerHTML = `知识库总览 / <b>${name}</b>`;
+  setMode('index');
+  renderRows(DOCS.filter(d => d.dom === dom));
+}
+
+function filterByBlock(block, btn) {
+  document.querySelectorAll('.arch-block').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  setMode('index');
+  renderRows(DOCS.filter(d => d.block === block));
+}
+
+function filterTable(q) {
+  const s = q.trim().toLowerCase();
+  setMode('index');
+  renderRows(!s ? DOCS : DOCS.filter(d => (d.title + d.note + d.sub + d.diag).toLowerCase().includes(s)));
+}
+
+function resetFilter() {
+  document.querySelectorAll('.arch-block').forEach(b => b.classList.remove('selected'));
+  document.getElementById('q').value = '';
+  renderRows(DOCS);
+}
+
+function setMode(mode) {
+  document.getElementById('pane-index').hidden = mode !== 'index';
+  document.getElementById('pane-reader').hidden = mode !== 'reader';
+  document.getElementById('btn-index').classList.toggle('active', mode === 'index');
+  document.getElementById('btn-reader').classList.toggle('active', mode === 'reader');
+}
+
+function openDoc(title, sub) {
+  document.getElementById('doc-title').textContent = title;
+  document.getElementById('crumb').innerHTML = `知识库总览 / ${sub} / <b>${title}</b>`;
+  setMode('reader');
+}
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  html.setAttribute('data-theme', next);
+  document.getElementById('theme-btn').textContent = next === 'light' ? 'Dark' : 'Light';
+}
+
+renderRows(DOCS);
+</script>
+</body>
+</html>

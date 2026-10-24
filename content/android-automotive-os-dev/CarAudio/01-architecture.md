@@ -1,0 +1,149 @@
+---
+title: "AAOS Audio设计原理与应用 01 总体架构与音频职责边界"
+description: "从应用播放到扬声器输出建立 AAOS 音频的控制面、数据面与配置边界。"
+date: 2026-10-23T12:00:00+08:00
+weight: 1
+tags: ["Android", "AAOS", "Audio", "Android 17"]
+ShowToc: true
+TocOpen: true
+draft: false
+isCJKLanguage: true
+---
+
+一辆车可以同时播放驾驶员的音乐、后排乘客的视频和导航提示。它们可能来自同一台 Android 主机，却需要不同的输出设备、音量控制和并发规则。遇到“播放器正在运行，但指定座位没有声音”时，只查看播放器状态或总音量通常不够：播放请求、焦点决定、路由选择和硬件输出是四件相关但独立的事。
+
+AAOS 在 Android 通用音频栈之上增加了座舱语义。理解它的关键，是分清 CarAudioService 管理哪些策略，Android 音频服务如何执行这些策略，以及厂商硬件承担哪些实际处理。本系列以[系列目录中的 Android 17 源码基线]({{< relref "_index.md" >}})为准；这里出现的能力表示该基线支持相应机制，产品是否启用仍由配置和实现决定。
+
+<!-- aaos-architecture -->
+## 总体架构：控制与音频样本
+
+图中按 API、系统服务和 HAL 划分技术层，并明确 system_server、com.android.car 与 audioserver 的运行边界。控制线表示接口调用；绿色数据线只概括 AudioFlinger 到 Audio HAL 的样本通路。应用端缓冲与 native 客户端在第 15 篇展开。
+
+<figure style="width:min(1560px, calc(100vw - 48px));position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;">
+  <iframe src="../../../diagrams/aaos17-audio-overview.html" title="AAOS Audio Architecture" width="100%" height="960" loading="lazy" style="display:block;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></iframe>
+  <figcaption style="font-size:0.9rem;margin-top:0.6rem;">可在图内滚动查看完整架构，或<a href="../../../diagrams/aaos17-audio-overview.html" target="_blank" rel="noopener">单独打开架构图</a>。</figcaption>
+</figure>
+
+## 从三个问题建立系统模型
+
+“这是什么声音”由音频属性表达。音乐、导航、通话和告警不是同一种使用场景，策略需要根据用途决定路由、并发关系和音量组。“谁在听”涉及 Android 用户、乘员区域和音频区域。“如何到达设备”则涉及动态策略、输出端口、音频线程以及硬件连接。把这三个问题分开，可以避免用一个媒体音量变量解释整个座舱。
+
+例如，驾驶员和后排乘客都播放音乐，两份播放都可以使用 `USAGE_MEDIA`。如果只依据 usage 选择扬声器，它们会落到同一个目的地。系统还需要用户与音区的关联，让同一用途在不同空间采用不同输出。反过来，同一个音区中的音乐和导航即使最终使用相同扬声器，也可能属于不同音量组，并采用不同的焦点交互。
+
+CarAudioService 不是一个替换 AudioFlinger 的车载混音器。它建立音区、音量组和焦点管理对象，把决策转换成 Android 音频策略与汽车控制接口的调用。应用的 PCM 数据不会因为启用了车载音频，就逐帧经过 CarAudioService 的 Java 对象。这个边界决定了排障方法：路由规则错误应查看策略，写入阻塞和 underrun 则需要进入数据通路。
+
+## 应用层与车载服务层
+
+普通媒体应用仍然通过 Android 媒体和音频 API 播放。应用设置 `AudioAttributes`、申请 audio focus，并使用播放器或 AudioTrack 输出数据。它不需要知道车上总共有多少路功放，也不应该硬编码 bus 地址。正确声明用途并处理焦点变化，是应用参与车载策略的契约。
+
+车载设置、音量面板或系统控制组件可通过 `CarAudioManager` 查询音区、音量组、输入输出设备以及启用的功能。这些接口与普通媒体播放接口解决不同问题，很多操作带有车载控制权限要求。系统集成时，应先确定调用者是普通应用还是有相应权限的座舱组件，再决定使用哪一层 API，不能把系统控制示例直接放进普通音乐应用。
+
+CarService 内部同时存在 CarAudioService 与 CarMediaService。前者负责音频策略，后者负责车载媒体源等媒体体验状态。选中某个媒体源，并不等于已经给该应用分配了焦点或建立了有效音频输出。它们在服务构造中就是不同组件，见 [ICarImpl 的服务创建](https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/ICarImpl.java#395)。工程中应把“当前选中的媒体应用”与“当前实际出声的播放器”分别记录。
+
+## CarAudioService 的四组核心对象
+
+第一组是配置模型：CarAudioContext 表达用途集合，CarAudioZone 表达音区，CarAudioZoneConfig 表达音区的一套输出配置，CarVolumeGroup 表达音量控制集合。模型之间存在引用关系，但不能把标识符混用。音区编号不是用户编号，音量组编号也不是 Android stream type。
+
+第二组是策略对象。CarZonesAudioFocus 将请求分发到音区，CarAudioFocus 在音区内维护焦点持有者和等待者；CarAudioDynamicRouting 将配置转换成 AudioMix；CarAudioPolicyVolumeCallback 接收音量调整意图并选择要修改的组。初始化时分别建立 volume、focus、routing 策略，体现了这些职责的独立性，见 [setupControlAndRoutingAudioPoliciesLocked](https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioService.java#2232)。
+
+第三组是硬件控制适配。AudioControlWrapper 连接汽车 AudioControl HAL，传递 duck、mute、焦点信息和声场平衡等控制，也接收 gain 或模块变化。第四组是运行状态协调，包括用户切换、设备插拔、音频服务恢复、播放监控和电源策略。这些事件会改变前面模型的有效状态，因此配置解析成功只是系统运行的起点。
+
+这种拆分也解释了为什么一条音量日志不够定位问题。面板可能已经修改逻辑音量，硬件 gain 却受到限制；焦点可能已授予，播放器仍没有进入 started；路由可能正确，设备却已断开。每个对象回答的问题不同，联合观察才能建立完整因果链。
+
+## Android 通用音频栈执行什么
+
+AudioService 提供应用侧管理接口，并管理焦点入口、音量和策略注册等系统工作。AudioPolicyService 与 AudioPolicyManager 根据属性、设备和策略选择输出。AudioFlinger 创建播放轨道、组织音频线程，并把音频数据送往 Audio HAL。具体采用普通混音、直接输出或其他路径，取决于播放参数、能力和策略，而不是由“这是 AAOS”单独决定。
+
+阅读当前基线时要注意创建轨道的真实顺序。native AudioTrack 调用 AudioFlinger 的 `createTrack`；AudioFlinger 在创建过程中调用 `AudioSystem::getOutputForAttr` 获取策略选择的输出。不能把所有版本都画成应用先调用 APS、再由 APS 创建 AudioFlinger 轨道的固定过程。对应入口是 [AudioTrack 创建轨道](https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/media/libaudioclient/AudioTrack.cpp#1906)与 [AudioFlinger 选择输出](https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audioflinger/AudioFlinger.cpp#1048)。
+
+下面用一次普通播放说明先后关系。策略注册和路由选择被概括为步骤，图中的“开始写入”表示轨道建立后的数据行为，不代表每一帧都经过 Binder 控制调用。
+
+<div style="overflow-x:auto;margin:1.5rem 0;">
+
+```mermaid
+%%{init: {"sequence": {"useMaxWidth": false}}}%%
+sequenceDiagram
+    participant App as 媒体应用
+    participant AM as AudioManager 与 AudioService
+    participant Car as 车载焦点策略
+    participant AF as AudioFlinger
+    participant AP as AudioPolicyService
+    participant HAL as Audio HAL
+    App->>AM: requestAudioFocus
+    AM->>Car: 外部策略评估请求
+    Car-->>AM: 焦点结果
+    AM-->>App: GRANTED
+    App->>AF: native AudioTrack 创建轨道
+    AF->>AP: getOutputForAttr
+    AP-->>AF: 输出选择结果
+    AF-->>App: 轨道创建结果
+    App->>AF: 开始写入音频数据
+    AF->>HAL: 对应输出路径的数据传输
+```
+
+</div>
+
+焦点结果先于播放是应用应遵循的行为契约，而不是 AudioTrack 创建接口自动替应用申请焦点。对不遵守契约的播放，产品可以另启用[焦点强制执行]({{< relref "10-focus-enforcement.md" >}})。它属于执行约束机制，不能代替应用正确管理播放状态。
+
+## 两类 HAL 的边界
+
+Audio HAL 面向流、设备和音频数据，是 Android 通用音频链路与厂商实现的边界。汽车 AudioControl HAL 面向座舱控制。它可以知道哪些设备需要降低音量或静音，也可以把外部音源的焦点请求交给车载服务，但它不因名称中含有 Audio 就成为 PCM 的必经节点。
+
+在当前接口中，`onDevicesToDuckChange` 与 `onDevicesToMuteChange` 传递控制信息；`setFadeTowardFront` 表达前后声场偏移；这些定义见 [IAudioControl](https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl#85)。其中空间上的 fade 不能与焦点切换时的渐弱、渐强混淆。后者是时间上的音量变化，属于另一条控制路径。
+
+硬件如何实现 duck、设备增益和空间平衡，由具体厂商设计决定。它可能涉及功放、DSP 或其他音频处理单元。AOSP 给出了接口契约，并不为所有车辆规定同一套 DSP 拓扑。因此，系统方案评审需要把“Android 发出控制请求”和“硬件达到目标状态”作为两个可观察阶段，而不能凭接口调用成功宣称扬声器已经完成变化。
+
+## 配置从何处进入系统
+
+座舱音频至少存在车载逻辑配置与通用音频设备配置两个视角。前者描述音区、用途与音量组的关系；后者描述设备、端口、能力和底层可用路径。两者必须在设备身份上对得上。一个 bus 地址出现在 Car 配置中，并不会自动让底层 Audio HAL 创建对应设备；底层存在设备，也不会自动拥有车载 context 映射。
+
+当前 CarAudioService 会尝试通过 AudioControl HAL 获取配置，在条件不满足时回退到车载配置文件，并对加载的音区模型进行验证，见 [loadAndInitCarAudioZonesLocked](https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioService.java#2152)。这意味着分析产品时不能只搜索一个 XML 文件。还应确认实际配置来源、运行模式与资源覆盖结果。
+
+另一个需要保留的分支是 core audio routing 和 core volume。它们允许车载层与 Android 核心策略模型协作，改变用途、策略和音量组的映射方式。它们不是所有 AAOS 产品的必选路径。基础资源明确分别提供动态路由、核心音量与核心路由开关，见 [配置资源](https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/res/values/config.xml#24)。具体差异在[核心音频路由与音量]({{< relref "07-core-audio-routing-and-volume.md" >}})展开。
+
+## 用一份观察表定位故障层次
+
+集成时可以把同一次播放的证据组织成下表。它不是要求每次都抓全部日志，而是提供由外向内的排除顺序。第一处与预期不一致的状态，通常比最后一条错误日志更接近问题边界。
+
+| 观察对象 | 需要回答的问题 | 不足以单独证明的结论 |
+| --- | --- | --- |
+| 应用状态 | 是否取得焦点并真正启动播放 | 播放按钮已选中不能证明出声 |
+| 属性与音区 | 用途、用户、音区是否正确 | 包名正确不能证明用户正确 |
+| 策略与输出 | 轨道选择了哪个设备和输出 | 音区配置存在不能证明已生效 |
+| 音量与限制 | 逻辑音量、静音、gain 限制如何 | 音量条非零不能证明硬件非静音 |
+| 数据与硬件 | 数据是否持续送出，设备是否接通 | HAL 控制请求成功不能证明物理出声 |
+
+假设后排视频无声而驾驶员音乐正常，可以先确认后排应用运行用户，再确认该用户对应的音区、当前配置和设备 affinity。如果后排轨道已经落到预期输出，继续查对应组的静音与 gain；如果轨道落在主区，就不必先调功放。这样可减少跨团队排查中反复重启、反复改总音量的无效动作。
+
+另一个典型问题是导航播报压低音乐后，音乐没有恢复。这里既可能是应用没有正确处理焦点恢复，也可能是 HAL duck 状态未解除，或者播放器被别的机制限制。应分别检查焦点持有者、duck 设备列表和实际播放器状态。把三种状态统称为“focus 丢了”会丢掉关键区别。
+
+## 将体验需求翻译成系统边界
+
+系统方案评审常从一句体验要求开始，例如“通话期间只让驾驶员听见导航”。要把它转成可实现设计，至少需要确定通话与导航分别来自哪个用户、使用哪些属性、属于哪个音区、对应哪些设备，以及通话存在时采用拒绝还是并发关系。任何一项留空，都可能迫使某个实现团队用隐含假设补齐需求。
+
+这里可以采用逐层提问的方法。先确定声音语义，再确定听众范围，然后确定并发关系，最后确定音量和硬件动作。这个顺序减少反复：若导航本来应被拒绝，就无需先讨论它与通话在某条总线上如何混音；若导航必须播放，再检查是否需要独立设备或可分离的增益控制。
+
+音频控制还存在多个时间尺度。焦点决定表达的是逻辑关系变化，播放器响应涉及应用调度，音量包络需要持续一段时间，硬件控制又可能有自己的处理延迟。体验验收应明确测量的是哪两个事件之间的时间。把所有延迟都归为“音频延迟”，会让策略团队、应用团队和硬件团队使用不同起止点比较同一个问题。
+
+例如，用户切换音乐源后觉得声音重叠，应先观察新请求获批与旧应用停止之间的关系，再查看是否启用了淡出。如果本来设计为旧声音渐弱、新声音立即开始，短暂重叠可能来自预期包络；如果旧应用忽略永久失焦，则属于契约错误。两者可以有相近的听感，却需要完全不同的处理。
+
+另一个需要提前明确的边界是配置所有权。应用团队负责正确声明属性，平台团队负责属性到上下文及音区规则，音频适配团队负责设备能力与硬件路径。实际组织可以不同，但每张映射表应有唯一可信来源。若多个团队各自保存一份 bus 地址与用途清单，很容易在升级后产生名称仍相同、语义已不同的情况。
+
+对于代码阅读，应优先追踪状态拥有者。某个字段由谁写入，变化由谁通知，错误由谁回滚，比只记住函数调用先后更稳定。CarAudioService 的大部分协调工作都围绕这些问题展开：用户映射、当前配置、策略注册和增益限制各有生命周期，单个 API 成功只代表其中一项动作完成。
+
+因此，架构图最好同时表达职责与边界，而不要把所有对象串成一根箭头。播放数据路径可以解释声音如何传输，控制关系可以解释为什么选中这条路径；二者并排阅读，才能看出某个模块失败究竟影响策略、数据还是恢复。后续章节的时序图会选择代表场景展示变化过程，静态模型则应始终保留这些独立职责。
+
+## 系列的阅读顺序与工程产物
+
+前八篇先建立模型和调用链，让读者能回答一份播放为什么进入某个音区、为什么抢占另一份播放。随后讨论音量、焦点执行、HAL 和 OEM 扩展，再进入播放、录音、语音、蓝牙及跨音区功能。最后通过电源恢复与集成排障，把单一功能放回整车生命周期中。
+
+对一个实际项目，建议同步维护三份小而准确的资料：用途到 context 的映射表，用户及音区到设备的映射表，以及功能开关和 HAL 能力表。它们应来自产品实际配置，并随变更更新。这些资料把需求语言转换成源码可验证的对象，能让“音乐从后排喇叭出来”“导航时不影响乘客耳机”这样的体验要求拥有明确的实现与验收边界。
+
+验收也应覆盖组合场景。独立验证音乐、导航和后排播放都能出声，并不能证明它们同时运行时正确。需要再验证并发、切换用户、插拔设备以及音频服务恢复后的行为，观察系统是否仍保留正确的用途、音区与设备关系。总体架构的价值，正在于把这些变化组织成可追踪的系统行为，而不把每次异常都当成新的孤立故障。
+
+<!-- series-navigation -->
+## 系列导航
+
+[系列目录]({{< relref "_index.md" >}})
+
+[下一篇：启动流程与配置体系]({{< relref "02-startup-and-configuration.md" >}})

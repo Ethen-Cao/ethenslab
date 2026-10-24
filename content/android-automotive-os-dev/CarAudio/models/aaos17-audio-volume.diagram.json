@@ -1,0 +1,293 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "aaos17-audio-volume",
+    "title": "Car Audio Volume Paths",
+    "description": "Device gain and Core Audio volume are alternate implementations of the volume-group abstraction. HAL-reported restrictions are evaluated before applying output changes.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 1660,
+    "height": 1810
+  },
+  "sources": [
+    {
+      "id": "car",
+      "title": "car",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioService.java#2270"
+    },
+    {
+      "id": "audio",
+      "title": "audio",
+      "locator": "https://android.googlesource.com/platform/frameworks/base/+/94b4c163b7dfe5ce3607f7bb8456f9573f7de57d/services/core/java/com/android/server/audio/AudioService.java#12731"
+    },
+    {
+      "id": "af",
+      "title": "af",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audioflinger/AudioFlinger.cpp#1092"
+    },
+    {
+      "id": "aps",
+      "title": "aps",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp#363"
+    },
+    {
+      "id": "volume",
+      "title": "volume",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioVolumeGroup.java#82"
+    },
+    {
+      "id": "corevolume",
+      "title": "corevolume",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CoreAudioVolumeGroup.java#128"
+    },
+    {
+      "id": "gain",
+      "title": "gain",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioDeviceInfo.java#271"
+    },
+    {
+      "id": "gainhelper",
+      "title": "gainhelper",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/car-builtin-lib/src/android/car/builtin/media/AudioManagerHelper.java#79"
+    },
+    {
+      "id": "ctrlhal",
+      "title": "ctrlhal",
+      "locator": "https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl#85"
+    }
+  ],
+  "deployment": {
+    "profile": "single-domain",
+    "evidence": [
+      "car",
+      "af",
+      "ctrlhal"
+    ]
+  },
+  "containers": [
+    {
+      "id": "android",
+      "kind": "domain",
+      "title": "Android Automotive OS",
+      "x": 36,
+      "y": 36,
+      "w": 1588,
+      "h": 1738,
+      "domainType": "os",
+      "platform": "android"
+    },
+    {
+      "id": "services",
+      "kind": "layer",
+      "title": "System Services",
+      "x": 66,
+      "y": 150,
+      "w": 1528,
+      "h": 1560,
+      "role": "system-services",
+      "order": 0,
+      "parent": "android"
+    },
+    {
+      "id": "carproc",
+      "kind": "process",
+      "title": "com.android.car",
+      "x": 100,
+      "y": 250,
+      "w": 1450,
+      "h": 1000,
+      "evidence": [
+        "car"
+      ],
+      "parent": "services"
+    },
+    {
+      "id": "aud",
+      "kind": "process",
+      "title": "audioserver",
+      "x": 100,
+      "y": 1370,
+      "w": 650,
+      "h": 290,
+      "evidence": [
+        "aps"
+      ],
+      "parent": "services"
+    },
+    {
+      "id": "ss",
+      "kind": "process",
+      "title": "system_server",
+      "x": 900,
+      "y": 1370,
+      "w": 650,
+      "h": 290,
+      "evidence": [
+        "audio"
+      ],
+      "parent": "services"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cas",
+      "canonicalName": "CarAudioService",
+      "entityType": "class",
+      "x": 550,
+      "y": 380,
+      "w": 550,
+      "h": 120,
+      "parent": "carproc",
+      "evidence": [
+        "car"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "vg",
+      "canonicalName": "CarAudioVolumeGroup",
+      "entityType": "class",
+      "x": 150,
+      "y": 700,
+      "w": 550,
+      "h": 120,
+      "parent": "carproc",
+      "evidence": [
+        "volume"
+      ],
+      "layerRole": "system-services",
+      "description": "Device gain implementation"
+    },
+    {
+      "id": "corevg",
+      "canonicalName": "CoreAudioVolumeGroup",
+      "entityType": "class",
+      "x": 950,
+      "y": 700,
+      "w": 550,
+      "h": 120,
+      "parent": "carproc",
+      "evidence": [
+        "corevolume"
+      ],
+      "layerRole": "system-services",
+      "description": "Core volume implementation"
+    },
+    {
+      "id": "dev",
+      "canonicalName": "CarAudioDeviceInfo",
+      "entityType": "class",
+      "x": 150,
+      "y": 1020,
+      "w": 550,
+      "h": 120,
+      "parent": "carproc",
+      "evidence": [
+        "gain"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "aps",
+      "canonicalName": "AudioPolicyService",
+      "entityType": "class",
+      "x": 150,
+      "y": 1490,
+      "w": 550,
+      "h": 120,
+      "parent": "aud",
+      "evidence": [
+        "aps"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "as",
+      "canonicalName": "AudioService",
+      "entityType": "class",
+      "x": 950,
+      "y": 1490,
+      "w": 550,
+      "h": 120,
+      "parent": "ss",
+      "evidence": [
+        "audio"
+      ],
+      "layerRole": "system-services"
+    }
+  ],
+  "edges": [
+    {
+      "id": "left",
+      "from": "cas",
+      "to": "vg",
+      "relation": "call",
+      "evidence": [
+        "car"
+      ],
+      "fromSide": "left",
+      "toSide": "top",
+      "via": [
+        {
+          "x": 425
+        }
+      ]
+    },
+    {
+      "id": "right",
+      "from": "cas",
+      "to": "corevg",
+      "relation": "call",
+      "evidence": [
+        "car"
+      ],
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [
+        {
+          "x": 1225
+        }
+      ]
+    },
+    {
+      "id": "gain",
+      "from": "vg",
+      "to": "dev",
+      "relation": "call",
+      "evidence": [
+        "volume"
+      ]
+    },
+    {
+      "id": "portgain",
+      "from": "dev",
+      "to": "aps",
+      "relation": "ipc",
+      "evidence": [
+        "gainhelper"
+      ],
+      "mechanism": "JNI / Binder",
+      "labelPosition": {
+        "x": 515,
+        "y": 1310
+      }
+    },
+    {
+      "id": "groupindex",
+      "from": "corevg",
+      "to": "as",
+      "relation": "ipc",
+      "evidence": [
+        "corevolume"
+      ],
+      "mechanism": "AudioManager / Binder",
+      "labelPosition": {
+        "x": 1360,
+        "y": 1310
+      }
+    }
+  ]
+}

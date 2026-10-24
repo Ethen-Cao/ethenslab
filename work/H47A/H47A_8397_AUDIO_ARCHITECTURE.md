@@ -1,623 +1,901 @@
 # H47A 8397 Audio 架构设计
 
-> **文档**：H47A_8397_AUDIO_ARCHITECTURE
-> **平台**：Qualcomm SA8797P（IVI 8397）
-> **架构**：Android GVM（IVI）+ Linux PVM（Cluster / Audio Backend），Gunyah Hypervisor
-> **源码根**：Android `/home/voyah/workspace/8397/vendor`；Linux PVM `/home/voyah/workspace/8397/linux/apps/apps_proc`
-> **构建基线**：`gen5_gvm`，`ENABLE_HYP := true`，`ro.boot.audio=awe`
-> **日期**：2026-10-23
-> **修订**：2026-10-23 对照源码校正 AWE 控制项覆盖、两套 PCM 编号、`OUT_BUS` PAL 映射和 GVM/PVM 外部音频边界。
+> **平台**：Qualcomm SA8797P（项目称 IVI 8397），H47A / himalayas
+>
+> **架构**：Android GVM + Linux PVM，Gunyah Hypervisor
+>
+> **源码根**：`/home/ethen/workspace/voyah/projects/8397/code`
+>
+> **基线**：Android `gen5_gvm`、`ENABLE_HYP := true`、`ro.boot.audio=awe`；PVM `auto-voyah` / `sa8797`、`qti-audio-aw`
+>
+> **修订日期**：2026-10-23
+>
+> **验证范围**：当前源码、产品配置、配方和已有 AWE 预编译库；未编译、未上板验证。
+
+本文描述当前产品选择的 **AWE 音频架构**。仓库中另有 AudioReach/CSD2 后端，其服务、stream metadata、device PP 和 `backends.xml` 不作为当前 AWE 数据面的实现依据。
+
+**阅读边界**：当前源码存在 `OUT_BUS` 到 PAL 设备的转换断点；`BUS21_HEADREST_DRIVER` 缺少 AWE 资源项；BUS04/device156 在默认与非默认 SKU 图中的端点也不一致。下文区分“配置声明”“可见源码行为”“预编译库边界”和“待实机确认”，不能把分层示意图当作已验证可运行的端到端时序。详见 §6.2、§13。
 
 ---
 
 ## 1. 概述
 
-H47A 8397 的音频系统不是 Android 直接访问 Codec/DSP 的传统架构，而是**跨 VM 的分层音频通路**：
+Android GVM 承载应用、Car 音频策略、AudioFlinger、AIDL Audio HAL、PAL 和 AWE session 插件。内置音频经 `msm_virtio_snd` 虚拟声卡与 PVM 通信；GVM 的这条路径不直接管理物理 DSP/TDM/A2B。
 
-- **Android GVM** 承载 IVI 音频客户端、Car 音频策略、AudioFlinger、AudioReach AIDL HAL 以及 virtio-snd 前端。GVM 的内置音频不直接持有物理 DSP/A2B 设备；USB、Bluetooth 等外部音频仍由对应 HAL 模块管理。
-- **Linux PVM** 承载内置音频后端：`AudioDeviceManager`、`csd2_audio_plugin`、`awe_audio_service`、AudioReach SPF 图（运行在 aDSP 上），并最终通过 TDM 连接 A2B 总线、扬声器和麦克风。
-- **Gunyah Hypervisor** 提供 VM 隔离；GVM 与 PVM 之间的内置 PCM 数据/消息通过 **HAB 虚拟通道**传输（MMID 101–104），而不是 GVM 直接打开 PVM 的 ALSA 设备。
-- **Bus 抽象**是整套设计的关键：Android 侧用 `BUSxx` 虚拟音频设备表达“主舱/前排/后排/输入”等音频路径；DSP 侧用 Bus 对应的 PCM 通道和 AWE 模块完成路由、音量、静音和混音，有独立 CSD2 条目的 Bus 还使用 CSD2 stream/device PP。
+Linux PVM 的当前构建选择 `awe_audio_service` 和 AWE 设备管理、音频插件。预编译库的依赖与符号表表明 AWE 自身具有 PCM 读写接口，不能将其仅定义为音量/静音控制服务。
 
-本文覆盖：整体架构、Bus/PCM 映射、播放与捕获全链路、HAB 传输、AWE/CSD2 DSP 图、配置与调试方法。
+跨 VM 通信分为两部分：PCM 样本放在导出/导入的共享 buffer 中，控制及 buffer 描述符经 HAB 消息传输。HAB 音频域底层使用 virtio/vhost；用户态 `vhost-user-qti` 配置设备和队列，PVM 内核 `hab_vhost` 实际收发 HAB 消息。
 
----
+Bus 是 Android 侧的逻辑路由地址。必须分别识别 **Bus 地址、ALSA card、PCM device/nid、virtio-snd sid 和 HAB MMID**，不能将它们视为同一种编号。
 
-## 2. 术语
+USB、Bluetooth、r_submix 有各自的 HAL/policy 模块；本文的 AWE 主链聚焦 primary 内置音频。Bluetooth 耳机输出与车机 HFP 通话是不同路径，不能笼统宣称所有 Bluetooth 相关音频都绕过 AWE/A2B。
 
-| 术语 | 说明 |
+依据：S1–S8、S11–S14（见 §12）。
+
+## 2. 术语与标识
+
+| 术语/标识 | 本文含义 |
 | --- | --- |
-| GVM | Android Guest VM，IVI 侧 |
-| PVM | Linux Primary VM，Cluster 与音频后端侧 |
-| HAB | Hypervisor ABstraction，Gunyah 提供的跨 VM 虚拟通道 |
-| MMID | HAB 多媒体通道 ID；音频使用 `MM_AUD_1`–`MM_AUD_4`（101–104） |
-| AIDL HAL | Android 13 的 Audio HAL 接口；H47A 使用 `audiohalservice.qti` |
+| GVM / PVM | Android guest VM / 管理内置音频后端的 Linux VM |
+| AIDL Audio HAL | H47A 使用 `audiohalservice.qti`；本树接口文档说明 Android U（14）及以后采用 AIDL Audio HAL |
 | PAL | Qualcomm Platform Audio Layer，`libar-pal.so` |
-| AWE | Audio Weaver 音频图引擎；`awe_audio_service` 运行 AWE 图 |
-| CSD2 | Qualcomm 音频图 API；`csd2_audio_plugin` 负责把 virtio PCM 流转成 CSD2 图读写 |
-| SPF | AudioReach Signal Processing Framework，运行在 aDSP 上的音频图 |
-| TDM | Time Division Multiplexing，DSP 与 A2B/Codec 之间的后端 DAI |
-| A2B | Automotive Audio Bus，车载音频总线 |
-| Bus | Android audio policy 中的虚拟音频端口（`BUS00_MEDIA` 等），不是 Linux `/dev/snd` 设备 |
-| sid | virtio-snd PCM 流的 `stream_id`；同一 HAB 通道上复用多个 sid |
-| SSR | SubSystem Restart，DSP 子系统重启/恢复 |
+| AWE | Audio Weaver；本基线使用 AWE session、PVM AWE 服务、图及相关控制 |
+| CSD2 / SPF | 仓库中另一套 AudioReach 图 API / Signal Processing Framework；本文在 §9.3 单独说明 |
+| Bus 地址 | 如 `BUS00_MEDIA`，用于 Android policy/HAL 和 AWE resource 查找 |
+| ALSA card | 声卡索引；PAL 找到 VIOSND 后使用该声卡的实际索引 |
+| PCM device / nid | `pcm_open(card, device, …)` 的 device 参数；内核用 `PCM_INFO.hda_fn_nid` 创建 PCM 设备 |
+| sid / stream_id | virtio-snd 子流枚举索引；内核设置 `substream->sid = i`，用于传输消息 |
+| HAB MMID | 音频使用 `MM_AUD_1..4`，数值 101–104；它选择通信通道，不选择扬声器 |
+| TDM / A2B | DSP/音频硬件接口与车载音频总线；具体节点、槽位和物理扬声器需结合目标图及硬件配置 |
+| SSR | 子系统重启；恢复涉及清理、状态通知、重新配置/打开等步骤 |
 
----
+## 3. 当前 AWE 架构
 
-## 3. 总体架构
+总图按部署域和软件层次展示组件，并叠加 PCM、控制/通知及配置关系。预览与当前可编辑 draw.io 源文件对应。
 
-```
-+--------------------------------------------------------------------------------------+
-|                                   SA8797P SoC                                        |
-|                                                                                      |
-|  +-------------------------------------------+   +--------------------------------+  |
-|  |            Android GVM (IVI)              |   |        Linux PVM (Audio)       |  |
-|  |                                           |   |                                |  |
-|  |  AudioTrack / AudioRecord                 |   |  AudioDeviceManager            |  |
-|  |        |                                  |   |        |                       |  |
-|  |  AudioFlinger::PlaybackThread /           |   |  CSD2AudioPlugin               |  |
-|  |  AudioFlinger::RecordThread               |   |        |                       |  |
-|  |        |  AIDL                            |   |  csd2_write / csd2_read        |  |
-|  |  audiohalservice.qti                      |   |        |                       |  |
-|  |    StreamOutPrimary / StreamInPrimary     |   |  AudioReach SPF (aDSP graph)   |  |
-|  |    libar-pal / libsession_awe             |   |        |                       |  |
-|  |        |  pcm_write / pcm_read            |   |  TDM-LPAIF_* backend DAI       |  |
-|  |  msm_virtio_snd.ko (RX/TX)                |   |        |                       |  |
-|  |        |                                  |   |  A2B / speaker / mic           |  |
-|  |        +------ HAB MM_AUD_1..4 ---------->|   |                                |  |
-|  +-------------------------------------------+   +--------------------------------+  |
-|                                                                                      |
-|  +--------------------------------------------------------------------------------+  |
-|  |                              Gunyah Hypervisor                                 |  |
-|  +--------------------------------------------------------------------------------+  |
-|                                                                                      |
-|  +--------------------------------------------------------------------------------+  |
-|  |  Shared Audio Hardware: A2B speaker/mic networks, DAC/ADC/amplifiers,          |  |
-|  |  transducers                                                                    |  |
-|  +--------------------------------------------------------------------------------+  |
-+--------------------------------------------------------------------------------------+
-```
+![H47A Audio Architecture, Routes and Configuration](diagrams/H47A_audio_overview.png)
 
-### 3.1 音频设计要点
+[打开原尺寸预览](diagrams/H47A_audio_overview.png) · [编辑 draw.io 原图](diagrams/H47A_audio_overview.drawio)
 
-1. **GVM 的内置音频不直接持有物理设备**：GVM 只看到 `msm_virtio_snd` 注册的虚拟声卡；物理 DSP、TDM、A2B 由 PVM 管理。USB、Bluetooth 等外部音频是例外，由对应 HAL 模块处理。
-2. **Bus 是一等公民**：Android audio policy 用 `BUSxx` 选择路径；HAL/PAL 传递 `bus_addr`，`awe_resource.xml` 将其映射为 PCM `sid`，CSD2 stream metadata 再以 `STREAMRX=BUSxx` 携带 Bus 名称。跨 VM 的 HAB 消息只携带 `sid`，不携带 Bus 字符串。
-3. **PCM 号不是物理设备号**：GVM 的 `pcm-id-rx/tx`（如 51、55、52、156）是 AWE 图和 virtio-snd 的 stream id，不是 Linux card/device 号。
-4. **HAB 按队列分通道，PCM 按 stream_id 复用**：播放共享 `MM_AUD_4`，捕获共享 `MM_AUD_3`；不是每个 PCM 一个 HAB 设备。
-5. **AWE/CSD2 负责 Bus 级控制与图构建**：AWE 提供 `BUSxx_Volume` / `BUSxx_Mute` 等控制，但具体哪些 Bus 有 Volume/Mute 取决于目标 SKU 实际加载的 `awc_index.txt`/`NordyADP_*`；CSD2 用 stream/device PP KV 在 aDSP 上建图。
-6. **A2B 是内置音频的最终后端**：主舱、前排、后排分别走 32 ch / 8 ch / 16 ch 的 TDM-A2B 路径；USB/Bluetooth 不经过这条内置 A2B 路径。
+从图中读取架构时，先看部署，再沿对应类型的线追踪：
 
----
+- **部署**：同一 SoC 内，Linux PVM 与 Android GVM 并列；Gunyah 在 VM 下方；aDSP、共享内存和音频 I/O 位于公共硬件区域；麦克风、Codec/A2B/功放和扬声器是板级外设。
+- **PCM 数据**：绿色。GVM primary 流经虚拟声卡与 PVM 对接；DSP 的 ALSASource/Sink 访问映射后的 PCM transfer ring。ARM AWE runtime 是否参与样本处理，由所选图决定。
+- **调用与控制**：蓝色实线。包括 Binder/AIDL、PAL 调用、HAB 消息、AWE 图控制和调参；这些线不表示 PCM 必须逐级复制。
+- **通知**：蓝色点线。AWE DSP runtime 通过 IPCC 通知处理进度/唤醒；PCM 样本存放在共享 buffer 中。
+- **依赖与配置**：灰色实线/虚线。XML/TXT/bin 使用文档形状；PCM buffer 和 AudioLite carveout 使用共享内存形状。配置文件不是运行时音频处理组件。
 
-## 4. 软件分层与关键组件
+图表示已核实的职责、运行归属和连接机制。普通播放/录音以及蓝牙场景的建链、周期数据和停止顺序见 §16；源码/配置缺口在对应时序中显式保留。
+
+### 3.1 构建选择的依据
+
+1. `himalayas.mk` 设置 `ro.boot.audio=awe`；`init.target.rc` 在该属性下加载 `msm_virtio_snd audio_variant="awe"`。
+2. `plugin_manager.xml` 为 `PAL_STREAM_PLAYBACK_BUS`、`PAL_STREAM_CAPTURE_BUS` 等类型配置 `libsession_awe.so`。
+3. PVM `auto-voyah.conf` 与 `gen5.inc` 启用 `qti-audio-aw`；`packagegroup-qti-audio-prop.bb` 命中 `AUDIOAWE_RDEPENDS` 分支。
+4. `awe-audio-service` 依赖 `awe-device-manager`；后者依赖 `awe-audio-plugin-intf`。已有预编译 ELF 对应 `libAweDeviceManager.so`、`libAweAudioPluginIntf.so` 和 `awe_read/write`。
+
+既有 `voyah-image-sa8797-20260831052028.manifest` 也包含上述 AWE 包，但它只证明该次构建产物，不能证明当前设备刷入了同一镜像。
+
+### 3.2 需要区分的两层传输
+
+- **音频前端协议**：CONTROL、EVENT、TX、RX 分别对应 MMID 101、102、103、104。
+- **HAB 底层传输**：GVM HAB virtio 前端与 PVM `hab_vhost` 搬运消息；`/dev/vhost-aud` 对应 HAB 音频域。
+
+前者的四个逻辑队列不能直接当作后者 virtqueue 数量。PCM 样本共享内存与消息传输也是不同机制。
+
+## 4. 架构图中的组件与运行归属
 
 ### 4.1 Android GVM
 
-| 层 | 组件 | 职责 |
+| 图中组件 | 所在进程或层 | 作用及与相邻组件的关系 |
 | --- | --- | --- |
-| 应用 | `AudioTrack` / `AudioRecord` | PCM 播放/捕获客户端 |
-| Framework API | `CarAudioManager`、`AudioManager` | 面向应用的音频 API |
-| System Services | `CarAudioService`、`AudioPolicyService` | Zone/Context 到 Bus 的路由、焦点与音量 |
-| System Services | `AudioFlinger::PlaybackThread` / `RecordThread` | 混音、重采样、HAL 流管理 |
-| HAL | `audiohalservice.qti` | AudioReach AIDL HAL 服务进程 |
-| HAL | `StreamOutPrimary` / `StreamInPrimary` | Bus 设备选择、usecase 映射、PAL 调用 |
-| HAL | `libar-pal.so` / `libsession_awe.so` | PAL 与 AWE PAL session 插件 |
-| HAL | `libtinyalsav2.so` | 通过 `pcm_open/pcm_write/pcm_read` 访问虚拟声卡 |
-| Kernel | `msm_virtio_snd.ko` | virtio-snd 前端；RX 播放、TX 捕获 |
-| Kernel | HAB `MM_AUD_1..4` | 与 PVM 的音频控制/事件/播放/捕获通道 |
+| Playback and Capture Applications | 应用层 | 播放器、导航、语音等创建音频流；普通音乐解码后的 PCM 交给 AudioTrack，录音样本由 AudioRecord 返回。 |
+| Vehicle Audio Controls | 应用层 | 发起音区、音量、焦点等车载音频控制；通过 CarAudioManager 访问 Car 服务。 |
+| `AudioTrack` / `AudioRecord` | 应用进程中的客户端 API/native client | 分别接入播放、录音；与 AudioFlinger 通过 Binder 管理流，通过共享 buffer 交换样本。它们不是独立系统服务。 |
+| `AudioManager` / `CarAudioManager` | Java API Framework | 前者提供通用音频控制和策略接口，后者提供车载音区、音量等接口；不负责逐周期搬运 PCM。 |
+| `AudioService` | Java 系统服务，`system_server` | 通用音量、模式和 AudioPolicy 注册入口，通过 AudioSystem/Binder 与 native 策略服务协作。 |
+| `CarAudioService` | Java 系统服务，`com.android.car` | 将 context、zone、volume group、用户与设备地址关联，注册动态 AudioMix，并处理车载焦点/duck/mute 策略。 |
+| `AudioPolicyService` | native 服务，`audioserver` | 内含 AudioPolicyManager，选择设备/output/input、建立 patch，并要求 AudioFlinger 打开或复用相应 I/O。与 AudioFlinger 在同一进程、同一层。 |
+| `AudioFlinger` | native 服务，`audioserver` | 管理 Track、RecordThread、Mixer/FastMixer/direct 等线程。普通播放可混音/重采样，录音由 RecordThread 分发。控制 HAL 使用 AIDL，样本交换使用 FMQ。 |
+| `StreamOutPrimary` / `StreamInPrimary` | `audiohalservice.qti` 的 primary AIDL 实现 | 按设备地址、flags/source 选择 usecase 和 PAL 属性，处理 PCM FMQ。当前输出 `OUT_BUS` 转换断点见 §6.2。 |
+| `libar-pal.so` | 同一 HAL 进程中的 PAL | 管理 stream/device、属性、设备切换与生命周期；按插件配置选择 stream 实现和 session。 |
+| `libsession_awe.so` | 同一 HAL 进程中的 `SessionAWE` | 按 PAL device、Bus、stream type、custom key 与占用状态匹配 `awe_resource.xml`，再打开相应虚拟 PCM。 |
+| `libtinyalsav2.so` | 同一 HAL 进程中的 ALSA 用户库 | 使用实际 VIOSND card 执行 `pcm_open/read/write/start/stop/close`。PCM device 不等于 sid。 |
+| AudioControl HAL | 独立 vendor 服务 | Car 侧设备 mute/duck 控制接口；不承载音乐 PCM 主链，不能仅凭该接口推定板级功放实现。 |
+| Bluetooth / USB / r_submix Modules | 各自的音频 HAL/policy 模块 | 承接相应设备或软件回环。Bluetooth 耳机输出、A2DP Sink 音乐输入与 HFP 电话是不同场景，不能因名称含 Bluetooth 就合并成同一数据路径。 |
+| `msm_virtio_snd` | GVM Linux kernel | 注册 VIOSND、枚举 PCM device/nid 与 sid，配置共享缓冲并提交播放/采集描述符，处理周期完成。 |
+| `hab_virtio` | GVM Linux kernel | HAB 的 virtio 传输前端，与 PVM `hab_vhost` 交换消息；不是 PCM 混音或 DSP 算法模块。 |
 
-关键点：
-
-- **播放线程**：`AudioFlinger::PlaybackThread`（Mixer/FastMixer）把多个 `AudioTrack` 混音后写入 HAL 输出流。
-- **捕获线程**：`AudioFlinger::RecordThread` 从 HAL 输入流读取 PCM，再分发给 `AudioRecord`。
-- **AIDL HAL**：`audiohalservice.qti` 以 `vendor.audio-hal-aidl` 服务运行，加载 `libaudiocorehal.qti.so`、`libaudioeffecthal.qti.so`、`libpalipcservice.so` 等。
-- **HAL 配置目录**：`ModuleConfig.cpp` 优先查找 `/vendor/etc/audio_awe`，Voyah 的 `audio_vendor.mk` 把配置复制到该目录。
+`ModuleConfig.cpp` 优先查找 `/vendor/etc/audio_awe`，产品 `audio_vendor.mk` 将配置复制到该目录。Car 配置还按属性、车型 suffix 选择文件。图中的 `car_audio_configuration.xml`、`audio_policy_configuration.xml`、`awe_resource.xml` 分别控制车载路由、HAL/policy 端口和 AWE 资源匹配，具体内容见 §5。
 
 ### 4.2 Linux PVM
 
-| 组件 | 职责 |
+| 图中组件 | 所在进程或层 | 作用及证据边界 |
+| --- | --- | --- |
+| `awe_audio_service` | 音频服务进程 | 托管虚拟设备处理、stream 访问和图控制；接收 `-c` 指定的控制索引。进程内部的库依赖与主要调用由当前预编译 ELF 核实。 |
+| `libAweDeviceManager.so` | `awe_audio_service` | 管理虚拟音频设备和 HAB 端点，将 stream 请求转给 AWE Audio Plugin。 |
+| `libAweAudioPluginIntf.so` | `awe_audio_service` | `StreamWrite/StreamRead` 调用 controller 的 `awe_write/awe_read`；当前开流参数选择位置提交模式。 |
+| `libawe_controller.so` | `awe_audio_service` | 管理流状态、buffer 映射和读写操作。调用 `libawe_alsa` 访问 ring/位置，调用 `libawe_osal` 建立内存映射；图控制依赖 manager。 |
+| `libawe_manager.so` | `awe_audio_service` | 加载控制索引、管理 AWB/控件并访问 packet 服务；不是每块 PCM 的必经处理器。 |
+| `libawe_alsa.so`（服务内） | `awe_audio_service` | 管理 transfer/position 映射与 ring 状态。当前插件模式的 write/read 主要提交写/读位置；另一模式支持 circular copy/格式转换，不能笼统宣称每次复制或全程零拷贝。 |
+| `libawe_osal.so` | `awe_audio_service` | `awe_shmem_map` 执行 mmap，并经工具库完成 VFIO/SMMU DMA 映射。映射建立与周期 PCM 传输分开理解。 |
+| PCM Transfer / Position Buffers | PVM 与所选 AWE 实例可访问的共享资源 | 保存样本及读写进度，具有 HLOS/DSP 地址映射。DSP ALSASource 从中读取播放 PCM，ALSASink 写入采集 PCM；不能未经核对就断言它与 GVM DMA buffer 永远相同或永远是另一份拷贝。 |
+| `awe_command` | 独立服务进程 | 加载 `awe_config*.bin`，创建/管理 HLOS AWE 实例，组织 DSP 同步及 AudioLite 资源。它不是所有 PCM 到 aDSP 的中转站。 |
+| AWE Core / ALSA Source-Sink Modules（ARM） | `awe_command` | 仅当所选图将相应实例/模块放在 ARM/HLOS 时参与样本处理。其 `libawe_alsa` 是同一库在另一进程的加载实例。 |
+| `libawe_audiolite_osal.so` | 图中展开于 `awe_command`；其他 AWE 服务也可依赖它 | 提供 AudioLite IPCC、共享 carveout 和设备访问抽象；图中 packet 服务的控制边省略了其内部库层。 |
+| `awe_dsp` | 独立 oneshot 服务 | 经 PIL 启动 DSP、设置故障监控。服务启动依赖不等于 PCM 调用顺序。 |
+| `awe_packet_service` | 独立命令/调参服务 | manager 经 packet client 和 UNIX socket `/tmp/awe_pkt_socket` 访问它；经 AudioLite 命令缓冲/IPCC 与 DSP 交互。 |
+| `qcrosvm` / `vhost-user-qti` | VM 传输支持 | 创建/配置虚拟设备与 vring；用户态 vhost 配置 `/dev/vhost-aud`，不在每个 PCM 样本的 DSP 算法链上。 |
+| `hab_vhost` | PVM Linux kernel | 实际执行 HAB 消息收发，承担控制、描述符与完成消息的底层传输。 |
+| `vfio-platform` / `ipc_shmem` | PVM Linux kernel 接口 | 图中合并表示 AudioLite MMIO/中断及 carveout 映射支持；IPCC 接收应理解为中断处理一侧，`ipc_shmem` 本身不是音频算法。 |
+
+`awc_index.txt` 与 `awe_config*.bin` 的选择互相独立：前者由 audio service 的参数选择，后者由 command 的参数/车型/DSP SKU 选择，详见 §9.2。文件框的位置表示它们配置哪些组件，不表示随每个 period 重新加载。
+
+### 4.3 Hypervisor、aDSP、共享内存与外部设备
+
+| 图中组件 | 作用与边界 |
 | --- | --- |
-| `AudioDeviceManager`（`libAudioDeviceManager.so`，由 `audio_service` 托管） | 打开 HAB MM_AUD_1..4，接收/发送 virtio-snd 消息；创建/使用 CSD2 插件 |
-| `CSD2AudioPlugin` | `StreamWrite` / `StreamRead`，调用 `csd2_write` / `csd2_read`，解析 stream metadata KV |
-| `awe_audio_service` | 按 SKU 加载 `awc_index.txt` 或 `NordyADP_OneDSP/TwoDSPs`，运行 AWE 图；Bus 控制项以实际加载的配置文件为准 |
-| `AudioReach SPF` | 运行在 aDSP 上的音频图，负责混音、路由、PP 处理 |
-| `TDM-LPAIF_*` | DSP 后端 DAI，连接 A2B/Codec |
-| `A2B speaker/mic network` | 最终扬声器/麦克风网络 |
+| Gunyah Hypervisor | 承载并隔离 PVM/GVM、分配资源。跨 VM 线经过该区域，不意味着 Hypervisor 逐个处理音频样本。 |
+| LPASS ADSP / GPDSP0 / GPDSP1 | 可参与 AWE 的 DSP 核；实际参与集合由 SKU 及加载配置决定。 |
+| ALSA Source / Sink Modules（DSP） | 所选 DSP 图中共享 PCM 流的入口/出口：Source 读 ring、Sink 写 ring；HFP 等 hostless 图还使用成对端点状态控制门控，并非通话样本都经过这些 ring。默认 `Source51` 位于 ADSP instance 0。 |
+| AWE Core / DSP Graph Runtime | 执行所选图的处理、混音与设备端口模块，并发送进度/唤醒通知。`ChangeThread` 不必然跨 ARM/DSP：默认 Source51 示例中的 34/25 继承同一 instance。 |
+| AudioLite Shared Carveout | 保存 ALSA 控制表、config、command、shared heap 和 DSP state。它与“流样本/位置缓冲”的逻辑资源角色不同；跨实例图也可按需使用 shared heap。 |
+| INTFC / LPAIF / TDM | DSP 图连接到硬件音频接口的边界。端口号、槽位与物理设备需要加载图和板级资料共同确认。 |
+| Microphones / External Inputs | 外部声音或数字输入的来源；具体麦克风通道不能只由 Bus 名推定。 |
+| Codec / A2B / Amplifier Network | 板级采集、数字总线及功放链的抽象；并非宣称所有通路都逐个经过这三个器件。 |
+| Speakers / External Outputs | 最终播放端；音区与某个实际扬声器的对应还取决于矩阵、增益、mute 和硬件连线。 |
 
-> **控制项差异**：`awe_resource.xml` 为 BUS08/BUS16 声明了 Volume/Mute，但 `h66a/awc_index.txt` 中 BUS08 没有 `BUS08_FRONT_PASSENGER_*` 控件，BUS16 只有 `BUS16_REAR_SEAT_Mute`、没有 Volume；`NordyADP_OneDSP/TwoDSPs` 中则包含这些条目。`awe-audio.service` 按 `/tmp/awe_dsp_sku_config` 选择配置，目标 SKU 需以实际加载的 `awc_index`/`NordyADP` 为准。
+依据：S1–S19，以及本轮补充的 S20–S22；蓝牙实际产品栈及各场景的证据另见 §16。
 
-> **注意**：`vhost-user-qti` / `/dev/vhost-aud` 是 PVM 侧的 vhost 音频后端设备，负责 virtio/vhost 设备管理与 VMM 注册；本音频驱动的 PCM 消息/缓冲区走 HAB `MM_AUD_1..4`，vhost 不是 PCM 消息的传输通道。
+## 5. 产品配置、Bus 与音区
 
----
+### 5.1 配置文件及生效范围
 
-## 5. 配置与 Bus 设计
-
-### 5.1 配置文件
-
-| 文件 | 作用 |
+| 文件（路径简称见 §12） | 用途 |
 | --- | --- |
-| `vendor/voyah/prebuilts/audio/audio_module_config_primary.xml` | Primary Audio HAL module：Attached devices、MixPorts、DevicePorts、Routes |
-| `vendor/voyah/prebuilts/audio/audio_policy_configuration.xml` | Audio policy 总入口，包含 USB、r_submix、Bluetooth 模块 |
-| `vendor/voyah/prebuilts/audio/car_audio_configuration.xml` | Car 音频 Zone / Context / Volume group 到 Bus 地址的映射 |
-| `vendor/voyah/prebuilts/audio/audio_arbitration.csv` | 焦点/并发/闪避策略矩阵 |
-| `vendor/voyah/prebuilts/audio/audio_vendor.mk` | 把上述配置复制到 `/vendor/etc/audio_awe/`，并设置 `ro.vendor.audio.*` 属性 |
-| `.../configs/gen5_au/card-defs.xml` | AGM 虚拟声卡定义（card 100、PCM100–125、`libagm_pcm_plugin.so`） |
-| `.../configs/gen5_au/mixer_paths_VIOSND.xml` | VIOSND 混音器路径 |
+| `V/vendor/voyah/prebuilts/audio/audio_module_config_primary.xml` | 当前 primary 模块的 mixPort、devicePort、route |
+| 同目录 `audio_policy_configuration.xml` | policy 总入口及外部模块引用 |
+| 同目录 `car_audio_configuration.xml` | 默认 Car 音区、context、volume group |
+| 同目录 `audio_arbitration.csv` | 产品焦点交互矩阵；闪避配置还需结合 `car_audio_duck_config.xml` 和服务实现 |
+| 同目录 `audio_vendor.mk` | 配置复制到 `/vendor/etc/audio_awe` 及产品属性 |
+| `V/vendor/qcom/proprietary/mm-audio-auto/awe/pal_awe_plugin/configs/gen5/awe_resource.xml` | AWE Bus/设备/PCM/控件/支持类型 |
+| 同目录 `plugin_manager.xml` | PAL stream type 到 session 插件 |
+| `V/vendor/qcom/opensource/audio-hal-ar/primary-hal/configs/gen5_au/card-defs.xml` | AGM 虚拟 card100、PCM100–125 和插件配置；不能替代 VIOSND 的实际枚举 |
+| `L/vendor/qcom/proprietary/awe/awe_config/NordAU/target_config/` | 默认 AWE 图与控制索引；H66A 和非默认 DSP SKU 有独立配置 |
 
-> **两套 PCM 编号**：`card-defs.xml` 的 PCM100–125 是 AGM 虚拟卡的 PCM 插件配置；`awe_resource.xml` 的 `pcm-id-rx/tx`（51–70、152–169）是 AWE 图的 ALSA-IO 通道号。二者不是同一套编号，不能直接用 `card-defs` 的设备号去解释 AWE PCM 号，反之亦然。
+### 5.2 端口数量
 
-### 5.2 数量统计
+按当前 XML 解析统计，排除注释；devicePort 和 mixPort 均按声明计数，并非同时活跃设备/流数量。
 
-**Primary HAL module（`default`）**
-
-| 项目 | 总数 | 输出 | 输入 |
-| --- | ---: | ---: | ---: |
-| Audio device（`devicePort`） | 19 | 11 | 8 |
-| Stream（`mixPort`） | 33 | 26 | 7 |
-| Audio Bus | 14 | 11 | 3 |
-
-**加上 USB / r_submix / Bluetooth 模块**
-
-| Module | Device | 输出 | 输入 | Stream | 输出 | 输入 |
+| 模块 | device 总数 | 输出 | 输入 | mixPort 总数 | 输出 | 输入 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| primary / default | 19 | 11 | 8 | 33 | 26 | 7 |
+| primary / default | 22 | 13 | 9 | 36 | 28 | 8 |
 | usb | 5 | 3 | 2 | 3 | 2 | 1 |
 | r_submix | 2 | 1 | 1 | 2 | 1 | 1 |
-| bluetooth | 6 | 6 | 0 | 4 | 4 | 0 |
-| **合计** | **32** | **21** | **11** | **42** | **33** | **9** |
+| bluetooth | 7 | 7 | 0 | 5 | 5 | 0 |
+| **合计** | **36** | **24** | **12** | **46** | **36** | **10** |
 
-> `mixPort` 是 HAL 声明的流类型/端口，不是并发流数量上限；AudioFlinger 可以按 profile 打开多个同类 stream 实例。
+Primary 中有 **16 个 Bus devicePort：13 输出 + 3 输入**；Bluetooth 模块另有 3 个耳机 Bus。`mixPort` 表示流 profile/端口，不能当作并发实例上限。
 
-### 5.3 Bus → PCM → DSP → Speaker 映射
+### 5.3 输出 Bus：配置声明与 HAL 分支
 
-下表是 H47A 当前 primary HAL 配置的核心映射。PCM 号来自 `awe_resource.xml` 的 `pcm-id-rx/tx`；CSD2 stream/PP 来自 `csd2_platform_info.h`；TDM/后端来自 `backends.xml`。
+表中 PAL device 和 PCM RX 来自 AWE resource；usecase 来自对应 Bus 地址与输出 flags 的匹配。它们不代表当前源码已能完成 `pal_stream_open()`，所有 primary `OUT_BUS` 都需先处理 §6.2 的转换断点。
 
-#### 输出 Bus（播放）
+| 当前 primary 输出 Bus | HAL usecase 分支 | AWE 声明的 PAL device | PCM RX device |
+| --- | --- | --- | ---: |
+| `BUS00_MEDIA` | `MEDIA_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 51 |
+| `BUS01_SYS_NOTIFICATION` | `SYS_NOTIFICATION_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 56 |
+| `BUS02_NAV_GUIDANCE` | `NAV_GUIDANCE_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 57 |
+| `BUS03_PHONE` | `PHONE_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 58 |
+| `BUS05_ALERTS` | `ALERTS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 53 |
+| `BUS07_ASSISTANT` | `ASSISTANT_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 63 |
+| `BUS10_DOLBY_ATMOS` | `VENDOR_DOLBY_ATMOS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 65 |
+| `BUS11_ADAS_TTS` | `VENDOR_ADAS_TTS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 66 |
+| `BUS12_KTV` | `VENDOR_KTV_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 59 |
+| `BUS2008_VENDOR_CONTEXT3` | `VENDOR_OUTSIDE_CAR_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 64 |
+| `BUS21_HEADREST_DRIVER` | `DEEP_BUFFER_PLAYBACK`（当前 DEEP_BUFFER flags 命中通用分支） | **无对应 Bus 资源项** | **未定义** |
+| `BUS22_HEADREST_FRONT_PASSENGER` | `FRONT_PASSANGER_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 71 |
+| `BUS23_HEADREST_REAR` | `REAR_SEAT_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 72 |
 
-| Bus | HAL usecase | PAL device | GVM PCM RX | CSD2 stream | DSP device PP | TDM backend | A2B / 扬声器 |
-| --- | --- | --- | ---: | --- | --- | --- | --- |
-| `BUS00_MEDIA` | `MEDIA_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 51 | `CSD2_STREAM_PCM_PLAYBACK_BUS_MEDIA` | `DEVICEPP_RX_BUS00_MEDIA` | `TDM-LPAIF_RXTX-RX-PRIMARY`（32 ch） | `a2bspeaker` / 主舱 |
-| `BUS01_SYS_NOTIFICATION` | `SYS_NOTIFICATION_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 56 | `CSD2_STREAM_PCM_PLAYBACK_BUS_SYS_NOTIF` | `DEVICEPP_RX_BUS01_SYS_NOTIFICATION` | 同上 | 主舱 |
-| `BUS02_NAV_GUIDANCE` | `NAV_GUIDANCE_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 57 | `CSD2_STREAM_PCM_PLAYBACK_BUS_NAV` | `DEVICEPP_RX_BUS02_NAV_GUIDANCE` | 同上 | 主舱 |
-| `BUS03_PHONE` | `PHONE_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 58 | `CSD2_STREAM_PCM_PLAYBACK_BUS_PHONE` | `DEVICEPP_RX_BUS03_PHONE` | 同上 | 主舱 |
-| `BUS05_ALERTS` | `ALERTS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 53 | `CSD2_STREAM_PCM_PLAYBACK_BUS_ALERTS` | `DEVICEPP_RX_BUS05_ALERTS` | 同上 | 主舱 |
-| `BUS07_ASSISTANT` | `ASSISTANT_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 63 | —（AWE 图） | —（AWE 图控制项） | 同上 | 主舱 |
-| `BUS10_DOLBY_ATMOS` | `VENDOR_DOLBY_ATMOS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 65 | —（AWE 图） | —（AWE 图控制项） | 同上 | 主舱 |
-| `BUS11_ADAS_TTS` | `VENDOR_ADAS_TTS_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 66 | —（AWE 图） | —（AWE 图控制项） | 同上 | 主舱 |
-| `BUS2008_VENDOR_CONTEXT3` | `VENDOR_OUTSIDE_CAR_PLAYBACK` | `PAL_DEVICE_OUT_SPEAKER` | 64 | —（AWE 图） | —（AWE 图控制项） | 同上 | 主舱 |
-| `BUS08_FRONT_PASSENGER` | `FRONT_PASSANGER_PLAYBACK` | `PAL_DEVICE_OUT_A2B_SPKR` | 55 | `CSD2_STREAM_PCM_PLAYBACK_BUS_FRONT_PASSENGER` | `DEVICEPP_RX_BUS08_FRONT_PASSENGER` | `TDM-LPAIF-RX-PRIMARY`（8 ch） | `speaker` / 前排 |
-| `BUS16_REAR_SEAT` | `REAR_SEAT_PLAYBACK` | `PAL_DEVICE_OUT_A2B2_SPKR` | 52 | `CSD2_STREAM_PCM_PLAYBACK_BUS_REAR_SEAT` | `DEVICEPP_RX_BUS16_REAR_SEAT` | `TDM-LPAIF_VA-RX-PRIMARY`（16 ch） | `a2b2speaker` / 后排 |
+补充边界：
 
-> `BUS12_KTV` 出现在 AWE resource（RX 59）和 HAL 的 Bus 映射中，但当前 `audio_module_config_primary.xml` 没有暴露它，因此不在 14 路 Bus 内。
+- `BUS12_KTV` 已有 devicePort 和 route；三个头枕 Bus 也已暴露。
+- `BUS21` 没有专用地址 usecase 分支、没有 `updatePalDeviceForBusAddr()` 条目，也没有 AWE Bus 资源项；不能补写为默认 speaker 或给它推定 PCM ID。
+- `BUS22/23` 的 AWE 资源是 speaker + 71/72；不能因 usecase 仍叫前排/后排，就套用旧 BUS08/16 的 A2B/A2B2 设备映射。
+- `BUS08_FRONT_PASSENGER`（A2B_SPKR/55）、`BUS16_REAR_SEAT`（A2B2_SPKR/52）仍在 AWE resource 中，但不在当前 primary 输出 devicePort 中。资源存在不等于产品已暴露。
+- 各 Bus 的 `supported-types` 不完全相同。SessionAWE 还检查类型与 occupied 状态，不能仅按 Bus 地址判断可用性。
 
-> **PAL device 口径**：表中 `PAL_DEVICE_OUT_SPEAKER` 等来自 `awe_resource.xml` 的 Bus→PAL 映射。HAL 侧 `StreamOutPrimary::updatePalDeviceForBusAddr()` 只显式覆盖 `BUS07/08/10/11/16/2008` 和 `BUS12`；`BUS00/01/02/03/05` 未在该 map 中，实际 PAL device 由 `configureAndFetchPalDevices()` 生成，需以目标构建日志核对。日志出现 `unknown bus address` 不一定代表流失败。
->
-> **CSD2 条目差异**：`BUS07/10/11/2008` 在 `csd2_platform_info.h` 中没有独立的 `CSD2_STREAM_PCM_PLAYBACK_BUS_*` 条目；表中的“—（AWE 图）”表示由 AWE 图/控制项承接，不能按 CSD2 stream 名检索。
->
-> **物理位置**：主舱/前排/后排是按 Bus 名称与 `backends.xml` 的 `snd_device_name` 做的分组；具体扬声器位置、A2B 节点级联关系需结合 DTS/原理图确认。
+### 5.4 输入 Bus 与其他资源
 
-#### 输入 Bus（捕获）
+| 当前 primary 输入 Bus | 普通录音的 PAL 类型 | AWE 声明的 PAL device | PCM TX device |
+| --- | --- | --- | ---: |
+| `BUS04_INPUT` | `PAL_STREAM_CAPTURE_BUS` | `PAL_DEVICE_IN_HANDSET_MIC` | 156 |
+| `BUS09_INPUT_FRONT_PASSENGER` | `PAL_STREAM_CAPTURE_BUS` | `PAL_DEVICE_IN_A2B_MIC` | 155 |
+| `BUS17_INPUT_REAR_SEAT` | `PAL_STREAM_CAPTURE_BUS` | `PAL_DEVICE_IN_A2B2_MIC` | 152 |
 
-| Bus | HAL usecase | PAL device | GVM PCM TX | CSD2 stream | DSP device PP | TDM backend | 麦克风 |
-| --- | --- | --- | ---: | --- | --- | --- | --- |
-| `BUS04_INPUT` | `PCM_RECORD` / `PAL_STREAM_CAPTURE_BUS` | `PAL_DEVICE_IN_HANDSET_MIC` | 156 | `CSD2_STREAM_BUS04_INPUT` | `DEVICEPP_TX_BUS04_INPUT` | `TDM-LPAIF_RXTX-TX-PRIMARY` | `a2b-mic` / 主输入 |
-| `BUS09_INPUT_FRONT_PASSENGER` | 同上 | `PAL_DEVICE_IN_A2B_MIC` | 155 | `CSD2_STREAM_BUS09_INPUT_FRONT_PASSENGER` | `DEVICEPP_TX_BUS09_INPUT_FRONT_PASSENGER` | 同上 | `a2b-mic` / 前排 |
-| `BUS17_INPUT_REAR_SEAT` | 同上 | `PAL_DEVICE_IN_A2B2_MIC` | 152 | `CSD2_STREAM_BUS17_INPUT_REAR_SEAT` | `DEVICEPP_TX_BUS17_REAR_SEAT` | `TDM-LPAIF_VA-TX-PRIMARY` | `a2b2-mic` / 后排 |
+`StreamInPrimary` 在设定 CAPTURE_BUS 后仍会根据 source 覆盖类型：例如 ECHO_REFERENCE/UNPROCESSED 改为 RAW，VOICE_RECOGNITION/MIC_ECNR 改为 DEEP_BUFFER。以上三个 Bus 的资源仅声明 CAPTURE_BUS，因此该表不能泛化为所有 AudioRecord 请求的最终通路。
 
-> `BUS04` 与 `BUS09` 的 TDM 后端相同（`TDM-LPAIF_RXTX-TX-PRIMARY` / `a2b-mic`），但 `stream_id`、CSD2 stream 和 device PP 不同；不能只按 TDM 后端区分这两路输入。
+其他资源声明如下；具体使用还受设备、custom key、stream type 和资源占用条件约束。
 
-#### 其他非 Bus PCM（补充）
-
-`awe_resource.xml` 还定义了以下 PCM，供非 Bus 路径使用：
-
-| 用途 | PCM RX/TX | 说明 |
-| --- | --- | --- |
-| Primary Input | TX 162 | 主输入（非 Bus 通道） |
-| Secondary Input | TX 158 | 次输入 |
-| Tertiary Input | TX 160 | 第三输入 |
-| FM Input | TX 159 | FM 调谐 |
-| Echo Ref | TX 163 | AEC 参考 |
-| MIC ECNR | TX 169 | ECNR 麦克风 |
-| HFP TX/RX | RX 67 / TX 164、RX 54 / TX 154 | HFP 上下行 |
-| FM RX/TX | RX 61 / TX 161 | FM loopback |
-| Exterior Talk | RX 68 / TX 165 | 车外对讲 |
-| Switch TX | RX 70 / TX 167 | 切换通道 |
-
-> FM 相关 PCM 在 `awe_resource.xml` 中有定义，但当前 `audio_module_config_primary.xml` 的 `fm_tuner` device 和 `mixport_tuner0` route 被注释（自定义 radio 实现）；是否启用需按产品配置确认。
-
-### 5.4 Car 音频 Zone / Context
-
-`car_audio_configuration.xml` 定义三个 Zone：
-
-- **primary zone**：Media、Notification、Navigation、Phone、Alerts 等主舱上下文。
-- **front passenger zone**：前排乘客音频。
-- **rear seat zone**：后排音频。
-
-每个 Zone 内按 Volume Group 把 context 映射到 Bus 地址（如 `BUS00_MEDIA`、`BUS01_SYS_NOTIFICATION`、`BUS02_NAV_GUIDANCE`、`BUS03_PHONE`、`BUS05_ALERTS`、`BUS07_ASSISTANT`、`BUS10_DOLBY_ATMOS`、`BUS11_ADAS_TTS`、`BUS2008_VENDOR_CONTEXT3` 等）。`audio_arbitration.csv` 定义焦点冲突时的并发/闪避策略。
-
----
-
-## 6. 播放数据流（AudioTrack → Speaker）
-
-详细可交互图：[H47A_audio_playback.html](diagrams/H47A_audio_playback.html)
-
-```
-AudioTrack
-  -> AudioFlinger::PlaybackThread (Mixer / FastMixer)
-  -> StreamOutPrimary (AIDL HAL)
-  -> BUSxx (AIDL AudioDevice address)
-  -> libar-pal / libsession_awe
-  -> pcm_write() on virtual sound card
-  -> msm_virtio_snd.ko RX queue
-  -> HAB MM_AUD_4 (MMID 104), message.stream_id = sid
-  -> AudioDeviceManager (PVM)
-  -> CSD2AudioPlugin::StreamWrite
-  -> csd2_write()
-  -> AudioReach SPF (aDSP graph)
-  -> TDM-LPAIF_* -> A2B -> Speaker
-```
-
-### 6.1 应用与 Framework
-
-1. 应用通过 `AudioTrack` 写入 PCM；`AudioTrack` 通过共享 buffer + binder 与 `AudioFlinger` 交互。
-2. `AudioFlinger::PlaybackThread`（Mixer/FastMixer）把多个 Track 混音，按输出流的采样率/格式写入 HAL。
-3. `AudioPolicyService` / `CarAudioService` 根据 `car_audio_configuration.xml` 的 context 选择 Bus 设备，`AudioFlinger` 打开对应输出流。
-
-### 6.2 HAL 与 PAL
-
-4. `StreamOutPrimary` 从 `AudioDevice.address` 取出 Bus 地址（例如 `BUS00_MEDIA`），设置 `pal_stream_attributes.bus_addr`。
-5. `AudioUsecase.cpp` 按 Bus 地址选择 usecase：
-   - `BUS00_MEDIA` → `MEDIA_PLAYBACK`
-   - `BUS01_SYS_NOTIFICATION` → `SYS_NOTIFICATION_PLAYBACK`
-   - `BUS02_NAV_GUIDANCE` → `NAV_GUIDANCE_PLAYBACK`
-   - `BUS03_PHONE` → `PHONE_PLAYBACK`
-   - `BUS05_ALERTS` → `ALERTS_PLAYBACK`
-   - `BUS08_FRONT_PASSENGER` → `FRONT_PASSANGER_PLAYBACK`
-   - `BUS16_REAR_SEAT` → `REAR_SEAT_PLAYBACK`
-   - `BUS07_ASSISTANT` → `ASSISTANT_PLAYBACK`
-   - `BUS10_DOLBY_ATMOS` / `BUS11_ADAS_TTS` / `BUS2008_VENDOR_CONTEXT3` → 对应 `VENDOR_*` usecase
-6. `StreamOutPrimary::updatePalDeviceForBusAddr()` 对部分 Bus 做 PAL device 覆盖：
-   - `BUS08_FRONT_PASSENGER` → `PAL_DEVICE_OUT_A2B_SPKR`
-   - `BUS16_REAR_SEAT` → `PAL_DEVICE_OUT_A2B2_SPKR`
-   - `BUS07_ASSISTANT` / `BUS11_ADAS_TTS` / `BUS10_DOLBY_ATMOS` / `BUS2008_VENDOR_CONTEXT3` → `PAL_DEVICE_OUT_SPEAKER`
-7. `SessionAWE` 按 PAL device 名称和 `bus_addr` 在 `deviceInfoMAP` 中查找 `awe_resource.xml` 配置的 PCM 设备，并打开对应的 `pcm-id-rx`（如 `BUS00_MEDIA` → 51）。
-
-### 6.3 GVM 虚拟声卡与 HAB
-
-8. `SessionAWE::write()` 调用 `pcm_write()`，把 PCM 写入 `msm_virtio_snd` 注册的虚拟声卡。
-9. `msm_virtio_snd` 播放使用 **RX 队列**，对应 HAB **MM_AUD_4（104）**；消息中 `xfer.stream_id = substream->sid`（即 Bus 的 PCM 号）。
-10. PCM buffer 通过 `habmm_export()` 导出为 DMABUF，消息只携带 `export_id`、`offset`、`period`、`dma_bytes` 等描述符，数据本身零拷贝共享。
-
-### 6.4 PVM 与 DSP
-
-11. PVM 的 `audio_service`（托管 `AudioDeviceManager`）打开 `MM_AUD_1..4`，接收 HAB 消息；播放方向分发到 `CSD2AudioPlugin::StreamWrite`。
-12. `csd2_audio_plugin` 解析 stream metadata 中的 GKV（如 `STREAMRX=BUS00_MEDIA`、`VMID=LA_GVM_1`），在 `csd2_platform_info.h` 的 `stream_nodes` 中匹配 `CSD2_STREAM_PCM_PLAYBACK_BUS_*`（有独立 CSD2 条目的 Bus），并选择 `DEVICEPP_RX_BUSxx_*` 设备 PP；`BUS07/10/11/2008` 没有独立 CSD2 条目，走 AWE 图/控制项。
-13. `csd2_write()` 把数据写入 CSD2 会话；SPF 在 aDSP 上执行混音、PP 处理和图路由。
-14. `awe_audio_service` 运行 AWE 图，提供 `BUSxx_Volume` / `BUSxx_Mute` 等控制；AWE 图与 CSD2/SPF 都使用 `BUSxx` 命名，但具体图项/控制项是否一致需按目标 SKU 核对。
-
-### 6.5 TDM / A2B / Speaker
-
-15. SPF 输出到 TDM 后端，按 Bus 组走不同 TDM/A2B：
-   - **主舱组**（`BUS00/01/02/03/05/07/10/11/2008`）→ `TDM-LPAIF_RXTX-RX-PRIMARY`（32 ch）→ `a2bspeaker` → 主舱扬声器网络。
-   - **前排**（`BUS08_FRONT_PASSENGER`）→ `TDM-LPAIF-RX-PRIMARY`（8 ch）→ `speaker` → 前排乘客扬声器。
-   - **后排**（`BUS16_REAR_SEAT`）→ `TDM-LPAIF_VA-RX-PRIMARY`（16 ch）→ `a2b2speaker` → 后排扬声器网络。
-16. 主舱组内部的多路 Bus 不是各接一个物理扬声器，而是在 DSP 图内按 Bus 做音量/静音/混音后，汇总到同一条 32 ch A2B 主网络；前排/后排是独立 A2B 后端。
-
----
-
-## 7. 捕获数据流（Microphone → AudioRecord）
-
-详细可交互图：[H47A_audio_capture.html](diagrams/H47A_audio_capture.html)
-
-```
-A2B mic network
-  -> TDM-LPAIF_RXTX-TX-PRIMARY (a2b-mic) / TDM-LPAIF_VA-TX-PRIMARY (a2b2-mic)
-  -> AudioReach SPF (aDSP graph)
-  -> csd2_read()
-  -> CSD2AudioPlugin::StreamRead
-  -> AudioDeviceManager (PVM)
-  -> HAB MM_AUD_3 (MMID 103), message.stream_id = sid
-  -> msm_virtio_snd.ko TX queue
-  -> pcm_read()
-  -> libar-pal / libsession_awe (capture)
-  -> BUS04_INPUT / BUS09_INPUT_FRONT_PASSENGER / BUS17_INPUT_REAR_SEAT
-  -> StreamInPrimary
-  -> AudioFlinger::RecordThread
-  -> AudioRecord
-```
-
-### 7.1 硬件到 DSP
-
-1. A2B 麦克风网络采集音频，经 `TDM-LPAIF_RXTX-TX-PRIMARY`（`a2b-mic`）或 `TDM-LPAIF_VA-TX-PRIMARY`（`a2b2-mic`）进入 aDSP。
-2. SPF 图对输入做 PP 处理（如 ECNS/增益），CSD2 通过 `csd2_read()` 读取图输出。
-
-### 7.2 PVM 到 GVM
-
-3. `AudioDeviceManager` 在捕获方向调用 `CSD2AudioPlugin::StreamRead`。
-4. 捕获使用 HAB **MM_AUD_3（103，TX 队列）**；消息中 `stream_id` 对应输入 Bus 的 PCM 号（156/155/152）。
-5. `msm_virtio_snd` TX 队列接收消息，`SessionAWE::read()` 通过 `pcm_read()` 读取虚拟声卡。
-6. `StreamInPrimary` 根据输入 Bus 选择 `PAL_STREAM_CAPTURE_BUS`，并把 Bus 地址传给 PAL。
-
-### 7.3 输入 Bus 到应用
-
-7. `BUS04_INPUT` / `BUS09_INPUT_FRONT_PASSENGER` / `BUS17_INPUT_REAR_SEAT` 经 `StreamInPrimary` 进入 `AudioFlinger::RecordThread`，最终由 `AudioRecord` 返回应用。
-8. `BUS04` 与 `BUS09` 共用 `a2b-mic` 这条 TDM 后端，靠 `stream_id` 和 CSD2 的 stream/device KV 区分；`BUS17` 走独立的 `a2b2-mic`。
-
----
-
-## 8. HAB 传输设计
-
-### 8.1 四个音频 HAB 通道
-
-| virtio-snd 队列 | HAB MMID | 数值 | 用途 |
-| --- | --- | ---: | --- |
-| `VIRTIO_SND_VQ_CONTROL` | `MM_AUD_1` | 101 | 控制（open/set params 等） |
-| `VIRTIO_SND_VQ_EVENT` | `MM_AUD_2` | 102 | 事件/周期通知 |
-| `VIRTIO_SND_VQ_TX` | `MM_AUD_3` | 103 | 捕获（PVM → GVM） |
-| `VIRTIO_SND_VQ_RX` | `MM_AUD_4` | 104 | 播放（GVM → PVM） |
-
-代码依据：
-
-- `virtio_card.c`：每个队列创建一个 kthread，`thread_data.mmid = MM_AUD_1 + i`，并 `habmm_socket_open()`。
-- `habmmid.h`：`MM_AUD_1=101`、`MM_AUD_2=102`、`MM_AUD_3=103`、`MM_AUD_4=104`。
-- `virtio_pcm_msg.c`：播放使用 RX 队列的 HAB socket，捕获使用 TX 队列的 HAB socket；`msg->xfer.stream_id = substream->sid`。
-- `virtio_card.c`：`vsnd_dma_area_export()` 通过 `habmm_export()` 导出 DMA_BUF。
-
-### 8.2 PCM 号与 HAB 通道的关系
-
-- **不是一个 PCM 号对应一个 HAB 设备**。
-- 一个 HAB 通道（如 `MM_AUD_4`）承载所有播放 PCM；每个 PCM 用 `stream_id = sid` 区分。
-- 捕获 PCM 共享 `MM_AUD_3`，同样用 `stream_id` 区分。
-- 控制/参数走 `MM_AUD_1`，事件走 `MM_AUD_2`。
-
-### 8.3 零拷贝
-
-- PCM buffer 由 `habmm_export()` 导出为 DMABUF，PVM 通过 `export_id` 映射同一块内存。
-- HAB socket 只传递消息/描述符（`export_id`、`offset`、`period`、`dma_bytes`、`stream_id`），不复制 PCM 数据。
-- 这降低了跨 VM 的 CPU 拷贝开销，但要求 GVM/PVM 两侧 buffer 生命周期和 fence 严格同步。
-
-### 8.4 恢复与异常
-
-- HAB `habmm_socket_recv()` 返回 `-ENODEV` 时，驱动进入重连循环，重新 `habmm_socket_open()`。
-- `MM_AUD_2`（event）连接异常时，驱动会把虚拟声卡标记为 offline/online，通知上层。
-- PVM 侧 `audio_service`（`audio-umd`）/ `awe_audio_service` / `vhost-user-aud` / `aud-fastrpcd` 重启时，GVM 侧 HAB 可能断开并重连；需要检查 systemd 服务状态和 dmesg。
-- CSD2 插件注册 SSR 回调，DSP 重启后清理并重建会话。
-
----
-
-## 9. AWE / CSD2 / DSP 图设计
-
-### 9.1 PCM ID 号段
-
-AWE 图 `NordyADP.awj` 中的图内 legend/annotation 定义了 ALSA-IO PCM ID 号段：
-
-| 号段 | 用途 |
+| 资源 | PCM RX / TX device |
 | --- | --- |
-| 0–49 | PVM ALSA Source |
-| 50–99 | **GVM ALSA Source（GVM 播放）** |
-| 100–149 | PVM ALSA Sink |
-| 150–199 | **GVM ALSA Sink（GVM 捕获）** |
+| Primary / Secondary / Tertiary Input | TX 162 / 158 / 160 |
+| FM Input / Echo Ref / MIC ECNR | TX 159 / 163 / 169 |
+| HFP_TX | RX 67 / TX 164 |
+| HFP_RX | RX 54 / TX 154 |
+| FM_RX_TX | RX 61 / TX 161 |
+| EXTERIOR_TALK_TX | RX 68 / TX 165 |
+| SWITCH_TX | RX 70 / TX 167 |
 
-因此：
+FM resource 的存在不等于标准 FM device/route 已启用；当前 primary XML 的 tuner 条目被注释，需结合产品 radio 实现分析。
 
-- 播放 Bus 的 `pcm-id-rx` 在 50–99（如 51、55、52）。
-- 捕获 Bus 的 `pcm-id-tx` 在 150–199（如 156、155、152）。
+### 5.5 七个 Car 音区
 
-### 9.2 AWE 图与 Bus 控制
+| audioZoneId | 配置名称 | 主要 Bus |
+| ---: | --- | --- |
+| 0（primary） | primary zone | 主音区 media/notification/navigation/phone/alerts/assistant/ADAS/KTV/Atmos/车外等 Bus |
+| 1 | front passenger bt zone | `BUS18_BT_HEADPHONE_1` |
+| 2 | rear seat bt zone | `BUS19_BT_HEADPHONE_2` |
+| 3 | driver bt zone | `BUS17_BT_HEADPHONE_0` |
+| 4 | driver headrest zone | `BUS21_HEADREST_DRIVER` |
+| 5 | front passenger headrest zone | `BUS22_HEADREST_FRONT_PASSENGER` |
+| 6 | rear seat headrest zone | `BUS23_HEADREST_REAR` |
 
-- `awc_index.txt` 中包含 `BUS00_MEDIA_Volume.gain`、`BUS00_MEDIA_Mute.isMuted`、`BUS01_SYS_NOTIFICATION_Volume` 等模块/控件；但不是每套 SKU 配置都同时覆盖所有 Bus：`h66a/awc_index.txt` 中 `BUS16_REAR_SEAT` 只有 Mute、`BUS08_FRONT_PASSENGER` 没有条目；`NordyADP_OneDSP.txt`/`NordyADP_TwoDSPs.txt` 中则包含 BUS08 和 BUS16_Volume。服务按 `/tmp/awe_dsp_sku_config` 选择配置，排查时必须确认实际 SKU。
-- `NordyADP.awc` 是 AWE 图配置；`awc_index.txt` 是控件索引。`awe_audio_service` 按 SKU 选择 `awc_index.txt` 或 `NordyADP_OneDSP.txt`/`NordyADP_TwoDSPs.txt` 启动图。
-- 修改 Bus、PCM ID 或图结构时，`awe_resource.xml`、`awc_index.txt`、`NordyADP.awc` 必须同步更新；目标 SKU 若使用 `NordyADP_*` 配置，也要同步核对对应文件。
+必须按完整地址区分 Bluetooth 的 `BUS17_BT_HEADPHONE_0` 与输入的 `BUS17_INPUT_REAR_SEAT`。以上统计是默认配置；实际 suffix、overlay 和已打开流以目标设备为准。
 
-### 9.3 CSD2 stream / device PP
+## 6. 播放通路与当前断点
 
-- 播放：有独立 CSD2 条目的 Bus 使用 `CSD2_STREAM_PCM_PLAYBACK_BUS_*` + `DEVICEPP_RX_BUSxx_*`；`BUS07/10/11/2008` 在 `csd2_platform_info.h` 中没有独立 stream/PP，走 AWE 图/控制项。
-- 捕获：`CSD2_STREAM_BUSxx_INPUT` + `DEVICEPP_TX_BUSxx_*`。
-- stream metadata 中的 GKV 例子：`STREAMRX=BUS00_MEDIA`、`VMID=LA_GVM_1`；CSD2 用这些 KV 匹配 `stream_nodes`，找不到会打印 `Couldn't find the correct stream_node_id for the given KVs`。
-- device PP 由 `AnalyzeStrdevMetadata()` 根据 `DEVICEPP_RX/TX` KV 选择。
+总图见 §3，音乐播放的建流、数据和停止时序见 §16.1。
 
-### 9.4 `awe_audio_service` 与 `csd2_audio_plugin` 的分工
+### 6.1 应用、Framework 与资源选择
 
-- PVM 的 `audio_service`（`audio-umd.service`）链接 `AudioDeviceManager` 库；`AudioDeviceManager` 创建/使用 `CSD2AudioPlugin`，PCM 数据实际经 `CSD2AudioPlugin::StreamWrite/StreamRead` → `csd2_write/csd2_read` 进入 CSD2 图。
-- `awe_audio_service` 负责 AWE 图的运行与 Bus 级控制（Volume/Mute），是图/控制面的服务。
-- 两者都使用 `BUSxx` 命名，但**是否共用同一张图、同一组控制项取决于目标 SKU**：需同时核对 `awc_index.txt`/`NordyADP` 与 `csd2_platform_info.h`，不能假设任一侧的条目自动存在于另一侧。
+1. AudioTrack 与 AudioFlinger 通过共享 buffer 交换样本，并通过 Binder 管理控制操作。普通 Mixer/FastMixer 路径可混合多个 Track；Direct/Offload 需另行分析。
+2. Car 音频策略与 AudioPolicy 参与 context/zone 到设备的路由，HAL 收到设备地址、输出 flags 等信息。
+3. `AudioUsecase.cpp` 同时匹配 Bus 和 flags；`StreamOutPrimary` 设置 PAL stream 属性及 `bus_addr`。
+4. 只有 PAL 设备转换、资源选择等条件满足后，SessionAWE 才能按 PAL device 名、Bus、支持类型和空闲状态选择 `pcmRxID`。
 
----
+### 6.2 OUT_BUS → PAL 的源码断点
 
-## 10. 关键设计点与约束
+当前 primary 输出 devicePort 使用 `OUT_BUS`，`ModuleConfig.cpp` 保留该 AIDL 类型。可见调用链为：
 
-### 10.1 Bus 抽象
+```text
+PlatformConverter::getPalDeviceId(OUT_BUS)
+  → 映射缺失，返回 PAL_DEVICE_OUT_MIN
+Platform::convertToPalDevices()
+  → 返回空设备列表
+StreamOutPrimary::configure()
+  → 检测空列表，打印 no connected devices on stream!! 并返回
+  → 后续 updatePalDeviceForBusAddr() / pal_stream_open() 尚未执行
+```
 
-- Bus 是 Android audio policy 的虚拟端口，用 `address=BUSxx` 表达；不是 Linux `/dev/snd` 节点。
-- 同一个 Bus 名称贯穿：`audio_module_config_primary.xml` → HAL `bus_addr` → `awe_resource.xml` → `csd2_platform_info.h`（仅限有独立 CSD2 条目的 Bus）；`backends.xml` 由 PAL device 映射到 TDM/DAI，不再使用 Bus 名称。
-- `awe_resource.xml` 的 AWE PCM 编号（51–70、152–169）与 `card-defs.xml` 的 AGM PCM 编号（100–125）是两套，不要把 51/156 与 PCM100–125 直接对应。
-- 新增 Bus 必须同时修改上述配置，否则会出现 `unknown bus address`、`Unable to find pcm device`、`Couldn't find stream_node_id` 等错误。
+`updatePalDeviceForBusAddr()` 的 Bus 覆盖发生在判空之后，不能修复此前的空列表。当前 map 还未覆盖 BUS21/22/23。不能用“未识别 Bus 后默认 speaker”解释该路径。
 
-### 10.2 VM 隔离
+这是当前源码/配置之间的确定断点。文档修订不修改产品实现；设备是否使用同一 HAL 版本、是否有其他构建修正，仍需核对镜像。
 
-- GVM 的内置音频只能看到 `msm_virtio_snd` 虚拟声卡；不能直接访问内置 aDSP、TDM、A2B。USB、Bluetooth 等外部音频由对应 HAL 模块处理。
-- PVM 管理内置物理音频资源，负责 A2B/Codec 的初始化、SSR 和电源管理。
-- 跨 VM 的内置音频只通过 HAB 音频通道和 vhost/VMM 控制通道交互。
+### 6.3 PCM 与跨 VM 传输
 
-### 10.3 通道容量
+在设备转换等前置条件满足的流上：
 
-| 后端 | 通道数 | 典型用途 |
-| --- | ---: | --- |
-| `TDM-LPAIF_RXTX-RX-PRIMARY` | 32 ch | 主舱 Bus 组混音输出 |
-| `TDM-LPAIF-RX-PRIMARY` | 8 ch | 前排乘客 |
-| `TDM-LPAIF_VA-RX-PRIMARY` | 16 ch | 后排 |
-| `TDM-LPAIF_RXTX-TX-PRIMARY` | 32 ch | A2B 主麦克风 |
-| `TDM-LPAIF_VA-TX-PRIMARY` | 16 ch | A2B2 后排麦克风 |
+```text
+SessionAWE::write()
+  → pcm_write() / VIOSND
+  → 当前子流 sid，HAB MM_AUD_4（104）发送描述符
+  → HAB over virtio / PVM kernel hab_vhost
+  → PVM AWE 音频服务边界
+     libAweDeviceManager / AweAudioPlugin::StreamWrite / awe_write
+  → libawe_controller / libawe_alsa：流状态及位置提交
+  → 映射后的 PCM transfer ring
+  → 所选 DSP 实例的 ALSASource → 图处理 / 混音 → 硬件端口
+```
 
-默认采样率 48 kHz；Bus mixPort 支持 8k–48k，PCM 16-bit 为主，低时延/深缓冲/压缩/直通等流类型按 `mixPort` flags 区分。
+上述库依赖、主要读写/映射分支由配方、当前 ELF 和模块源码证实；私有实现内部仍非全部可见。当前 GVM 插件开流选择的位置提交模式，不应画成 PCM 在各个库之间逐级复制。PCM 样本使用共享 buffer，不随每个 HAB 描述符作为普通消息 payload 搬运；完成响应回到数据通道，驱动更新 PCM 进度。
 
-### 10.4 时延与缓冲
+### 6.4 从图到物理扬声器
 
-- 播放流按 `mixPort` flags 选择 `PAL_STREAM_PLAYBACK_BUS`、`PAL_STREAM_LOW_LATENCY`、`PAL_STREAM_DEEP_BUFFER`、`PAL_STREAM_COMPRESSED` 等。
-- HAB 按 period 发送消息；`pcm_period_ms`、`pcm_buffer_ms` 是驱动模块参数。
-- `MMAP_NOIRQ` 流使用 `no_period_wakeup`，DMA 导出走 CONTROL 通道。
+默认 `NordAU/target_config/NordyADP.awj` 的静态连接示例：
 
-### 10.5 配置一致性
+```text
+Source51 → SRC3 → Stream_ALSASource51 → ChangeThreadV2_34
+         → MixerV3_3 → ChangeThreadV2_25
+         → Device_INTFC1_Sink1 → INTFC0_Sink1
+```
 
-以下配置必须保持一致：
+默认图的 Source51、Source71/72 均在 instance 0；`awecore.yml` 定义该实例为 ADSP。上述两个 ChangeThread 的 targetInstance 为 Inherit，不能由其名称推断 ARM→DSP 中转。OneDSP/TwoDSPs 的 Source51 同样在 instance 0，但不包含默认图的 Source71/72。
 
-1. `audio_module_config_primary.xml`：Bus 地址、usecase、mixPort/devicePort。
-2. `awe_resource.xml`：Bus → PAL device、`pcm-id-rx/tx`、Volume/Mute 控件。
-3. `csd2_platform_info.h`：`CSD2_STREAM_*`、`DEVICEPP_*`、`VMID`。
-4. `backends.xml`：PAL device → TDM/DAI → `snd_device_name`。
-5. `card-defs.xml`：AGM 虚拟卡的 PCM 设备和 plugin（与 AWE PCM 号不是同一套编号）。
-6. `awc_index.txt` / `NordyADP_*`：目标 SKU 的 AWE 图与 Bus 控制项；需与 `awe_resource.xml` 的声明对齐。
+同图还可见 Source71/72 到该混音/输出结构的连接。`INTFC0_Sink1` 声明 32 channels、lpaifIdx=0、bitWidth=32。这里的模块名与参数来自该图；`Device_INTFC1_Sink1` 的名字不能替代实际末端模块属性。
 
-任何一处不一致，都可能导致“能打开流但没声音”“Bus 音量无效”“路由到错误扬声器”等问题。
+该静态示例不证明每个输入在所有运行模式下都送到全部输出通道。要确定座位、扬声器、A2B 节点和槽位，必须继续核对实际加载图中的矩阵/控制状态与硬件配置。不能把另一套 CSD2 `backends.xml` 的 32/8/16 ch 分组直接当作 H47A AWE 的物理拓扑。
 
----
+## 7. 捕获通路
+
+总图见 §3，普通录音的建流、数据和停止时序见 §16.2。
+
+```text
+麦克风 / TDM 等实际输入
+  → 所选 AWE 图的输入与处理模块
+  → AWE 后端、awe_read / AweAudioPlugin::StreamRead 服务边界
+  → HAB MM_AUD_3（103）的数据描述符/完成响应
+  → VIOSND 对应 sid 的捕获子流
+  → SessionAWE::read() / pcm_read()
+  → StreamInPrimary / AudioFlinger::RecordThread / AudioRecord
+```
+
+- PCM device 156/155/152 是三个输入 Bus 的资源声明；它们不是已确认的 HAB sid。
+- 此示意图表示样本与结果返回方向；控制、buffer 提交和完成消息涉及双向协议。
+- 输入 source 可能改变 stream type，必须按 §5.4 核查实际匹配。
+- **BUS04/device156 存在图版本差异**：默认及 H66A 的 NordyADP 图未找到 deviceID 156；OneDSP/TwoDSPs 图具有 ALSASink156。资源声明不证明当前默认图已经具备该输入端点，必须确认现场所选图。
+- 本次未从所有 SKU 图证明三个输入 Bus 到物理麦克风的统一逐通道对应；不沿用 CSD2 后端的 `a2b-mic/a2b2-mic` 对应关系作为结论。
+
+## 8. HAB、PCM 编号与共享内存
+
+### 8.1 四个音频通道
+
+下表按本分支实现命名；RX/TX 方向不可直接套用其他 virtio-snd 实现的习惯。
+
+| 音频协议队列 | HAB MMID | 数值 | 当前实现用途 |
+| --- | --- | ---: | --- |
+| CONTROL | `MM_AUD_1` | 101 | 查询、配置与控制消息；特定 MMAP 路径也使用该通道导出 buffer |
+| EVENT | `MM_AUD_2` | 102 | SSR、DC_NOTIFY 等事件和声卡状态相关处理 |
+| TX | `MM_AUD_3` | 103 | 捕获相关数据消息/完成响应 |
+| RX | `MM_AUD_4` | 104 | 播放相关数据消息/完成响应 |
+
+普通 period 完成在 103/104 的消息完成处理里调用 `snd_pcm_period_elapsed()`，不是通过 EVENT 102 通知。同方向多个 sid 复用同一 HAB 通道。
+
+### 8.2 Bus、card、PCM device、sid 的对应
+
+```text
+BUS00_MEDIA
+  → awe_resource 声明 pcm-id-rx=51
+  → SessionAWE: pcm_open(实际 VIOSND card, 51, ...)
+  → 内核 PCM device/nid 对应的子流
+  → PCM_INFO 枚举索引 sid
+  → message.xfer.stream_id=sid，经 MMID 104 传输
+```
+
+内核 `sid=i`，`nid=PCM_INFO.hda_fn_nid`，`snd_pcm_new(..., nid, ...)`。没有后端枚举数据时，不能填入 `sid=51`。ALSA card 是另一维度；`card-defs.xml` 的 AGM card100/PCM100–125 也不能用来解释 AWE 的 51/156。
+
+### 8.3 共享 buffer 与消息传输
+
+1. 前端从 DMA heap 分配 dma_buf，再通过 `habmm_export()` 将已有 buffer 导出给 HAB。
+2. 消息携带 `export_id`、offset、period、长度、stream_id 等元数据；后端按导入结果访问共享样本。
+3. 消息本身经 HAB virtio/vhost 传递，存在消息复制；共享样本不意味着整个应用到 DSP 链路零拷贝。
+4. buffer 生命周期、导入导出与完成响应需要协调。当前检查未找到文档可引用的音频 fence 协议，不将“fence 严格同步”作为实现结论。
+
+PVM `/dev/vhost-aud` 由 `hab_vhost` 注册。用户态 vhost 服务负责配置桥接，内核 `physical_channel_send()` 和接收 worker 执行 HAB 消息收发。
+
+### 8.4 异常与恢复
+
+- 前端 HAB recv 返回 `-ENODEV` 后进入重新建链流程。
+- EVENT 通道异常/恢复会触发声卡 offline/online 相关处理。
+- 重连不等于所有音频会话、图与硬件状态已恢复；需继续核对 AWE 服务状态及上层重新打开流的行为。
+- CSD2 后端的 SSR 回调可见清理与通知，不能据此推断 AWE 的恢复细节，也不能称 CSD2 插件自动完成全部会话重建。
+
+### 8.5 PVM 到 aDSP：样本、映射与通知
+
+这里有三种不同动作，时序图不能把它们合成“IPCC 传 PCM”：
+
+1. **建立映射**：controller 根据 AWE instance 平台选择目标，将 transfer/position buffer 经 `libawe_osal` 的 mmap、VFIO/SMMU 路径映射，再交给 `libawe_alsa` 管理。当前 `awe_alsa.h` 同时定义 DSP/HLOS 地址视图。
+2. **处理样本与进度**：DSP ALSASource 从 ring 读取播放样本，ALSASink 将采集结果写入 ring；当前 GVM 插件模式主要调用 `awe_alsa_set_write_pointer/read_pointer` 提交进度。copy 模式的 circular read/write 另外包含转换、复制及 cache 操作。
+3. **通知及完成**：AWECore instance 发 IPCC 通知，PVM 处理唤醒；对 GVM 的周期完成响应最终通过 103/104 数据通道返回。当前播放 `StreamWriteDone` 读取并等待共享消费位置推进，ADM 再发送完成消息；不是每次 IPCC 一一触发一个 HAB period 完成。IPCC 信号、共享位置更新和 HAB 完成消息属于不同层次，不能将它们画成同一个协议。
+
+AudioLite 固定 carveout 中的 ALSA 控制表、packet/config/shared heap，与流 PCM transfer/position buffer 分别表示。已有 `build-auto` sysroot 的 `awe_alsa.h` 旧于当前预编译 tar，本次补查以当前 tar 成员及同版本 ELF 为准（S20）。
+
+## 9. AWE 图、控制项与可选 CSD2 后端
+
+### 9.1 图的编号与控件
+
+图内 annotation 将 ALSA I/O 编号分为 PVM Source 0–49、GVM Source 50–99、PVM Sink 100–149、GVM Sink 150–199。它解释图的设备命名范围，不定义 HAB sid。
+
+当前资源中的 GVM 输出包括 51、53、56–59、63–66、71、72 等；不能把范围写死为 51–70。控件由具体索引文件声明，例如 `BUS00_MEDIA_Volume.gain`、`BUS00_MEDIA_Mute.isMuted`。
+
+默认 `NordAU/target_config/awc_index.txt` 与 H66A 版本均可见 BUS16 Mute、未见 BUS16 Volume/BUS08 控件；非默认 `NordyADP_OneDSP/TwoDSPs.txt` 包含这些条目。因此资源中的控件名称必须与实际加载索引核对。BUS08/16 当前未暴露为 primary 输出，并不消除资源与图版本匹配的要求。
+
+### 9.2 文件类型与加载选择
+
+| 文件/入口 | 已核实的角色 |
+| --- | --- |
+| `NordyADP.awj` | 可读的图设计和连接结构，可用于静态追踪 |
+| `NordyADP.awc` | AWE Designer 导出的 signalflow 描述，供 Target Configurator 引用；未见运行服务直接读取它的证据 |
+| `NordyADP*.awb` | 索引 `_AWB_` 记录列出的图二进制及 preset；具体选择由索引决定 |
+| `awc_index.txt` / `NordyADP_OneDSP/TwoDSPs.txt` | AWE-Manager 索引，含控件与 `_AWB_` 记录；服务 `-c` 参数选择索引 |
+| `awe_config*.bin` | `awe_command` 读取的配置二进制；包含实例/thread/heap 等运行配置 |
+
+默认 NordAU 文件安装到 `/etc`，H66A 另安装到 `/etc/awe_profiles/h66a`。当前已见启动逻辑分为两个独立入口：
+
+- `awe-audio.service` 按 `/tmp/awe_dsp_sku_config` 的 0、1、2/3，分别将 `/etc/awc_index.txt`、`/etc/NordyADP_OneDSP.txt`、`/etc/NordyADP_TwoDSPs.txt` 作为 `awe_audio_service -c` 参数。
+- gen5 的 `awe-command-v2.service` 不传 `-c`；程序根据 `bspconfig` 的 project_number 选择默认或 H66A bin 目录，再按 DSP 场景选择 `awe_config*.bin`。若显式传 `-c`，则优先使用该路径。
+
+H66A 的自动选择目前只从源码确认适用于 `awe_command` 的 bin。不能推断服务的 TXT/AWB 也自动切到 H66A。排查时分别核对两个进程的实际参数和文件版本，不因仓库存在某份图就认定现场正在使用它。
+
+### 9.3 AudioReach/CSD2 是另一套实现
+
+仓库中的以下路径真实存在：
+
+```text
+audio_service / audio-umd
+  → AudioDeviceManager
+  → CSD2AudioPlugin::StreamWrite/StreamRead
+  → csd2_write/csd2_read
+  → AudioReach/CSD2 图
+```
+
+其 `csd2_platform_info.h` 定义 stream/PP KV，`backends.xml` 定义设备后端参数。它们适用于该后端的分析；当前 AWE 分支选择不允许把这些条目接到 §5 的 PCM 表后面，作为 AWE Bus 的确定 DSP/扬声器映射。
+
+`BUS07/10/11/2008` 缺少某个 CSD2 stream 条目，只能说明 CSD2 表未定义该名称，不能推出“该 Bus 从 CSD2 自动转交 AWE”。新增 AWE Bus 也不意味着必须修改 CSD2 表；应沿实际选中的实现检查配置依赖。
+
+## 10. 配置一致性与时延
+
+### 10.1 AWE 路径的配置检查顺序
+
+1. 确认镜像选择 AWE，核对实际加载的 HAL、session 插件与 PVM 服务。
+2. 核对 Car context/zone/volume group、primary mixPort/devicePort/route。
+3. 核对 Bus + flags/source 到 usecase/stream type、AIDL device 到 PAL device 的转换。
+4. 核对 AWE resource 的 device、Bus、支持类型、PCM device 和控件。
+5. 核对 PVM 所选 AWE 索引、图二进制、ALSA Source/Sink 和硬件端口配置。
+6. 核对 VIOSND card、PCM device/nid 与 sid 枚举关系。
+
+### 10.2 通道数、格式与硬件路由
+
+以具体 mixPort/device profile 与所选图的参数为准。产品配置含立体声及 Dolby 多声道 profile，不能用统一“所有 Bus 8k–48k/16 bit”概括全部节点。
+
+默认图中可见 48 kHz、不同位宽/通道数的端口模块；这些参数也不直接等于扬声器数量。本文不再列未经 AWE 图验证的“主舱32 / 前排8 / 后排16”物理分组。
+
+### 10.3 缓冲与周期
+
+- 前端驱动参数包括 `pcm_buffer_ms`、`pcm_period_ms_min/max`、`pcm_periods_min/max`；没有单独名为 `pcm_period_ms` 的参数。
+- SessionAWE 根据 PAL media config 和 buffer 配置设置 PCM rate、format、channels、period_size/count。
+- `no_period_wakeup` 路径的 DMA export 选择 CONTROL 通道；普通 period 完成经数据响应处理。
+- 静态配置不能给出应用到扬声器的实际时延，需结合运行参数和测量。
 
 ## 11. 调试与验证
 
-### 11.1 Android GVM
+### 11.1 Android GVM：先确认配置和编号
 
 ```bash
-# AudioFlinger / AudioPolicy 状态
+getprop ro.boot.audio
+getprop ro.hardware.audio.primary
+cat /proc/asound/cards
+cat /proc/asound/pcm
 dumpsys media.audio_flinger
-dumpsys audio
-
-# Car 音频 Zone / Context
+dumpsys media.audio_policy
 dumpsys car_service
-
-# 虚拟声卡与 PCM 设备
-# 先确认实际 card/device：AWE resource 的 51/156 是 PCM 通道号，
-# 不一定等于 card-defs 的 PCM100–125
-cat /proc/asound/cards
-ls -l /dev/snd
-
-# 确认 card/device 后再执行播放/录音
-tinymix -D 100
-tinyplay /data/test.wav -D 100 -d 51
-tinycap /data/cap.wav -D 100 -d 156
-
-# 日志
-logcat -b all -s AudioFlinger AudioPolicyManager audio_hw
+logcat -b all -d | grep -Ei 'SessionAWE|no connected devices on stream|Unable to find pcm device|pal device|bus address'
 ```
 
-### 11.2 Linux PVM
+根据 `/proc/asound/cards` 确认 VIOSND 的实际 card，再填写以下占位符；播放/录音会打开真实音频通路，执行前应明确测试目标。
 
 ```bash
-# 音频后端服务
-systemctl status audio-umd
-systemctl status awe-audio
-systemctl status vhost-user-aud
-systemctl status aud-fastrpcd
-
-# 日志
-journalctl -u audio-umd -f
-journalctl -u awe-audio -f
-journalctl -u vhost-user-aud -f
-
-# 声卡/DAI
-cat /proc/asound/cards
-tinymix
-tinyplay /data/test.wav
-tinycap /data/cap.wav
-
-# 驱动/HAB/DSP 日志
-dmesg | grep -Ei "hab|vsnd|virtio|csd2|awe|adsp"
+# 将 <VIOSND_CARD> 替换为确认的索引；不要直接写成 AGM card 100。
+tinymix -D <VIOSND_CARD>
+tinyplay /data/test.wav -D <VIOSND_CARD> -d 51
+tinycap /data/cap.wav -D <VIOSND_CARD> -d 156
 ```
 
-### 11.3 Bus 到扬声器的验证
+以上是直接 PCM 测试模板。应先确认相应 device 存在、格式参数受支持且未被占用。直接 tinyplay/tinycap 不经过 Car 路由和 primary HAL 的 OUT_BUS 转换，测试成功不能证明 AudioTrack/AudioRecord 的完整路径已通。
 
-1. 在 `car_audio_configuration.xml` 找到目标 context 对应的 Bus 地址。
-2. 在 `awe_resource.xml` 查该 Bus 的 `pcm-id-rx` 和 `BUSxx_Volume` / `BUSxx_Mute`。
-3. 在 `csd2_platform_info.h` 查对应的 `CSD2_STREAM_*` 和 `DEVICEPP_RX_*`。
-4. 在 `backends.xml` 查 PAL device → TDM/DAI → `snd_device_name`。
-5. 播放测试音，分别验证主舱/前排/后排扬声器输出；用 `tinymix` 调 `BUSxx_Volume`，确认只影响目标 Bus。
-6. 捕获测试：分别用 `BUS04`、`BUS09`、`BUS17` 录音，确认 `stream_id` 和麦克风通道对应。
+### 11.2 Linux PVM：核对 AWE 启动入口
 
-### 11.4 常见问题
+```bash
+systemctl status awe-audio awe-command vhost-user-aud aud-fastrpcd
+systemctl cat awe-audio awe-command vhost-user-aud
+cat /tmp/awe_dsp_sku_config
+journalctl -u awe-audio -u awe-command -u vhost-user-aud -b
+dmesg | grep -Ei 'hab|vhost|virtio|awe|adsp'
+```
 
-| 现象 | 可能原因 | 排查 |
-| --- | --- | --- |
-| `unknown bus address` | HAL `updatePalDeviceForBusAddr` 只显式覆盖部分 Bus；BUS00/01/02/03/05 等不在 map 中时可能打印该日志 | 检查 `StreamOutPrimary.cpp`/`StreamInPrimary.cpp` 的 map；确认流是否仍使用默认 PAL device 正常出声 |
-| `Unable to find pcm device for bus address` | `awe_resource.xml` 缺少 Bus，或 `supported-types` 不包含当前 stream 类型 | 检查 `pcm-id-rx/tx` 和 `PAL_STREAM_*` |
-| `Couldn't find the correct stream_node_id` | CSD2 收不到 `STREAMRX=BUSxx` / `VMID` KV，或 `csd2_platform_info.h` 缺少对应 stream | 检查 metadata、`stream_nodes` |
-| 能打开流但无声音 | TDM/A2B 后端未通、A2B 功放未上电、`BUSxx_Mute` 为 true | 检查 `backends.xml`、A2B 硬件、AWE Mute |
-| 主舱有声音、前排/后排无声 | 对应 Bus 未路由到 A2B/A2B2，或 TDM 通道数不匹配 | 检查 `BUS08`/`BUS16` 的 PAL device、TDM、A2B |
-| 录音只有主麦 | `BUS09`/`BUS17` 的 stream_id 或 device PP 不对 | 检查输入 Bus 映射和 A2B mic |
-| HAB `-ENODEV` | PVM 后端重启、`awe_audio_service`/`vhost-user-aud` 异常 | 检查 PVM 服务、dmesg |
-| 虚拟声卡 offline | `MM_AUD_2` 事件通道断开 | 检查 HAB 连接、PVM 服务 |
+检查 `awe_audio_service` 的 `-c` 索引、`awe_command` 的配置选择及车型信息。`audio-umd`/CSD2 日志只在实际使用对应后端时检查，不作为 AWE 基线的必经步骤。
 
----
+### 11.3 按问题选择证据
 
-## 12. 代码索引
-
-> 下表 Android 路径相对于 `/home/voyah/workspace/8397/vendor`；PVM 路径相对于 `/home/voyah/workspace/8397/linux/apps/apps_proc`。`kernel_platform` 位于 Android 树内。
-
-| 模块 | 路径 |
+| 现象/疑问 | 首先核对 |
 | --- | --- |
-| AudioTrack / AudioRecord | `frameworks/av/media/libaudioclient/AudioTrack.cpp`、`AudioRecord.cpp` |
-| AudioFlinger | `frameworks/av/services/audioflinger/AudioFlinger.cpp`、`Threads.cpp` |
-| CarAudioService | `packages/services/Car/service/src/com/android/car/audio/CarAudioService.java` |
-| AIDL HAL 服务 | `vendor/qcom/opensource/audio-hal-ar/primary-hal/hal/service/Android.bp`、`audiohalservice_qti.rc` |
-| StreamOut / StreamIn | `vendor/qcom/opensource/audio-hal-ar/primary-hal/hal/core/StreamOutPrimary.cpp`、`StreamInPrimary.cpp` |
-| Bus → usecase | `vendor/qcom/opensource/audio-hal-ar/primary-hal/hal/core/platform/AudioUsecase.cpp` |
-| PAL | `vendor/qcom/opensource/pal/Android.mk`、`pal/stream/src/Stream.cpp` |
-| AWE PAL session | `vendor/qcom/proprietary/mm-audio-auto/awe/pal_awe_plugin/session/SessionAWE/src/SessionAWE.cpp` |
-| AWE Bus/PCM 资源 | `vendor/qcom/proprietary/mm-audio-auto/awe/pal_awe_plugin/configs/gen5/awe_resource.xml` |
-| virtio-snd / HAB | `vendor/qcom/opensource/audio-kernel-virtio/virtio_card.c`、`virtio_pcm.c`、`virtio_pcm_msg.c` |
-| HAB MMID | `kernel_platform/soc-repo/include/uapi/linux/habmmid.h` |
-| PVM audio_service | `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/audio_service/src/main.c`、`coreinit.c` |
-| PVM AudioDeviceManager | `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/virtio_audio_device/audio_device_manager/src/AudioDeviceManager.cpp` |
-| CSD2 插件 | `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/virtio_audio_device/audio_plugin_intf/csd2_audio_plugin/src/csd2_audio_plugin.cpp` |
-| CSD2 stream/PP | `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/audio_driver/csd2/config/csd2_platform_info.h` |
-| PVM 后端 DAI | `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/virtio_audio_device/sound_card_info_util/libs/xml_parser/configs/backends.xml` |
-| AWE 图 | `linux/apps/apps_proc/vendor/qcom/proprietary/awe/awe_config/NordAU/target_config/h66a/awc_index.txt`、`NordyADP.awc` |
-| HAL 配置 | `vendor/voyah/prebuilts/audio/audio_module_config_primary.xml`、`audio_policy_configuration.xml` |
-| Car 音频配置 | `vendor/voyah/prebuilts/audio/car_audio_configuration.xml`、`audio_arbitration.csv` |
-| 设备/属性 | `device/voyah/himalayas/himalayas.mk`、`vendor/voyah/prebuilts/audio/audio_vendor.mk` |
+| HAL 尚未打开 PCM | OUT_BUS → PAL 转换、空设备列表、实际 HAL 二进制版本 |
+| `Unable to find pcm device for bus address` | AWE resource 的 PAL device/Bus/type/occupied；BUS21 无专用资源 |
+| Bus 音量或静音无效 | 实际加载索引中控件名称、类型及图版本 |
+| 使用 PCM51 却找不到 stream_id51 | PCM device/nid 与 sid 是不同标识，读取/追踪 PCM_INFO 枚举 |
+| PCM 直测成功但应用无声 | Car/policy/HAL 路由与 OUT_BUS 转换；直测绕过了这些层 |
+| HAB 断开或虚拟声卡 offline | AWE 服务、HAB/vhost 连接和 EVENT 状态变化 |
+| 输出位置或录音通道不符 | 实际 AWE 图的连接、矩阵/控制状态、TDM/A2B 硬件配置 |
+| 出现 CSD2 stream_node 错误 | 先确认运行的是哪套后端；不要用 CSD2 报错解释未经过它的 AWE 路径 |
 
----
+## 12. 源码与证据索引
 
-## 13. 已知限制与待确认项
+路径简称均以本机源码根为准：
 
-1. **物理 A2B 拓扑**：代码只给出 `a2bspeaker`/`a2b2speaker` 和 32/8/16 ch 后端，具体扬声器位置、A2B 节点级联关系需结合硬件 DTS/原理图确认。
-2. **Codec/功放型号**：仓库中没有明确的 Codec/AMP 器件型号，本文只写到 `Audio DAC / ADC & Amplifiers` 类别层级。
-3. **AWE 图版本**：`NordyADP.awc`、`awc_index.txt` 必须与目标构建一致；修改 Bus 或 PCM ID 后需要重新生成图。
-4. **CSD2 与 AWE 服务的数据面**：代码显示 `AudioDeviceManager` 加载 `CSD2AudioPlugin`，`awe_audio_service` 负责 AWE 图/控制；不同构建若启用不同的 graph 后端，需要以实际镜像为准。
-5. **`BUS12_KTV`**：AWE resource 中存在（RX 59），但当前 primary HAL 配置未暴露。
-6. **Bus 数量差异**：`car_audio_configuration.xml` 直接引用的 Bus 地址与 HAL 的 14 路 Bus 不完全一一对应（部分前排/后排 Bus 可能走动态路由或其他配置），本文以 HAL/`awe_resource.xml` 为准。
-7. **HAB MMID**：101–104 来自内核 UAPI；如目标内核版本不同，需要复核。
-8. **未做运行时 trace 验证**：本文基于静态代码与配置；实际播放/捕获的时序、HAB 延迟、A2B 输出需在目标硬件上复测。
-9. **AWE 控制项覆盖差异**：`h66a/awc_index.txt` 中 BUS08 无控件条目、BUS16 只有 Mute，而 `NordyADP_OneDSP/TwoDSPs` 中包含这些条目；`awe_audio_service` 按 `/tmp/awe_dsp_sku_config` 选择配置，必须按实际 SKU 核对。
-10. **两套 PCM 编号**：`awe_resource.xml` 的 AWE PCM 号（51–70/152–169）与 `card-defs.xml` 的 AGM PCM 号（PCM100–125）不是同一套；调试时必须先确认实际 card/device。
-11. **`OUT_BUS` 的 PAL device 映射**：`PlatformConverter` 当前没有显式的 `OUT_BUS` 条目；`BUS00/01/02/03/05` 的最终 PAL device 由 `configureAndFetchPalDevices()` 生成，需以目标构建日志核对，不能只按 `awe_resource.xml` 推断。
+- `Q` = `/home/ethen/workspace/voyah/projects/8397/code/qssi`
+- `V` = `/home/ethen/workspace/voyah/projects/8397/code/vendor`
+- `L` = `/home/ethen/workspace/voyah/projects/8397/code/linux/apps/apps_proc`
 
----
+行号为本次复核位置，后续源码修改可能使行号偏移；应同时按函数/符号定位。
 
-## 14. 相关图
+| 编号 | 路径与定位 | 证明内容 |
+| --- | --- | --- |
+| S1 | `V/device/voyah/himalayas/himalayas.mk:882`；`init.target.rc:66–69` | AWE 属性与前端加载 |
+| S2 | `V/vendor/voyah/prebuilts/audio/audio_vendor.mk:3–16`；同目录 primary/Car/Bluetooth XML | 产品配置复制、端口/Bus/音区统计 |
+| S3 | `V/vendor/qcom/opensource/audio-hal-ar/primary-hal/hal/core/module_config/ModuleConfig.cpp:217–230,639–651` | AWE 配置目录与 OUT_BUS 类型转换 |
+| S4 | 同 HAL 下 `core/platform/AudioUsecase.cpp:315–361`；`core/StreamOutPrimary.cpp:1114–1190` | flags+Bus usecase、PAL 属性与判空顺序 |
+| S5 | 同 HAL 下 `converter/PlatformConverter.cpp:426–435`；`core/platform/Platform.cpp:286–300,366–380` | OUT_BUS 缺失映射后的返回路径 |
+| S6 | 同 HAL 下 `core/StreamInPrimary.cpp:751–816` | 输入 Bus 设备映射及 source 覆盖 |
+| S7 | `V/vendor/qcom/proprietary/mm-audio-auto/awe/pal_awe_plugin/configs/gen5/{awe_resource.xml,plugin_manager.xml}`；`session/SessionAWE/src/SessionAWE.cpp:347–393,1063–1093` | 资源声明、插件、PCM 打开和匹配条件 |
+| S8 | `V/vendor/qcom/opensource/pal/resource_manager/src/ResourceManager.cpp:1619–1624` | 实际 VIOSND card |
+| S9 | `V/vendor/qcom/opensource/audio-kernel-virtio/virtio_pcm.c:30–48,420–427,591`；`virtio_pcm_msg.c:159–233` | 参数、sid/nid、方向与周期完成 |
+| S10 | 同驱动 `virtio_card.c:273–325,347–363,396–413,489`；`V/kernel_platform/soc-repo/include/uapi/linux/habmmid.h` | 重连、export、事件与 MMID |
+| S11 | `L/layers/meta-voyah-bsp/conf/distro/auto-voyah.conf:13`；`layers/meta-qti-automotive/conf/machine/include/gen5.inc:73`；`layers/meta-qti-automotive-prop/recipes-core/packagegroups/packagegroup-qti-audio-prop.bb:36–84` | AWE / UMD 构建分支 |
+| S12 | `L/layers/meta-qti-automotive-prop/recipes-audio/{awe-audio-service,awe-device-manager,awe-audio-plugin-intf}/*_git.bb` | AWE 包依赖及 awe-noship 源码来源 |
+| S13 | `L/prebuilt_HY11/sa8797/` 下 AWE 服务与库的 `DT_NEEDED`、动态符号；`awe-audio-service/usr/lib/systemd/system/awe-audio.service:24–32`；既有镜像 manifest | AWE 设备管理/读写边界和服务索引选择；补充反汇编见 S20/S27，不能替代完整私有源码 |
+| S14 | `L/vendor/qcom/opensource/mmhab-drv/hypervisor/virtio/hab_vhost.c:132,216–223,1023–1073,1162–1168`；`L/vendor/qcom/opensource/vhost-user/vhost-user-aud.service:38` | 音频域 vhost 节点及消息收发 |
+| S15 | `L/vendor/qcom/proprietary/awe/awe_config/CMakeLists.txt:7–35`；`NordAU/target_config/{NordyADP.awj,awc_index.txt}`；`NordAU/awetc_config/config.yml:28–36` | 默认/H66A 安装位置、图/控件与 AWC 文件用途 |
+| S16 | `L/vendor/qcom/proprietary/awe/awe_command/src/AWEProcess.c:884–940,1815–1889,3074–3205`；`awe-command-v2.service` | 配置 bin 的选择与加载 |
+| S17 | `L/vendor/qcom/proprietary/audio-service/` 下 `audio_service`、`virtio_audio_device`、`audio_driver/csd2` | 可选 AudioReach/CSD2 后端，非 AWE 内部实现 |
+| S18 | `Q/frameworks/av/media/libaudioclient`、`Q/frameworks/av/services/audioflinger`、`Q/packages/services/Car`；`Q/hardware/interfaces/audio/README.md:25–27` | Framework、Car 和 AIDL 接口背景 |
+| S19 | `Q/packages/services/Car/service/src/com/android/car/audio/voyah/VoyahCarAudioParser.java:66–75`；同 audio 目录 `CarAudioService.java:2844–2855` | AWE Car 配置目录、suffix 与默认文件选择 |
+| S20 | `L/prebuilt_HY11/sa8797/awe-alsa/awe-alsa-binaries.tar → usr/include/awe_alsa.h:241–250,352–354,449–463,490–528`；同路径各 AWE 预编译 ELF | 当前 ring、DSP/HLOS 映射、平台枚举及通知契约；controller `0xc250/0xc9ac` 为模式0写/读位置提交；`0xd654–0xd850` 建立映射 |
+| S21 | `L/vendor/qcom/proprietary/awe/awe_command/src/ModALSASource.c:154–194,355–398,438–469`；`ModALSASink.c:303–321,358–366`；`CMakeLists.txt:118–121`；`AWEProcess.c:1742–1750,2790–2806` | Source/Sink 状态、样本、阈值通知、HLOS 链接及 AudioLite 资源；PVM OSAL 映射另由当前 ELF 的 mmap/SMMU 调用核实 |
+| S22 | `L/vendor/qcom/proprietary/awe/awe_config/NordAU/awetc_config/awecore.yml:77–79,141–143`；`target_config/NordyADP.tsf:458,602,616`；`NordyADP.awj:1077,1119,1233–1275,1551–1581,1695–1713,376014,414719`；`non_default_skus/NordyADP_OneDSP.awj:927–957,1215–1227` | 默认 Source51/71/72 的 ADSP 实例；HFP 硬件样本链与成对 PCM 门控；非默认156输入图；默认/H66A无156是对相应图 deviceID 集合的静态检索结果 |
+| S23 | `V/device/voyah/himalayas/himalayas.mk:715,727–728,909`；`Q/vendor/quectel/dynablue/quec-bluetooth.mk:4–8,22–29`；同目录 `vendor/etc/bluetooth/quec_bt.conf:186`；`Q/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/btservice/AdapterService.java:1016`；`Q/vendor/quectel/dynablue/Android.bp:4–16,125–145` | 当前 Quectel native 加载、A2DP Source/Sink 与 HF/AG 角色、PCM SLAVE 配置；不是设备运行态取值 |
+| S24 | `Q/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/hfpclient/HeadsetClientStateMachine.java:1185–1200,1647,2089–2112,2331`；`HeadsetClientNativeInterface.java:307`；`Q/frameworks/base/media/java/android/media/AudioManager.java:3967`；`Q/frameworks/av/media/libaudioclient/AudioSystem.cpp:412`；`services/audioflinger/AudioFlinger.cpp:1912`；`media/libaudiohal/impl/DeviceHalAidl.cpp:1338` | HFP 连接回调、rate/enabled 顺序、停止解除静音与全局参数到 AIDL 的控制转发 |
+| S25 | `V/vendor/qcom/opensource/audio-hal-ar/primary-hal/hal/core/Bluetooth.cpp:83`；`core/extensions/AudioExtension.cpp:271`；`core/extensions/Hfp.cpp:178–307,325–345,484–489`；`configs/gen5_au/gen5_au.mk:82,393`；S7 所在 `plugin_manager.xml:13,25`、`awe_resource.xml:232–256`、`SessionAWE.cpp:401–431,510–520,1120` | HFP extension 开关、双 LOOPBACK、RX先于TX、StreamPCM/SessionAWE选择及hostless PCM操作；8/16k限制与停止参数现状 |
+| S26 | `Q/packages/modules/Bluetooth/android/app/src/com/android/bluetooth/avrcpcontroller/AvrcpControllerStateMachine.java:895,1477–1545`；`a2dpsink/A2dpSinkService.java:128,372–380`；`A2dpSinkStreamHandler.java:140–150,180–197,235,302–329`；`A2dpSinkNativeInterface.java:98` | AVRCP 播放/暂停、异步焦点、native gain、远端停止保留焦点、永久失焦处理 |
+| S27 | `L/prebuilt_HY11/sa8797/awe-audio-plugin-intf/usr/lib/libAweAudioPluginIntf.so`：`StreamWriteDone 0x4574–0x4580,0x4630–0x46d4`、`StreamStop 0x3f74`、`StreamRelease 0x43a4`；`awe-device-manager/usr/lib/libAweDeviceManager.so:0xe07c,0xdd58`；S7 `SessionAWE.cpp:540–635` | 当前 ELF 中等待消费位置后返回完成、停止/释放；SessionAWE stop/close 和资源占用释放。十六进制数是该 ELF 静态虚拟地址，不是源码行号 |
+| S28 | `Q/vendor/quectel/dynablue/lib64/libbt-platform-quec.so`：`BtifAvrcpAudioTrackCreate 0xa93c`，调用点 `0xa9d0,0xa9dc,0xa9fc`；输出 `open/write/stop/close` 符号；`Q/frameworks/av/media/libaaudio/src/core/AudioStreamBuilder.cpp:78–84,187–191`；`src/legacy/AudioStreamTrack.cpp:197–206,528` | 当前 Quectel 的 AAudio session=ALLOCATE、LOW_LATENCY、非MMAP native AudioTrack路径；预编译内部codec和关闭触发策略仍需运行/厂商证据 |
 
-### 播放数据流
+## 13. 当前缺口与待确认项
 
-![Playback](diagrams/H47A_audio_playback.png)
+| 项目 | 已知事实 | 进一步确认所需证据 |
+| --- | --- | --- |
+| OUT_BUS 转换 | 当前源码返回空设备列表，先于 Bus 覆盖退出 | 实际 HAL 构建版本及配置；必要时单独修复实现 |
+| BUS21 驾驶位头枕 | 产品端口/route 存在，无专用 AWE Bus 资源 | 产品预期、应使用的 PAL type/PCM/图及控件 |
+| AWE 私有内部 | 已核实主要读写、映射、位置等待及释放分支；awe-noship 完整源码未交付 | 剩余实现的私有源码或运行 trace；不能据局部反汇编推定全部恢复语义 |
+| PCM device ↔ sid | 前端按 nid 建设备、按枚举位置分配 sid | 目标 PCM_INFO 数据/运行日志 |
+| 物理路由 | 默认图部分连接可静态追踪 | 实际加载图、运行矩阵、DTS/硬件原理图与逐通道测试 |
+| 录音 source / device156 | source 可覆盖 CAPTURE_BUS；156 在 OneDSP/TwoDSPs 图存在，默认/H66A 图未找到 | 实际输入请求、VIOSND 枚举及现场 AWB |
+| HFP 通话 | 已核实双 loopback 控制及默认图门控；BT PCM↔INTFC2 板级接线未闭合 | 硬件/设备树/运行证据；32k 分支及 stop_hfp SCO 参数需另外复核 |
+| A2DP Sink 音乐 | 选中 Quectel 栈，PCM 输出经 AAudio/native AudioTrack | 实际 codec、厂商解码内部、焦点/路由及有效 primary 输出；没有 SINK_RX_TX 硬件 patch 证据 |
+| 图与车型/SKU | 默认、H66A、OneDSP/TwoDSPs 有独立文件/选择逻辑 | 启动参数、project_number、DSP SKU 与配置版本 |
+| 延迟与恢复 | 可见前端周期消息、重连和状态通知 | 端到端测量、AWE 内部恢复与重新开流记录 |
 
-可交互版本：[H47A_audio_playback.html](diagrams/H47A_audio_playback.html)
+## 14. 图文件与维护方式
 
-### 捕获数据流
+- [draw.io 总图](diagrams/H47A_audio_overview.drawio)：组件、容器和连接线的编辑源；本次保留用户手工修改，未改写该文件。
+- [PNG 总图预览](diagrams/H47A_audio_overview.png)：从当前 draw.io 重新导出，已嵌入 §3。
+- §16 的四个 Mermaid 源码块：直接随本文维护，分别表达音乐播放、录音、HFP 电话和 A2DP Sink 音乐的时序。
 
-![Capture](diagrams/H47A_audio_capture.png)
+总图用于看部署、分层和依赖；时序图用于看一次场景中的控制与数据先后关系。两者共同保留配置前提和未验证边界，不以图中的连线证明设备现场已经跑通。
 
-可交互版本：[H47A_audio_capture.html](diagrams/H47A_audio_capture.html)
+## 15. 本次修订与验证
 
----
+- 从用户最新 `.drawio` 重新导出 PNG，并校验源文件在本次处理前后保持一致。
+- 将总图嵌入本文，按 GVM、PVM、Hypervisor/aDSP/外设解释组件及运行归属。
+- 补充 PVM 的 ring/位置提交、VFIO/SMMU 映射和 IPCC 通知证据，纠正 ARM runtime 必经的误读。
+- 新增 §16 四类场景的 Mermaid 时序，覆盖建立、周期数据与停止，并将产品配置、预编译边界和缺口显式放入图中。
+- 四张 Mermaid 已通过离线语法解析和渲染检查；总图嵌入、图片链接与组件表格已检查。
+- 验证范围仍为静态源码/配置、当前预编译库、文档与图的渲染；未执行 qssi/vendor/Linux 构建，未上板证明现场音频通路。
 
-## 15. 参考
+## 16. 四类音频场景的完整时序
 
-- `vendor/voyah/prebuilts/audio/audio_module_config_primary.xml`
-- `vendor/voyah/prebuilts/audio/audio_policy_configuration.xml`
-- `vendor/voyah/prebuilts/audio/car_audio_configuration.xml`
-- `vendor/qcom/opensource/audio-hal-ar/primary-hal/hal/core/StreamOutPrimary.cpp`
-- `vendor/qcom/opensource/audio-hal-ar/primary-hal/hal/core/platform/AudioUsecase.cpp`
-- `vendor/qcom/proprietary/mm-audio-auto/awe/pal_awe_plugin/configs/gen5/awe_resource.xml`
-- `vendor/qcom/opensource/audio-kernel-virtio/virtio_card.c` / `virtio_pcm_msg.c`
-- `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/virtio_audio_device/audio_device_manager/src/AudioDeviceManager.cpp`
-- `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/audio_driver/csd2/config/csd2_platform_info.h`
-- `linux/apps/apps_proc/vendor/qcom/proprietary/audio-service/virtio_audio_device/sound_card_info_util/libs/xml_parser/configs/backends.xml`
-- `linux/apps/apps_proc/vendor/qcom/proprietary/awe/awe_config/NordAU/target_config/h66a/awc_index.txt`
+本节分别展开**请求/路由、建流、周期数据、停止/释放**。框架和服务初始化、加载 AWB 属于前置条件，不在每个播放 period 重复执行。为便于阅读，部分 participant 合并同一功能链的组件，真实进程归属以 §4 为准。`loop` 表示重复工作，不代表所有参与方锁步执行；返回箭头不代表搬运了同等大小的 PCM 数据。
+
+| 场景 | 本节明确选择的例子 | 关键前提或边界 |
+| --- | --- | --- |
+| 音乐播放 | 本地播放器，主音区 `BUS00_MEDIA`，PCM device 51 | 当前 `OUT_BUS` 转换缺口未修复；成功分支是具备有效映射后的条件路径。 |
+| 普通录音 | 显式选择 `BUS04_INPUT`，source 保持 CAPTURE_BUS，device 156 | OneDSP/TwoDSPs 图有 Sink156；默认/H66A 图未找到该端点，不能宣称默认配置已闭环。 |
+| 蓝牙电话 | 手机为 AG，车机为 HF，HFP NB/WB 通话 | 两条 hostless loopback 控制 DSP 图；蓝牙 PCM 到板级 INTFC 的接线尚未核实。 |
+| 蓝牙音乐 | 手机为 A2DP Source，车机为 Sink，向主音区播放 | 实际 Quectel 栈输出到 AAudio/native AudioTrack；后端仍受 `OUT_BUS` 缺口约束。 |
+
+### 16.1 音乐播放：BUS00_MEDIA → PCM51 → ADSP
+
+这是普通 PCM 音乐路径。解码在播放器/媒体框架侧完成，AudioTrack 接收 PCM；不以此图概括压缩 offload 或所有 direct 路径。Car/AudioPolicy 在创建/复用输出时选定 Bus，后续每个 period 不重复进行音区配置。
+
+```mermaid
+%%{init: {"theme":"neutral","sequence":{"useMaxWidth":false,"wrap":true,"actorMargin":24,"messageMargin":28,"noteMargin":10,"width":150,"diagramMarginX":20,"diagramMarginY":20}}}%%
+sequenceDiagram
+    autonumber
+    participant App as Player / AudioTrack
+    participant Policy as CarAudioService / AudioPolicy
+    participant AF as AudioFlinger
+    participant HAL as StreamOutPrimary
+    participant PAL as PAL / SessionAWE / tinyalsa
+    participant FE as VIOSND / HAB frontend
+    participant PVM as PVM awe_audio_service
+    participant Ring as PCM transfer / position buffers
+    participant DSP as ADSP ALSASource51 / AWE graph
+    participant HW as INTFC / board audio / speakers
+
+    Note over PVM,DSP: Startup already loaded the selected AWB and registered graph endpoints
+    App->>Policy: Request media focus and output for USAGE_MEDIA
+    Policy-->>App: Focus / routing decision for the selected zone
+    Policy->>AF: Open or reuse output routed to BUS00_MEDIA
+    AF->>HAL: AIDL output configuration and connection / patch
+    HAL->>HAL: Resolve flags, BUS00 and PAL device
+    alt Current source: OUT_BUS maps to PAL_DEVICE_OUT_MIN
+        HAL-->>AF: Empty device list, configure exits before pal_stream_open
+        Note over App,HW: No successful end-to-end playback is claimed for this branch
+    else Validated device mapping and matching runtime configuration
+        HAL->>PAL: pal_stream_open / configure PLAYBACK_BUS
+        PAL->>PAL: Match BUS00, SPEAKER, supported type and free resource
+        PAL->>FE: pcm_open(actual VIOSND card, device 51)
+        FE->>PVM: HAB CONTROL 101: parameters and shared-buffer mapping
+        PVM->>PVM: ADM / Plugin StreamSetParam -> awe_open
+        PVM->>Ring: Map transfer and position buffers, select instance platform
+        DSP->>Ring: Observe configuration and establish DSP address views
+        PAL->>FE: Prepare / start when requested
+        FE->>PVM: Start the corresponding sid
+        PVM->>Ring: Set AWE endpoint state to STARTED
+        loop Playback periods
+            App->>AF: Decoded PCM via AudioTrack shared buffer
+            AF->>AF: Mix / resample / apply processing as selected
+            AF->>HAL: PCM through FMQ, control through AIDL
+            HAL->>PAL: pal_stream_write / SessionAWE::write
+            PAL->>FE: pcm_write
+            FE->>Ring: Make PCM available in the shared stream buffer
+            FE->>PVM: HAB 104: sid, offset and length descriptor
+            PVM->>Ring: awe_write: commit write position in current plugin mode
+            DSP->>Ring: Read available PCM after start threshold
+            DSP->>Ring: Advance consumed read position
+            par Graph processing / physical output
+                DSP->>DSP: Source51 / SRC / selected processing and mixer
+                DSP->>HW: Graph output via INTFC0_Sink1
+            and Buffer-consumption completion
+                PVM->>Ring: StreamWriteDone checks / waits for consumption progress
+                PVM-->>FE: HAB 104 completion
+                FE-->>PAL: Advance ALSA position, snd_pcm_period_elapsed
+            end
+        end
+        Note over PVM,DSP: IPCC status / buffer notifications are independent of individual HAB completions
+        App->>AF: Stop / release AudioTrack
+        opt Output is no longer used and HAL enters standby / closes
+            AF->>HAL: Standby / close output
+            HAL->>PAL: pal_stream_stop / close
+            PAL->>FE: pcm_stop / pcm_close
+            FE->>PVM: Stop / release the stream
+            PVM->>Ring: Stop endpoint and request unmap
+            DSP->>Ring: Unmap transfer / position views and acknowledge
+            PVM->>Ring: Release mappings and owned resources
+            Note over FE,PVM: Release shared exports/imports after their users are finished, keep the AWE service running
+        end
+    end
+```
+
+补充说明：
+
+- `PCM device=51` 来自资源，`sid` 来自 PCM_INFO 枚举；`HAB 104` 是播放消息通道，不能把三者写成同一个编号。
+- `libawe_alsa` 当前位置提交模式、DSP ring 读写和跨 VM DMA 共享共同构成该段交接；图未证明应用至 DSP 全程零拷贝。
+- `StreamWriteDone` 读取共享消费位置并等待推进后返回，ADM 再发 HAB 完成。不能把每个 period 完成直接等同于一次 DSP IPCC。完成表示共享缓冲中的相应数据已被消费，不等于扬声器已完成物理播放。
+- 默认静态图的 Source51 在 ADSP instance 0；输出矩阵和板级扬声器对应仍以实际 AWB/控件/硬件为准。
+
+依据：S3–S10、S13–S16、S20–S22、S27。
+
+### 16.2 普通录音：BUS04_INPUT → PCM156 → AudioRecord
+
+例子限定为显式选择 BUS04、且 HAL 最终仍采用 `PAL_STREAM_CAPTURE_BUS` 的请求。`VOICE_RECOGNITION`、`UNPROCESSED` 等 source 可能走其他类型，不能直接复用 device156 结论。
+
+```mermaid
+%%{init: {"theme":"neutral","sequence":{"useMaxWidth":false,"wrap":true,"actorMargin":24,"messageMargin":28,"noteMargin":10,"width":150,"diagramMarginX":20,"diagramMarginY":20}}}%%
+sequenceDiagram
+    autonumber
+    participant App as Recorder / AudioRecord
+    participant Policy as AudioPolicy
+    participant AF as AudioFlinger RecordThread
+    participant HAL as StreamInPrimary
+    participant PAL as PAL / SessionAWE / tinyalsa
+    participant FE as VIOSND / HAB frontend
+    participant PVM as PVM awe_audio_service
+    participant Ring as PCM transfer / position buffers
+    participant DSP as Selected AWE graph / ALSASink156
+    participant HW as Microphone / selected INTFC input
+
+    App->>Policy: Create capture with source and selected input device
+    Policy->>AF: Open or reuse input for BUS04_INPUT
+    AF->>HAL: AIDL input configuration and connection / patch
+    HAL->>HAL: Resolve Bus device and final stream type from source
+    alt CAPTURE_BUS and the loaded graph exposes device 156
+        HAL->>PAL: pal_stream_open(CAPTURE_BUS, HANDSET_MIC, BUS04)
+        PAL->>PAL: Resource match selects pcm-id-tx 156
+        PAL->>FE: pcm_open(actual VIOSND card, 156, PCM_IN)
+        FE->>PVM: HAB CONTROL 101: parameters / shared-buffer setup
+        PVM->>Ring: awe_open and transfer / position mappings
+        DSP->>Ring: Establish DSP mapping after configuration
+        App->>AF: startRecording
+        AF->>HAL: Start / request capture
+        HAL->>PAL: Start stream, SessionAWE capture reads
+        PAL->>FE: Start / prepare capture
+        FE->>PVM: Start selected sid and submit capture buffers
+        PVM->>Ring: Set endpoint STARTED
+        loop Capture periods
+            HW->>DSP: Samples from the selected physical input
+            DSP->>DSP: Graph processing into ALSASink156
+            DSP->>Ring: Write PCM and advance write position
+            PAL->>FE: pcm_read for requested frames
+            FE->>PVM: HAB 103 capture descriptor / progress
+            PVM->>Ring: awe_read / read-position handling in current plugin mode
+            PVM-->>FE: HAB 103 capture completion when data is available
+            FE->>Ring: Access captured samples in the shared stream buffer
+            FE-->>PAL: Captured PCM / ALSA progress
+            PAL-->>HAL: pal_stream_read result
+            HAL-->>AF: Capture PCM through FMQ
+            AF-->>App: RecordTrack shared buffer, AudioRecord.read
+        end
+        Note over PVM,DSP: Ring production, position updates and notifications are asynchronous
+        App->>AF: stop / release AudioRecord
+        opt Last input client is released / input enters standby
+            AF->>HAL: Standby / close input
+            HAL->>PAL: Stop / close stream
+            PAL->>FE: pcm_stop / pcm_close
+            FE->>PVM: Stop / release endpoint
+            PVM->>Ring: Stop and request unmap
+            DSP->>Ring: Unmap views and acknowledge
+            PVM->>Ring: Release mappings / ownership
+        end
+    else Missing device156 or a different source-derived stream type
+        Note over HAL,DSP: Recheck resource type and selected AWB, this example does not establish a working capture path
+    end
+```
+
+BUS04 的静态核对结果：`awe_resource.xml` 指向 156；OneDSP/TwoDSPs 图中可追到 `INTFC8_Source → Device_INTFC8_Source → ChangeThreadV2_10 → Stream_ALSASink156 → ChangeThreadV2_15 → SINK7 → ALSASink156`。默认/H66A 图没有同一端点。这里的 INTFC8 不能未经板级证据就改写为“驾驶员麦克风”。录音图中的成功分支以所加载图确实提供 156 为前提。
+
+依据：S6–S10、S20、S22、S27。
+
+### 16.3 蓝牙电话：HFP 双向 hostless loopback
+
+本产品配置车机为 HFP HF、手机为 AG，实际 native 蓝牙栈是 Quectel 预编译。HFP client 经 AudioManager/AudioSystem、AudioFlinger 的**控制转发**和 AIDL `IBluetooth.setHfpConfig()` 启动 primary HAL 的 HFP extension；通话样本不需要经过 App AudioTrack/AudioRecord 或 AudioFlinger MixerThread。
+
+| 方向 | PAL loopback 及设备 | SessionAWE 打开的成对 PCM | 默认图中的实际样本路径 |
+| --- | --- | --- | --- |
+| 下行：远端说话 | `HFP_RX`：HFP_DOWNLINK → SPEAKER | OUT 54 + IN 154 | INTFC2_Source → HFP_RX 子图 → Mixer → INTFC0_Sink1 |
+| 上行：车内说话 | `HFP_TX`：HANDSET_MIC → HFP_UPLINK | OUT 67 + IN 164 | INTFC0_Source → HFP_TX 子图 → SubSys1 等处理 → INTFC2_Sink |
+
+54/154、67/164 的设备状态控制图中 hostless 路径的门控；不能把它们画成通话样本必须绕经 GVM 的四条数据通道。`BUS03_PHONE` 的 PCM58 是独立的普通播放资源。
+
+```mermaid
+%%{init: {"theme":"neutral","sequence":{"useMaxWidth":false,"wrap":true,"actorMargin":24,"messageMargin":28,"noteMargin":10,"width":150,"diagramMarginX":20,"diagramMarginY":20}}}%%
+sequenceDiagram
+    autonumber
+    participant Phone as Phone HFP AG
+    participant BT as Quectel native stack / BT controller
+    participant HF as HeadsetClientStateMachine
+    participant Ctrl as AudioManager / AudioSystem / AudioFlinger
+    participant HAL as AIDL IBluetooth / primary Hfp extension
+    participant PAL as PAL StreamPCM / SessionAWE
+    participant PVM as VIOSND-HAB / PVM AWE service
+    participant DSP as AWE HFP graph / INTFC
+    participant IO as Board microphone / speaker
+
+    HF->>BT: connectAudio for a local audio-connect request
+    Note over Phone,BT: SCO establishment may also be initiated by the phone
+    BT->>Phone: SCO / eSCO establishment
+    BT-->>HF: onAudioStateChanged(CONNECTED)
+    HF->>Ctrl: setHfpSamplingRate: NB 8000 / mSBC 16000
+    Ctrl->>HAL: Parameters -> IBluetooth.setHfpConfig(rate)
+    HF->>Ctrl: routeHfpAudio(true) / setHfpEnabled(true)
+    Ctrl->>HAL: IBluetooth.setHfpConfig(enabled)
+    HAL->>HAL: Connect HFP devices, configure SCO / WB parameters
+    HAL->>PAL: Open / start LOOPBACK HFP_RX first
+    PAL->>PVM: Open / prepare / start PCM_OUT54 and PCM_IN154
+    PVM->>DSP: Configure and start the paired AWE endpoints
+    HAL->>PAL: Open / start LOOPBACK HFP_TX next
+    PAL->>PVM: Open / prepare / start PCM_OUT67 and PCM_IN164
+    PVM->>DSP: Configure and start the paired AWE endpoints
+    Note over PAL,DSP: Hostless device-state gates, no GVM per-period read/write thread is created here
+    Note over BT,DSP: BT PCM to INTFC2 board wiring is not established by the available source
+    par Downlink speech
+        Phone->>BT: Remote speech over SCO / eSCO
+        BT-->>DSP: Board PCM-to-INTFC2 connection: requires hardware confirmation
+        DSP->>DSP: INTFC2_Source -> HFP_RX graph -> mixer
+        DSP->>IO: INTFC0_Sink1 -> selected speaker path
+    and Uplink speech
+        IO->>DSP: Selected microphone path -> INTFC0_Source
+        DSP->>DSP: HFP_TX graph processing -> INTFC2_Sink
+        DSP-->>BT: INTFC2-to-board-PCM connection: requires hardware confirmation
+        BT->>Phone: Local speech over SCO / eSCO
+    end
+    BT-->>HF: SCO audio disconnected
+    HF->>Ctrl: setMicrophoneMute(false), then setHfpEnabled(false)
+    Ctrl->>HAL: Disable HFP via the same AIDL control chain
+    HAL->>PAL: Stop / close HFP_RX, then HFP_TX
+    PAL->>PVM: Stop / close each paired PCM
+    PVM->>DSP: Update endpoint states, close hostless gates
+    HAL->>HAL: Disconnect HFP devices
+```
+
+需要保留的实现边界：
+
+- `PAL_STREAM_LOOPBACK` 在当前 gen5 插件中选中 `libstream_pcm.so` 和 `libsession_awe.so`，不是仅凭名字选择 `StreamHFP`。
+- Java 有 32 kHz LC3 分支，但当前 Hfp extension 只接受 8/16 kHz；本图不宣称 SWB 全链支持。
+- `stop_hfp()` 当前仍设置 `bt_sco_on=true`。图如实表达双 loopback 的 stop/close 和设备断开，未将其擅改为 false；该参数的运行影响需单独核实。
+- 当前板级配置可见 `QUEC_BT_PCM_ROLE=SLAVE`，不能仅据此认定其 PCM 引脚必接上述 INTFC2。图中两条明确标注待确认的连接是物理闭合缺口。
+
+依据：S22–S25、S27。
+
+### 16.4 蓝牙音乐：手机 A2DP Source → 车机 A2DP Sink
+
+这里的“蓝牙音乐”特指手机向车机发送音乐，再由车机音响播放。当前 `AdapterService` 明确加载 `bluetooth_jni_quec`；产品启用 A2DP Sink，且所选 `libbt-platform-quec.so` 提供 AAudio PCM 输出接口。不能把仓库中未选中的 AOSP native 实现或未找到的 `SINK_RX_TX` 硬件 AudioPatch 通路当作实际主链。
+
+```mermaid
+%%{init: {"theme":"neutral","sequence":{"useMaxWidth":false,"wrap":true,"actorMargin":24,"messageMargin":28,"noteMargin":10,"width":150,"diagramMarginX":20,"diagramMarginY":20}}}%%
+sequenceDiagram
+    autonumber
+    participant UI as Car BT music UI / AVRCP controller
+    participant Phone as Phone A2DP Source
+    participant Sink as A2dpSinkService / StreamHandler
+    participant Focus as AudioManager / Car audio focus
+    participant BT as Quectel native / codec boundary
+    participant AA as libbt-platform-quec / AAudio / AudioTrack
+    participant AF as AudioFlinger
+    participant HAL as Primary HAL / PAL / SessionAWE
+    participant PVM as VIOSND-HAB / PVM AWE / PCM ring
+    participant DSP as AWE graph / INTFC / speakers
+
+    UI->>UI: Local play request, MediaSession onPlay / onPrepare
+    par Focus request
+        UI->>Sink: requestAudioFocus
+        Sink->>Focus: Request USAGE_MEDIA focus
+        Focus-->>Sink: Granted result / AUDIOFOCUS_GAIN callback
+        Sink->>BT: informAudioFocusState and track gain
+    and Remote playback command
+        UI->>BT: AVRCP PLAY press / release via JNI
+        BT->>Phone: AVRCP PLAY
+    end
+    Phone->>BT: Negotiated A2DP encoded media
+    BT->>BT: Receive / decode inside selected vendor implementation
+    BT->>AA: Open PCM output
+    AA->>AA: SessionId ALLOCATE, LOW_LATENCY, openStream
+    AA->>AA: AAudio disables MMAP for this session -> native AudioTrack
+    AA->>AF: Create / start track, policy selects primary media output
+    AF->>HAL: Configure selected BUS00_MEDIA output
+    alt Current source still has the OUT_BUS mapping gap
+        HAL-->>AF: Output configure exits before PAL stream open
+        Note over Phone,DSP: A2DP reception alone does not prove sound reaches the speakers
+    else Validated device mapping, focus and matching AWE graph
+        HAL->>PVM: Open / configure / start device51 via SessionAWE
+        PVM->>DSP: Map stream buffers and start ALSASource51
+        loop Received media frames
+            Phone->>BT: Encoded A2DP frames
+            BT->>AA: Decoded PCM -> AAudioStream_write
+            AA->>AF: AudioStreamTrack -> native AudioTrack shared buffer
+            AF->>HAL: Mixed PCM through FMQ
+            HAL->>PVM: pcm_write, shared PCM and HAB104 descriptor
+            PVM->>DSP: PCM ring access and write-position commit
+            DSP->>DSP: Read PCM ring and advance shared consumption position
+            par Graph processing / physical output
+                DSP->>DSP: Process / mix PCM -> selected speaker output
+            and Buffer-consumption completion
+                PVM->>PVM: Observe shared consumption progress
+                PVM-->>HAL: HAB104 / ALSA completion
+            end
+        end
+    end
+    UI->>BT: Local pause / stop -> AVRCP PAUSE / STOP
+    BT->>Phone: Remote transport command
+    Phone-->>BT: Media suspension / stopped state
+    BT-->>Sink: STOPPED / REMOTE_SUSPEND -> SRC_STR_STOP
+    Note over Sink,Focus: SRC_STR_STOP alone keeps focus, it does not automatically abandon it
+    opt Permanent focus loss
+        Focus-->>Sink: AUDIOFOCUS_LOSS
+        Sink->>BT: Notify LOST / update playback state
+        Sink->>Focus: abandonAudioFocus
+    end
+    opt Native stack changes its PCM output lifecycle
+        alt Stop callback
+            BT->>AA: Platform stop -> AAudioStream_requestStop
+            AA->>AF: Stop this AudioTrack, keep its resources
+        else Close callback
+            BT->>AA: Platform close -> stop and AAudioStream_close
+            AA->>AF: Release this AudioTrack
+        end
+    end
+    opt Shared HAL output actually enters standby / closes
+        AF->>HAL: Standby / close the unused output
+        HAL->>PVM: Stop / release PCM51 and buffer mappings
+        PVM->>DSP: Stop / unmap that graph endpoint
+    end
+```
+
+停止与解码边界不能省略：
+
+- 焦点请求与 AVRCP PLAY 是异步交错关系，所以图中使用 `par`，不虚构“焦点回调完成后才发 PLAY”的同步门。
+- 当前 Quectel platform ELF 的 AAudio builder 设置 session=ALLOCATE、performance=LOW_LATENCY；当前 framework 因显式 session 选择非 MMAP 的 `AudioStreamTrack`，最终创建 native AudioTrack。这里不是 Java 应用自己 new AudioTrack。
+- 所选库可见 SBC 解码及 PCM 输出符号，但一次连接具体协商什么 codec、每种 codec 的内部解码位置，仍属于厂商实现/运行证据边界。已证实的是其 PCM→AAudio 播放出口。
+- 暂时失焦、duck、永久失焦和远端暂停不是同一操作：暂时失焦可调 gain=0，duck 调低 gain；远端 `SRC_STR_STOP` 不自动放弃焦点。native 哪种事件最终触发 platform close，不能仅由 Java 事件名推断。
+- 若是**车机向蓝牙耳机播放**，则为 A2DP Source：App AudioTrack → AudioFlinger → Bluetooth audio HAL/module → 编码/蓝牙传输 → 耳机。产品 BUS17/18/19 耳机音区走该方向，不能套用手机→车机 Sink 图，也不经过车载扬声器的 PCM51。
+
+依据：S23、S26–S28，以及音乐后端 S3–S10、S20–S22。

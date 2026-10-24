@@ -1,0 +1,263 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "aaos17-audio-capture",
+    "title": "PCM Capture and Privacy Control",
+    "description": "Audio HAL input is consumed by RecordThread and published through a shared buffer to AudioRecord. Audio policy controls whether client samples are silenced.",
+    "scope": "system",
+    "view": "dataflow",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 1600,
+    "height": 2020
+  },
+  "sources": [
+    {
+      "id": "car",
+      "title": "car",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioService.java#2270"
+    },
+    {
+      "id": "af",
+      "title": "af",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audioflinger/AudioFlinger.cpp#1092"
+    },
+    {
+      "id": "threads",
+      "title": "threads",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audioflinger/Threads.cpp#9731"
+    },
+    {
+      "id": "record",
+      "title": "record",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/media/libaudioclient/AudioRecord.cpp#600"
+    },
+    {
+      "id": "privacy",
+      "title": "privacy",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audiopolicy/service/AudioPolicyService.cpp#951"
+    },
+    {
+      "id": "ctrlhal",
+      "title": "ctrlhal",
+      "locator": "https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl#85"
+    },
+    {
+      "id": "module",
+      "title": "module",
+      "locator": "https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/audio/aidl/android/hardware/audio/core/IModule.aidl#409"
+    },
+    {
+      "id": "stream",
+      "title": "stream",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/media/libaudiohal/impl/StreamHalAidl.cpp#650"
+    }
+  ],
+  "deployment": {
+    "profile": "single-domain",
+    "evidence": [
+      "car",
+      "af",
+      "ctrlhal"
+    ]
+  },
+  "containers": [
+    {
+      "id": "android",
+      "kind": "domain",
+      "title": "Android Automotive OS",
+      "x": 36,
+      "y": 36,
+      "w": 1528,
+      "h": 1948,
+      "domainType": "os",
+      "platform": "android"
+    },
+    {
+      "id": "client",
+      "kind": "group",
+      "title": "Application client",
+      "x": 100,
+      "y": 150,
+      "w": 600,
+      "h": 350,
+      "parent": "android"
+    },
+    {
+      "id": "aud",
+      "kind": "process",
+      "title": "audioserver",
+      "x": 100,
+      "y": 850,
+      "w": 1300,
+      "h": 660,
+      "evidence": [
+        "af"
+      ],
+      "parent": "android"
+    },
+    {
+      "id": "hal",
+      "kind": "group",
+      "title": "Audio HAL contract",
+      "x": 100,
+      "y": 1600,
+      "w": 1300,
+      "h": 350,
+      "parent": "android"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "record",
+      "canonicalName": "AudioRecord",
+      "entityType": "class",
+      "x": 150,
+      "y": 280,
+      "w": 500,
+      "h": 120,
+      "parent": "client",
+      "evidence": [
+        "record"
+      ],
+      "description": "Native capture client"
+    },
+    {
+      "id": "buffer",
+      "canonicalName": "AudioRecord shared buffer",
+      "entityType": "memory",
+      "x": 150,
+      "y": 620,
+      "w": 500,
+      "h": 120,
+      "parent": "android",
+      "evidence": [
+        "record"
+      ],
+      "resourceId": "record-shared-ring"
+    },
+    {
+      "id": "aps",
+      "canonicalName": "AudioPolicyService",
+      "entityType": "class",
+      "x": 820,
+      "y": 980,
+      "w": 500,
+      "h": 120,
+      "parent": "aud",
+      "evidence": [
+        "privacy"
+      ]
+    },
+    {
+      "id": "af",
+      "canonicalName": "AudioFlinger",
+      "entityType": "class",
+      "x": 820,
+      "y": 1260,
+      "w": 500,
+      "h": 120,
+      "parent": "aud",
+      "evidence": [
+        "threads"
+      ]
+    },
+    {
+      "id": "rt",
+      "canonicalName": "RecordThread",
+      "entityType": "class",
+      "x": 150,
+      "y": 1120,
+      "w": 500,
+      "h": 120,
+      "parent": "aud",
+      "evidence": [
+        "threads"
+      ]
+    },
+    {
+      "id": "input",
+      "canonicalName": "IStreamIn",
+      "entityType": "interface",
+      "x": 150,
+      "y": 1730,
+      "w": 500,
+      "h": 120,
+      "parent": "hal",
+      "evidence": [
+        "module"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "capture",
+      "from": "input",
+      "to": "rt",
+      "relation": "transfer",
+      "evidence": [
+        "stream"
+      ],
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "Audio HAL FMQ",
+      "labelPosition": {
+        "x": 510,
+        "y": 1535
+      }
+    },
+    {
+      "id": "publish",
+      "from": "rt",
+      "to": "buffer",
+      "relation": "write",
+      "evidence": [
+        "threads"
+      ],
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "read",
+      "from": "buffer",
+      "to": "record",
+      "relation": "read",
+      "evidence": [
+        "record"
+      ],
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "privacy",
+      "from": "aps",
+      "to": "af",
+      "relation": "call",
+      "evidence": [
+        "privacy"
+      ],
+      "label": "Silence state",
+      "labelPosition": {
+        "x": 1155,
+        "y": 1180
+      }
+    },
+    {
+      "id": "apply",
+      "from": "af",
+      "to": "rt",
+      "relation": "call",
+      "evidence": [
+        "threads"
+      ],
+      "fromSide": "left",
+      "toSide": "right",
+      "via": [
+        {
+          "x": 730
+        }
+      ]
+    }
+  ]
+}

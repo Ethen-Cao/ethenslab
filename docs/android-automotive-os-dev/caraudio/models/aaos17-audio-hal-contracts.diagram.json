@@ -1,0 +1,208 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "aaos17-audio-hal-contracts",
+    "title": "Audio HAL and AudioControl HAL",
+    "description": "Independent AIDL contracts serve automotive control and native audio stream management. The AudioControl interface is not a PCM transport.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 1660,
+    "height": 1210
+  },
+  "sources": [
+    {
+      "id": "car",
+      "title": "car",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioService.java#2270"
+    },
+    {
+      "id": "af",
+      "title": "af",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audioflinger/AudioFlinger.cpp#1092"
+    },
+    {
+      "id": "ctrl",
+      "title": "ctrl",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/AudioControlWrapper.java#70"
+    },
+    {
+      "id": "ctrlhal",
+      "title": "ctrlhal",
+      "locator": "https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl#85"
+    },
+    {
+      "id": "module",
+      "title": "module",
+      "locator": "https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/audio/aidl/android/hardware/audio/core/IModule.aidl#409"
+    },
+    {
+      "id": "devhal",
+      "title": "devhal",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/media/libaudiohal/impl/DeviceHalAidl.cpp#100"
+    }
+  ],
+  "deployment": {
+    "profile": "single-domain",
+    "evidence": [
+      "car",
+      "af",
+      "ctrlhal"
+    ]
+  },
+  "containers": [
+    {
+      "id": "android",
+      "kind": "domain",
+      "title": "Android Automotive OS",
+      "x": 36,
+      "y": 36,
+      "w": 1588,
+      "h": 1138,
+      "domainType": "os",
+      "platform": "android"
+    },
+    {
+      "id": "services",
+      "kind": "layer",
+      "title": "System Services",
+      "x": 66,
+      "y": 150,
+      "w": 1528,
+      "h": 430,
+      "role": "system-services",
+      "order": 0,
+      "parent": "android"
+    },
+    {
+      "id": "hal",
+      "kind": "layer",
+      "title": "HAL Contracts",
+      "x": 66,
+      "y": 740,
+      "w": 1528,
+      "h": 350,
+      "role": "hal",
+      "order": 1,
+      "parent": "android"
+    },
+    {
+      "id": "carproc",
+      "kind": "process",
+      "title": "com.android.car",
+      "x": 100,
+      "y": 250,
+      "w": 650,
+      "h": 280,
+      "evidence": [
+        "car"
+      ],
+      "parent": "services"
+    },
+    {
+      "id": "aud",
+      "kind": "process",
+      "title": "audioserver",
+      "x": 900,
+      "y": 250,
+      "w": 650,
+      "h": 280,
+      "evidence": [
+        "af"
+      ],
+      "parent": "services"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "wrap",
+      "canonicalName": "AudioControlWrapper",
+      "entityType": "class",
+      "x": 150,
+      "y": 365,
+      "w": 550,
+      "h": 110,
+      "parent": "carproc",
+      "evidence": [
+        "ctrl"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "devhal",
+      "canonicalName": "DeviceHalAidl",
+      "entityType": "class",
+      "x": 950,
+      "y": 365,
+      "w": 550,
+      "h": 110,
+      "parent": "aud",
+      "evidence": [
+        "devhal"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "ctrl",
+      "canonicalName": "IAudioControl",
+      "entityType": "interface",
+      "x": 150,
+      "y": 880,
+      "w": 550,
+      "h": 110,
+      "parent": "hal",
+      "evidence": [
+        "ctrlhal"
+      ],
+      "layerRole": "hal",
+      "description": "Focus, duck, mute, gain and zones"
+    },
+    {
+      "id": "module",
+      "canonicalName": "IModule",
+      "entityType": "interface",
+      "x": 950,
+      "y": 880,
+      "w": 550,
+      "h": 110,
+      "parent": "hal",
+      "evidence": [
+        "module"
+      ],
+      "layerRole": "hal",
+      "description": "Ports, patches and audio streams"
+    }
+  ],
+  "edges": [
+    {
+      "id": "vehicle",
+      "from": "wrap",
+      "to": "ctrl",
+      "relation": "ipc",
+      "evidence": [
+        "ctrl"
+      ],
+      "mechanism": "Binder / AIDL",
+      "labelPosition": {
+        "x": 520,
+        "y": 650
+      }
+    },
+    {
+      "id": "stream",
+      "from": "devhal",
+      "to": "module",
+      "relation": "ipc",
+      "evidence": [
+        "devhal"
+      ],
+      "mechanism": "Binder / AIDL",
+      "labelPosition": {
+        "x": 1320,
+        "y": 650
+      }
+    }
+  ]
+}

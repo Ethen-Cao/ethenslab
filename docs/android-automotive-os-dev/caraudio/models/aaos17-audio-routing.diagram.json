@@ -1,0 +1,269 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "aaos17-audio-routing",
+    "title": "Dynamic Audio Routing",
+    "description": "CarService constructs policy mixes and device affinities. AudioService registers them with native audio policy; output selection remains in audioserver.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 1660,
+    "height": 1510
+  },
+  "sources": [
+    {
+      "id": "car",
+      "title": "car",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioService.java#2270"
+    },
+    {
+      "id": "audio",
+      "title": "audio",
+      "locator": "https://android.googlesource.com/platform/frameworks/base/+/94b4c163b7dfe5ce3607f7bb8456f9573f7de57d/services/core/java/com/android/server/audio/AudioService.java#12731"
+    },
+    {
+      "id": "af",
+      "title": "af",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audioflinger/AudioFlinger.cpp#1092"
+    },
+    {
+      "id": "aps",
+      "title": "aps",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp#363"
+    },
+    {
+      "id": "mix",
+      "title": "mix",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioDynamicRouting.java#55"
+    },
+    {
+      "id": "context",
+      "title": "context",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioContext.java#100"
+    },
+    {
+      "id": "ctrlhal",
+      "title": "ctrlhal",
+      "locator": "https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl#85"
+    }
+  ],
+  "deployment": {
+    "profile": "single-domain",
+    "evidence": [
+      "car",
+      "af",
+      "ctrlhal"
+    ]
+  },
+  "containers": [
+    {
+      "id": "android",
+      "kind": "domain",
+      "title": "Android Automotive OS",
+      "x": 36,
+      "y": 36,
+      "w": 1588,
+      "h": 1438,
+      "domainType": "os",
+      "platform": "android"
+    },
+    {
+      "id": "services",
+      "kind": "layer",
+      "title": "System Services",
+      "x": 66,
+      "y": 150,
+      "w": 1528,
+      "h": 1260,
+      "role": "system-services",
+      "order": 0,
+      "parent": "android"
+    },
+    {
+      "id": "carproc",
+      "kind": "process",
+      "title": "com.android.car",
+      "x": 100,
+      "y": 250,
+      "w": 650,
+      "h": 1000,
+      "evidence": [
+        "car"
+      ],
+      "parent": "services"
+    },
+    {
+      "id": "ss",
+      "kind": "process",
+      "title": "system_server",
+      "x": 920,
+      "y": 250,
+      "w": 630,
+      "h": 300,
+      "evidence": [
+        "audio"
+      ],
+      "parent": "services"
+    },
+    {
+      "id": "aud",
+      "kind": "process",
+      "title": "audioserver",
+      "x": 920,
+      "y": 720,
+      "w": 630,
+      "h": 620,
+      "evidence": [
+        "aps"
+      ],
+      "parent": "services"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cas",
+      "canonicalName": "CarAudioService",
+      "entityType": "class",
+      "x": 150,
+      "y": 380,
+      "w": 550,
+      "h": 120,
+      "parent": "carproc",
+      "evidence": [
+        "car"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "dynamic",
+      "canonicalName": "CarAudioDynamicRouting",
+      "entityType": "class",
+      "x": 150,
+      "y": 700,
+      "w": 550,
+      "h": 120,
+      "parent": "carproc",
+      "evidence": [
+        "mix"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "context",
+      "canonicalName": "CarAudioContext",
+      "entityType": "class",
+      "x": 150,
+      "y": 1020,
+      "w": 550,
+      "h": 120,
+      "parent": "carproc",
+      "evidence": [
+        "context"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "as",
+      "canonicalName": "AudioService",
+      "entityType": "class",
+      "x": 970,
+      "y": 380,
+      "w": 530,
+      "h": 120,
+      "parent": "ss",
+      "evidence": [
+        "audio"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "aps",
+      "canonicalName": "AudioPolicyService",
+      "entityType": "class",
+      "x": 970,
+      "y": 850,
+      "w": 530,
+      "h": 120,
+      "parent": "aud",
+      "evidence": [
+        "aps"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "apm",
+      "canonicalName": "AudioPolicyManager",
+      "entityType": "class",
+      "x": 970,
+      "y": 1150,
+      "w": 530,
+      "h": 120,
+      "parent": "aud",
+      "evidence": [
+        "aps"
+      ],
+      "layerRole": "system-services"
+    }
+  ],
+  "edges": [
+    {
+      "id": "build",
+      "from": "cas",
+      "to": "dynamic",
+      "relation": "call",
+      "evidence": [
+        "mix"
+      ]
+    },
+    {
+      "id": "attributes",
+      "from": "dynamic",
+      "to": "context",
+      "relation": "call",
+      "evidence": [
+        "mix"
+      ]
+    },
+    {
+      "id": "register",
+      "from": "cas",
+      "to": "as",
+      "relation": "ipc",
+      "evidence": [
+        "car"
+      ],
+      "mechanism": "AudioPolicy / Binder",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelPosition": {
+        "x": 835,
+        "y": 400
+      }
+    },
+    {
+      "id": "native",
+      "from": "as",
+      "to": "aps",
+      "relation": "ipc",
+      "evidence": [
+        "audio"
+      ],
+      "mechanism": "Binder",
+      "labelPosition": {
+        "x": 1300,
+        "y": 640
+      }
+    },
+    {
+      "id": "mixes",
+      "from": "aps",
+      "to": "apm",
+      "relation": "call",
+      "evidence": [
+        "aps"
+      ]
+    }
+  ]
+}
