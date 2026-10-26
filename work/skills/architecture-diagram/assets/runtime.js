@@ -13,6 +13,7 @@
   const fmt = n => String(Math.round(n * 1000) / 1000);
   const equal = (a, b) => same(a.x, b.x) && same(a.y, b.y);
   let heightObserver = null;
+  let heightRequestHandler = null;
 
   function svgElement(tag, attrs, parent, text) {
     const el = document.createElementNS(NS, tag);
@@ -237,6 +238,10 @@
   }
   function renderArchitecture(model, target) {
     if (heightObserver) { heightObserver.disconnect(); heightObserver = null; }
+    if (heightRequestHandler) { window.removeEventListener('message', heightRequestHandler); heightRequestHandler = null; }
+    const presentation = window.ArchitecturePresentation?.mode || 'original';
+    if (!['original', 'article'].includes(presentation)) throw new Error('Unknown presentation mode');
+    document.documentElement.dataset.presentation = presentation;
     window.architectureModel = model;
     window.architectureGeometry = null;
     if (!THEME || THEME.version !== 1) throw new Error('ArchitectureTheme tokens must be loaded before the renderer');
@@ -252,6 +257,7 @@
     documentRoot.replaceChildren();
     documentRoot.classList.add('architecture-document');
     documentRoot.dataset.colorMode = model.meta.colorMode || 'technical';
+    documentRoot.style.setProperty('--diagram-width', `${model.canvas.width}px`);
     document.documentElement.lang = 'en';
     document.title = model.meta.title;
     const header = htmlElement('header', {class: 'diagram-header'}, documentRoot);
@@ -413,17 +419,22 @@
     window.dispatchEvent(new CustomEvent('architecture-rendered', {detail: geometry}));
     if (window.parent !== window && model.meta.id) {
       let lastHeight = 0;
-      const reportHeight = () => {
+      const reportHeight = (force = false) => {
         const padding = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
         const height = Math.ceil(documentRoot.getBoundingClientRect().bottom + window.scrollY + padding);
-        if (Number.isFinite(height) && height > 0 && height !== lastHeight) {
+        if (Number.isFinite(height) && height > 0 && (force || height !== lastHeight)) {
           lastHeight = height;
-          window.parent.postMessage({type: `${model.meta.id}-height`, height}, '*');
+          window.parent.postMessage({type: `${model.meta.id}-height`, height}, window.location.origin === 'null' ? '*' : window.location.origin);
         }
       };
+      heightRequestHandler = event => {
+        if (event.source === window.parent && event.origin === window.location.origin &&
+            event.data?.type === `${model.meta.id}-request-height`) reportHeight(true);
+      };
+      window.addEventListener('message', heightRequestHandler);
       reportHeight();
       if (typeof ResizeObserver === 'function') {
-        heightObserver = new ResizeObserver(reportHeight);
+        heightObserver = new ResizeObserver(() => reportHeight());
         heightObserver.observe(documentRoot);
       }
     }

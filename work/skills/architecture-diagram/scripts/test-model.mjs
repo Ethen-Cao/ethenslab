@@ -163,6 +163,16 @@ const escaped = structuredClone(base); escaped.meta.title = 'Logging </script><s
 await buildDiagram(escaped, join(temp, 'escape.html'));
 const html = await readFile(join(temp, 'escape.html'), 'utf8');
 test('safe JSON and HTML embedding', () => {assert(!html.includes('<script>bad()')); assert(html.includes('\\u003c/script\\u003e'));});
+test('original presentation remains the compatibility default', () => assert(html.includes('"mode":"original"')));
+await buildDiagram(base, join(temp, 'article.html'), {presentation: 'article'});
+const articleHTML = await readFile(join(temp, 'article.html'), 'utf8');
+test('article build keeps the same technical model', () => {
+  const embedded = JSON.parse(articleHTML.match(/<script id="diagram-model" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+  assert.deepEqual(embedded, base);
+  assert(articleHTML.includes('"mode":"article"'));
+});
+await assert.rejects(() => buildDiagram(base, join(temp, 'invalid.html'), {presentation: 'fit-anything'}), /presentation must/);
+count++;
 const theme = await read('assets/theme.json');
 const fontManifest = await read('assets/fonts/manifest.json');
 const embeddedJSON = id => JSON.parse(html.match(new RegExp(`<script id="${id}" type="application/json">([\\s\\S]*?)<\\/script>`))[1]);

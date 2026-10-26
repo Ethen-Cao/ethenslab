@@ -58,14 +58,15 @@ try {
     result.externalRequests = externalRequests.slice(requestStart);
     result.fonts = await page.evaluate(() => [...document.fonts].map(f => ({family: f.family, weight: f.weight, status: f.status})));
     result.controls = await page.locator('button,input,select,textarea').count();
-    const canvasWidth = await page.evaluate(() => window.architectureModel?.canvas.width || 1400);
-    await page.setViewportSize({width: Math.max(1500, canvasWidth + 64), height: 1050});
+    // Keep the declared viewport. Full-page evidence never implies a one-screen or embedded pass.
+    await page.screenshot({path: join(output, `${file.name}-viewport.png`)});
     await page.screenshot({path: join(output, `${file.name}.png`), fullPage: true});
     // A narrow host must preserve the diagram's logical width rather than shrinking fonts.
     const wide = await page.locator('svg').first().boundingBox();
     await page.setViewportSize({width: 760, height: 900});
     const narrow = await page.locator('svg').first().boundingBox();
     result.naturalWidthPreserved = !!wide && !!narrow && Math.abs(wide.width - narrow.width) < 1;
+    result.presentationBehavior = result.presentation.mode === 'original' ? result.naturalWidthPreserved : !!narrow && narrow.width <= 760 && narrow.width <= wide.width;
     await page.setViewportSize({width: 1500, height: 1050});
     results.push(result);
     console.log(`${file.name}: ${result.errors.length} errors, ${result.warnings.length} warnings; ${JSON.stringify(result.counts)}`);
@@ -122,7 +123,7 @@ try {
     negatives.push({name: 'corrupt-embedded-font', rejected: Boolean(failedFont.error) && failedFont.svgCount === 0, details: failedFont});
   }
   await writeFile(join(output, 'report.json'), JSON.stringify({results, negatives}, null, 2));
-  for (const result of results) assert(result.ok && !result.errors.length && !result.warnings.length && !result.renderError && !result.pageErrors.length && !result.externalRequests.length && !result.controls && result.naturalWidthPreserved, `${result.name} failed; see ${output}/report.json`);
+  for (const result of results) assert(result.ok && !result.errors.length && !result.warnings.length && !result.renderError && !result.pageErrors.length && !result.externalRequests.length && !result.controls && result.presentationBehavior, `${result.name} failed; see ${output}/report.json`);
   for (const test of negatives) assert(test.rejected, `Checker falsely passed ${test.name}`);
   console.log(`${results.length} render cases and ${negatives.length} negative DOM cases passed. Screenshots: ${output}`);
 } finally {await browser.close();}

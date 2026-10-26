@@ -54,12 +54,13 @@
     const issue = (list, code, message) => { const key = `${code}:${message}`; if (!seenProblems.has(key)) { list.push({code, message}); seenProblems.add(key); } };
     const error = (c, m) => issue(errors, c, m), warn = (c, m) => issue(warnings, c, m);
     const model = window.architectureModel, geometry = window.architectureGeometry, theme = window.ArchitectureTheme;
+    const presentation = {mode: window.ArchitecturePresentation?.mode || 'original'};
     const counts = {containers: 0, nodes: 0, edges: 0, labels: 0, bridges: 0, junctions: 0};
     const expectedCounts = {containers: Array.isArray(model?.containers) ? model.containers.length : 0,
       nodes: Array.isArray(model?.nodes) ? model.nodes.length : 0, edges: Array.isArray(model?.edges) ? model.edges.length : 0,
       labels: Array.isArray(model?.edges) ? model.edges.filter(e => e.label || e.relation === 'ipc').length : 0};
     const finish = () => {
-      const result = {ok: errors.length === 0, errors, warnings, counts, expectedCounts};
+      const result = {ok: errors.length === 0, errors, warnings, counts, expectedCounts, presentation};
       if (!options.quiet) { console.log(`Architecture geometry: ${errors.length} errors, ${warnings.length} warnings`, {counts, expectedCounts}); if (errors.length) console.table(errors); if (warnings.length) console.table(warnings); }
       return result;
     };
@@ -120,7 +121,47 @@
     const boxOf = el => { const b = el.getBBox(), m = toRoot(el), a = mapPoint(m, b.x, b.y), c = mapPoint(m, b.x + b.width, b.y + b.height); return {x1: Math.min(a.x, c.x), y1: Math.min(a.y, c.y), x2: Math.max(a.x, c.x), y2: Math.max(a.y, c.y)}; };
     const rendered = el => { for (let p = el; p; p = p.parentElement) { const s = getComputedStyle(p); if (s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse' || Number(s.opacity) === 0) return false; } return true; };
     const canvas = {x1: 0, y1: 0, x2: model.canvas.width, y2: model.canvas.height};
-    if (!near(svg.getBoundingClientRect().width, model.canvas.width) || !near(svg.getBoundingClientRect().height, model.canvas.height)) error('diagram-scaled', 'The SVG must retain its natural logical-pixel size; scroll instead of fit-shrinking.');
+    const svgBox = svg.getBoundingClientRect();
+    const scaleX = svgBox.width / model.canvas.width, scaleY = svgBox.height / model.canvas.height;
+    presentation.scale = scaleX;
+    if (!['original', 'article'].includes(presentation.mode) || document.documentElement.dataset.presentation !== presentation.mode) {
+      error('presentation-mode', 'The presentation metadata and rendered mode must agree.');
+    }
+    if (presentation.mode === 'original') {
+      if (!near(svgBox.width, model.canvas.width) || !near(svgBox.height, model.canvas.height)) error('diagram-scaled', 'Original mode must retain its natural logical-pixel size.');
+    } else if (presentation.mode === 'article') {
+      if (!(scaleX > 0 && scaleY > 0) || Math.abs(scaleX - scaleY) > 0.002 || scaleX > 1.002) error('article-scale', 'Article mode must scale uniformly, fit its container, and never upscale.');
+      const thresholds = theme?.presentation;
+      if (!thresholds || !Number.isFinite(thresholds.minNodeFontSize) || thresholds.minNodeFontSize <= 0 ||
+          !Number.isFinite(thresholds.minTextFontSize) || thresholds.minTextFontSize <= 0) {
+        error('presentation-theme', 'Article mode needs shared effective-font thresholds.');
+      } else {
+        const sizes = {node: [], text: []};
+        for (const text of svg.querySelectorAll('text')) {
+          const matrix = text.getScreenCTM();
+          if (!matrix) continue;
+          const scale = Math.min(Math.hypot(matrix.a, matrix.b), Math.hypot(matrix.c, matrix.d));
+          const actual = parseFloat(getComputedStyle(text).fontSize) * scale;
+          const node = text.classList.contains('node-name');
+          sizes[node ? 'node' : 'text'].push(actual);
+          const minimum = node ? thresholds.minNodeFontSize : thresholds.minTextFontSize;
+          if (actual + EPS < minimum) error('article-font-min', `${text.textContent}: effective ${actual.toFixed(2)}px is below ${minimum}px; relayout or split the view.`);
+        }
+        for (const text of document.querySelectorAll('#diagram-title, #diagram-subtitle, .legend-item, .legend-heading')) {
+          const box = text.getBoundingClientRect();
+          const scale = Math.min(text.offsetWidth ? box.width / text.offsetWidth : 1, text.offsetHeight ? box.height / text.offsetHeight : 1);
+          const actual = parseFloat(getComputedStyle(text).fontSize) * scale;
+          sizes.text.push(actual);
+          if (actual + EPS < thresholds.minTextFontSize) error('article-font-min', `${text.textContent}: effective ${actual.toFixed(2)}px is below ${thresholds.minTextFontSize}px; relayout or split the view.`);
+        }
+        presentation.minNodeFontSize = sizes.node.length ? Math.min(...sizes.node) : null;
+        presentation.minTextFontSize = sizes.text.length ? Math.min(...sizes.text) : null;
+      }
+      const shell = svg.closest('.diagram-shell');
+      presentation.horizontalOverflow = Math.max(document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        shell ? shell.scrollWidth - shell.clientWidth : 0);
+      if (presentation.horizontalOverflow > TOL || svgBox.left < -TOL || svgBox.right > document.documentElement.clientWidth + TOL) error('article-horizontal-overflow', 'Article mode must show the full diagram width without clipping or horizontal scrolling.');
+    }
     const title = document.getElementById('diagram-title');
     if (!title || title.textContent !== model.meta.title) error('diagram-title', 'The visible diagram title must match the model title.');
     else {
@@ -133,7 +174,7 @@
       if (hasTheme) numericStyle(subtitle, 'fontSize', theme.type.body, 'diagram-subtitle-size', 'Diagram subtitle');
     }
     const shell = document.querySelector('.diagram-shell');
-    if (!shell) error('missing-shell', 'The diagram needs its natural-size scrolling shell.');
+    if (!shell) error('missing-shell', 'The diagram needs the shared presentation shell.');
     else if (hasTheme) for (const property of ['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius']) numericStyle(shell, property, theme.radii.shell, 'shell-radius', 'Diagram shell');
     const ids = new Map(); document.querySelectorAll('[id]').forEach(el => ids.set(el.id, (ids.get(el.id) || 0) + 1));
     for (const [id, total] of ids) if (total > 1) error('duplicate-dom-id', `Duplicate DOM id: ${id}`);

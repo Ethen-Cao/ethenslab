@@ -1,6 +1,6 @@
 # Model, build and verification
 
-The maintained source is a version-2 JSON model. The builder inlines the shared model validator, renderer, CSS, theme and pinned font resources into a standalone HTML. Do not edit generated HTML to fix a model or style problem; edit its source and rebuild. `assets/theme.json` is the shared visual-token source, not a per-model override.
+The maintained source is a version-2 JSON model. The builder inlines the shared model validator, renderer, CSS, theme and pinned font resources into a standalone HTML. Do not edit generated HTML to fix a model or style problem; edit its source and rebuild. `assets/theme.json` is the shared visual-token source, not a per-model override. Its `presentation.minNodeFontSize` and `presentation.minTextFontSize` own the effective-text thresholds; presentation mode is a build option, not a required model field.
 
 All geometry uses absolute SVG logical pixels. All figure text, including accessibility text, is English. Source locators may retain original filenames and URLs. Source titles are non-visible metadata and may preserve the original language. The automated language check catches accidental CJK figure text; it is not an English-language detector, so review the rendered wording manually.
 
@@ -10,7 +10,7 @@ All geometry uses absolute SVG logical pixels. All figure text, including access
 | --- | --- |
 | `version` | Required; `2` |
 | `meta` | Required classification, purpose and figure identity; see below |
-| `canvas` | Required positive `width`, `height`; no slide ratio |
+| `canvas` | Required positive logical `width`, `height`, determined by content and layout; no required slide ratio, one-screen fit or node-count ceiling |
 | `sources` | Evidence records `{id, title, locator}`; locator is a document path, source location or authoritative URL |
 | `deployment` | Required for real diagrams: selected deployment profile and, for a virtualized SoC, explicit references to its required domains and substrate |
 | `containers` | Domain, layer, process and resource-region geometry |
@@ -157,19 +157,42 @@ Required: unique `id`, `from`, `to`, `relation`, and nonempty `evidence` unless 
 
 ## Build workflow
 
+Before building, record delivery context outside the factual model: standalone or article, actual available content widths, target viewports and whether an overview/detail split is needed. Content determines logical canvas size. Do not expand the test viewport to make an over-wide canvas fit, and do not use node count as a fixed splitting threshold.
+
 Commands below run from the skill directory. Use the existing Node runtime; do not install packages or change the environment merely to follow these examples.
 
 ```bash
-node scripts/build-diagram.mjs /absolute/path/input.diagram.json /absolute/path/output.html
+# Default: original logical dimensions, compatible with existing callers.
+node scripts/build-diagram.mjs /absolute/path/input.diagram.json /absolute/path/original.html
+
+# Article: common width adaptation, never enlarging above logical size.
+node scripts/build-diagram.mjs /absolute/path/input.diagram.json /absolute/path/article.html --presentation article
 ```
 
-Verify that task artifact with the same browser geometry and screenshot engine:
+The corresponding JavaScript interface is:
+
+```js
+await buildDiagram(input, output); // presentation: 'original'
+await buildDiagram(input, output, {presentation: 'article'});
+```
+
+Only `original` and `article` are presentation modes. Both retain the logical typography tokens, including 24px node names. `original` keeps the original display scale; `article` adapts to available width with scale at most 1. In article mode, effective node-name text must remain at least 18 CSS px and all other visible text at least 14 CSS px, as defined centrally by `theme.presentation.minNodeFontSize` and `minTextFontSize`. Do not reduce tokens or add page-level scaling to bypass this check. Rearrange or split into a readable overview and detail when fitting would violate the thresholds. A failed mobile width remains failed unless that width receives a readable alternative; a link to an unreadable diagram's detail page is not a pass.
+
+Verify an original artifact with the geometry harness:
 
 ```bash
-node scripts/verify-examples.mjs --input /absolute/path/output.html --output /tmp/diagram-qa
+node scripts/verify-examples.mjs --input /absolute/path/original.html --output /tmp/diagram-qa --browser /path/to/chromium
 ```
 
-Single-input mode checks only the supplied artifact; it does not run the canonical examples' negative cases or palette variants. It also accepts `--browser /path/to/chromium`. Review the generated screenshot rather than treating a successful capture as visual approval.
+Single-input mode checks the supplied artifact, not the canonical examples' negative cases or palette variants. The original harness preserves original-scale geometry checks without enlarging the viewport to the canvas. Inspect its viewport screenshot and, when needed, the full-page or regional detail views; a full-page image alone cannot establish article readability.
+
+Verify the actual article artifact in an embedded fixture at the agreed iframe widths:
+
+```bash
+node scripts/verify-article.mjs --input /absolute/path/article.html --output /tmp/article-qa --widths 1200,960 --browser /path/to/chromium
+```
+
+`--widths` specifies iframe outer widths; record the resulting inner content widths as well. These are explicit test inputs, not universal site dimensions. Include required mobile widths. The fixture checks the delivered HTML and common iframe adapter at those widths; it does not prove the real site's CSS, content column, CSP or URL paths are correct. Inspect the actual article page as described in [publishing.md](publishing.md), and report separately when that verification was unavailable.
 
 Start a new model from `assets/base-model.json` or the relevant `assets/models/<example>.json`. Replace the technical content, classification, evidence and coordinates. `assets/base-template.html` is a generated preview, not a second hand-maintained source.
 
@@ -178,22 +201,40 @@ When maintaining the skill itself:
 ```bash
 node scripts/build-examples.mjs
 node scripts/test-model.mjs
-node scripts/verify-examples.mjs --output /tmp/architecture-diagram-qa
+node scripts/verify-examples.mjs --output /tmp/architecture-diagram-qa --browser /path/to/chromium
+node scripts/test-presentation.mjs --output /tmp/architecture-presentation-qa --browser /path/to/chromium
 ```
 
-The browser harness accepts `--browser /path/to/chromium` when a browser binary must be specified. It uses an existing Playwright installation, resolved through `PLAYWRIGHT_MODULE` (module path) or the normal Node lookup including `NODE_PATH`; do not install dependencies merely for this test. Use only permitted browser/environment access; if unavailable or denied, report the missing visual verification rather than claiming it succeeded or bypassing a restriction.
+Also build and verify relevant article-mode task diagrams; canonical original examples alone do not exercise publishing. Both browser harnesses use an existing Playwright installation, resolved through `PLAYWRIGHT_MODULE` or the normal Node lookup including `NODE_PATH`. Use only permitted browser/environment access; if unavailable or denied, report the missing verification rather than claiming success or bypassing a restriction.
 
 ## Validation and delivery
 
-Pass the deployment and component-role gates in `modeling.md` before routing. There are four distinct acceptance results; none replaces another:
+Pass the deployment and component-role gates in `modeling.md` before routing. Keep the following acceptance results separate:
 
 1. **Model structure and declared roles**: `ArchitectureModel.validate(model)` returns `{ok, errors, warnings}`. The builder rejects model errors. It checks required deployment references, containment, relative positions, declared role ordering, identity formats and typed relationships. A source ID being present does not prove the source supports a claim.
 2. **Technical evidence review**: verify the deployment skeleton, each entity's actual role and execution ownership, and every main-path endpoint/mechanism against evidence. Check whether omissions falsely imply direct API-to-hardware or Guest-to-protected-hardware access. If unresolved, stop or agree on a narrower scope; a geometry pass does not authorize delivery as a correct architecture.
-3. **Browser geometry and style**: await `architectureReady` and require `{ok: true}` before checking; the renderer exposes `architectureModel` and `architectureGeometry`. Inject `scripts/check-diagram.js`, then call `checkDiagram({quiet: true})`. Require actual loaded embedded font faces, semantic font selection, shared radii / line styles, exact model/render node, edge and container counts, nonempty recognized content, and zero errors. A font-family declaration or `document.fonts.check()` alone does not prove the intended font loaded. Review every warning; no empty-DOM or legacy-schema fallback is a pass.
-4. **Visual review**: inspect the full deployment outline and readable OS / subsystem regions, then names, ownership, layering, routing, labels and bridges. A saved screenshot is not a reviewed screenshot.
+3. **Browser geometry and style**: await `architectureReady` and require `{ok: true}` before checking; the renderer exposes `architectureModel` and `architectureGeometry`. Inject `scripts/check-diagram.js`, then call `checkDiagram({quiet: true})`. Require actually loaded embedded font faces, semantic font selection, shared radii / line styles, exact model/render node, edge and container counts, nonempty recognized content, and zero errors. A font-family declaration or `document.fonts.check()` alone does not prove the intended font loaded. Review every warning; no empty-DOM or legacy-schema fallback is a pass.
+4. **Presentation and embedding**: check the declared mode in its intended environment. For article mode, measure effective display sizes, horizontal overflow and clipping, iframe internal scrolling and height synchronization at each available width. Read CSS/font sizes together with the actual rendering scale; a 24px logical declaration alone is insufficient. The same-origin adapter must reject messages with the wrong source, origin or type. Original-scale geometry success does not waive article failures.
+5. **Visual and real-page review**: inspect viewport screenshots for the entire readable overview, names, ownership, layering, routing, labels and bridges; use full-page/detail images as supplements. A long diagram may require normal page scrolling, not one-screen compression. Inspect the actual article page for its real layout and loading behavior. A saved screenshot is not a reviewed screenshot, and a fixture is not the site.
 
-Generated canonical examples target zero errors and zero warnings. For task diagrams fix warnings or state each retained warning with a concrete reason; do not silently downgrade violations. After a source or style edit rebuild and rerun the relevant checks.
+Generated canonical examples target zero errors and zero warnings. For task diagrams fix warnings or state each retained warning with a concrete reason; do not silently downgrade violations. After source or style edits, rebuild and rerun the relevant mode and width checks.
 
-Delivery reports name the generated HTML and source model, structure/role and geometry error/warning counts separately, technical review result, what was visually inspected, and any intentionally omitted non-main-path detail. Never describe automated “zero errors” as proof of full architecture compliance. If browser review was unavailable, say so explicitly. Do not replace the user's original document unless asked.
+Delivery reports name the generated HTML and source model, presentation mode, tested content widths and viewports, structure/role and geometry error/warning counts, effective-text and embedding results, technical review result, actual screenshots reviewed and intentionally omitted non-main-path detail. Distinguish a layout failure from a missing browser or real-page check. Never describe automated zero errors as proof of full architecture compliance. Do not replace the user's original document unless asked.
 
-When changing this skill's contract, update the source examples and add negative tests for the changed invariants, rebuild generated examples, and inspect them. Retain factual models separately from abstract layout specimens; otherwise a template may look compliant while teaching unsupported platform facts.
+## Regression cases from authored diagrams
+
+When the contract changes, preserve the existing original examples and exercise the changed behavior with actual author-generated diagrams. Record the author's request, source model and generated artifact before checking. Do not substitute a hand-picked tiny specimen for a difficult article diagram, and do not count regex matches on documentation or generated text as behavioral acceptance.
+
+A reusable case record contains:
+
+| Record | Required evidence |
+| --- | --- |
+| Authored case | Actual task/request, source-model path, generated HTML path, and relevant article path or URL |
+| Delivery context | `original` or `article`, target content widths and browser viewports, supported mobile widths or explicitly unverified scope |
+| Automated observations | Structure/geometry results, effective text sizes, overflow/clipping, iframe height and message-source/origin/type checks |
+| Visual observations | Viewport screenshot paths and what was inspected; optional full-page/detail images; real-page result recorded separately |
+| Resolution | Passed widths, failed or unverified widths, and any re-layout or readable overview/detail split |
+
+For this repository, the authored AAOS overview is a concrete regression candidate: source `content/android-automotive-os-dev/CarAudio/models/aaos17-audio-overview.diagram.json`, published artifact `static/diagrams/aaos17-audio-overview.html`, article `content/android-automotive-os-dev/CarAudio/01-architecture.md`. The adjacent routing and playback models provide different layouts. Build trial outputs into a temporary directory and test those actual author models in article mode without overwriting published files unless authorized. If these paths are unavailable, choose an existing task artifact and record its real paths; do not leave the case as an unexecuted placeholder.
+
+Use positive and negative behavior cases for the changed invariants: a readable article fixture, a width that genuinely drops below the text thresholds, overflow or clipping, height changes on resize, and messages from the wrong source/origin/type. Retain factual models separately from abstract layout specimens. Inspect the produced diagrams and screenshots as well as assertions; tests that only require particular headings or words do not establish the intended layout behavior.

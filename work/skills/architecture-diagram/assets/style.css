@@ -1,4 +1,4 @@
-/* Architecture diagram v2: one logical pixel is one CSS pixel. No fit-to-page scaling. */
+/* Original preserves logical pixels. Article fits width without upscaling; QA checks effective font sizes. */
 :root {
   color-scheme: light;
   --page: #f8f9fa;
@@ -30,6 +30,8 @@ body { padding: 24px; background: var(--page); color: var(--ink); }
 .diagram-header p { margin: 8px 0 0; font-size: var(--type-body); line-height: 1.5; color: var(--muted); }
 .diagram-shell { width: max-content; max-width: 100%; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-shell); }
 svg#architecture { display: block; max-width: none; flex: none; background: var(--panel); }
+html[data-presentation="article"] .diagram-shell { width: 100%; max-width: calc(var(--diagram-width) + 2px); }
+html[data-presentation="article"] svg#architecture { width: 100%; max-width: 100%; height: auto; }
 svg#architecture text { font-family: var(--font-sans); fill: var(--ink); }
 svg#architecture text.code { font-family: var(--font-mono); }
 .container-frame { fill: var(--layer); stroke: var(--line); stroke-width: var(--stroke-frame); }

@@ -13,6 +13,7 @@ const kebab = s => s.replace(/[A-Z]/g, ch => `-${ch.toLowerCase()}`);
 
 async function readThemeBundle() {
   const theme = JSON.parse(await readFile(resolve(skillRoot, 'assets/theme.json'), 'utf8'));
+  for (const key of ['minNodeFontSize', 'minTextFontSize']) if (!Number.isFinite(theme.presentation?.[key]) || theme.presentation[key] <= 0) throw new Error(`Invalid presentation threshold: ${key}.`);
   const fontRoot = resolve(skillRoot, 'assets/fonts');
   const manifest = JSON.parse(await readFile(resolve(fontRoot, 'manifest.json'), 'utf8'));
   const license = await readFile(resolve(fontRoot, manifest.licenseFile), 'utf8');
@@ -44,7 +45,8 @@ async function readThemeBundle() {
   };
 }
 
-export async function buildDiagram(input, output) {
+export async function buildDiagram(input, output, {presentation = 'original'} = {}) {
+  if (!['original', 'article'].includes(presentation)) throw new Error('presentation must be original or article.');
   const model = typeof input === 'string' ? JSON.parse(await readFile(input, 'utf8')) : input;
   const report = validate(model);
   if (!report.ok) throw new Error(report.errors.map(e => `${e.code}: ${e.message}`).join('\n'));
@@ -67,8 +69,9 @@ export async function buildDiagram(input, output) {
   <main id="diagram-root"></main>
   <script id="diagram-model" type="application/json">${escapeJSON(JSON.stringify(model, null, 2))}</script>
   <script id="diagram-theme" type="application/json">${escapeJSON(JSON.stringify(bundle.theme, null, 2))}</script>
+  <script id="diagram-presentation" type="application/json">${escapeJSON(JSON.stringify({mode: presentation}))}</script>
   <script id="diagram-font-metadata" type="application/json">${escapeJSON(JSON.stringify(bundle.fontMetadata, null, 2))}</script>
-  <script>window.ArchitectureTheme = JSON.parse(document.getElementById('diagram-theme').textContent);</script>
+  <script>window.ArchitectureTheme = JSON.parse(document.getElementById('diagram-theme').textContent); window.ArchitecturePresentation = JSON.parse(document.getElementById('diagram-presentation').textContent);</script>
   <script>\n${validator}\n  </script>
   <script>\n${runtime}\n  </script>
   <script>
@@ -113,14 +116,14 @@ export async function buildDiagram(input, output) {
 `;
   await mkdir(dirname(resolve(output)), {recursive: true});
   await writeFile(output, html, 'utf8');
-  return {model, output, report};
+  return {model, output, report, presentation};
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  if (args.length !== 2) {console.error('Usage: node scripts/build-diagram.mjs input.diagram.json output.html'); process.exitCode = 2;}
+  if (!(args.length === 2 || (args.length === 4 && args[2] === '--presentation'))) {console.error('Usage: node scripts/build-diagram.mjs input.diagram.json output.html [--presentation original|article]'); process.exitCode = 2;}
   else try {
-    const {model, report} = await buildDiagram(resolve(args[0]), resolve(args[1]));
+    const {model, report} = await buildDiagram(resolve(args[0]), resolve(args[1]), {presentation: args[3] || 'original'});
     for (const warning of report.warnings) console.warn(`${warning.code}: ${warning.message}`);
     console.log(`Built ${model.meta.id}: ${args[1]}`);
   } catch (error) {console.error(error.message); process.exitCode = 1;}

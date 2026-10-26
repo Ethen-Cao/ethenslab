@@ -47,7 +47,7 @@
   --stroke-arrow: 1.5px;
   --stroke-arrow-data: 1.8px;
 }
-/* Architecture diagram v2: one logical pixel is one CSS pixel. No fit-to-page scaling. */
+/* Original preserves logical pixels. Article fits width without upscaling; QA checks effective font sizes. */
 :root {
   color-scheme: light;
   --page: #f8f9fa;
@@ -79,6 +79,8 @@ body { padding: 24px; background: var(--page); color: var(--ink); }
 .diagram-header p { margin: 8px 0 0; font-size: var(--type-body); line-height: 1.5; color: var(--muted); }
 .diagram-shell { width: max-content; max-width: 100%; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-shell); }
 svg#architecture { display: block; max-width: none; flex: none; background: var(--panel); }
+html[data-presentation="article"] .diagram-shell { width: 100%; max-width: calc(var(--diagram-width) + 2px); }
+html[data-presentation="article"] svg#architecture { width: 100%; max-width: 100%; height: auto; }
 svg#architecture text { font-family: var(--font-sans); fill: var(--ink); }
 svg#architecture text.code { font-family: var(--font-mono); }
 .container-frame { fill: var(--layer); stroke: var(--line); stroke-width: var(--stroke-frame); }
@@ -624,6 +626,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
     "body": 21,
     "legend": 18
   },
+  "presentation": {
+    "minNodeFontSize": 18,
+    "minTextFontSize": 14
+  },
   "radii": {
     "label": 4,
     "node": 8,
@@ -660,6 +666,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
     "textPattern": "^(?:/(?:dev|proc|sys)/[^\\s]+|[A-Za-z_$][\\w$]*(?:(?:::|\\.)[\\w$]+)*\\([^()]*\\))$"
   }
 }</script>
+  <script id="diagram-presentation" type="application/json">{"mode":"original"}</script>
   <script id="diagram-font-metadata" type="application/json">{
   "version": 1,
   "license": "OFL-1.1",
@@ -702,7 +709,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
   ],
   "licenseText": "Copyright 2011 The Roboto Project Authors (https://github.com/googlefonts/roboto-classic)\nCopyright 2015 The Roboto Mono Project Authors (https://github.com/googlefonts/robotomono)\n\nThis Font Software is licensed under the SIL Open Font License, Version 1.1.\nThis license is copied below, and is also available with a FAQ at:\nhttps://openfontlicense.org\n\n\n-----------------------------------------------------------\nSIL OPEN FONT LICENSE Version 1.1 - 26 February 2007\n-----------------------------------------------------------\n\nPREAMBLE\nThe goals of the Open Font License (OFL) are to stimulate worldwide\ndevelopment of collaborative font projects, to support the font creation\nefforts of academic and linguistic communities, and to provide a free and\nopen framework in which fonts may be shared and improved in partnership\nwith others.\n\nThe OFL allows the licensed fonts to be used, studied, modified and\nredistributed freely as long as they are not sold by themselves. The\nfonts, including any derivative works, can be bundled, embedded,\nredistributed and/or sold with any software provided that any reserved\nnames are not used by derivative works. The fonts and derivatives,\nhowever, cannot be released under any other type of license. The\nrequirement for fonts to remain under this license does not apply\nto any document created using the fonts or their derivatives.\n\nDEFINITIONS\n\"Font Software\" refers to the set of files released by the Copyright\nHolder(s) under this license and clearly marked as such. This may\ninclude source files, build scripts and documentation.\n\n\"Reserved Font Name\" refers to any names specified as such after the\ncopyright statement(s).\n\n\"Original Version\" refers to the collection of Font Software components as\ndistributed by the Copyright Holder(s).\n\n\"Modified Version\" refers to any derivative made by adding to, deleting,\nor substituting -- in part or in whole -- any of the components of the\nOriginal Version, by changing formats or by porting the Font Software to a\nnew environment.\n\n\"Author\" refers to any designer, engineer, programmer, technical\nwriter or other person who contributed to the Font Software.\n\nPERMISSION \u0026 CONDITIONS\nPermission is hereby granted, free of charge, to any person obtaining\na copy of the Font Software, to use, study, copy, merge, embed, modify,\nredistribute, and sell modified and unmodified copies of the Font\nSoftware, subject to the following conditions:\n\n1) Neither the Font Software nor any of its individual components,\nin Original or Modified Versions, may be sold by itself.\n\n2) Original or Modified Versions of the Font Software may be bundled,\nredistributed and/or sold with any software, provided that each copy\ncontains the above copyright notice and this license. These can be\nincluded either as stand-alone text files, human-readable headers or\nin the appropriate machine-readable metadata fields within text or\nbinary files as long as those fields can be easily viewed by the user.\n\n3) No Modified Version of the Font Software may use the Reserved Font\nName(s) unless explicit written permission is granted by the corresponding\nCopyright Holder. This restriction only applies to the primary font name as\npresented to the users.\n\n4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font\nSoftware shall not be used to promote, endorse or advertise any\nModified Version, except to acknowledge the contribution(s) of the\nCopyright Holder(s) and the Author(s) or with their explicit written\npermission.\n\n5) The Font Software, modified or unmodified, in part or in whole,\nmust be distributed entirely under this license, and must not be\ndistributed under any other license. The requirement for fonts to\nremain under this license does not apply to any document created\nusing the Font Software.\n\nTERMINATION\nThis license becomes null and void if any of the above conditions are\nnot met.\n\nDISCLAIMER\nTHE FONT SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,\nEXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF\nMERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT\nOF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE\nCOPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,\nINCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL\nDAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING\nFROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM\nOTHER DEALINGS IN THE FONT SOFTWARE.\n"
 }</script>
-  <script>window.ArchitectureTheme = JSON.parse(document.getElementById('diagram-theme').textContent);</script>
+  <script>window.ArchitectureTheme = JSON.parse(document.getElementById('diagram-theme').textContent); window.ArchitecturePresentation = JSON.parse(document.getElementById('diagram-presentation').textContent);</script>
   <script>
 /* Shared semantic contract for architecture-diagram v2; works in Node and browsers. */
 (function (root) {
@@ -1091,6 +1098,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
   const fmt = n => String(Math.round(n * 1000) / 1000);
   const equal = (a, b) => same(a.x, b.x) && same(a.y, b.y);
   let heightObserver = null;
+  let heightRequestHandler = null;
 
   function svgElement(tag, attrs, parent, text) {
     const el = document.createElementNS(NS, tag);
@@ -1315,6 +1323,10 @@ svg#architecture text.code { font-family: var(--font-mono); }
   }
   function renderArchitecture(model, target) {
     if (heightObserver) { heightObserver.disconnect(); heightObserver = null; }
+    if (heightRequestHandler) { window.removeEventListener('message', heightRequestHandler); heightRequestHandler = null; }
+    const presentation = window.ArchitecturePresentation?.mode || 'original';
+    if (!['original', 'article'].includes(presentation)) throw new Error('Unknown presentation mode');
+    document.documentElement.dataset.presentation = presentation;
     window.architectureModel = model;
     window.architectureGeometry = null;
     if (!THEME || THEME.version !== 1) throw new Error('ArchitectureTheme tokens must be loaded before the renderer');
@@ -1330,6 +1342,7 @@ svg#architecture text.code { font-family: var(--font-mono); }
     documentRoot.replaceChildren();
     documentRoot.classList.add('architecture-document');
     documentRoot.dataset.colorMode = model.meta.colorMode || 'technical';
+    documentRoot.style.setProperty('--diagram-width', `${model.canvas.width}px`);
     document.documentElement.lang = 'en';
     document.title = model.meta.title;
     const header = htmlElement('header', {class: 'diagram-header'}, documentRoot);
@@ -1491,17 +1504,22 @@ svg#architecture text.code { font-family: var(--font-mono); }
     window.dispatchEvent(new CustomEvent('architecture-rendered', {detail: geometry}));
     if (window.parent !== window && model.meta.id) {
       let lastHeight = 0;
-      const reportHeight = () => {
+      const reportHeight = (force = false) => {
         const padding = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
         const height = Math.ceil(documentRoot.getBoundingClientRect().bottom + window.scrollY + padding);
-        if (Number.isFinite(height) && height > 0 && height !== lastHeight) {
+        if (Number.isFinite(height) && height > 0 && (force || height !== lastHeight)) {
           lastHeight = height;
-          window.parent.postMessage({type: `${model.meta.id}-height`, height}, '*');
+          window.parent.postMessage({type: `${model.meta.id}-height`, height}, window.location.origin === 'null' ? '*' : window.location.origin);
         }
       };
+      heightRequestHandler = event => {
+        if (event.source === window.parent && event.origin === window.location.origin &&
+            event.data?.type === `${model.meta.id}-request-height`) reportHeight(true);
+      };
+      window.addEventListener('message', heightRequestHandler);
       reportHeight();
       if (typeof ResizeObserver === 'function') {
-        heightObserver = new ResizeObserver(reportHeight);
+        heightObserver = new ResizeObserver(() => reportHeight());
         heightObserver.observe(documentRoot);
       }
     }

@@ -1,19 +1,110 @@
 {
   "version": 2,
-  "meta": {"id": "base-template", "title": "Linux Logging Architecture", "scope": "system", "view": "layered", "colorMode": "technical"},
-  "canvas": {"width": 1350, "height": 930},
-  "deployment": {"profile": "single-domain"},
-  "sources": [{"id": "systemd", "title": "systemd-journald kernel log ingestion", "locator": "https://github.com/systemd/systemd/blob/main/src/journal/journald-kmsg.c"}],
+  "meta": {
+    "id": "base-template",
+    "title": "Linux Logging Architecture",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 640,
+    "height": 552
+  },
+  "deployment": {
+    "profile": "single-domain"
+  },
+  "sources": [
+    {
+      "id": "systemd",
+      "title": "systemd-journald kernel log ingestion",
+      "locator": "https://github.com/systemd/systemd/blob/main/src/journal/journald-kmsg.c"
+    }
+  ],
   "containers": [
-    {"id": "linux", "kind": "domain", "title": "Linux", "domainType": "os", "platform": "linux", "x": 36, "y": 36, "w": 1278, "h": 858},
-    {"id": "services", "kind": "layer", "title": "System Services", "role": "system-services", "parent": "linux", "order": 0, "x": 66, "y": 156, "w": 1218, "h": 270},
-    {"id": "kernel", "kind": "layer", "title": "Linux Kernel", "role": "kernel", "parent": "linux", "order": 1, "x": 66, "y": 546, "w": 1218, "h": 312}
+    {
+      "id": "linux",
+      "kind": "domain",
+      "title": "Linux",
+      "domainType": "os",
+      "platform": "linux",
+      "x": 16,
+      "y": 16,
+      "w": 608,
+      "h": 520
+    },
+    {
+      "id": "services",
+      "kind": "layer",
+      "title": "System Services",
+      "role": "system-services",
+      "parent": "linux",
+      "order": 0,
+      "x": 32,
+      "y": 104,
+      "w": 576,
+      "h": 180
+    },
+    {
+      "id": "kernel",
+      "kind": "layer",
+      "title": "Linux Kernel",
+      "role": "kernel",
+      "parent": "linux",
+      "order": 1,
+      "x": 32,
+      "y": 340,
+      "w": 576,
+      "h": 180
+    }
   ],
   "nodes": [
-    {"id": "journald", "entityType": "process", "canonicalName": "systemd-journald", "description": "Journal collection and storage", "layerRole": "system-services", "parent": "services", "x": 450, "y": 267, "w": 450, "h": 120, "evidence": ["systemd"]},
-    {"id": "kernel-log", "entityType": "subsystem", "canonicalName": "Kernel Logging", "layerRole": "kernel", "parent": "kernel", "x": 450, "y": 657, "w": 450, "h": 120, "evidence": ["systemd"]}
+    {
+      "id": "journald",
+      "entityType": "process",
+      "canonicalName": "systemd-journald",
+      "description": "Journal collection and storage",
+      "layerRole": "system-services",
+      "parent": "services",
+      "x": 140,
+      "y": 188,
+      "w": 360,
+      "h": 80,
+      "evidence": [
+        "systemd"
+      ]
+    },
+    {
+      "id": "kernel-log",
+      "entityType": "subsystem",
+      "canonicalName": "Kernel Logging",
+      "layerRole": "kernel",
+      "parent": "kernel",
+      "x": 140,
+      "y": 424,
+      "w": 360,
+      "h": 64,
+      "evidence": [
+        "systemd"
+      ]
+    }
   ],
   "edges": [
-    {"id": "kernel-journal", "from": "kernel-log", "to": "journald", "relation": "transfer", "label": "/dev/kmsg", "fromSide": "top", "toSide": "bottom", "evidence": ["systemd"]}
+    {
+      "id": "kernel-journal",
+      "from": "kernel-log",
+      "to": "journald",
+      "relation": "transfer",
+      "label": "/dev/kmsg",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "evidence": [
+        "systemd"
+      ],
+      "labelPosition": {
+        "x": 402,
+        "y": 312
+      }
+    }
   ]
 }

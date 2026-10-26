@@ -1,0 +1,420 @@
+{
+  "version": 2,
+  "meta": {
+    "id": "aaos-audio-overview",
+    "title": "AAOS Audio Architecture",
+    "description": "Android audio APIs, service processes and two distinct HAL contracts. Device-specific drivers and physical endpoints are outside this software view.",
+    "scope": "system",
+    "view": "layered",
+    "colorMode": "technical"
+  },
+  "canvas": {
+    "width": 1100,
+    "height": 1192
+  },
+  "sources": [
+    {
+      "id": "car",
+      "title": "car",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/CarAudioService.java#2270"
+    },
+    {
+      "id": "api",
+      "title": "api",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/car-lib/src/android/car/media/CarAudioManager.java#122"
+    },
+    {
+      "id": "audio",
+      "title": "audio",
+      "locator": "https://android.googlesource.com/platform/frameworks/base/+/94b4c163b7dfe5ce3607f7bb8456f9573f7de57d/services/core/java/com/android/server/audio/AudioService.java#12731"
+    },
+    {
+      "id": "track",
+      "title": "track",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/media/libaudioclient/AudioTrack.cpp#1816"
+    },
+    {
+      "id": "af",
+      "title": "af",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audioflinger/AudioFlinger.cpp#1092"
+    },
+    {
+      "id": "aps",
+      "title": "aps",
+      "locator": "https://android.googlesource.com/platform/frameworks/av/+/475269ec44acec82792be6b01fb8e16357d4d2c8/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp#363"
+    },
+    {
+      "id": "ctrl",
+      "title": "ctrl",
+      "locator": "https://android.googlesource.com/platform/packages/services/Car/+/9f04df65daa8b9a65ee05fd4039fe95446874d76/service/src/com/android/car/audio/AudioControlWrapper.java#70"
+    },
+    {
+      "id": "ctrlhal",
+      "title": "ctrlhal",
+      "locator": "https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl#85"
+    },
+    {
+      "id": "module",
+      "title": "module",
+      "locator": "https://android.googlesource.com/platform/hardware/interfaces/+/0162af698935100a590b7359581ac8b1b80693e5/audio/aidl/android/hardware/audio/core/IModule.aidl#409"
+    }
+  ],
+  "deployment": {
+    "profile": "single-domain",
+    "evidence": [
+      "car",
+      "af",
+      "ctrlhal"
+    ]
+  },
+  "containers": [
+    {
+      "id": "android",
+      "kind": "domain",
+      "title": "Android Automotive OS",
+      "x": 16,
+      "y": 16,
+      "w": 1068,
+      "h": 1160,
+      "domainType": "os",
+      "platform": "android"
+    },
+    {
+      "id": "apis",
+      "kind": "layer",
+      "title": "Java API Framework",
+      "x": 32,
+      "y": 104,
+      "w": 1036,
+      "h": 170,
+      "role": "framework-api",
+      "order": 0,
+      "parent": "android"
+    },
+    {
+      "id": "services",
+      "kind": "layer",
+      "title": "System Services",
+      "x": 32,
+      "y": 370,
+      "w": 1036,
+      "h": 520,
+      "role": "system-services",
+      "order": 1,
+      "parent": "android"
+    },
+    {
+      "id": "hal",
+      "kind": "layer",
+      "title": "Hardware Abstraction Layer",
+      "x": 32,
+      "y": 948,
+      "w": 1036,
+      "h": 208,
+      "role": "hal",
+      "order": 2,
+      "parent": "android"
+    },
+    {
+      "id": "ss",
+      "kind": "process",
+      "title": "system_server",
+      "x": 48,
+      "y": 460,
+      "w": 282,
+      "h": 176,
+      "evidence": [
+        "audio"
+      ],
+      "parent": "services"
+    },
+    {
+      "id": "carproc",
+      "kind": "process",
+      "title": "com.android.car",
+      "x": 764,
+      "y": 460,
+      "w": 288,
+      "h": 176,
+      "evidence": [
+        "car"
+      ],
+      "parent": "services"
+    },
+    {
+      "id": "aud",
+      "kind": "process",
+      "title": "audioserver",
+      "x": 48,
+      "y": 692,
+      "w": 680,
+      "h": 176,
+      "evidence": [
+        "af"
+      ],
+      "parent": "services"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "am",
+      "canonicalName": "AudioManager",
+      "entityType": "class",
+      "x": 64,
+      "y": 190,
+      "w": 250,
+      "h": 64,
+      "parent": "apis",
+      "evidence": [
+        "audio"
+      ],
+      "layerRole": "framework-api"
+    },
+    {
+      "id": "at",
+      "canonicalName": "AudioTrack",
+      "entityType": "class",
+      "x": 422,
+      "y": 190,
+      "w": 250,
+      "h": 64,
+      "parent": "apis",
+      "evidence": [
+        "track"
+      ],
+      "layerRole": "framework-api"
+    },
+    {
+      "id": "cam",
+      "canonicalName": "CarAudioManager",
+      "entityType": "class",
+      "x": 780,
+      "y": 190,
+      "w": 250,
+      "h": 64,
+      "parent": "apis",
+      "evidence": [
+        "api"
+      ],
+      "layerRole": "framework-api"
+    },
+    {
+      "id": "as",
+      "canonicalName": "AudioService",
+      "entityType": "class",
+      "x": 64,
+      "y": 548,
+      "w": 250,
+      "h": 64,
+      "parent": "ss",
+      "evidence": [
+        "audio"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "cas",
+      "canonicalName": "CarAudioService",
+      "entityType": "class",
+      "x": 780,
+      "y": 548,
+      "w": 250,
+      "h": 64,
+      "parent": "carproc",
+      "evidence": [
+        "car"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "aps",
+      "canonicalName": "AudioPolicyService",
+      "entityType": "class",
+      "x": 64,
+      "y": 780,
+      "w": 250,
+      "h": 64,
+      "parent": "aud",
+      "evidence": [
+        "aps"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "af",
+      "canonicalName": "AudioFlinger",
+      "entityType": "class",
+      "x": 422,
+      "y": 780,
+      "w": 250,
+      "h": 64,
+      "parent": "aud",
+      "evidence": [
+        "af"
+      ],
+      "layerRole": "system-services"
+    },
+    {
+      "id": "corehal",
+      "canonicalName": "Audio HAL",
+      "entityType": "subsystem",
+      "x": 422,
+      "y": 1036,
+      "w": 250,
+      "h": 100,
+      "parent": "hal",
+      "evidence": [
+        "module"
+      ],
+      "layerRole": "hal",
+      "description": "Streams, ports and patches"
+    },
+    {
+      "id": "ctrlhal",
+      "canonicalName": "AudioControl HAL",
+      "entityType": "subsystem",
+      "x": 780,
+      "y": 1036,
+      "w": 250,
+      "h": 100,
+      "parent": "hal",
+      "evidence": [
+        "ctrlhal"
+      ],
+      "layerRole": "hal",
+      "description": "Automotive control and callbacks"
+    }
+  ],
+  "edges": [
+    {
+      "id": "focus",
+      "from": "am",
+      "to": "as",
+      "relation": "ipc",
+      "evidence": [
+        "audio"
+      ],
+      "mechanism": "Binder",
+      "toSide": "left",
+      "via": [
+        {
+          "y": 330
+        },
+        {
+          "x": 40
+        },
+        {
+          "y": 580
+        }
+      ],
+      "labelPosition": {
+        "x": 124,
+        "y": 302
+      }
+    },
+    {
+      "id": "carapi",
+      "from": "cam",
+      "to": "cas",
+      "relation": "ipc",
+      "evidence": [
+        "api"
+      ],
+      "mechanism": "Binder",
+      "toSide": "right",
+      "via": [
+        {
+          "y": 330
+        },
+        {
+          "x": 1060
+        },
+        {
+          "y": 580
+        }
+      ],
+      "labelPosition": {
+        "x": 976,
+        "y": 302
+      }
+    },
+    {
+      "id": "trackctl",
+      "from": "at",
+      "to": "af",
+      "relation": "ipc",
+      "evidence": [
+        "track"
+      ],
+      "mechanism": "JNI / Binder",
+      "labelPosition": {
+        "x": 627,
+        "y": 420
+      }
+    },
+    {
+      "id": "policy",
+      "from": "as",
+      "to": "aps",
+      "relation": "ipc",
+      "evidence": [
+        "audio"
+      ],
+      "mechanism": "Binder",
+      "labelPosition": {
+        "x": 278,
+        "y": 656
+      },
+      "via": [
+        {
+          "y": 682
+        },
+        {
+          "x": 350
+        },
+        {
+          "y": 760
+        }
+      ]
+    },
+    {
+      "id": "selection",
+      "from": "af",
+      "to": "aps",
+      "relation": "call",
+      "evidence": [
+        "af"
+      ],
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "output",
+      "from": "af",
+      "to": "corehal",
+      "relation": "ipc",
+      "evidence": [
+        "af"
+      ],
+      "mechanism": "Audio HAL IPC",
+      "labelPosition": {
+        "x": 638,
+        "y": 918
+      }
+    },
+    {
+      "id": "carcontrol",
+      "from": "cas",
+      "to": "ctrlhal",
+      "relation": "ipc",
+      "evidence": [
+        "ctrl"
+      ],
+      "mechanism": "Binder / AIDL",
+      "labelPosition": {
+        "x": 986,
+        "y": 918
+      }
+    }
+  ]
+}
