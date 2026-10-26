@@ -1,0 +1,50 @@
+Command exited with code 0.
+
+Command output:
+runtime/parsed_options.cc:415:      .Define("-XX:MonitorTimeoutEnable=_")
+runtime/parsed_options.cc:418:          .IntoKey(M::MonitorTimeoutEnable)
+runtime/parsed_options.cc:419:      .Define("-XX:MonitorTimeout=_")  // in ms
+runtime/parsed_options.cc:421:          .IntoKey(M::MonitorTimeout)
+runtime/parsed_options.cc:422:      .Define("-XX:GlobalRefAllocStackTraceLimit=_")  // Number of free slots to enable tracing.
+runtime/parsed_options.cc:424:          .IntoKey(M::GlobalRefAllocStackTraceLimit)
+runtime/parsed_options.cc:449:          .IntoKey(M::VerifierLoggingThreshold)
+runtime/entrypoints/quick/quick_jni_entrypoints.cc:235:  MONITOR_JNI(PaletteNotifyBeginJniInvocation);
+runtime/entrypoints/quick/quick_jni_entrypoints.cc:239:  MONITOR_JNI(PaletteNotifyEndJniInvocation);
+runtime/verifier/method_verifier.cc:5725:    if (duration_ns > MsToNs(Runtime::Current()->GetVerifierLoggingThresholdMs())) {
+runtime/runtime.cc:327:      verifier_logging_threshold_ms_(100),
+runtime/runtime.cc:1716:  monitor_timeout_enable_ = runtime_options.GetOrDefault(Opt::MonitorTimeoutEnable);
+runtime/runtime.cc:1717:  int monitor_timeout_ms = runtime_options.GetOrDefault(Opt::MonitorTimeout);
+runtime/runtime.cc:1718:  if (monitor_timeout_ms < Monitor::kMonitorTimeoutMinMs) {
+runtime/runtime.cc:1720:    monitor_timeout_ms = Monitor::kMonitorTimeoutMinMs;
+runtime/runtime.cc:1722:  if (monitor_timeout_ms >= Monitor::kMonitorTimeoutMaxMs) {
+runtime/runtime.cc:1724:    monitor_timeout_ms = Monitor::kMonitorTimeoutMaxMs - 1;
+runtime/runtime.cc:2003:  verifier_logging_threshold_ms_ = runtime_options.GetOrDefault(Opt::VerifierLoggingThreshold);
+runtime/class_linker.cc:4752:  PaletteNotifyDexFileLoaded(dex_file.GetLocation().c_str());
+runtime/base/mutex.h:235:  void setEnableMonitorTimeout() {
+runtime/base/mutex.cc:43:static constexpr int kMonitorTimeoutTryMax = 5;
+runtime/base/mutex.cc:488:                ? Runtime::Current()->GetMonitorTimeoutNs()
+runtime/base/mutex.cc:489:                : Monitor::kDefaultMonitorTimeoutMs;
+runtime/base/mutex.cc:499:                  if (try_times <= kMonitorTimeoutTryMax) {
+runtime/jni/java_vm_ext.cc:544:          runtime_options.GetOrDefault(RuntimeArgumentMap::GlobalRefAllocStackTraceLimit)),
+runtime/jni/java_vm_ext_test.cc:146:    options->emplace_back("-XX:GlobalRefAllocStackTraceLimit=50000", nullptr);
+runtime/runtime_options.def:76:RUNTIME_OPTIONS_KEY (bool,                MonitorTimeoutEnable,           false)
+runtime/runtime_options.def:77:RUNTIME_OPTIONS_KEY (int,                 MonitorTimeout,                 Monitor::kDefaultMonitorTimeoutMs)
+runtime/runtime_options.def:176:RUNTIME_OPTIONS_KEY (unsigned int,        GlobalRefAllocStackTraceLimit,  0)  // 0 = off
+runtime/runtime_options.def:181:RUNTIME_OPTIONS_KEY (unsigned int,        VerifierLoggingThreshold,       100)
+runtime/oat/oat_file_manager.cc:82:  PaletteNotifyOatFileLoaded(oat_file->GetLocation().c_str());
+runtime/monitor.h:65:  static constexpr int kDefaultMonitorTimeoutMs = 500;
+runtime/monitor.h:67:  static constexpr int kMonitorTimeoutMinMs = 200;
+runtime/monitor.h:69:  static constexpr int kMonitorTimeoutMaxMs = 1000;  // 1 second
+runtime/monitor.cc:121:  bool monitor_timeout_enabled = Runtime::Current()->IsMonitorTimeoutEnabled();
+runtime/monitor.cc:154:  bool monitor_timeout_enabled = Runtime::Current()->IsMonitorTimeoutEnabled();
+runtime/monitor.cc:1778:    monitor_lock_.setEnableMonitorTimeout();
+runtime/runtime.h:1004:  uint32_t GetVerifierLoggingThresholdMs() const {
+runtime/runtime.h:1005:    return verifier_logging_threshold_ms_;
+runtime/runtime.h:1073:  bool IsMonitorTimeoutEnabled() const {
+runtime/runtime.h:1077:  uint64_t GetMonitorTimeoutNs() const {
+runtime/runtime.h:1562:  uint32_t verifier_logging_threshold_ms_;
+dex2oat/dex2oat_cts_test.cc:84:// PaletteNotify{Start,End}Dex2oatCompilation.
+dex2oat/dex2oat.cc:2486:        PaletteNotifyStartDex2oatCompilation(zip_dup_fd_,
+dex2oat/dex2oat.cc:2497:          PaletteNotifyEndDex2oatCompilation(zip_dup_fd_,
+dex2oat/dex2oat.cc:3043:  // Whether PaletteNotify{Start,End}Dex2oatCompilation should be called.
+dex2oat/dex2oat_options.cc:453:          .WithHelp("Force PaletteNotify{Start,End}Dex2oatCompilation calls.")

@@ -1,0 +1,24 @@
+Command exited with code 0.
+
+Command output:
+164:extern int register_android_os_PerfettoTrace(JNIEnv* env);
+165:extern int register_android_os_PerfettoTrackEventExtra(JNIEnv* env);
+237:extern int register_android_tracing_PerfettoDataSource(JNIEnv* env);
+238:extern int register_android_tracing_PerfettoDataSourceInstance(JNIEnv* env);
+239:extern int register_android_tracing_PerfettoProducer(JNIEnv* env);
+267:static const char* kLockProfThresholdRuntimeOption = "-Xlockprofthreshold:0";
+694:    char threadSuspendTimeoutOptsBuf[sizeof("-XX:ThreadSuspendTimeout=")-1 + PROPERTY_VALUE_MAX];
+711:    char perfettoHprofOptBuf[sizeof("-XX:PerfettoHprof=") + PROPERTY_VALUE_MAX];
+713:            sizeof("-XX:PerfettoJavaHeapStackProf=") + PROPERTY_VALUE_MAX];
+782:        addOption(kLockProfThresholdRuntimeOption);
+783:        ALOGI("Disabling lock profiling: '%s'\n", kLockProfThresholdRuntimeOption);
+832:    // On Android, we always want to allow loading the PerfettoHprof plugin.
+839:    parseRuntimeOption("dalvik.vm.perfetto_hprof", perfettoHprofOptBuf, "-XX:PerfettoHprof=",
+842:    // Enable PerfettoJavaHeapStackProf in the zygote
+844:                       "-XX:PerfettoJavaHeapStackProf=", "true");
+881:                       "-XX:ThreadSuspendTimeout=");
+1632:        REG_JNI(register_android_os_PerfettoTrace),
+1633:        REG_JNI(register_android_os_PerfettoTrackEventExtra),
+1733:        REG_JNI(register_android_tracing_PerfettoDataSource),
+1734:        REG_JNI(register_android_tracing_PerfettoDataSourceInstance),
+1735:        REG_JNI(register_android_tracing_PerfettoProducer),

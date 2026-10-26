@@ -1,0 +1,249 @@
+Command exited with code 0.
+
+Command output:
+runtime/thread_list.cc:354:    // Thread either has honored or will honor the checkpoint, or it has been added to
+runtime/thread.h:169:  // but not checkpoint requests, until a more opportune time. GC code should
+runtime/method_handles.cc:869:  // The following IsInPlaceConvertible check determines if either of these opportunities to
+runtime/thread_suspension_timeouts.md:11:causing the thread being "suspended" to generate a SIGSEGV at an opportune point, so that it
+runtime/mirror/class.cc:1780:  // The num_bytes (3rd param) is sizeof(Class) as opposed to SizeOf()
+runtime/interpreter/interpreter_common.cc:970:  // "opportunities". Unfortunately we cannot just leave this to the
+runtime/interpreter/mterp/riscv64/invoke.S:83:// invoke the closest superclass's virtual method (as opposed to the one with the same method_id in
+runtime/interpreter/mterp/riscv64/invoke.S:225:// to invoke the closest superclass's virtual method (as opposed to the one with the same method_id
+runtime/native/libcore_io_Memory.cc:104://   GetXArrayElements is disproportionately cheap on Dalvik because it doesn't copy (as opposed
+runtime/arch/arm/quick_entrypoints_arm.S:269:// Macros taking opportunity of code similarities for downcalls.
+runtime/arch/riscv64/quick_entrypoints_riscv64.S:1459:    // Save t5 and t6 onto stack to honor caller-save calling convention.
+runtime/verifier/method_verifier.cc:1434:  // thread dumping checkpoints since we may get thread suspension at an inopportune time due to
+runtime/gc/space/image_space.cc:3737:  // We also need to honor path components that were encoded through '@'. Otherwise the loading
+runtime/gc/collector/mark_sweep.cc:79:// checkpoint, as opposed to during the pause.
+runtime/gc/accounting/card_table.h:121:   * For opportunistic performance reasons, this assumes that visitor(kCardClean) is kCardClean!
+runtime/base/mutex.cc:570:                 << "\nPerfMonitor owner thread(" << owner_tid << ") stack is:\n"
+runtime/mutator_gc_coord.md:76:data structures, performing the above transitions in the opposite order.
+runtime/runtime_globals.h:97:// power-of-two value, and may therefore miss opportunities to optimize: divisions via a
+runtime/jni/indirect_reference_table_test.cc:114:  // Add three, remove in the opposite order.
+runtime/jni/indirect_reference_table.h:216:  // Determine what kind of indirect reference this is. Opposite of EncodeIndirectRefKind.
+runtime/jni/jni_internal.cc:837:  static jobject PopLocalFrame(JNIEnv* env, jobject java_survivor) {
+runtime/jni/jni_internal.cc:839:    ObjPtr<mirror::Object> survivor = soa.Decode<mirror::Object>(java_survivor);
+runtime/jni/jni_internal.cc:841:    return soa.AddLocalReference<jobject>(survivor);
+runtime/jni/local_reference_table_test.cc:124:  // Add three, remove in the opposite order.
+runtime/jni/jni_internal_test.cc:2173:      inner2 = env_->NewStringUTF("survivor");
+runtime/jni/jni_internal_test.cc:2185:    // Our local reference for the survivor is invalid because the survivor
+runtime/native_gc_triggering.md:82:   currently allocated by this metric, as opposed to the change since the last GC. But that is
+runtime/oat/oat_file.cc:2057:  // does honor the virtual address encoded in the ELF file only for ET_EXEC files, not ET_DYN.
+runtime/oat/oat_file_assistant.h:465:    // OatFileInfo is for the oat location, as opposed to the odex location.
+compiler/optimizing/dead_code_elimination.cc:246:// Removal of the never taken edge to B2 may expose other optimization opportunities, such as code
+compiler/optimizing/dead_code_elimination.cc:419:            // more opportunities for DCE.
+compiler/optimizing/dead_code_elimination.cc:477:    // Try to see if the dominator has the opposite input (e.g. if(cond) and if(!cond)). If that's
+compiler/optimizing/dead_code_elimination.cc:488:        block_cond->GetOppositeCondition() != dominator_cond->GetCondition() ||
+compiler/optimizing/dead_code_elimination.cc:533:        // `1` and `7` having the opposite condition is a case we are missing. We could potentially
+compiler/optimizing/dead_code_elimination.cc:546:      // Given that `dominated_by_true` is the exact opposite of `dominated_by_false`,
+compiler/optimizing/superblock_cloner_test.cc:394:TEST_F(SuperblockClonerTest, OuterLoopPopulationAfterInnerPeeled) {
+compiler/optimizing/intrinsics_arm_vixl.cc:1548:    // (and `src_pos`) here, and thus honors the artificial dependency of `src` on `rb_tmp`.
+compiler/optimizing/loop_optimization.cc:786:  // Scan the phis in the header to find opportunities to simplify an induction
+compiler/optimizing/common_arm64.h:251:  // the 'opposite' instruction.
+compiler/optimizing/register_allocator_linear_scan.cc:61:  // This is a heuristic which does not find all spill slot reuse opportunities. For that,
+compiler/optimizing/register_allocator_linear_scan.cc:853:      // `std::copy_if()` with the opposite condition instead because it has a simpler
+compiler/optimizing/loop_optimization.h:269:  // opportunities. Returns whether transformation happened. 'generate_code' determines whether the
+compiler/optimizing/loop_optimization.h:281:  // the loop check overhead and to have more opportunities for inter-iteration optimizations.
+compiler/optimizing/code_generator.h:522:  // If we are compiling a graph with the WBE pass enabled, we want to honor the WriteBarrierKind
+compiler/optimizing/intrinsics_riscv64.cc:1902:      // thus honors the artificial dependency of `src` on `tmp` for read barriers.
+compiler/optimizing/intrinsics_riscv64.cc:2135:  // iteration is necessary. As opposed to a standard while-loop, this inversion
+compiler/optimizing/code_generator_arm64.cc:3975:  //        - opposite condition true => branch to false_target
+compiler/optimizing/code_generator_arm64.cc:3999:        IfCondition opposite_condition = condition->GetOppositeCondition();
+compiler/optimizing/code_generator_arm64.cc:4000:        __ B(ARM64FPCondition(opposite_condition, condition->IsGtBias()), false_target);
+compiler/optimizing/code_generator_arm64.cc:4012:        arm64_cond = ARM64Condition(condition->GetOppositeCondition());
+compiler/optimizing/code_generator_x86.cc:1971:  IfCondition false_high_cond = cond->GetOppositeCondition();
+compiler/optimizing/code_generator_x86.cc:2173:  //        - opposite condition true => branch to false_target
+compiler/optimizing/code_generator_x86.cc:2182:        __ j(X86Condition(cond->AsCondition()->GetOppositeCondition()), false_target);
+compiler/optimizing/code_generator_x86.cc:2218:      __ j(X86Condition(condition->GetOppositeCondition()), false_target);
+compiler/optimizing/induction_var_analysis.cc:98:        : if_expr->AsCondition()->GetOppositeCondition();
+compiler/optimizing/induction_var_analysis.cc:554:      update = SolveTest(loop, phi, instruction, /*opposite_value=*/ 0, type);
+compiler/optimizing/induction_var_analysis.cc:556:      update = SolveTest(loop, phi, instruction, /*opposite_value=*/ 1, type);
+compiler/optimizing/induction_var_analysis.cc:958:                                                                       int64_t opposite_value,
+compiler/optimizing/induction_var_analysis.cc:965:  if (IsExact(context, loop, LookupInfo(loop, x), &value) && value == opposite_value) {
+compiler/optimizing/induction_var_analysis.cc:967:  } else if (IsExact(context, loop, LookupInfo(loop, y), &value) && value == opposite_value) {
+compiler/optimizing/induction_var_analysis.cc:1029:        VisitCondition(context, loop, if_false, a, b, type, condition->GetOppositeCondition());
+compiler/optimizing/instruction_builder.cc:1849:  // chain up to `cls` without running any bytecode, i.e. without any opportunity for circular
+compiler/optimizing/intrinsics_arm64.cc:3150:  // iteration is necessary. As opposed to a standard while-loop, this inversion
+compiler/optimizing/intrinsics_arm64.cc:3541:      // `src_pos`) here, and thus honors the artificial dependency
+compiler/optimizing/code_generator_x86_64.cc:2300:  //        - opposite condition true => branch to false_target
+compiler/optimizing/code_generator_x86_64.cc:2309:        __ j(X86_64IntegerCondition(cond->AsCondition()->GetOppositeCondition()), false_target);
+compiler/optimizing/code_generator_x86_64.cc:2344:      __ j(X86_64IntegerCondition(condition->GetOppositeCondition()), false_target);
+compiler/optimizing/constant_folding.cc:742:    // opposite value.
+compiler/optimizing/constant_folding.cc:762:    // opposite value.
+compiler/optimizing/constant_folding.cc:1031:  // opportunity.
+compiler/optimizing/code_generator_arm64.h:401:  // while honoring heap poisoning and/or read barriers (if any).
+compiler/optimizing/code_generator_arm64.h:416:  // while honoring heap poisoning and/or read barriers (if any).
+compiler/optimizing/code_generator_arm64.h:990:  // while honoring read barriers based on read_barrier_option.
+compiler/optimizing/code_generator_x86.h:297:  // while honoring read barriers based on read_barrier_option.
+compiler/optimizing/code_generator_x86.h:350:  // while honoring heap poisoning and/or read barriers (if any).
+compiler/optimizing/code_generator_x86.h:365:  // while honoring heap poisoning and/or read barriers (if any).
+compiler/optimizing/nodes.h:3186:  virtual IfCondition GetOppositeCondition() const = 0;
+compiler/optimizing/nodes.h:3283:  IfCondition GetOppositeCondition() const override {
+compiler/optimizing/nodes.h:3326:  IfCondition GetOppositeCondition() const override {
+compiler/optimizing/nodes.h:3365:  IfCondition GetOppositeCondition() const override {
+compiler/optimizing/nodes.h:3404:  IfCondition GetOppositeCondition() const override {
+compiler/optimizing/nodes.h:3443:  IfCondition GetOppositeCondition() const override {
+compiler/optimizing/nodes.h:3482:  IfCondition GetOppositeCondition() const override {
+compiler/optimizing/nodes.h:3512:  IfCondition GetOppositeCondition() const override {
+compiler/optimizing/nodes.h:3544:  IfCondition GetOppositeCondition() const override {
+compiler/optimizing/nodes.h:3576:  IfCondition GetOppositeCondition() const override {
+compiler/optimizing/nodes.h:3608:  IfCondition GetOppositeCondition() const override {
+compiler/optimizing/inliner.cc:151:  // If we're compiling tests, honor inlining directives in method names:
+compiler/optimizing/inliner.cc:158:  const bool honor_noinline_directives = codegen_->GetCompilerOptions().CompileArtTest();
+compiler/optimizing/inliner.cc:159:  const bool honor_inline_directives =
+compiler/optimizing/inliner.cc:160:      honor_noinline_directives &&
+compiler/optimizing/inliner.cc:176:        if (honor_noinline_directives) {
+compiler/optimizing/inliner.cc:184:            } else if (honor_inline_directives) {
+compiler/optimizing/inliner.cc:190:          DCHECK(!honor_inline_directives);
+compiler/optimizing/code_generator_riscv64.cc:1370:  //        - opposite condition true => branch to false_target
+compiler/optimizing/code_generator_riscv64.cc:1395:      if_cond = condition->GetOppositeCondition();
+compiler/optimizing/induction_var_analysis.h:222:                           int64_t opposite_value,
+compiler/optimizing/code_generator_x86_64.h:289:  // while honoring read barriers based on read_barrier_option.
+compiler/optimizing/code_generator_x86_64.h:342:  // while honoring heap poisoning and/or read barriers (if any).
+compiler/optimizing/code_generator_x86_64.h:357:  // while honoring heap poisoning and/or read barriers (if any).
+compiler/optimizing/code_generator_arm_vixl.h:483:  // while honoring heap poisoning and/or read barriers (if any).
+compiler/optimizing/code_generator_arm_vixl.h:498:  // while honoring heap poisoning and/or read barriers (if any).
+compiler/optimizing/code_generator_arm_vixl.h:759:  // while honoring read barriers based on read_barrier_option.
+compiler/optimizing/instruction_simplifier.cc:176:  // Returns an instruction with the opposite Boolean value from 'cond'.
+compiler/optimizing/instruction_simplifier.cc:179:  HInstruction* InsertOppositeCondition(HInstruction* cond, HInstruction* cursor);
+compiler/optimizing/instruction_simplifier.cc:848:static IfCondition GetOppositeConditionForOperandSwap(IfCondition cond) {
+compiler/optimizing/instruction_simplifier.cc:866:HInstruction* InstructionSimplifierVisitor::InsertOppositeCondition(HInstruction* cond,
+compiler/optimizing/instruction_simplifier.cc:874:        HCondition::Create(GetGraph(), cond->AsCondition()->GetOppositeCondition(), lhs, rhs);
+compiler/optimizing/instruction_simplifier.cc:907:        equal->ReplaceWith(InsertOppositeCondition(input_value, equal));
+compiler/optimizing/instruction_simplifier.cc:934:        not_equal->ReplaceWith(InsertOppositeCondition(input_value, not_equal));
+compiler/optimizing/instruction_simplifier.cc:975:    // Replace condition with its opposite.
+compiler/optimizing/instruction_simplifier.cc:976:    replace_with = InsertOppositeCondition(input->AsCondition(), bool_not);
+compiler/optimizing/instruction_simplifier.cc:1092:      replace_with = InsertOppositeCondition(condition, select);
+compiler/optimizing/instruction_simplifier.cc:1673:  // are still correct and only miss an optimization opportunity.
+compiler/optimizing/instruction_simplifier.cc:1808:    IfCondition new_cond = GetOppositeConditionForOperandSwap(condition->GetCondition());
+compiler/optimizing/instruction_simplifier.cc:1811:    // If it is a FP condition, we must set the opposite bias.
+compiler/optimizing/instruction_simplifier.cc:2332:  // are still correct and only miss an optimization opportunity.
+compiler/optimizing/code_generator_riscv64.h:322:  // while honoring heap poisoning and/or read barriers (if any).
+compiler/optimizing/code_generator_riscv64.h:337:  // while honoring heap poisoning and/or read barriers (if any).
+compiler/optimizing/code_generator_riscv64.h:656:  // while honoring read barriers (if any).
+compiler/optimizing/dead_code_elimination.h:115:  // Adds a phi in `block`, if `block` and its dominator have the same (or opposite) condition.
+compiler/optimizing/code_generator_arm_vixl.cc:1323:                                          IfCondition* opposite) {
+compiler/optimizing/code_generator_arm_vixl.cc:1328:      *opposite = kCondNE;
+compiler/optimizing/code_generator_arm_vixl.cc:1332:      *opposite = kCondEQ;
+compiler/optimizing/code_generator_arm_vixl.cc:1338:      *opposite = kCondLT;
+compiler/optimizing/code_generator_arm_vixl.cc:1342:      *opposite = kCondGE;
+compiler/optimizing/code_generator_arm_vixl.cc:1357:  IfCondition opposite = condition->GetOppositeCondition();
+compiler/optimizing/code_generator_arm_vixl.cc:1360:    std::swap(cond, opposite);
+compiler/optimizing/code_generator_arm_vixl.cc:1371:  int64_t value = AdjustConstantForCondition(Int64ConstantFrom(right), &cond, &opposite);
+compiler/optimizing/code_generator_arm_vixl.cc:1390:        return std::make_pair(ARMCondition(cond), ARMCondition(opposite));
+compiler/optimizing/code_generator_arm_vixl.cc:1430:      ret = std::make_pair(ARMUnsignedCondition(cond), ARMUnsignedCondition(opposite));
+compiler/optimizing/code_generator_arm_vixl.cc:1443:        DCHECK_EQ(opposite, kCondGT);
+compiler/optimizing/code_generator_arm_vixl.cc:1445:        opposite = kCondGE;
+compiler/optimizing/code_generator_arm_vixl.cc:1448:        DCHECK_EQ(opposite, kCondLE);
+compiler/optimizing/code_generator_arm_vixl.cc:1450:        opposite = kCondLT;
+compiler/optimizing/code_generator_arm_vixl.cc:1459:      ret = std::make_pair(ARMCondition(cond), ARMCondition(opposite));
+compiler/optimizing/code_generator_arm_vixl.cc:1478:  IfCondition opposite = condition->GetOppositeCondition();
+compiler/optimizing/code_generator_arm_vixl.cc:1481:    std::swap(cond, opposite);
+compiler/optimizing/code_generator_arm_vixl.cc:1506:      ret = std::make_pair(ARMUnsignedCondition(cond), ARMUnsignedCondition(opposite));
+compiler/optimizing/code_generator_arm_vixl.cc:1512:        DCHECK_EQ(opposite, kCondGT);
+compiler/optimizing/code_generator_arm_vixl.cc:1514:        opposite = kCondLT;
+compiler/optimizing/code_generator_arm_vixl.cc:1517:        DCHECK_EQ(opposite, kCondLE);
+compiler/optimizing/code_generator_arm_vixl.cc:1519:        opposite = kCondGE;
+compiler/optimizing/code_generator_arm_vixl.cc:1530:      ret = std::make_pair(ARMCondition(cond), ARMCondition(opposite));
+compiler/optimizing/code_generator_arm_vixl.cc:1546:  IfCondition opposite = condition->GetOppositeCondition();
+compiler/optimizing/code_generator_arm_vixl.cc:1550:    std::swap(cond, opposite);
+compiler/optimizing/code_generator_arm_vixl.cc:1561:                         ARMFPCondition(opposite, condition->IsGtBias()));
+compiler/optimizing/code_generator_arm_vixl.cc:1565:    ret = std::make_pair(ARMCondition(cond), ARMCondition(opposite));
+compiler/optimizing/code_generator_arm_vixl.cc:1612:    IfCondition opposite = cond->GetOppositeCondition();
+compiler/optimizing/code_generator_arm_vixl.cc:1615:                                                     &opposite);
+compiler/optimizing/code_generator_arm_vixl.cc:1664:    IfCondition opposite = cond->GetOppositeCondition();
+compiler/optimizing/code_generator_arm_vixl.cc:1667:    if (AdjustConstantForCondition(Int64ConstantFrom(right), &condition, &opposite) == 0) {
+compiler/optimizing/code_generator_arm_vixl.cc:1736:    IfCondition opposite = cond->GetOppositeCondition();
+compiler/optimizing/code_generator_arm_vixl.cc:1738:    value = AdjustConstantForCondition(Int64ConstantFrom(right), &condition, &opposite);
+compiler/optimizing/code_generator_arm_vixl.cc:2931:  //        - opposite condition true => branch to false_target
+compiler/optimizing/code_generator_arm_vixl.cc:2971:      arm_cond = ARMCondition(condition->GetOppositeCondition());
+compiler/optimizing/code_generator_arm_vixl.cc:3760:    // what is available, and is the opposite of the standard usage: Instead of requesting a
+compiler/optimizing/load_store_elimination.cc:2503:// opportunities. If we find no such load, we shall at least propagate an unknown value to some
+compiler/utils/arm/jni_macro_assembler_arm_vixl.cc:583:    // Look for opportunities to move 2 words at a time with LDRD/STRD
+compiler/utils/arm/jni_macro_assembler_arm_vixl.cc:654:  // opportunities to use LDRD/VMOV to fill 2 registers with one instruction.
+compiler/utils/riscv64/assembler_riscv64.cc:6838:Riscv64Assembler::BranchCondition Riscv64Assembler::Branch::OppositeCondition(
+compiler/utils/riscv64/assembler_riscv64.cc:7118:  auto emit_cbcondz_opposite = [&]() {
+compiler/utils/riscv64/assembler_riscv64.cc:7122:      DCHECK_EQ(Branch::OppositeCondition(condition), kCondEQ);
+compiler/utils/riscv64/assembler_riscv64.cc:7125:      DCHECK_EQ(Branch::OppositeCondition(condition), kCondNE);
+compiler/utils/riscv64/assembler_riscv64.cc:7171:      EmitBcond(Branch::OppositeCondition(condition), lhs, rhs, branch->GetLength());
+compiler/utils/riscv64/assembler_riscv64.cc:7176:      emit_cbcondz_opposite();
+compiler/utils/riscv64/assembler_riscv64.cc:7183:      emit_cbcondz_opposite();
+compiler/utils/riscv64/assembler_riscv64.cc:7187:      EmitBcond(Branch::OppositeCondition(condition), lhs, rhs, branch->GetLength());
+compiler/utils/riscv64/assembler_riscv64.h:2039:    static BranchCondition OppositeCondition(BranchCondition cond);
+compiler/utils/riscv64/assembler_riscv64_test.cc:479:              [[maybe_unused]] const std::string& opposite_cond,
+compiler/utils/riscv64/assembler_riscv64_test.cc:488:              [[maybe_unused]] const std::string& opposite_cond,
+compiler/utils/riscv64/assembler_riscv64_test.cc:495:  auto GetPrintBcondOppositeAndJ(const std::string& skip_label) {
+compiler/utils/riscv64/assembler_riscv64_test.cc:497:               const std::string& opposite_cond,
+compiler/utils/riscv64/assembler_riscv64_test.cc:500:      return "b" + opposite_cond + args + ", " + skip_label + "f\n" +
+compiler/utils/riscv64/assembler_riscv64_test.cc:506:  auto GetPrintCBcondOppositeAndJ(const std::string& skip_label) {
+compiler/utils/riscv64/assembler_riscv64_test.cc:508:               const std::string& opposite_cond,
+compiler/utils/riscv64/assembler_riscv64_test.cc:511:      return "c.b" + opposite_cond + "z" + StripZeroArg(args) + ", " + skip_label + "f\n" +
+compiler/utils/riscv64/assembler_riscv64_test.cc:517:  auto GetPrintBcondOppositeAndTail(const std::string& skip_label, const std::string& base_label) {
+compiler/utils/riscv64/assembler_riscv64_test.cc:519:               const std::string& opposite_cond,
+compiler/utils/riscv64/assembler_riscv64_test.cc:522:      return "b" + opposite_cond + args + ", " + skip_label + "f\n" +
+compiler/utils/riscv64/assembler_riscv64_test.cc:531:  // whether with branch expansion (a conditional branch with opposite condition over an
+compiler/utils/riscv64/assembler_riscv64_test.cc:635:                             const std::string& opposite_cond,
+compiler/utils/riscv64/assembler_riscv64_test.cc:642:    expected += print_bcond(cond, opposite_cond, args, target_label + "f");
+compiler/utils/riscv64/assembler_riscv64_test.cc:708:      const std::string& opposite_cond,
+compiler/utils/riscv64/assembler_riscv64_test.cc:718:    expected += print_bcond(cond, opposite_cond, args, target_label + "b");
+compiler/utils/riscv64/assembler_riscv64_test.cc:8772:  TestBcondForward("BcondForward5KiB", 5 * KB, "1", GetPrintBcondOppositeAndJ("2"));
+compiler/utils/riscv64/assembler_riscv64_test.cc:8777:  TestBcondForward("BcondForward5KiB_WithoutC", 5 * KB, "1", GetPrintBcondOppositeAndJ("2"));
+compiler/utils/riscv64/assembler_riscv64_test.cc:8781:  TestBcondBackward("BcondBackward5KiB", 5 * KB, "1", GetPrintBcondOppositeAndJ("2"));
+compiler/utils/riscv64/assembler_riscv64_test.cc:8786:  TestBcondBackward("BcondBackward5KiB_WithoutC", 5 * KB, "1", GetPrintBcondOppositeAndJ("2"));
+compiler/utils/riscv64/assembler_riscv64_test.cc:8790:  TestBcondForward("BcondForward2MiB", 2 * MB, "1", GetPrintBcondOppositeAndTail("2", "3"));
+compiler/utils/riscv64/assembler_riscv64_test.cc:8796:      "BcondForward2MiB_WithoutC", 2 * MB, "1", GetPrintBcondOppositeAndTail("2", "3"));
+compiler/utils/riscv64/assembler_riscv64_test.cc:8800:  TestBcondBackward("BcondBackward2MiB", 2 * MB, "1", GetPrintBcondOppositeAndTail("2", "3"));
+compiler/utils/riscv64/assembler_riscv64_test.cc:8806:      "BcondBackward2MiB_WithoutC", 2 * MB, "1", GetPrintBcondOppositeAndTail("2", "3"));
+compiler/utils/riscv64/assembler_riscv64_test.cc:9060:                    GetPrintCBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9068:                    GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9075:                    GetPrintCBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9083:                    GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9090:                     GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9098:                     GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9105:                     GetPrintCBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9113:                     GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9120:                     GetPrintCBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9128:                     GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9135:                      GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9143:                      GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9150:                    GetPrintCBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9158:                    GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9165:                    GetPrintCBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9173:                    GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9180:                     GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9188:                     GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9195:                     GetPrintCBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9203:                     GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9210:                     GetPrintCBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9218:                     GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9225:                      GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9233:                      GetPrintBcondOppositeAndJ("2"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9240:                    GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9248:                    GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9255:                    GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9263:                    GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9270:                     GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9278:                     GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9285:                     GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9293:                     GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9300:                     GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9308:                     GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9315:                      GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9323:                      GetPrintBcondOppositeAndTail("2", "3"),
+compiler/utils/riscv64/assembler_riscv64_test.cc:9337:  TestBeqA0A1MaybeCascade("BeqA0A1Cascade", /*cascade=*/true, GetPrintBcondOppositeAndJ("1"));
+compiler/utils/riscv64/assembler_riscv64_test.cc:9343:      "BeqA0A1Cascade_WithoutC", /*cascade=*/true, GetPrintBcondOppositeAndJ("1"));
+compiler/jni/jni_compiler_test.cc:687:// Do the opposite of the above. Do *not* wrap the function, instead just cast it to a void*.
+compiler/driver/compiler_options_map-inl.h:200:                    "A zero value will disable inlining. Honored only by Optimizing. Has priority\n"
+dex2oat/linker/arm/relative_patcher_arm_base.cc:176:  // Since we do not know here whether this is the last file or whether the next opportunity
+dex2oat/utils/swap_space.h:101:  // NOTE: Boost.Bimap would be useful for the two following members.
+dex2oat/utils/swap_space.cc:124:      // This would be much simpler if we could use replace() from Boost.Bimap.
+libartbase/base/intrusive_forward_list.h:133:// Intrusive version of std::forward_list<>. See also slist<> in Boost.Intrusive.
+libartbase/base/mem_map.cc:213:    // - The kernel is not *required* to honor expected_ptr unless MAP_FIXED is
+libartservice/service/README.md:348:This is opposed to synchronous Pre-reboot Dexopt, which blocks the update
+libartservice/service/java/com/android/server/art/ArtManagerLocal.java:587:     * This method gives users the opportunity to change the behavior of {@link #dexoptPackages},
+libartservice/service/java/com/android/server/art/prereboot/PreRebootManagerInterface.java:38: * Dropping the support for certain versions will only make devices lose the opportunity to optimize
+libartservice/service/java/com/android/server/art/Utils.java:440:     * Note: "External profile" means profiles that are external to the device, as opposed to local
+libartservice/service/java/com/android/server/art/model/ArtFlags.java:264:     * The supplementary pass, run after the main pass, to take the opportunity to dexopt more
+artd/tests/src/UpdateApplication.java:1:package com.voyah.update;
+artd/tests/src/UpdateApplication.java:11:    public static final String PKGNAME = "com.voyah.update";
+artd/tests/src/UpdateApplication.java:12:    private static final String UPDATE_SERVICE = "com.voyah.update.service.UpdateService";

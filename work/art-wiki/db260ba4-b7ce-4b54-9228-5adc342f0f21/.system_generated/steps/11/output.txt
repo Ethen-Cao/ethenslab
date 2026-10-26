@@ -1,0 +1,226 @@
+Command exited with code 0.
+
+Command output:
+runtime/thread_state.h:54:  kWaitingForJniOnLoad,             // WAITING        TS_WAIT      waiting for execution of dlopen and JNI on load code
+runtime/Android.bp:221:        //     - This one is not loaded programmatically with dlopen, but the
+runtime/runtime.cc:1098:    // pthread_create and dlopen that could cause a deadlock. pthread_create interceptor in ASAN
+runtime/runtime.cc:1101:    // deadlock. __tls_get_addr needs a dl_load_lock only when there is a dlopen happening in
+runtime/runtime.cc:1103:    // finish before going to the next phase. Creating a system class loader could need a dlopen so
+runtime/runtime.cc:2187:  //   LoadNativeBridge -> dlopen from cmd line parameter.
+runtime/runtime.cc:2203:  //   LoadNativeBridge -> dlopen from cmd line parameter.
+runtime/runtime.cc:2252:    // subsequent dlopens for the library no-ops.
+runtime/runtime.cc:2253:    dlopen(plugin_name, RTLD_NOW | RTLD_LOCAL);
+runtime/base/locks.cc:56:Mutex* Locks::host_dlopen_handles_lock_ = nullptr;
+runtime/base/locks.cc:146:    DCHECK(host_dlopen_handles_lock_ != nullptr);
+runtime/base/locks.cc:269:    DCHECK(host_dlopen_handles_lock_ == nullptr);
+runtime/base/locks.cc:270:    host_dlopen_handles_lock_ = new Mutex("host dlopen handles lock", current_lock_level);
+runtime/base/locks.h:300:  // Guards dlopen_handles_ in DlOpenOatFile.
+runtime/base/locks.h:301:  static Mutex* host_dlopen_handles_lock_ ACQUIRED_AFTER(verifier_deps_lock_);
+runtime/base/locks.h:304:  static Mutex* intern_table_lock_ ACQUIRED_AFTER(host_dlopen_handles_lock_);
+runtime/plugin.cc:33:Plugin::Plugin(const Plugin& other) : library_(other.library_), dlopen_handle_(nullptr) {
+runtime/plugin.cc:40:  void* res = dlopen(library_.c_str(), RTLD_LAZY);
+runtime/plugin.cc:42:    *error_msg = StringPrintf("dlopen failed: %s", dlerror());
+runtime/plugin.cc:57:  dlopen_handle_ = res;
+runtime/plugin.cc:65:  void* handle = dlopen_handle_;
+runtime/plugin.cc:76:  dlopen_handle_ = nullptr;
+runtime/plugin.cc:87:  return os << "Plugin { library=\"" << m.library_ << "\", handle=" << m.dlopen_handle_ << " }";
+runtime/jni/java_vm_ext.cc:163:  // No mutator lock since dlsym may block for a while if another thread is doing dlopen.
+runtime/jni/java_vm_ext.cc:171:  // No mutator lock since dlsym may block for a while if another thread is doing dlopen.
+runtime/jni/java_vm_ext.cc:200:  // The void* returned by dlopen(3).
+runtime/jni/java_vm_ext.cc:292:      // Go to suspended since dlsym may block for a long time if other threads are using dlopen.
+runtime/jni/java_vm_ext.cc:1060:  // Below we dlopen but there is no paired dlclose, this would be necessary if we supported
+runtime/jni/java_vm_ext.cc:1062:  // dlopen) becomes zero from dlclose.
+runtime/jni/java_vm_ext.cc:1080:  VLOG(jni) << "[Call to dlopen(\"" << path << "\", RTLD_NOW) returned " << handle << "]";
+runtime/jni/java_vm_ext.cc:1085:    VLOG(jni) << "dlopen(\"" << path << "\", RTLD_NOW) failed: " << *error_msg;
+runtime/jni/jni_internal.h:42:// during runtime initialization after libjavacore and libopenjdk have been dlopen()'ed.
+runtime/oat/oat_file_test.cc:149:    // If a valid oat file was returned but there was an error message, then dlopen failed
+runtime/oat/oat_file_test.cc:154:    //   - glibc >= 2.41 fails to dlopen shared objects that don't have GNU_STACK segment,
+runtime/oat/oat_file_test.cc:159:            "Failed to dlopen '" + oat_location + "': " + oat_location +
+runtime/oat/oat_file_test.cc:165:  // If a valid oat file was returned with no error message, then dlopen was successful.
+runtime/oat/oat_file_test.cc:172:  // Ensure that the oat file is loaded with dlopen by requesting information about it
+runtime/oat/oat_file.h:99:// dlopen and provides access to its internal data structures (see OatWriter for
+runtime/oat/oat_file.h:107:  // The zip separator. This has to be the one that Bionic's dlopen recognizes because oat files are
+runtime/oat/oat_file.h:108:  // opened through dlopen in `DlOpenOatFile`. This is different from the ART's zip separator for
+runtime/oat/oat_file.cc:98:// dlopen_ext support from bionic.
+runtime/oat/oat_file.cc:109:// Whether OatFile::Open will try dlopen. Fallback is our own ELF loader.
+runtime/oat/oat_file.cc:112:// Whether OatFile::Open will try dlopen on the host. On the host we're not linking against
+runtime/oat/oat_file.cc:121:// Returns whether dlopen can load dynamic shared objects with a read-only .dynamic section.
+runtime/oat/oat_file.cc:1217:// OatFile via dlopen //
+runtime/oat/oat_file.cc:1224:        dlopen_handle_(nullptr),
+runtime/oat/oat_file.cc:1229:    if (dlopen_handle_ != nullptr) {
+runtime/oat/oat_file.cc:1231:        MutexLock mu(Thread::Current(), *Locks::host_dlopen_handles_lock_);
+runtime/oat/oat_file.cc:1232:        host_dlopen_handles_.erase(dlopen_handle_);
+runtime/oat/oat_file.cc:1233:        dlclose(dlopen_handle_);
+runtime/oat/oat_file.cc:1235:        dlclose(dlopen_handle_);
+runtime/oat/oat_file.cc:1244:        reinterpret_cast<const uint8_t*>(dlsym(dlopen_handle_, symbol_name.c_str()));
+runtime/oat/oat_file.cc:1285:  // On the host, if the same library is loaded again with dlopen the same
+runtime/oat/oat_file.cc:1286:  // file handle is returned. This differs from the behavior of dlopen on the
+runtime/oat/oat_file.cc:1287:  // target, where dlopen reloads the library at a different address every
+runtime/oat/oat_file.cc:1291:  // library is opened multiple times on host. dlopen_handles_ is used to
+runtime/oat/oat_file.cc:1293:  // Guarded by host_dlopen_handles_lock_;
+runtime/oat/oat_file.cc:1294:  static std::unordered_set<void*> host_dlopen_handles_;
+runtime/oat/oat_file.cc:1296:  // Reservation and placeholder memory map objects corresponding to the regions mapped by dlopen.
+runtime/oat/oat_file.cc:1298:  std::vector<MemMap> dlopen_mmaps_;
+runtime/oat/oat_file.cc:1300:  // dlopen handle during runtime.
+runtime/oat/oat_file.cc:1301:  void* dlopen_handle_;  // TODO: Unique_ptr with custom deleter.
+runtime/oat/oat_file.cc:1310:std::unordered_set<void*> DlOpenOatFile::host_dlopen_handles_;
+runtime/oat/oat_file.cc:1339:  // Use dlopen only when flagged to do so, and when it's OK to load things executable.
+runtime/oat/oat_file.cc:1361:  // dlopen always returns the same library if it is already opened on the host. For this reason
+runtime/oat/oat_file.cc:1362:  // we only use dlopen if we are the target or we do not already have the dex file opened. Having
+runtime/oat/oat_file.cc:1373:  DCHECK_IMPLIES(dlopen_handle_ == nullptr, !success);
+runtime/oat/oat_file.cc:1440:    dlopen_handle_ = android_dlopen_ext(absolute_path.c_str(), RTLD_NOW, &extinfo);
+runtime/oat/oat_file.cc:1441:    if (reservation != nullptr && dlopen_handle_ != nullptr) {
+runtime/oat/oat_file.cc:1497:      // Take ownership of the memory used by the shared object. dlopen() does not assume
+runtime/oat/oat_file.cc:1502:      dlopen_mmaps_.push_back(reservation->TakeReservedMemory(
+runtime/oat/oat_file.cc:1507:                  "host_dlopen_handles_ will leak handles");
+runtime/oat/oat_file.cc:1509:      *error_msg = StringPrintf("dlopen() into reserved memory is unsupported on host for '%s'.",
+runtime/oat/oat_file.cc:1513:    MutexLock mu(Thread::Current(), *Locks::host_dlopen_handles_lock_);
+runtime/oat/oat_file.cc:1514:    dlopen_handle_ = dlopen(absolute_path.c_str(), RTLD_NOW);
+runtime/oat/oat_file.cc:1515:    if (dlopen_handle_ != nullptr) {
+runtime/oat/oat_file.cc:1516:      if (!host_dlopen_handles_.insert(dlopen_handle_).second) {
+runtime/oat/oat_file.cc:1517:        dlclose(dlopen_handle_);
+runtime/oat/oat_file.cc:1518:        dlopen_handle_ = nullptr;
+runtime/oat/oat_file.cc:1519:        *error_msg = StringPrintf("host dlopen re-opened '%s'", elf_filename.c_str());
+runtime/oat/oat_file.cc:1525:  if (dlopen_handle_ == nullptr) {
+runtime/oat/oat_file.cc:1526:    *error_msg = StringPrintf("Failed to dlopen '%s': %s", elf_filename.c_str(), dlerror());
+runtime/oat/oat_file.cc:1638:      LOG(ERROR) << "File " << elf_filename << " loaded with dlopen but cannot find its mmaps.";
+runtime/oat/oat_file.cc:1663:    dlopen_mmaps_.push_back(std::move(mmap));
+runtime/oat/oat_file.cc:1731:  // Mirrors the alignment in the Bionic's dlopen. Actually, ART's MemMap only requires 4096 byte
+runtime/oat/oat_file.cc:1732:  // alignment, but we want to be more strict here, to reflect what the Bionic's dlopen would be
+runtime/oat/oat_file.cc:2027:  // Try dlopen first, as it is required for native debuggability. This will fail fast if dlopen is
+runtime/oat/oat_file.cc:2029:  OatFile* with_dlopen = OatFileBase::OpenOatFile<DlOpenOatFile>(zip_fd,
+runtime/oat/oat_file.cc:2039:  if (with_dlopen != nullptr) {
+runtime/oat/oat_file.cc:2040:    return with_dlopen;
+runtime/oat/oat_file.cc:2043:    LOG(ERROR) << "Failed to dlopen: " << oat_filename << " with error " << *error_msg;
+runtime/oat/oat_file.cc:2047:  // On target, dlopen may fail when compiling due to selinux restrictions on installd.
+runtime/oat/oat_file.cc:2053:  // On host, dlopen is expected to fail when cross compiling, so fall back to ElfOatFile.
+runtime/oat/oat_file.cc:2056:  // Another independent reason is the absolute placement of boot.oat. dlopen on the host usually
+runtime/oat/oat_file.cc:2138:  // Try dlopen first, as it is required for native debuggability. This will fail fast if dlopen is
+runtime/oat/oat_file.cc:2140:  OatFile* with_dlopen = OatFileBase::OpenOatFileFromSdm<DlOpenOatFile>(
+runtime/oat/oat_file.cc:2142:  if (with_dlopen != nullptr) {
+runtime/oat/oat_file.cc:2143:    return with_dlopen;
+runtime/oat/image.cc:109:  //       `dlopen`-like calls to load OAT files.
+runtime/ti/agent.h:37:  kLoadingError,         // dlopen or dlsym returned an error.
+runtime/ti/agent.h:117:  Agent(const std::string& name, void* dlopen_handle) : name_(name),
+runtime/ti/agent.h:118:                                                        dlopen_handle_(dlopen_handle),
+runtime/ti/agent.h:122:    DCHECK(dlopen_handle != nullptr);
+runtime/ti/agent.h:128:  void* dlopen_handle_;
+runtime/ti/agent.cc:122:  void* dlopen_handle = android::OpenNativeLibrary(env,
+runtime/ti/agent.cc:130:  if (dlopen_handle == nullptr) {
+runtime/ti/agent.cc:131:    *error_msg = StringPrintf("Unable to dlopen %s: %s",
+runtime/ti/agent.cc:142:    android::CloseNativeLibrary(dlopen_handle, needs_native_bridge, &nativeloader_error_msg);
+runtime/ti/agent.cc:149:  std::unique_ptr<Agent> agent(new Agent(name_, dlopen_handle));
+runtime/ti/agent.cc:161:  CHECK(dlopen_handle_ != nullptr) << "Cannot find symbols in an unloaded agent library " << this;
+runtime/ti/agent.cc:162:  return dlsym(dlopen_handle_, name.c_str());
+runtime/ti/agent.cc:167:  if (dlopen_handle_ != nullptr) {
+runtime/ti/agent.cc:174:    dlopen_handle_ = nullptr;
+runtime/ti/agent.cc:184:    : dlopen_handle_(nullptr),
+runtime/ti/agent.cc:193:    if (dlopen_handle_ != nullptr) {
+runtime/ti/agent.cc:197:    dlopen_handle_ = other.dlopen_handle_;
+runtime/ti/agent.cc:201:    other.dlopen_handle_ = nullptr;
+runtime/ti/agent.cc:225:  if (dlopen_handle_ != nullptr) {
+runtime/ti/agent.cc:235:  return os << "Agent { name=\"" << m.name_ << "\", handle=" << m.dlopen_handle_ << " }";
+runtime/plugin.h:45:    return dlopen_handle_ != nullptr;
+runtime/plugin.h:67:        dlopen_handle_(other.dlopen_handle_) {
+runtime/plugin.h:68:    other.dlopen_handle_ = nullptr;
+runtime/plugin.h:72:  explicit Plugin(const std::string& library) : library_(library), dlopen_handle_(nullptr) { }
+runtime/plugin.h:75:  void* dlopen_handle_;
+runtime/runtime.h:1413:  // if standard dlopen fails to load native library associated with native activity, it calls to
+compiler/optimizing/graph_visualizer.cc:130:    libart_disassembler_handle_ = dlopen(libart_disassembler_so_name, RTLD_NOW);
+compiler/optimizing/graph_visualizer.cc:132:      LOG(ERROR) << "Failed to dlopen " << libart_disassembler_so_name << ": " << dlerror();
+dex2oat/dex2oat.cc:2058:  // 5. We fixup the ELF program headers so that dlopen will try to
+libartbase/base/globals_unix.cc:28:// dlopen(3) on Linux with just an SO name will search the already
+libartbase/base/globals_unix.cc:29:// opened libraries. On Darwin, we need dlopen(3) needs the SO name
+libartbase/base/globals_unix.cc:31:// linker path when compiling app. See man pages for dlopen(3) and
+libartbase/base/globals_unix.cc:48:    bool debug_build_loaded = (dlopen(kLibArtBaseDebug, RTLD_NOW | RTLD_NOLOAD) != nullptr);
+libartbase/base/globals_unix.cc:49:    bool release_build_loaded = (dlopen(kLibArtBaseRelease, RTLD_NOW | RTLD_NOLOAD) != nullptr);
+libartbase/base/globals_unix.cc:52:      LOG(FATAL_WITHOUT_ABORT) << "Failed to dlopen "
+libartpalette/apex/palette.cc:66:  // Handle to the palette library from dlopen().
+libartpalette/apex/palette.cc:79:  void* handle = dlopen(kPaletteSystemLibrary, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
+libartpalette/Android.bp:68:        // Targets supporting dlopen build the client library which loads
+libartpalette/Android.bp:71:            // libartpalette.so dlopen()'s libartpalette-system.
+libartpalette/Android.bp:88:        // Targets without support for dlopen just use the sources for
+build/flags/:
+总计 24
+drwxrwxr-x 2 ethen ethen 4096  4月  9  2026 .
+drwxrwxr-x 6 ethen ethen 4096  4月  9  2026 ..
+-rw-rw-r-- 1 ethen ethen 3794  4月  9  2026 Android.bp
+-rw-rw-r-- 1 ethen ethen 5566  4月  9  2026 art-flags.aconfig
+-rw-rw-r-- 1 ethen ethen 3551  4月  9  2026 art-rw-flags.aconfig
+
+runtime/native/:
+总计 596
+drwxrwxr-x  2 ethen ethen  4096  4月  9  2026 .
+drwxrwxr-x 19 ethen ethen 12288  4月  9  2026 ..
+-rw-rw-r--  1 ethen ethen  3080  9月 25  2025 dalvik_system_BaseDexClassLoader.cc
+-rw-rw-r--  1 ethen ethen   985  9月 25  2025 dalvik_system_BaseDexClassLoader.h
+-rw-rw-r--  1 ethen ethen 39574  9月 25  2025 dalvik_system_DexFile.cc
+-rw-rw-r--  1 ethen ethen  1035  9月 25  2025 dalvik_system_DexFile.h
+-rw-rw-r--  1 ethen ethen 27439  9月 25  2025 dalvik_system_VMDebug.cc
+-rw-rw-r--  1 ethen ethen   921  9月 25  2025 dalvik_system_VMDebug.h
+-rw-rw-r--  1 ethen ethen 25581  4月  9  2026 dalvik_system_VMRuntime.cc
+-rw-rw-r--  1 ethen ethen  1308  9月 25  2025 dalvik_system_VMRuntime.h
+-rw-rw-r--  1 ethen ethen  6994  9月 25  2025 dalvik_system_VMStack.cc
+-rw-rw-r--  1 ethen ethen   921  9月 25  2025 dalvik_system_VMStack.h
+-rw-rw-r--  1 ethen ethen 19263  9月 25  2025 dalvik_system_ZygoteHooks.cc
+-rw-rw-r--  1 ethen ethen   937  9月 25  2025 dalvik_system_ZygoteHooks.h
+-rw-rw-r--  1 ethen ethen 41474  4月  9  2026 java_lang_Class.cc
+-rw-rw-r--  1 ethen ethen   897  9月 25  2025 java_lang_Class.h
+-rw-rw-r--  1 ethen ethen  1648  9月 25  2025 java_lang_invoke_MethodHandle.cc
+-rw-rw-r--  1 ethen ethen   953  9月 25  2025 java_lang_invoke_MethodHandle.h
+-rw-rw-r--  1 ethen ethen  2589  9月 25  2025 java_lang_invoke_MethodHandleImpl.cc
+-rw-rw-r--  1 ethen ethen   969  9月 25  2025 java_lang_invoke_MethodHandleImpl.h
+-rw-rw-r--  1 ethen ethen  2432  9月 25  2025 java_lang_Object.cc
+-rw-rw-r--  1 ethen ethen   901  9月 25  2025 java_lang_Object.h
+-rw-rw-r--  1 ethen ethen  2035  9月 25  2025 java_lang_ref_FinalizerReference.cc
+-rw-rw-r--  1 ethen ethen   965  9月 25  2025 java_lang_ref_FinalizerReference.h
+-rw-rw-r--  1 ethen ethen  3238  9月 25  2025 java_lang_reflect_Array.cc
+-rw-rw-r--  1 ethen ethen   929  9月 25  2025 java_lang_reflect_Array.h
+-rw-rw-r--  1 ethen ethen  5945  9月 25  2025 java_lang_reflect_Constructor.cc
+-rw-rw-r--  1 ethen ethen   953  9月 25  2025 java_lang_reflect_Constructor.h
+-rw-rw-r--  1 ethen ethen 15967  9月 25  2025 java_lang_reflect_Executable.cc
+-rw-rw-r--  1 ethen ethen   949  9月 25  2025 java_lang_reflect_Executable.h
+-rw-rw-r--  1 ethen ethen 23913  4月  9  2026 java_lang_reflect_Field.cc
+-rw-rw-r--  1 ethen ethen   929  9月 25  2025 java_lang_reflect_Field.h
+-rw-rw-r--  1 ethen ethen  3597  4月  9  2026 java_lang_reflect_Method.cc
+-rw-rw-r--  1 ethen ethen   933  9月 25  2025 java_lang_reflect_Method.h
+-rw-rw-r--  1 ethen ethen  4349  9月 25  2025 java_lang_reflect_Parameter.cc
+-rw-rw-r--  1 ethen ethen   945  9月 25  2025 java_lang_reflect_Parameter.h
+-rw-rw-r--  1 ethen ethen  1745  9月 25  2025 java_lang_reflect_Proxy.cc
+-rw-rw-r--  1 ethen ethen   929  9月 25  2025 java_lang_reflect_Proxy.h
+-rw-rw-r--  1 ethen ethen  4037  9月 25  2025 java_lang_ref_Reference.cc
+-rw-rw-r--  1 ethen ethen   929  9月 25  2025 java_lang_ref_Reference.h
+-rw-rw-r--  1 ethen ethen  1878  9月 25  2025 java_lang_StackStreamFactory.cc
+-rw-rw-r--  1 ethen ethen   949  9月 25  2025 java_lang_StackStreamFactory.h
+-rw-rw-r--  1 ethen ethen  6726  9月 25  2025 java_lang_String.cc
+-rw-rw-r--  1 ethen ethen 12679  9月 25  2025 java_lang_StringFactory.cc
+-rw-rw-r--  1 ethen ethen   929  9月 25  2025 java_lang_StringFactory.h
+-rw-rw-r--  1 ethen ethen   901  9月 25  2025 java_lang_String.h
+-rw-rw-r--  1 ethen ethen 11864  9月 25  2025 java_lang_System.cc
+-rw-rw-r--  1 ethen ethen   901  9月 25  2025 java_lang_System.h
+-rw-rw-r--  1 ethen ethen 12373  4月  9  2026 java_lang_Thread.cc
+-rw-rw-r--  1 ethen ethen   901  9月 25  2025 java_lang_Thread.h
+-rw-rw-r--  1 ethen ethen  1679  9月 25  2025 java_lang_Throwable.cc
+-rw-rw-r--  1 ethen ethen   913  9月 25  2025 java_lang_Throwable.h
+-rw-rw-r--  1 ethen ethen  7480  9月 25  2025 java_lang_VMClassLoader.cc
+-rw-rw-r--  1 ethen ethen   929  9月 25  2025 java_lang_VMClassLoader.h
+-rw-rw-r--  1 ethen ethen  1279  9月 25  2025 java_util_concurrent_atomic_AtomicLong.cc
+-rw-rw-r--  1 ethen ethen   989  9月 25  2025 java_util_concurrent_atomic_AtomicLong.h
+-rw-rw-r--  1 ethen ethen 32022  9月 25  2025 jdk_internal_misc_Unsafe.cc
+-rw-rw-r--  1 ethen ethen   933  9月 25  2025 jdk_internal_misc_Unsafe.h
+-rw-rw-r--  1 ethen ethen  4345  4月  9  2026 jdk_internal_vm_Continuation.cc
+-rw-rw-r--  1 ethen ethen   781  4月  9  2026 jdk_internal_vm_Continuation.h
+-rw-rw-r--  1 ethen ethen  8112  9月 25  2025 libcore_io_Memory.cc
+-rw-rw-r--  1 ethen ethen   905  9月 25  2025 libcore_io_Memory.h
+-rw-rw-r--  1 ethen ethen  5587  9月 25  2025 libcore_util_CharsetUtils.cc
+-rw-rw-r--  1 ethen ethen   937  9月 25  2025 libcore_util_CharsetUtils.h
+-rw-rw-r--  1 ethen ethen  1639  9月 25  2025 native_util.h
+-rw-rw-r--  1 ethen ethen  1793  9月 25  2025 org_apache_harmony_dalvik_ddmc_DdmServer.cc
+-rw-rw-r--  1 ethen ethen   997  9月 25  2025 org_apache_harmony_dalvik_ddmc_DdmServer.h
+-rw-rw-r--  1 ethen ethen  7481  9月 25  2025 org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc
+-rw-rw-r--  1 ethen ethen  1013  9月 25  2025 org_apache_harmony_dalvik_ddmc_DdmVmInternal.h
+-rw-rw-r--  1 ethen ethen  1473  9月 25  2025 scoped_fast_native_object_access.h
+-rw-rw-r--  1 ethen ethen  1356  9月 25  2025 scoped_fast_native_object_access-inl.h
+-rw-rw-r--  1 ethen ethen  3021  9月 25  2025 string_array_utils.h
+-rw-rw-r--  1 ethen ethen 27997  4月  9  2026 sun_misc_Unsafe.cc
+-rw-rw-r--  1 ethen ethen   897  9月 25  2025 sun_misc_Unsafe.h

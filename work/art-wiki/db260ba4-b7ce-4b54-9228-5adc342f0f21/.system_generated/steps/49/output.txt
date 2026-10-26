@@ -1,0 +1,171 @@
+Command exited with code 0.
+
+Command output:
+runtime/native/dalvik_system_ZygoteHooks.cc:28:#include "base/runtime_debug.h"
+runtime/arch/instruction_set_features_test.cc:54:  std::string key = StringPrintf("dalvik.vm.isa.%s.variant", GetInstructionSetString(kRuntimeISA));
+runtime/arch/instruction_set_features_test.cc:87:  std::string variant_key = StringPrintf("dalvik.vm.isa.%s.variant",
+runtime/arch/instruction_set_features_test.cc:92:    std::string features_key = StringPrintf("dalvik.vm.isa.%s.features",
+runtime/common_runtime_test.cc:35:#include "base/runtime_debug.h"
+runtime/gc/heap.h:33:#include "base/runtime_debug.h"
+runtime/gc/collector/mark_compact.cc:286:  bool build_enable = GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false);
+runtime/runtime.cc:1270:      android::base::GetBoolProperty("dalvik.vm.parallel-image-loading", false)) {
+runtime/trace_common.h:38:  bool build_enabled = GetBoolProperty("dalvik.vm.allow_profile_code", false);
+runtime/compiler_callbacks.h:89:    bool build_enabled = GetBoolProperty("dalvik.vm.allow_profile_code", false);
+runtime/jit/jit.cc:29:#include "base/runtime_debug.h"
+runtime/jit/jit_options.h:21:#include "base/runtime_debug.h"
+runtime/art_method.h:32:#include "base/runtime_debug.h"
+runtime/read_barrier.h:24:#include "base/runtime_debug.h"
+runtime/monitor.cc:1776:  bool enabled_for_app = android::base::GetBoolProperty("debug.art.monitor.app", false);
+compiler/optimizing/licm.cc:96:  // Only used during debug.
+compiler/optimizing/optimizing_cfi_test.cc:22:#include "base/runtime_debug.h"
+compiler/driver/compiler_options.cc:27:#include "base/runtime_debug.h"
+compiler/driver/compiler_options_map-inl.h:170:      : GetBoolProperty("dalvik.vm.allow_profile_code", false);
+dex2oat/linker/image_test.h:108:    bool build_enabled = GetBoolProperty("dalvik.vm.allow_profile_code", false);
+libartbase/Android.bp:52:        "base/runtime_debug.cc",
+libartbase/base/flags.h:255://     setprop dalvik.vm.metrics.my-feature-test.flag 2
+libartbase/base/flags_test.cc:41:    system_prop_name_ = "dalvik.vm." + flag_name_;
+libartbase/base/common_art_test.cc:45:#include "base/runtime_debug.h"
+libartbase/base/runtime_debug.cc:17:#include "runtime_debug.h"
+libartbase/base/file_utils.cc:502:                      GetBoolProperty("dalvik.vm.profilebootclasspath", /*default_value=*/false));
+libartbase/base/file_utils.cc:503:  std::string user_defined_boot_image = GetProperty("dalvik.vm.boot-image", /*default_value=*/"");
+libartbase/base/flags.cc:35:constexpr const char* kSysPropertyFlagPrefix = "dalvik.vm.";
+libartbase/base/logging_test.cc:25:#include "runtime_debug.h"
+libartservice/service/README.md:258:by `dalvik.vm.systemuicompilerfilter` [[2]](#2) for the system UI, and uses the
+libartservice/service/README.md:380:Typically, `dalvik.vm.systemuicompilerfilter` is set to `speed`. This is because
+libartservice/service/README.md:385:`dalvik.vm.systemuicompilerfilter` to `speed`.
+libartservice/service/javatests/com/android/server/art/PrimaryDexopterParameterizedTest.java:235:                .when(SystemProperties.getBoolean(eq("dalvik.vm.always_debuggable"), anyBoolean()))
+libartservice/service/javatests/com/android/server/art/PreRebootDexoptJobTest.java:104:                .when(SystemProperties.getBoolean(eq("dalvik.vm.enable_pr_dexopt"), anyBoolean()))
+libartservice/service/javatests/com/android/server/art/PreRebootDexoptJobTest.java:198:        when(SystemProperties.getBoolean(eq("dalvik.vm.enable_pr_dexopt"), anyBoolean()))
+libartservice/service/javatests/com/android/server/art/PreRebootDexoptJobTest.java:212:        when(SystemProperties.getBoolean(eq("dalvik.vm.enable_pr_dexopt"), anyBoolean()))
+libartservice/service/javatests/com/android/server/art/PreRebootDexoptJobTest.java:228:                .when(SystemProperties.getBoolean(eq("dalvik.vm.enable_pr_dexopt"), anyBoolean()))
+libartservice/service/javatests/com/android/server/art/PreRebootDexoptJobTest.java:247:                .when(SystemProperties.getBoolean(eq("dalvik.vm.enable_pr_dexopt"), anyBoolean()))
+libartservice/service/javatests/com/android/server/art/PreRebootDexoptJobTest.java:639:        when(SystemProperties.getInt(eq("dalvik.vm.pr_dexopt_retention"), anyInt())).thenReturn(30);
+libartservice/service/javatests/com/android/server/art/PreRebootDexoptJobTest.java:652:        when(SystemProperties.getInt(eq("dalvik.vm.pr_dexopt_retention"), anyInt())).thenReturn(30);
+libartservice/service/javatests/com/android/server/art/PreRebootDexoptJobTest.java:665:                .when(SystemProperties.getInt(eq("dalvik.vm.pr_dexopt_retention"), anyInt()))
+libartservice/service/javatests/com/android/server/art/PreRebootDexoptJobTest.java:675:                .when(SystemProperties.getInt(eq("dalvik.vm.pr_dexopt_retention"), anyInt()))
+libartservice/service/javatests/com/android/server/art/ArtManagerLocalTest.java:418:        lenient().when(SystemProperties.get("ro.dalvik.vm.isa.arm64")).thenReturn("x86_64");
+libartservice/service/javatests/com/android/server/art/ArtManagerLocalTest.java:419:        lenient().when(SystemProperties.get("ro.dalvik.vm.isa.arm")).thenReturn("x86");
+libartservice/service/javatests/com/android/server/art/PrimaryDexopterTestBase.java:109:                .when(SystemProperties.get("dalvik.vm.systemuicompilerfilter"))
+libartservice/service/javatests/com/android/server/art/PrimaryDexopterTestBase.java:112:                .when(SystemProperties.getBoolean(eq("dalvik.vm.always_debuggable"), anyBoolean()))
+libartservice/service/javatests/com/android/server/art/PrimaryDexopterTestBase.java:114:        lenient().when(SystemProperties.get("dalvik.vm.appimageformat")).thenReturn("lz4");
+libartservice/service/javatests/com/android/server/art/PrimaryDexopterTestBase.java:119:                .when(SystemProperties.get(argThat(arg -> arg.startsWith("ro.dalvik.vm.isa."))))
+libartservice/service/javatests/com/android/server/art/DumpHelperTest.java:85:                .when(SystemProperties.get(argThat(arg -> arg.startsWith("ro.dalvik.vm.isa."))))
+libartservice/service/javatests/com/android/server/art/DexUseManagerTest.java:127:                .when(SystemProperties.get(argThat(arg -> arg.startsWith("ro.dalvik.vm.isa."))))
+libartservice/service/javatests/com/android/server/art/SecondaryDexopterTest.java:129:                .when(SystemProperties.getBoolean(eq("dalvik.vm.always_debuggable"), anyBoolean()))
+libartservice/service/javatests/com/android/server/art/SecondaryDexopterTest.java:131:        lenient().when(SystemProperties.get("dalvik.vm.appimageformat")).thenReturn("lz4");
+libartservice/service/javatests/com/android/server/art/SecondaryDexopterTest.java:136:                .when(SystemProperties.get(argThat(arg -> arg.startsWith("ro.dalvik.vm.isa."))))
+libartservice/service/javatests/com/android/server/art/UtilsTest.java:80:        lenient().when(SystemProperties.get(eq("ro.dalvik.vm.isa.x86_64"))).thenReturn("arm64");
+libartservice/service/javatests/com/android/server/art/UtilsTest.java:81:        lenient().when(SystemProperties.get(eq("ro.dalvik.vm.isa.x86"))).thenReturn("arm");
+libartservice/service/javatests/com/android/server/art/UtilsTest.java:166:        lenient().when(SystemProperties.get(eq("ro.dalvik.vm.isa.x86_64"))).thenReturn("x86");
+libartservice/service/javatests/com/android/server/art/UtilsTest.java:175:        lenient().when(SystemProperties.get(eq("ro.dalvik.vm.isa.x86_64"))).thenReturn("");
+libartservice/service/javatests/com/android/server/art/UtilsTest.java:176:        lenient().when(SystemProperties.get(eq("ro.dalvik.vm.isa.x86"))).thenReturn("");
+libartservice/service/javatests/com/android/server/art/ArtShellCommandTest.java:99:                .when(SystemProperties.getBoolean(eq("dalvik.vm.enable_pr_dexopt"), anyBoolean()))
+libartservice/service/javatests/com/android/server/art/ArtShellCommandTest.java:438:        when(SystemProperties.getBoolean(eq("dalvik.vm.pr_dexopt_async_for_ota"), anyBoolean()))
+libartservice/service/java/com/android/server/art/Constants.java:81:                SystemProperties.getBoolean("dalvik.vm.profilebootclasspath", false /* def */));
+libartservice/service/java/com/android/server/art/ArtManagerLocal.java:455:     * dex2oat} invocation can be configured by system property {@code dalvik.vm.*dex2oat-threads}
+libartservice/service/java/com/android/server/art/ArtManagerLocal.java:456:     * (e.g., {@code dalvik.vm.background-dex2oat-threads=4}). I.e., the maximum number of
+libartservice/service/java/com/android/server/art/ArtManagerLocal.java:458:     * usage is always bound by {@code dalvik.vm.*dex2oat-cpu-set} regardless of the number of
+libartservice/service/java/com/android/server/art/Utils.java:233:        String translatedIsa = SystemProperties.get("ro.dalvik.vm.isa." + isa);
+libartservice/service/java/com/android/server/art/PreRebootDexoptJob.java:223:        // "dalvik.vm.pr_dexopt_async_for_ota=true" and only on Android V.
+libartservice/service/java/com/android/server/art/PreRebootDexoptJob.java:588:                SystemProperties.getBoolean("dalvik.vm.enable_pr_dexopt", false /* def */);
+libartservice/service/java/com/android/server/art/PreRebootDexoptJob.java:596:                    "Pre-reboot Dexopt Job is not enabled (sysprop:dalvik.vm.enable_pr_dexopt=%b, "
+libartservice/service/java/com/android/server/art/PreRebootDexoptJob.java:617:        return SystemProperties.getBoolean("dalvik.vm.pr_dexopt_async_for_ota", false /* def */);
+libartservice/service/java/com/android/server/art/PreRebootDexoptJob.java:645:        int retentionDays = SystemProperties.getInt("dalvik.vm.pr_dexopt_retention", 30 /* def */);
+libartservice/service/java/com/android/server/art/Dexopter.java:98:        if (SystemProperties.getBoolean("dalvik.vm.disable-art-service-dexopt", false /* def */)) {
+libartservice/service/java/com/android/server/art/Dexopter.java:453:        String compilerFilter = SystemProperties.get("dalvik.vm.systemuicompilerfilter");
+libartservice/service/java/com/android/server/art/Dexopter.java:509:        return SystemProperties.getBoolean("dalvik.vm.always_debuggable", false /* def */);
+libartservice/service/java/com/android/server/art/Dexopter.java:513:        return !SystemProperties.get("dalvik.vm.appimageformat").isEmpty();
+libartservice/service/README.internal.md:29:  `dalvik.vm.pr_dexopt_async_for_ota=true`. In this case, the command schedules
+artd/README.md:15:- `dalvik.vm.artd-verbose`: Log verbosity of the artd process. The syntax is the
+artd/artd.cc:349:      android::base::GetProperty("dalvik.vm.artd-verbose", /*default_value=*/"oat");
+artd/artd.cc:1035:                       props_->GetOrEmpty("dalvik.vm.bgdexopt.new-classes-percent"))
+artd/artd.cc:1037:                       props_->GetOrEmpty("dalvik.vm.bgdexopt.new-methods-percent"))
+artd/artd.cc:1277:    args.AddIfNonEmpty("--image-format=%s", props_->GetOrEmpty("dalvik.vm.appimageformat"));
+artd/artd.cc:1846:  std::string build_fingerprint = props_->GetOrEmpty("ro.system.build.fingerprint");
+artd/artd.cc:1954:                        "dalvik.vm.profilebootclasspath",
+artd/artd.cc:1968:    cached_user_defined_boot_image_locations_ = props_->GetOrEmpty("dalvik.vm.boot-image");
+artd/artd.cc:2031:         props_->GetBool("dalvik.vm.dex2oat64.enabled", /*default_value=*/false);
+artd/artd.cc:2035:  return props_->GetOrEmpty("persist.sys.dalvik.vm.lib.2") == "libartd.so";
+artd/artd.cc:2047:  return props_->GetBool("dalvik.vm.dex2oat-swap", /*default_value=*/true);
+artd/artd.cc:2063:  std::string features_prop = ART_FORMAT("dalvik.vm.isa.{}.features", instruction_set);
+artd/artd.cc:2065:  std::string variant_prop = ART_FORMAT("dalvik.vm.isa.{}.variant", instruction_set);
+artd/artd.cc:2072:                     props_->GetOrEmpty("dalvik.vm.dex2oat-max-image-block-size"))
+artd/artd.cc:2074:                     props_->GetOrEmpty("dalvik.vm.dex2oat-very-large"))
+artd/artd.cc:2076:                     props_->GetOrEmpty("dalvik.vm.dex2oat-resolve-startup-strings"));
+artd/artd.cc:2079:      .AddIf(props_->GetBool("debug.generate-debug-info", /*default_value=*/false),
+artd/artd.cc:2081:      .AddIf(props_->GetBool("dalvik.vm.dex2oat-minidebuginfo", /*default_value=*/false),
+artd/artd.cc:2094:  if (props_->GetBool("dalvik.vm.allow_profile_code", /*default_value=*/false)) {
+artd/artd.cc:2107:  std::string default_cpu_set_prop = "dalvik.vm.dex2oat-cpu-set";
+artd/artd.cc:2108:  std::string default_threads_prop = "dalvik.vm.dex2oat-threads";
+artd/artd.cc:2112:    cpu_set = props_->GetOrEmpty("dalvik.vm.boot-dex2oat-cpu-set");
+artd/artd.cc:2113:    threads = props_->GetOrEmpty("dalvik.vm.boot-dex2oat-threads");
+artd/artd.cc:2115:    cpu_set = props_->GetOrEmpty("dalvik.vm.restore-dex2oat-cpu-set", default_cpu_set_prop);
+artd/artd.cc:2116:    threads = props_->GetOrEmpty("dalvik.vm.restore-dex2oat-threads", default_threads_prop);
+artd/artd.cc:2118:    cpu_set = props_->GetOrEmpty("dalvik.vm.background-dex2oat-cpu-set", default_cpu_set_prop);
+artd/artd.cc:2119:    threads = props_->GetOrEmpty("dalvik.vm.background-dex2oat-threads", default_threads_prop);
+artd/artd.cc:2133:  dex2oat_args.AddRuntimeIfNonEmpty("-Xms%s", props_->GetOrEmpty("dalvik.vm.dex2oat-Xms"))
+artd/artd.cc:2134:      .AddRuntimeIfNonEmpty("-Xmx%s", props_->GetOrEmpty("dalvik.vm.dex2oat-Xmx"));
+artd/artd.cc:2142:       Tokenize(props_->GetOrEmpty("dalvik.vm.dex2oat-flags"), /*delimiters=*/" ")) {
+artd/artd.cc:2229:        pre_reboot_build_props_->GetOrEmpty("ro.system.build.fingerprint"),
+artd/artd_test.cc:1074:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-swap")).WillOnce(Return("0"));
+artd/artd_test.cc:1075:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.isa.arm64.features"))
+artd/artd_test.cc:1077:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.isa.arm64.variant")).WillOnce(Return("variant"));
+artd/artd_test.cc:1078:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-max-image-block-size"))
+artd/artd_test.cc:1080:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-very-large"))
+artd/artd_test.cc:1082:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-resolve-startup-strings"))
+artd/artd_test.cc:1084:  EXPECT_CALL(*mock_props_, GetProperty("debug.generate-debug-info")).WillOnce(Return("1"));
+artd/artd_test.cc:1085:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-minidebuginfo")).WillOnce(Return("1"));
+artd/artd_test.cc:1087:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-Xms")).WillOnce(Return("xms"));
+artd/artd_test.cc:1088:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-Xmx")).WillOnce(Return("xmx"));
+artd/artd_test.cc:1090:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.appimageformat")).WillOnce(Return("imgfmt"));
+artd/artd_test.cc:1091:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.boot-image")).WillOnce(Return("boot-image"));
+artd/artd_test.cc:1092:  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-flags"))
+artd/artd_test.cc:1130:  ON_CALL(*mock_props_, GetProperty("dalvik.vm.boot-image")).WillByDefault(Return("boot-image"));
+artd/artd_test.cc:1144:  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.dex2oat-cpu-set")).WillRepeatedly(Return("0,2"));
+artd/artd_test.cc:1145:  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.dex2oat-threads")).WillRepeatedly(Return("4"));
+artd/artd_test.cc:1185:  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.dex2oat-cpu-set")).WillRepeatedly(Return("0,2"));
+artd/artd_test.cc:1186:  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.dex2oat-threads")).WillRepeatedly(Return("4"));
+artd/artd_test.cc:1187:  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.boot-dex2oat-cpu-set"))
+artd/artd_test.cc:1189:  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.boot-dex2oat-threads"))
+artd/artd_test.cc:1191:  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.restore-dex2oat-cpu-set"))
+artd/artd_test.cc:1193:  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.restore-dex2oat-threads"))
+artd/artd_test.cc:1195:  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.background-dex2oat-cpu-set"))
+artd/artd_test.cc:1197:  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.background-dex2oat-threads"))
+artd/artd_test.cc:3480:  EXPECT_CALL(*mock_pre_reboot_build_props_, GetProperty("ro.system.build.fingerprint"))
+artd/artd_test.cc:3492:  EXPECT_CALL(*post_reboot_mock_props_, GetProperty("ro.system.build.fingerprint"))
+artd/artd_test.cc:3546:  EXPECT_CALL(*mock_pre_reboot_build_props_, GetProperty("ro.system.build.fingerprint"))
+artd/artd_test.cc:3552:  EXPECT_CALL(*post_reboot_mock_props_, GetProperty("ro.system.build.fingerprint"))
+artd/artd_test.cc:3569:  EXPECT_CALL(*mock_pre_reboot_build_props_, GetProperty("ro.system.build.fingerprint"))
+artd/artd_test.cc:3575:  EXPECT_CALL(*post_reboot_mock_props_, GetProperty("ro.system.build.fingerprint"))
+odrefresh/odr_config.h:43:constexpr const char* kCheckedSystemPropertyPrefixes[]{"dalvik.vm.", "ro.dalvik.vm."};
+odrefresh/odr_config.h:52:    "dalvik.vm.dex2oat-cpu-set",
+odrefresh/odr_config.h:53:    "dalvik.vm.dex2oat-threads",
+odrefresh/odr_config.h:54:    "dalvik.vm.boot-dex2oat-cpu-set",
+odrefresh/odr_config.h:55:    "dalvik.vm.boot-dex2oat-threads",
+odrefresh/odr_config.h:56:    "dalvik.vm.restore-dex2oat-cpu-set",
+odrefresh/odr_config.h:57:    "dalvik.vm.restore-dex2oat-threads",
+odrefresh/odr_config.h:58:    "dalvik.vm.background-dex2oat-cpu-set",
+odrefresh/odr_config.h:59:    "dalvik.vm.background-dex2oat-threads"};
+odrefresh/odrefresh_main.cc:187:    std::string filter = GetProperty("dalvik.vm.systemservercompilerfilter", "");
+odrefresh/odrefresh_main.cc:251:  UsageMsg("                                 dalvik.vm.systemservercompilerfilter");
+odrefresh/odrefresh_main.cc:302:    if (config.GetSystemProperties().GetBool("dalvik.vm.disable-odrefresh",
+odrefresh/odrefresh.cc:435:  if (system_properties.GetBool("dalvik.vm.allow_profile_code", /*default_value=*/false)) {
+odrefresh/odrefresh.cc:457:    threads = system_properties.GetOrEmpty("dalvik.vm.background-dex2oat-threads",
+odrefresh/odrefresh.cc:458:                                           "dalvik.vm.dex2oat-threads");
+odrefresh/odrefresh.cc:460:    threads = system_properties.GetOrEmpty("dalvik.vm.boot-dex2oat-threads");
+odrefresh/odrefresh.cc:466:    cpu_set = system_properties.GetOrEmpty("dalvik.vm.background-dex2oat-cpu-set",
+odrefresh/odrefresh.cc:467:                                           "dalvik.vm.dex2oat-cpu-set");
+odrefresh/odrefresh.cc:469:    cpu_set = system_properties.GetOrEmpty("dalvik.vm.boot-dex2oat-cpu-set");
+odrefresh/odrefresh.cc:491:  std::string features_prop = ART_FORMAT("dalvik.vm.isa.{}.features", isa_str);
+odrefresh/odrefresh.cc:493:  std::string variant_prop = ART_FORMAT("dalvik.vm.isa.{}.variant", isa_str);
+odrefresh/odrefresh.cc:1205:      config_.GetSystemProperties().GetBool("ro.dalvik.vm.enable_uffd_gc", /*default_value=*/false);
+odrefresh/odrefresh.cc:1966:  args.AddRuntimeIfNonEmpty("-Xms%s", system_properties.GetOrEmpty("dalvik.vm.image-dex2oat-Xms"))
+odrefresh/odrefresh.cc:1967:      .AddRuntimeIfNonEmpty("-Xmx%s", system_properties.GetOrEmpty("dalvik.vm.image-dex2oat-Xmx"));
+odrefresh/odrefresh.cc:2133:  args.AddRuntimeIfNonEmpty("-Xms%s", system_properties.GetOrEmpty("dalvik.vm.dex2oat-Xms"))
+odrefresh/odrefresh.cc:2134:      .AddRuntimeIfNonEmpty("-Xmx%s", system_properties.GetOrEmpty("dalvik.vm.dex2oat-Xmx"));
+odrefresh/odrefresh_test.cc:666:  config_.MutableSystemProperties()->emplace("dalvik.vm.isa.x86_64.features", "foo");
+odrefresh/odrefresh_test.cc:667:  config_.MutableSystemProperties()->emplace("dalvik.vm.isa.x86_64.variant", "bar");
+odrefresh/odrefresh_test.cc:711:  config_.MutableSystemProperties()->emplace("dalvik.vm.image-dex2oat-Xms", "10");
+odrefresh/odrefresh_test.cc:712:  config_.MutableSystemProperties()->emplace("dalvik.vm.image-dex2oat-Xmx", "20");
+odrefresh/odrefresh_test.cc:713:  config_.MutableSystemProperties()->emplace("dalvik.vm.dex2oat-Xms", "30");
+odrefresh/odrefresh_test.cc:714:  config_.MutableSystemProperties()->emplace("dalvik.vm.dex2oat-Xmx", "40");

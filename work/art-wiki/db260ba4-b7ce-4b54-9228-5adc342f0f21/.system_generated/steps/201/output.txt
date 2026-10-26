@@ -1,0 +1,125 @@
+Command exited with code 0.
+
+Command output:
+runtime/interpreter/mterp/nterp.cc
+77:extern "C" void ExecuteNterpImpl() REQUIRES_SHARED(Locks::mutator_lock_);
+78:extern "C" void EndExecuteNterpImpl() REQUIRES_SHARED(Locks::mutator_lock_);
+81:  return reinterpret_cast<const void*>(interpreter::ExecuteNterpImpl);
+85:  const uint8_t* entry_point = reinterpret_cast<const uint8_t*>(ExecuteNterpImpl);
+86:  size_t size = reinterpret_cast<const uint8_t*>(EndExecuteNterpImpl) - entry_point;
+145:        (counter % jit::kFastCompilerFrequencyCheck) < kHotnessCounter) {
+
+runtime/jit/jit.h
+68:static constexpr int16_t kFastCompilerFrequencyCheck = 1024;
+69:static_assert(IsPowerOfTwo(kFastCompilerFrequencyCheck), "Must be a power of two");
+75:  virtual bool CompileMethod(
+199:  EXPORT bool CompileMethod(ArtMethod* method,
+319:  static bool MaybeDoOnStackReplacement(Thread* thread,
+358:  uint32_t CompileMethodsFromProfile(Thread* self,
+368:  uint32_t CompileMethodsFromBootProfile(Thread* self,
+418:  bool CompileMethodFromProfile(Thread* self,
+433:  bool CompileMethodInternal(ArtMethod* method,
+
+runtime/jit/jit.cc
+157:bool Jit::CompileMethodInternal(ArtMethod* method,
+231:  bool success = jit_compiler_->CompileMethod(self, region, method_to_compile, compilation_kind);
+450:bool Jit::MaybeDoOnStackReplacement(Thread* thread,
+672:          bool success = Runtime::Current()->GetJit()->CompileMethodInternal(
+680:            Runtime::Current()->GetJit()->CompileMethodInternal(
+876:          added_to_queue += runtime->GetJit()->CompileMethodsFromBootProfile(
+883:        added_to_queue += runtime->GetJit()->CompileMethodsFromProfile(
+932:    jit->CompileMethodsFromBootProfile(
+939:    jit->CompileMethodsFromProfile(
+1233:bool Jit::CompileMethodFromProfile(Thread* self,
+1265:      CompileMethodInternal(method, self, compilation_kind, /* prejit= */ true);
+1280:uint32_t Jit::CompileMethodsFromBootProfile(
+1309:    if (CompileMethodFromProfile(self,
+1322:uint32_t Jit::CompileMethodsFromProfile(
+1369:      if (CompileMethodFromProfile(self,
+1486:      if (!CompileMethod(method, self, CompilationKind::kFast, /* prejit= */ false)) {
+1487:        CompileMethod(method, self, CompilationKind::kBaseline, /* prejit= */ false);
+1808:bool Jit::CompileMethod(ArtMethod* method,
+1816:  return CompileMethodInternal(method, self, compilation_kind, prejit);
+
+compiler/optimizing/optimizing_compiler.cc
+257:  bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file) const override;
+435:bool OptimizingCompiler::CanCompileMethod([[maybe_unused]] uint32_t method_idx,
+1289:  JniCompiledMethod jni_compiled_method = ArtQuickJniCompileMethod(
+1374:    JniCompiledMethod jni_compiled_method = ArtQuickJniCompileMethod(
+1443:  std::unique_ptr<FastCompiler> fast_compiler;
+1460:      fast_compiler = FastCompiler::Compile(method,
+
+compiler/optimizing/fast_compiler_arm64.cc
+122:class FastCompilerARM64 : public FastCompiler {
+124:  FastCompilerARM64(ArtMethod* method,
+237:  ~FastCompilerARM64() override {
+585:bool FastCompilerARM64::InitializeParameters() {
+671:void FastCompilerARM64::MoveConstantsAndFpusToRegisters() {
+690:void FastCompilerARM64::ResetLocations() {
+696:void FastCompilerARM64::UpdateMasks(uint32_t dex_pc) {
+708:bool FastCompilerARM64::BranchTargetIsInitialized(uint32_t dex_pc) {
+713:void FastCompilerARM64::StartBranchTarget(bool flow_continues, uint32_t dex_pc) {
+728:bool FastCompilerARM64::ProcessInstructions() {
+817:bool FastCompilerARM64::MoveLocation(Location destination,
+939:Location FastCompilerARM64::CreateNewLocation(uint32_t reg, DataType::Type type) {
+949:Location FastCompilerARM64::CreateNewRegisterLocation(uint32_t reg,
+1005:Location FastCompilerARM64::GetExistingRegisterLocation(uint32_t reg, DataType::Type type) {
+1061:void FastCompilerARM64::RecordPcInfo(uint32_t dex_pc) {
+1137:void FastCompilerARM64::PopFrameAndReturn() {
+1149:bool FastCompilerARM64::EnsureHasFrame() {
+1162:bool FastCompilerARM64::GenerateFrame() {
+1261:void FastCompilerARM64::GenerateSuspendCheck() {
+1287:bool FastCompilerARM64::SetupArguments(InvokeType invoke_type,
+1348:bool FastCompilerARM64::LoadMethod(Register reg, ArtMethod* method) {
+1357:bool FastCompilerARM64::HandleInvoke(const Instruction& instruction,
+1502:void FastCompilerARM64::InvokeRuntime(QuickEntrypointEnum entrypoint, uint32_t dex_pc) {
+1513:bool FastCompilerARM64::BuildLoadString(uint32_t vreg,
+1550:bool FastCompilerARM64::BuildLoadClass(uint32_t vreg,
+1587:bool FastCompilerARM64::BuildNewInstance(uint32_t vreg,
+1642:bool FastCompilerARM64::BuildNewArray(dex::TypeIndex type_index,
+1686:bool FastCompilerARM64::BuildNewArray(const Instruction& instruction,
+1715:bool FastCompilerARM64::BuildFilledNewArray(uint32_t dex_pc,
+1764:bool FastCompilerARM64::BuildCheckCast(uint32_t vreg, dex::TypeIndex type_index, uint32_t dex_pc) {
+1817:bool FastCompilerARM64::BuildInstanceOf(uint32_t vreg,
+1898:void FastCompilerARM64::DoReadBarrierOn(Register reg,
+1915:void FastCompilerARM64::DoWriteBarrierOn(Register holder,
+1925:bool FastCompilerARM64::CanGenerateCodeFor(ArtField* field, bool can_receiver_be_null) {
+1955:bool FastCompilerARM64::If_21_22t(const Instruction& instruction, uint32_t dex_pc) {
+2046:bool FastCompilerARM64::DoGet(const MemOperand& mem,
+2138:bool FastCompilerARM64::BuildMove(uint32_t dest_reg,
+2158:void FastCompilerARM64::SetIntConstant(uint32_t register_index,
+2180:bool FastCompilerARM64::BuildInvokeRuntime11x(QuickEntrypointEnum entrypoint,
+2197:void FastCompilerARM64::SetLongConstant(uint32_t register_index,
+2215:bool FastCompilerARM64::BuildArrayAccess(const Instruction& instruction,
+2293:bool FastCompilerARM64::BuildArrayLength(
+2323:bool FastCompilerARM64::BuildInstanceFieldGet(const Instruction& instruction,
+2373:bool FastCompilerARM64::BuildInstanceFieldSet(const Instruction& instruction,
+2420:bool FastCompilerARM64::DoPut(const MemOperand& mem,
+2529:bool FastCompilerARM64::BuildStaticFieldAccess(const Instruction& instruction,
+2592:void FastCompilerARM64::Div(Register dst, Register first, Register second, uint32_t dex_pc) {
+2600:void FastCompilerARM64::Rem(Register dst, Register first, Register second, uint32_t dex_pc) {
+2611:bool FastCompilerARM64::Frem(CPURegister dst,
+2712:bool FastCompilerARM64::BuildCompare(const Instruction& instruction, const Instruction* next) {
+2743:bool FastCompilerARM64::BuildReturn(const Instruction& instruction) {
+2755:bool FastCompilerARM64::BuildMoveResult(const Instruction& instruction,
+2779:bool FastCompilerARM64::ProcessDexInstruction(const Instruction& instruction,
+3572:bool FastCompilerARM64::Compile() {
+3646:std::unique_ptr<FastCompiler> FastCompiler::CompileARM64(
+3661:  std::unique_ptr<arm64::FastCompilerARM64> compiler(new arm64::FastCompilerARM64(
+
+runtime/deoptimization_kind.h
+25:enum class DeoptimizationKind {
+38:inline const char* GetDeoptimizationKindName(DeoptimizationKind kind) {
+40:    case DeoptimizationKind::kAotInlineCache: return "AOT inline cache";
+41:    case DeoptimizationKind::kJitInlineCache: return "JIT inline cache";
+42:    case DeoptimizationKind::kJitSameTarget: return "JIT same target";
+43:    case DeoptimizationKind::kLoopBoundsBCE: return "loop bounds check elimination";
+44:    case DeoptimizationKind::kLoopNullBCE: return "loop bounds check elimination on null";
+45:    case DeoptimizationKind::kBlockBCE: return "block bounds check elimination";
+46:    case DeoptimizationKind::kCHA: return "class hierarchy analysis";
+47:    case DeoptimizationKind::kDebugging: return "Deopt requested for debug support";
+48:    case DeoptimizationKind::kFullFrame: return "full frame";
+54:std::ostream& operator<<(std::ostream& os, const DeoptimizationKind& kind);
+
+libartbase/base/compiler_filter.h
+106:std::ostream& operator<<(std::ostream& os, const CompilerFilter::Filter& rhs);

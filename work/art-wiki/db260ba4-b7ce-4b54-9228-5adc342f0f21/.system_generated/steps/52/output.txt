@@ -1,0 +1,53 @@
+Command exited with code 0.
+
+Command output:
+runtime/thread_list.cc:776:  static bool is_user_build = (android::base::GetProperty("ro.build.type", "") == "user");
+runtime/thread.cc:4993:      if (android::base::GetIntProperty("ro.build.version.sdk", 0) <= 32) {
+runtime/interpreter/unstarted_runtime_list.h:47:  V(SystemGetProperty, "Ljava/lang/System;", "getProperty", "(Ljava/lang/String;)Ljava/lang/String;") \
+runtime/interpreter/unstarted_runtime_list.h:48:  V(SystemGetPropertyWithDefault, "Ljava/lang/System;", "getProperty", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;") \
+runtime/interpreter/unstarted_runtime.cc:988:static void GetSystemProperty(Thread* self,
+runtime/interpreter/unstarted_runtime.cc:1069:void UnstartedRuntime::UnstartedSystemGetProperty(
+runtime/interpreter/unstarted_runtime.cc:1071:  GetSystemProperty(self, shadow_frame, result, arg_offset, false);
+runtime/interpreter/unstarted_runtime.cc:1074:void UnstartedRuntime::UnstartedSystemGetPropertyWithDefault(
+runtime/interpreter/unstarted_runtime.cc:1076:  GetSystemProperty(self, shadow_frame, result, arg_offset, true);
+runtime/native/dalvik_system_VMRuntime.cc:245:  return android::base::GetIntProperty("ro.build.version.sdk",
+runtime/native/dalvik_system_VMRuntime.cc:253:  return android::base::GetIntProperty(std::string(ScopedUtfChars(env, attribute_name)),
+runtime/arch/instruction_set_features_test.cc:55:  std::string dex2oat_isa_variant = android::base::GetProperty(key, "");
+runtime/arch/instruction_set_features_test.cc:89:  std::string dex2oat_isa_variant = android::base::GetProperty(variant_key, "");
+runtime/arch/instruction_set_features_test.cc:94:    std::string dex2oat_isa_features = android::base::GetProperty(features_key, "");
+runtime/gc/collector/mark_compact.cc:77:using ::android::base::GetBoolProperty;
+runtime/gc/collector/mark_compact.cc:215:  CHECK(!called) << "GetCachedBoolProperty can be called only once";
+runtime/gc/collector/mark_compact.cc:259:static bool GetCachedBoolProperty(
+runtime/gc/collector/mark_compact.cc:282:  bool phenotype_enable = GetCachedBoolProperty(
+runtime/gc/collector/mark_compact.cc:284:  bool phenotype_force_disable = GetCachedBoolProperty(
+runtime/gc/collector/mark_compact.cc:286:  bool build_enable = GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false);
+runtime/gc/collector/mark_compact.cc:322:  return GetBoolProperty("persist.device_config.runtime_native_boot.use_generational_gc", true);
+runtime/gc/collector/mark_compact.cc:328:    android::base::GetProperty("ro.hardware.virtual_device", "") != "1" &&
+runtime/gc/collector/mark_compact.cc:329:    GetBoolProperty("persist.device_config.runtime_native_boot.use_uffd_move_ioctl", true);
+runtime/runtime.cc:295:          android::base::GetUintProperty(
+runtime/runtime.cc:1270:      android::base::GetBoolProperty("dalvik.vm.parallel-image-loading", false)) {
+runtime/runtime.cc:1565:                 android::base::GetIntProperty("ro.hw_timeout_multiplier", 1);
+runtime/trace_common.h:28:using ::android::base::GetBoolProperty;
+runtime/trace_common.h:38:  bool build_enabled = GetBoolProperty("dalvik.vm.allow_profile_code", false);
+runtime/compiler_callbacks.h:28:using ::android::base::GetBoolProperty;
+runtime/compiler_callbacks.h:89:    bool build_enabled = GetBoolProperty("dalvik.vm.allow_profile_code", false);
+runtime/runtime_test.cc:90:  bool platform_pga = android::base::GetBoolProperty("ro.product.build.no_bionic_page_size_macro",
+runtime/monitor.cc:1776:  bool enabled_for_app = android::base::GetBoolProperty("debug.art.monitor.app", false);
+compiler/driver/compiler_options_map-inl.h:34:using ::android::base::GetBoolProperty;
+compiler/driver/compiler_options_map-inl.h:170:      : GetBoolProperty("dalvik.vm.allow_profile_code", false);
+dex2oat/linker/image_test.h:58:using ::android::base::GetBoolProperty;
+dex2oat/linker/image_test.h:108:    bool build_enabled = GetBoolProperty("dalvik.vm.allow_profile_code", false);
+libartbase/arch/instruction_set.cc:78:  std::string zygote_kinds = android::base::GetProperty("ro.zygote", {});
+libartbase/base/flags_test.cc:198:TEST_F(FlagsTestsWithCmdLine, FlagsTestsGetValueSysProperty) {
+libartbase/base/common_art_test.h:353:  if (std::string build_type = android::base::GetProperty("ro.build.type", ""); \
+libartbase/base/file_utils.cc:72:using android::base::GetBoolProperty;
+libartbase/base/file_utils.cc:73:using android::base::GetProperty;
+libartbase/base/file_utils.cc:501:      GetBoolProperty("persist.device_config.runtime_native_boot.profilebootclasspath",
+libartbase/base/file_utils.cc:502:                      GetBoolProperty("dalvik.vm.profilebootclasspath", /*default_value=*/false));
+libartbase/base/file_utils.cc:503:  std::string user_defined_boot_image = GetProperty("dalvik.vm.boot-image", /*default_value=*/"");
+libartbase/base/file_utils.cc:505:      !GetBoolProperty("odsign.verification.success", /*default_value=*/false);
+libartbase/base/unix_file/fd_file.cc:61:  std::string property = android::base::GetProperty("ro.product.build.fingerprint", "");
+libartbase/base/flags.cc:129:  const std::string sysprop = ::android::base::GetProperty(system_property_name_, kUndefinedValue);
+libartbase/base/flags.cc:139:      ::android::base::GetProperty(server_setting_name_, kUndefinedValue);
+perfetto_hprof/perfetto_hprof.cc:167:  std::string build_type = android::base::GetProperty("ro.build.type", "");
+perfetto_hprof/perfetto_hprof.cc:1211:      android::base::GetUintProperty<uint32_t>("traced.oome_heap_session.count", 0);

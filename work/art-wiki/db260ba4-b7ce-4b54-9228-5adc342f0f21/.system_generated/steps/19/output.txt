@@ -1,0 +1,63 @@
+Command exited with code 0.
+
+Command output:
+build/flags/:
+总计 24
+drwxrwxr-x 2 ethen ethen 4096  4月  9  2026 .
+drwxrwxr-x 6 ethen ethen 4096  4月  9  2026 ..
+-rw-rw-r-- 1 ethen ethen 3794  4月  9  2026 Android.bp
+-rw-rw-r-- 1 ethen ethen 5566  4月  9  2026 art-flags.aconfig
+-rw-rw-r-- 1 ethen ethen 3551  4月  9  2026 art-rw-flags.aconfig
+
+dex2oat/:
+总计 564
+drwxrwxr-x  7 ethen ethen   4096  4月  9  2026 .
+drwxrwxr-x 37 ethen ethen   4096  4月  9  2026 ..
+-rw-rw-r--  1 ethen ethen  15384  4月  9  2026 Android.bp
+-rw-rw-r--  1 ethen ethen  20498  4月  9  2026 aot_class_linker.cc
+-rw-rw-r--  1 ethen ethen   8403  9月 25  2025 aot_class_linker.h
+-rw-rw-r--  1 ethen ethen   4428  9月 25  2025 art_standalone_dex2oat_cts_tests.xml
+-rw-rw-r--  1 ethen ethen   8424  4月  9  2026 art_standalone_dex2oat_tests.xml
+-rw-rw-r--  1 ethen ethen   5016  4月  9  2026 common_compiler_driver_test.cc
+-rw-rw-r--  1 ethen ethen   2063  9月 25  2025 common_compiler_driver_test.h
+-rw-rw-r--  1 ethen ethen   2785  9月 25  2025 common_transaction_test.cc
+-rw-rw-r--  1 ethen ethen   1619  9月 25  2025 common_transaction_test.h
+drwxrwxr-x  2 ethen ethen   4096  4月  9  2026 dex
+-rw-rw-r--  1 ethen ethen 130596  4月  9  2026 dex2oat.cc
+-rw-rw-r--  1 ethen ethen   3966  9月 25  2025 dex2oat_cts_test.cc
+-rw-rw-r--  1 ethen ethen  38209  4月  9  2026 dex2oat_image_test.cc
+-rw-rw-r--  1 ethen ethen  23147  9月 25  2025 dex2oat_options.cc
+-rw-rw-r--  1 ethen ethen   6308  9月 25  2025 dex2oat_options.def
+-rw-rw-r--  1 ethen ethen   3014  9月 25  2025 dex2oat_options.h
+-rw-rw-r--  1 ethen ethen  94269  4月  9  2026 dex2oat_test.cc
+-rw-rw-r--  1 ethen ethen  11894  9月 25  2025 dex2oat_vdex_test.cc
+drwxrwxr-x  2 ethen ethen   4096  4月  9  2026 driver
+drwxrwxr-x  2 ethen ethen   4096  9月 25  2025 interpreter
+drwxrwxr-x  7 ethen ethen   4096  4月  9  2026 linker
+-rw-rw-r--  1 ethen ethen   4667  9月 25  2025 sdk_checker.cc
+-rw-rw-r--  1 ethen ethen   2801  9月 25  2025 sdk_checker.h
+-rw-rw-r--  1 ethen ethen  28882  9月 25  2025 transaction.cc
+-rw-rw-r--  1 ethen ethen  13597  9月 25  2025 transaction.h
+-rw-rw-r--  1 ethen ethen  40038  9月 25  2025 transaction_test.cc
+drwxrwxr-x  2 ethen ethen   4096  9月 25  2025 utils
+-rw-rw-r--  1 ethen ethen  25925  9月 25  2025 verifier_deps_test.cc
+dex2oat/dex2oat_test.cc:998:class Dex2oatWatchdogTest : public Dex2oatTest {
+dex2oat/dex2oat_test.cc:1018:TEST_F(Dex2oatWatchdogTest, TestWatchdogOK) {
+dex2oat/dex2oat_test.cc:1026:TEST_F(Dex2oatWatchdogTest, TestWatchdogTrigger) {
+dex2oat/dex2oat_options.def:54:DEX2OAT_OPTIONS_KEY (bool,                           Watchdog)
+dex2oat/dex2oat_options.def:55:DEX2OAT_OPTIONS_KEY (int,                            WatchdogTimeout)
+dex2oat/dex2oat.cc:337:  static constexpr int64_t kWatchdogVerifyMultiplier =
+dex2oat/dex2oat.cc:342:  static constexpr int64_t kWatchdogSlowdownFactor = kIsDebugBuild ? 5U : 1U;
+dex2oat/dex2oat.cc:347:  static constexpr int64_t kWatchDogTimeoutSeconds = kWatchdogSlowdownFactor * (9 * 60 + 30);
+dex2oat/dex2oat.cc:349:  static constexpr int64_t kDefaultWatchdogTimeoutInMS =
+dex2oat/dex2oat.cc:350:      kWatchdogVerifyMultiplier * kWatchDogTimeoutSeconds * 1000;
+dex2oat/dex2oat.cc:372:      runtime->AttachCurrentThread("Watchdog thread attached for dumping",
+dex2oat/dex2oat.cc:878:                            : WatchDog::kDefaultWatchdogTimeoutInMS;
+dex2oat/dex2oat.cc:1090:    AssignIfExists(args, M::Watchdog, &parser_options->watch_dog_enabled);
+dex2oat/dex2oat.cc:1091:    AssignIfExists(args, M::WatchdogTimeout, &parser_options->watch_dog_timeout_in_ms);
+dex2oat/dex2oat_options.cc:320:          .IntoKey(M::Watchdog)
+dex2oat/dex2oat_options.cc:324:          .IntoKey(M::WatchdogTimeout)
+runtime/monitor_test.cc:221:class WatchdogTask : public Task {
+runtime/monitor_test.cc:223:  explicit WatchdogTask(MonitorTest* monitor_test) : monitor_test_(monitor_test) {}
+runtime/monitor_test.cc:238:      LOG(FATAL) << "Watchdog timeout!";
+runtime/monitor_test.cc:288:  thread_pool->AddTask(self, new WatchdogTask(test));

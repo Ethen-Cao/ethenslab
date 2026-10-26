@@ -1,0 +1,78 @@
+Command exited with code 0.
+
+Command output:
+artd/README.md
+artd/path_utils.h
+artd/path_utils_test.cc
+artd/art_standalone_artd_tests.xml
+artd/artd.cc
+artd/artd_fuzzer.cc
+artd/tests/src/com/android/art/ArtdIntegrationTests.java
+artd/tests/src/UpdateApplication.java
+artd/tests/AndroidTest.xml
+artd/tests/AndroidManifest.xml
+artd/tests/Android.bp
+artd/file_utils_test.cc
+artd/file_utils.h
+artd/binder/Android.bp
+artd/binder/com/android/server/art/ArtifactsLocation.aidl
+artd/binder/com/android/server/art/DexoptOptions.aidl
+artd/binder/com/android/server/art/ArtifactsPath.aidl
+artd/binder/com/android/server/art/OutputSecureDexMetadataCompanion.aidl
+artd/binder/com/android/server/art/CopyAndRewriteProfileResult.aidl
+artd/binder/com/android/server/art/OutputProfile.aidl
+artd/binder/com/android/server/art/RuntimeArtifactsPath.aidl
+artd/binder/com/android/server/art/ArtConstants.aidl
+artd/binder/com/android/server/art/IArtd.aidl
+artd/binder/com/android/server/art/GetDexoptStatusResult.aidl
+artd/binder/com/android/server/art/SecureDexMetadataWithCompanionPaths.aidl
+artd/binder/com/android/server/art/DexMetadataPath.aidl
+artd/binder/com/android/server/art/IArtdCancellationSignal.aidl
+artd/binder/com/android/server/art/ProfilePath.aidl
+artd/binder/com/android/server/art/IArtdNotification.aidl
+artd/binder/com/android/server/art/FsPermission.aidl
+artd/binder/com/android/server/art/OutputArtifacts.aidl
+artd/binder/com/android/server/art/FileVisibility.aidl
+artd/binder/com/android/server/art/PreRebootStagedFilesStatus.aidl
+artd/binder/com/android/server/art/GetDexoptNeededResult.aidl
+artd/binder/com/android/server/art/DexoptTrigger.aidl
+artd/binder/com/android/server/art/VdexPath.aidl
+artd/binder/com/android/server/art/MergeProfileOptions.aidl
+artd/binder/com/android/server/art/PriorityClass.aidl
+artd/binder/com/android/server/art/ArtdDexoptResult.aidl
+artd/Android.bp
+artd/artd_test.cc
+artd/artd.h
+artd/file_utils.cc
+artd/artd_main.cc
+artd/path_utils.cc
+artd/testing.h
+package com.voyah.update;
+
+import android.app.Application;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.os.UserHandle;
+
+public class UpdateApplication extends Application {
+    private static final String TAG = "Application";
+    public static final String PKGNAME = "com.voyah.update";
+    private static final String UPDATE_SERVICE = "com.voyah.update.service.UpdateService";
+
+    private static Context sGlobalContext;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        sGlobalContext = getApplicationContext();
+        startUpdateService();
+    }
+
+    private void startUpdateService() {
+        Intent intent = new Intent();
+        intent.setComponent(new ComponentName(PKGNAME, UPDATE_SERVICE));
+        sGlobalContext.startServiceAsUser(intent, UserHandle.SYSTEM);
+    }
+}
+artd/tests/src/UpdateApplication.java
