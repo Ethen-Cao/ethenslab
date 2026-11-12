@@ -1,0 +1,222 @@
+[
+ {
+  "id": "Task 01",
+  "name": "混合执行引擎与分层编译机制",
+  "wiki": "`01-tiered-execution-and-jit-aot.md`",
+  "scope": [
+   "compiler/optimizing/escape.cc",
+   "compiler/optimizing/fast_compiler_arm64.cc",
+   "compiler/optimizing/optimizing_compiler.cc",
+   "runtime/cha.cc",
+   "runtime/interpreter/mterp/arm64ng/",
+   "runtime/interpreter/mterp/nterp.cc",
+   "runtime/jit/jit.cc",
+   "runtime/jit/jit_code_cache.cc"
+  ],
+  "points": "Nterp 零转换栈帧设计、热度阈值递减、ARM64 快速基线编译器、基于 Inline Cache 与 CHA 的激进内联/去虚化/逃逸分析、OSR 栈上替换与反优化回退；指导编译过滤器选型与 CPU 热点优化。"
+ },
+ {
+  "id": "Task 02",
+  "name": "PGO 热点画像采集与编译治理闭环",
+  "wiki": "`02-pgo-profile-and-dexopt-pipeline.md`",
+  "scope": [
+   "artd/artd.cc",
+   "libartservice/service/java/com/android/server/art/ArtManagerLocal.java",
+   "libartservice/service/java/com/android/server/art/BackgroundDexoptJob.java",
+   "libartservice/service/java/com/android/server/art/PreRebootDexoptJob.java",
+   "profman/profile_assistant.cc",
+   "runtime/jit/profile_saver.cc"
+  ],
+  "points": "`.cur.prof` 采样条件、`profman` 增量合并阈值、`.dm`/`.sdm` 预置画像、`artd` 守护进程、闲时 `bg-dexopt` 与 OTA 重启前 chroot 预编译；指导车机核心应用 Baseline Profile 固化与 OTA 后防卡顿。"
+ },
+ {
+  "id": "Task 03",
+  "name": "App 启动加速与类/镜像预热机制",
+  "wiki": "`03-app-startup-and-image-caching.md`",
+  "scope": [
+   "runtime/class_linker.cc",
+   "runtime/gc/space/image_space.cc",
+   "runtime/native/dalvik_system_ZygoteHooks.cc",
+   "runtime/runtime_image.cc",
+   "runtime/startup_completed_task.cc"
+  ],
+  "points": "BootImage / JitZygote 共享内存、编译期 `.art` AppImage 与运行期自动生成 `RuntimeImage`、启动期专属 `LinearAlloc` 回收、并行镜像加载与 `madvise` 预读；指导车机大应用冷启动耗时拆解与优化。"
+ },
+ {
+  "id": "Task 04",
+  "name": "高性能 JNI 跨界调用优化机制",
+  "wiki": "`04-fast-jni-transition-optimization.md`",
+  "scope": [
+   "compiler/jni/quick/",
+   "runtime/entrypoints/quick/quick_jni_entrypoints.cc",
+   "runtime/jni/jni_internal.cc",
+   "runtime/native/scoped_fast_native_object_access-inl.h"
+  ],
+  "points": "标准 JNI 跨界状态切换（`kRunnable` ↔ `kNative`）与句柄包装开销，`@FastNative` 与 `@CriticalNative` 机器码 Stub 加速原理及死锁/挂起超时风险边界；指导高频车载信号/图形/音频 JNI 接口优化。"
+ },
+ {
+  "id": "Task 05",
+  "name": "并发垃圾回收与亚毫秒级 STW 机制",
+  "wiki": "`05-concurrent-gc-cmc-and-cc.md`",
+  "scope": [
+   "runtime/gc/collector/concurrent_copying.cc",
+   "runtime/gc/collector/garbage_collector.cc",
+   "runtime/gc/collector/mark_compact.cc",
+   "runtime/gc/heap.cc",
+   "runtime/read_barrier-inl.h"
+  ],
+  "points": "TLAB 无锁分配、分代 `MarkCompact`（基于 `userfaultfd` 消除读屏障并原地压缩抗碎片）对比 `ConcurrentCopying`、`ScopedPause` STW 控制、前后台 `ProcessState` 堆增长策略与时间驱动 GC；指导内存与掉帧平衡调优。"
+ },
+ {
+  "id": "Task 06",
+  "name": "Native 内存压力联动与引用处理防卡顿",
+  "wiki": "`06-native-gc-trigger-and-ref-processing.md`",
+  "scope": [
+   "runtime/gc/heap.cc",
+   "runtime/gc/reference_processor.cc",
+   "runtime/native_gc_triggering.md",
+   "runtime/reference_processing_jank.md"
+  ],
+  "points": "`NativeAllocationRegistry` + `mallinfo` 的 `gc_urgency` 水位计算与 20 轮睡眠节流、后台 `Heap::Trim` 物理页释放、`ReferenceProcessor` 并发状态机与 `FinalizerReference` 阻塞根因；指导 Native 内存暴涨与弱引用卡顿治理。"
+ },
+ {
+  "id": "Task 07",
+  "name": "Java 锁膨胀状态机与优先级防反转机制",
+  "wiki": "`07-monitor-lock-inflation-and-priority.md`",
+  "scope": [
+   "runtime/base/mutex.cc",
+   "runtime/lock_word.h",
+   "runtime/monitor.cc",
+   "runtime/monitor_inflation.md",
+   "runtime/scoped_thread_priority_change.cc",
+   "runtime/thread_priorities.md"
+  ],
+  "points": "32 位 `LockWord` 布局、Thin Lock 自旋/让出与挂起膨胀为 Fat `Monitor`、GC 锁收缩、`futex` 等待队列、三层线程优先级映射与 `ScopedPriorityChange` 临时提权；指导高并发锁设计与 RT 线程避坑。"
+ },
+ {
+  "id": "Task 08",
+  "name": "ART 运行时与编译服务遥测指标体系",
+  "wiki": "`08-art-telemetry-metrics-and-statsd.md`",
+  "scope": [
+   "libartbase/base/flags.h",
+   "libartbase/base/metrics/metrics.h",
+   "libartservice/service/java/com/android/server/art/Dex2OatStatsReporter.java",
+   "libartservice/service/java/com/android/server/art/DexUseManagerLocal.java",
+   "odrefresh/odr_metrics.h",
+   "runtime/metrics/reporter.cc",
+   "runtime/metrics/statsd.cc",
+   "runtime/native/dalvik_system_VMDebug.cc"
+  ],
+  "points": "48 项 `ArtMetrics` 采集点与抽样上报策略、`Debug.getRuntimeStat()` 进程内线上自监控（含 `pre-oome-gc-count`）、Dex2Oat/BgDexopt/PreReboot/Odrefresh 全链路遥测及插件 Dex 监控；支撑车机云端 APM 大盘建设。"
+ },
+ {
+  "id": "Task 09",
+  "name": "GC 与锁竞争卡顿实时监测体系",
+  "wiki": "`09-gc-and-lock-jank-observability.md`",
+  "scope": [
+   "runtime/base/mutex.cc",
+   "runtime/base/timing_logger.cc",
+   "runtime/gc/heap.cc",
+   "runtime/monitor.cc",
+   "runtime/monitor_android.cc"
+  ],
+  "points": "5ms STW / 100ms 慢 GC / 10ms 弱引用告警、Systrace 阶段切片与 `Majflt-GC` 主缺页计数器；`dvm_lock_sample` 概率采样、双栈同步 Checkpoint 转储以及 `MonitorTimeoutEnable`（`PerfMonitor`）阻塞中实时抓栈；支撑掉帧与假死定位。"
+ },
+ {
+  "id": "Task 10",
+  "name": "方法追踪、低开销环形缓冲与符号桥接",
+  "wiki": "`10-method-tracing-and-cpu-profiling.md`",
+  "scope": [
+   "openjdkjvmti/events.h",
+   "runtime/instrumentation.cc",
+   "runtime/jit/debugger_interface.cc",
+   "runtime/trace.cc",
+   "runtime/trace_profile.cc"
+  ],
+  "points": "全量插桩/采样 `Trace`、编译内联 2048 槽环形缓冲 `TraceProfiler`（捕获 `>341ms` 长方法）、`__jit_debug_register_code` Seqlock 内存 ELF 符号表、可执行方法文件偏移（eBPF `uprobe`）及 JVMTI 剖析扩展；指导生产级低开销 CPU 剖析。"
+ },
+ {
+  "id": "Task 11",
+  "name": "Java 堆采样剖析与双 Fork 快照机制",
+  "wiki": "`11-java-heap-sampling-and-hprof.md`",
+  "scope": [
+   "perfetto_hprof/perfetto_hprof.cc",
+   "runtime/gc/allocation_record.cc",
+   "runtime/hprof/hprof.cc",
+   "runtime/javaheapprof/javaheapsampler.cc"
+  ],
+  "points": "`HeapSampler` 泊松指数分布收缩 TLAB 对接 `heapprofd`、信号 `__SIGRTMIN + 6` 触发 `perfetto_hprof` 双 `fork` 写时复制毫秒级无感抓堆（含 120s 看门狗与 `smaps`）、对比同步 `hprof::DumpHeap`；指导长稳运行内存泄漏排查。"
+ },
+ {
+  "id": "Task 12",
+  "name": "ANR 全景诊断转储与 Pre-ANR 录制机制",
+  "wiki": "`12-anr-sigquit-dump-and-diagnostics.md`",
+  "scope": [
+   "libartbase/base/debugstore.h",
+   "runtime/native_stack_dump.cc",
+   "runtime/runtime.cc",
+   "runtime/signal_catcher.cc",
+   "runtime/thread.h",
+   "runtime/thread_list.cc"
+  ],
+  "points": "`sigqueue(SIGUSR1)` 预触发 `TraceProfiler` 抓取 ANR 前慢方法、`SIGQUIT` 并发 `DumpCheckpoint`、`kMain -> kBlocked -> kLocked -> kDefault` 防截断排序、`DebugStore` 与全维状态快照；提供深度解读 ANR Trace 的权威手册。"
+ },
+ {
+  "id": "Task 13",
+  "name": "线程安全点挂起机制与超时精准看门狗",
+  "wiki": "`13-thread-suspension-and-watchdog.md`",
+  "scope": [
+   "runtime/mutator_gc_coord.md",
+   "runtime/thread.cc",
+   "runtime/thread_list.cc",
+   "runtime/thread_suspension_timeouts.md"
+  ],
+  "points": "`mutator_lock_` 读写锁与协作式安全点/隐式挂起触发页、4 阶段 `WaitForSuspendBarrier` 超时与动态豁免策略、`/proc/<tid>/stat` + 磁盘状态采集及 `AbortInThis` 定向击杀肇事线程；解决线上 `SuspendAll timeout` 疑难崩溃。"
+ },
+ {
+  "id": "Task 14",
+  "name": "硬件异常拦截与 Native Crash 信号链",
+  "wiki": "`14-signal-chaining-and-fault-handler.md`",
+  "scope": [
+   "runtime/arch/arm64/fault_handler_arm64.cc",
+   "runtime/fault_handler.cc",
+   "runtime/fault_handler.h",
+   "sigchainlib/sigchain.cc"
+  ],
+  "points": "`libsigchain` 符号劫持保障信号链顺序、`FaultManager` 将受管代码 `SIGSEGV`/`SIGBUS` 转为隐式 `NPE`/`StackOverflowError`/挂起或 `userfaultfd` 缺页，并将真实 Native 崩溃（含 MTE）透传 `debuggerd`；指导 Native Crash 捕集 SDK 集成避坑。"
+ },
+ {
+  "id": "Task 15",
+  "name": "CheckJNI、引用表防漏与堆踩踏取证",
+  "wiki": "`15-checkjni-ref-leak-and-heap-verify.md`",
+  "scope": [
+   "runtime/gc/verification.cc",
+   "runtime/jni/check_jni.cc",
+   "runtime/jni/indirect_reference_table.cc",
+   "runtime/jni/java_vm_ext.cc",
+   "runtime/verify_object.cc"
+  ],
+  "points": "`CheckJNI` 契约校验与 `>16ms` Critical 慢锁告警、Local/Global/WeakGlobal 溢出直方图与 `-XX:GlobalRefAllocStackTraceLimit` 泄漏栈记录、`Verification::LogHeapCorruption` 野指针内存踩踏邻近 RAM Hex Dump 取证；指导 JNI 稳定性治理。"
+ },
+ {
+  "id": "Task 16",
+  "name": "OOM 抓堆、校验、API 管控与防变砖看门狗",
+  "wiki": "`16-oom-verifier-hiddenapi-and-watchdogs.md`",
+  "scope": [
+   "dex2oat/dex2oat.cc",
+   "odrefresh/odr_compilation_log.cc",
+   "perfetto_hprof/perfetto_hprof.cc",
+   "runtime/gc/heap.cc",
+   "runtime/hidden_api.cc",
+   "runtime/verifier/method_verifier.cc"
+  ],
+  "points": "OOM 前 5 轮晋升回收、防颠簸放弃机制与 `\"android.java_hprof.oom\"` 阻塞抓堆、`MethodVerifier` 字节码安全与慢校验日志、`hidden_api`/DCL 管控、`dex2oat` 9.5 分钟自杀看门狗与 `odrefresh` 指数退避防无限重启；全面覆盖系统级兜底防线。"
+ },
+ {
+  "id": "Task 17",
+  "name": "知识库总入口 README 与全量质量校验",
+  "wiki": "README.md",
+  "scope": [],
+  "points": "全景架构图、16 篇导航矩阵、全局属性/参数总表、症状→机制决策树；运行质量门校验全部 17 份文档"
+ }
+]
