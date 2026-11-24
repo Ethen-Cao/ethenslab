@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>网络 on Ethen 的实验室</title><link>https://ethen-cao.github.io/ethenslab/android-dev/network/</link><description>Recent content in 网络 on Ethen 的实验室</description><generator>Hugo</generator><language>en</language><lastBuildDate>Wed, 11 Nov 2026 17:40:00 +0800</lastBuildDate><atom:link href="https://ethen-cao.github.io/ethenslab/android-dev/network/index.xml" rel="self" type="application/rss+xml"/><item><title>Android 16 网络流量计量：eBPF 计费机制与平台落地</title><link>https://ethen-cao.github.io/ethenslab/android-dev/network/android16-network-traffic-accounting/</link><pubDate>Wed, 11 Nov 2026 17:40:00 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/network/android16-network-traffic-accounting/</guid><description>&lt;p&gt;Android 16 的流量计量已经完全不依赖 iptables 或 &lt;code&gt;/proc/net/xt_qtaguid&lt;/code&gt;，而是由 &lt;strong&gt;cgroup v2 + eBPF&lt;/strong&gt; 在内核 socket/IP 层完成逐包归属，再由 &lt;code&gt;netd&lt;/code&gt; 与 &lt;code&gt;NetworkStatsService&lt;/code&gt; 换图读取、按时间桶持久化，最终通过 &lt;code&gt;TrafficStats&lt;/code&gt;、&lt;code&gt;NetworkStatsManager&lt;/code&gt; 和 &lt;code&gt;dumpsys netstats&lt;/code&gt; 对外提供数据。&lt;/p&gt;
+&lt;p&gt;本文以 Android 16（25Q4，API 36）源码基线为主，说明这套机制的挂载点、统计维度、数据通路、权限模型和常见坑，并在最后一节给出平台侧的落地与验证方法。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id="0-摘要tldr"&gt;0. 摘要（TL;DR）&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Android 16 的流量计量不是 iptables 规则计数，也不是旧的 &lt;code&gt;/proc/net/xt_qtaguid&lt;/code&gt;，而是 &lt;strong&gt;cgroup v2 + eBPF&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;内核在 cgroup 的 IP 出入口挂两个 &lt;code&gt;BPF_PROG_TYPE_CGROUP_SKB&lt;/code&gt; 程序；每个 skb 经过时，按 &lt;strong&gt;socket 的 UID&lt;/strong&gt; 把 &lt;code&gt;{rx/tx bytes, packets}&lt;/code&gt; 累加到 BPF hash map。&lt;/li&gt;
+&lt;li&gt;统计维度是 &lt;strong&gt;UID + 接口 + tag + counterSet（前台/后台）+ 方向&lt;/strong&gt;；&lt;strong&gt;没有 PID&lt;/strong&gt;，所以能到「应用/UID」，不能直接到「进程」。&lt;/li&gt;
+&lt;li&gt;用户态由 &lt;strong&gt;netbpfload/netd + NetworkStatsService&lt;/strong&gt; 完成加载、挂载、换图、读取、2 小时桶持久化；对外暴露 &lt;code&gt;TrafficStats&lt;/code&gt;、&lt;code&gt;NetworkStatsManager&lt;/code&gt;、&lt;code&gt;dumpsys netstats&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;关键设计是 &lt;strong&gt;A/B 双缓冲 + &lt;code&gt;synchronize_rcu&lt;/code&gt;&lt;/strong&gt;：读旧图、写新图，避免清图时丢包。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id="1-背景与演进"&gt;1. 背景与演进&lt;/h2&gt;
+&lt;h3 id="11-为什么需要内核级计量"&gt;1.1 为什么需要内核级计量&lt;/h3&gt;
+&lt;p&gt;应用层无法可靠统计流量：进程可能崩溃、绕过 Java 层、使用 native socket、共享 socket、或通过代理转发。Android 需要在&lt;strong&gt;内核 socket/IP 层&lt;/strong&gt;对每个包做归属判定，才能覆盖 Java 应用、native daemon、系统服务，并支撑流量套餐、后台限制、流量看板等能力。&lt;/p&gt;</description></item></channel></rss>

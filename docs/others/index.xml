@@ -166,7 +166,24 @@ component &amp;#34;Camera HAL&amp;#34;
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;[01] &lt;code&gt;repo sync&lt;/code&gt; 同步所有源码&lt;/strong&gt;:&lt;/p&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/polarisd%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/polarisd%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/</guid><description>&lt;h1 id="polarisd-架构设计文档-v10"&gt;polarisd 架构设计文档 (v1.0)&lt;/h1&gt;
+&lt;p&gt;&lt;strong&gt;[01] &lt;code&gt;repo sync&lt;/code&gt; 同步所有源码&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;技术原理&lt;/strong&gt;: &lt;code&gt;repo&lt;/code&gt; 工具解析 &lt;code&gt;manifest.xml&lt;/code&gt; 文件，然后以极高的并发度（可配置）为每个 &lt;code&gt;&amp;lt;project&amp;gt;&lt;/code&gt; 执行 &lt;code&gt;git clone&lt;/code&gt; 或 &lt;code&gt;git fetch&lt;/code&gt; 操作。在我们的流程中，所有 Git 仓库都由 &lt;strong&gt;Gerrit&lt;/strong&gt; 管理。Gerrit 在这里不仅是代码审查工具，也扮演着所有 Git 仓库的智能代理，负责所有 Git 操作的认证和权限控制。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;[02] &lt;code&gt;repo start &amp;amp; git commit&lt;/code&gt; 本地开发&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;技术原理&lt;/strong&gt;: &lt;code&gt;repo start &amp;lt;branch_name&amp;gt; .&lt;/code&gt; 是一个便捷命令，它会为清单中定义的所有项目统一创建一个同名的本地开发分支。开发者完成代码修改后，执行 &lt;code&gt;git commit&lt;/code&gt;。一个关键的技术点是，&lt;code&gt;repo init&lt;/code&gt; 时会自动在每个 Git 仓库的 &lt;code&gt;.git/hooks/&lt;/code&gt; 目录下安装一个 &lt;code&gt;commit-msg&lt;/code&gt; 钩子。此钩子会在每次提交时自动生成一个唯一的 &lt;code&gt;Change-Id&lt;/code&gt;，Gerrit 依靠此 ID 来跟踪同一次代码提交的多个不同版本（Patchset）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;[03] &lt;code&gt;repo upload&lt;/code&gt; 提交代码审核&lt;/strong&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;技术原理&lt;/strong&gt;: 这是连接本地开发与CI流程的关键。&lt;code&gt;repo upload&lt;/code&gt; 会扫描本地分支上所有已提交但尚未上传的 commit，并将它们推送到 Gerrit 一个特殊的 Git 引用（Ref）上：&lt;code&gt;refs/for/&amp;lt;target_branch&amp;gt;&lt;/code&gt;。例如，推送到 &lt;code&gt;develop&lt;/code&gt; 分支进行审核，实际推送的地址是 &lt;code&gt;refs/for/develop&lt;/code&gt;。Gerrit 监听到这个特殊引用上有推送时，不会直接合并代码，而是将其转化为一个可供审查的变更（Change）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title/><link>https://ethen-cao.github.io/ethenslab/others/polarisd%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://ethen-cao.github.io/ethenslab/others/polarisd%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/</guid><description>&lt;h1 id="polarisd-架构设计文档-v10"&gt;polarisd 架构设计文档 (v1.0)&lt;/h1&gt;
 &lt;p&gt;&lt;strong&gt;版本&lt;/strong&gt;: v1.0
 &lt;strong&gt;日期&lt;/strong&gt;: 2026-03-03
 &lt;strong&gt;状态&lt;/strong&gt;: &lt;strong&gt;Draft&lt;/strong&gt;&lt;/p&gt;

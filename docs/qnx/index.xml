@@ -65,7 +65,8 @@ fitSlide();
 → QNX Host io-pkt 中的 vdevpeer
 → bridge / route / VLAN
 → 物理网卡驱动
-→ T-Box / 外部网络&lt;/p&gt;</description></item><item><title>build.py 技术原理详解</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid><description>&lt;h2 id="buildpy-技术原理详解"&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
+→ T-Box / 外部网络&lt;/p&gt;
+&lt;/blockquote&gt;</description></item><item><title>build.py 技术原理详解</title><link>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</link><pubDate>Mon, 22 Sep 2025 12:11:50 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/qualcomm_build.py/</guid><description>&lt;h2 id="buildpy-技术原理详解"&gt;&lt;code&gt;build.py&lt;/code&gt; 技术原理详解&lt;/h2&gt;
 &lt;h3 id="核心定位声明式构建的执行引擎"&gt;核心定位：声明式构建的执行引擎&lt;/h3&gt;
 &lt;p&gt;&lt;code&gt;build.py&lt;/code&gt; 脚本是高通平台 Meta-Build 系统的核心&lt;strong&gt;自动化执行引擎&lt;/strong&gt;。它本身不包含具体的构建逻辑（如编译哪个文件、打包哪些固件），而是作为一个通用的&lt;strong&gt;任务调度器和执行器&lt;/strong&gt;。&lt;/p&gt;
 &lt;p&gt;它的核心设计哲学是&lt;strong&gt;声明式驱动&lt;/strong&gt;：开发者在 &lt;code&gt;contents.xml&lt;/code&gt; 文件中以声明的方式（“我需要什么”）定义好所有的构建需求，而 &lt;code&gt;build.py&lt;/code&gt; 脚本则负责读取这份“蓝图”，并将其转化为一系列实际的文件操作和命令执行，最终完成复杂的打包任务。&lt;/p&gt;
@@ -181,7 +182,7 @@ fitSlide();
 &lt;/table&gt;
 &lt;hr&gt;
 &lt;h3 id="3-标签与属性详解"&gt;3. 标签与属性详解&lt;/h3&gt;
-&lt;h4 id="31"&gt;&lt;strong&gt;3.1 &lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="31-product_flavors-区域"&gt;&lt;strong&gt;3.1 &lt;code&gt;&amp;lt;product_flavors&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;此区域用于定义不同的产品形态。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;&amp;lt;product_flavors cmm_pf_var=&amp;quot;...&amp;quot;&amp;gt;&lt;/code&gt;&lt;/strong&gt;
@@ -191,7 +192,7 @@ fitSlide();
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id="32"&gt;&lt;strong&gt;3.2 &lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="32-product_info-区域"&gt;&lt;strong&gt;3.2 &lt;code&gt;&amp;lt;product_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;此区域提供构建的元数据信息。&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;&amp;lt;chipid flavor=&amp;quot;...&amp;quot; cmm_var=&amp;quot;...&amp;quot;&amp;gt;&lt;/code&gt;&lt;/strong&gt;
@@ -203,7 +204,7 @@ fitSlide();
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;h4 id="33"&gt;&lt;strong&gt;3.3 &lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
+&lt;h4 id="33-partition_info-区域"&gt;&lt;strong&gt;3.3 &lt;code&gt;&amp;lt;partition_info&amp;gt;&lt;/code&gt; 区域&lt;/strong&gt;&lt;/h4&gt;
 &lt;p&gt;此区域定义与分区操作相关的信息。&lt;/p&gt;</description></item><item><title>QNX/Android Rawdump 机制完全原理解析</title><link>https://ethen-cao.github.io/ethenslab/qnx/log_collector/</link><pubDate>Thu, 28 Aug 2025 16:25:03 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/qnx/log_collector/</guid><description>&lt;p&gt;本文档基于系统源码（QNX/Android/Bootloader）及实际配置分析，详细阐述了智能座舱系统中的内存转储（Crash Dump）机制。&lt;/p&gt;
 &lt;h2 id="1-全系统生命周期与时序总览"&gt;1. 全系统生命周期与时序总览&lt;/h2&gt;
 &lt;p&gt;此图描述了从系统启动注册、模式配置，到发生崩溃（分两种场景），最后到重启提取的完整闭环流程。&lt;/p&gt;

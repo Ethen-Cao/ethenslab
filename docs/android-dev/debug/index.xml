@@ -109,7 +109,22 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;日誌讀取與解析路徑 (Read &amp;amp; Parse Path)&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>Protocol Buffers (Protobuf) 技术指南</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;日誌讀取與解析路徑 (Read &amp;amp; Parse Path)&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;客戶端請求&lt;/strong&gt;: 當您執行 &lt;code&gt;adb logcat -b events&lt;/code&gt; 時，&lt;code&gt;logcat&lt;/code&gt; 進程會連接到 &lt;code&gt;/dev/socket/logdr&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;通信接口&lt;/strong&gt;: &lt;code&gt;logcat&lt;/code&gt; 向 &lt;code&gt;logd&lt;/code&gt; 發送指令，要求讀取 &lt;code&gt;events&lt;/code&gt; 緩衝區的內容。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;數據回傳&lt;/strong&gt;: &lt;code&gt;logd&lt;/code&gt; 的 &lt;code&gt;Command Listener&lt;/code&gt; 收到指令後，從 &lt;code&gt;Ring Buffers&lt;/code&gt; 中提取 &lt;code&gt;events&lt;/code&gt; 的二進位日誌數據，並通過同一個 Socket 流式傳回給 &lt;code&gt;logcat&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;解析與翻譯 (關鍵步驟)&lt;/strong&gt;:
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;logcat&lt;/code&gt; 收到的是純二進位數據流。&lt;/li&gt;
+&lt;li&gt;為了將其變為可讀文本，&lt;code&gt;logcat&lt;/code&gt; 會打開並解析 &lt;code&gt;/system/etc/event-log-tags&lt;/code&gt; 文件。&lt;/li&gt;
+&lt;li&gt;該文件定義了整數 &lt;code&gt;tag&lt;/code&gt; 與其對應的事件名稱、參數類型的映射關係。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;logcat&lt;/code&gt; 利用這個映射表，將二進位流 &amp;ldquo;翻譯&amp;rdquo; 成我們在終端機上看到的人類可讀的格式，然後輸出。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;</description></item><item><title>Protocol Buffers (Protobuf) 技术指南</title><link>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</link><pubDate>Wed, 27 Aug 2025 11:36:11 +0800</pubDate><guid>https://ethen-cao.github.io/ethenslab/android-dev/debug/protocol_buffers/</guid><description>&lt;h2 id="1-简介"&gt;1. 简介&lt;/h2&gt;
 &lt;p&gt;&lt;strong&gt;Protocol Buffers&lt;/strong&gt; (简称 Protobuf) 是 Google 开发的一种语言无关、平台无关、可扩展的&lt;strong&gt;序列化结构数据&lt;/strong&gt;的机制。&lt;/p&gt;
 &lt;p&gt;相比于 XML 和 JSON，Protobuf 的主要特点是：&lt;/p&gt;
 &lt;ul&gt;

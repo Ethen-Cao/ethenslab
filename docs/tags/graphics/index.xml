@@ -67,4 +67,15 @@ fitSlide();
 &lt;h3 id="录制与同步-record--sync"&gt;&lt;strong&gt;录制与同步 (Record &amp;amp; Sync)&lt;/strong&gt;&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;
-&lt;p&gt;&lt;strong&gt;View / Canvas (RecordingCanvas)&lt;/strong&gt;：&lt;/p&gt;</description></item></channel></rss>
+&lt;p&gt;&lt;strong&gt;View / Canvas (RecordingCanvas)&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;当 &lt;code&gt;onDraw()&lt;/code&gt; 被调用时，Canvas 实际上是一个&lt;strong&gt;指令录制器&lt;/strong&gt;。开发者调用的 &lt;code&gt;drawRect&lt;/code&gt; 等 API 并没有产生像素，而是生成了 &lt;strong&gt;RenderNode&lt;/strong&gt; 中的绘图指令（DisplayList Ops）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;ThreadedRenderer&lt;/strong&gt;：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;负责将 UI 线程录制好的 RenderNode 数据，通过 &lt;strong&gt;SyncFrame&lt;/strong&gt; 机制同步给 Native 层的渲染线程 (&lt;code&gt;RenderThread&lt;/code&gt;)。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;</description></item></channel></rss>
